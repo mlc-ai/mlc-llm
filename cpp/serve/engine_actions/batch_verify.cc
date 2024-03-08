@@ -89,7 +89,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify embedding");
-    NDArray embeddings = models_[verify_model_id_]->TokenEmbed(
+    ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
         {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
@@ -112,11 +112,11 @@ class BatchVerifyActionObj : public EngineActionObj {
                                           request_ids, &cum_verify_lengths, &draft_output_tokens);
 
     // - Compute probability distributions.
-    NDArray probs_device = logit_processor_->ComputeProbsFromLogits(
+    NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
 
     std::vector<std::vector<SampleResult>> sample_results_arr = sampler_->BatchVerifyDraftTokens(
-        probs_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
+        probs_on_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
         draft_output_prob_dist);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 

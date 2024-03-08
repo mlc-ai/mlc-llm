@@ -2,6 +2,7 @@
 This file specifies how MLC's GPTBigCode parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
+
 import functools
 
 from mlc_chat.loader import ExternMapping

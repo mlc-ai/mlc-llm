@@ -31,7 +31,7 @@ struct TokenAndId {
  * into three categories: accepted, rejected, and uncertain.
  * \note Since the union of these three sets is the whole token set, we only need to store the
  * smaller two sets. The unsaved set is specified by not_saved_index.
- * \note These indices are the indices of tokens_sorted_by_codepoint in the GrammarStateInitContext
+ * \note These indices are the indices of sorted_token_codepoints in the GrammarStateInitContext
  * object, instead of the token ids. That helps the matching process.
  */
 struct CatagorizedTokens {
@@ -59,11 +59,12 @@ class GrammarStateInitContext {
 
   /*! \brief The vocabulary size of the tokenizer. */
   size_t vocab_size;
-  /*! \brief The sorted token and its id. Tokens are sorted to reuse the common prefix during
-   * matching. */
-  std::vector<TokenAndId> tokens_sorted_by_codepoint;
-  /*! \brief The mapping from token id to token represented by codepoints. */
-  std::unordered_map<int32_t, TokenAndId> codepoint_tokens_lookup;
+  /*! \brief All tokens represented by the id and codepoints of each. The tokens are sorted by
+   * codepoint values to reuse the common prefix during matching. */
+  std::vector<TokenAndId> sorted_token_codepoints;
+  /*! \brief The mapping from token id to token represented by codepoints. Only contains
+   * non-special and non-stop tokens. */
+  std::unordered_map<int32_t, TokenAndId> id_to_token_codepoints;
   /*! \brief The stop tokens. They can be accepted iff GramamrMatcher can reach the end of the
    * grammar. */
   std::vector<int32_t> stop_token_ids;
@@ -104,7 +105,7 @@ class GrammarStateMatcherForInitContext : public GrammarStateMatcherBase {
   GrammarStateMatcherForInitContext(const BNFGrammar& grammar, RulePosition init_rule_position)
       : GrammarStateMatcherBase(grammar, init_rule_position) {}
 
-  CatagorizedTokens GetCatagorizedTokens(const std::vector<TokenAndId>& tokens_sorted_by_codepoint,
+  CatagorizedTokens GetCatagorizedTokens(const std::vector<TokenAndId>& sorted_token_codepoints,
                                          bool is_main_rule);
 
  private:
@@ -155,7 +156,7 @@ inline CatagorizedTokens::CatagorizedTokens(std::vector<int32_t>&& accepted_indi
 }
 
 inline CatagorizedTokens GrammarStateMatcherForInitContext::GetCatagorizedTokens(
-    const std::vector<TokenAndId>& tokens_sorted_by_codepoint, bool is_main_rule) {
+    const std::vector<TokenAndId>& sorted_token_codepoints, bool is_main_rule) {
   // Support the current stack contains only one stack with one RulePosition.
   // Iterate over all tokens. Split them into three categories:
   // - accepted_indices: If a token is accepted by current rule
@@ -173,9 +174,9 @@ inline CatagorizedTokens GrammarStateMatcherForInitContext::GetCatagorizedTokens
   tmp_can_see_end_stack_.assign({CanReachEnd()});
 
   int prev_matched_size = 0;
-  for (int i = 0; i < static_cast<int>(tokens_sorted_by_codepoint.size()); ++i) {
-    const auto& token = tokens_sorted_by_codepoint[i].token;
-    const auto* prev_token = i > 0 ? &tokens_sorted_by_codepoint[i - 1].token : nullptr;
+  for (int i = 0; i < static_cast<int>(sorted_token_codepoints.size()); ++i) {
+    const auto& token = sorted_token_codepoints[i].token;
+    const auto* prev_token = i > 0 ? &sorted_token_codepoints[i - 1].token : nullptr;
 
     // Find the longest common prefix with the accepted part of the previous token.
     auto prev_useful_size = 0;
@@ -268,11 +269,11 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
       DCHECK(!codepoints.empty() &&
              codepoints[0] != static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8))
           << "Invalid token: " << token;
-      ptr->tokens_sorted_by_codepoint.push_back({codepoints, i});
-      ptr->codepoint_tokens_lookup[i] = {codepoints, i};
+      ptr->sorted_token_codepoints.push_back({codepoints, i});
+      ptr->id_to_token_codepoints[i] = {codepoints, i};
     }
   }
-  std::sort(ptr->tokens_sorted_by_codepoint.begin(), ptr->tokens_sorted_by_codepoint.end());
+  std::sort(ptr->sorted_token_codepoints.begin(), ptr->sorted_token_codepoints.end());
 
   // Find the corresponding catagorized tokens for:
   // 1. All character elements in the grammar
@@ -307,7 +308,7 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
 
         auto grammar_state_matcher = GrammarStateMatcherForInitContext(grammar, cur_rule_position);
         auto cur_catagorized_tokens_for_grammar =
-            grammar_state_matcher.GetCatagorizedTokens(ptr->tokens_sorted_by_codepoint, i == 0);
+            grammar_state_matcher.GetCatagorizedTokens(ptr->sorted_token_codepoints, i == 0);
         ptr->catagorized_tokens_for_grammar[{sequence_id, element_id}] =
             cur_catagorized_tokens_for_grammar;
       }

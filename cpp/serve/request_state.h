@@ -155,29 +155,33 @@ enum class RequestStateStatus : int {
   kFinished = 2,
 };
 
+/*!
+ * \brief A request's state entry. It contains the state of a single
+ * generation of a request, or the state of a prompt prefix of a request.
+ */
 class RequestStateEntryNode : public Object {
  public:
-  /*! \brief The status of the request state. */
+  /*! \brief The status of the request state entry. */
   RequestStateStatus status;
   /*! \brief The request that this state corresponds to. */
   Request request;
   /*!
-   * \brief The idx of the parent request state of this state.
+   * \brief The idx of the parent request state entry of this state.
    * Being -1 means the state has no parent and is the foremost
-   * "prefix" state or the only state.
+   * "prefix" entry or the only entry.
    */
   int parent_idx = -1;
-  /*! \brief The children indices of the request state. */
-  std::vector<int> children_idx;
+  /*! \brief The children indices of the request state entry. */
+  std::vector<int> child_indices;
 
   /*!
    * \brief The state with regard to each model.
    * \sa RequestModelState
    */
   Array<RequestModelState> mstates;
-  /*! \brief The random number generator of this request. */
+  /*! \brief The random number generator of this request state entry. */
   RandomGenerator rng;
-  /*! \brief The stop string handler of this request. */
+  /*! \brief The stop string handler of this request state entry. */
   StopStrHandler stop_str_handler;
   /*!
    * \brief The start position of the committed tokens in the
@@ -218,7 +222,22 @@ class RequestStateEntry : public ObjectRef {
 };
 
 /*! \brief A request's state, which groups all the request state entries. */
-typedef std::vector<RequestStateEntry> RequestState;
+class RequestStateNode : public Object {
+ public:
+  std::vector<RequestStateEntry> entries;
+
+  static constexpr const char* _type_key = "mlc.serve.RequestState";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateNode, Object);
+};
+
+class RequestState : public ObjectRef {
+ public:
+  explicit RequestState(std::vector<RequestStateEntry> entries);
+
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
+};
 
 }  // namespace serve
 }  // namespace llm

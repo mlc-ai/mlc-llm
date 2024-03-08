@@ -74,6 +74,7 @@ struct FunctionTable {
   PackedFunc apply_logit_bias_func_;
   PackedFunc apply_penalty_func_;
   PackedFunc apply_bitmask_func_;
+  PackedFunc alloc_embedding_tensor_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
@@ -85,7 +86,9 @@ struct FunctionTable {
   PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
-  PackedFunc view_func_;
+  PackedFunc nd_view_func_;
+  PackedFunc nd_get_shape_func_;
+  PackedFunc nd_copy_embedding_to_offset_func_;
 };
 
 }  // namespace serve

@@ -262,27 +262,24 @@ class CPUSampler : public SamplerObj {
     }
   }
 
-  std::vector<SampleResult> BatchSampleTokens(NDArray probs_device,                           //
+  std::vector<SampleResult> BatchSampleTokens(NDArray probs_on_device,                        //
+                                              const std::vector<int>& sample_indices,         //
                                               const Array<String>& request_ids,               //
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
-                                              const std::vector<int>* prob_indices,           //
                                               std::vector<NDArray>* output_prob_dist) final {
-    // probs_device: (n, v)
+    // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    CHECK_EQ(probs_device->ndim, 2);
+    CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_host = CopyProbsToCPU(probs_device);
+    NDArray probs_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
 
     // - Sample tokens from probabilities.
     int n = request_ids.size();
     ICHECK_EQ(generation_cfg.size(), n);
     ICHECK_EQ(rngs.size(), n);
-    if (prob_indices == nullptr) {
-      ICHECK_EQ(probs_host->shape[0], n);
-    }
 
     std::vector<SampleResult> sample_results;
     sample_results.resize(n);
@@ -291,12 +288,12 @@ class CPUSampler : public SamplerObj {
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids, prob_indices,
+        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids, sample_indices,
          output_prob_dist](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           sample_results[i].sampled_token_id = SampleTopPFromProb(
-              probs_host, prob_indices == nullptr ? i : prob_indices->at(i),
+              probs_host, sample_indices[i],
               generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
               rngs[i]->GetRandomNumber(), output_prob_dist);
           if (output_prob_dist == nullptr) {
@@ -314,17 +311,17 @@ class CPUSampler : public SamplerObj {
   }
 
   std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
-      NDArray probs_device, const Array<String>& request_ids,
+      NDArray probs_on_device, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    // probs_device: (n, v)
+    // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    CHECK_EQ(probs_device->ndim, 2);
+    CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_host = CopyProbsToCPU(probs_device);
+    NDArray probs_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
@@ -401,26 +398,26 @@ class CPUSampler : public SamplerObj {
 
  private:
   /*! \brief Copy prob distributions from device to CPU. */
-  NDArray CopyProbsToCPU(NDArray probs_device) {
-    // probs_device: (n, v)
-    ICHECK(probs_device->device.device_type != kDLCPU);
+  NDArray CopyProbsToCPU(NDArray probs_on_device) {
+    // probs_on_device: (n, v)
+    ICHECK(probs_on_device->device.device_type != kDLCPU);
     if (probs_host_.defined()) {
-      ICHECK_EQ(probs_host_->shape[1], probs_device->shape[1]);
+      ICHECK_EQ(probs_host_->shape[1], probs_on_device->shape[1]);
     }
 
     int64_t init_size = probs_host_.defined() ? probs_host_->shape[0] : 32;
-    int64_t num_tokens = probs_device->shape[0];
-    int64_t vocab_size = probs_device->shape[1];
+    int64_t num_tokens = probs_on_device->shape[0];
+    int64_t vocab_size = probs_on_device->shape[1];
     while (init_size < num_tokens) {
       init_size *= 2;
     }
     if (!probs_host_.defined() || init_size != probs_host_->shape[0]) {
       probs_host_ =
-          NDArray::Empty({init_size, vocab_size}, probs_device->dtype, DLDevice{kDLCPU, 0});
+          NDArray::Empty({init_size, vocab_size}, probs_on_device->dtype, DLDevice{kDLCPU, 0});
     }
     ICHECK_LE(num_tokens, probs_host_->shape[0]);
-    NDArray view = probs_host_.CreateView({num_tokens, vocab_size}, probs_device->dtype);
-    view.CopyFrom(probs_device);
+    NDArray view = probs_host_.CreateView({num_tokens, vocab_size}, probs_on_device->dtype);
+    view.CopyFrom(probs_on_device);
     return view;
   }
 
