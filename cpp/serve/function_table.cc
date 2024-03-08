@@ -42,6 +42,7 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
 }
 
 void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object model_config) {
+  local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
   {
@@ -53,6 +54,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     }
   }
   this->model_config = model_config;
+  this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
     String lib_path{nullptr};
@@ -87,7 +89,6 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        lib_path, null_device);
-    this->disco_buffers = Map<String, DRef>();
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
@@ -236,23 +237,36 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
   }
 }
 
-ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String tensor_name,
+ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                                        ShapeTuple max_reserved_shape) {
-  Device null_device{DLDeviceType(0), 0};
+  ICHECK(host_array->device.device_type == DLDeviceType::kDLCPU);
   if (this->use_disco) {
+    Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);
-    if (this->disco_buffers.count(tensor_name)) {
-      buffer = this->disco_buffers[tensor_name];
+    auto it = this->cached_buffers.find(buffer_cache_key);
+    if (it != this->cached_buffers.end()) {
+      buffer = Downcast<DRef>((*it).second);
     } else {
       buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
-      this->disco_buffers.Set(tensor_name, buffer);
+      this->cached_buffers.Set(buffer_cache_key, buffer);
     }
     ShapeTuple real_shape = host_array.Shape();
     DRef buffer_view = nd_view_func_(buffer, real_shape);
     sess->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {
-    return host_array;
+    auto it = this->cached_buffers.find(buffer_cache_key);
+    NDArray buffer{nullptr};
+    if (it != this->cached_buffers.end()) {
+      buffer = Downcast<NDArray>((*it).second);
+    } else {
+      buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+      this->cached_buffers.Set(buffer_cache_key, buffer);
+    }
+    buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
+    DLTensor copy_dst = *(buffer.operator->());
+    NDArray::CopyFromTo(host_array.operator->(), &copy_dst);
+    return buffer;
   }
 }
 

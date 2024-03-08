@@ -49,13 +49,14 @@ struct FunctionTable {
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const;
 
-  ObjectRef CopyToWorker0(const NDArray& host_array, String tensor_name,
+  ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                           ShapeTuple max_reserved_shape);
 
   bool use_disco = false;
+  Device local_gpu_device;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
-  Map<String, DRef> disco_buffers{nullptr};
+  Map<String, ObjectRef> cached_buffers{nullptr};
   tvm::runtime::Module local_vm{nullptr};
   picojson::object model_config;
 
