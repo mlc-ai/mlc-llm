@@ -292,6 +292,9 @@ struct FunctionTable {
       }
       this->fkvcache_array_popn_ = get_global_func("vm.builtin.attention_kv_cache_array_popn");
     }
+
+    this->nd_view_func_ = get_global_func("vm.builtin.reshape");
+    this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
   }
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -348,6 +351,9 @@ struct FunctionTable {
   bool support_backtracking_kv_;
   PackedFunc fkvcache_array_popn_;
   ModelMetadata model_metadata_;
+
+  PackedFunc nd_view_func_;
+  PackedFunc nd_get_shape_func_;
 };
 
 }  // namespace
@@ -1358,10 +1364,14 @@ class LLMChat {
       ObjectRef input_data = ft_.CopyToWorker0(this->GetInputTokenNDArray(input_tokens));
       if (sliding_window_size_ == -1) {
         if (ft_.use_kv_state) {
+          int input_len = input_tokens.size();
           IntTuple seq_ids_tuple({0});
-          ShapeTuple input_len_shape = ShapeTuple({static_cast<int64_t>(input_tokens.size())});
+          ShapeTuple input_len_shape{input_len};
           ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, input_len_shape);
+          input_data = ft_.nd_view_func_(input_data, input_len_shape);
           auto embed = ft_.embed_func_(input_data, params_);
+          ShapeTuple embedding_shape = {1, input_len, GetHiddenSizeFromEmbedding(embed)};
+          embed = ft_.nd_view_func_(embed, embedding_shape);
           ret = ft_.prefill_func_(embed, kv_cache_, params_);
           ft_.kv_cache_end_forward_func_(kv_cache_);
         } else {
@@ -1397,7 +1407,10 @@ class LLMChat {
             IntTuple seq_ids_tuple({0});
             IntTuple append_length({1});
             ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, append_length);
+            input_data = ft_.nd_view_func_(input_data, append_length);
             auto embed = ft_.embed_func_(input_data, params_);
+            ShapeTuple embedding_shape = {1, 1, GetHiddenSizeFromEmbedding(embed)};
+            embed = ft_.nd_view_func_(embed, embedding_shape);
             ret = ft_.decode_func_(embed, kv_cache_, params_);
             ft_.kv_cache_end_forward_func_(kv_cache_);
           } else {
@@ -1422,6 +1435,26 @@ class LLMChat {
     } else {
       return Downcast<Array<NDArray>>(ret)[0];
     }
+  }
+
+  int GetHiddenSizeFromEmbedding(ObjectRef embedding) {
+    if (this->hidden_size_ != -1) {
+      return this->hidden_size_;
+    }
+    // Get the shape of the embedding tensor for hidden size.
+    ShapeTuple embedding_shape;
+    if (ft_.use_disco) {
+      ICHECK(embedding->IsInstance<DRefObj>());
+      ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding);
+      embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0);
+    } else {
+      NDArray embedding_nd = Downcast<NDArray>(embedding);
+      embedding_shape = embedding_nd.Shape();
+    }
+    ICHECK_EQ(embedding_shape.size(), 2);
+    ICHECK_GT(embedding_shape[0], 1);
+    this->hidden_size_ = embedding_shape[1];
+    return this->hidden_size_;
   }
 
   // run forward compute with embeddings
@@ -1585,6 +1618,10 @@ class LLMChat {
   bool sink_triggered_{false};
   // sliding window cache offset
   int64_t sliding_window_cache_offset_{0};
+  //----------------------------
+  // Model configurations
+  //----------------------------
+  int hidden_size_ = -1;
   //----------------------------
   // Tokenizer
   //----------------------------

@@ -102,7 +102,6 @@ class ModelImpl : public ModelObj {
         CopyArrayToDevice(vec_token_ids, &input_token_ids_, dtype, prefill_chunk_size_, device_);
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
-    token_ids_nd = token_ids_nd.CreateView({1, num_tokens}, dtype);
     auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
@@ -152,10 +151,9 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       NDArray embeddings_nd = Downcast<NDArray>(embeddings);
       ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 3);
-      ICHECK_EQ(embeddings_nd->shape[0], 1);
-      ICHECK_GE(embeddings_nd->shape[1], total_length);
-      ICHECK_EQ(embeddings_nd->shape[2], hidden_size_);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
       ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
       ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
@@ -211,10 +209,9 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, b, h)
       NDArray embeddings_nd = Downcast<NDArray>(embeddings);
       ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 3);
-      ICHECK_EQ(embeddings_nd->shape[0], 1);
-      ICHECK_GE(embeddings_nd->shape[1], num_sequence);
-      ICHECK_EQ(embeddings_nd->shape[2], hidden_size_);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], num_sequence);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
       ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
       ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
@@ -275,10 +272,9 @@ class ModelImpl : public ModelObj {
       // embeddings: (1, n, h)
       NDArray embeddings_nd = Downcast<NDArray>(embeddings);
       ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 3);
-      ICHECK_EQ(embeddings_nd->shape[0], 1);
-      ICHECK_GE(embeddings_nd->shape[1], total_length);
-      ICHECK_EQ(embeddings_nd->shape[2], hidden_size_);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
       ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
       ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
@@ -374,10 +370,9 @@ class ModelImpl : public ModelObj {
       NDArray embedding_nd = Downcast<NDArray>(embedding);
       embedding_shape = embedding_nd.Shape();
     }
-    ICHECK_EQ(embedding_shape.size(), 3);
-    ICHECK_EQ(embedding_shape[0], 1);
-    ICHECK_EQ(embedding_shape[1], prefill_chunk_size_);
-    this->hidden_size_ = embedding_shape[2];
+    ICHECK_EQ(embedding_shape.size(), 2);
+    ICHECK_EQ(embedding_shape[0], prefill_chunk_size_);
+    this->hidden_size_ = embedding_shape[1];
     return embedding;
   }
 
@@ -453,20 +448,18 @@ class ModelImpl : public ModelObj {
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
     .set_body_typed([](NDArray embedding, NDArray dst, int offset) {
-      // embedding: (1, m, hidden_size)
-      // dst: (1, prefill_chunk_size, hidden_size)
-      ICHECK_EQ(embedding->ndim, 3);
-      ICHECK_EQ(embedding->shape[0], 1);
-      ICHECK_EQ(dst->ndim, 3);
-      ICHECK_EQ(dst->shape[0], 1);
-      ICHECK_LE(embedding->shape[1] + offset, dst->shape[1]);
-      ICHECK_EQ(embedding->shape[2], dst->shape[2]);
+      // embedding: (m, hidden_size)
+      // dst: (prefill_chunk_size, hidden_size)
+      ICHECK_EQ(embedding->ndim, 2);
+      ICHECK_EQ(dst->ndim, 2);
+      ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+      ICHECK_EQ(embedding->shape[1], dst->shape[1]);
       const DLTensor& copy_src = *(embedding.operator->());
       const DLTensor* p_copy_dst = dst.operator->();
       DLTensor copy_dst = *p_copy_dst;
       copy_dst.shape = embedding->shape;
       copy_dst.byte_offset =
-          offset * embedding->shape[2] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
+          offset * embedding->shape[1] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
       NDArray::CopyFromTo(&copy_src, &copy_dst);
     });
 
