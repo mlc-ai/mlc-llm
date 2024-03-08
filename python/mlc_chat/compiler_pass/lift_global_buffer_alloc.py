@@ -1,95 +1,96 @@
 """A compiler pass that lifts TIR-level global allocation to Relax."""
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import tvm
 from tvm import relax, tir
 from tvm.ir.module import IRModule
-from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
 
-@tvm.transform.module_pass(opt_level=0, name="LiftTIRGlobalBufferAlloc")
-class LiftTIRGlobalBufferAlloc:  # pylint: disable=too-few-public-methods
-    """A compiler pass that lifts TIR-level global allocation to Relax."""
+def LiftTIRGlobalBufferAlloc():
+    @mutator
+    class TIRGlobalAllocRewriter(PyExprMutator):
+        def __init__(self, mod: IRModule):
+            super().__init__(mod)
+            self.mod = mod
 
-    def transform_module(
-        self,
-        mod: IRModule,
-        _ctx: tvm.transform.PassContext,
-    ) -> IRModule:
-        """IRModule-level transformation"""
-        return _TIRGlobalAllocRewriter(mod).transform()
+        def transform(self) -> IRModule:
+            self.mod = self.builder_.get()
+            for gv, func in self.mod.functions.items():
+                if isinstance(func, relax.Function):
+                    updated_func = self.visit_expr(func)
+                    self.builder_.update_func(gv, updated_func)
+            return self.builder_.get()
 
-
-@mutator
-class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
-    def __init__(self, mod: IRModule):
-        super().__init__(mod)
-        self.mod = mod
-        self.gv2new_tensor_sinfo: Dict[
-            tvm.ir.GlobalVar, Tuple[List[relax.TensorStructInfo], tir.PrimFunc]
-        ] = {}
-
-    def transform(self) -> IRModule:
-        """Entry point of the transformation"""
-        for g_var, func in self.mod.functions_items():
-            if isinstance(func, tir.PrimFunc):
-                updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
-                if len(tensor_sinfo_list) > 0:
-                    self.gv2new_tensor_sinfo[g_var] = (tensor_sinfo_list, func)
-                    self.builder_.update_func(g_var, updated_func)
-
-        self.mod = self.builder_.get()
-        for g_var, func in self.mod.functions_items():
-            if isinstance(func, relax.Function):
-                updated_func = self.visit_expr(func)
-                updated_func = remove_all_unused(updated_func)
-                self.builder_.update_func(g_var, updated_func)
-        return self.builder_.get()
-
-    def visit_call_(self, call: relax.Call):  # pylint: disable=arguments-renamed
-        call = self.visit_expr_post_order(call)
-        if (
-            call.op != tvm.ir.Op.get("relax.call_tir")
-            or call.args[0] not in self.gv2new_tensor_sinfo
-        ):
-            return call
-
-        g_var = call.args[0]
-        tensor_sinfo, func_before_update = self.gv2new_tensor_sinfo[g_var]
-
-        assert len(call.sinfo_args) == 1
-        if any(_has_symbolic_var(sinfo) for sinfo in tensor_sinfo):
-            tensor_sinfo, success = _resolve_tir_var_mapping(func_before_update, call, tensor_sinfo)
-            if not success:
-                # Cannot resolve TIR var mapping. Fall back to no lifting.
-                self.builder_.update_func(g_var, func_before_update)
-                self.gv2new_tensor_sinfo.pop(g_var)
+        def visit_call_(self, call: relax.Call):
+            call = self.visit_expr_post_order(call)
+            if call.op != tvm.ir.Op.get("relax.call_tir"):
                 return call
 
-        if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
-            new_call = relax.Call(
-                call.op,
-                args=call.args,
-                sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args) + tensor_sinfo)],
-                attrs=call.attrs,
-            )
-            emitted_tuple = self.builder_.emit(new_call)
-            return relax.TupleGetItem(emitted_tuple, 0)
-        assert isinstance(call.sinfo_args[0], relax.TupleStructInfo)
-        return relax.Call(
-            call.op,
-            args=call.args,
-            sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args[0].fields) + tensor_sinfo)],
-            attrs=call.attrs,
-        )
+            old_gvar = call.args[0]
+
+            func_before_update = self.mod.functions[old_gvar]
+            updates = remove_global_buf_alloc(func_before_update)
+            if updates is None:
+                return call
+            updated_func, tensor_sinfo = updates
+
+            assert len(call.sinfo_args) == 1
+            if any(contain_symbolic_var(sinfo) for sinfo in tensor_sinfo):
+                tensor_sinfo, success = resolve_tir_var_mapping(
+                    func_before_update, call, tensor_sinfo
+                )
+                if not success:
+                    # Cannot resolve TIR var mapping. Fall back to no lifting.
+                    return call
+
+            new_gvar = self.builder_.add_func(updated_func, old_gvar.name_hint)
+            new_args = [new_gvar, *call.args[1:]]
+
+            if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
+                new_call = relax.Call(
+                    call.op,
+                    args=new_args,
+                    sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args) + tensor_sinfo)],
+                    attrs=call.attrs,
+                )
+                emitted_tuple = self.builder_.emit(new_call)
+                return relax.TupleGetItem(emitted_tuple, 0)
+            elif isinstance(call.sinfo_args[0], relax.TupleStructInfo):
+                return relax.Call(
+                    call.op,
+                    args=new_args,
+                    sinfo_args=[
+                        relax.TupleStructInfo(list(call.sinfo_args[0].fields) + tensor_sinfo)
+                    ],
+                    attrs=call.attrs,
+                )
+            else:
+                raise TypeError(
+                    f"Expected {call.op} to return either R.Tensor or R.Tuple, "
+                    f"but instead returned {call.sinfo_args[0]}"
+                )
+
+    @tvm.transform.module_pass(opt_level=0, name="LiftTIRGlobalBufferAlloc.Inner")
+    def transform_module(mod: IRModule, _: tvm.transform.PassContext) -> IRModule:
+        return TIRGlobalAllocRewriter(mod).transform()
+
+    return tvm.ir.transform.Sequential(
+        [
+            transform_module,
+            tvm.relax.transform.DeadCodeElimination(),
+        ],
+        name="LiftTIRGlobalBufferAlloc",
+    )
 
 
 def remove_global_buf_alloc(
     func: tir.PrimFunc,
-) -> Tuple[tir.PrimFunc, List[relax.TensorStructInfo]]:
+) -> Optional[Tuple[tir.PrimFunc, List[relax.TensorStructInfo]]]:
     """Remove the global buffer allocation for a given TIR PrimFunc."""
-    assert isinstance(func.body, tir.BlockRealize)
+    if not isinstance(func.body, tir.BlockRealize):
+        return None
+
     params = list(func.params)
     buffer_map = dict(func.buffer_map)
     tensor_sinfo = []
@@ -112,7 +113,7 @@ def remove_global_buf_alloc(
             alloc_buffers.append(buf_alloc)
 
     if len(tensor_sinfo) == 0:
-        return func, []
+        return None
 
     assert len(prev_root_block.iter_vars) == 0
     assert len(prev_root_block.reads) == 0
