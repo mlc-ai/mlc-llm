@@ -109,6 +109,9 @@ class ModelImpl : public ModelObj {
     if (dst != nullptr) {
       CHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
+      if (ft_.use_disco) {
+        ft_.sess->SyncWorker(0);
+      }
       return *dst;
     } else {
       CHECK_EQ(offset, 0);
