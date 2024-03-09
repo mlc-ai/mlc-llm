@@ -1001,7 +1001,7 @@ def _attention_decode(
 
                                         S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
-                                            S_local[j] = t0[0]                     
+                                            S_local[j] = t0[0]
                                         # update st_m
                                         st_m[0] = T.max(st_m[0], S_local[j])
 
