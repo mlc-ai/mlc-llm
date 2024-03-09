@@ -6,6 +6,7 @@
 #include "model.h"
 
 #include <picojson.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -16,38 +17,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-/*********************** Utils ***********************/
-
-/*! \brief Utility function that copies input array to the device. */
-template <typename T>
-NDArray CopyArrayToDevice(const std::vector<T>& array, NDArray* dst, DLDataType dtype,
-                          int default_init_size, Device device) {
-  ICHECK(!array.empty());
-  ICHECK(dst != nullptr);
-  ICHECK(!dst->defined() || (*dst)->ndim == 1);
-  int64_t init_size = dst->defined() ? (*dst)->shape[0] : default_init_size;
-  while (init_size < static_cast<int64_t>(array.size())) {
-    init_size *= 2;
-  }
-  if (!dst->defined() || init_size != (*dst)->shape[0]) {
-    (*dst) = NDArray::Empty({init_size}, dtype, device);
-  }
-  ICHECK_LE(static_cast<int64_t>(array.size()), (*dst)->shape[0]);
-  NDArray view = dst->CreateView(ShapeTuple({static_cast<int64_t>(array.size())}), dtype);
-
-  DLTensor copy_dst = *(view.operator->());
-  DLTensor copy_src;
-  copy_src.data = const_cast<T*>(array.data());
-  copy_src.device = Device{kDLCPU, 0};
-  copy_src.ndim = 1;
-  copy_src.dtype = view->dtype;
-  copy_src.shape = view->shape;
-  copy_src.strides = nullptr;
-  copy_src.byte_offset = 0;
-  NDArray::CopyFromTo(&copy_src, &copy_dst);
-  return view;
-}
 
 /*********************** Model Implementation ***********************/
 
@@ -89,17 +58,27 @@ class ModelImpl : public ModelObj {
     this->max_num_sequence_ = max_num_sequence;
     // Step 5. Reset
     this->Reset();
+    // Step 6. Initialize the shared NDArray.
+    Device device_host{DLDeviceType::kDLCPU, 0};
+    memory::Allocator* allocator =
+        memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
+    ICHECK_NOTNULL(allocator);
+    token_ids_storage_ =
+        memory::Storage(allocator->Alloc({prefill_chunk_size_}, DataType::Int(32)));
+    this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
   }
 
   /*********************** Model Computation  ***********************/
 
   ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
     int num_tokens = token_ids.size();
-    std::vector<int32_t> vec_token_ids(token_ids->data, token_ids->data + num_tokens);
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
-    NDArray token_ids_nd =
-        CopyArrayToDevice(vec_token_ids, &input_token_ids_, dtype, prefill_chunk_size_, device_);
+    NDArray token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
+    int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
+    for (int i = 0; i < num_tokens; ++i) {
+      p_token_ids[i] = token_ids[i];
+    }
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
     auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
@@ -108,9 +87,6 @@ class ModelImpl : public ModelObj {
     if (dst != nullptr) {
       CHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
-      if (ft_.use_disco) {
-        ft_.sess->SyncWorker(0);
-      }
       return *dst;
     } else {
       CHECK_EQ(offset, 0);
@@ -124,15 +100,13 @@ class ModelImpl : public ModelObj {
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
-    std::vector<int> logit_pos;
-    logit_pos.reserve(num_sequences);
+
+    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
-      logit_pos.push_back(total_length - 1);
+      p_logit_pos[i] = total_length - 1;
     }
-
-    NDArray logit_pos_nd =
-        CopyArrayToDevice(logit_pos, &logit_pos_arr_, DataType::Int(32), 32, device_);
+    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
     CHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
@@ -442,7 +416,7 @@ class ModelImpl : public ModelObj {
   // Model parameters
   ObjectRef params_;
   // Shared NDArray
-  NDArray input_token_ids_{nullptr};
+  memory::Storage token_ids_storage_{nullptr};
   NDArray logit_pos_arr_{nullptr};
 };
 
