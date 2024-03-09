@@ -239,7 +239,7 @@ class GrammarStateMatcher(Object):
         return _ffi_api.GrammarStateMatcherIsTerminated(self)  # type: ignore  # pylint: disable=no-member
 
     def debug_accept_char(self, codepoint: int) -> bool:
-        """Accept one unicode codepoint to the current state.
+        """Accept one unicode codepoint to the current state. For test purposes.
 
         Parameters
         ----------
@@ -251,8 +251,8 @@ class GrammarStateMatcher(Object):
         )
 
     def debug_match_complete_string(self, string: str) -> bool:
-        """Check if a matcher can accept the complete string, and then reach the end of the
-        grammar.
+        """Check if the matcher can accept the complete string, and then reach the end of the
+        grammar. For test purposes.
 
         Parameters
         ----------

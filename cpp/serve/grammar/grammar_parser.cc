@@ -263,29 +263,35 @@ int32_t EBNFParserImpl::ParseElement() {
 }
 
 int32_t EBNFParserImpl::HandleStarQuantifier(int32_t rule_expr_id) {
-  // rule ::= a*
-  // We have special support for star quantifier in BNFGrammar AST
-  auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
-  auto new_rule_expr_id = builder_.AddStarQuantifier(rule_expr_id);
-  return builder_.AddRule({new_rule_name, new_rule_expr_id});
+  if (builder_.GetRuleExpr(rule_expr_id).type == BNFGrammarBuilder::RuleExprType::kCharacterClass) {
+    // We have special handling for character class star, e.g. [a-z]*
+    return builder_.AddCharacterClassStar(rule_expr_id);
+  } else {
+    // For other star quantifiers, we transform it into a rule:
+    // a*  -->  rule ::= a rule | ""
+    auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
+    auto new_rule_id = builder_.AddEmptyRule(new_rule_name);
+    auto ref_to_new_rule = builder_.AddRuleRef(new_rule_id);
+    auto new_rule_expr_id = builder_.AddChoices(
+        {builder_.AddSequence({rule_expr_id, ref_to_new_rule}), builder_.AddEmptyStr()});
+    builder_.UpdateRuleBody(new_rule_id, new_rule_expr_id);
+
+    // Return the reference to the new rule
+    return builder_.AddRuleRef(new_rule_id);
+  }
 }
 
 int32_t EBNFParserImpl::HandlePlusQuantifier(int32_t rule_expr_id) {
   // a+  -->  rule ::= a rule | a
-  // We will use rule_expr a for two times in this case
-  // So first we create a rule for rule_expr a
-  auto a_rule_name = builder_.GetNewRuleName(cur_rule_name_);
-  auto a_rule_id = builder_.AddRule({a_rule_name, rule_expr_id});
-
-  // Then create the new rule_expr.
   auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
   auto new_rule_id = builder_.AddEmptyRule(new_rule_name);
-  auto a_plus_ref = builder_.AddRuleRef(new_rule_id);
-  auto a_ref1 = builder_.AddRuleRef(a_rule_id);
-  auto a_ref2 = builder_.AddRuleRef(a_rule_id);
-  auto new_rule_expr_id = builder_.AddChoices({builder_.AddSequence({a_ref1, a_plus_ref}), a_ref2});
+  auto ref_to_new_rule = builder_.AddRuleRef(new_rule_id);
+  auto new_rule_expr_id =
+      builder_.AddChoices({builder_.AddSequence({rule_expr_id, ref_to_new_rule}), rule_expr_id});
   builder_.UpdateRuleBody(new_rule_id, new_rule_expr_id);
-  return new_rule_id;
+
+  // Return the reference to the new rule
+  return builder_.AddRuleRef(new_rule_id);
 }
 
 int32_t EBNFParserImpl::HandleQuestionQuantifier(int32_t rule_expr_id) {
@@ -293,7 +299,7 @@ int32_t EBNFParserImpl::HandleQuestionQuantifier(int32_t rule_expr_id) {
   auto new_rule_name = builder_.GetNewRuleName(cur_rule_name_);
   auto new_rule_expr_id = builder_.AddChoices({rule_expr_id, builder_.AddEmptyStr()});
   auto new_rule_id = builder_.AddRule({new_rule_name, new_rule_expr_id});
-  return new_rule_id;
+  return builder_.AddRuleRef(new_rule_id);
 }
 
 int32_t EBNFParserImpl::ParseQuantifier() {
@@ -308,11 +314,11 @@ int32_t EBNFParserImpl::ParseQuantifier() {
   switch (Peek(-1)) {
     case '*':
       // We assume that the star quantifier should be the body of some rule now
-      return builder_.AddStarQuantifier(rule_expr_id);
+      return HandleStarQuantifier(rule_expr_id);
     case '+':
-      return builder_.AddRuleRef(HandlePlusQuantifier(rule_expr_id));
+      return HandlePlusQuantifier(rule_expr_id);
     case '?':
-      return builder_.AddRuleRef(HandleQuestionQuantifier(rule_expr_id));
+      return HandleQuestionQuantifier(rule_expr_id);
     default:
       LOG(FATAL) << "Unreachable";
   }

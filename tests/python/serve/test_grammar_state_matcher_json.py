@@ -1,7 +1,8 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring
 # pylint: disable=redefined-outer-name,unbalanced-tuple-unpacking
+"""This test uses the optimized JSON grammar provided by the grammar library."""
 import sys
-from typing import List
+from typing import List, Optional
 
 import pytest
 import tvm
@@ -251,7 +252,9 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
 
 
 def test_find_next_rejected_tokens(
-    json_grammar: BNFGrammar, input_find_rejected_tokens: str, expected_rejected_sizes: List[int]
+    json_grammar: BNFGrammar,
+    input_find_rejected_tokens: str,
+    expected_rejected_sizes: Optional[List[int]] = None,
 ):
     tokenizer_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
     tokenizer = Tokenizer(tokenizer_path)
@@ -265,8 +268,8 @@ def test_find_next_rejected_tokens(
         assert grammar_state_matcher.debug_accept_char(ord(c))
     rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
     real_sizes.append(len(rejected_token_ids))
-    print(real_sizes)
-    assert real_sizes == expected_rejected_sizes
+    if expected_rejected_sizes is not None:
+        assert real_sizes == expected_rejected_sizes
 
 
 def test_token_based_operations(json_grammar: BNFGrammar):
@@ -404,15 +407,6 @@ def test_termination(json_grammar: BNFGrammar):
 
 if __name__ == "__main__":
     # Run a benchmark to show the performance before running tests
-    test_find_next_rejected_tokens(
-        BNFGrammar.get_grammar_of_json(),
-        '{"id": 1,"name": "Example"}',
-        [
-            # fmt: off
-            31989, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 299, 299, 299, 299,
-            299, 31973, 31846, 31846, 292, 292, 292, 292, 292, 292, 292, 292, 31974, 31999
-            # fmt: on
-        ],
-    )
+    test_find_next_rejected_tokens(BNFGrammar.get_grammar_of_json(), '{"id": 1,"name": "Example"}')
 
     tvm.testing.main()

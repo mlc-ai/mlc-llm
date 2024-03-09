@@ -277,12 +277,12 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
 
   // Find the corresponding catagorized tokens for:
   // 1. All character elements in the grammar
-  // 2. All RuleRef elements that refers to a rule of a StarQuantifier of a character class
+  // 2. All RuleRef elements that refers to a rule containing a CharacterClassStar RuleExpr.
   for (int i = 0; i < static_cast<int>(grammar->NumRules()); ++i) {
     auto rule = grammar->GetRule(i);
     auto rule_expr = grammar->GetRuleExpr(rule.body_expr_id);
-    // Skip StarQuantifier since we just handle it at the reference element during matching.
-    if (rule_expr.type == RuleExprType::kStarQuantifier) {
+    // Skip CharacterClassStar since we just handle it at the reference element during matching.
+    if (rule_expr.type == RuleExprType::kCharacterClassStar) {
       continue;
     }
     DCHECK(rule_expr.type == RuleExprType::kChoices);
@@ -301,8 +301,8 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
           if (ref_rule_expr.type == RuleExprType::kChoices) {
             continue;
           } else {
-            // Reference to a StarQuantifier of a character class.
-            cur_rule_position.char_class_id = ref_rule_expr[0];
+            // Reference to a CharacterClassStar of a character class.
+            cur_rule_position.char_class_star_id = ref_rule_expr[0];
           }
         }
 
