@@ -133,3 +133,22 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[50256],
     )
 )
+
+# StableLM3B
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="stablelm-3b",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="",
+        roles={
+            "user": "<|user|>",
+            "assistant": "<|assistant|>",
+            "tool": "<|user|>",
+        },
+        seps=["<|endoftext|>", "<|endoftext|>"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<|endoftext|>"],
+        stop_token_ids=[0],
+    )
+)
