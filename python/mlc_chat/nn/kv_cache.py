@@ -835,8 +835,13 @@ def _attention_decode(
     H_kv = num_kv_heads
     D = head_dim
 
+    THREAD_LIMIT = 512
+    TILE_SIZE_PER_BDX = 2
+    if target.kind.name == "opencl" and "android" in str(target.host):
+        THREAD_LIMIT = 64
+        TILE_SIZE_PER_BDX = 1
     max_num_threads_per_block = get_max_num_threads_per_block(target)
-    thread_limit = min(max_num_threads_per_block, 512)
+    thread_limit = min(max_num_threads_per_block, THREAD_LIMIT)
 
     GROUP_SIZE = H_qo // H_kv
     VEC_SIZE = min(max(8 // qkv_dtype_bytes, D // 32), 4)
@@ -847,7 +852,7 @@ def _attention_decode(
     gdz = GROUP_SIZE // bdy
     threads_per_CTA = max(thread_limit, bdx * bdy)
     bdz = threads_per_CTA // (bdx * bdy)
-    tile_size_per_bdx = 2 if GROUP_SIZE == 1 else 1
+    tile_size_per_bdx = TILE_SIZE_PER_BDX if GROUP_SIZE == 1 else 1
     log2e = math.log2(math.exp(1))
     check_thread_limits(target, bdx=bdx, bdy=bdy, bdz=bdz, gdz=1)
 
@@ -994,10 +999,9 @@ def _attention_decode(
                                             )
                                             T.tvm_thread_allreduce(T.uint32(1), S_reduce_local[0], True, t0[0], tx, dtype="handle")
 
+                                        S_local[j] = -5e4
                                         if (iterator * bdz + tz) * bdy * tile_size_per_bdx + j < kv_chunk_len[0]:
                                             S_local[j] = t0[0]
-                                        else:
-                                            S_local[j] = -5e4
                                         # update st_m
                                         st_m[0] = T.max(st_m[0], S_local[j])
 
