@@ -359,6 +359,11 @@ class MixtralExpertsFP8(
                 max_int_value=self.max_int_value,
             )
             local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
+            # Calibration done in fp16 mma
+            # x = nn.op.astype(x, dtype="float16")
+            ### TODO: we probably want to consider using fp16 weights (no weight quantization) for calibration
+            # w = nn.op.astype(w, dtype="float16")
+
         elif self.runtime == "max":
             local_scale = self.q_calibration_scale
             x = x / local_scale
@@ -384,32 +389,34 @@ class MixtralExpertsFP8(
         a_format = self.activation_dtype.split("_")[0]
         w_format = self.weight_dtype.split("_")[0]
 
+        ### TODO: enable this for fp16 calibration
+        # if self.runtime == "max-calibration":
+        #     func = "cutlass.group_gemm_scale_fp16_sm90"
+        # else:
+        func = f"cutlass.group_gemm_{a_format}_{w_format}_fp16"
+
+        if self.runtime == "cast":
+            func = func = "_host_scale"
+            total_scale = 1.0
+        else:
+            if self.weight_dtype == "e4m3_float8":
+                total_scale = local_scale * self.q_scale
+            else:
+                total_scale = local_scale
+            total_scale = nn.op.astype(total_scale, dtype="float32")
+
         # TODO(csullivan): use the fp16 group gemm for calibration
-        output = nn.op.extern(
-            f"cutlass.moe_gemm_{a_format}_{w_format}_fp16",
+        return nn.op.extern(
+            func,
             [
                 x,
                 self.q_weight,
                 indptr,
                 workspace,
-                batch_size,
-                out_features,
-                in_features,
-                num_local_experts,
+                total_scale,
             ],
             out=nn.Tensor.placeholder(
                 (batch_size, out_features),
                 dtype=self.weight_config.model_dtype,
             ),
         )
-
-        if self.runtime == "cast":
-            return output
-
-        # TODO(csullivan): absorb these scales into the group gemm
-        if self.weight_dtype == "e4m3_float8":
-            total_scale = local_scale * self.q_scale
-        else:
-            total_scale = local_scale
-
-        return nn.op.dequantize(output, total_scale)
