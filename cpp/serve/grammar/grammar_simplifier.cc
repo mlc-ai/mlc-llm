@@ -65,7 +65,7 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
   }
 
  private:
-  /*! \brief Visit a RuleExpr as the rule body. */
+  /*! \brief Visit a RuleExpr as a rule body. */
   int32_t VisitRuleBody(const RuleExpr& rule_expr) {
     switch (rule_expr.type) {
       case RuleExprType::kSequence:
@@ -78,8 +78,8 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
       case RuleExprType::kNegCharacterClass:
       case RuleExprType::kRuleRef:
         return builder_.AddChoices({builder_.AddSequence({builder_.AddRuleExpr(rule_expr)})});
-      case RuleExprType::kStarQuantifier:
-        return builder_.AddStarQuantifier(VisitExpr(grammar_->GetRuleExpr(rule_expr[0])));
+      case RuleExprType::kCharacterClassStar:
+        return builder_.AddCharacterClassStar(VisitExpr(grammar_->GetRuleExpr(rule_expr[0])));
       default:
         LOG(FATAL) << "Unexpected sequence type: " << static_cast<int>(rule_expr.type);
     }
@@ -108,6 +108,9 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
         case RuleExprType::kNegCharacterClass:
         case RuleExprType::kRuleRef:
           VisitElementInChoices(choice_expr, &new_choice_ids);
+          break;
+        case RuleExprType::kCharacterClassStar:
+          VisitCharacterClassStarInChoices(choice_expr, &new_choice_ids);
           break;
         default:
           LOG(FATAL) << "Unexpected choice type: " << static_cast<int>(choice_expr.type);
@@ -151,6 +154,16 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
     new_choice_ids->push_back(builder_.AddSequence({sub_expr_id}));
   }
 
+  /*! \brief Visit a character class star RuleExpr that is one of a list of choices. */
+  void VisitCharacterClassStarInChoices(const RuleExpr& rule_expr,
+                                        std::vector<int32_t>* new_choice_ids) {
+    auto sub_expr_id = builder_.AddRuleExpr(grammar_->GetRuleExpr(rule_expr[0]));
+    auto new_star_id = builder_.AddCharacterClassStar(sub_expr_id);
+    auto new_rule_id = builder_.AddRuleWithHint(cur_rule_name_ + "_star", new_star_id);
+    auto new_rule_ref_id = builder_.AddRuleRef(new_rule_id);
+    new_choice_ids->push_back(builder_.AddSequence({new_rule_ref_id}));
+  }
+
   /*!
    * \brief Visit a RuleExpr containing a sequence.
    * \returns A list of new sequence RuleExpr ids.
@@ -172,6 +185,9 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
         case RuleExprType::kNegCharacterClass:
         case RuleExprType::kRuleRef:
           VisitElementInSequence(seq_expr, &new_sequence_ids);
+          break;
+        case RuleExprType::kCharacterClassStar:
+          VisitCharacterClassStarInSequence(seq_expr, &new_sequence_ids);
           break;
         default:
           LOG(FATAL) << "Unexpected sequence type: " << static_cast<int>(seq_expr.type);
@@ -206,6 +222,16 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
   /*! \brief Visit an atom element RuleExpr that is in a sequence. */
   void VisitElementInSequence(const RuleExpr& rule_expr, std::vector<int32_t>* new_sequence_ids) {
     new_sequence_ids->push_back(builder_.AddRuleExpr(rule_expr));
+  }
+
+  /*! \brief Visit a character class star RuleExpr that is in a sequence. */
+  void VisitCharacterClassStarInSequence(const RuleExpr& rule_expr,
+                                         std::vector<int32_t>* new_sequence_ids) {
+    auto sub_expr_id = builder_.AddRuleExpr(grammar_->GetRuleExpr(rule_expr[0]));
+    auto new_star_id = builder_.AddCharacterClassStar(sub_expr_id);
+    auto new_rule_id = builder_.AddRuleWithHint(cur_rule_name_ + "_star", new_star_id);
+    auto new_rule_ref_id = builder_.AddRuleRef(new_rule_id);
+    new_sequence_ids->push_back(new_rule_ref_id);
   }
 
   /*! \brief The name of the current rule being visited. */

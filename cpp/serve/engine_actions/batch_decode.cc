@@ -3,6 +3,8 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include <numeric>
+
 #include "../../random.h"
 #include "../config.h"
 #include "../model.h"
@@ -81,20 +83,16 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
-    NDArray embeddings =
+    ObjectRef embeddings =
         models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], num_rsentries);
-    embeddings = embeddings.CreateView({num_rsentries, 1, embeddings->shape[2]}, embeddings->dtype);
 
     // - Invoke model decode.
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
     NDArray logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
+    ICHECK_EQ(logits->shape[0], num_rsentries);
     ICHECK_EQ(logits->shape[1], 1);
 
     // - Update logits.

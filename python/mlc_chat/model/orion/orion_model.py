@@ -1,5 +1,5 @@
 """
-Implementation for InternLM architecture.
+Implementation for Orion-14B architecture.
 TODO: add docstring
 """
 
@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_chat import op as op_ext
 from mlc_chat.nn import PagedKVCache, RopeMode
 from mlc_chat.support import logging
+from mlc_chat.support import tensor_parallel as tp
 from mlc_chat.support.config import ConfigBase
 from mlc_chat.support.style import bold
 
@@ -20,27 +21,30 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the InternLM model."""
+class OrionConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Orion model."""
 
-    vocab_size: int
     hidden_size: int
-    num_hidden_layers: int
-    num_attention_heads: int
-    rms_norm_eps: float
     intermediate_size: int
-    bias: bool
-    use_cache: bool
-    pad_token_id: int
-    bos_token_id: int
-    eos_token_id: int
+    num_attention_heads: int
+    num_hidden_layers: int
+    rms_norm_eps: float
+    vocab_size: int
+    position_embedding_base: int = 0
     context_window_size: int = 0
     prefill_chunk_size: int = 0
+    num_key_value_heads: int = 0
+    head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -58,6 +62,12 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.num_key_value_heads == 0:
+            self.num_key_value_heads = self.num_attention_heads
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
+        assert self.num_attention_heads % self.num_key_value_heads == 0
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %s (%d)",
@@ -80,89 +90,122 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
 # pylint: disable=invalid-name,missing-docstring
 
 
-class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: InternLMConfig):
-        self.hidden_size = config.hidden_size
-        self.num_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_heads
-        self.max_position_embeddings = config.context_window_size
-
-        self.wqkv_pack = nn.Linear(
-            self.hidden_size, 3 * self.num_heads * self.head_dim, bias=config.bias
-        )
-        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=config.bias)
-
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h = self.head_dim, self.num_heads
-        b, s, _ = hidden_states.shape
-        qkv = self.wqkv_pack(hidden_states)
-        qkv = op.reshape(qkv, (b, s, 3 * h, d))
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads), (b, s, h * d)
-        )
-        attn_output = self.o_proj(output)
-        return attn_output
-
-
-class InternLMMLP(nn.Module):
-    def __init__(self, config: InternLMConfig):
+class OrionFFN(nn.Module):
+    def __init__(self, config: OrionConfig):
+        super().__init__()
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=2 * config.intermediate_size,
+            out_features=2 * self.intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(op.silu(x1) * x2)
 
 
-class InternLMDecoderLayer(nn.Module):
-    def __init__(self, config: InternLMConfig):
-        self.self_attn = InternLMAttention(config)
-        self.mlp = InternLMMLP(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
+class OrionAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: OrionConfig):
+        self.head_dim = config.head_dim
+        self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
+        assert (
+            config.num_key_value_heads % config.tensor_parallel_shards == 0
+        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        assert (
+            config.num_key_value_heads >= config.tensor_parallel_shards
+        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
+        self.qkv_proj = nn.Linear(
+            in_features=config.hidden_size,
+            out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
+            bias=False,
         )
+        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
+        b, s, _ = hidden_states.shape
+        # QKV Projection
+        qkv = self.qkv_proj(hidden_states)
+        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
+        )
+        return self.o_proj(output)
+
+
+class OrionDecoderLayer(nn.Module):
+    def __init__(self, config: OrionConfig):
+        rms_norm_eps = config.rms_norm_eps
+        self.self_attn = OrionAttention(config)
+        self.mlp = OrionFFN(config)
+        self.input_layernorm = nn.LayerNorm(config.hidden_size, rms_norm_eps)
+        self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, rms_norm_eps)
+
+        def _set_tp():
+            def _set(layer, hint):
+                layer.weight.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attn.num_q_heads * hd
+            k = self.self_attn.num_kv_heads * hd
+            v = self.self_attn.num_kv_heads * hd
+            i = self.mlp.intermediate_size
+            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
-class InternLMModel(nn.Module):
-    def __init__(self, config: InternLMConfig):
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+
+class OrionModel(nn.Module):
+    def __init__(self, config: OrionConfig):
+        assert config.hidden_size % config.num_attention_heads == 0
+        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
-            [InternLMDecoderLayer(config) for _ in range(config.num_hidden_layers)]
+            [OrionDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.norm = nn.LayerNorm(config.hidden_size, config.rms_norm_eps)
+        self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
-        hidden_states = inputs
+    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        hidden_states = input_embed
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
 
-class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: InternLMConfig):
-        self.model = InternLMModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-        self.vocab_size = config.vocab_size
+class OrionForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: OrionConfig):
+        self.model = OrionModel(config)
+        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
-        self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.head_dim = config.head_dim
+        self.hidden_size = config.hidden_size
         self.vocab_size = config.vocab_size
-        self.rope_theta = 10000
+        self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
 
@@ -188,6 +231,8 @@ class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -244,7 +289,7 @@ class InternLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            num_key_value_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,

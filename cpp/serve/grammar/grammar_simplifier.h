@@ -73,8 +73,8 @@ class BNFGrammarMutator {
         return VisitCharacterClass(rule_expr);
       case RuleExprType::kRuleRef:
         return VisitRuleRef(rule_expr);
-      case RuleExprType::kStarQuantifier:
-        return VisitStarQuantifier(rule_expr);
+      case RuleExprType::kCharacterClassStar:
+        return VisitCharacterClassStar(rule_expr);
       default:
         LOG(FATAL) << "Unexpected sequence type: " << static_cast<int>(rule_expr.type);
     }
@@ -135,11 +135,11 @@ class BNFGrammarMutator {
   virtual T VisitRuleRef(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
 
   /*! \brief Visit a star quantifier RuleExpr. */
-  virtual T VisitStarQuantifier(const RuleExpr& rule_expr) {
+  virtual T VisitCharacterClassStar(const RuleExpr& rule_expr) {
     if constexpr (std::is_same<T, void>::value) {
       VisitExpr(grammar_->GetRuleExpr(rule_expr[0]));
     } else if constexpr (std::is_same<T, int32_t>::value) {
-      return builder_.AddStarQuantifier(VisitExpr(grammar_->GetRuleExpr(rule_expr[0])));
+      return builder_.AddCharacterClassStar(VisitExpr(grammar_->GetRuleExpr(rule_expr[0])));
     } else {
       return T();
     }

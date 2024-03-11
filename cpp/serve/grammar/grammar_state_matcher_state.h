@@ -27,11 +27,11 @@ struct RulePosition {
   /*! \brief Which element of the choice sequence is being visited. */
   int32_t element_id = -1;
   /*!
-   * \brief If the element refers to another rule, and another rule is a star quantifier of
-   * a character class, this field will be set to the id of the character class.
-   * This is part of the special support of star quantifiers of character classes.
+   * \brief If the element refers to another rule, and the body of another rule is a
+   * CharacterClassStar RuleExpr, this field will be set to the id of the character class.
+   * This is for the special support of CharacterClassStar.
    */
-  int32_t char_class_id = -1;
+  int32_t char_class_star_id = -1;
   /*! \brief The id of the parent node in the RulePositionTree. */
   int32_t parent_id = -1;
   /*! \brief The reference count of this RulePosition. If reduces to zero, the node will be
@@ -43,16 +43,16 @@ struct RulePosition {
 
   constexpr RulePosition() = default;
   constexpr RulePosition(int32_t rule_id, int32_t sequence_id, int32_t element_id,
-                         int32_t parent_id = kNoParent, int32_t char_class_id = -1)
+                         int32_t parent_id = kNoParent, int32_t char_class_star_id = -1)
       : rule_id(rule_id),
         sequence_id(sequence_id),
         element_id(element_id),
-        char_class_id(char_class_id),
+        char_class_star_id(char_class_star_id),
         parent_id(parent_id) {}
 
   bool operator==(const RulePosition& other) const {
     return rule_id == other.rule_id && sequence_id == other.sequence_id &&
-           element_id == other.element_id && char_class_id == other.char_class_id &&
+           element_id == other.element_id && char_class_star_id == other.char_class_star_id &&
            parent_id == other.parent_id;
   }
 
@@ -146,13 +146,10 @@ class RulePositionTree {
   }
 
   /*!
-   * \brief Update a node in the stack to the next position. Next position means either the next
-   * element in the current rule, or if the current element is the last element in the rule, the
-   * next element in the parent rule. If the current node is the last element in the main rule, it
-   * is at the end position.
+   * \brief Check if the given RulePosition points to the end of the grammar. We use
+   * (main_rule_id, sequence_id, length_of_sequence) to represent the end position. Here the
+   * element_id is the length of the sequence.
    */
-  RulePosition GetNextPosition(RulePosition rule_position) const;
-
   bool IsEndPosition(const RulePosition& rule_position) const;
 
   /*! \brief Attach an additional reference to the node with the given id. */
@@ -180,6 +177,7 @@ class RulePositionTree {
   /*! \brief Get the RulePosition with the given id. */
   const RulePosition& operator[](int32_t id) const {
     DCHECK(id != RulePosition::kNoParent);
+    DCHECK(node_buffer_[id] != kInvalidRulePosition);
     return node_buffer_[id];
   }
 
@@ -313,32 +311,9 @@ class StackTopsHistory {
   std::deque<std::vector<int32_t>> stack_tops_history_;
 };
 
-/*! \brief See GetNextPosition. */
 inline bool RulePositionTree::IsEndPosition(const RulePosition& rule_position) const {
   return rule_position.parent_id == RulePosition::kNoParent &&
          grammar_->GetRuleExpr(rule_position.sequence_id).size() == rule_position.element_id;
-}
-
-/*!
- * \brief Update a node in the stack to the next position. Next position means either the next
- * element in the current rule, or if the current element is the last element in the rule, the
- * next element in the parent rule. If the current node is the last element in the main rule, it
- * is at the end position.
- */
-inline RulePosition RulePositionTree::GetNextPosition(RulePosition rule_position) const {
-  if (IsEndPosition(rule_position)) {
-    return kInvalidRulePosition;
-  }
-  rule_position = RulePosition(rule_position.rule_id, rule_position.sequence_id,
-                               rule_position.element_id + 1, rule_position.parent_id);
-  while (rule_position.parent_id != RulePosition::kNoParent &&
-         grammar_->GetRuleExpr(rule_position.sequence_id).size() == rule_position.element_id) {
-    auto parent_rule_position = node_buffer_[rule_position.parent_id];
-    rule_position =
-        RulePosition(parent_rule_position.rule_id, parent_rule_position.sequence_id,
-                     parent_rule_position.element_id + 1, parent_rule_position.parent_id);
-  }
-  return rule_position;
 }
 
 inline std::string RulePositionTree::PrintNode(int32_t id) const {
@@ -348,7 +323,12 @@ inline std::string RulePositionTree::PrintNode(int32_t id) const {
   ss << ", rule " << rule_position.rule_id << ": " << grammar_->GetRule(rule_position.rule_id).name;
   ss << ", sequence " << rule_position.sequence_id << ": "
      << BNFGrammarPrinter(grammar_).PrintRuleExpr(rule_position.sequence_id);
-  ss << ", element id: " << rule_position.element_id << ", parent id: " << rule_position.parent_id
+  ss << ", element id: " << rule_position.element_id;
+  if (rule_position.char_class_star_id != -1) {
+    ss << ", char class " << rule_position.char_class_star_id << ": "
+       << BNFGrammarPrinter(grammar_).PrintRuleExpr(rule_position.char_class_star_id) << "*";
+  }
+  ss << ", parent id: " << rule_position.parent_id
      << ", ref count: " << rule_position.reference_count;
   return ss.str();
 }

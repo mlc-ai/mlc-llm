@@ -24,17 +24,41 @@ c ::= (([c]))
 
 def test_ebnf():
     before = """main ::= b c | b main
-b ::= "b"*
+b ::= "ab"*
 c ::= [acep-z]+
 d ::= "d"?
 """
     expected = """main ::= ((b c) | (b main))
-b ::= [b]*
-c ::= ((c_2))
+b ::= ((b_1))
+c ::= ((c_1))
 d ::= ((d_1))
-c_1 ::= (([acep-z]))
-c_2 ::= ((c_1 c_2) | (c_1))
+b_1 ::= ("" | ([a] [b] b_1))
+c_1 ::= (([acep-z] c_1) | ([acep-z]))
 d_1 ::= ("" | ([d]))
+"""
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    after = bnf_grammar.to_string()
+    assert after == expected
+
+
+def test_star_quantifier():
+    before = """main ::= b c d
+b ::= [b]*
+c ::= "b"*
+d ::= ([b] [c] [d] | ([p] [q]))*
+e ::= [e]* [f]* | [g]*
+"""
+    expected = """main ::= ((b c d))
+b ::= [b]*
+c ::= ((c_1))
+d ::= ((d_1))
+e ::= ((e_star e_star_1) | (e_star_2))
+c_1 ::= ("" | ([b] c_1))
+d_1 ::= ("" | (d_1_choice d_1))
+e_star ::= [e]*
+e_star_1 ::= [f]*
+e_star_2 ::= [g]*
+d_1_choice ::= (([b] [c] [d]) | ([p] [q]))
 """
     bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
     after = bnf_grammar.to_string()

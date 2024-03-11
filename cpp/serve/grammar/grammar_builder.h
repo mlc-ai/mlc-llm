@@ -106,11 +106,11 @@ class BNFGrammarBuilder {
     return AddRuleExpr({RuleExprType::kChoices, data.data(), static_cast<int32_t>(data.size())});
   }
 
-  int32_t AddStarQuantifier(int32_t element) {
+  int32_t AddCharacterClassStar(int32_t element) {
     std::vector<int32_t> data;
     data.push_back(element);
     return AddRuleExpr(
-        {RuleExprType::kStarQuantifier, data.data(), static_cast<int32_t>(data.size())});
+        {RuleExprType::kCharacterClassStar, data.data(), static_cast<int32_t>(data.size())});
   }
 
   size_t NumRuleExprs() const { return grammar_->NumRuleExprs(); }

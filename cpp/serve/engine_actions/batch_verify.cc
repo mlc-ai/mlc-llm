@@ -89,7 +89,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify embedding");
-    NDArray embeddings = models_[verify_model_id_]->TokenEmbed(
+    ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
         {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 

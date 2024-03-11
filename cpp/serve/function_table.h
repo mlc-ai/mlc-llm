@@ -49,13 +49,14 @@ struct FunctionTable {
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const;
 
-  ObjectRef CopyToWorker0(const NDArray& host_array, String tensor_name,
+  ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                           ShapeTuple max_reserved_shape);
 
   bool use_disco = false;
+  Device local_gpu_device;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
-  Map<String, DRef> disco_buffers{nullptr};
+  Map<String, ObjectRef> cached_buffers{nullptr};
   tvm::runtime::Module local_vm{nullptr};
   picojson::object model_config;
 
@@ -74,6 +75,7 @@ struct FunctionTable {
   PackedFunc apply_logit_bias_func_;
   PackedFunc apply_penalty_func_;
   PackedFunc apply_bitmask_func_;
+  PackedFunc alloc_embedding_tensor_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;
@@ -85,7 +87,9 @@ struct FunctionTable {
   PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
-  PackedFunc view_func_;
+  PackedFunc nd_view_func_;
+  PackedFunc nd_get_shape_func_;
+  PackedFunc nd_copy_embedding_to_offset_func_;
 };
 
 }  // namespace serve

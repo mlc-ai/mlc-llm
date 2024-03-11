@@ -103,7 +103,7 @@ elements_rest ::= (
     "\t" ws "," ws elements
 )
 characters ::= "" | [^"\\\r\n] characters | "\\" escape characters
-escape ::= "\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
 digits ::= [0-9] | [0-9] digits
 fraction ::= "" | "." digits
 exponent ::= "" |  "e" sign digits | "E" sign digits

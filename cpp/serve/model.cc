@@ -6,6 +6,7 @@
 #include "model.h"
 
 #include <picojson.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -16,104 +17,6 @@
 namespace mlc {
 namespace llm {
 namespace serve {
-
-/*********************** Utils ***********************/
-
-/*!
- * \brief Concatenate the input embeddings along the sequence dimension.
- * Store the concatenation result into the input destination NDarray.
- * Return concatenation result as an NDArray view of the destination array.
- * \param embedding_arr The array of embeddings to concatenate.
- * \param total_length The total length of the input embeddings along the sequence dim.
- * \param device The device where the embeddings locate.
- * \param initial_seq_len The initial sequence length to allocate for embeddings.
- * \param dst The destination of the concatenation
- * \return The concatenated embeddings.
- */
-NDArray ConcatEmbeddings(const Array<NDArray>& embedding_arr, int64_t total_length, DLDevice device,
-                         int initial_seq_len, NDArray* dst) {
-  ICHECK(!embedding_arr.empty());
-  if (embedding_arr.size() == 1) {
-    return embedding_arr[0];
-  }
-  ICHECK_NOTNULL(dst);
-  int hidden_size = -1;
-  DataType dtype;
-  for (NDArray inp_embeddings : embedding_arr) {
-    // inp_embedding: (1, n, h)
-    CHECK_EQ(inp_embeddings->ndim, 3);
-    CHECK_EQ(inp_embeddings->shape[0], 1);
-    CHECK_EQ(inp_embeddings->device.device_type, device.device_type);
-    CHECK_EQ(inp_embeddings->device.device_id, device.device_id);
-    if (hidden_size == -1) {
-      hidden_size = inp_embeddings->shape[2];
-      dtype = inp_embeddings.DataType();
-    } else {
-      CHECK_EQ(inp_embeddings->shape[2], hidden_size);
-      CHECK_EQ(inp_embeddings.DataType(), dtype);
-    }
-  }
-
-  // - Resize the shared embedding array.
-  if (dst->defined()) {
-    ICHECK_EQ((*dst)->ndim, 3);
-    ICHECK_EQ((*dst)->shape[0], 1);
-    ICHECK_EQ((*dst)->shape[2], hidden_size);
-  }
-  int64_t init_size = dst->defined() ? (*dst)->shape[1] : initial_seq_len;
-  while (init_size < total_length) {
-    init_size *= 2;
-  }
-  if (!dst->defined() || init_size != (*dst)->shape[1]) {
-    *dst = NDArray::Empty({1, init_size, hidden_size}, dtype, device);
-  }
-
-  // - Copy input embeddings.
-  int64_t start_pos = 0;
-  for (NDArray inp_embeddings : embedding_arr) {
-    int64_t length = inp_embeddings->shape[1];
-    CHECK_LE(start_pos + length, total_length);
-
-    DLTensor copy_dst = *(dst->operator->());
-    copy_dst.byte_offset = start_pos * hidden_size * dtype.bytes();
-    copy_dst.shape = inp_embeddings->shape;
-    NDArray::CopyFromTo(inp_embeddings.operator->(), &copy_dst);
-
-    start_pos += length;
-  }
-  CHECK_EQ(start_pos, total_length);
-  return dst->CreateView({1, total_length, hidden_size}, dtype);
-}
-
-/*! \brief Utility function that copies input array to the device. */
-template <typename T>
-NDArray CopyArrayToDevice(const std::vector<T>& array, NDArray* dst, DLDataType dtype,
-                          int default_init_size, Device device) {
-  ICHECK(!array.empty());
-  ICHECK(dst != nullptr);
-  ICHECK(!dst->defined() || (*dst)->ndim == 1);
-  int64_t init_size = dst->defined() ? (*dst)->shape[0] : default_init_size;
-  while (init_size < static_cast<int64_t>(array.size())) {
-    init_size *= 2;
-  }
-  if (!dst->defined() || init_size != (*dst)->shape[0]) {
-    (*dst) = NDArray::Empty({init_size}, dtype, device);
-  }
-  ICHECK_LE(static_cast<int64_t>(array.size()), (*dst)->shape[0]);
-  NDArray view = dst->CreateView(ShapeTuple({static_cast<int64_t>(array.size())}), dtype);
-
-  DLTensor copy_dst = *(view.operator->());
-  DLTensor copy_src;
-  copy_src.data = const_cast<T*>(array.data());
-  copy_src.device = Device{kDLCPU, 0};
-  copy_src.ndim = 1;
-  copy_src.dtype = view->dtype;
-  copy_src.shape = view->shape;
-  copy_src.strides = nullptr;
-  copy_src.byte_offset = 0;
-  NDArray::CopyFromTo(&copy_src, &copy_dst);
-  return view;
-}
 
 /*********************** Model Implementation ***********************/
 
@@ -155,64 +58,55 @@ class ModelImpl : public ModelObj {
     this->max_num_sequence_ = max_num_sequence;
     // Step 5. Reset
     this->Reset();
+    // Step 6. Initialize the shared NDArray.
+    Device device_host{DLDeviceType::kDLCPU, 0};
+    memory::Allocator* allocator =
+        memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
+    ICHECK_NOTNULL(allocator);
+    token_ids_storage_ =
+        memory::Storage(allocator->Alloc({prefill_chunk_size_}, DataType::Int(32)));
+    this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
   }
 
   /*********************** Model Computation  ***********************/
 
-  NDArray TokenEmbed(IntTuple token_ids) final {
+  ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
     int num_tokens = token_ids.size();
-    std::vector<int32_t> vec_token_ids(token_ids->data, token_ids->data + num_tokens);
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
-    NDArray token_ids_nd =
-        CopyArrayToDevice(vec_token_ids, &input_token_ids_, dtype, max_window_size_, device_);
+    NDArray token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
+    int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
+    for (int i = 0; i < num_tokens; ++i) {
+      p_token_ids[i] = token_ids[i];
+    }
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
-    token_ids_nd = token_ids_nd.CreateView({1, num_tokens}, dtype);
-
-    CHECK(ft_.embed_func_.defined())
-        << "`embed` function is not found in the model. Please make sure the model is compiled "
-           "with flag `--sep-embed` and `--enable-batching`";
-    auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {max_window_size_});
+    auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
-    NDArray embeddings_ndarray;
-    if (ft_.use_disco) {
-      embeddings_ndarray = Downcast<DRef>(embeddings)->DebugGetFromRemote(0);
+    if (dst != nullptr) {
+      CHECK(dst->defined());
+      ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
+      return *dst;
     } else {
-      embeddings_ndarray = Downcast<NDArray>(embeddings);
+      CHECK_EQ(offset, 0);
+      return embeddings;
     }
-    // embeddings: (1, total_length, hidden_size)
-    ICHECK_EQ(embeddings_ndarray->ndim, 3);
-    ICHECK_EQ(embeddings_ndarray->shape[0], 1);
-    ICHECK_EQ(embeddings_ndarray->shape[1], num_tokens);
-    return embeddings_ndarray;
   }
 
-  NDArray BatchPrefill(const Array<NDArray>& embedding_arr, const std::vector<int64_t>& seq_ids,
+  NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                        const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
-    std::vector<int> logit_pos;
-    logit_pos.reserve(num_sequences);
+
+    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
-      logit_pos.push_back(total_length - 1);
+      p_logit_pos[i] = total_length - 1;
     }
-
-    // embeddings: (1, n, h)
-    NDArray embeddings =
-        ConcatEmbeddings(embedding_arr, total_length, device_, max_window_size_, &embeddings_);
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], total_length);
-    ICHECK_EQ(embeddings->device.device_type, device_.device_type);
-    ICHECK_EQ(embeddings->device.device_id, device_.device_id);
-
-    NDArray logit_pos_nd =
-        CopyArrayToDevice(logit_pos, &logit_pos_arr_, DataType::Int(32), 32, device_);
+    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
     CHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
@@ -226,8 +120,22 @@ class ModelImpl : public ModelObj {
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
-    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(
-        embeddings, "embedding_prefill", {1, max_window_size_, embeddings.Shape()[2]});
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (1, n, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
+    } else {
+      ShapeTuple embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+    }
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
     // args: embeddings, logit_pos, kv_cache, params
@@ -254,13 +162,8 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) final {
-    // embeddings: (b, 1, h)
-    CHECK_EQ(embeddings->ndim, 3);
-    CHECK_EQ(embeddings->shape[0], seq_ids.size());
-    CHECK_EQ(embeddings->shape[1], 1);
-    CHECK_EQ(embeddings->device.device_type, device_.device_type);
-    CHECK_EQ(embeddings->device.device_id, device_.device_id);
+  NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
+    int num_sequence = seq_ids.size();
 
     CHECK(ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
@@ -272,11 +175,25 @@ class ModelImpl : public ModelObj {
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/embeddings->shape[0], /*v=*/1));
+    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
-    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(
-        embeddings, "embedding_decode", {max_num_sequence_, 1, embeddings.Shape()[2]});
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (1, b, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], num_sequence);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
+    } else {
+      ShapeTuple embedding_shape{num_sequence, 1, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+    }
 
     // args: embeddings, kv_cache, params
     ObjectRef ret;
@@ -297,12 +214,12 @@ class ModelImpl : public ModelObj {
 
     // logits: (b, 1, v)
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
+    ICHECK_EQ(logits->shape[0], num_sequence);
     ICHECK_EQ(logits->shape[1], 1);
     return logits;
   }
 
-  NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+  NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                       const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
@@ -311,13 +228,6 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
     }
-
-    // embeddings: (1, n, h)
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], total_length);
-    ICHECK_EQ(embeddings->device.device_type, device_.device_type);
-    ICHECK_EQ(embeddings->device.device_id, device_.device_id);
 
     CHECK(ft_.verify_func_.defined())
         << "`verify_with_embed` function is not found in the model. Please make sure the model is "
@@ -331,8 +241,22 @@ class ModelImpl : public ModelObj {
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
-    ObjectRef embeddings_dref_or_nd = ft_.CopyToWorker0(
-        embeddings, "embedding_verify", {1, max_window_size_, embeddings.Shape()[2]});
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (1, n, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
+    } else {
+      ShapeTuple embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+    }
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_);
     NDArray logits;
@@ -407,6 +331,25 @@ class ModelImpl : public ModelObj {
     return max_window_size_;
   }
 
+  ObjectRef AllocEmbeddingTensor() final {
+    // Allocate the embedding tensor.
+    ObjectRef embedding = ft_.alloc_embedding_tensor_func_();
+    // Get the shape of the embedding tensor for hidden size.
+    ShapeTuple embedding_shape;
+    if (ft_.use_disco) {
+      ICHECK(embedding->IsInstance<DRefObj>());
+      ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding);
+      embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0);
+    } else {
+      NDArray embedding_nd = Downcast<NDArray>(embedding);
+      embedding_shape = embedding_nd.Shape();
+    }
+    ICHECK_EQ(embedding_shape.size(), 2);
+    ICHECK_EQ(embedding_shape[0], prefill_chunk_size_);
+    this->hidden_size_ = embedding_shape[1];
+    return embedding;
+  }
+
   void Reset() final {
     // Reset the KV cache.
     if (kv_cache_.defined()) {
@@ -437,6 +380,12 @@ class ModelImpl : public ModelObj {
     } else {
       LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
     }
+    if (config.count("prefill_chunk_size")) {
+      CHECK(config["prefill_chunk_size"].is<int64_t>());
+      this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
+    } else {
+      LOG(FATAL) << "Key \"prefill_chunk_size\" not found.";
+    }
     if (config.count("vocab_size")) {
       CHECK(config["vocab_size"].is<int64_t>());
       this->vocab_size_ = config["vocab_size"].get<int64_t>();
@@ -452,6 +401,8 @@ class ModelImpl : public ModelObj {
   int max_window_size_ = -1;
   int num_shards_ = -1;
   int max_num_sequence_ = -1;
+  int prefill_chunk_size_ = -1;
+  int hidden_size_ = -1;
   int vocab_size_ = -1;
   //----------------------------
   // TVM related states
@@ -465,11 +416,26 @@ class ModelImpl : public ModelObj {
   // Model parameters
   ObjectRef params_;
   // Shared NDArray
-  NDArray input_token_ids_{nullptr};
-  NDArray embeddings_{nullptr};
+  memory::Storage token_ids_storage_{nullptr};
   NDArray logit_pos_arr_{nullptr};
-  NDArray temperature_arr_{nullptr};
 };
+
+TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
+    .set_body_typed([](NDArray embedding, NDArray dst, int offset) {
+      // embedding: (m, hidden_size)
+      // dst: (prefill_chunk_size, hidden_size)
+      ICHECK_EQ(embedding->ndim, 2);
+      ICHECK_EQ(dst->ndim, 2);
+      ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+      ICHECK_EQ(embedding->shape[1], dst->shape[1]);
+      const DLTensor& copy_src = *(embedding.operator->());
+      const DLTensor* p_copy_dst = dst.operator->();
+      DLTensor copy_dst = *p_copy_dst;
+      copy_dst.shape = embedding->shape;
+      copy_dst.byte_offset =
+          offset * embedding->shape[1] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
+      NDArray::CopyFromTo(&copy_src, &copy_dst);
+    });
 
 }  // namespace serve
 }  // namespace llm

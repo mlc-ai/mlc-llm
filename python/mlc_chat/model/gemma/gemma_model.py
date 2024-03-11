@@ -202,11 +202,8 @@ class GemmaModel(nn.Module):
             [GemmaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.tensor_parallel_shards = config.tensor_parallel_shards
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        if self.tensor_parallel_shards > 1:
-            input_embed = op.ccl_broadcast_from_worker0(input_embed)
         hidden_states = input_embed
         hidden_states = hidden_states * (self.hidden_size**0.5)
         for layer_id, layer in enumerate(self.layers):
@@ -250,6 +247,8 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -317,7 +316,7 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def get_default_spec(self):
         mod_spec = {
             "embed": {
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

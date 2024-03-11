@@ -215,7 +215,7 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
 
     max_total_sequence_length = int(
         (
-            int(gpu_size_bytes) * 0.85
+            int(gpu_size_bytes) * 0.90
             - params_bytes
             - temp_func_bytes
             - kv_aux_workspace_bytes

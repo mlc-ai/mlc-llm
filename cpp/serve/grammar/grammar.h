@@ -100,7 +100,7 @@ class BNFGrammarNode : public Object {
     // data format: [rule_expr_id0, rule_expr_id1, ...]
     kChoices,
     // data format: [rule_expr_id]
-    kStarQuantifier,
+    kCharacterClassStar,
   };
 
   /*! \brief The object representing a rule expr. */
