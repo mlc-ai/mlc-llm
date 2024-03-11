@@ -62,23 +62,19 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         if rotary_dim is None:
             rotary_dim = head_dim
         return PagedKVCache(
-            _expr=rx.Call(
-                rx.extern("mlc.create_paged_kv_cache_generic"),
-                args=[
-                    rx.ShapeExpr(
-                        [max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]
-                    ),
-                    rx.PrimValue(num_hidden_layers),
-                    rx.PrimValue(num_attention_heads),
-                    rx.PrimValue(num_key_value_heads),
-                    rx.PrimValue(head_dim),
-                    rx.PrimValue(rope_mode),
-                    rx.PrimValue(rope_scale),
-                    rx.PrimValue(rope_theta),
-                    rx.PrimValue(rotary_dim),
-                    rx.DataTypeImm(dtype),
-                ],
-                sinfo_args=[rx.ObjectStructInfo()],
+            _expr=rx.call_pure_packed(
+                "mlc.create_paged_kv_cache_generic",
+                rx.ShapeExpr([max_batch_size, max_total_seq_len, prefill_chunk_size, page_size]),
+                rx.PrimValue(num_hidden_layers),
+                rx.PrimValue(num_attention_heads),
+                rx.PrimValue(num_key_value_heads),
+                rx.PrimValue(head_dim),
+                rx.PrimValue(rope_mode),
+                rx.PrimValue(rope_scale),
+                rx.PrimValue(rope_theta),
+                rx.PrimValue(rotary_dim),
+                rx.DataTypeImm(dtype),
+                sinfo_args=rx.ObjectStructInfo(),
             ),
             _name=name,
         )
