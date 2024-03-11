@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "../support/load_bytes_from_file.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -221,6 +222,12 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
   this->kv_cache_get_num_available_pages_func_ =
       get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
+  if (Sampler::SupportGPUSampler(local_gpu_device)) {
+    gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
+    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
+    gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
+    gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
+  }
   this->nd_view_func_ = get_global_func("vm.builtin.reshape");
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
   this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");

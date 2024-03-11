@@ -11,7 +11,7 @@
 #include "../engine_state.h"
 #include "../event_trace_recorder.h"
 #include "../model.h"
-#include "../sampler.h"
+#include "../sampler/sampler.h"
 
 namespace mlc {
 namespace llm {

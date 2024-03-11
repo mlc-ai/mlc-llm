@@ -7,7 +7,7 @@
 
 #include "../config.h"
 #include "../model.h"
-#include "../sampler.h"
+#include "../sampler/sampler.h"
 #include "action.h"
 #include "action_commons.h"
 
