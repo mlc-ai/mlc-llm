@@ -16,35 +16,33 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert len(func.body.blocks[0].bindings) == 2
     assert isinstance(func.body.blocks[0].bindings[0], relax.VarBinding)
     assert isinstance(func.body.blocks[0].bindings[0].value, relax.Call)
-    assert isinstance(func.body.blocks[0].bindings[0].value.op, relax.ExternFunc)
-    assert (
-        func.body.blocks[0].bindings[0].value.op.global_symbol
-        == "mlc.create_paged_kv_cache_generic"
-    )
-
+    assert func.body.blocks[0].bindings[0].value.op == tvm.ir.Op.get("relax.call_pure_packed")
     args = func.body.blocks[0].bindings[0].value.args
-    assert len(args) == 10
-    assert isinstance(args[0], relax.ShapeExpr)
-    assert len(args[0].values) == 4
-    for i in range(1, 9):
+    assert isinstance(args[0], relax.ExternFunc)
+    assert args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
+
+    assert len(args) == 11
+    assert isinstance(args[1], relax.ShapeExpr)
+    assert len(args[1].values) == 4
+    for i in range(2, 10):
         assert isinstance(args[i], relax.PrimValue)
         assert isinstance(args[i].value, (tvm.tir.IntImm, tvm.tir.FloatImm))
-    assert isinstance(args[9], relax.DataTypeImm)
+    assert isinstance(args[10], relax.DataTypeImm)
 
     return {
-        "max_batch_size": args[0].values[0],
-        "max_total_seq_len": args[0].values[1],
-        "prefill_chunk_size": args[0].values[2],
-        "page_size": args[0].values[3],
-        "num_hidden_layers": args[1].value.value,
-        "num_attention_heads": args[2].value.value,
-        "num_key_value_heads": args[3].value.value,
-        "head_dim": args[4].value.value,
-        "rope_mode": args[5].value.value,
-        "rope_scale": args[6].value.value,
-        "rope_theta": args[7].value.value,
-        "rotary_dim": args[8].value.value,
-        "dtype": args[9].value,
+        "max_batch_size": args[1].values[0],
+        "max_total_seq_len": args[1].values[1],
+        "prefill_chunk_size": args[1].values[2],
+        "page_size": args[1].values[3],
+        "num_hidden_layers": args[2].value.value,
+        "num_attention_heads": args[3].value.value,
+        "num_key_value_heads": args[4].value.value,
+        "head_dim": args[5].value.value,
+        "rope_mode": args[6].value.value,
+        "rope_scale": args[7].value.value,
+        "rope_theta": args[8].value.value,
+        "rotary_dim": args[9].value.value,
+        "dtype": args[10].value,
     }
 
 
