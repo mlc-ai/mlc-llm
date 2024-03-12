@@ -25,7 +25,7 @@
 #include "model.h"
 #include "request.h"
 #include "request_state.h"
-#include "sampler.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -78,13 +78,13 @@ class EngineImpl : public Engine {
       this->models_.push_back(model);
       this->model_workspaces_.push_back(ModelWorkspace{model->AllocEmbeddingTensor()});
     }
-    int max_logit_processor_num_token = kv_cache_config_->max_num_sequence;
+    int max_num_tokens = kv_cache_config_->max_num_sequence;
     if (engine_mode_->enable_speculative) {
-      max_logit_processor_num_token *= engine_mode_->spec_draft_length;
+      max_num_tokens *= engine_mode_->spec_draft_length;
     }
     LogitProcessor logit_processor =
-        this->models_[0]->CreateLogitProcessor(max_logit_processor_num_token, trace_recorder);
-    Sampler sampler = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
+        this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
+    Sampler sampler = this->models_[0]->CreateSampler(max_num_tokens, trace_recorder);
     // Step 3. Initialize engine actions that represent state transitions.
     if (this->engine_mode_->enable_speculative) {
       // Speculative decoding is only possible for more than one model.

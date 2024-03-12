@@ -1,21 +1,21 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/sampler.h
+ * \file serve/sampler/sampler.h
  * \brief The header for runtime module of sampler functions.
  */
 
-#ifndef MLC_LLM_SERVE_SAMPLER_H_
-#define MLC_LLM_SERVE_SAMPLER_H_
+#ifndef MLC_LLM_SERVE_SAMPLER_SAMPLER_H_
+#define MLC_LLM_SERVE_SAMPLER_SAMPLER_H_
 
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/module.h>
 
-#include "../base.h"
-#include "../random.h"
-#include "data.h"
-#include "event_trace_recorder.h"
-#include "model.h"
-#include "request_state.h"
+#include "../../base.h"
+#include "../../random.h"
+#include "../data.h"
+#include "../event_trace_recorder.h"
+#include "../model.h"
+#include "../request_state.h"
 
 namespace mlc {
 namespace llm {
@@ -84,14 +84,24 @@ class SamplerObj : public Object {
 
 class Sampler : public ObjectRef {
  public:
+  /*! * \brief Create a CPU sampler. */
+  TVM_DLL static Sampler CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder);
   /*!
-   * \brief Create the runtime sampler module.
-   * \param sampler_kind The sampler name denoting which sampler to create.
-   * \param trace_recorder The event trace recorder for requests.
-   * \return The created runtime module.
+   * \brief Create a GPU sampler.
+   * \param max_num_sample The max number of samples to sample at a time.
+   * \param vocab_size The model's vocabulary size.
+   * \param ft The packed function table.
+   * \param device The device that the model runs on.
+   * \param trace_recorder The event trace recorder.
    */
-  TVM_DLL static Sampler Create(std::string sampler_kind,
-                                Optional<EventTraceRecorder> trace_recorder);
+  TVM_DLL static Sampler CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
+                                          DLDevice device,
+                                          Optional<EventTraceRecorder> trace_recorder);
+
+  /*! \brief Check if the given device supports GPU sampling. */
+  static bool SupportGPUSampler(Device device) {
+    return device.device_type == DLDeviceType::kDLCUDA;
+  }
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Sampler, ObjectRef, SamplerObj);
 };
@@ -100,4 +110,4 @@ class Sampler : public ObjectRef {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_SAMPLER_H_
+#endif  // MLC_LLM_SERVE_SAMPLER_SAMPLER_H_

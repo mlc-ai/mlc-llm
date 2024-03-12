@@ -87,6 +87,10 @@ struct FunctionTable {
   PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
+  PackedFunc gpu_multinomial_from_uniform_func_;
+  PackedFunc gpu_argsort_probs_func_;
+  PackedFunc gpu_sample_with_top_p_func_;
+  PackedFunc gpu_sampler_take_probs_func_;
   PackedFunc nd_view_func_;
   PackedFunc nd_get_shape_func_;
   PackedFunc nd_copy_embedding_to_offset_func_;

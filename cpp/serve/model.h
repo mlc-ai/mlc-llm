@@ -15,6 +15,7 @@
 #include "event_trace_recorder.h"
 #include "function_table.h"
 #include "logit_processor.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -22,6 +23,9 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+
+// Declare the sampler class for `Model::CreateSampler`.
+class Sampler;
 
 /*!
  * \brief The workspace tensors that may be shared across different
@@ -143,6 +147,10 @@ class ModelObj : public Object {
   /*! \brief Create a logit processor from this model. */
   virtual LogitProcessor CreateLogitProcessor(int max_num_token,
                                               Optional<EventTraceRecorder> trace_recorder) = 0;
+
+  /*! \brief Create a sampler from this model. */
+  virtual Sampler CreateSampler(int max_num_sample,
+                                Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!
    * \brief Estimate number of CPU units required to drive the model

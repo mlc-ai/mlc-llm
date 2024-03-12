@@ -1,10 +1,8 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/sampler.cc
- * \brief The implementation for runtime module of sampler functions.
+ * \file serve/sampler/cpu_sampler.cc
+ * \brief The implementation for CPU sampler functions.
  */
-#include "sampler.h"
-
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -12,7 +10,8 @@
 
 #include <cmath>
 
-#include "../random.h"
+#include "../../random.h"
+#include "sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -250,6 +249,8 @@ inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
 
 /********************* CPU Sampler *********************/
 
+TVM_REGISTER_OBJECT_TYPE(SamplerObj);
+
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
@@ -430,17 +431,8 @@ class CPUSampler : public SamplerObj {
   const float eps_ = 1e-5;
 };
 
-/*********************** Sampler ***********************/
-
-TVM_REGISTER_OBJECT_TYPE(SamplerObj);
-
-Sampler Sampler::Create(std::string sampler_kind, Optional<EventTraceRecorder> trace_recorder) {
-  if (sampler_kind == "cpu") {
-    return Sampler(make_object<CPUSampler>(std::move(trace_recorder)));
-  } else {
-    LOG(FATAL) << "Unsupported sampler_kind \"" << sampler_kind << "\"";
-    throw;
-  }
+Sampler Sampler::CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder) {
+  return Sampler(make_object<CPUSampler>(std::move(trace_recorder)));
 }
 
 }  // namespace serve
