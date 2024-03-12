@@ -157,7 +157,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         )
                         self.quant_map = op.add_calibration_params(self.quant_map, name)
                         return op
-                    elif self.config.name == "fp8_e4m3_e5m2_max_runtime":
+                    elif self.config.name == "fp8_e4m3_e5m2_max":
                         return fp8.MixtralExpertsFP8.from_mixtral_experts(
                             node,
                             self.config,

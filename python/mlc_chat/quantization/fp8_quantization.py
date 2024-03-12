@@ -340,13 +340,12 @@ class MixtralExpertsFP8(
             weight_dtype=weight_dtype,
             runtime=runtime,
         )
+
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             gq._apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
             if weight_dtype == "e4m3_float8":
                 _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
-            # TODO(csullivan): Consider if it is possible to use all reduce to reduce over multigpu
-            # calibration params. Probably doable with nn.op.ccl* directly
 
         return quantized_mistral_experts
 
@@ -358,6 +357,10 @@ class MixtralExpertsFP8(
                 kind="fp8-max",
                 max_int_value=self.max_int_value,
             )
+
+            # TODO(csullivan): Need to figure out a way to conditionally add the all reduce for
+            # only when tensor parallel sharding > 1 is used.
+            # local_scale = nn.op.ccl_allreduce(local_scale, op_type="max")
             local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
             # Calibration done in fp16 mma
             # x = nn.op.astype(x, dtype="float16")
