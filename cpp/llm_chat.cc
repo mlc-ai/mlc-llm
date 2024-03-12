@@ -575,10 +575,6 @@ class LLMChat {
       CHECK(config["bos_token_id"].is<int64_t>());
       this->bos_token_id_ = config["bos_token_id"].get<int64_t>();
     }
-    if (config.count("eos_token_id")) {
-      CHECK(config["eos_token_id"].is<int64_t>());
-      this->eos_token_id_ = config["eos_token_id"].get<int64_t>();
-    }
   }
 
   /*!
@@ -1628,8 +1624,6 @@ class LLMChat {
   Tokenizer tokenizer_;
   // bos token
   int32_t bos_token_id_{1};
-  // eos token id
-  int32_t eos_token_id_{2};
   //----------------------------
   // TVM related states
   //----------------------------
