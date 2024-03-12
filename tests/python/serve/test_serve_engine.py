@@ -4,7 +4,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_chat.serve import (
+from mlc_llm.serve import (
     Engine,
     GenerationConfig,
     KVCacheConfig,
@@ -12,7 +12,7 @@ from mlc_chat.serve import (
     RequestStreamOutput,
     data,
 )
-from mlc_chat.serve.engine import ModelInfo
+from mlc_llm.serve.engine import ModelInfo
 
 prompts = [
     "What is the meaning of life?",

@@ -85,7 +85,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
       device_ids[i] = i;
     }
     this->use_disco = true;
-    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_chat.cli.worker");
+    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        lib_path, null_device);

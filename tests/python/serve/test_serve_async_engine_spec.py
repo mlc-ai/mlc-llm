@@ -3,13 +3,13 @@
 import asyncio
 from typing import List
 
-from mlc_chat.serve import (
+from mlc_llm.serve import (
     AsyncThreadedEngine,
     EngineMode,
     GenerationConfig,
     KVCacheConfig,
 )
-from mlc_chat.serve.engine import ModelInfo
+from mlc_llm.serve.engine import ModelInfo
 
 prompts = [
     "What is the meaning of life?",

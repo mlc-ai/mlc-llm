@@ -9,10 +9,10 @@ from itertools import product
 
 import tvm
 
-from mlc_chat.model import MODEL_PRESETS
-from mlc_chat.model import MODELS as SUPPORTED_MODELS
-from mlc_chat.quantization import QUANTIZATION as SUPPORTED_QUANTS
-from mlc_chat.support.constants import MLC_TEMP_DIR
+from mlc_llm.model import MODEL_PRESETS
+from mlc_llm.model import MODELS as SUPPORTED_MODELS
+from mlc_llm.quantization import QUANTIZATION as SUPPORTED_QUANTS
+from mlc_llm.support.constants import MLC_TEMP_DIR
 
 OPT_LEVEL = "O2"
 DEVICE2TARGET = {
@@ -61,7 +61,7 @@ DEVICE2SUFFIX = {
     "ios": "tar",
 }
 MODELS = list(MODEL_PRESETS.keys())
-QUANTS = [  # TODO(@junrushao): use `list(mlc_chat.quantization.QUANTIZATION.keys())`
+QUANTS = [  # TODO(@junrushao): use `list(mlc_llm.quantization.QUANTIZATION.keys())`
     "q0f16",
     "q0f32",
     "q3f16_1",
@@ -117,7 +117,7 @@ def test_model_compile():  # pylint: disable=too-many-locals
                 cmd = [
                     sys.executable,
                     "-m",
-                    "mlc_chat",
+                    "mlc_llm",
                     "compile",
                     model,
                     "--quantization",

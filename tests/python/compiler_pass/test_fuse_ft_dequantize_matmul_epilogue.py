@@ -4,7 +4,7 @@ from tvm.ir import assert_structural_equal
 from tvm.script import ir as I
 from tvm.script import relax as R
 
-from mlc_chat.compiler_pass.fuse_ft_dequantize_matmul_epilogue import (
+from mlc_llm.compiler_pass.fuse_ft_dequantize_matmul_epilogue import (
     FuseFTDequantizeEpilogue,
 )
 

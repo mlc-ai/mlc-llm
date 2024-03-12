@@ -5,7 +5,7 @@ import pytest
 import tvm.testing
 from tvm import TVMError
 
-from mlc_chat.serve import BNFGrammar
+from mlc_llm.serve import BNFGrammar
 
 
 def test_bnf_simple():

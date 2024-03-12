@@ -22,8 +22,8 @@ from typing import List, Tuple
 
 import pytest
 
-from mlc_chat.streamer import StopStrHandler, TextStreamer
-from mlc_chat.tokenizer import Tokenizer
+from mlc_llm.streamer import StopStrHandler, TextStreamer
+from mlc_llm.tokenizer import Tokenizer
 
 # fmt: off
 para_input_tokens = [18585, 29892, 1244, 29915, 29879, 263, 3273, 14880, 1048, 953, 29877, 2397,

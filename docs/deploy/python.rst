@@ -32,9 +32,9 @@ Verify Installation
 
 .. code:: bash
 
-   python -c "from mlc_chat import ChatModule; print(ChatModule)"
+   python -c "from mlc_llm import ChatModule; print(ChatModule)"
 
-You are expected to see the information about the :class:`mlc_chat.ChatModule` class.
+You are expected to see the information about the :class:`mlc_llm.ChatModule` class.
 
 If the command above results in error, follow :ref:`install-mlc-packages` (either install the prebuilt pip wheels
 or :ref:`mlcchat_build_from_source`).
@@ -44,7 +44,7 @@ Run MLC Models w/ Python
 
 To run a model with MLC LLM in any platform/runtime, you need:
 
-1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC 
+1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-MLC
    <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-MLC/tree/main>`_.)
 2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
 
@@ -77,14 +77,14 @@ Skip this step if you have already obtained the model weights and libraries.
 
 **Step 2: Run the model in Python**
 
-Use the conda environment you used to install ``mlc_chat``.
+Use the conda environment you used to install ``mlc_llm``.
 From the ``mlc-llm`` directory, you can create a Python
-file ``sample_mlc_chat.py`` and paste the following lines:
+file ``sample_mlc_llm.py`` and paste the following lines:
 
 .. code:: python
 
-   from mlc_chat import ChatModule
-   from mlc_chat.callback import StreamToStdout
+   from mlc_llm import ChatModule
+   from mlc_llm.callback import StreamToStdout
 
    # Create a ChatModule instance
    cm = ChatModule(
@@ -125,7 +125,7 @@ Now run the Python file to start the chat
 
 .. code:: bash
 
-   python sample_mlc_chat.py
+   python sample_mlc_llm.py
 
 
 .. collapse:: See output
@@ -173,14 +173,14 @@ option of overriding any field you'd like in Python, so that you do not need to 
 ``mlc-chat-config.json``.
 
 Since there are two concepts -- `MLCChat Configuration` and `Conversation Configuration` -- we correspondingly
-provide two dataclasses :class:`mlc_chat.ChatConfig` and :class:`mlc_chat.ConvConfig`.
+provide two dataclasses :class:`mlc_llm.ChatConfig` and :class:`mlc_llm.ConvConfig`.
 
 We provide an example below.
 
 .. code:: python
 
-   from mlc_chat import ChatModule, ChatConfig, ConvConfig
-   from mlc_chat.callback import StreamToStdout
+   from mlc_llm import ChatModule, ChatConfig, ConvConfig
+   from mlc_llm.callback import StreamToStdout
 
    # Using a `ConvConfig`, we modify `system`, a field in the conversation template
    # `system` refers to the prompt encoded before starting the chat
@@ -232,12 +232,12 @@ We provide an example below.
 
 |
 
-.. note:: 
+.. note::
    You do not need to specify the entire ``ChatConfig`` or ``ConvConfig``. Instead, we will first
    load all the fields defined in ``mlc-chat-config.json``, a file required when instantiating
-   a :class:`mlc_chat.ChatModule`. Then, we will load in the optional ``ChatConfig`` you provide, overriding the
+   a :class:`mlc_llm.ChatModule`. Then, we will load in the optional ``ChatConfig`` you provide, overriding the
    fields specified.
-   
+
    It is also worth noting that ``ConvConfig`` itself is overriding the original conversation template
    specified by the field ``conv_template`` in the chat configuration. Learn more about it in
    :ref:`Configure MLCChat in JSON<configure-mlc-chat-json>`.
@@ -245,7 +245,7 @@ We provide an example below.
 Raw Text Generation in Python
 -----------------------------
 
-Raw text generation allows the user to have more flexibility over his prompts, 
+Raw text generation allows the user to have more flexibility over his prompts,
 without being forced to create a new conversational template, making prompt customization easier.
 This serves other demands for APIs to handle LLM generation without the usual system prompts and other items.
 
@@ -253,8 +253,8 @@ We provide an example below.
 
 .. code:: python
 
-   from mlc_chat import ChatModule, ChatConfig, ConvConfig
-   from mlc_chat.callback import StreamToStdout
+   from mlc_llm import ChatModule, ChatConfig, ConvConfig
+   from mlc_llm.callback import StreamToStdout
 
    # Use a `ConvConfig` to define the generation settings
    # Since the "LM" template only supports raw text generation,
@@ -293,9 +293,9 @@ We provide an example below.
       progress_callback=StreamToStdout(callback_interval=2),
    )
 
-.. note:: 
+.. note::
    The ``LM`` is a template without memory, which means that every execution will be cleared.
-   Additionally, system prompts will not be run when instantiating a `mlc_chat.ChatModule`,
+   Additionally, system prompts will not be run when instantiating a `mlc_llm.ChatModule`,
    unless explicitly given inside the prompt.
 
 Stream Iterator in Python
@@ -308,8 +308,8 @@ We provide an example below.
 
 .. code:: python
 
-   from mlc_chat import ChatModule
-   from mlc_chat.callback import StreamIterator
+   from mlc_llm import ChatModule
+   from mlc_llm.callback import StreamIterator
 
    # Create a ChatModule instance
    cm = ChatModule(
@@ -340,10 +340,10 @@ We provide an example below.
 API Reference
 -------------
 
-User can initiate a chat module by creating :class:`mlc_chat.ChatModule` class, which is a wrapper of the MLC-Chat model.
-The :class:`mlc_chat.ChatModule` class provides the following methods:
+User can initiate a chat module by creating :class:`mlc_llm.ChatModule` class, which is a wrapper of the MLC-Chat model.
+The :class:`mlc_llm.ChatModule` class provides the following methods:
 
-.. currentmodule:: mlc_chat
+.. currentmodule:: mlc_llm
 
 .. autoclass:: ChatModule
    :members:

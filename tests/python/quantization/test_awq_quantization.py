@@ -9,8 +9,8 @@ import tvm.testing
 from tvm import DataType
 from tvm.relax.frontend import nn
 
-from mlc_chat.loader import QuantizeMapping
-from mlc_chat.quantization import QUANTIZATION, AWQQuantize
+from mlc_llm.loader import QuantizeMapping
+from mlc_llm.quantization import QUANTIZATION, AWQQuantize
 
 
 def dequantize_np(

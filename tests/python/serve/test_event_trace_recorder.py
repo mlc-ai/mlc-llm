@@ -1,7 +1,7 @@
 # pylint: disable=missing-module-docstring,missing-function-docstring
 import json
 
-from mlc_chat.serve.event_trace_recorder import EventTraceRecorder
+from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 
 
 def test_event_trace_recorder():
