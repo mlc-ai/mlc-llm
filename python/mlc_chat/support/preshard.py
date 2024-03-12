@@ -40,8 +40,9 @@ def _update_quantize_map(
             named_params[_sharded_param_name(param_name, worker_id)] = param
 
 
-def _create_shard_func(
-    bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int
+def create_shard_func(
+    bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int,
+    do_split: bool = True,
 ):  # pylint: disable=too-many-locals
     shard_strategy = param.attrs.get("shard_strategy", None)
     # generate tir shard function
@@ -57,6 +58,7 @@ def _create_shard_func(
     weight_shape[shard_strategy.dim] = weight_shape[shard_strategy.dim] * tensor_parallel_shards
     sharded_weight_shape = [tensor_parallel_shards, *param.shape]
     weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, param.dtype))
+
     with bb.function(name=shard_strategy.name, params=[weight_var]):
         with bb.dataflow():
             lv0 = bb.emit(
@@ -66,14 +68,19 @@ def _create_shard_func(
                     out_sinfo=relax.TensorStructInfo(sharded_weight_shape, param.dtype),
                 )
             )
-            lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))
-            output_vars = []
-            for i in range(tensor_parallel_shards):
-                lvi = bb.emit(relax.TupleGetItem(lv1, i))
-                squeezed_lvi = bb.emit(relax.op.squeeze(lvi, 0))
-                output_vars.append(squeezed_lvi)
-            gv = bb.emit_output(output_vars)
+            if do_split:
+                lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))
+                output_vars = []
+                for i in range(tensor_parallel_shards):
+                    lvi = bb.emit(relax.TupleGetItem(lv1, i))
+                    squeezed_lvi = bb.emit(relax.op.squeeze(lvi, 0))
+                    output_vars.append(squeezed_lvi)
+                gv = bb.emit_output(output_vars)
+            else:
+                gv = bb.emit_output(lv0)
         bb.emit_func_output(gv)
+
+    return tir_gvar, weight_shape, sharded_weight_shape
 
 
 def _compile_shard_funcs(mod: IRModule, device: Device):
@@ -115,7 +122,7 @@ def apply_preshard(
             # create shard functions
             param_to_shard_func[name] = shard_strategy.name
             if shard_strategy.name not in shard_func_names:
-                _create_shard_func(bb, param, tensor_parallel_shards)
+                create_shard_func(bb, param, tensor_parallel_shards)
                 shard_func_names.add(shard_strategy.name)
 
     mod = bb.finalize()
