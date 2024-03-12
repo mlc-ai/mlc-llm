@@ -17,7 +17,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
   .. tab:: Python
 
-    **Install MLC Chat Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
+    **Install MLC LLM Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
     It is always recommended to install it in an isolated conda virtual environment.
 
     **Download pre-quantized weights**. The commands below download the int4-quantized Llama2-7B from HuggingFace:
@@ -38,8 +38,8 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: python
 
-      from mlc_chat import ChatModule
-      from mlc_chat.callback import StreamToStdout
+      from mlc_llm import ChatModule
+      from mlc_llm.callback import StreamToStdout
 
       cm = ChatModule(
           model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
@@ -63,44 +63,16 @@ It is recommended to have at least 6GB free VRAM to run it.
 
   .. tab:: Command Line
 
-    **Install MLC Chat CLI.** MLC Chat CLI is available via conda using the command below.
+    **Install MLC LLM**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
     It is always recommended to install it in an isolated conda virtual environment.
+
     For Windows/Linux users, make sure to have latest :ref:`Vulkan driver <vulkan_driver>` installed.
-
-    .. code:: bash
-
-      conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
-      conda activate mlc-chat-venv
-
-    **Download pre-quantized weights**. The comamnds below download the int4-quantized Llama2-7B from HuggingFace:
-
-    .. code:: bash
-
-      git lfs install && mkdir dist/
-      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-    **Download pre-compiled model library**. The pre-compiled model library is available as below:
-
-    .. code:: bash
-
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
 
     **Run in command line**.
 
     .. code:: bash
 
-      mlc_chat chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/Llama2-macOS.gif
-      :width: 500
-      :align: center
-
-      MLC LLM on CLI
-
-    .. note::
-      The MLC Chat CLI package is only built with Vulkan (Windows/Linux) and Metal (macOS).
-      To use other GPU backends such as CUDA and ROCm, please use the prebuilt Python package or build from source.
+      mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 
   .. tab:: Web Browser
 

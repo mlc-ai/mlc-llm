@@ -29,49 +29,49 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
 
             .. tab:: CUDA 11.7
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu117 mlc-ai-nightly-cu117
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu117 mlc-ai-nightly-cu117
 
             .. tab:: CUDA 11.8
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu118 mlc-ai-nightly-cu118
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu118 mlc-ai-nightly-cu118
 
             .. tab:: CUDA 12.1
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu121 mlc-ai-nightly-cu121
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu121 mlc-ai-nightly-cu121
 
             .. tab:: CUDA 12.2
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-cu122 mlc-ai-nightly-cu122
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu122 mlc-ai-nightly-cu122
 
             .. tab:: ROCm 5.6
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-rocm56 mlc-ai-nightly-rocm56
-    
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm56 mlc-ai-nightly-rocm56
+
             .. tab:: ROCm 5.7
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly-rocm57 mlc-ai-nightly-rocm57
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm57 mlc-ai-nightly-rocm57
 
             .. tab:: Vulkan
 
@@ -101,7 +101,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
 
         .. note::
 
@@ -122,7 +122,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-chat-nightly mlc-ai-nightly
+                    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
 
         .. note::
             If encountering the error below:
@@ -142,8 +142,8 @@ Then you can verify installation in command line:
 
 .. code-block:: bash
 
-    python -c "import mlc_chat; print(mlc_chat)"
-    # Prints out: <module 'mlc_chat' from '/path-to-env/lib/python3.11/site-packages/mlc_chat/__init__.py'>
+    python -c "import mlc_llm; print(mlc_llm)"
+    # Prints out: <module 'mlc_llm' from '/path-to-env/lib/python3.11/site-packages/mlc_llm/__init__.py'>
 
 |
 
@@ -152,7 +152,7 @@ Then you can verify installation in command line:
 Option 2. Build from Source
 ---------------------------
 
-We also provide options to build mlc runtime libraries ``mlc_chat`` from source.
+We also provide options to build mlc runtime libraries ``mlc_llm`` from source.
 This step is useful when you want to make modification or obtain a specific version of mlc runtime.
 
 
@@ -203,11 +203,11 @@ This step is useful when you want to make modification or obtain a specific vers
     If you are using CUDA and your compute capability is above 80, then it is require to build with
     ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find PackedFunc`` issue during
     runtime.
-    
+
     To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
 
-**Step 3. Install via Python.** We recommend that you install ``mlc_chat`` as a Python package, giving you 
-access to ``mlc_chat.compile``, ``mlc_chat.ChatModule``, and the CLI.
+**Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
+access to ``mlc_llm.compile``, ``mlc_llm.ChatModule``, and the CLI.
 There are two ways to do so:
 
     .. tabs ::
@@ -223,7 +223,7 @@ There are two ways to do so:
           cd /path-to-mlc-llm/python
           pip install -e .
 
-**Step 4. Validate installation.** You may validate if MLC libarires and mlc_chat CLI is compiled successfully using the following command:
+**Step 4. Validate installation.** You may validate if MLC libarires and mlc_llm CLI is compiled successfully using the following command:
 
 .. code-block:: bash
     :caption: Validate installation
@@ -231,10 +231,10 @@ There are two ways to do so:
     # expected to see `libmlc_llm.so` and `libtvm_runtime.so`
     ls -l ./build/
     # expected to see help message
-    mlc_chat chat -h
+    mlc_llm chat -h
 
 Finally, you can verify installation in command line. You should see the path you used to build from source with:
 
 .. code:: bash
 
-   python -c "import mlc_chat; print(mlc_chat)"
+   python -c "import mlc_llm; print(mlc_llm)"

@@ -13,7 +13,7 @@ To directly run the Python file (a.k.a., not using pytest), you need to
 launch the server in ahead before running this file. This can be done in
 two steps:
 - start a new shell session, run
-  python -m mlc_chat.serve.server --model "YOUR_MODEL_LIB"
+  python -m mlc_llm.serve.server --model "YOUR_MODEL_LIB"
 - start another shell session, run this file
   MLC_SERVE_MODEL_LIB="YOUR_MODEL_LIB" python tests/python/serve/server/test_server.py
 """

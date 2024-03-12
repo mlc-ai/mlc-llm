@@ -9,8 +9,8 @@ import tvm
 import tvm.testing
 from tvm import TVMError
 
-from mlc_chat.serve import BNFGrammar, GrammarStateMatcher
-from mlc_chat.tokenizer import Tokenizer
+from mlc_llm.serve import BNFGrammar, GrammarStateMatcher
+from mlc_llm.tokenizer import Tokenizer
 
 
 @pytest.fixture(scope="function")

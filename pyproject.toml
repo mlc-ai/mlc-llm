@@ -16,7 +16,7 @@
 # under the License.
 [tool.isort]
 profile = "black"
-src_paths = ["python/mlc_chat"]
+src_paths = ["python/mlc_llm"]
 known_third_party = ["numpy", "tvm", "tqdm", "torch", "transformers"]
 
 [tool.black]

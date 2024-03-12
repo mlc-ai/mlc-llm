@@ -10,8 +10,8 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 from transformers import AutoTokenizer
 
-from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_chat.serve.engine import ModelInfo
+from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.engine import ModelInfo
 
 
 def _parse_args():

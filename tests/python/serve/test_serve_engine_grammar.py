@@ -5,10 +5,10 @@ from typing import List
 
 import pytest
 
-from mlc_chat.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_chat.serve.async_engine import AsyncThreadedEngine
-from mlc_chat.serve.config import ResponseFormat
-from mlc_chat.serve.engine import ModelInfo
+from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.async_engine import AsyncThreadedEngine
+from mlc_llm.serve.config import ResponseFormat
+from mlc_llm.serve.engine import ModelInfo
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
