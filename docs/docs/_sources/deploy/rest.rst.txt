@@ -18,7 +18,7 @@ Verify Installation
 
 .. code:: bash
 
-   python -m mlc_chat.rest --help
+   python -m mlc_llm.rest --help
 
 You are expected to see the help information of the REST API.
 
@@ -32,14 +32,14 @@ that supports other GPU runtime than the prebuilt version. We can build a custom
 of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
 
 First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
-You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-chat-nightly`.
+You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-llm-nightly`.
 Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
 
-You can now use ``mlc_chat`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
+You can now use ``mlc_llm`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
 
 .. code:: bash
 
-   PYTHONPATH=python python -m mlc_chat.rest --help
+   PYTHONPATH=python python -m mlc_llm.rest --help
 
 Launch the Server
 -----------------
@@ -48,7 +48,7 @@ To launch the REST server for MLC-Chat, run the following command in your termin
 
 .. code:: bash
 
-   python -m mlc_chat.rest --model MODEL [--lib-path LIB_PATH] [--device DEVICE] [--host HOST] [--port PORT]
+   python -m mlc_llm.rest --model MODEL [--lib-path LIB_PATH] [--device DEVICE] [--host HOST] [--port PORT]
 
 --model                The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
@@ -115,10 +115,10 @@ The REST API provides the following endpoints:
    For more details on how repetition penalty controls text generation, please
    check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
 **presence_penalty**: *float* (optional)
-   Positive values penalize new tokens if they are already present in the text so far, 
+   Positive values penalize new tokens if they are already present in the text so far,
    decreasing the model's likelihood to repeat tokens.
 **frequency_penalty**: *float* (optional)
-   Positive values penalize new tokens based on their existing frequency in the text so far, 
+   Positive values penalize new tokens based on their existing frequency in the text so far,
    decreasing the model's likelihood to repeat tokens.
 **mean_gen_len**: *int* (optional)
    The approximated average number of generated tokens in each round. Used
@@ -129,7 +129,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-**Returns** 
+**Returns**
    If ``stream`` is set to ``False``, the response will be a ``CompletionResponse`` object.
    If ``stream`` is set to ``True``, the response will be a stream of ``CompletionStreamResponse`` objects.
 
@@ -177,10 +177,10 @@ The REST API provides the following endpoints:
    For more details on how repetition penalty controls text generation, please
    check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
 **presence_penalty**: *float* (optional)
-   Positive values penalize new tokens if they are already present in the text so far, 
+   Positive values penalize new tokens if they are already present in the text so far,
    decreasing the model's likelihood to repeat tokens.
 **frequency_penalty**: *float* (optional)
-   Positive values penalize new tokens based on their existing frequency in the text so far, 
+   Positive values penalize new tokens based on their existing frequency in the text so far,
    decreasing the model's likelihood to repeat tokens.
 **mean_gen_len**: *int* (optional)
    The approximated average number of generated tokens in each round. Used
@@ -200,7 +200,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-**Returns** 
+**Returns**
    If ``stream`` is set to ``False``, the response will be a ``ChatCompletionResponse`` object.
    If ``stream`` is set to ``True``, the response will be a stream of ``ChatCompletionStreamResponse`` objects.
 
@@ -344,7 +344,7 @@ Response Objects
    The role(author) of the message. It can be either ``user`` or ``assistant``.
 **content**: *str*
    The content of the message.
-      
+
 ------------------------------------------------
 
 

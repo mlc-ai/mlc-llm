@@ -373,14 +373,14 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 </div>
 <p><strong>Compile Android-capable models</strong>. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># convert weights</span>
-mlc_chat<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="nv">$MODEL_NAME</span>-<span class="nv">$QUANTIZATION</span>-MLC/
+mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="nv">$MODEL_NAME</span>-<span class="nv">$QUANTIZATION</span>-MLC/
 
 <span class="c1"># create mlc-chat-config.json</span>
-mlc_chat<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
+mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/
 
 <span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
-mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
+mlc_llm<span class="w"> </span>compile<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-android.tar
 </pre></div>
 </div>
@@ -408,8 +408,8 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span clas
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) Unique local identifier to identify the model.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Required) Matches the system-lib-prefix, generally set during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code> which can be specified using
-<code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">gpt_neox_q4f16_1</span></code> for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Required) Matches the system-lib-prefix, generally set during <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code> which can be specified using
+<code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">gpt_neox_q4f16_1</span></code> for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Optional) Estimated requirements of VRAM to run the model.</p>
 </dd>
@@ -418,7 +418,7 @@ mlc_chat<span class="w"> </span>compile<span class="w"> </span>./dist/<span clas
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vim<span class="w"> </span>./src/main/assets/app-config.json
 </pre></div>
 </div>
-<p>Then bundle the android library <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code> compiled from <code class="docutils literal notranslate"><span class="pre">mlc_chat</span> <span class="pre">compile</span></code> in the previous steps, with TVM Unity’s Java runtime by running the commands below:</p>
+<p>Then bundle the android library <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code> compiled from <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code> in the previous steps, with TVM Unity’s Java runtime by running the commands below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./prepare_libs.sh
 </pre></div>
 </div>

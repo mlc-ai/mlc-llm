@@ -33,7 +33,7 @@ is powered by the WebLLM npm package, specifically with the code in
 the `simple-chat <https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat>`__ example.
 
 Each of the model in the  `WebLLM prebuilt webpage <https://webllm.mlc.ai/#chat-demo>`__
-is registered as an instance of ``ModelRecord``. Looking at the most straightforward example 
+is registered as an instance of ``ModelRecord``. Looking at the most straightforward example
 `get-started <https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts>`__,
 we see the code snippet:
 
@@ -61,7 +61,7 @@ we see the code snippet:
 
 Just like any other platforms, to run a model with on WebLLM, you need:
 
-1. **Model weights** converted to MLC format (e.g. `Llama-2-7b-hf-q4f32_1-MLC 
+1. **Model weights** converted to MLC format (e.g. `Llama-2-7b-hf-q4f32_1-MLC
    <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/tree/main>`_.): downloaded through ``model_url``
 2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__): downloaded through ``model_lib_url``.
 
@@ -69,22 +69,22 @@ Verify Installation for Adding Models
 -------------------------------------
 
 In sections below, we walk you through two examples of adding models to WebLLM. Before proceeding,
-please verify installation of ``mlc_chat`` and ``tvm``:
+please verify installation of ``mlc_llm`` and ``tvm``:
 
-**Step 1. Verify mlc_chat**
+**Step 1. Verify mlc_llm**
 
-We use the python package ``mlc_chat`` to compile models. This can be installed by 
+We use the python package ``mlc_llm`` to compile models. This can be installed by
 following :ref:`install-mlc-packages`, either by building from source, or by
-installing the prebuilt package. Verify ``mlc_chat`` installation in command line via:
+installing the prebuilt package. Verify ``mlc_llm`` installation in command line via:
 
 .. code:: bash
 
-    $ mlc_chat --help
+    $ mlc_llm --help
     # You should see help information with this line
     usage: MLC LLM Command Line Interface. [-h] {compile,convert_weight,gen_config}
 
 .. note::
-    If it runs into error ``command not found: mlc_chat``, try ``python -m mlc_chat --help``.
+    If it runs into error ``command not found: mlc_llm``, try ``python -m mlc_llm --help``.
 
 **Step 2. Verify TVM**
 
@@ -109,12 +109,12 @@ model, we only need to convert weights and reuse existing model library. For ins
 - Adding ``Llama2-uncensored`` when MLC supports ``Llama2``
 
 
-In this section, we walk you through adding ``WizardMath-7B-V1.1-q4f16_1`` to the 
+In this section, we walk you through adding ``WizardMath-7B-V1.1-q4f16_1`` to the
 `get-started <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started>`__ example.
 According to the model's ``config.json`` on `its Huggingface repo <https://huggingface.co/WizardLM/WizardMath-7B-V1.1/blob/main/config.json>`_,
 it reuses the Mistral model architecture.
 
-.. note:: 
+.. note::
 
   This section largely replicates :ref:`convert-weights-via-MLC`.
   See that page for more details. Note that the weights are shared across
@@ -135,18 +135,18 @@ for specification of ``convert_weight``.
     git clone https://huggingface.co/WizardLM/WizardMath-7B-V1.1
     cd ../..
     # Convert weight
-    mlc_chat convert_weight ./dist/models/WizardMath-7B-V1.1/ \
+    mlc_llm convert_weight ./dist/models/WizardMath-7B-V1.1/ \
         --quantization q4f16_1 \
         -o dist/WizardMath-7B-V1.1-q4f16_1-MLC
 
 **Step 2 Generate MLC Chat Config**
 
-Use ``mlc_chat gen_config`` to generate ``mlc-chat-config.json`` and process tokenizers.
+Use ``mlc_llm gen_config`` to generate ``mlc-chat-config.json`` and process tokenizers.
 See :ref:`compile-command-specification` for specification of ``gen_config``.
 
 .. code:: shell
 
-    mlc_chat gen_config ./dist/models/WizardMath-7B-V1.1/ \
+    mlc_llm gen_config ./dist/models/WizardMath-7B-V1.1/ \
         --quantization q4f16_1 --conv-template wizard_coder_or_math \
         -o dist/WizardMath-7B-V1.1-q4f16_1-MLC/
 
@@ -159,11 +159,11 @@ We look up the template to use with the ``conv_template`` field in ``mlc-chat-co
 
 For more details, please see :ref:`configure-mlc-chat-json`.
 
-.. note:: 
+.. note::
 
   If you added your conversation template in ``src/conversation.ts``, you need to build WebLLM
   from source following the instruction in
-  `the WebLLM repo's README <https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source>`_. 
+  `the WebLLM repo's README <https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source>`_.
 
   Alternatively, you could use the ``"custom"`` conversation template so that you can pass in
   your own ``ConvTemplateConfig`` in runtime without having to build the package from source.
@@ -181,7 +181,7 @@ For more details, please see :ref:`configure-mlc-chat-json`.
     git add . && git commit -m "Add wizardMath model weights"
     git push origin main
 
-After successfully following all steps, you should end up with a Huggingface repo similar to 
+After successfully following all steps, you should end up with a Huggingface repo similar to
 `WizardMath-7B-V1.1-q4f16_1-MLC <https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC>`__,
 which includes the converted/quantized weights, the ``mlc-chat-config.json``, and tokenizer files.
 
@@ -192,7 +192,7 @@ Finally, we modify the code snippet for
 `get-started <https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts>`__
 pasted above.
 
-We simply specify the Huggingface link as ``model_url``, while reusing the ``model_lib_url`` for 
+We simply specify the Huggingface link as ``model_url``, while reusing the ``model_lib_url`` for
 ``Mistral-7B``. Note that we need the suffix to be ``/resolve/main/``.
 
 .. code:: typescript
@@ -215,7 +215,7 @@ We simply specify the Huggingface link as ``model_url``, while reusing the ``mod
 
 Now, running the ``get-started`` example will use the ``WizardMath`` model you just added.
 See `get-started's README <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app>`__
-on how to run it. 
+on how to run it.
 
 
 Bring Your Own Model Library
@@ -241,7 +241,7 @@ more details, specifically the ``WebGPU`` option.
 
 **Step 0. Install dependencies**
 
-To compile model libraries for webgpu, you need to :ref:`build mlc_chat from source <mlcchat_build_from_source>`.
+To compile model libraries for webgpu, you need to :ref:`build mlc_llm from source <mlcchat_build_from_source>`.
 Besides, you also need to follow :ref:`install-web-build`. Otherwise, it would run into error:
 
 .. code:: text
@@ -262,7 +262,7 @@ can share the same compiled/quantized weights.
     git clone https://huggingface.co/togethercomputer/RedPajama-INCITE-Chat-3B-v1
     cd ../..
     # Convert weight
-    mlc_chat convert_weight ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+    mlc_llm convert_weight ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
         --quantization q4f16_1 \
         -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 
@@ -280,11 +280,11 @@ All these knobs are specified in ``mlc-chat-config.json`` generated by ``gen_con
 .. code:: shell
 
     # 1. gen_config: generate mlc-chat-config.json and process tokenizers
-    mlc_chat gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
+    mlc_llm gen_config ./dist/models/RedPajama-INCITE-Chat-3B-v1/ \
         --quantization q4f16_1 --conv-template redpajama_chat \
         -o dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/
     # 2. compile: compile model library with specification in mlc-chat-config.json
-    mlc_chat compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
+    mlc_llm compile ./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/mlc-chat-config.json \
         --device webgpu -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm
 
 .. note::
@@ -357,4 +357,4 @@ Finally, we are able to run the model we added in WebLLM's `get-started <https:/
 
 Now, running the ``get-started`` example will use the ``RedPajama`` model you just added.
 See `get-started's README <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app>`__
-on how to run it. 
+on how to run it.

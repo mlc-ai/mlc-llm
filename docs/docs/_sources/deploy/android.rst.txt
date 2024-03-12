@@ -37,8 +37,8 @@ Prerequisite
 
 **JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:
 
-- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``. 
-  
+- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``.
+
 Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same. We recommended setting the `JAVA_HOME` to the JDK bundled with Android Studio. e.g. `export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home` for macOS.
 
 **TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
@@ -92,14 +92,14 @@ To deploy models on Android with reasonable performance, one has to cross-compil
 .. code-block:: bash
 
   # convert weights
-  mlc_chat convert_weight ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
+  mlc_llm convert_weight ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
 
   # create mlc-chat-config.json
-  mlc_chat gen_config ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION \
+  mlc_llm gen_config ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION \
     --conv-template llama-2 --context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/
 
   # 2. compile: compile model library with specification in mlc-chat-config.json
-  mlc_chat compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
+  mlc_llm compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
       --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar
 
 This generates the directory ``./dist/$MODEL_NAME-$QUANTIZATION-MLC`` which contains the necessary components to run the model, as explained below.
@@ -131,19 +131,19 @@ The source code for MLC LLM is available under ``android/``, including scripts t
   (Required) Unique local identifier to identify the model.
 
 ``model_lib``
-   (Required) Matches the system-lib-prefix, generally set during ``mlc_chat compile`` which can be specified using 
-   ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``gpt_neox_q4f16_1`` for the RedPajama-INCITE-Chat-3B-v1 model. If the ``--system-lib-prefix`` argument is manually specified during ``mlc_chat compile``, the ``model_lib`` field should be updated accordingly.
+   (Required) Matches the system-lib-prefix, generally set during ``mlc_llm compile`` which can be specified using
+   ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``gpt_neox_q4f16_1`` for the RedPajama-INCITE-Chat-3B-v1 model. If the ``--system-lib-prefix`` argument is manually specified during ``mlc_llm compile``, the ``model_lib`` field should be updated accordingly.
 
 ``estimated_vram_bytes``
    (Optional) Estimated requirements of VRAM to run the model.
-   
+
 To change the configuration, edit ``app-config.json``:
 
 .. code-block:: bash
 
   vim ./src/main/assets/app-config.json
 
-Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-android.tar`` compiled from ``mlc_chat compile`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
+Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-android.tar`` compiled from ``mlc_llm compile`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
 
 .. code-block:: bash
 
