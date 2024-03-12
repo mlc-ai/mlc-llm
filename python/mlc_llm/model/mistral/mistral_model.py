@@ -1,6 +1,7 @@
 """
 Implementation for Mistral architecture.
 """
+
 import dataclasses
 from typing import Any, Dict, Optional
 
@@ -279,14 +280,12 @@ class RollingKVCacheWithSinks(nn.KVCache):
                 f'but got "{new_element.dtype}"'
             )
         self.cache = rx.BlockBuilder.current().emit(
-            rx.Call(
-                rx.extern("vm.builtin.attention_kv_cache_window_override_with_sinks"),
-                args=[
-                    self.cache,
-                    new_element._expr,  # pylint: disable=protected-access
-                    rx.PrimValue(max_cache_size),
-                    rx.PrimValue(attention_sink_size),
-                ],
+            rx.call_pure_packed(
+                "vm.builtin.attention_kv_cache_window_override_with_sinks",
+                self.cache,
+                new_element._expr,  # pylint: disable=protected-access
+                rx.PrimValue(max_cache_size),
+                rx.PrimValue(attention_sink_size),
                 sinfo_args=[rx.ObjectStructInfo()],
             )
         )
