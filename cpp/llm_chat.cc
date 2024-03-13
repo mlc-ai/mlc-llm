@@ -1447,7 +1447,7 @@ class LLMChat {
       embedding_shape = embedding_nd.Shape();
     }
     ICHECK_EQ(embedding_shape.size(), 2);
-    ICHECK_GT(embedding_shape[0], 1);
+    ICHECK_GE(embedding_shape[0], 1);
     this->hidden_size_ = embedding_shape[1];
     return this->hidden_size_;
   }
