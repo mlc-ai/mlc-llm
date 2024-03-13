@@ -48,7 +48,7 @@ class BNFGrammarMutator {
         auto new_body_expr_id = VisitExpr(rule_expr);
         builder_.AddRule(rule.name, new_body_expr_id);
       }
-      return builder_.Get();
+      return builder_.Get(grammar_->GetMainRule().name);
     } else if constexpr (!std::is_same<ReturnType, void>::value) {
       return ReturnType();
     }

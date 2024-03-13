@@ -18,7 +18,10 @@ class BNFGrammar(Object):
 
     @staticmethod
     def from_ebnf_string(
-        ebnf_string: str, normalize: bool = True, simplify: bool = True
+        ebnf_string: str,
+        main_rule: str = "main",
+        normalize: bool = True,
+        simplify: bool = True,
     ) -> "BNFGrammar":
         r"""Parse a BNF grammar from a string in BNF/EBNF format.
 
@@ -35,6 +38,9 @@ class BNFGrammar(Object):
         ----------
         ebnf_string : str
             The grammar string.
+
+        main_rule : str
+            The name of the main rule. Default: "main".
 
         normalize : bool
             Whether to normalize the grammar. Default: true. Only set to false for the purpose of
@@ -57,7 +63,7 @@ class BNFGrammar(Object):
             The parsed BNF grammar.
         """
         return _ffi_api.BNFGrammarFromEBNFString(  # type: ignore  # pylint: disable=no-member
-            ebnf_string, normalize, simplify
+            ebnf_string, main_rule, normalize, simplify
         )
 
     def to_string(self) -> str:
@@ -252,7 +258,7 @@ class GrammarStateMatcher(Object):
 
     def debug_match_complete_string(self, string: str) -> bool:
         """Check if the matcher can accept the complete string, and then reach the end of the
-        grammar. For test purposes.
+        grammar. Does not change the state of the GrammarStateMatcher. For test purposes.
 
         Parameters
         ----------

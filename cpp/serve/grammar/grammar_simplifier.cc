@@ -61,7 +61,7 @@ class NestedRuleUnwrapperImpl : public BNFGrammarMutator<int32_t, BNFGrammar> {
       auto new_body_expr_id = VisitRuleBody(rule_expr);
       builder_.UpdateRuleBody(i, new_body_expr_id);
     }
-    return builder_.Get();
+    return builder_.Get(grammar_->GetMainRule().name);
   }
 
  private:

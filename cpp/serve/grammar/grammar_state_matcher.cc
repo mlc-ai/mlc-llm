@@ -2,6 +2,7 @@
  *  Copyright (c) 2023 by Contributors
  * \file serve/grammar/grammar_state_matcher.cc
  */
+#define TVM_LOG_DEBUG 1
 #include "grammar_state_matcher.h"
 
 #include <chrono>
@@ -458,7 +459,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
                 << std::chrono::duration_cast<std::chrono::microseconds>(preproc_end -
                                                                          preproc_start)
                        .count()
-                << "us";
+                << "us" << std::endl;
       return GrammarStateMatcher(init_ctx, max_rollback_steps);
     });
 
@@ -501,7 +502,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherResetState")
     .set_body_typed([](GrammarStateMatcher matcher) { matcher->ResetState(); });
 
 /*! \brief Check if a matcher can accept the complete string, and then reach the end of the
- * grammar. For test purpose. */
+ * grammar. Does not change the state of the GrammarStateMatcher. For test purpose. */
 bool MatchCompleteString(GrammarStateMatcher matcher, String str) {
   auto mutable_node =
       const_cast<GrammarStateMatcherNodeImpl*>(matcher.as<GrammarStateMatcherNodeImpl>());
@@ -514,7 +515,9 @@ bool MatchCompleteString(GrammarStateMatcher matcher, String str) {
     }
     ++accepted_cnt;
   }
-  return mutable_node->CanReachEnd();
+  auto accepted = mutable_node->CanReachEnd();
+  mutable_node->RollbackCodepoints(accepted_cnt);
+  return accepted;
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherDebugMatchCompleteString")

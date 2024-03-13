@@ -20,8 +20,9 @@ std::ostream& operator<<(std::ostream& os, const BNFGrammar& grammar) {
   return os;
 }
 
-BNFGrammar BNFGrammar::FromEBNFString(const String& ebnf_string, bool normalize, bool simplify) {
-  auto grammar = EBNFParser::Parse(ebnf_string);
+BNFGrammar BNFGrammar::FromEBNFString(const String& ebnf_string, const String& main_rule,
+                                      bool normalize, bool simplify) {
+  auto grammar = EBNFParser::Parse(ebnf_string, main_rule);
   if (normalize) {
     grammar = NestedRuleUnwrapper(grammar).Apply();
   }
@@ -29,8 +30,8 @@ BNFGrammar BNFGrammar::FromEBNFString(const String& ebnf_string, bool normalize,
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromEBNFString")
-    .set_body_typed([](String ebnf_string, bool normalize, bool simplify) {
-      return BNFGrammar::FromEBNFString(ebnf_string, normalize, simplify);
+    .set_body_typed([](String ebnf_string, String main_rule, bool normalize, bool simplify) {
+      return BNFGrammar::FromEBNFString(ebnf_string, main_rule, normalize, simplify);
     });
 
 BNFGrammar BNFGrammar::FromJSON(const String& json_string) {
@@ -112,7 +113,8 @@ ws ::= [ \n\t]*
 )";
 
 BNFGrammar BNFGrammar::GetGrammarOfJSON() {
-  static const BNFGrammar grammar = BNFGrammar::FromEBNFString(kJSONGrammarString, true, false);
+  static const BNFGrammar grammar =
+      BNFGrammar::FromEBNFString(kJSONGrammarString, "main", true, false);
   return grammar;
 }
 
