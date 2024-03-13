@@ -1,0 +1,38 @@
+# GH actions.
+# We use it to cover windows builds
+# Jenkins is still the primary CI
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  Windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: 'cmd /C call {0}'
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: 'recursive'
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: mlc-llm-build
+        channel-priority: strict
+        environment-file: ci/build-environment.yaml
+        auto-activate-base: false
+    - name: Conda info
+      run: |
+        conda info
+        conda list
+        python --version
+    - name: Build MLC-LLM
+      run: >-
+        ci/task/build_win.bat
