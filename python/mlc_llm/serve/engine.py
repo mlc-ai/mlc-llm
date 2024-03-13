@@ -227,6 +227,11 @@ def _estimate_max_total_sequence_length(  # pylint: disable=too-many-locals
         f"The model weight size {params_bytes} may be larger than GPU memory size {gpu_size_bytes}"
     )
 
+    if models[0].device.device_type == Device.kDLMetal:
+        # NOTE: Metal runtime has severe performance issues with large buffers.
+        # To work around the issue, we limit the KV cache capacity to 32768.
+        max_total_sequence_length = min(max_total_sequence_length, 32768)
+
     total_size = (
         params_bytes
         + temp_func_bytes
