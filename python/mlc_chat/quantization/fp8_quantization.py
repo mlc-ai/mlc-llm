@@ -62,19 +62,14 @@ def quantize(
         ), "'max_int_value' must be provided when using fp8-max quantization"
 
         def fused_compute_scale_and_quantize(
-            tensor: te.Tensor, axis: int, out_shape: Optional[List[tir.PrimExpr]] = None
+            tensor: te.Tensor,
+            max_abs: te.Tensor,
+            axis: int,
+            out_shape: Optional[List[tir.PrimExpr]] = None,
         ):
             max_int = tir.const(kwargs["max_int_value"], x.dtype)
             min_scaling_factor = tir.const(1.0 / (kwargs["max_int_value"] * 512.0), x.dtype)
-            r_idx = [te.reduce_axis((0, d)) for d in tensor.shape]
-            max_abs = te.compute(
-                shape=(1,),
-                fcompute=lambda *idx: te.max(
-                    te.abs(tensor(*r_idx)),
-                    axis=r_idx,
-                ),
-                name="max_abs_value",
-            )
+
             scale = te.compute(
                 (1,),
                 lambda *idx: te.max(
@@ -93,14 +88,21 @@ def quantize(
 
             return scaled_act, scale
 
+        max_abs = nn.op.extern(
+            "tvm.contrib.cuda.reduce_max_abs",
+            [x],
+            nn.Tensor.placeholder((1,), x.dtype),
+        )
+
         quant, scale = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda tensor: fused_compute_scale_and_quantize(  # pylint: disable=protected-access
+            lambda tensor, max_tensor: fused_compute_scale_and_quantize(  # pylint: disable=protected-access
                 tensor,
+                max_tensor,
                 axis=None,
                 out_shape=x.shape,
             ),
             name_hint="quantize_act",
-            args=[x],
+            args=[x, max_abs],
         )
         return quant, scale
     else:
