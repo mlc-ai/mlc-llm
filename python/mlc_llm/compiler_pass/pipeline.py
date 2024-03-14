@@ -93,7 +93,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 DispatchKVCacheCreation(target, flashinfer, metadata),
                 AttachVariableBounds(variable_bounds),
-                AttachLogitProcessFunc(),
+                AttachLogitProcessFunc(target),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
                 AttachGPUSamplingFunc(target, variable_bounds),
