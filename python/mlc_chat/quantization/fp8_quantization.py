@@ -365,16 +365,48 @@ class MixtralExpertsFP8(
             # local_scale = nn.op.ccl_allreduce(local_scale, op_type="max")
             local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
             # Calibration done in fp16 mma
-            # x = nn.op.astype(x, dtype="float16")
+            x = nn.op.astype(x, dtype="float16")
             ### TODO: we probably want to consider using fp16 weights (no weight quantization) for calibration
             # w = nn.op.astype(w, dtype="float16")
+            if DataType(self.weight_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            elif DataType(self.weight_dtype).type_code == DataTypeCode.E5M2Float:
+                dequant_func = self.config._dequantize_e5m2
+            else:
+                raise NotImplementedError()
+            weight_shape = (self.num_local_experts, self.out_features, self.in_features)
+            if not self.no_scale:
+                w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                    lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                        weight,
+                        scale,
+                        axis=self.config.linear_quant_axis,
+                        out_shape=weight_shape,
+                    ),
+                    name_hint="dequantize",
+                    args=[self.q_weight, self.q_scale],
+                )
+            else:
+                w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                    lambda weight: dequant_func(  # pylint: disable=protected-access
+                        weight,
+                        axis=self.config.linear_quant_axis,
+                        out_shape=weight_shape,
+                    ),
+                    name_hint="dequantize",
+                    args=[
+                        self.q_weight,
+                    ],
+                )
 
         elif self.runtime == "max":
             local_scale = self.q_calibration_scale
             x = x / local_scale
             x = nn.op.astype(x, dtype=self.activation_dtype)
+            w = self.q_weight
         elif self.runtime == "cast":
             x = nn.op.astype(x, dtype=self.activation_dtype)
+            w = self.q_weight
         else:
             raise NotImplementedError(
                 f"Only max and cast runtimes are supported for FP8 activations, {self.runtime} is unsupported."
@@ -395,16 +427,17 @@ class MixtralExpertsFP8(
         w_format = self.weight_dtype.split("_")[0]
 
         ### TODO: enable this for fp16 calibration
-        # if self.runtime == "max-calibration":
-        #     func = "cutlass.group_gemm_scale_fp16_sm90"
-        # else:
-        func = f"cutlass.group_gemm_{a_format}_{w_format}_fp16"
+        if self.runtime == "max-calibration":
+            func = "cutlass.group_gemm_scale_fp16_sm90"
+        else:
+            func = f"cutlass.group_gemm_{a_format}_{w_format}_fp16"
 
         if self.runtime == "cast":
-            func = func = "_host_scale"
+            func = func + "_host_scale"
             total_scale = 1.0
         else:
-            if self.weight_dtype == "e4m3_float8":
+            if self.runtime != "max-calibration" and self.weight_dtype == "e4m3_float8":
+                # for calibration, q_scale is already used to dequantize the weights
                 total_scale = local_scale * self.q_scale
             else:
                 total_scale = local_scale
@@ -415,7 +448,7 @@ class MixtralExpertsFP8(
             func,
             [
                 x,
-                self.q_weight,
+                w,
                 indptr,
                 workspace,
                 total_scale,
