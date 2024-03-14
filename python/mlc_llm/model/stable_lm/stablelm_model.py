@@ -76,7 +76,6 @@ class StableLmConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
             self.prefill_chunk_size = self.context_window_size
 
 
-
 # pylint: disable=invalid-name,missing-docstring
 
 
