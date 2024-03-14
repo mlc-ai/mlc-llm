@@ -1,4 +1,5 @@
 """Common utilities for downloading files from HuggingFace or other URLs online."""
+
 import concurrent.futures as cf
 import hashlib
 import json
@@ -7,7 +8,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import requests  # pylint: disable=import-error
 
@@ -56,7 +57,7 @@ def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
         ) from error
 
 
-def git_lfs_pull(repo_dir: Path) -> None:
+def git_lfs_pull(repo_dir: Path, ignore_extensions: Optional[List[str]] = None) -> None:
     """Pull files with Git LFS."""
     filenames = (
         subprocess.check_output(
@@ -66,6 +67,12 @@ def git_lfs_pull(repo_dir: Path) -> None:
         .decode("utf-8")
         .splitlines()
     )
+    if ignore_extensions is not None:
+        filenames = [
+            filename
+            for filename in filenames
+            if not any(filename.endswith(extension) for extension in ignore_extensions)
+        ]
     logger.info("[Git LFS] Downloading %d files with Git LFS: %s", len(filenames), filenames)
     with tqdm.redirect():
         for file in tqdm.tqdm(filenames):
@@ -127,6 +134,7 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
         git_url = git_url_template.format(user=user, repo=repo)
         git_clone(git_url, tmp_dir, ignore_lfs=True)
+        git_lfs_pull(tmp_dir, ignore_extensions=[".bin"])
         shutil.rmtree(tmp_dir / ".git", ignore_errors=True)
         with (tmp_dir / "ndarray-cache.json").open(encoding="utf-8") as in_file:
             param_metadata = json.load(in_file)["records"]
