@@ -154,7 +154,7 @@ class Conversation {
    */
   void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false);
 
-    /*!
+  /*!
    * \brief Load legacy JSON config and overrides options.
    *
    * \param config_json A json config in picojson type that is partially specifies

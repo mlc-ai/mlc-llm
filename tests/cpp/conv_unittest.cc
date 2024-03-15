@@ -3,47 +3,45 @@
 
 void _TestConversationLoadJSON() {
   std::string conv_template =
-        "{\n"
-    "    \"name\": \"test\",\n"
-    "    \"system_template\": \"abc{system_message}\",\n"
-    "    \"system_message\": \"de\",\n"
-    "    \"roles\": {\n"
-    "      \"user\": \"Instruct\",\n"
-    "      \"assistant\": \"Output\",\n"
-    "      \"tool\": \"Instruct\"\n"
-    "    },\n"
-    "    \"role_templates\": {\n"
-    "      \"user\": \"{user_message}\",\n"
-    "      \"assistant\": \"{assistant_message}\",\n"
-    "      \"tool\": \"{tool_message}\"\n"
-    "    },\n"
-    "    \"messages\": [[\"Instruct\", \"Hello\"], [\"Output\", \"Hey\"]],\n"
-    "    \"seps\": [\n"
-    "      \"\\n\"\n"
-    "    ],\n"
-    "    \"role_content_sep\": \": \",\n"
-    "    \"role_empty_sep\": \":\",\n"
-    "    \"stop_str\": [\n"
-    "      \"<|endoftext|>\"\n"
-    "    ],\n"
-    "    \"stop_token_ids\": [\n"
-    "      50256\n"
-    "    ],\n"
-    "    \"function_string\": \"\",\n"
-    "    \"use_function_calling\": false\n"
-    "  }";
+      "{\n"
+      "    \"name\": \"test\",\n"
+      "    \"system_template\": \"abc{system_message}\",\n"
+      "    \"system_message\": \"de\",\n"
+      "    \"roles\": {\n"
+      "      \"user\": \"Instruct\",\n"
+      "      \"assistant\": \"Output\",\n"
+      "      \"tool\": \"Instruct\"\n"
+      "    },\n"
+      "    \"role_templates\": {\n"
+      "      \"user\": \"{user_message}\",\n"
+      "      \"assistant\": \"{assistant_message}\",\n"
+      "      \"tool\": \"{tool_message}\"\n"
+      "    },\n"
+      "    \"messages\": [[\"Instruct\", \"Hello\"], [\"Output\", \"Hey\"]],\n"
+      "    \"seps\": [\n"
+      "      \"\\n\"\n"
+      "    ],\n"
+      "    \"role_content_sep\": \": \",\n"
+      "    \"role_empty_sep\": \":\",\n"
+      "    \"stop_str\": [\n"
+      "      \"<|endoftext|>\"\n"
+      "    ],\n"
+      "    \"stop_token_ids\": [\n"
+      "      50256\n"
+      "    ],\n"
+      "    \"function_string\": \"\",\n"
+      "    \"use_function_calling\": false\n"
+      "}";
   mlc::llm::Conversation conv;
   conv.LoadJSONOverride(conv_template, true);
   ASSERT_EQ(conv.name, "test");
   ASSERT_EQ(conv.system, "abcde");
 
-  std::vector<std::string> expected_roles {"Instruct", "Output"};
+  std::vector<std::string> expected_roles{"Instruct", "Output"};
   ASSERT_EQ(conv.roles, expected_roles);
 
-  std::vector<std::vector<std::string>> expected_messages = {
-    {"Instruct", "Hello"},
-    {"Output", "Hey"}
-  };
+  std::vector<std::vector<std::string>> expected_messages = {{"Instruct", "Hello"},
+                                                             {"Output", "Hey"}};
   ASSERT_EQ(conv.messages, expected_messages);
   ASSERT_EQ(conv.offset, 2);
 

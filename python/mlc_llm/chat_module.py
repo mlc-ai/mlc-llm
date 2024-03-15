@@ -101,10 +101,6 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
     function_string: Optional[str] = None
     use_function_calling: Optional[bool] = None
 
-    def __post_init__(self):
-        if self.messages is not None and self.offset is None:
-            self.offset = len(self.messages)
-
 
 @dataclass
 class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
@@ -200,7 +196,7 @@ class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
     model_lib: Optional[str] = None
     local_id: Optional[str] = None
-    conv_template: Optional[str | Conversation] = None
+    conv_template: Optional[Union[str, Conversation]] = None
     temperature: Optional[float] = None
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0

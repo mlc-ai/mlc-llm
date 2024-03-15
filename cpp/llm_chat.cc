@@ -562,8 +562,9 @@ class LLMChat {
         this->conversation_.LoadJSONOverride(config["conv_template"], false);
       } else {
         ICHECK(config["conv_template"].is<std::string>());
-        LOG(WARNING) << "Legacy conversation template detected. It will be deprecated in the future. "
-                        "Please regenerate mlc-chat-config.json with the latest version";
+        LOG(WARNING)
+            << "Legacy conversation template detected. It will be deprecated in the future. "
+               "Please regenerate mlc-chat-config.json with the latest version";
         std::string conv_template = config["conv_template"].get<std::string>();
         this->conversation_ = Conversation::FromTemplate(conv_template);
       }

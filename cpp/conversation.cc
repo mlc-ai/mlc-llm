@@ -25,7 +25,7 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
     CHECK(config["system_message"].is<std::string>()) << "Invalid system message" << err_templ;
     std::string system_template = config["system_template"].get<std::string>();
     std::string system_msg = config["system_message"].get<std::string>();
-    std::string system = system_template.replace(system_template.find(system_placeholder), 
+    std::string system = system_template.replace(system_template.find(system_placeholder),
                                                  system_placeholder.length(), system_msg);
     this->system = system;
   } else {
@@ -33,7 +33,8 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
   }
 
   if (config.count("system_prefix_token_ids")) {
-    CHECK(config["system_prefix_token_ids"].is<picojson::array>()) << "Invalid system_prefix_token_ids" << err_templ;
+    CHECK(config["system_prefix_token_ids"].is<picojson::array>())
+        << "Invalid system_prefix_token_ids" << err_templ;
     picojson::array prefix_tokens_arr = config["system_prefix_token_ids"].get<picojson::array>();
     std::vector<int32_t> prefix_tokens;
     for (const picojson::value& prefix_token : prefix_tokens_arr) {
@@ -129,7 +130,7 @@ void Conversation::LoadJSONOverride(const picojson::value& config_json, bool par
   } else {
     CHECK(partial_update) << "Key \"stop_token_ids\" not found.";
   }
-} 
+}
 
 void Conversation::LoadJSONOverrideLegacy(const picojson::value& config_json, bool partial_update) {
   std::string err_templ = " in conversion template json file.";
