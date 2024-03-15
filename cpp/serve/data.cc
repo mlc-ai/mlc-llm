@@ -92,7 +92,9 @@ ImageData::ImageData(NDArray image, int embed_size) {
 
 int ImageDataNode::GetLength() const { return embed_size; }
 
-NDArray ImageDataNode::GetEmbedding(Model model) const { return model->ImageEmbed(image); }
+ObjectRef ImageDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) const {
+  return model->ImageEmbed(image);
+}
 
 TVM_REGISTER_GLOBAL("mlc.serve.ImageData").set_body_typed([](NDArray image, int embed_size) {
   return ImageData(std::move(image), embed_size);
