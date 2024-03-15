@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
+
 from ..serve import data
 
 
@@ -57,7 +58,9 @@ class Conversation(BaseModel):
     # The conversation history messages.
     # Each message is a pair of strings, denoting "(role, content)".
     # The content can be None.
-    messages: List[Tuple[str, Optional[str]]] = Field(default_factory=lambda: [])
+    messages: List[Tuple[str, Optional[Union[str, List[Dict[str, str]]]]]] = Field(
+        default_factory=lambda: []
+    )
 
     # The separators between messages when concatenating into a single prompt.
     # List size should be either 1 or 2.
@@ -127,6 +130,7 @@ class Conversation(BaseModel):
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
             if content is not None:
+                assert isinstance(content, str)
                 message_string = (
                     self.roles[role]
                     + self.role_content_sep
@@ -148,7 +152,7 @@ class Conversation(BaseModel):
 
         return prompt
 
-    def as_prompt_list(self, embed_size=576) -> List[Union[str, data.ImageData]]:
+    def as_prompt_list(self, image_embed_size=None) -> List[Union[str, data.ImageData]]:
         """Convert the conversation template and history messages to
         a list of prompts.
 
@@ -156,6 +160,7 @@ class Conversation(BaseModel):
             List[Union[str, data.ImageData]]: The list of prompts.
         """
 
+        # pylint: disable=import-outside-toplevel
         from ..serve.entrypoints.entrypoint_utils import get_image_from_url
 
         # - Get the system message.
@@ -168,6 +173,7 @@ class Conversation(BaseModel):
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
+        message_list.append(system_msg + separators[0])
         for role, content in self.messages:  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
@@ -200,10 +206,11 @@ class Conversation(BaseModel):
                                 )
                             )
                         elif item["type"] == "image_url":
+                            assert image_embed_size is not None, "Image embed size is required"
                             message_list.append(
                                 data.ImageData(
                                     image=get_image_from_url(item["image_url"]),
-                                    embed_size=embed_size,
+                                    embed_size=image_embed_size,
                                 )
                             )
                         else:
@@ -216,6 +223,6 @@ class Conversation(BaseModel):
 
         prompt = message_list
 
-        ## TODO: Support function calling
+        ## TODO: Support function calling # pylint: disable=fixme
 
         return prompt

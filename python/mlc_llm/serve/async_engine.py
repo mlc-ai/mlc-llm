@@ -210,7 +210,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
     async def generate(
         self,
-        prompt: Union[str, List[int], List[Union[str, data.Data]]],
+        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
         generation_config: GenerationConfig,
         request_id: str,
     ) -> AsyncGenerator[List[AsyncStreamOutput], Any]:
@@ -238,13 +238,15 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self._async_event_loop = asyncio.get_event_loop()
 
         def convert_to_data(
-            prompt: Union[str, List[int], List[Union[str, data.Data]]]
+            prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]]
         ) -> List[data.Data]:
+            if isinstance(prompt, data.Data):
+                return [prompt]
             if isinstance(prompt, str):
                 return [data.TextData(prompt)]
             if isinstance(prompt[0], int):
-                return [data.TokenData(prompt)]
-            return [data.TextData(x) if isinstance(x, str) else x for x in prompt]
+                return [data.TokenData(prompt)]  # type: ignore
+            return [convert_to_data(x)[0] for x in prompt]  # type: ignore
 
         # Create the request with the given id, input data, generation
         # config and the created callback.
