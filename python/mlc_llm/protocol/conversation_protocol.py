@@ -1,7 +1,7 @@
 """The standard conversation protocol in MLC LLM"""
 
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -15,6 +15,9 @@ class MessagePlaceholders(Enum):
     ASSISTANT = "{assistant_message}"
     TOOL = "{tool_message}"
     FUNCTION = "{function_string}"
+
+
+T = TypeVar("T", bound="BaseModel")
 
 
 class Conversation(BaseModel):
@@ -94,6 +97,15 @@ class Conversation(BaseModel):
         if len(seps) == 0 or len(seps) > 2:
             raise ValueError("seps should have size 1 or 2.")
         return seps
+
+    def to_json_dict(self) -> Dict[str, Any]:
+        """Convert to a json dictionary"""
+        return self.model_dump(exclude_none=True)
+
+    @classmethod
+    def from_json_dict(cls: Type[T], json_dict: Dict[str, Any]) -> T:
+        """Convert from a json dictionary"""
+        return Conversation.model_validate(json_dict)
 
     def as_prompt(self) -> str:
         """Convert the conversation template and history messages to
