@@ -7,8 +7,6 @@ from ...conversation_template import ConvTemplateRegistry
 from ...protocol.conversation_protocol import Conversation
 from .. import async_engine
 
-from ...chat_module import _get_model_path
-
 
 class ServerContext:
     """The global server context, including the running models

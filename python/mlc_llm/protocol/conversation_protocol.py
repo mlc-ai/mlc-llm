@@ -4,6 +4,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
+
 from ..serve import data
 
 from ..serve import data
