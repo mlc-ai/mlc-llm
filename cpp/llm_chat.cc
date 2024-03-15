@@ -581,7 +581,7 @@ class LLMChat {
       try {
         this->conversation_.LoadJSONOverride(config["conv_config"], false);
       } catch (...) {
-        this->conversation_.LoadJSONOverrideLegacy(config["conv_config"], true);
+        this->conversation_.LoadJSONOverrideLegacy(config["conv_config"], false);
       }
     } else {
       CHECK(partial_update) << "Key \"conv_template\" and \"conv_config\" not found.";
