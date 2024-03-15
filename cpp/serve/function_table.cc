@@ -55,7 +55,6 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     }
   }
   this->model_config = model_config;
-  this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
     String lib_path{nullptr};
@@ -255,7 +254,7 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
       buffer = Downcast<DRef>((*it).second);
     } else {
       buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
-      this->cached_buffers.Set(buffer_cache_key, buffer);
+      this->cached_buffers.emplace(buffer_cache_key, buffer);
     }
     ShapeTuple real_shape = host_array.Shape();
     DRef buffer_view = nd_view_func_(buffer, real_shape);
@@ -268,7 +267,7 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
       buffer = Downcast<NDArray>((*it).second);
     } else {
       buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
-      this->cached_buffers.Set(buffer_cache_key, buffer);
+      this->cached_buffers.emplace(buffer_cache_key, buffer);
     }
     buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
     DLTensor copy_dst = *(buffer.operator->());

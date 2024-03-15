@@ -56,7 +56,7 @@ struct FunctionTable {
   Device local_gpu_device;
   Session sess{nullptr};
   DRef disco_mod{nullptr};
-  Map<String, ObjectRef> cached_buffers{nullptr};
+  std::unordered_map<String, ObjectRef> cached_buffers;
   tvm::runtime::Module local_vm{nullptr};
   picojson::object model_config;
 
