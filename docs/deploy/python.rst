@@ -184,7 +184,7 @@ We provide an example below.
 
    # Using a `ConvConfig`, we modify `system`, a field in the conversation template
    # `system` refers to the prompt encoded before starting the chat
-   conv_config = ConvConfig(system='Please show as much happiness as you can when talking to me.')
+   conv_config = ConvConfig(system_message='Please show as much happiness as you can when talking to me.')
 
    # We then include the `ConvConfig` instance in `ChatConfig` while overriding `max_gen_len`
    # Note that `conv_config` is an optional subfield of `chat_config`

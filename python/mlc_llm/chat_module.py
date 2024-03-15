@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import tvm
 from tvm.runtime import disco  # pylint: disable=unused-import
 
+from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.support import logging
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.config import ConfigBase
@@ -44,58 +45,61 @@ class ConvConfig:  # pylint: disable=too-many-instance-attributes
 
     Since the configuration is partial, everything will be ``Optional``.
 
+    The parameters are the same as :class:`mlc_llm.protocol.conversation_protocol.Conversation`
+
     Parameters
     ----------
     name : Optional[str]
         Name of the conversation.
-    system : Optional[str]
-        The prompt encoded before starting the chat.
-    roles : Optional[List[str]]
-        An array that describes the role names of the user and the model. These
-        names are specific to the model being used.
-    messages : Optional[List[List[str]]]
-        The chat history represented as an array of string pairs in the following
-        format: ``[[role_0, msg_0], [role_1, msg_1], ...]``.
-    offset : Optional[int]
-        The offset used to begin the chat from the chat history. When offset
-        is not ``0``, ``messages[0:offset-1]`` will be encoded.
-    separator_style : Optional[int]
-        Specifies whether we are in chat-bot mode (``0``) or pure LM prompt mode (``1``).
+    system_template : Optional[str]
+        The system prompt template, it optionally contains the system
+        message placeholder, and the placeholder will be replaced with
+        the system message below.
+    system_message : Optional[str]
+        The content of the system prompt (without the template format).
+    system_prefix_token_ids : Optional[List[int]]
+        The system token ids to be prepended at the beginning of tokenized
+        generated prompt.
+    roles : Optional[Dict[str, str]]
+        The conversation roles
+    role_templates : Optional[Dict[str, str]]
+        The roles prompt template, it optionally contains the defaults
+        message placeholders and will be replaced by actual content
+    messages : Optional[List[Tuple[str, Optional[str]]]]
+        The conversation history messages.
+        Each message is a pair of strings, denoting "(role, content)".
+        The content can be None.
     seps : Optional[List[str]]
         An array of strings indicating the separators to be used after a user
         message and a model message respectively.
-    role_msg_sep : Optional[str]
-        A string indicating the separator between a role and a message.
+    role_content_sep : Optional[str]
+        The separator between the role and the content in a message.
     role_empty_sep : Optional[str]
-        A string indicating the separator to append to a role when there is no message yet.
-    stop_str : Optional[str]
+        The separator between the role and empty contents.
+    stop_str : Optional[List[str]]
         When the ``stop_str`` is encountered, the model will stop generating output.
-    stop_tokens : Optional[List[int]]
+    stop_token_ids : Optional[List[int]]
         A list of token IDs that act as stop tokens.
-    prefix_tokens : Optional[List[int]]
-        Token list prefixing the conversation.
-    add_bos : Optional[bool]
-        Determines whether a beginning-of-string (bos) token should be added
-        before the input tokens.
+    function_string : Optional[str]
+        The function calling string.
+    use_function_calling : Optional[bool]
+        Whether using function calling or not, helps check for output message format in API call.
     """
 
     name: Optional[str] = None
-    system: Optional[str] = None
-    roles: Optional[List[str]] = None
-    messages: Optional[List[List[str]]] = None
-    offset: Optional[int] = None
-    separator_style: Optional[int] = None
+    system_template: Optional[str] = None
+    system_message: Optional[str] = None
+    system_prefix_token_ids: Optional[List[int]] = None
+    roles: Optional[Dict[str, str]] = None
+    role_templates: Optional[Dict[str, str]] = None
+    messages: Optional[List[Tuple[str, Optional[str]]]] = None
     seps: Optional[List[str]] = None
-    role_msg_sep: Optional[str] = None
+    role_content_sep: Optional[str] = None
     role_empty_sep: Optional[str] = None
-    stop_str: Optional[str] = None
-    stop_tokens: Optional[List[int]] = None
-    prefix_tokens: Optional[List[int]] = None
-    add_bos: Optional[bool] = None
-
-    def __post_init__(self):
-        if self.messages is not None and self.offset is None:
-            self.offset = len(self.messages)
+    stop_str: Optional[List[str]] = None
+    stop_token_ids: Optional[List[int]] = None
+    function_string: Optional[str] = None
+    use_function_calling: Optional[bool] = None
 
 
 @dataclass
@@ -192,7 +196,7 @@ class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
     model_lib: Optional[str] = None
     local_id: Optional[str] = None
-    conv_template: Optional[str] = None
+    conv_template: Optional[Union[str, Conversation]] = None
     temperature: Optional[float] = None
     presence_penalty: Optional[float] = 0.0
     frequency_penalty: Optional[float] = 0.0
@@ -217,6 +221,8 @@ class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
     @classmethod
     def _from_json(cls, json_obj: dict):
+        if "conv_template" in json_obj and isinstance(json_obj["conv_template"], dict):
+            json_obj["conv_template"] = Conversation.from_json_dict(json_obj["conv_template"])
         return cls(**{k: v for k, v in json_obj.items() if k in inspect.signature(cls).parameters})
 
 
@@ -440,6 +446,13 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
                         "override the full model library path instead."
                     )
                     warnings.warn(warn_msg)
+                elif field_name == "conv_template" and isinstance(field_value, Conversation):
+                    warn_msg = (
+                        'WARNING: Do not override "conv_template" in ChatConfig. '
+                        'Please override "conv_config" instead.'
+                        "This override will be ignored."
+                    )
+                    warnings.warn(warn_msg)
                 else:
                     setattr(final_chat_config, field_name, field_value)
     return final_chat_config
@@ -612,6 +625,9 @@ def _convert_chat_config_to_json_str(
                 if conv_v is not None:
                     conv_dict[conv_k] = conv_v
             chat_dict[key] = conv_dict
+            continue
+        if key == "conv_template" and isinstance(value, Conversation):
+            chat_dict[key] = Conversation.to_json_dict(value)
             continue
         if value is not None:
             chat_dict[key] = value
