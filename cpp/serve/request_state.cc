@@ -118,7 +118,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
                                                             int max_single_sequence_length) {
   // - Case 0. There is remaining draft output ==> Unfinished
   //   All draft outputs are supposed to be processed before finish.
-  for (RequestModelState mstate : mstates) {
+  for (RequestModelState mstate : this->mstates) {
     if (!mstate->draft_output_tokens.empty()) {
       return {{}, {}, Optional<String>()};
     }
@@ -127,7 +127,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
   std::vector<int32_t> return_token_ids;
   std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
-  const std::vector<SampleResult>& committed_tokens = mstates[0]->committed_tokens;
+  const std::vector<SampleResult>& committed_tokens = this->mstates[0]->committed_tokens;
   int num_committed_tokens = committed_tokens.size();
   ICHECK_LE(this->next_callback_token_pos, num_committed_tokens);
 
@@ -160,7 +160,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
               request->generation_cfg->stop_token_ids.begin(),
               request->generation_cfg->stop_token_ids.end(),
               [&return_token_ids, i](int32_t token) { return token == return_token_ids[i]; })) {
-        // Stop token matched. Erase all tokens after the current position.
+        // Stop token matched. Erase the stop token and all tokens after it.
         finish_reason = "stop";
         while (static_cast<int>(return_token_ids.size()) > i) {
           return_token_ids.pop_back();
@@ -170,11 +170,19 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     }
   }
 
+  // Case 4. When stop token is not detected (e.g. ignore_eos is set), but the grammar state is
+  // terminated, stop the generation and pop the last token (used to trigger the termination).
+  if (finish_reason != "stop" && this->mstates[0]->grammar_state_matcher.defined() &&
+      this->mstates[0]->grammar_state_matcher.value()->IsTerminated()) {
+    return_token_ids.pop_back();
+    finish_reason = "stop";
+  }
+
   if (finish_reason.defined()) {
     return {return_token_ids, logprob_json_strs, finish_reason};
   }
 
-  // Case 4. Generation reaches the specified max generation length ==> Finished
+  // Case 5. Generation reaches the specified max generation length ==> Finished
   // `max_tokens` means the generation length is limited by model capacity.
   if (request->generation_cfg->max_tokens >= 0 &&
       num_committed_tokens >= request->generation_cfg->max_tokens) {
@@ -182,7 +190,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
     return {return_token_ids, logprob_json_strs, String("length")};
   }
-  // Case 5. Total length of the request reaches the maximum single sequence length ==> Finished
+  // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->input_total_length + num_committed_tokens >= max_single_sequence_length) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());

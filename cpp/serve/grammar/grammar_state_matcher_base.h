@@ -126,7 +126,7 @@ inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool 
 
   tmp_new_stack_tops_.clear();
   for (auto prev_top : prev_stack_tops) {
-    const auto& cur_rule_position = tree_[prev_top];
+    auto cur_rule_position = tree_[prev_top];
     auto current_sequence = grammar_->GetRuleExpr(cur_rule_position.sequence_id);
     if (cur_rule_position.parent_id == RulePosition::kNoParent &&
         cur_rule_position.element_id == current_sequence.size()) {

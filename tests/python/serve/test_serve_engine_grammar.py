@@ -26,7 +26,8 @@ def test_batch_generation_with_grammar():
     # Create engine
     engine = Engine(model, kv_cache_config)
 
-    prompts = prompts_list * 2
+    prompt_len = len(prompts_list)
+    prompts = prompts_list * 3
 
     temperature = 1
     repetition_penalty = 1
@@ -45,7 +46,17 @@ def test_batch_generation_with_grammar():
         stop_token_ids=[2],
         response_format=ResponseFormat(type="json_object"),
     )
-    all_generation_configs = [generation_config_no_json] * 3 + [generation_config_json] * 3
+    generation_config_json_no_stop_token = GenerationConfig(
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
+        max_tokens=max_tokens,
+        response_format=ResponseFormat(type="json_object"),
+    )
+    all_generation_configs = (
+        [generation_config_no_json] * prompt_len
+        + [generation_config_json] * prompt_len
+        + [generation_config_json_no_stop_token] * prompt_len
+    )
 
     # Generate output.
     output_texts, _ = engine.generate(prompts, all_generation_configs)

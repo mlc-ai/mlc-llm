@@ -101,8 +101,14 @@ class RulePositionBuffer {
   }
 
   /*! \brief Get the RulePosition with the given id. */
-  RulePosition& operator[](int32_t id) { return buffer_[id]; }
-  const RulePosition& operator[](int32_t id) const { return buffer_[id]; }
+  RulePosition& operator[](int32_t id) {
+    DCHECK(id < static_cast<int32_t>(buffer_.size()) && buffer_[id] != kInvalidRulePosition);
+    return buffer_[id];
+  }
+  const RulePosition& operator[](int32_t id) const {
+    DCHECK(id < static_cast<int32_t>(buffer_.size()) && buffer_[id] != kInvalidRulePosition);
+    return buffer_[id];
+  }
 
   void Reset() {
     buffer_.clear();
