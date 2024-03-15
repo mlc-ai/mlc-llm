@@ -243,4 +243,5 @@ CONV_TEMPLATES = {
     "stablelm-2",
     "gemma_instruction",
     "orion",
+    "llava",
 }

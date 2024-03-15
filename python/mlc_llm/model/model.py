@@ -15,6 +15,7 @@ from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quan
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .llama import llama_loader, llama_model, llama_quantization
+from .llava import llava_loader, llava_model, llava_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .orion import orion_loader, orion_model, orion_quantization
@@ -290,6 +291,21 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": orion_quantization.no_quant,
             "group-quant": orion_quantization.group_quant,
+        },
+    ),
+    "llava": Model(
+        name="llava",
+        model=llava_model.LlavaForCasualLM,
+        config=llava_model.LlavaConfig,
+        source={
+            "huggingface-torch": llava_loader.huggingface,
+            "huggingface-safetensor": llava_loader.huggingface,
+            "awq": llava_loader.awq,
+        },
+        quantize={
+            "group-quant": llava_quantization.group_quant,
+            "no-quant": llava_quantization.no_quant,
+            "awq": llava_quantization.awq_quant,
         },
     ),
 }
