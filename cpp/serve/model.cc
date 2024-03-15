@@ -94,20 +94,18 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  NDArray ImageEmbed(const NDArray& image) final {
+  ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst, int offset) final {
     CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
     auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
     ObjectRef embeddings = ft_.image_embed_func_(image_dref_or_nd, params_);
-    NDArray embeddings_ndarray;
-    if (ft_.use_disco) {
-      embeddings_ndarray = Downcast<DRef>(embeddings)->DebugGetFromRemote(0);
+    if (dst != nullptr) {
+      CHECK(dst->defined());
+      ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
+      return *dst;
     } else {
-      embeddings_ndarray = Downcast<NDArray>(embeddings);
+      CHECK_EQ(offset, 0);
+      return embeddings;
     }
-    // embeddings: (1, total_length, hidden_size)
-    ICHECK_EQ(embeddings_ndarray->ndim, 3);
-    ICHECK_EQ(embeddings_ndarray->shape[0], 1);
-    return embeddings_ndarray;
   }
 
   NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,

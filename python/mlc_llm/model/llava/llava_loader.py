@@ -7,8 +7,8 @@ import functools
 
 import numpy as np
 
-from mlc_chat.loader import ExternMapping
-from mlc_chat.quantization import Quantization
+from mlc_llm.loader import ExternMapping
+from mlc_llm.quantization import Quantization
 
 from .llava_model import LlavaConfig, LlavaForCasualLM
 from .llava_quantization import awq_quant
