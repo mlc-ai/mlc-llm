@@ -89,7 +89,7 @@ class ModelObj : public Object {
    * \param image The image to compute embedding for.
    * \return The computed embeddings.
    */
-  virtual NDArray ImageEmbed(const NDArray& image) = 0;
+  virtual ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.

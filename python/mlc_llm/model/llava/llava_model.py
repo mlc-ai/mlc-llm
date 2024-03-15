@@ -22,8 +22,8 @@ from tvm.relax.frontend.nn.op import (
 )
 from tvm.relax.op import arange, strided_slice
 
-from mlc_chat import op as op_ext
-from mlc_chat.nn import PagedKVCache, RopeMode
+from mlc_llm import op as op_ext
+from mlc_llm.nn import PagedKVCache, RopeMode
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
@@ -446,6 +446,7 @@ class LlavaForCasualLM(Module):
             name="slice",
         )
         image_features = self.multi_modal_projector(image_features)
+        image_features = reshape(image_features, shape=(-1, self.config.text_config.hidden_size))
         return image_features
 
     def batch_forward(
@@ -509,7 +510,7 @@ class LlavaForCasualLM(Module):
     def get_default_spec(self):
         mod_spec = {
             "embed": {
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
