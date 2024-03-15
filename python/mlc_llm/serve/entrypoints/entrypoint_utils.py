@@ -114,8 +114,7 @@ def get_image_from_url(url: str):
     image_features = tvm.nd.array(
         image_processor.preprocess(image_tensor, return_tensors="np")["pixel_values"].astype(
             "float16"
-        ),
-        device=tvm.runtime.ndarray.cuda(),
+        )
     )
     return image_features
 
