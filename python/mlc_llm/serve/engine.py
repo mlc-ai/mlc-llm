@@ -475,12 +475,12 @@ class Engine:
             if isinstance(prompt, str):
                 return [data.TextData(prompt)]
             if isinstance(prompt[0], int):
-                return [data.TokenData(prompt)]
-            return prompt
+                return [data.TokenData(prompt)]  # type: ignore
+            return prompt  # type: ignore
 
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
-            input_data = convert_to_data(prompt)
+            input_data = convert_to_data(prompt)  # type: ignore
             self.add_request(
                 Request(
                     request_id=str(req_id),

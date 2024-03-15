@@ -8,6 +8,8 @@ from typing import AsyncGenerator, Dict, List, Optional, Union
 
 import fastapi
 
+from mlc_llm.serve import data
+
 from ...protocol import protocol_utils
 from ...protocol.conversation_protocol import Conversation
 from ...protocol.openai_api_protocol import (
@@ -392,6 +394,7 @@ async def request_chat_completion(
         role = message.role
         content = message.content
         if role == "system":
+            assert isinstance(content, str)
             conv_template.system_message = content if content is not None else ""
             continue
 
@@ -404,10 +407,13 @@ async def request_chat_completion(
     async_engine.record_event(request_id, event="start tokenization")
 
     model_config_path = ServerContext.get_model_config_path(request.model)
-    embed_size = entrypoint_utils.get_image_embed_size(model_config_path)
+    image_embed_size = entrypoint_utils.get_image_embed_size(model_config_path)
 
     if content_has_list:
-        prompts = conv_template.as_prompt_list(embed_size)
+        prompts = entrypoint_utils.process_prompts(
+            conv_template.as_prompt_list(image_embed_size=image_embed_size),
+            async_engine.tokenizer.encode,
+        )
     else:
         prompts = entrypoint_utils.process_prompts(
             conv_template.as_prompt(), async_engine.tokenizer.encode
@@ -418,10 +424,8 @@ async def request_chat_completion(
     error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_single_sequence_length)
     if error is not None:
         return error
-    if content_has_list:
-        prompt = prompts
-    else:
-        prompt = prompts[0]
+
+    prompt: List[List[int] | data.ImageData] = prompts
 
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(
@@ -436,7 +440,7 @@ async def request_chat_completion(
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             async_engine.record_event(request_id, event="invoke generate")
             finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
-            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
+            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):  # type: ignore
                 assert len(delta_outputs) == generation_cfg.n
                 choices = []
                 for i, delta_output in enumerate(delta_outputs):
@@ -499,7 +503,7 @@ async def request_chat_completion(
         [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
     )
     async_engine.record_event(request_id, event="invoke generate")
-    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
+    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):  # type: ignore
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
