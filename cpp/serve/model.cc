@@ -110,7 +110,7 @@ class ModelImpl : public ModelObj {
     return embeddings_ndarray;
   }
 
-  NDArray BatchPrefill(const Array<NDArray>& embeddings, const std::vector<int64_t>& seq_ids,
+  NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                        const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());

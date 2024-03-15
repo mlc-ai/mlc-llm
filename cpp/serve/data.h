@@ -110,7 +110,7 @@ class ImageDataNode : public DataNode {
   int embed_size;
 
   int GetLength() const final;
-  NDArray GetEmbedding(Model model) const final;
+  ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
   static constexpr const char* _type_key = "mlc.serve.ImageData";
   TVM_DECLARE_BASE_OBJECT_INFO(ImageDataNode, DataNode);
@@ -188,6 +188,7 @@ class RequestStreamOutput : public ObjectRef {
                                Array<Optional<String>> finish_reason);
 
   TVM_DEFINE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
+};
 
 }  // namespace serve
 }  // namespace llm
