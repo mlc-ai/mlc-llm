@@ -450,7 +450,7 @@ provide two dataclasses <code class="xref py py-class docutils literal notransla
 
 <span class="c1"># Using a `ConvConfig`, we modify `system`, a field in the conversation template</span>
 <span class="c1"># `system` refers to the prompt encoded before starting the chat</span>
-<span class="n">conv_config</span> <span class="o">=</span> <span class="n">ConvConfig</span><span class="p">(</span><span class="n">system</span><span class="o">=</span><span class="s1">&#39;Please show as much happiness as you can when talking to me.&#39;</span><span class="p">)</span>
+<span class="n">conv_config</span> <span class="o">=</span> <span class="n">ConvConfig</span><span class="p">(</span><span class="n">system_message</span><span class="o">=</span><span class="s1">&#39;Please show as much happiness as you can when talking to me.&#39;</span><span class="p">)</span>
 
 <span class="c1"># We then include the `ConvConfig` instance in `ChatConfig` while overriding `max_gen_len`</span>
 <span class="c1"># Note that `conv_config` is an optional subfield of `chat_config`</span>
