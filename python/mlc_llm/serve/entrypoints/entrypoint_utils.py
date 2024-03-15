@@ -9,8 +9,6 @@ from typing import Callable, List, Optional, Union
 import fastapi
 import requests
 import tvm
-from PIL import Image
-from transformers import CLIPImageProcessor
 
 from mlc_llm.serve import data
 
@@ -105,6 +103,10 @@ def process_prompts(
 
 def get_image_from_url(url: str):
     """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
+
+    # pylint: disable=import-outside-toplevel
+    from PIL import Image
+    from transformers import CLIPImageProcessor
 
     response = requests.get(url, timeout=5)
     image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
