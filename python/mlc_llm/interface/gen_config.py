@@ -10,6 +10,7 @@ from mlc_llm.model import Model
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import convert_tiktoken, logging
 from mlc_llm.support.style import bold, green, red
+from mlc_llm.conversation_template import ConvTemplateRegistry
 
 from .compiler_flags import ModelConfigOverride
 
@@ -45,7 +46,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     repetition_penalty: float = None
     top_p: float = None
     # Conversation template
-    conv_template: str = None
+    conv_template: str | Dict[str, Any] = None
     pad_token_id: int = None
     bos_token_id: int = None
     eos_token_id: int = None
@@ -89,6 +90,17 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
 ):
     """Entrypoint of MLC Chat configuration generation."""
     # Step 1. Initialize `mlc-chat-config.json` using `config.json`
+    conversation = ConvTemplateRegistry.get_conv_template(conv_template)
+    if conversation is None:
+        logger.warning(
+            "%s: Conversation template is not registered in ConvTemplateRegistry: %s",
+            red("Warning"),
+            conv_template,
+        )
+        conversation = conv_template
+    else:
+        conversation = conversation.to_json_dict()
+
     model_config = ModelConfigOverride(
         context_window_size=context_window_size,
         sliding_window_size=sliding_window_size,
@@ -107,7 +119,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         prefill_chunk_size=model_config.prefill_chunk_size,
         attention_sink_size=getattr(model_config, "attention_sink_size", -1),
         tensor_parallel_shards=model_config.tensor_parallel_shards,
-        conv_template=conv_template,
+        conv_template=conversation,
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
     for generation_config_filename in ["generation_config.json", "config.json"]:
