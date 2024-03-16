@@ -6,12 +6,12 @@ import tvm.testing
 from pydantic import BaseModel, TypeAdapter
 
 from mlc_llm.serve.grammar import BNFGrammar, GrammarStateMatcher
-from mlc_llm.serve.json_schema_converter import JSONSchemaConverter
+from mlc_llm.serve.json_schema_converter import json_schema_to_ebnf
 
 
 def check_schema_with_grammar(schema: Dict[str, Any], expected_grammar: str):
     schema_str = json.dumps(schema, indent=2)
-    grammar = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
+    grammar = json_schema_to_ebnf(schema_str, separators=(",", ":"))
     print(grammar)
     print(expected_grammar)
     assert grammar == expected_grammar
@@ -20,7 +20,7 @@ def check_schema_with_grammar(schema: Dict[str, Any], expected_grammar: str):
 def check_schema_with_json(schema: Dict[str, Any], json_str: str, check_accepted=True):
     schema_str = json.dumps(schema, indent=2)
 
-    ebnf_grammar_str = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
+    ebnf_grammar_str = json_schema_to_ebnf(schema_str, separators=(",", ":"))
     ebnf_grammar = BNFGrammar.from_ebnf_string(ebnf_grammar_str)
     matcher = GrammarStateMatcher(ebnf_grammar)
 
@@ -41,6 +41,7 @@ def test_basic():
         integer_field: int
         number_field: float
         boolean_field: bool
+        any_array_field: List
         array_field: List[str]
         tuple_field: Tuple[str, int, List[str]]
         object_field: Dict[str, int]
@@ -68,29 +69,29 @@ main ::= "{" "\"integer_field\"" ":" basic_integer "," "\"number_field\"" ":" ba
         integer_field=42,
         number_field=3.14,
         boolean_field=True,
+        any_array_field=[3.14, "foo", [None, True]],
         array_field=["foo", "bar"],
         tuple_field=("foo", 42, ["bar", "baz"]),
         object_field={"foo": 42, "bar": 43},
         nested_object_field={"foo": {"bar": 42}},
-        optional_field=None,
     )
-    print(instance.model_dump_json(round_trip=True))
-    print(instance.model_dump_json(round_trip=True, indent=2))
-    print(
-        json.dumps(
-            json.loads(instance.model_dump_json(round_trip=True)), indent=2, separators=(",", ":")
-        )
-    )
-    print(
-        json.dumps(
-            json.loads(instance.model_dump_json(round_trip=True)),
-            indent=None,
-            separators=(",", ":"),
-        )
-    )
+    # print(instance.model_dump_json(round_trip=True))
+    # print(instance.model_dump_json(round_trip=True, indent=2))
+    # print(
+    #     json.dumps(
+    #         json.loads(instance.model_dump_json(round_trip=True)), indent=2, separators=(",", ":")
+    #     )
+    # )
+    # print(
+    #     json.dumps(
+    #         json.loads(instance.model_dump_json(round_trip=True)),
+    #         indent=None,
+    #         separators=(",", ":"),
+    #     )
+    # )
 
     # check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
-    # check_schema_with_instance(MainModel.model_json_schema(), instance)
+    check_schema_with_instance(MainModel.model_json_schema(), instance)
 
 
 test_basic()
