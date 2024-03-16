@@ -25,6 +25,7 @@ from http import HTTPStatus
 from typing import Dict, List, Optional, Tuple
 
 import pytest
+import regex
 import requests
 from openai import OpenAI
 
@@ -35,12 +36,26 @@ OPENAI_V1_CHAT_COMPLETION_URL = "http://127.0.0.1:8000/v1/chat/completions"
 DEBUG_DUMP_EVENT_TRACE_URL = "http://127.0.0.1:8000/debug/dump_event_trace"
 
 
+JSON_TOKEN_PATTERN = (
+    r"((-?(?:0|[1-9]\d*))(\.\d+)?([eE][-+]?\d+)?)|null|true|false|"
+    r'("((\\["\\\/bfnrt])|(\\u[0-9a-fA-F]{4})|[^"\\\x00-\x1f])*")'
+)
+JSON_TOKEN_RE = regex.compile(JSON_TOKEN_PATTERN)
+
+
 def is_json_or_json_prefix(s: str) -> bool:
     try:
         json.loads(s)
         return True
     except json.JSONDecodeError as e:
-        return e.pos == len(s)
+        # If the JSON decoder reaches the end of s, it is a prefix of a JSON string.
+        if e.pos == len(s):
+            return True
+        # Since json.loads is token-based instead of char-based, there may remain half a token after
+        # the matching position.
+        # If the left part is a prefix of a valid JSON token, the output is also valid
+        regex_match = JSON_TOKEN_RE.fullmatch(s[e.pos :], partial=True)
+        return regex_match is not None
 
 
 def check_openai_nonstream_response(
