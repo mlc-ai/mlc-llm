@@ -48,8 +48,12 @@ def is_json_or_json_prefix(s: str) -> bool:
         json.loads(s)
         return True
     except json.JSONDecodeError as e:
+        # If the JSON decoder reaches the end of s, it is a prefix of a JSON string.
         if e.pos == len(s):
             return True
+        # Since json.loads is token-based instead of char-based, there may remain half a token after
+        # the matching position.
+        # If the left part is a prefix of a valid JSON token, the output is also valid
         regex_match = JSON_TOKEN_RE.fullmatch(s[e.pos :], partial=True)
         return regex_match is not None
 
