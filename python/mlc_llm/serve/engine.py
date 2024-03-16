@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 import tvm
 from tvm.runtime import Device
 
+from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data
 from mlc_llm.support import logging
 from mlc_llm.support.auto_device import detect_device
@@ -87,7 +88,7 @@ def _process_model_args(
         model_path, config_file_path = _get_model_path(model.model)
         config_file_paths.append(config_file_path)
         chat_config = _get_chat_config(config_file_path, user_chat_config=None)
-        if chat_config.context_window_size:
+        if chat_config.context_window_size and chat_config.context_window_size != -1:
             max_single_sequence_length = min(
                 max_single_sequence_length,
                 chat_config.context_window_size,
@@ -97,7 +98,8 @@ def _process_model_args(
         if tokenizer_path is None:
             tokenizer_path = model_path
         if conv_template_name is None:
-            conv_template_name = chat_config.conv_template
+            assert isinstance(chat_config.conv_template, Conversation)
+            conv_template_name = chat_config.conv_template.name
         # Try look up model library, and do JIT compile if model library not found.
         try:
             model_lib_path = _get_lib_module_path(
@@ -125,6 +127,7 @@ def _process_model_args(
         start=[],
     )
 
+    assert prefill_chunk_size != int(1e9)
     return (
         model_args,
         config_file_paths,
@@ -317,7 +320,7 @@ class Engine:
             model_args,
             config_file_paths,
             tokenizer_path,
-            self.max_single_sequence_length,
+            max_single_sequence_length,
             prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
@@ -335,6 +338,8 @@ class Engine:
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+        # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
+        self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
@@ -354,7 +359,7 @@ class Engine:
             engine_mode = EngineMode()
 
         self._ffi["init"](
-            self.max_single_sequence_length,
+            max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
             engine_mode.asjson(),

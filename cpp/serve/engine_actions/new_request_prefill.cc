@@ -91,6 +91,10 @@ class NewRequestPrefillActionObj : public EngineActionObj {
                                               ->internal_id,
                                           mstate->internal_id);
         }
+        // Enable sliding window for the sequence if it is not a parent.
+        if (rsentries[i]->child_indices.empty()) {
+          models_[model_id]->EnableSlidingWindowForSeq(mstate->internal_id);
+        }
         request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, rsentries[i]->request->id, "start embedding");
         for (int i = 0; i < static_cast<int>(mstate->inputs.size()); ++i) {
@@ -151,7 +155,6 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     request_ids.clear();
     generation_cfg.clear();
     for (int i = 0; i < num_rsentries; ++i) {
-      estate->stats.current_total_seq_len += prefill_lengths[i];
       const RequestStateEntry& rsentry = rsentries[i];
       for (int child_idx : rsentry->child_indices) {
         if (rstates_of_entries[i]->entries[child_idx]->mstates[0]->committed_tokens.empty()) {
@@ -168,9 +171,14 @@ class NewRequestPrefillActionObj : public EngineActionObj {
           ICHECK(rstates_of_entries[i]->entries[child_idx]->status == RequestStateStatus::kPending);
           rstates_of_entries[i]->entries[child_idx]->status = RequestStateStatus::kAlive;
           for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
-            models_[model_id]->ForkSequence(
-                rsentry->mstates[model_id]->internal_id,
-                rstates_of_entries[i]->entries[child_idx]->mstates[model_id]->internal_id);
+            int64_t child_internal_id =
+                rstates_of_entries[i]->entries[child_idx]->mstates[model_id]->internal_id;
+            models_[model_id]->ForkSequence(rsentry->mstates[model_id]->internal_id,
+                                            child_internal_id);
+            // Enable sliding window for the child sequence if the child is not a parent.
+            if (rstates_of_entries[i]->entries[child_idx]->child_indices.empty()) {
+              models_[model_id]->EnableSlidingWindowForSeq(child_internal_id);
+            }
           }
         }
       }
@@ -252,6 +260,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     int total_required_pages = 0;
     int num_available_pages = models_[0]->GetNumAvailablePages();
     int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
+    int current_total_seq_len = models_[0]->GetCurrentTotalSequenceLength();
 
     int num_prefill_rsentries = 0;
     for (const Request& request : estate->waiting_queue) {
@@ -276,7 +285,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         total_required_pages += num_require_pages;
         if (CanPrefill(estate, num_prefill_rsentries + 1 + rsentry->child_indices.size(),
                        total_input_length, total_required_pages, num_available_pages,
-                       num_running_rsentries)) {
+                       current_total_seq_len, num_running_rsentries)) {
           rsentries_to_prefill.push_back(rsentry);
           prefill_lengths.push_back(input_length);
           num_prefill_rsentries += 1 + rsentry->child_indices.size();
@@ -297,7 +306,8 @@ class NewRequestPrefillActionObj : public EngineActionObj {
 
   /*! \brief Check if the input requests can be prefilled under conditions. */
   bool CanPrefill(EngineState estate, int num_prefill_rsentries, int total_input_length,
-                  int num_required_pages, int num_available_pages, int num_running_rsentries) {
+                  int num_required_pages, int num_available_pages, int current_total_seq_len,
+                  int num_running_rsentries) {
     ICHECK_LE(num_running_rsentries, kv_cache_config_->max_num_sequence);
 
     // No exceeding of the maximum allowed requests that can
@@ -317,7 +327,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     int new_batch_size = num_running_rsentries + num_prefill_rsentries;
     return total_input_length <= kv_cache_config_->prefill_chunk_size &&
            num_required_pages + new_batch_size <= num_available_pages &&
-           estate->stats.current_total_seq_len + total_input_length + 8 * new_batch_size <=
+           current_total_seq_len + total_input_length + 8 * new_batch_size <=
                kv_cache_config_->max_total_sequence_length;
   }
 
