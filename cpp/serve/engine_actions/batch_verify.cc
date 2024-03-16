@@ -127,7 +127,6 @@ class BatchVerifyActionObj : public EngineActionObj {
         rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
-      estate->stats.current_total_seq_len += accept_length;
       estate->stats.total_accepted_length += accept_length;
       // - Minus one because the last draft token has no kv cache entry
       // - Take max with 0 in case of all accepted.

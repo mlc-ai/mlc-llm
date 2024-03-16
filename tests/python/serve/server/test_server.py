@@ -710,7 +710,7 @@ def test_openai_v1_completions_prompt_overlong(
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     error_msg_prefix = (
-        f"Request prompt has {num_tokens} tokens in total, larger than the model capacity"
+        f"Request prompt has {num_tokens} tokens in total, larger than the model input length limit"
     )
     if not stream:
         expect_error(response.json(), msg_prefix=error_msg_prefix)
@@ -895,6 +895,7 @@ def test_openai_v1_chat_completions_n(
         "messages": messages,
         "stream": stream,
         "n": n,
+        "max_tokens": 300,
     }
 
     response = requests.post(OPENAI_V1_CHAT_COMPLETION_URL, json=payload, timeout=180)
@@ -905,7 +906,7 @@ def test_openai_v1_chat_completions_n(
             model=served_model[0],
             object_str="chat.completion",
             num_choices=n,
-            finish_reasons=["stop"],
+            finish_reasons=["stop", "length"],
         )
     else:
         responses = []
@@ -919,7 +920,7 @@ def test_openai_v1_chat_completions_n(
             model=served_model[0],
             object_str="chat.completion.chunk",
             num_choices=n,
-            finish_reasons=["stop"],
+            finish_reasons=["stop", "length"],
         )
 
 

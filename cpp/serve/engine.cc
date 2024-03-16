@@ -51,7 +51,10 @@ class EngineImpl : public Engine {
     CHECK_GE(model_infos.size(), 1) << "ValueError: No model is provided in the engine.";
     // Step 1. Initialize metadata and singleton states inside the engine
     this->estate_->Reset();
-    this->max_single_sequence_length_ = max_single_sequence_length;
+    // Being "-1" means there is no limit on single sequence length.
+    this->max_single_sequence_length_ = max_single_sequence_length != -1
+                                            ? max_single_sequence_length
+                                            : std::numeric_limits<int>::max();
     this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
     this->engine_mode_ = EngineMode(engine_mode_json_str);
     this->request_stream_callback_ = std::move(request_stream_callback);
@@ -140,6 +143,17 @@ class EngineImpl : public Engine {
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->input_total_length, -1);
+
+    if (request->input_total_length >= kv_cache_config_->prefill_chunk_size) {
+      // If the request input length exceeds the prefill chunk size,
+      // invoke callback and do not process the request.
+      // Todo(mlc-team): Use "maximum single sequence length" after impl input chunking.
+      Array<RequestStreamOutput> output{RequestStreamOutput(
+          request->id, {}, Optional<Array<Array<String>>>(), {String("length")})};
+      request_stream_callback_.value()(std::move(output));
+      return;
+    }
+
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
 
@@ -189,21 +203,11 @@ class EngineImpl : public Engine {
       // The request to abort is in running queue
       estate_->running_queue.erase(it_running);
 
-      // Reduce the input length.
-      estate_->stats.current_total_seq_len -= request->input_total_length;
-      // Reduce the generated length.
-      for (int i = 0; i < static_cast<int>(rstate->entries.size()); ++i) {
+      for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
         if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
           continue;
         }
-        estate_->stats.current_total_seq_len -=
-            rstate->entries[i]->mstates[0]->committed_tokens.size();
         RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
-        if (rstate->entries[i]->child_indices.empty()) {
-          // For each running leaf state, length 1 is over reduced since the last
-          // token is not added into KV cache. So we add the length back.
-          ++estate_->stats.current_total_seq_len;
-        }
       }
     }
     if (it_waiting != estate_->waiting_queue.end()) {

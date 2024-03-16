@@ -18,8 +18,6 @@ using namespace tvm::runtime;
 
 /*! \brief Runtime statistics of engine. */
 struct EngineStats {
-  /*! \brief The current total sequence length in the first model. */
-  int64_t current_total_seq_len = 0;
   /*! \brief The sum of "prefill time of each request". */
   double request_total_prefill_time = 0.0f;
   /*! \brief The sum of "decode time of each request". */

@@ -5,12 +5,12 @@ Implementation for Mistral architecture.
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import relax as rx
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
+from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -36,6 +36,7 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     attention_sink_size: int = 4
     tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -59,60 +60,9 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 self.sliding_window_size,
             )
             self.prefill_chunk_size = self.sliding_window_size
-        elif self.prefill_chunk_size > self.sliding_window_size:
-            logger.info(
-                "Overriding %s from %d to %d (%s)",
-                bold("prefill_chunk_size"),
-                self.prefill_chunk_size,
-                self.sliding_window_size,
-                bold("sliding_window_size"),
-            )
-            self.prefill_chunk_size = self.sliding_window_size
 
 
 # pylint: disable=invalid-name,missing-docstring
-
-
-class RotaryEmbedding(nn.Module):
-    """Cache relative Rotary Embedding."""
-
-    def __init__(self, config: MistralConfig):
-        super().__init__()
-        self.head_dim = config.head_dim
-        self.position_embedding_base = config.position_embedding_base
-
-    def forward(self, q: Tensor, k: Tensor, q_offset: tir.Var):
-        def te_op(x: te.Tensor, offset: tir.Var):
-            dtype = x.dtype
-
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-                head_dim = tir.const(self.head_dim, "int32")
-                position_embedding_base = tir.const(self.position_embedding_base, "float32")
-                freq = tir.power(
-                    position_embedding_base,
-                    (d * 2 % head_dim).astype("float32") / head_dim,
-                )
-                freq = (offset + s) / freq
-                cos = tir.cos(freq).astype(dtype) * x[b, s, h, d]
-                sin = tir.sin(freq).astype(dtype) * tir.if_then_else(
-                    d < head_dim // 2,
-                    -x[b, s, h, d + head_dim // 2],
-                    x[b, s, h, d - head_dim // 2],
-                )
-                return cos + sin
-
-            return te.compute(x.shape, compute, name="rotary")
-
-        q_embed = op.tensor_expr_op(
-            te_op,
-            "rotary_embedding",
-            args=[q, q_offset],
-            attrs={"mlc.rotary_embedding_to_all_dims": True},
-        )
-        k_embed = op.tensor_expr_op(
-            te_op, "rotary_embedding", args=[k, 0], attrs={"mlc.rotary_embedding_to_all_dims": True}
-        )
-        return q_embed, k_embed
 
 
 class MistralMLP(nn.Module):
@@ -137,166 +87,37 @@ class MistralMLP(nn.Module):
 class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Same as LlamaAttention, but with sliding window attention using a rolling buffer cache."""
 
-    def __init__(self, config: MistralConfig, rotary_embedding: RotaryEmbedding):
-        self.rotary_embedding = rotary_embedding
-        self.hidden_size = config.hidden_size
+    def __init__(self, config: MistralConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
-        self.sliding_window_size = config.sliding_window_size
-        self.attention_sink_size = config.attention_sink_size
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        self.k_cache = RollingKVCacheWithSinks(
-            self.sliding_window_size, [self.num_kv_heads, self.head_dim]
-        )
-        self.v_cache = RollingKVCacheWithSinks(
-            self.sliding_window_size, [self.num_kv_heads, self.head_dim]
-        )
 
-    def interleave_kv(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        k_cur: Tensor,
-        v_cur: Tensor,
-        kv_seq_len: tir.Var,
-        rolling_cache_len: tir.Var,
-        cache_offset: tir.Var,
-    ):
-        """Unrotate and concatenate currunt and cached k and v"""
-        h_kv, d = self.num_kv_heads, self.head_dim
-        kv_s, c, o = kv_seq_len, rolling_cache_len, cache_offset
-        b = k_cur.shape[0]
-
-        k_cached = op.reshape(self.k_cache.view(c), (b, c, h_kv, d))
-        v_cached = op.reshape(self.v_cache.view(c), (b, c, h_kv, d))
-
-        def _cache_unrotate(x_cached, rolling_cache_len, cache_offset):
-            return te.compute(
-                (b, kv_s, h_kv, d),
-                lambda xb, xs, xh, xd: te.if_then_else(
-                    xs < self.attention_sink_size,
-                    x_cached[xb, xs, xh, xd],
-                    te.if_then_else(
-                        xs < rolling_cache_len - cache_offset + self.attention_sink_size,
-                        x_cached[xb, xs + cache_offset - self.attention_sink_size, xh, xd],
-                        x_cached[xb, xs + cache_offset - rolling_cache_len, xh, xd],
-                    ),
-                ),
-                name="cache_unrotate_te",
-            )
-
-        def _cache_cur_concat(x_cached, x_cur, rolling_cache_len):
-            return te.compute(
-                (b, kv_s, h_kv, d),
-                lambda xb, xs, xh, xd: te.if_then_else(
-                    xs < rolling_cache_len,
-                    x_cached[xb, xs, xh, xd],
-                    x_cur[xb, xs - rolling_cache_len, xh, xd],
-                ),
-                name="cache_cur_concat_te",
-            )
-
-        k_cached = op.tensor_expr_op(
-            _cache_unrotate,
-            name_hint="te_cache_unrotate_key",
-            args=[k_cached, c, o],
-        )
-        k = op.tensor_expr_op(
-            _cache_cur_concat,
-            name_hint="te_cache_cur_concat_key",
-            args=[k_cached, k_cur, c],
-        )
-
-        v_cached = op.tensor_expr_op(
-            _cache_unrotate,
-            name_hint="te_cache_unrotate_value",
-            args=[v_cached, c, o],
-        )
-        v = op.tensor_expr_op(
-            _cache_cur_concat,
-            name_hint="te_cache_cur_concat_value",
-            args=[v_cached, v_cur, c],
-        )
-
-        self.k_cache.override(
-            op.squeeze(k_cur, axis=0), self.sliding_window_size, self.attention_sink_size
-        )
-        self.v_cache.override(
-            op.squeeze(v_cur, axis=0), self.sliding_window_size, self.attention_sink_size
-        )
-
-        return k, v
-
-    def forward(  # pylint: disable=too-many-arguments, too-many-locals
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        rolling_cache_len: tir.Var,  # Number of elements currently in the cache.
-        kv_seq_len: tir.Var,  # Equals to ``seq_len + rolling_cache_len``.
-        cache_offset: tir.Var,
-    ):
-        """Forward pass of MistralAttention, performing QKV."""
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
-        assert b == 1, "Only support batch size 1 at this moment."
-        qkv_cur = self.qkv_proj(hidden_states)
-        qkv_cur = op.reshape(qkv_cur, (b, s, h_q + 2 * h_kv, d))
-        q, k_cur, v_cur = op.split(qkv_cur, [h_q, h_q + h_kv], axis=2)
-        k, v = self.interleave_kv(k_cur, v_cur, kv_seq_len, rolling_cache_len, cache_offset)
-        q, k = self.rotary_embedding(q, k, rolling_cache_len)
-        output = op_ext.attention(q, k, v, attention_mask)
-        return self.o_proj(output)
-
-
-class RollingKVCacheWithSinks(nn.KVCache):
-    """
-    Rolling buffer cache implementation.
-    """
-
-    cache: Optional[rx.Var]
-
-    def override(self, new_element: Tensor, max_cache_size: int, attention_sink_size: int) -> None:
-        """
-        Override cache elements in RollingKVCacheWithSinks.
-
-        Parameters
-        ----------
-        new_element : Tensor
-            The new tensor to append.
-
-        max_cache_size : int
-            Max size of the cache.
-
-        attention_sink_size : int
-            Number of stored attention sinks.
-        """
-        if new_element.dtype != self.dtype:
-            raise TypeError(
-                f'RollingKVCacheWithSinks has been set to use dtype "{self.dtype}", '
-                f'but got "{new_element.dtype}"'
-            )
-        self.cache = rx.BlockBuilder.current().emit(
-            rx.call_pure_packed(
-                "vm.builtin.attention_kv_cache_window_override_with_sinks",
-                self.cache,
-                new_element._expr,  # pylint: disable=protected-access
-                rx.PrimValue(max_cache_size),
-                rx.PrimValue(attention_sink_size),
-                sinfo_args=[rx.ObjectStructInfo()],
-            )
+        # QKV Projection
+        qkv = self.qkv_proj(hidden_states)
+        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
+        # Attention
+        output = op.reshape(
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            (b, s, h_q * d),
         )
+        return self.o_proj(output)
 
 
 class MistralDecoderLayer(nn.Module):
     """Exact same as LlamaDecoderLayer."""
 
-    def __init__(self, config: MistralConfig, rotary_embedding: RotaryEmbedding):
+    def __init__(self, config: MistralConfig):
         rms_norm_eps = config.rms_norm_eps
-        self.self_attn = MistralAttention(config, rotary_embedding)
+        self.self_attn = MistralAttention(config)
         self.mlp = MistralMLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
@@ -318,32 +139,17 @@ class MistralDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(  # pylint: disable=too-many-arguments
-        self,
-        hidden_states: Tensor,
-        attention_mask: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
-    ):
-        """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
-
-        def _apply_residual(out, residual):
-            if self.tensor_parallel_shards > 1:
-                return op.ccl_allreduce(out, "sum") + residual
-            return out + residual
-
-        out = self.self_attn(
-            self.input_layernorm(hidden_states),
-            attention_mask,
-            rolling_cache_len,
-            kv_seq_len,
-            cache_offset,
-        )
-        hidden_states = _apply_residual(out, residual=hidden_states)
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = _apply_residual(out, residual=hidden_states)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
 
 class MistralModel(nn.Module):
@@ -351,40 +157,35 @@ class MistralModel(nn.Module):
 
     def __init__(self, config: MistralConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        rotary_embedding = RotaryEmbedding(config)
         self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
-            [MistralDecoderLayer(config, rotary_embedding) for _ in range(config.num_hidden_layers)]
+            [MistralDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
-    def forward(  # pylint: disable=too-many-arguments
-        self,
-        inputs: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
-        attention_mask: Tensor,
-    ):
-        """Forward pass of the model, passing through all decoder layers."""
-        if self.tensor_parallel_shards > 1:
-            inputs = op.ccl_broadcast_from_worker0(inputs)
-        hidden_states = self.embed_tokens(inputs)
-        for layer in self.layers:
-            hidden_states = layer(
-                hidden_states, attention_mask, rolling_cache_len, kv_seq_len, cache_offset
-            )
+    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        hidden_states = input_embed
+        for layer_id, layer in enumerate(self.layers):
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
 
-class MistralForCasualLM(nn.Module):
+class MistralForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Same as LlamaForCausalLM, except for the use of sliding window attention."""
 
     def __init__(self, config: MistralConfig):
         self.model = MistralModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
+        self.num_hidden_layers = config.num_hidden_layers
+        self.num_attention_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
+        self.head_dim = config.head_dim
+        self.hidden_size = config.hidden_size
+        self.vocab_size = config.vocab_size
+        self.rope_theta = config.position_embedding_base
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         self.sliding_window_size = config.sliding_window_size
         self.dtype = "float32"
 
@@ -393,131 +194,155 @@ class MistralForCasualLM(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(  # pylint: disable=too-many-arguments
+    def batch_forward(
         self,
-        inputs: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
-        attention_mask: Tensor,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
     ):
-        """Forward pass."""
+        op_ext.configure()
 
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.model(
-            inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask
-        )
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = self.model(input_embeds, paged_kv_cache)
+        if logit_positions is not None:
+            hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
 
-    def prefill(
-        self,
-        inputs: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
+    def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
+        return self.model.embed_tokens(input_ids)
+
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+
+    def batch_prefill(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
-        """
-        Prefilling the prompt.
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return logits, paged_kv_cache
 
-        Parameters
-        ----------
-        inputs: Tensor
-            Input tokens, having ``seq_len`` number of tokens.
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
 
-        rolling_cache_len: tir.Var
-            Number of elements currently in the cache.
-
-        kv_seq_len: tir.Var
-            Equals to ``seq_len + rolling_cache_len``.
-
-        cache_offset: tir.Var
-            Next position to be overrided on the rolling kv cache.
-        """
-
-        def _sliding_window_attention_mask(
-            batch_size, seq_len, rolling_cache_len, kv_seq_len, sliding_window_size
-        ):
-            # See `tests/legacy-python/test_sliding_window_mask.py` for its behavior
-            return te.compute(
-                (batch_size, 1, seq_len, kv_seq_len),
-                lambda b, _, i, j: tir.Select(
-                    tir.all(
-                        i + rolling_cache_len >= j, i + rolling_cache_len - j < sliding_window_size
-                    ),
-                    tir.max_value(self.dtype),
-                    tir.min_value(self.dtype),
-                ),
-                name="sliding_window_attention_mask_prefill",
-            )
-
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.tensor_expr_op(
-            _sliding_window_attention_mask,
-            name_hint="sliding_window_attention_mask_prefill",
-            args=[
-                batch_size,
-                seq_len,
-                rolling_cache_len,
-                kv_seq_len,
-                self.sliding_window_size,
-            ],
-        )
-        return self.forward(inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask)
-
-    def decode(
-        self,
-        inputs: Tensor,
-        rolling_cache_len: tir.Var,
-        kv_seq_len: tir.Var,
-        cache_offset: tir.Var,
-    ):
-        """Decoding step."""
-        batch_size, seq_len = inputs.shape
-        attention_mask = op.full(
-            shape=[batch_size, 1, seq_len, kv_seq_len],
-            fill_value=tir.max_value(self.dtype),
-            dtype=self.dtype,
-        )
-        return self.forward(inputs, rolling_cache_len, kv_seq_len, cache_offset, attention_mask)
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-        """Softmax."""
-        return op.softmax(logits / temperature, axis=-1)
+        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
+
+    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            support_sliding_window=support_sliding_window,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
+            head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            dtype=self.dtype,
+        )
 
     def get_default_spec(self):
-        """Needed for ``export_tvm()``."""
-        batch_size = 1
         mod_spec = {
-            "prefill": {
-                "inputs": nn.spec.Tensor([batch_size, "seq_len"], "int32"),
-                "rolling_cache_len": int,
-                "kv_seq_len": int,
-                "cache_offset": int,
+            "embed": {
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "decode": {
-                "inputs": nn.spec.Tensor([batch_size, 1], "int32"),
-                "rolling_cache_len": int,
-                "kv_seq_len": int,
-                "cache_offset": int,
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
                 },
             },
             "softmax_with_temperature": {
-                "logits": nn.spec.Tensor([1, 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor([], "float32"),
+                "logits": nn.spec.Tensor(["batch_size", 1, "vocab_size"], "float32"),
+                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
+                "support_sliding_window": int,
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",

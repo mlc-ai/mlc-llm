@@ -81,12 +81,13 @@ struct FunctionTable {
   bool support_backtracking_kv_;
   PackedFunc kv_cache_add_sequence_func_;
   PackedFunc kv_cache_fork_sequence_func_;
+  PackedFunc kv_cache_enable_sliding_window_for_seq_;
   PackedFunc kv_cache_remove_sequence_func_;
   PackedFunc kv_cache_begin_forward_func_;
   PackedFunc kv_cache_end_forward_func_;
-  PackedFunc kv_cache_attention_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
+  PackedFunc kv_cache_get_total_sequence_length_func_;
   PackedFunc gpu_multinomial_from_uniform_func_;
   PackedFunc gpu_argsort_probs_func_;
   PackedFunc gpu_sample_with_top_p_func_;

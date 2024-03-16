@@ -298,8 +298,10 @@ class ModelImpl : public ModelObj {
     IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
     IntTuple prefill_chunk_size{kv_cache_config->prefill_chunk_size};
     IntTuple page_size{kv_cache_config->page_size};
+    IntTuple support_sliding_window{sliding_window_size_ != -1};
     kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
-                                          prefill_chunk_size, page_size);
+                                          prefill_chunk_size, page_size, support_sliding_window);
+    local_kv_cache_ = ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
   }
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
@@ -308,24 +310,29 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id);
   }
 
-  /*! \brief Remove the given sequence from the KV cache in the model. */
   void RemoveSequence(int64_t seq_id) final {
     ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);
   }
 
-  /*! \brief Get the number of available pages in KV cache. */
-  int GetNumAvailablePages() const final {
-    if (!ft_.use_disco) {
-      return ft_.kv_cache_get_num_available_pages_func_(kv_cache_);
-    } else {
-      DRef ret = ft_.kv_cache_get_num_available_pages_func_(kv_cache_);
-      return ret->DebugGetFromRemote(0);
+  void PopNFromKVCache(int64_t seq_id, int num_tokens) final {
+    ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
+  }
+
+  void EnableSlidingWindowForSeq(int64_t seq_id) final {
+    if (sliding_window_size_ != -1) {
+      ft_.kv_cache_enable_sliding_window_for_seq_(kv_cache_, seq_id, sliding_window_size_,
+                                                  attention_sink_size_);
     }
   }
 
-  /*! \brief Pop out N pages from KV cache. */
-  void PopNFromKVCache(int seq_id, int num_tokens) final {
-    ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
+  /************** Raw Info Query **************/
+
+  int GetNumAvailablePages() const final {
+    return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+  }
+
+  int GetCurrentTotalSequenceLength() const final {
+    return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
   }
 
   /*********************** Utilities  ***********************/
@@ -336,8 +343,8 @@ class ModelImpl : public ModelObj {
   }
 
   int GetMaxWindowSize() const final {
-    CHECK_NE(max_window_size_, -1) << "The model has not been initialized";
-    return max_window_size_;
+    // Being "-1" means there is no limit on the window size.
+    return max_window_size_ != -1 ? max_window_size_ : std::numeric_limits<int>::max();
   }
 
   ObjectRef AllocEmbeddingTensor() final {
@@ -383,6 +390,17 @@ class ModelImpl : public ModelObj {
     } else {
       LOG(FATAL) << "Key \"context_window_size\" not found.";
     }
+    if (config.count("sliding_window_size")) {
+      CHECK(config["sliding_window_size"].is<int64_t>());
+      this->sliding_window_size_ = config["sliding_window_size"].get<int64_t>();
+      CHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)
+          << "Sliding window should be either -1 (which means disabled) of positive";
+    }
+    if (config.count("attention_sink_size")) {
+      CHECK(config["attention_sink_size"].is<int64_t>());
+      this->attention_sink_size_ = config["attention_sink_size"].get<int64_t>();
+      this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
+    }
     if (config.count("tensor_parallel_shards")) {
       CHECK(config["tensor_parallel_shards"].is<int64_t>());
       this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
@@ -408,6 +426,8 @@ class ModelImpl : public ModelObj {
   // Model configurations
   //----------------------------
   int max_window_size_ = -1;
+  int sliding_window_size_ = -1;
+  int attention_sink_size_ = 0;
   int num_shards_ = -1;
   int max_num_sequence_ = -1;
   int prefill_chunk_size_ = -1;
@@ -418,8 +438,14 @@ class ModelImpl : public ModelObj {
   //----------------------------
   // Packed function table
   FunctionTable ft_;
-  // Paged KV cache
+  // Paged KV cache.
+  // - We use `kv_cache_` for general KV cache operations.
+  // When tensor parallelism is enabled, `kv_cache_` is a DRef object.
+  // - For efficient KV cache raw info query, we use `local_kv_cache`
+  // as a local **reference** of `kv_cache_`. It is a pure mirror of `kv_cache_`
+  // except that it is always a local object.
   ObjectRef kv_cache_{nullptr};
+  ObjectRef local_kv_cache_{nullptr};
   // Runtime device
   Device device_;
   // Model parameters

@@ -38,7 +38,7 @@ def check_unsupported_fields(
 
 
 def check_prompts_length(
-    prompts: List[List[int]], max_single_sequence_length: int
+    prompts: List[List[int]], max_input_sequence_length: int
 ) -> Optional[fastapi.responses.JSONResponse]:
     """Check if the total prompt length exceeds the max single sequence
     sequence length allowed by the served model. Return an error if so.
@@ -46,11 +46,11 @@ def check_prompts_length(
     total_length = 0
     for prompt in prompts:
         total_length += len(prompt)
-    if total_length > max_single_sequence_length:
+    if total_length > max_input_sequence_length:
         return create_error_response(
             HTTPStatus.BAD_REQUEST,
             message=f"Request prompt has {total_length} tokens in total,"
-            f" larger than the model capacity {max_single_sequence_length}.",
+            f" larger than the model input length limit {max_input_sequence_length}.",
         )
     return None
 

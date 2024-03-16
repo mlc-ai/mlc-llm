@@ -136,11 +136,25 @@ class ModelObj : public Object {
   /*! \brief Remove the given sequence from the KV cache in the model. */
   virtual void RemoveSequence(int64_t seq_id) = 0;
 
+  /*! \brief Pop out N pages from KV cache. */
+  virtual void PopNFromKVCache(int64_t seq_id, int num_tokens) = 0;
+
+  /*!
+   * \brief Enabling sliding window for the given sequence.
+   * It is a no-op if the model does not support sliding window.
+   * \note Given this operation is tied with the underlying KV cache,
+   * we add the function in Model interface to expose this for Engine.
+   * This may be optimized with decoupling KV cache and Model in the future.
+   */
+  virtual void EnableSlidingWindowForSeq(int64_t seq_id) = 0;
+
+  /************** Raw Info Query **************/
+
   /*! \brief Get the number of available pages in KV cache. */
   virtual int GetNumAvailablePages() const = 0;
 
-  /*! \brief Pop out N pages from KV cache. */
-  virtual void PopNFromKVCache(int seq_id, int num_tokens) = 0;
+  /*! \brief Get the current total sequence length in the KV cache. */
+  virtual int GetCurrentTotalSequenceLength() const = 0;
 
   /*********************** Utilities  ***********************/
 
@@ -161,7 +175,7 @@ class ModelObj : public Object {
    */
   virtual int EstimateHostCPURequirement() const = 0;
 
-  /*! \brief Get the max window size of the model. */
+  /*! \brief Get the max window size of the model. "-1" means infinite length. */
   virtual int GetMaxWindowSize() const = 0;
 
   /*! \brief Allocate an embedding tensor with the prefill chunk size. */

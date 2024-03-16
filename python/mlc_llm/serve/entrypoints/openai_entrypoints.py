@@ -79,7 +79,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             message="Entrypoint /v1/completions only accept single prompt. "
             f"However, {len(prompts)} prompts {prompts} are received.",
         )
-    error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_single_sequence_length)
+    error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)
     if error is not None:
         return error
     prompt = prompts[0]
@@ -410,7 +410,7 @@ async def request_chat_completion(
     assert isinstance(prompts, list) and len(prompts) == 1, "Internal error"
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
-    error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_single_sequence_length)
+    error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)
     if error is not None:
         return error
     prompt = prompts[0]

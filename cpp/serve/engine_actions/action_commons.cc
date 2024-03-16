@@ -28,8 +28,6 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
     // Remove the request state entry from all the models.
     RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
     estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-    estate->stats.current_total_seq_len -=
-        static_cast<int>(rsentry->mstates[0]->committed_tokens.size()) - 1;
 
     RequestState rstate = estate->GetRequestState(rsentry->request);
     int parent_idx = rsentry->parent_idx;
@@ -51,16 +49,11 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       // Remove the request state entry from all the models.
       RemoveRequestFromModel(estate, rstate->entries[parent_idx]->mstates[0]->internal_id, models);
       estate->id_manager.RecycleId(rstate->entries[parent_idx]->mstates[0]->internal_id);
-      estate->stats.current_total_seq_len -=
-          static_cast<int>(rstate->entries[parent_idx]->mstates[0]->committed_tokens.size());
       // Climb up to the parent.
       parent_idx = rstate->entries[parent_idx]->parent_idx;
     }
 
     if (parent_idx == -1) {
-      // All request state entries of the request have been removed.
-      // Reduce the total input length from the engine stats.
-      estate->stats.current_total_seq_len -= rsentry->request->input_total_length;
       // Remove from running queue and engine state.
       auto it =
           std::find(estate->running_queue.begin(), estate->running_queue.end(), rsentry->request);
@@ -163,18 +156,6 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   // - Update `inputs` for future prefill.
   RECORD_EVENT(trace_recorder, rsentry->request->id, "preempt");
   rsentry->status = RequestStateStatus::kPending;
-  estate->stats.current_total_seq_len -= rsentry->mstates[0]->committed_tokens.size();
-  if (rsentry->child_indices.empty()) {
-    // The length was overly decreased by 1 when the entry has no child.
-    ++estate->stats.current_total_seq_len;
-  }
-  if (rsentry->parent_idx == -1) {
-    // Subtract the input length from the total length when the
-    // current entry is the root entry of the request.
-    estate->stats.current_total_seq_len -= request->input_total_length;
-  }
-  estate->stats.current_total_seq_len -=
-      request->input_total_length + rsentry->mstates[0]->committed_tokens.size() - 1;
   for (RequestModelState mstate : rsentry->mstates) {
     mstate->RemoveAllDraftTokens();
     ICHECK(mstate->inputs.empty());

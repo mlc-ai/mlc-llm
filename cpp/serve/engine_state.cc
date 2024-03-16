@@ -26,7 +26,6 @@ String EngineStats::AsJSON() const {
 }
 
 void EngineStats::Reset() {
-  current_total_seq_len = 0;
   request_total_prefill_time = 0.0f;
   request_total_decode_time = 0.0f;
   engine_total_prefill_time = 0.0f;

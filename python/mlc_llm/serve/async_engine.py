@@ -141,11 +141,13 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             model_args,
             config_file_paths,
             tokenizer_path,
-            self.max_single_sequence_length,
+            max_single_sequence_length,
             prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
+        # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
+        self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
@@ -182,7 +184,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
         def _background_loop():
             self._ffi["init_background_engine"](
-                self.max_single_sequence_length,
+                max_single_sequence_length,
                 tokenizer_path,
                 kv_cache_config.asjson(),
                 engine_mode.asjson(),
