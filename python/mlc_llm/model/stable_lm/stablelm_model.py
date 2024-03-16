@@ -74,7 +74,6 @@ class StableLmConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
                 bold("context_window_size"),
             )
             self.prefill_chunk_size = self.context_window_size
-        assert self.tensor_parallel_shards == 1, "StableLM currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -168,11 +167,11 @@ class StableLmForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         self.num_hidden_layers = config.num_hidden_layers
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
+        self.num_key_value_heads = config.num_key_value_heads
         self.head_dim = self.hidden_size // self.num_attention_heads
         self.vocab_size = config.vocab_size
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.dtype = "float32"
         self.partial_rotary_factor = config.partial_rotary_factor
 
     def to(self, dtype: Optional[str] = None):
@@ -253,7 +252,7 @@ class StableLmForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             page_size=page_size,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            num_key_value_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
