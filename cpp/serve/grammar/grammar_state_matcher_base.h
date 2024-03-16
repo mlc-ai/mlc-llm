@@ -119,8 +119,9 @@ inline bool CharacterClassContains(const BNFGrammarNode::RuleExpr& rule_expr,
 }
 
 inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool verbose) {
+  verbose = true;
   if (verbose) {
-    std::cout << "Stack before accepting: " << PrintStackState() << std::endl;
+    // std::cout << "Stack before accepting: " << PrintStackState() << std::endl;
   }
   const auto& prev_stack_tops = stack_tops_history_.GetLatest();
 
@@ -165,7 +166,7 @@ inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool 
   if (verbose) {
     std::cout << "Codepoint: " << codepoint << " \"" << CodepointToPrintable(codepoint)
               << "\" Accepted" << std::endl;
-    std::cout << "Stack after accepting: " << PrintStackState() << std::endl;
+    // std::cout << "Stack after accepting: " << PrintStackState() << std::endl;
   }
 #if TVM_LOG_DEBUG
   stack_tops_history_.CheckWellFormed();

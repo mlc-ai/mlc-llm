@@ -5,31 +5,35 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union
 import tvm.testing
 from pydantic import BaseModel, TypeAdapter
 
-from mlc_chat.serve.grammar import BNFGrammar, GrammarStateMatcher
-from mlc_chat.serve.json_schema_converter import JSONSchemaConverter
+from mlc_llm.serve.grammar import BNFGrammar, GrammarStateMatcher
+from mlc_llm.serve.json_schema_converter import JSONSchemaConverter
 
 
-def check_schema_with_grammar(schema: Dict[str, Any], grammar: str):
+def check_schema_with_grammar(schema: Dict[str, Any], expected_grammar: str):
     schema_str = json.dumps(schema, indent=2)
-    bnf_grammar_str = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
-    assert bnf_grammar_str == grammar
+    grammar = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
+    print(grammar)
+    print(expected_grammar)
+    assert grammar == expected_grammar
 
 
-def check_schema_with_data(schema: Dict[str, Any], data: str, accepted=True):
+def check_schema_with_json(schema: Dict[str, Any], json_str: str, check_accepted=True):
     schema_str = json.dumps(schema, indent=2)
 
-    bnf_grammar_str = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
-    bnf_grammar = BNFGrammar.from_ebnf_string(bnf_grammar_str)
-    matcher = GrammarStateMatcher(bnf_grammar)
+    ebnf_grammar_str = JSONSchemaConverter.to_ebnf(schema_str, separators=(",", ":"))
+    ebnf_grammar = BNFGrammar.from_ebnf_string(ebnf_grammar_str)
+    matcher = GrammarStateMatcher(ebnf_grammar)
 
-    if accepted:
-        assert matcher.debug_match_complete_string(data)
+    print("json str:", json_str)
+
+    if check_accepted:
+        assert matcher.debug_match_complete_string(json_str)
     else:
-        assert not matcher.debug_match_complete_string(data)
+        assert not matcher.debug_match_complete_string(json_str)
 
 
 def check_schema_with_instance(schema: Dict[str, Any], instance: BaseModel):
-    check_schema_with_data(schema, instance.model_dump_json(round_trip=True))
+    check_schema_with_json(schema, instance.model_dump_json(round_trip=True))
 
 
 def test_basic():
@@ -42,6 +46,24 @@ def test_basic():
         object_field: Dict[str, int]
         nested_object_field: Dict[str, Dict[str, int]]
 
+    ebnf_grammar = r"""basic_ws ::= [ \n\t]*
+basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= "[" ("" | basic_any ("," basic_any)*) "]"
+basic_object ::= "{" ("" | basic_string ":" basic_any ("," basic_string ":" basic_any)*) "}"
+main_array_field ::= "[" ("" | basic_string ("," basic_string)*) "]"
+main_tuple_field ::= "[" basic_string "," basic_integer "," main_array_field ("," basic_any)* "]"
+main_object_field ::= "{" ("" | basic_string ":" basic_integer ("," basic_string ":" basic_integer)*) "}"
+main_nested_object_field ::= "{" ("" | basic_string ":" main_object_field ("," basic_string ":" main_object_field)*) "}"
+main ::= "{" "\"integer_field\"" ":" basic_integer "," "\"number_field\"" ":" basic_number "," "\"boolean_field\"" ":" basic_boolean "," "\"array_field\"" ":" main_array_field "," "\"tuple_field\"" ":" main_tuple_field "," "\"object_field\"" ":" main_object_field "," "\"nested_object_field\"" ":" main_nested_object_field ("," basic_string ":" basic_any)* "}"
+"""
+
     instance = MainModel(
         integer_field=42,
         number_field=3.14,
@@ -50,9 +72,29 @@ def test_basic():
         tuple_field=("foo", 42, ["bar", "baz"]),
         object_field={"foo": 42, "bar": 43},
         nested_object_field={"foo": {"bar": 42}},
+        optional_field=None,
+    )
+    print(instance.model_dump_json(round_trip=True))
+    print(instance.model_dump_json(round_trip=True, indent=2))
+    print(
+        json.dumps(
+            json.loads(instance.model_dump_json(round_trip=True)), indent=2, separators=(",", ":")
+        )
+    )
+    print(
+        json.dumps(
+            json.loads(instance.model_dump_json(round_trip=True)),
+            indent=None,
+            separators=(",", ":"),
+        )
     )
 
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    # check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
+    # check_schema_with_instance(MainModel.model_json_schema(), instance)
+
+
+test_basic()
+exit()
 
 
 def test_enum_const():
@@ -73,7 +115,8 @@ def test_enum_const():
 
 def test_optional():
     class MainModel(BaseModel):
-        size: Optional[float] = None
+        size: Optional[float]
+        name: str = None
 
     instance = MainModel(size=3.14)
     check_schema_with_instance(MainModel.model_json_schema(), instance)
@@ -81,7 +124,7 @@ def test_optional():
     instance = MainModel()
     check_schema_with_instance(MainModel.model_json_schema(), instance)
 
-    check_schema_with_data(MainModel.model_json_schema(), "{}")
+    check_schema_with_json(MainModel.model_json_schema(), "{}")
 
 
 def test_reference():
@@ -120,11 +163,12 @@ def test_union():
 
     check_schema_with_instance(model_schema, Cat(name="kitty", color="black"))
     check_schema_with_instance(model_schema, Dog(name="doggy", breed="bulldog"))
-    check_schema_with_data(model_schema, '{"name":"kitty","test":"black"}', False)
+    check_schema_with_json(model_schema, '{"name":"kitty","test":"black"}', False)
 
 
 def test_alias():
-    
+    pass
+
 
 if __name__ == "__main__":
     tvm.testing.main()

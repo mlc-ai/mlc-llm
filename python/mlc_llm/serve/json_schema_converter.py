@@ -6,6 +6,29 @@ from typing import Any, Dict, List, Tuple, Union
 SchemaType = Union[Dict[str, Any], bool]
 
 
+class IndentManager:
+    def __init__(self, indent: Union[int, None], separator: str):
+        self.indent = indent or 0
+        self.separator = separator
+        self.total_indent = 0
+        self.is_first = [True]
+
+    def __enter__(self):
+        self.total_indent += self.indent
+        self.is_first.append(True)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.total_indent -= self.indent
+        self.is_first.pop()
+
+    def get_sep(self) -> str:
+        res = self.total_indent * " "
+        if not self.is_first[-1]:
+            res += self.separator
+        self.is_first[-1] = False
+        return f'"{res}"'
+
+
 class JSONSchemaConverter:
     @staticmethod
     def to_ebnf(
@@ -13,33 +36,35 @@ class JSONSchemaConverter:
         *,
         indent: Union[int, None] = None,
         separators: Union[Tuple[str, str], None] = None,
+        strict_mode: bool = False,
     ) -> str:
         json_schema_schema = json.loads(json_schema)
-        return JSONSchemaConverter(json_schema_schema, indent, separators).convert()
+        return JSONSchemaConverter(json_schema_schema, indent, separators, strict_mode).convert()
 
     def __init__(
         self,
         json_schema: SchemaType,
         indent: Union[int, None] = None,
         separators: Union[Tuple[str, str], None] = None,
+        strict_mode: bool = False,
     ):
-        # todo: allow_additional_properties
-        # todo: allow_additional_items
         self.json_schema = json_schema
         self.indent = indent
+        self.strict_mode = strict_mode
 
         if separators is None:
             separators = (", ", ": ") if indent is None else (",", ": ")
         else:
             assert len(separators) == 2
-        self.separators = separators
+        self.indent_manager = IndentManager(indent, separators[0])
+        self.colon = separators[1]
 
         self.rules: List[Tuple[str, str]] = []
         self.cache_schema_to_rule: Dict[str, str] = {}
         self.init_basic_rules()
 
     def convert(self) -> str:
-        self.schema_to_rule(self.json_schema, "main")
+        self.create_rule_with_schema("main", self.json_schema)
         res = ""
         for rule_name, rule in self.rules:
             res += f"{rule_name} ::= {rule}\n"
@@ -56,33 +81,27 @@ class JSONSchemaConverter:
     BASIC_OBJECT = "basic_object"
 
     # Helper rules to construct basic rules
-    BASIC_DIGITS = "basic_digits"
-    BASIC_DECIMAL = "basic_decimal"
-    BASIC_EXP = "basic_exp"
     BASIC_WS = "basic_ws"
     BASIC_ESCAPE = "basic_escape"
     BASIC_STRING_SUB = "basic_string_sub"
 
     def init_basic_rules(self):
+        past_strict_mode = self.strict_mode
+        self.strict_mode = False
+
         self.init_helper_rules()
-        self.schema_to_rule(True, self.BASIC_ANY)
-        self.schema_to_rule({"type": "integer"}, self.BASIC_INTEGER)
-        self.schema_to_rule({"type": "number"}, self.BASIC_NUMBER)
-        self.schema_to_rule({"type": "string"}, self.BASIC_STRING)
-        self.schema_to_rule({"type": "boolean"}, self.BASIC_BOOLEAN)
-        self.schema_to_rule({"type": "null"}, self.BASIC_NULL)
-        self.schema_to_rule({"type": "array"}, self.BASIC_ARRAY)
-        self.schema_to_rule({"type": "object"}, self.BASIC_OBJECT)
+        self.create_rule_with_schema(self.BASIC_ANY, True)
+        self.create_rule_with_schema(self.BASIC_INTEGER, {"type": "integer"})
+        self.create_rule_with_schema(self.BASIC_NUMBER, {"type": "number"})
+        self.create_rule_with_schema(self.BASIC_STRING, {"type": "string"})
+        self.create_rule_with_schema(self.BASIC_BOOLEAN, {"type": "boolean"})
+        self.create_rule_with_schema(self.BASIC_NULL, {"type": "null"})
+        self.create_rule_with_schema(self.BASIC_ARRAY, {"type": "array"})
+        self.create_rule_with_schema(self.BASIC_OBJECT, {"type": "object"})
+
+        self.strict_mode = past_strict_mode
 
     def init_helper_rules(self):
-        self.rules.append((self.BASIC_DIGITS, "[0-9]*"))
-        self.rules.append((self.BASIC_DECIMAL, f'"" | "." [0-9] {self.BASIC_DIGITS}'))
-        self.rules.append(
-            (
-                self.BASIC_EXP,
-                f'"" | [eE] [0-9] {self.BASIC_DIGITS} | [eE] [+-] [0-9] {self.BASIC_DIGITS}',
-            )
-        )
         self.rules.append((self.BASIC_WS, "[ \\n\\t]*"))
         self.rules.append(
             (
@@ -98,6 +117,9 @@ class JSONSchemaConverter:
             )
         )
 
+    def get_sep(self):
+        return self.indent_manager.get_sep()
+
     @staticmethod
     def warn_unsupported_keywords(schema: SchemaType, keywords: Union[str, List[str]]):
         if isinstance(keywords, str):
@@ -107,12 +129,12 @@ class JSONSchemaConverter:
                 # todo: test and output format
                 logging.warning(f"Keyword {keyword} is not supported in schema {schema}")
 
-    def schema_to_rule(self, schema: SchemaType, rule_name: str) -> str:
-        schema_key = self.schema_to_str_key(schema)
-        if schema_key in self.cache_schema_to_rule:
-            return self.cache_schema_to_rule[schema_key]
+    def create_rule_with_schema(self, rule_name: str, schema: SchemaType) -> str:
+        schema_index = self.get_schema_cache_index(schema)
+        if schema_index in self.cache_schema_to_rule:
+            return self.cache_schema_to_rule[schema_index]
 
-        self.cache_schema_to_rule[schema_key] = rule_name
+        self.cache_schema_to_rule[schema_index] = rule_name
         self.rules.append((rule_name, self.visit_schema(schema, rule_name)))
         return rule_name
 
@@ -141,7 +163,7 @@ class JSONSchemaConverter:
         else:
             return obj
 
-    def schema_to_str_key(self, schema: SchemaType) -> str:
+    def get_schema_cache_index(self, schema: SchemaType) -> str:
         return json.dumps(
             JSONSchemaConverter.remove_skipped_keys_recursive(schema), sort_keys=True, indent=None
         )
@@ -238,11 +260,11 @@ class JSONSchemaConverter:
         for i, anyof_schema in enumerate(schema["anyOf"]):
             if i != 0:
                 res += " | "
-            res += self.schema_to_rule(anyof_schema, f"{rule_name}_{i}")
+            res += self.create_rule_with_schema(f"{rule_name}_{i}", anyof_schema)
         return res
 
     def visit_any(self, schema: SchemaType, rule_name: str) -> str:
-        # note integer is included in number
+        # note integer is a subset of number, so we don't need to add integer here
         return (
             f"{self.BASIC_NUMBER} | {self.BASIC_STRING} | {self.BASIC_BOOLEAN} | "
             f"{self.BASIC_NULL} | {self.BASIC_ARRAY} | {self.BASIC_OBJECT}"
@@ -287,33 +309,46 @@ class JSONSchemaConverter:
         )
 
         res = '"["'
-
-        separator = f'"{self.separators[0]}"'
+        is_first_item = True
 
         if "prefixItems" in schema:
             for i, prefix_item in enumerate(schema["prefixItems"]):
                 assert prefix_item is not False
-                if i != 0:
-                    res += separator
-                res += self.schema_to_rule(prefix_item, f"{rule_name}_{i}")
+                res += " " + self.get_partial_rule_for_item(
+                    prefix_item, f"{rule_name}_{i}", is_first_item
+                )
+                is_first_item = False
 
-        if "items" in schema and schema["items"] is not False:
-            item_rule_name = self.schema_to_rule(schema["items"], f"{rule_name}__item")
-            additional_separator = separator if res != '"["' else ""
-            res += f'("" | {additional_separator} {item_rule_name} ({separator} {item_rule_name})*)'
+        items = schema.get("items", False)
+        if items is not False:
+            res += " " + self.get_partial_rule_for_repetitive_item(
+                schema["items"], f"{rule_name}_item", is_first_item
+            )
+            is_first_item = False
 
-        disallow_other_items = "items" in schema or (
-            "unevaluatedItems" in schema and schema["unevaluatedItems"] is False
-        )
-
-        if not disallow_other_items:
+        unevaluated = schema.get("unevaluatedItems", not self.strict_mode)
+        # if items is in the schema, we don't need to consider unevaluatedItems
+        if "items" not in schema and unevaluated is not False:
             rest_schema = schema.get("unevaluatedItems", True)
-            rest_schema_rule = self.schema_to_rule(rest_schema, f"{rule_name}_rest")
-            additional_separator = separator if res != '"["' else ""
-            res += f'("" | {additional_separator} {rest_schema_rule} ({separator} {rest_schema_rule})*)'
+            res += " " + self.get_partial_rule_for_repetitive_item(
+                rest_schema, f"{rule_name}_rest", is_first_item
+            )
+            is_first_item = False
 
-        res += '"]"'
+        res += ' "]"'
         return res
+
+    def get_partial_rule_for_item(
+        self, schema: SchemaType, sub_rule_name: str, is_first_item: bool
+    ) -> str:
+        item = self.create_rule_with_schema(sub_rule_name, schema)
+        return f"{self.get_sep()} {item}"
+
+    def get_partial_rule_for_repetitive_item(
+        self, schema: SchemaType, sub_rule_name: str, is_first_item: bool
+    ) -> str:
+        item = self.create_rule_with_schema(sub_rule_name, schema)
+        return f'("" | {self.get_sep()} {item} ({self.get_sep()} {item})*)'
 
     def visit_object(self, schema: SchemaType, rule_name: str) -> str:
         assert schema["type"] == "object"
@@ -322,47 +357,68 @@ class JSONSchemaConverter:
         )
 
         res = '"{"'
-
-        separator = f'"{self.separators[0]}"'
-        colon = f'"{self.separators[1]}"'
-
         # Now we only consider the required list for the properties field
-        required = schema.get("required", None)
+        required = schema.get("required", [])
+        is_first_property = True
 
         if "properties" in schema:
             for prop_name, prop_schema in schema["properties"].items():
                 assert prop_schema is not False
-                prop_rule_name = self.schema_to_rule(prop_schema, f"{rule_name}_{prop_name}")
-                additional_separator = separator if res != '"{"' else ""
-                if required is not None and prop_name in required:
-                    res += f'{additional_separator} "\\"{prop_name}\\"" {colon} {prop_rule_name}'
-                else:
-                    res += f'({additional_separator} "\\"{prop_name}\\"" {colon} {prop_rule_name})?'
+                # the outer quote is for the string in EBNF grammar, and the inner quote is for
+                # the string in JSON
+                key = f'"\\"{prop_name}\\""'
+                res += " " + self.get_partial_rule_for_optional_property(
+                    key,
+                    prop_schema,
+                    sub_rule_name=f"{rule_name}_{prop_name}",
+                    required=prop_name in required,
+                    is_first_property=is_first_property,
+                )
+                is_first_property = False
 
-        if "additionalProperties" in schema and schema["additionalProperties"] is not False:
-            additional_properties_rule = self.schema_to_rule(
-                schema["additionalProperties"], f"{rule_name}__addi"
+        additional = schema.get("additionalProperties", False)
+        if additional is not False:
+            res += " " + self.get_partial_rule_for_repetitive_property(
+                "basic_string",
+                schema["additionalProperties"],
+                sub_rule_name=rule_name + "_add",
+                is_first_property=is_first_property,
             )
-            property_with_name = f"basic_string {colon} {additional_properties_rule}"
+            is_first_property = False
 
-            if res != '"{"':
-                res += f"({separator} {property_with_name})*"
-            else:
-                res += f'("" | {property_with_name} ({separator} {property_with_name})*)'
+        unevaluated = schema.get("unevaluatedProperties", not self.strict_mode)
+        # if additionalProperties is in the schema, we don't need to consider unevaluatedProperties
+        if "additionalProperties" not in schema and unevaluated is not False:
+            res += " " + self.get_partial_rule_for_repetitive_property(
+                "basic_string",
+                unevaluated,
+                sub_rule_name=f"{rule_name}_uneval",
+                is_first_property=is_first_property,
+            )
+            is_first_property = False
 
-        disallow_other_items = "additionalProperties" in schema or (
-            "unevaluatedProperties" in schema and schema["unevaluatedProperties"] is False
-        )
-
-        if not disallow_other_items:
-            uneval_schema = schema.get("unevaluatedProperties", True)
-            unevaluated_properties_rule = self.schema_to_rule(uneval_schema, f"{rule_name}__uneval")
-            property_with_name = f"basic_string {colon} {unevaluated_properties_rule}"
-
-            if res != '"{"':
-                res += f"({separator} {property_with_name})*"
-            else:
-                res += f'("" | {property_with_name} ({separator} {property_with_name})*)'
-
-        res += '"}"'
+        res += ' "}"'
         return res
+
+    def get_partial_rule_for_optional_property(
+        self, key: str, schema: str, sub_rule_name: str, required: bool, is_first_property: bool
+    ) -> str:
+        colon = f'"{self.colon}"'
+        value = self.create_rule_with_schema(sub_rule_name, schema)
+        res = f"{self.get_sep()} {key} {colon} {value}"
+        if not required:
+            res = f"({res})?"
+        return res
+
+    def get_partial_rule_for_repetitive_property(
+        self, key: str, schema: str, sub_rule_name: str, is_first_property: bool
+    ) -> str:
+        separator = f'"{self.separators[0]}"'
+        colon = f'"{self.separators[1]}"'
+        value = self.create_rule_with_schema(sub_rule_name, schema)
+        property = f"{key} {colon} {value}"
+
+        if is_first_property:
+            return f'("" | {property} ({separator} {property})*)'
+        else:
+            return f"({separator} {property})*"
