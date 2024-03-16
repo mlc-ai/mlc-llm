@@ -252,10 +252,9 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   if (config.count("max_num_sequence")) {
     CHECK(config["max_num_sequence"].is<int64_t>());
     max_num_sequence = config["max_num_sequence"].get<int64_t>();
-  }
-
-  if (max_num_sequence == -1) {
-    max_num_sequence = max_total_sequence_length / max_single_sequence_length;
+    CHECK_GT(max_num_sequence, 0) << "Max number of sequence should be positive.";
+  } else {
+    LOG(FATAL) << "Key \"max_num_sequence\" not found.";
   }
 
   ObjectPtr<KVCacheConfigNode> n = make_object<KVCacheConfigNode>();

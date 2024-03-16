@@ -53,7 +53,6 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // NOTE: Right now we only support decode all the running request states at a time.
     int num_rsentries = running_rsentries.size();
-    estate->stats.current_total_seq_len += num_rsentries;
     // Collect
     // - the last committed token,
     // - the request id,

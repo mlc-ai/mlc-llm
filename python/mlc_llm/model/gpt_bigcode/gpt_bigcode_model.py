@@ -260,18 +260,20 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
-    def create_paged_kv_cache(
+    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
         page_size: tir.Var,
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
             page_size=page_size,
+            support_sliding_window=support_sliding_window,
             num_hidden_layers=self.n_layer,
             num_attention_heads=self.num_q_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_kv_heads // self.tensor_parallel_shards,
@@ -345,6 +347,7 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 "max_total_seq_len": int,
                 "prefill_chunk_size": int,
                 "page_size": int,
+                "support_sliding_window": int,
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",

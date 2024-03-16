@@ -207,21 +207,19 @@ void FunctionTable::_InitFunctions() {
     this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
     ICHECK(this->create_kv_cache_func_.defined());
   }
-  this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
-  this->kv_cache_add_sequence_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
-  this->kv_cache_fork_sequence_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_fork_sequence");
-  this->kv_cache_remove_sequence_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
-  this->kv_cache_begin_forward_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
-  this->kv_cache_end_forward_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
-  this->kv_cache_attention_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_attention");
-  this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
+  this->reset_kv_cache_func_ = get_global_func("vm.builtin.kv_state_clear");
+  this->kv_cache_add_sequence_func_ = get_global_func("vm.builtin.kv_state_add_sequence");
+  this->kv_cache_fork_sequence_func_ = get_global_func("vm.builtin.kv_state_fork_sequence");
+  this->kv_cache_enable_sliding_window_for_seq_ =
+      get_global_func("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq");
+  this->kv_cache_remove_sequence_func_ = get_global_func("vm.builtin.kv_state_remove_sequence");
+  this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
+  this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
+  this->kv_cache_popn_func_ = get_global_func("vm.builtin.kv_state_popn");
   this->kv_cache_get_num_available_pages_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
+      *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_num_available_pages");
+  this->kv_cache_get_total_sequence_length_func_ =
+      *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_total_sequence_length");
   if (Sampler::SupportGPUSampler(local_gpu_device)) {
     gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
     gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
