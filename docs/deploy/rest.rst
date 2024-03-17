@@ -11,51 +11,35 @@ for a user to interact with MLC-Chat in their own programs.
 Install MLC-Chat Package
 ------------------------
 
-The REST API is a part of the MLC-Chat package, which we have prepared pre-built :doc:`pip wheels <../install/mlc_llm>`.
+SERVE is a part of the MLC-Chat package, installation instruction for which we be found here :doc:`<../install/mlc_llm>`.
 
 Verify Installation
 ^^^^^^^^^^^^^^^^^^^
 
 .. code:: bash
 
-   python -m mlc_llm.rest --help
+   python -m mlc_llm.serve.server --help
 
-You are expected to see the help information of the REST API.
+You are expected to see the help information of the MLC SERVE.
 
 .. _mlcchat_package_build_from_source:
 
-Optional: Build from Source
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. We can build a customized version
-of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
-
-First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
-You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-llm-nightly`.
-Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
-
-You can now use ``mlc_llm`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
-
-.. code:: bash
-
-   PYTHONPATH=python python -m mlc_llm.rest --help
 
 Launch the Server
 -----------------
 
-To launch the REST server for MLC-Chat, run the following command in your terminal.
+To launch the MLC Server for MLC-Chat, run the following command in your terminal.
 
 .. code:: bash
 
-   python -m mlc_llm.rest --model MODEL [--lib-path LIB_PATH] [--device DEVICE] [--host HOST] [--port PORT]
+   python -m mlc_llm.serve.server --model MODEL --model-lib-path MODEL_LIB_PATH [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
 
 --model                The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
                        (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
                        folder. In the former case, we will use the provided name to search
                        for the model folder over possible paths.
---lib-path             An optional field to specify the full path to the model library file to use (e.g. a ``.so`` file).
+--model-lib-path       A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
 --device               The description of the device to run on. User should provide a string in the
                        form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
                        'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
@@ -63,6 +47,15 @@ To launch the REST server for MLC-Chat, run the following command in your termin
                        with the device id set to 0 for default.
 --host                 The host at which the server should be started, defaults to ``127.0.0.1``.
 --port                 The port on which the server should be started, defaults to ``8000``.
+--allow-credentials    A flag to indicate whether the server should allow credentials. If set, the server will
+                       include the ``CORS`` header in the response
+--allowed-origins      Specifies the allowed origins. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all origins.
+--allowed-methods      Specifies the allowed methods. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all methods.
+--allowed-headers      Specifies the allowed headers. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all headers.
+--max-batch-size       The maximum batch size for processing.
+--max-total-seq-length   The maximum total number of tokens whose KV data are allowed to exist in the KV cache at any time. Set it to None to enable automatic computation of the max total sequence length.
+--prefill-chunk-size   The maximum total sequence length in a prefill. If not specified, it will be automatically inferred from model config.
+--enable-tracing       A boolean indicating if to enable event logging for requests.
 
 You can access ``http://127.0.0.1:PORT/docs`` (replace ``PORT`` with the port number you specified) to see the list of
 supported endpoints.
@@ -71,6 +64,30 @@ API Endpoints
 -------------
 
 The REST API provides the following endpoints:
+
+.. http:get:: /v1/models
+
+------------------------------------------------
+
+   Get a list of models available for MLC-Chat.
+
+**Example**
+
+.. code:: bash
+
+   import requests
+
+   url = "http://127.0.0.1:8000/v1/models"
+   headers = {"accept": "application/json"}
+
+   response = requests.get(url, headers=headers)
+
+   if response.status_code == 200:
+      print("Response:")
+      print(response.json())
+   else:
+      print("Error:", response.status_code)
+
 
 .. http:get:: /v1/completions
 
@@ -203,6 +220,161 @@ The REST API provides the following endpoints:
 **Returns**
    If ``stream`` is set to ``False``, the response will be a ``ChatCompletionResponse`` object.
    If ``stream`` is set to ``True``, the response will be a stream of ``ChatCompletionStreamResponse`` objects.
+
+**Example**
+
+Once you have launched the Server, you can use the API in your own program. Below is an example of using the API to interact with MLC-Chat in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
+
+.. code:: bash
+
+   import requests
+
+   # Get a response using a prompt without streaming
+   payload = {
+      "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
+      "messages": [
+         {"role": "user", "content": "Hello! Our project is MLC LLM."},
+         {
+               "role": "assistant",
+               "content": "Hello! It's great to hear about your project, MLC LLM.",
+         },
+         {"role": "user", "content": "What is the name of our project?"},
+      ],
+      "stream": False,
+      # "n": 1,
+      "max_tokens": 300,
+   }
+   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
+   choices = r.json()["choices"]
+   for choice in choices:
+      print(f"{choice['message']['content']}\n")
+
+
+Below is an example of using the API to interact with MLC-Chat in Python with Streaming.
+
+.. code:: bash
+   
+   import requests
+   import json
+
+   # Get a response using a prompt with streaming
+   payload = {
+    "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
+    "messages": [{"role": "user", "content": "Write a haiku"}],
+    "stream": True,
+   }
+   with requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload, stream=True) as r:
+      for chunk in r.iter_content(chunk_size=None):
+         chunk = chunk.decode("utf-8")
+         if "[DONE]" in chunk[6:]:
+            break
+         response = json.loads(chunk[6:])
+         content = response["choices"][0]["delta"].get("content", "")
+         print(content, end="", flush=True)
+   print("\n")
+
+
+There is also support for function calling similar to OpenAI (https://platform.openai.com/docs/guides/function-calling). Below is an example on how to use function calling in Python.
+
+.. code:: bash
+
+   import requests
+   import json
+
+   tools = [
+      {
+         "type": "function",
+         "function": {
+               "name": "get_current_weather",
+               "description": "Get the current weather in a given location",
+               "parameters": {
+                  "type": "object",
+                  "properties": {
+                     "location": {
+                           "type": "string",
+                           "description": "The city and state, e.g. San Francisco, CA",
+                     },
+                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                  },
+                  "required": ["location"],
+               },
+         },
+      }
+   ]
+
+   payload = {
+      "model": "./dist/gorilla-openfunctions-v1-q4f16_1-MLC/",
+      "messages": [
+         {
+               "role": "user",
+               "content": "What is the current weather in Pittsburgh, PA in fahrenheit?",
+         }
+      ],
+      "stream": False,
+      "tools": tools,
+   }
+
+   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
+   print(f"{r.json()['choices'][0]['message']['tool_calls'][0]['function']}\n")
+
+   # Output: {'name': 'get_current_weather', 'arguments': {'location': 'Pittsburgh, PA', 'unit': 'fahrenheit'}}
+
+Function Calling with streaming is also supported. Below is an example on how to use function calling with streaming in Python.
+
+.. code:: bash
+
+   import requests
+   import json
+
+   tools = [
+      {
+         "type": "function",
+         "function": {
+               "name": "get_current_weather",
+               "description": "Get the current weather in a given location",
+               "parameters": {
+                  "type": "object",
+                  "properties": {
+                     "location": {
+                           "type": "string",
+                           "description": "The city and state, e.g. San Francisco, CA",
+                     },
+                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                  },
+                  "required": ["location"],
+               },
+         },
+      }
+   ]
+
+   payload = {
+      "model": "./dist/gorilla-openfunctions-v1-q4f16_1-MLC/",
+      "messages": [
+         {
+               "role": "user",
+               "content": "What is the current weather in Pittsburgh, PA and Tokyo, JP in fahrenheit?",
+         }
+      ],
+      "stream": True,
+      "tools": tools,
+   }
+
+   with requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload, stream=True) as r:
+    for chunk in r.iter_content(chunk_size=None):
+        chunk = chunk.decode("utf-8")
+        if "[DONE]" in chunk[6:]:
+            break
+        response = json.loads(chunk[6:])
+        content = response["choices"][0]["delta"].get("content", "")
+        print(f"{content}", end="", flush=True)
+   print("\n")
+
+   # Output: ["get_current_weather(location='Pittsburgh,PA',unit='fahrenheit')", "get_current_weather(location='Tokyo,JP',unit='fahrenheit')"]
+
+
+.. note::
+   The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.
+
 
 .. http:get:: /chat/reset
 
@@ -345,50 +517,3 @@ Response Objects
 **content**: *str*
    The content of the message.
 
-------------------------------------------------
-
-
-Use REST API in your own program
---------------------------------
-
-Once you have launched the REST server, you can use the REST API in your own program. Below is an example of using REST API to interact with MLC-Chat in Python (suppose the server is running on ``http://127.0.0.1:8000/``):
-
-.. code:: bash
-
-   import requests
-   import json
-
-   # Get a response using a prompt without streaming
-   payload = {
-      "model": "vicuna-v1-7b",
-      "messages": [{"role": "user", "content": "Write a haiku"}],
-      "stream": False
-   }
-   r = requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload)
-   print(f"Without streaming:\n{r.json()['choices'][0]['message']['content']}\n")
-
-   # Reset the chat
-   r = requests.post("http://127.0.0.1:8000/chat/reset", json=payload)
-   print(f"Reset chat: {str(r)}\n")
-
-   # Get a response using a prompt with streaming
-   payload = {
-      "model": "vicuna-v1-7b",
-      "messages": [{"role": "user", "content": "Write a haiku"}],
-      "stream": True
-   }
-   with requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload, stream=True) as r:
-      print(f"With streaming:")
-      for chunk in r:
-         content = json.loads(chunk[6:-2])["choices"][0]["delta"].get("content", "")
-         print(f"{content}", end="", flush=True)
-      print("\n")
-
-   # Get the latest runtime stats
-   r = requests.get("http://127.0.0.1:8000/stats")
-   print(f"Runtime stats: {r.json()}\n")
-
-Please check `example folder <https://github.com/mlc-ai/mlc-llm/tree/main/examples/rest>`__ for more examples using REST API.
-
-.. note::
-   The REST API is a uniform interface that supports multiple languages. You can also utilize the REST API in languages other than Python.
