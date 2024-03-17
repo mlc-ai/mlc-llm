@@ -49,7 +49,7 @@ class JSONSchemaToEBNFConverter:
         self.colon = separators[1]
 
         self.rules: List[Tuple[str, str]] = []
-        self.cache_schema_to_rule: Dict[str, str] = {}
+        self.basic_rules_cache: Dict[str, str] = {}
         self.init_basic_rules()
 
     def convert(self) -> str:
@@ -60,17 +60,13 @@ class JSONSchemaToEBNFConverter:
         return res
 
     # Basic rules
-    BASIC_ANY = "basic_any"
     BASIC_INTEGER = "basic_integer"
     BASIC_NUMBER = "basic_number"
     BASIC_STRING = "basic_string"
     BASIC_BOOLEAN = "basic_boolean"
     BASIC_NULL = "basic_null"
-    BASIC_ARRAY = "basic_array"
-    BASIC_OBJECT = "basic_object"
 
     # Helper rules to construct basic rules
-    BASIC_WS = "basic_ws"
     BASIC_ESCAPE = "basic_escape"
     BASIC_STRING_SUB = "basic_string_sub"
 
@@ -79,19 +75,15 @@ class JSONSchemaToEBNFConverter:
         self.strict_mode = False
 
         self.init_helper_rules()
-        self.create_rule_with_schema(self.BASIC_ANY, True)
-        self.create_rule_with_schema(self.BASIC_INTEGER, {"type": "integer"})
-        self.create_rule_with_schema(self.BASIC_NUMBER, {"type": "number"})
-        self.create_rule_with_schema(self.BASIC_STRING, {"type": "string"})
-        self.create_rule_with_schema(self.BASIC_BOOLEAN, {"type": "boolean"})
-        self.create_rule_with_schema(self.BASIC_NULL, {"type": "null"})
-        self.create_rule_with_schema(self.BASIC_ARRAY, {"type": "array"})
-        self.create_rule_with_schema(self.BASIC_OBJECT, {"type": "object"})
+        self.create_basic_rule(self.BASIC_INTEGER, {"type": "integer"})
+        self.create_basic_rule(self.BASIC_NUMBER, {"type": "number"})
+        self.create_basic_rule(self.BASIC_STRING, {"type": "string"})
+        self.create_basic_rule(self.BASIC_BOOLEAN, {"type": "boolean"})
+        self.create_basic_rule(self.BASIC_NULL, {"type": "null"})
 
         self.strict_mode = past_strict_mode
 
     def init_helper_rules(self):
-        self.rules.append((self.BASIC_WS, "[ \\n\\t]*"))
         self.rules.append(
             (
                 self.BASIC_ESCAPE,
@@ -106,6 +98,10 @@ class JSONSchemaToEBNFConverter:
             )
         )
 
+    def create_basic_rule(self, name: str, schema: SchemaType) -> str:
+        rule_name = self.create_rule_with_schema(name, schema)
+        self.basic_rules_cache[self.get_schema_cache_index(schema)] = rule_name
+
     def get_sep(self):
         return self.indent_manager.get_sep()
 
@@ -115,17 +111,15 @@ class JSONSchemaToEBNFConverter:
             keywords = [keywords]
         for keyword in keywords:
             if keyword in schema:
-                # todo: test and output format
                 logging.warning(f"Keyword {keyword} is not supported in schema {schema}")
 
-    def create_rule_with_schema(self, rule_name: str, schema: SchemaType) -> str:
-        schema_index = self.get_schema_cache_index(schema)
-        if schema_index in self.cache_schema_to_rule:
-            return self.cache_schema_to_rule[schema_index]
+    def create_rule_with_schema(self, rule_name_hint: str, schema: SchemaType) -> str:
+        idx = self.get_schema_cache_index(schema)
+        if idx in self.basic_rules_cache:
+            return self.basic_rules_cache[idx]
 
-        self.cache_schema_to_rule[schema_index] = rule_name
-        self.rules.append((rule_name, self.visit_schema(schema, rule_name)))
-        return rule_name
+        self.rules.append((rule_name_hint, self.visit_schema(schema, rule_name_hint)))
+        return rule_name_hint
 
     SKIPPED_KEYS = [
         "title",
@@ -256,9 +250,18 @@ class JSONSchemaToEBNFConverter:
 
     def visit_any(self, schema: SchemaType, rule_name: str) -> str:
         # note integer is a subset of number, so we don't need to add integer here
-        return (
-            f"{self.BASIC_NUMBER} | {self.BASIC_STRING} | {self.BASIC_BOOLEAN} | "
-            f"{self.BASIC_NULL} | {self.BASIC_ARRAY} | {self.BASIC_OBJECT}"
+        return self.visit_schema(
+            {
+                "anyOf": [
+                    {"type": "number"},
+                    {"type": "string"},
+                    {"type": "boolean"},
+                    {"type": "null"},
+                    {"type": "array"},
+                    {"type": "object"},
+                ]
+            },
+            rule_name,
         )
 
     def visit_integer(self, schema: SchemaType, rule_name: str) -> str:
