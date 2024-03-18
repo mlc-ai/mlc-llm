@@ -1,14 +1,11 @@
 """Utility functions for server entrypoints"""
 
-import json
 import uuid
 from http import HTTPStatus
 from io import BytesIO
-from typing import Callable, List, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import fastapi
-import requests
-import tvm
 
 from mlc_llm.serve import data
 
@@ -105,6 +102,8 @@ def get_image_from_url(url: str):
     """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
 
     # pylint: disable=import-outside-toplevel, import-error
+    import requests
+    import tvm
     from PIL import Image
     from transformers import CLIPImageProcessor
 
@@ -122,10 +121,8 @@ def get_image_from_url(url: str):
     return image_features
 
 
-def get_image_embed_size(config_file_path: str) -> int:
+def get_image_embed_size(config: Dict) -> int:
     """Get the image embedding size from the model config file."""
-    with open(config_file_path, "r", encoding="utf-8") as file:
-        config = json.load(file)
     image_size = config["model_config"]["vision_config"]["image_size"]
     patch_size = config["model_config"]["vision_config"]["patch_size"]
     embed_size = (image_size // patch_size) ** 2
