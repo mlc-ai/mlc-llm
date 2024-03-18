@@ -175,14 +175,10 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Rest API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-mlc-chat-package">Install MLC-Chat Package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#optional-build-from-source">Optional: Build from Source</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#launch-the-server">Launch the Server</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#api-endpoints">API Endpoints</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#request-objects">Request Objects</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#response-objects">Response Objects</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#use-rest-api-in-your-own-program">Use REST API in your own program</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
@@ -306,46 +302,29 @@
 <li><p><a class="reference internal" href="#install-mlc-chat-package" id="id2">Install MLC-Chat Package</a></p>
 <ul>
 <li><p><a class="reference internal" href="#verify-installation" id="id3">Verify Installation</a></p></li>
-<li><p><a class="reference internal" href="#optional-build-from-source" id="id4">Optional: Build from Source</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#launch-the-server" id="id5">Launch the Server</a></p></li>
-<li><p><a class="reference internal" href="#api-endpoints" id="id6">API Endpoints</a></p></li>
-<li><p><a class="reference internal" href="#request-objects" id="id7">Request Objects</a></p></li>
-<li><p><a class="reference internal" href="#response-objects" id="id8">Response Objects</a></p></li>
-<li><p><a class="reference internal" href="#use-rest-api-in-your-own-program" id="id9">Use REST API in your own program</a></p></li>
+<li><p><a class="reference internal" href="#launch-the-server" id="id4">Launch the Server</a></p></li>
+<li><p><a class="reference internal" href="#api-endpoints" id="id5">API Endpoints</a></p></li>
 </ul>
 </nav>
 <p>We provide <a class="reference external" href="https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.">REST API</a>
 for a user to interact with MLC-Chat in their own programs.</p>
 <section id="install-mlc-chat-package">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Install MLC-Chat Package</a><a class="headerlink" href="#install-mlc-chat-package" title="Permalink to this heading">¶</a></h2>
-<p>The REST API is a part of the MLC-Chat package, which we have prepared pre-built <a class="reference internal" href="../install/mlc_llm.html"><span class="doc">pip wheels</span></a>.</p>
+<p>SERVE is a part of the MLC-Chat package, installation instruction for which we be found here <span class="xref std std-doc">&lt;../install/mlc_llm&gt;</span>.</p>
 <section id="verify-installation">
 <h3><a class="toc-backref" href="#id3" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.rest<span class="w"> </span>--help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.serve.server<span class="w"> </span>--help
 </pre></div>
 </div>
-<p>You are expected to see the help information of the REST API.</p>
-</section>
-<section id="optional-build-from-source">
-<span id="mlcchat-package-build-from-source"></span><h3><a class="toc-backref" href="#id4" role="doc-backlink">Optional: Build from Source</a><a class="headerlink" href="#optional-build-from-source" title="Permalink to this heading">¶</a></h3>
-<p>If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. We can build a customized version
-of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.</p>
-<p>First, make sure you install TVM unity (following the instruction in <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>).
-You can choose to only pip install <cite>mlc-ai-nightly</cite> that comes with the tvm unity but skip <cite>mlc-llm-nightly</cite>.
-Then please follow the instructions in <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> to build the necessary libraries.</p>
-<p>You can now use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> package by including the <cite>python</cite> directory to <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> environment variable.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>python<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.rest<span class="w"> </span>--help
-</pre></div>
-</div>
+<p>You are expected to see the help information of the MLC SERVE.</p>
 </section>
 </section>
 <section id="launch-the-server">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Launch the Server</a><a class="headerlink" href="#launch-the-server" title="Permalink to this heading">¶</a></h2>
-<p>To launch the REST server for MLC-Chat, run the following command in your terminal.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.rest<span class="w"> </span>--model<span class="w"> </span>MODEL<span class="w"> </span><span class="o">[</span>--lib-path<span class="w"> </span>LIB_PATH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span>
+<span id="mlcchat-package-build-from-source"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">Launch the Server</a><a class="headerlink" href="#launch-the-server" title="Permalink to this heading">¶</a></h2>
+<p>To launch the MLC Server for MLC-Chat, run the following command in your terminal.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.serve.server<span class="w"> </span>--model<span class="w"> </span>MODEL<span class="w"> </span>--model-lib-path<span class="w"> </span>MODEL_LIB_PATH<span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-batch-size<span class="w"> </span>MAX_BATCH_SIZE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--max-total-seq-length<span class="w"> </span>MAX_TOTAL_SEQ_LENGTH<span class="o">]</span><span class="w"> </span><span class="o">[</span>--prefill-chunk-size<span class="w"> </span>PREFILL_CHUNK_SIZE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--enable-tracing<span class="o">]</span><span class="w"> </span><span class="o">[</span>--host<span class="w"> </span>HOST<span class="o">]</span><span class="w"> </span><span class="o">[</span>--port<span class="w"> </span>PORT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--allow-credentials<span class="o">]</span><span class="w"> </span><span class="o">[</span>--allowed-origins<span class="w"> </span>ALLOWED_ORIGINS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--allowed-methods<span class="w"> </span>ALLOWED_METHODS<span class="o">]</span><span class="w"> </span><span class="o">[</span>--allowed-headers<span class="w"> </span>ALLOWED_HEADERS<span class="o">]</span>
 </pre></div>
 </div>
 <dl class="option-list">
@@ -356,8 +335,8 @@ can either be the model name with its quantization scheme
 folder. In the former case, we will use the provided name to search
 for the model folder over possible paths.</p>
 </dd>
-<dt><kbd><span class="option">--lib-path</span></kbd></dt>
-<dd><p>An optional field to specify the full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).</p>
+<dt><kbd><span class="option">--model-lib-path</span></kbd></dt>
+<dd><p>A field to specify the full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).</p>
 </dd>
 <dt><kbd><span class="option">--device</span></kbd></dt>
 <dd><p>The description of the device to run on. User should provide a string in the
@@ -372,75 +351,62 @@ with the device id set to 0 for default.</p>
 <dt><kbd><span class="option">--port</span></kbd></dt>
 <dd><p>The port on which the server should be started, defaults to <code class="docutils literal notranslate"><span class="pre">8000</span></code>.</p>
 </dd>
+<dt><kbd><span class="option">--allow-credentials</span></kbd></dt>
+<dd><p>A flag to indicate whether the server should allow credentials. If set, the server will
+include the <code class="docutils literal notranslate"><span class="pre">CORS</span></code> header in the response</p>
+</dd>
+<dt><kbd><span class="option">--allowed-origins</span></kbd></dt>
+<dd><p>Specifies the allowed origins. It expects a JSON list of strings, with the default value being <code class="docutils literal notranslate"><span class="pre">[&quot;*&quot;]</span></code>, allowing all origins.</p>
+</dd>
+<dt><kbd><span class="option">--allowed-methods</span></kbd></dt>
+<dd><p>Specifies the allowed methods. It expects a JSON list of strings, with the default value being <code class="docutils literal notranslate"><span class="pre">[&quot;*&quot;]</span></code>, allowing all methods.</p>
+</dd>
+<dt><kbd><span class="option">--allowed-headers</span></kbd></dt>
+<dd><p>Specifies the allowed headers. It expects a JSON list of strings, with the default value being <code class="docutils literal notranslate"><span class="pre">[&quot;*&quot;]</span></code>, allowing all headers.</p>
+</dd>
+<dt><kbd><span class="option">--max-batch-size</span></kbd></dt>
+<dd><p>The maximum batch size for processing.</p>
+</dd>
+<dt><kbd><span class="option">--max-total-seq-length</span></kbd></dt>
+<dd><p>The maximum total number of tokens whose KV data are allowed to exist in the KV cache at any time. Set it to None to enable automatic computation of the max total sequence length.</p>
+</dd>
+<dt><kbd><span class="option">--prefill-chunk-size</span></kbd></dt>
+<dd><p>The maximum total sequence length in a prefill. If not specified, it will be automatically inferred from model config.</p>
+</dd>
+<dt><kbd><span class="option">--enable-tracing</span></kbd></dt>
+<dd><p>A boolean indicating if to enable event logging for requests.</p>
+</dd>
 </dl>
 <p>You can access <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:PORT/docs</span></code> (replace <code class="docutils literal notranslate"><span class="pre">PORT</span></code> with the port number you specified) to see the list of
 supported endpoints.</p>
 </section>
 <section id="api-endpoints">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">API Endpoints</a><a class="headerlink" href="#api-endpoints" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">API Endpoints</a><a class="headerlink" href="#api-endpoints" title="Permalink to this heading">¶</a></h2>
 <p>The REST API provides the following endpoints:</p>
 <dl class="http get">
-<dt class="sig sig-object http" id="get--v1-completions">
-<span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/v1/completions</span></span><a class="headerlink" href="#get--v1-completions" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object http" id="get--v1-models">
+<span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/v1/models</span></span><a class="headerlink" href="#get--v1-models" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <hr class="docutils" />
 <blockquote>
-<div><p>Get a completion from MLC-Chat using a prompt.</p>
+<div><p>Get a list of models available for MLC-Chat.</p>
 </div></blockquote>
-<p><strong>Request body</strong></p>
-<dl>
-<dt><strong>model</strong>: <em>str</em> (required)</dt><dd><p>The model folder after compiling with MLC-LLM build process. The parameter
-can either be the model name with its quantization scheme
-(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
-folder. In the former case, we will use the provided name to search
-for the model folder over possible paths.</p>
-</dd>
-<dt><strong>prompt</strong>: <em>str</em> (required)</dt><dd><p>A list of chat messages. The last message should be from the user.</p>
-</dd>
-<dt><strong>stream</strong>: <em>bool</em> (optional)</dt><dd><p>Whether to stream the response. If <code class="docutils literal notranslate"><span class="pre">True</span></code>, the response will be streamed
-as the model generates the response. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, the response will be
-returned after the model finishes generating the response.</p>
-</dd>
-<dt><strong>temperature</strong>: <em>float</em> (optional)</dt><dd><p>The temperature applied to logits before sampling. The default value is
-<code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a
-lower temperature produces more deterministic outputs.</p>
-</dd>
-<dt><strong>top_p</strong>: <em>float</em> (optional)</dt><dd><p>This parameter determines the set of tokens from which we sample during
-decoding. The default value is set to <code class="docutils literal notranslate"><span class="pre">0.95</span></code>. At each step, we select
-tokens from the minimal set that has a cumulative probability exceeding
-the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
-<p>For additional information on top-p sampling, please refer to this blog
-post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
-</dd>
-<dt><strong>repetition_penalty</strong>: <em>float</em> (optional)</dt><dd><p>The repetition penalty controls the likelihood of the model generating
-repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no
-repetition penalty is applied. Increasing the value reduces the
-likelihood of repeat text generation. However, setting a high
-<code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless
-texts. The ideal choice of repetition penalty may vary among models.</p>
-<p>For more details on how repetition penalty controls text generation, please
-check out the CTRL paper (<a class="reference external" href="https://arxiv.org/pdf/1909.05858.pdf">https://arxiv.org/pdf/1909.05858.pdf</a>).</p>
-</dd>
-<dt><strong>presence_penalty</strong>: <em>float</em> (optional)</dt><dd><p>Positive values penalize new tokens if they are already present in the text so far,
-decreasing the model’s likelihood to repeat tokens.</p>
-</dd>
-<dt><strong>frequency_penalty</strong>: <em>float</em> (optional)</dt><dd><p>Positive values penalize new tokens based on their existing frequency in the text so far,
-decreasing the model’s likelihood to repeat tokens.</p>
-</dd>
-<dt><strong>mean_gen_len</strong>: <em>int</em> (optional)</dt><dd><p>The approximated average number of generated tokens in each round. Used
-to determine whether the maximum window size would be exceeded.</p>
-</dd>
-<dt><strong>max_gen_len</strong>: <em>int</em> (optional)</dt><dd><p>This parameter determines the maximum length of the generated text. If it is
-not set, the model will generate text until it encounters a stop token.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<dl class="simple">
-<dt><strong>Returns</strong></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, the response will be a <code class="docutils literal notranslate"><span class="pre">CompletionResponse</span></code> object.
-If <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, the response will be a stream of <code class="docutils literal notranslate"><span class="pre">CompletionStreamResponse</span></code> objects.</p>
-</dd>
-</dl>
+<p><strong>Example</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>import<span class="w"> </span>requests
+
+<span class="nv">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;http://127.0.0.1:8000/v1/models&quot;</span>
+<span class="nv">headers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span><span class="s2">&quot;accept&quot;</span>:<span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="o">}</span>
+
+<span class="nv">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.get<span class="o">(</span>url,<span class="w"> </span><span class="nv">headers</span><span class="o">=</span>headers<span class="o">)</span>
+
+<span class="k">if</span><span class="w"> </span>response.status_code<span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="m">200</span>:
+<span class="w">   </span>print<span class="o">(</span><span class="s2">&quot;Response:&quot;</span><span class="o">)</span>
+<span class="w">   </span>print<span class="o">(</span>response.json<span class="o">())</span>
+<span class="k">else</span>:
+<span class="w">   </span>print<span class="o">(</span><span class="s2">&quot;Error:&quot;</span>,<span class="w"> </span>response.status_code<span class="o">)</span>
+</pre></div>
+</div>
 <dl class="http get">
 <dt class="sig sig-object http" id="get--v1-chat-completions">
 <span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/v1/chat/completions</span></span><a class="headerlink" href="#get--v1-chat-completions" title="Permalink to this definition">¶</a></dt>
@@ -450,247 +416,222 @@ If <code class="docutils literal notranslate"><span class="pre">stream</span></c
 <blockquote>
 <div><p>Get a response from MLC-Chat using a prompt, either with or without streaming.</p>
 </div></blockquote>
-<p><strong>Request body</strong></p>
-<dl>
-<dt><strong>model</strong>: <em>str</em> (required)</dt><dd><p>The model folder after compiling with MLC-LLM build process. The parameter
-can either be the model name with its quantization scheme
-(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
-folder. In the former case, we will use the provided name to search
-for the model folder over possible paths.</p>
-</dd>
-<dt><strong>messages</strong>: <em>list[ChatMessage]</em> (required)</dt><dd><p>A list of chat messages. The last message should be from the user.</p>
-</dd>
-<dt><strong>stream</strong>: <em>bool</em> (optional)</dt><dd><p>Whether to stream the response. If <code class="docutils literal notranslate"><span class="pre">True</span></code>, the response will be streamed
-as the model generates the response. If <code class="docutils literal notranslate"><span class="pre">False</span></code>, the response will be
-returned after the model finishes generating the response.</p>
-</dd>
-<dt><strong>temperature</strong>: <em>float</em> (optional)</dt><dd><p>The temperature applied to logits before sampling. The default value is
-<code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a
-lower temperature produces more deterministic outputs.</p>
-</dd>
-<dt><strong>top_p</strong>: <em>float</em> (optional)</dt><dd><p>This parameter determines the set of tokens from which we sample during
-decoding. The default value is set to <code class="docutils literal notranslate"><span class="pre">0.95</span></code>. At each step, we select
-tokens from the minimal set that has a cumulative probability exceeding
-the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
-<p>For additional information on top-p sampling, please refer to this blog
-post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
-</dd>
-<dt><strong>repetition_penalty</strong>: <em>float</em> (optional)</dt><dd><p>The repetition penalty controls the likelihood of the model generating
-repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no
-repetition penalty is applied. Increasing the value reduces the
-likelihood of repeat text generation. However, setting a high
-<code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless
-texts. The ideal choice of repetition penalty may vary among models.</p>
-<p>For more details on how repetition penalty controls text generation, please
-check out the CTRL paper (<a class="reference external" href="https://arxiv.org/pdf/1909.05858.pdf">https://arxiv.org/pdf/1909.05858.pdf</a>).</p>
-</dd>
-<dt><strong>presence_penalty</strong>: <em>float</em> (optional)</dt><dd><p>Positive values penalize new tokens if they are already present in the text so far,
-decreasing the model’s likelihood to repeat tokens.</p>
-</dd>
-<dt><strong>frequency_penalty</strong>: <em>float</em> (optional)</dt><dd><p>Positive values penalize new tokens based on their existing frequency in the text so far,
-decreasing the model’s likelihood to repeat tokens.</p>
-</dd>
-<dt><strong>mean_gen_len</strong>: <em>int</em> (optional)</dt><dd><p>The approximated average number of generated tokens in each round. Used
-to determine whether the maximum window size would be exceeded.</p>
-</dd>
-<dt><strong>max_gen_len</strong>: <em>int</em> (optional)</dt><dd><p>This parameter determines the maximum length of the generated text. If it is
-not set, the model will generate text until it encounters a stop token.</p>
-</dd>
-<dt><strong>n</strong>: <em>int</em> (optional)</dt><dd><p>This parameter determines the number of text samples to generate. The default
-value is <code class="docutils literal notranslate"><span class="pre">1</span></code>. Note that this parameter is only used when <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to
-<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
-</dd>
-<dt><strong>stop</strong>: <em>str</em> or <em>list[str]</em> (optional)</dt><dd><p>When <code class="docutils literal notranslate"><span class="pre">stop</span></code> is encountered, the model will stop generating output.
-It can be a string or a list of strings. If it is a list of strings, the model
-will stop generating output when any of the strings in the list is encountered.
-Note that this parameter does not override the default stop string of the model.</p>
+<p><strong>Chat Completion Request Object</strong></p>
+<ul class="simple">
+<li><dl class="simple">
+<dt><strong>messages</strong> (<em>List[ChatCompletionMessage]</em>, required): A sequence of messages that have been exchanged in the conversation so far. Each message in the conversation is represented by a <cite>ChatCompletionMessage</cite> object, which includes the following fields:</dt><dd><ul>
+<li><p><strong>content</strong> (<em>Optional[Union[str, List[Dict[str, str]]]]</em>): The text content of the message or structured data in case of tool-generated messages.</p></li>
+<li><p><strong>role</strong> (<em>Literal[“system”, “user”, “assistant”, “tool”]</em>): The role of the message sender, indicating whether the message is from the system, user, assistant, or a tool.</p></li>
+<li><p><strong>name</strong> (<em>Optional[str]</em>): An optional name for the sender of the message.</p></li>
+<li><p><strong>tool_calls</strong> (<em>Optional[List[ChatToolCall]]</em>): A list of calls to external tools or functions made within this message, applicable when the role is <cite>tool</cite>.</p></li>
+<li><p><strong>tool_call_id</strong> (<em>Optional[str]</em>): A unique identifier for the tool call, relevant when integrating external tools or services.</p></li>
+</ul>
 </dd>
 </dl>
-<hr class="docutils" />
-<dl class="simple">
-<dt><strong>Returns</strong></dt><dd><p>If <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, the response will be a <code class="docutils literal notranslate"><span class="pre">ChatCompletionResponse</span></code> object.
-If <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>, the response will be a stream of <code class="docutils literal notranslate"><span class="pre">ChatCompletionStreamResponse</span></code> objects.</p>
-</dd>
-</dl>
-<dl class="http get">
-<dt class="sig sig-object http" id="get--chat-reset">
-<span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/chat/reset</span></span><a class="headerlink" href="#get--chat-reset" title="Permalink to this definition">¶</a></dt>
-<dd><p>Reset the chat.</p>
-</dd></dl>
-
-<dl class="http get">
-<dt class="sig sig-object http" id="get--stats">
-<span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/stats</span></span><a class="headerlink" href="#get--stats" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the latest runtime stats (encode/decode speed).</p>
-</dd></dl>
-
-<dl class="http get">
-<dt class="sig sig-object http" id="get--verbose_stats">
-<span class="sig-name descname"><span class="pre">GET</span> </span><span class="sig-name descname"><span class="pre">/verbose_stats</span></span><a class="headerlink" href="#get--verbose_stats" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the verbose runtime stats (encode/decode speed, total runtime).</p>
-</dd></dl>
-
-</section>
-<section id="request-objects">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Request Objects</a><a class="headerlink" href="#request-objects" title="Permalink to this heading">¶</a></h2>
-<p><strong>ChatMessage</strong></p>
-<dl class="simple">
-<dt><strong>role</strong>: <em>str</em> (required)</dt><dd><p>The role(author) of the message. It can be either <code class="docutils literal notranslate"><span class="pre">user</span></code> or <code class="docutils literal notranslate"><span class="pre">assistant</span></code>.</p>
-</dd>
-<dt><strong>content</strong>: <em>str</em> (required)</dt><dd><p>The content of the message.</p>
-</dd>
-<dt><strong>name</strong>: <em>str</em> (optional)</dt><dd><p>The name of the author of the message.</p>
-</dd>
-</dl>
-</section>
-<section id="response-objects">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Response Objects</a><a class="headerlink" href="#response-objects" title="Permalink to this heading">¶</a></h2>
-<p><strong>CompletionResponse</strong></p>
-<dl class="simple">
-<dt><strong>id</strong>: <em>str</em></dt><dd><p>The id of the completion.</p>
-</dd>
-<dt><strong>object</strong>: <em>str</em></dt><dd><p>The object name <code class="docutils literal notranslate"><span class="pre">text.completion</span></code>.</p>
-</dd>
-<dt><strong>created</strong>: <em>int</em></dt><dd><p>The time when the completion is created.</p>
-</dd>
-<dt><strong>choices</strong>: <em>list[CompletionResponseChoice]</em></dt><dd><p>A list of choices generated by the model.</p>
-</dd>
-<dt><strong>usage</strong>: <em>UsageInfo</em> or <em>None</em></dt><dd><p>The usage information of the model.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<p><strong>CompletionResponseChoice</strong></p>
-<dl class="simple">
-<dt><strong>index</strong>: <em>int</em></dt><dd><p>The index of the choice.</p>
-</dd>
-<dt><strong>text</strong>: <em>str</em></dt><dd><p>The message generated by the model.</p>
-</dd>
-<dt><strong>finish_reason</strong>: <em>str</em></dt><dd><p>The reason why the model finishes generating the message. It can be either
-<code class="docutils literal notranslate"><span class="pre">stop</span></code> or <code class="docutils literal notranslate"><span class="pre">length</span></code>.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<p><strong>CompletionStreamResponse</strong></p>
-<dl class="simple">
-<dt><strong>id</strong>: <em>str</em></dt><dd><p>The id of the completion.</p>
-</dd>
-<dt><strong>object</strong>: <em>str</em></dt><dd><p>The object name <code class="docutils literal notranslate"><span class="pre">text.completion.chunk</span></code>.</p>
-</dd>
-<dt><strong>created</strong>: <em>int</em></dt><dd><p>The time when the completion is created.</p>
-</dd>
-<dt><strong>choices</strong>: <em>list[ChatCompletionResponseStreamhoice]</em></dt><dd><p>A list of choices generated by the model.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<p><strong>ChatCompletionResponseStreamChoice</strong></p>
-<dl class="simple">
-<dt><strong>index</strong>: <em>int</em></dt><dd><p>The index of the choice.</p>
-</dd>
-<dt><strong>text</strong>: <em>str</em></dt><dd><p>The message generated by the model.</p>
-</dd>
-<dt><strong>finish_reason</strong>: <em>str</em></dt><dd><p>The reason why the model finishes generating the message. It can be either
-<code class="docutils literal notranslate"><span class="pre">stop</span></code> or <code class="docutils literal notranslate"><span class="pre">length</span></code>.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<p><strong>ChatCompletionResponse</strong></p>
-<dl class="simple">
-<dt><strong>id</strong>: <em>str</em></dt><dd><p>The id of the completion.</p>
-</dd>
-<dt><strong>object</strong>: <em>str</em></dt><dd><p>The object name <code class="docutils literal notranslate"><span class="pre">chat.completion</span></code>.</p>
-</dd>
-<dt><strong>created</strong>: <em>int</em></dt><dd><p>The time when the completion is created.</p>
-</dd>
-<dt><strong>choices</strong>: <em>list[ChatCompletionResponseChoice]</em></dt><dd><p>A list of choices generated by the model.</p>
-</dd>
-<dt><strong>usage</strong>: <em>UsageInfo</em> or <em>None</em></dt><dd><p>The usage information of the model.</p>
-</dd>
-</dl>
-<hr class="docutils" />
+</li>
+<li><p><strong>model</strong> (<em>str</em>, required): The model to be used for generating responses.</p></li>
+<li><p><strong>frequency_penalty</strong> (<em>float</em>, optional, default=0.0): Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat tokens.</p></li>
+<li><p><strong>presence_penalty</strong> (<em>float</em>, optional, default=0.0): Positive values penalize new tokens if they are already present in the text so far, decreasing the model’s likelihood to repeat tokens.</p></li>
+<li><p><strong>logprobs</strong> (<em>bool</em>, optional, default=False): Indicates whether to include log probabilities for each token in the response.</p></li>
+<li><p><strong>top_logprobs</strong> (<em>int</em>, optional, default=0): An integer ranging from 0 to 5. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, ‘logprobs’ must be set to true.</p></li>
+<li><p><strong>logit_bias</strong> (<em>Optional[Dict[int, float]]</em>): Allows specifying biases for or against specific tokens during generation.</p></li>
+<li><p><strong>max_tokens</strong> (<em>Optional[int]</em>): The maximum number of tokens to generate in the response(s).</p></li>
+<li><p><strong>n</strong> (<em>int</em>, optional, default=1): Number of responses to generate for the given prompt.</p></li>
+<li><p><strong>seed</strong> (<em>Optional[int]</em>): A seed for deterministic generation. Using the same seed and inputs will produce the same output.</p></li>
+<li><p><strong>stop</strong> (<em>Optional[Union[str, List[str]]]</em>): One or more strings that, if encountered, will cause generation to stop.</p></li>
+<li><p><strong>stream</strong> (<em>bool</em>, optional, default=False): If <cite>True</cite>, responses are streamed back as they are generated.</p></li>
+<li><p><strong>temperature</strong> (<em>float</em>, optional, default=1.0): Controls the randomness of the generation. Lower values lead to less random completions.</p></li>
+<li><p><strong>top_p</strong> (<em>float</em>, optional, default=1.0): Nucleus sampling parameter that controls the diversity of the generated responses.</p></li>
+<li><p><strong>tools</strong> (<em>Optional[List[ChatTool]]</em>): Specifies external tools or functions that can be called as part of the chat.</p></li>
+<li><p><strong>tool_choice</strong> (<em>Optional[Union[Literal[“none”, “auto”], Dict]]</em>): Controls how tools are selected for use in responses.</p></li>
+<li><p><strong>user</strong> (<em>Optional[str]</em>): An optional identifier for the user initiating the request.</p></li>
+<li><p><strong>ignore_eos</strong> (<em>bool</em>, optional, default=False): If <cite>True</cite>, the model will ignore the end-of-sequence token for generating responses.</p></li>
+<li><p><strong>response_format</strong> (<em>RequestResponseFormat</em>, optional): Specifies the format of the response. Can be either “text” or “json_object”, with optional schema definition for JSON responses.</p></li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul class="simple">
+<li><p>If <cite>stream</cite> is <cite>False</cite>, a <cite>ChatCompletionResponse</cite> object containing the generated response(s).</p></li>
+<li><p>If <cite>stream</cite> is <cite>True</cite>, a stream of <cite>ChatCompletionStreamResponse</cite> objects, providing a real-time feed of generated responses.</p></li>
+</ul>
 <p><strong>ChatCompletionResponseChoice</strong></p>
-<dl class="simple">
-<dt><strong>index</strong>: <em>int</em></dt><dd><p>The index of the choice.</p>
-</dd>
-<dt><strong>message</strong>: <em>ChatMessage</em></dt><dd><p>The message generated by the model.</p>
-</dd>
-<dt><strong>finish_reason</strong>: <em>str</em></dt><dd><p>The reason why the model finishes generating the message. It can be either
-<code class="docutils literal notranslate"><span class="pre">stop</span></code> or <code class="docutils literal notranslate"><span class="pre">length</span></code>.</p>
-</dd>
-</dl>
-<hr class="docutils" />
+<ul class="simple">
+<li><p><strong>finish_reason</strong> (<em>Optional[Literal[“stop”, “length”, “tool_calls”, “error”]]</em>, optional): The reason the completion process was terminated. It can be due to reaching a stop condition, the maximum length, output of tool calls, or an error.</p></li>
+<li><p><strong>index</strong> (<em>int</em>, required, default=0): Indicates the position of this choice within the list of choices.</p></li>
+<li><p><strong>message</strong> (<em>ChatCompletionMessage</em>, required): The message part of the chat completion, containing the content of the chat response.</p></li>
+<li><p><strong>logprobs</strong> (<em>Optional[LogProbs]</em>, optional): Optionally includes log probabilities for each output token</p></li>
+</ul>
+<p><strong>ChatCompletionStreamResponseChoice</strong></p>
+<ul class="simple">
+<li><p><strong>finish_reason</strong> (<em>Optional[Literal[“stop”, “length”, “tool_calls”]]</em>, optional): Specifies why the streaming completion process ended. Valid reasons are “stop”, “length”, and “tool_calls”.</p></li>
+<li><p><strong>index</strong> (<em>int</em>, required, default=0): Indicates the position of this choice within the list of choices.</p></li>
+<li><p><strong>delta</strong> (<em>ChatCompletionMessage</em>, required): Represents the incremental update or addition to the chat completion message in the stream.</p></li>
+<li><p><strong>logprobs</strong> (<em>Optional[LogProbs]</em>, optional): Optionally includes log probabilities for each output token</p></li>
+</ul>
+<p><strong>ChatCompletionResponse</strong></p>
+<ul class="simple">
+<li><p><strong>id</strong> (<em>str</em>, required): A unique identifier for the chat completion session.</p></li>
+<li><p><strong>choices</strong> (<em>List[ChatCompletionResponseChoice]</em>, required): A collection of <cite>ChatCompletionResponseChoice</cite> objects, representing the potential responses generated by the model.</p></li>
+<li><p><strong>created</strong> (<em>int</em>, required, default=current time): The UNIX timestamp representing when the response was generated.</p></li>
+<li><p><strong>model</strong> (<em>str</em>, required): The name of the model used to generate the chat completions.</p></li>
+<li><p><strong>system_fingerprint</strong> (<em>str</em>, required): A system-generated fingerprint that uniquely identifies the computational environment.</p></li>
+<li><p><strong>object</strong> (<em>Literal[“chat.completion”]</em>, required, default=”chat.completion”): A string literal indicating the type of object, here always “chat.completion”.</p></li>
+<li><p><strong>usage</strong> (<em>UsageInfo</em>, required, default=empty <cite>UsageInfo</cite> object): Contains information about the API usage for this specific request.</p></li>
+</ul>
 <p><strong>ChatCompletionStreamResponse</strong></p>
-<dl class="simple">
-<dt><strong>id</strong>: <em>str</em></dt><dd><p>The id of the completion.</p>
-</dd>
-<dt><strong>object</strong>: <em>str</em></dt><dd><p>The object name <code class="docutils literal notranslate"><span class="pre">chat.completion.chunk</span></code>.</p>
-</dd>
-<dt><strong>created</strong>: <em>int</em></dt><dd><p>The time when the completion is created.</p>
-</dd>
-<dt><strong>choices</strong>: <em>list[ChatCompletionResponseStreamhoice]</em></dt><dd><p>A list of choices generated by the model.</p>
-</dd>
-</dl>
+<ul class="simple">
+<li><p><strong>id</strong> (<em>str</em>, required): A unique identifier for the streaming chat completion session.</p></li>
+<li><p><strong>choices</strong> (<em>List[ChatCompletionStreamResponseChoice]</em>, required): A list of <cite>ChatCompletionStreamResponseChoice</cite> objects, each representing a part of the streaming chat response.</p></li>
+<li><p><strong>created</strong> (<em>int</em>, required, default=current time): The creation time of the streaming response, represented as a UNIX timestamp.</p></li>
+<li><p><strong>model</strong> (<em>str</em>, required): Specifies the model that was used for generating the streaming chat completions.</p></li>
+<li><p><strong>system_fingerprint</strong> (<em>str</em>, required): A unique identifier for the system generating the streaming completions.</p></li>
+<li><p><strong>object</strong> (<em>Literal[“chat.completion.chunk”]</em>, required, default=”chat.completion.chunk”): A literal indicating that this object represents a chunk of a streaming chat completion.</p></li>
+</ul>
 <hr class="docutils" />
-<p><strong>ChatCompletionResponseStreamChoice</strong></p>
-<dl class="simple">
-<dt><strong>index</strong>: <em>int</em></dt><dd><p>The index of the choice.</p>
-</dd>
-<dt><strong>delta</strong>: <em>DeltaMessage</em></dt><dd><p>The delta message generated by the model.</p>
-</dd>
-<dt><strong>finish_reason</strong>: <em>str</em></dt><dd><p>The reason why the model finishes generating the message. It can be either
-<code class="docutils literal notranslate"><span class="pre">stop</span></code> or <code class="docutils literal notranslate"><span class="pre">length</span></code>.</p>
-</dd>
-</dl>
-<hr class="docutils" />
-<p><strong>DeltaMessage</strong></p>
-<dl class="simple">
-<dt><strong>role</strong>: <em>str</em></dt><dd><p>The role(author) of the message. It can be either <code class="docutils literal notranslate"><span class="pre">user</span></code> or <code class="docutils literal notranslate"><span class="pre">assistant</span></code>.</p>
-</dd>
-<dt><strong>content</strong>: <em>str</em></dt><dd><p>The content of the message.</p>
-</dd>
-</dl>
-</section>
-<hr class="docutils" />
-<section id="use-rest-api-in-your-own-program">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Use REST API in your own program</a><a class="headerlink" href="#use-rest-api-in-your-own-program" title="Permalink to this heading">¶</a></h2>
-<p>Once you have launched the REST server, you can use the REST API in your own program. Below is an example of using REST API to interact with MLC-Chat in Python (suppose the server is running on <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8000/</span></code>):</p>
+<p><strong>Example</strong></p>
+<p>Once you have launched the Server, you can use the API in your own program. Below is an example of using the API to interact with MLC-Chat in Python without Streaming (suppose the server is running on <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8080/</span></code>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>import<span class="w"> </span>requests
-import<span class="w"> </span>json
 
 <span class="c1"># Get a response using a prompt without streaming</span>
 <span class="nv">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>
-<span class="w">   </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;vicuna-v1-7b&quot;</span>,
-<span class="w">   </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;Write a haiku&quot;</span><span class="o">}]</span>,
-<span class="w">   </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>False
+<span class="w">   </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/&quot;</span>,
+<span class="w">   </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="o">{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hello! Our project is MLC LLM.&quot;</span><span class="o">}</span>,
+<span class="w">      </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;assistant&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;Hello! It&#39;s great to hear about your project, MLC LLM.&quot;</span>,
+<span class="w">      </span><span class="o">}</span>,
+<span class="w">      </span><span class="o">{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;What is the name of our project?&quot;</span><span class="o">}</span>,
+<span class="w">   </span><span class="o">]</span>,
+<span class="w">   </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>False,
+<span class="w">   </span><span class="c1"># &quot;n&quot;: 1,</span>
+<span class="w">   </span><span class="s2">&quot;max_tokens&quot;</span>:<span class="w"> </span><span class="m">300</span>,
 <span class="o">}</span>
-<span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8000/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload<span class="o">)</span>
-print<span class="o">(</span>f<span class="s2">&quot;Without streaming:\n{r.json()[&#39;choices&#39;][0][&#39;message&#39;][&#39;content&#39;]}\n&quot;</span><span class="o">)</span>
-
-<span class="c1"># Reset the chat</span>
-<span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8000/chat/reset&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload<span class="o">)</span>
-print<span class="o">(</span>f<span class="s2">&quot;Reset chat: {str(r)}\n&quot;</span><span class="o">)</span>
+<span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8080/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload<span class="o">)</span>
+<span class="nv">choices</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>r.json<span class="o">()[</span><span class="s2">&quot;choices&quot;</span><span class="o">]</span>
+<span class="k">for</span><span class="w"> </span>choice<span class="w"> </span><span class="k">in</span><span class="w"> </span>choices:
+<span class="w">   </span>print<span class="o">(</span>f<span class="s2">&quot;{choice[&#39;message&#39;][&#39;content&#39;]}\n&quot;</span><span class="o">)</span>
+</pre></div>
+</div>
+<hr class="docutils" />
+<p>Below is an example of using the API to interact with MLC-Chat in Python with Streaming.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>import<span class="w"> </span>requests
+import<span class="w"> </span>json
 
 <span class="c1"># Get a response using a prompt with streaming</span>
 <span class="nv">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>
-<span class="w">   </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;vicuna-v1-7b&quot;</span>,
-<span class="w">   </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;Write a haiku&quot;</span><span class="o">}]</span>,
-<span class="w">   </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>True
+<span class="w"> </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/&quot;</span>,
+<span class="w"> </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;Write a haiku&quot;</span><span class="o">}]</span>,
+<span class="w"> </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>True,
 <span class="o">}</span>
-with<span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8000/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload,<span class="w"> </span><span class="nv">stream</span><span class="o">=</span>True<span class="o">)</span><span class="w"> </span>as<span class="w"> </span>r:
-<span class="w">   </span>print<span class="o">(</span>f<span class="s2">&quot;With streaming:&quot;</span><span class="o">)</span>
-<span class="w">   </span><span class="k">for</span><span class="w"> </span>chunk<span class="w"> </span><span class="k">in</span><span class="w"> </span>r:
-<span class="w">      </span><span class="nv">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>json.loads<span class="o">(</span>chunk<span class="o">[</span><span class="m">6</span>:-2<span class="o">])[</span><span class="s2">&quot;choices&quot;</span><span class="o">][</span><span class="m">0</span><span class="o">][</span><span class="s2">&quot;delta&quot;</span><span class="o">]</span>.get<span class="o">(</span><span class="s2">&quot;content&quot;</span>,<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="o">)</span>
-<span class="w">      </span>print<span class="o">(</span>f<span class="s2">&quot;{content}&quot;</span>,<span class="w"> </span><span class="nv">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span>,<span class="w"> </span><span class="nv">flush</span><span class="o">=</span>True<span class="o">)</span>
-<span class="w">   </span>print<span class="o">(</span><span class="s2">&quot;\n&quot;</span><span class="o">)</span>
-
-<span class="c1"># Get the latest runtime stats</span>
-<span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.get<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8000/stats&quot;</span><span class="o">)</span>
-print<span class="o">(</span>f<span class="s2">&quot;Runtime stats: {r.json()}\n&quot;</span><span class="o">)</span>
+with<span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8080/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload,<span class="w"> </span><span class="nv">stream</span><span class="o">=</span>True<span class="o">)</span><span class="w"> </span>as<span class="w"> </span>r:
+<span class="w">   </span><span class="k">for</span><span class="w"> </span>chunk<span class="w"> </span><span class="k">in</span><span class="w"> </span>r.iter_content<span class="o">(</span><span class="nv">chunk_size</span><span class="o">=</span>None<span class="o">)</span>:
+<span class="w">      </span><span class="nv">chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>chunk.decode<span class="o">(</span><span class="s2">&quot;utf-8&quot;</span><span class="o">)</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="s2">&quot;[DONE]&quot;</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>chunk<span class="o">[</span><span class="m">6</span>:<span class="o">]</span>:
+<span class="w">         </span><span class="k">break</span>
+<span class="w">      </span><span class="nv">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>json.loads<span class="o">(</span>chunk<span class="o">[</span><span class="m">6</span>:<span class="o">])</span>
+<span class="w">      </span><span class="nv">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>response<span class="o">[</span><span class="s2">&quot;choices&quot;</span><span class="o">][</span><span class="m">0</span><span class="o">][</span><span class="s2">&quot;delta&quot;</span><span class="o">]</span>.get<span class="o">(</span><span class="s2">&quot;content&quot;</span>,<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="o">)</span>
+<span class="w">      </span>print<span class="o">(</span>content,<span class="w"> </span><span class="nv">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span>,<span class="w"> </span><span class="nv">flush</span><span class="o">=</span>True<span class="o">)</span>
+print<span class="o">(</span><span class="s2">&quot;\n&quot;</span><span class="o">)</span>
 </pre></div>
 </div>
-<p>Please check <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/examples/rest">example folder</a> for more examples using REST API.</p>
+<hr class="docutils" />
+<p>There is also support for function calling similar to OpenAI (<a class="reference external" href="https://platform.openai.com/docs/guides/function-calling">https://platform.openai.com/docs/guides/function-calling</a>). Below is an example on how to use function calling in Python.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>import<span class="w"> </span>requests
+import<span class="w"> </span>json
+
+<span class="nv">tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">   </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;function&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;function&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;get_current_weather&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;description&quot;</span>:<span class="w"> </span><span class="s2">&quot;Get the current weather in a given location&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;parameters&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">               </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;object&quot;</span>,
+<span class="w">               </span><span class="s2">&quot;properties&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">                  </span><span class="s2">&quot;location&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">                        </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;string&quot;</span>,
+<span class="w">                        </span><span class="s2">&quot;description&quot;</span>:<span class="w"> </span><span class="s2">&quot;The city and state, e.g. San Francisco, CA&quot;</span>,
+<span class="w">                  </span><span class="o">}</span>,
+<span class="w">                  </span><span class="s2">&quot;unit&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;string&quot;</span>,<span class="w"> </span><span class="s2">&quot;enum&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="s2">&quot;celsius&quot;</span>,<span class="w"> </span><span class="s2">&quot;fahrenheit&quot;</span><span class="o">]}</span>,
+<span class="w">               </span><span class="o">}</span>,
+<span class="w">               </span><span class="s2">&quot;required&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="s2">&quot;location&quot;</span><span class="o">]</span>,
+<span class="w">            </span><span class="o">}</span>,
+<span class="w">      </span><span class="o">}</span>,
+<span class="w">   </span><span class="o">}</span>
+<span class="o">]</span>
+
+<span class="nv">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>
+<span class="w">   </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;./dist/gorilla-openfunctions-v1-q4f16_1-MLC/&quot;</span>,
+<span class="w">   </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;What is the current weather in Pittsburgh, PA in fahrenheit?&quot;</span>,
+<span class="w">      </span><span class="o">}</span>
+<span class="w">   </span><span class="o">]</span>,
+<span class="w">   </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>False,
+<span class="w">   </span><span class="s2">&quot;tools&quot;</span>:<span class="w"> </span>tools,
+<span class="o">}</span>
+
+<span class="nv">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8080/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload<span class="o">)</span>
+print<span class="o">(</span>f<span class="s2">&quot;{r.json()[&#39;choices&#39;][0][&#39;message&#39;][&#39;tool_calls&#39;][0][&#39;function&#39;]}\n&quot;</span><span class="o">)</span>
+
+<span class="c1"># Output: {&#39;name&#39;: &#39;get_current_weather&#39;, &#39;arguments&#39;: {&#39;location&#39;: &#39;Pittsburgh, PA&#39;, &#39;unit&#39;: &#39;fahrenheit&#39;}}</span>
+</pre></div>
+</div>
+<hr class="docutils" />
+<p>Function Calling with streaming is also supported. Below is an example on how to use function calling with streaming in Python.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>import<span class="w"> </span>requests
+import<span class="w"> </span>json
+
+<span class="nv">tools</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">   </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;function&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;function&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;get_current_weather&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;description&quot;</span>:<span class="w"> </span><span class="s2">&quot;Get the current weather in a given location&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;parameters&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">               </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;object&quot;</span>,
+<span class="w">               </span><span class="s2">&quot;properties&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">                  </span><span class="s2">&quot;location&quot;</span>:<span class="w"> </span><span class="o">{</span>
+<span class="w">                        </span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;string&quot;</span>,
+<span class="w">                        </span><span class="s2">&quot;description&quot;</span>:<span class="w"> </span><span class="s2">&quot;The city and state, e.g. San Francisco, CA&quot;</span>,
+<span class="w">                  </span><span class="o">}</span>,
+<span class="w">                  </span><span class="s2">&quot;unit&quot;</span>:<span class="w"> </span><span class="o">{</span><span class="s2">&quot;type&quot;</span>:<span class="w"> </span><span class="s2">&quot;string&quot;</span>,<span class="w"> </span><span class="s2">&quot;enum&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="s2">&quot;celsius&quot;</span>,<span class="w"> </span><span class="s2">&quot;fahrenheit&quot;</span><span class="o">]}</span>,
+<span class="w">               </span><span class="o">}</span>,
+<span class="w">               </span><span class="s2">&quot;required&quot;</span>:<span class="w"> </span><span class="o">[</span><span class="s2">&quot;location&quot;</span><span class="o">]</span>,
+<span class="w">            </span><span class="o">}</span>,
+<span class="w">      </span><span class="o">}</span>,
+<span class="w">   </span><span class="o">}</span>
+<span class="o">]</span>
+
+<span class="nv">payload</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>
+<span class="w">   </span><span class="s2">&quot;model&quot;</span>:<span class="w"> </span><span class="s2">&quot;./dist/gorilla-openfunctions-v1-q4f16_1-MLC/&quot;</span>,
+<span class="w">   </span><span class="s2">&quot;messages&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="o">{</span>
+<span class="w">            </span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,
+<span class="w">            </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;What is the current weather in Pittsburgh, PA and Tokyo, JP in fahrenheit?&quot;</span>,
+<span class="w">      </span><span class="o">}</span>
+<span class="w">   </span><span class="o">]</span>,
+<span class="w">   </span><span class="s2">&quot;stream&quot;</span>:<span class="w"> </span>True,
+<span class="w">   </span><span class="s2">&quot;tools&quot;</span>:<span class="w"> </span>tools,
+<span class="o">}</span>
+
+with<span class="w"> </span>requests.post<span class="o">(</span><span class="s2">&quot;http://127.0.0.1:8080/v1/chat/completions&quot;</span>,<span class="w"> </span><span class="nv">json</span><span class="o">=</span>payload,<span class="w"> </span><span class="nv">stream</span><span class="o">=</span>True<span class="o">)</span><span class="w"> </span>as<span class="w"> </span>r:
+<span class="w"> </span><span class="k">for</span><span class="w"> </span>chunk<span class="w"> </span><span class="k">in</span><span class="w"> </span>r.iter_content<span class="o">(</span><span class="nv">chunk_size</span><span class="o">=</span>None<span class="o">)</span>:
+<span class="w">     </span><span class="nv">chunk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>chunk.decode<span class="o">(</span><span class="s2">&quot;utf-8&quot;</span><span class="o">)</span>
+<span class="w">     </span><span class="k">if</span><span class="w"> </span><span class="s2">&quot;[DONE]&quot;</span><span class="w"> </span><span class="k">in</span><span class="w"> </span>chunk<span class="o">[</span><span class="m">6</span>:<span class="o">]</span>:
+<span class="w">         </span><span class="k">break</span>
+<span class="w">     </span><span class="nv">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>json.loads<span class="o">(</span>chunk<span class="o">[</span><span class="m">6</span>:<span class="o">])</span>
+<span class="w">     </span><span class="nv">content</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>response<span class="o">[</span><span class="s2">&quot;choices&quot;</span><span class="o">][</span><span class="m">0</span><span class="o">][</span><span class="s2">&quot;delta&quot;</span><span class="o">]</span>.get<span class="o">(</span><span class="s2">&quot;content&quot;</span>,<span class="w"> </span><span class="s2">&quot;&quot;</span><span class="o">)</span>
+<span class="w">     </span>print<span class="o">(</span>f<span class="s2">&quot;{content}&quot;</span>,<span class="w"> </span><span class="nv">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span>,<span class="w"> </span><span class="nv">flush</span><span class="o">=</span>True<span class="o">)</span>
+print<span class="o">(</span><span class="s2">&quot;\n&quot;</span><span class="o">)</span>
+
+<span class="c1"># Output: [&quot;get_current_weather(location=&#39;Pittsburgh,PA&#39;,unit=&#39;fahrenheit&#39;)&quot;, &quot;get_current_weather(location=&#39;Tokyo,JP&#39;,unit=&#39;fahrenheit&#39;)&quot;]</span>
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The REST API is a uniform interface that supports multiple languages. You can also utilize the REST API in languages other than Python.</p>
+<p>The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.</p>
 </div>
 </section>
 </section>
