@@ -36,8 +36,8 @@ def LiftTIRGlobalBufferAlloc():
             updated_func, tensor_sinfo = updates
 
             assert len(call.sinfo_args) == 1
-            if any(contain_symbolic_var(sinfo) for sinfo in tensor_sinfo):
-                tensor_sinfo, success = resolve_tir_var_mapping(
+            if any(_has_symbolic_var(sinfo) for sinfo in tensor_sinfo):
+                tensor_sinfo, success = _resolve_tir_var_mapping(
                     func_before_update, call, tensor_sinfo
                 )
                 if not success:
