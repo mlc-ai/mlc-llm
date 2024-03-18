@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 SchemaType = Union[Dict[str, Any], bool]
@@ -8,6 +8,7 @@ SchemaType = Union[Dict[str, Any], bool]
 
 class IndentManager:
     def __init__(self, indent: Union[int, None], separator: str):
+        self.enable_newline = indent is not None
         self.indent = indent or 0
         self.separator = separator
         self.total_indent = 0
@@ -22,7 +23,10 @@ class IndentManager:
         self.is_first.pop()
 
     def get_sep(self) -> str:
-        res = self.total_indent * " "
+        res = ""
+        if self.enable_newline:
+            res += "\\n"
+        res += self.total_indent * " "
         if not self.is_first[-1]:
             res += self.separator
         self.is_first[-1] = False
@@ -38,52 +42,60 @@ class JSONSchemaToEBNFConverter:
         strict_mode: bool = False,
     ):
         self.json_schema = json_schema
-        self.indent = indent
         self.strict_mode = strict_mode
 
         if separators is None:
             separators = (", ", ": ") if indent is None else (",", ": ")
-        else:
-            assert len(separators) == 2
+        assert len(separators) == 2
         self.indent_manager = IndentManager(indent, separators[0])
         self.colon = separators[1]
 
         self.rules: List[Tuple[str, str]] = []
         self.basic_rules_cache: Dict[str, str] = {}
-        self.init_basic_rules()
+        self.add_basic_rules()
 
     def convert(self) -> str:
-        self.create_rule_with_schema("main", self.json_schema)
+        self.create_rule_with_schema(self.json_schema, "main")
         res = ""
         for rule_name, rule in self.rules:
             res += f"{rule_name} ::= {rule}\n"
         return res
 
     # Basic rules
+    BASIC_ANY = "basic_any"
     BASIC_INTEGER = "basic_integer"
     BASIC_NUMBER = "basic_number"
     BASIC_STRING = "basic_string"
     BASIC_BOOLEAN = "basic_boolean"
     BASIC_NULL = "basic_null"
+    BASIC_ARRAY = "basic_array"
+    BASIC_OBJECT = "basic_object"
 
     # Helper rules to construct basic rules
     BASIC_ESCAPE = "basic_escape"
     BASIC_STRING_SUB = "basic_string_sub"
 
-    def init_basic_rules(self):
+    def add_basic_rules(self):
         past_strict_mode = self.strict_mode
         self.strict_mode = False
+        past_indent_manager = self.indent_manager
+        self.indent_manager = IndentManager(None, past_indent_manager.separator)
 
-        self.init_helper_rules()
-        self.create_basic_rule(self.BASIC_INTEGER, {"type": "integer"})
-        self.create_basic_rule(self.BASIC_NUMBER, {"type": "number"})
-        self.create_basic_rule(self.BASIC_STRING, {"type": "string"})
-        self.create_basic_rule(self.BASIC_BOOLEAN, {"type": "boolean"})
-        self.create_basic_rule(self.BASIC_NULL, {"type": "null"})
+        self.add_helper_rules()
+        self.create_basic_rule(True, self.BASIC_ANY)
+        self.basic_rules_cache[self.get_schema_cache_index({})] = self.BASIC_ANY
+        self.create_basic_rule({"type": "integer"}, self.BASIC_INTEGER)
+        self.create_basic_rule({"type": "number"}, self.BASIC_NUMBER)
+        self.create_basic_rule({"type": "string"}, self.BASIC_STRING)
+        self.create_basic_rule({"type": "boolean"}, self.BASIC_BOOLEAN)
+        self.create_basic_rule({"type": "null"}, self.BASIC_NULL)
+        self.create_basic_rule({"type": "array"}, self.BASIC_ARRAY)
+        self.create_basic_rule({"type": "object"}, self.BASIC_OBJECT)
 
         self.strict_mode = past_strict_mode
+        self.indent_manager = past_indent_manager
 
-    def init_helper_rules(self):
+    def add_helper_rules(self):
         self.rules.append(
             (
                 self.BASIC_ESCAPE,
@@ -98,8 +110,8 @@ class JSONSchemaToEBNFConverter:
             )
         )
 
-    def create_basic_rule(self, name: str, schema: SchemaType) -> str:
-        rule_name = self.create_rule_with_schema(name, schema)
+    def create_basic_rule(self, schema: SchemaType, name: str) -> str:
+        rule_name = self.create_rule_with_schema(schema, name)
         self.basic_rules_cache[self.get_schema_cache_index(schema)] = rule_name
 
     def get_sep(self):
@@ -113,10 +125,12 @@ class JSONSchemaToEBNFConverter:
             if keyword in schema:
                 logging.warning(f"Keyword {keyword} is not supported in schema {schema}")
 
-    def create_rule_with_schema(self, rule_name_hint: str, schema: SchemaType) -> str:
+    def create_rule_with_schema(self, schema: SchemaType, rule_name_hint: str) -> str:
         idx = self.get_schema_cache_index(schema)
         if idx in self.basic_rules_cache:
             return self.basic_rules_cache[idx]
+
+        assert isinstance(rule_name_hint, str)
 
         self.rules.append((rule_name_hint, self.visit_schema(schema, rule_name_hint)))
         return rule_name_hint
@@ -245,23 +259,14 @@ class JSONSchemaToEBNFConverter:
         for i, anyof_schema in enumerate(schema["anyOf"]):
             if i != 0:
                 res += " | "
-            res += self.create_rule_with_schema(f"{rule_name}_{i}", anyof_schema)
+            res += self.create_rule_with_schema(anyof_schema, f"{rule_name}_{i}")
         return res
 
     def visit_any(self, schema: SchemaType, rule_name: str) -> str:
         # note integer is a subset of number, so we don't need to add integer here
-        return self.visit_schema(
-            {
-                "anyOf": [
-                    {"type": "number"},
-                    {"type": "string"},
-                    {"type": "boolean"},
-                    {"type": "null"},
-                    {"type": "array"},
-                    {"type": "object"},
-                ]
-            },
-            rule_name,
+        return (
+            f"{self.BASIC_NUMBER} | {self.BASIC_STRING} | {self.BASIC_BOOLEAN} | "
+            f"{self.BASIC_NULL} | {self.BASIC_ARRAY} | {self.BASIC_OBJECT}"
         )
 
     def visit_integer(self, schema: SchemaType, rule_name: str) -> str:
@@ -328,11 +333,11 @@ class JSONSchemaToEBNFConverter:
         return res
 
     def get_partial_rule_for_item(self, schema: SchemaType, sub_rule_name: str) -> str:
-        item = self.create_rule_with_schema(sub_rule_name, schema)
+        item = self.create_rule_with_schema(schema, sub_rule_name)
         return f"{self.get_sep()} {item}"
 
     def get_partial_rule_for_repetitive_item(self, schema: SchemaType, sub_rule_name: str) -> str:
-        item = self.create_rule_with_schema(sub_rule_name, schema)
+        item = self.create_rule_with_schema(schema, sub_rule_name)
         return f'("" | {self.get_sep()} {item} ({self.get_sep()} {item})*)'
 
     def visit_object(self, schema: SchemaType, rule_name: str) -> str:
@@ -346,7 +351,8 @@ class JSONSchemaToEBNFConverter:
         required = schema.get("required", [])
 
         with self.indent_manager:
-            if "properties" in schema:
+            properties_all_optional = None
+            if "properties" in schema and len(schema["properties"]) > 0:
                 properties = list(schema["properties"].items())
 
                 first_required_idx = len(properties)
@@ -355,23 +361,18 @@ class JSONSchemaToEBNFConverter:
                         first_required_idx = i
                         break
 
-                if first_required_idx != 0:
+                if first_required_idx == len(properties):
                     res += " " + self.get_partial_rule_for_properties_all_optional(
-                        properties[:first_required_idx], rule_name
+                        properties, rule_name
                     )
-
-                for prop_name, prop_schema in properties[first_required_idx:]:
-                    assert prop_schema is not False
-                    res += " " + self.get_partial_rule_for_property_may_required(
-                        prop_name,
-                        prop_schema,
-                        sub_rule_name=f"{rule_name}_{prop_name}",
-                        required=prop_name in required,
+                else:
+                    res += " " + self.get_partial_rule_for_properties_contain_required(
+                        properties, rule_name, first_required_idx, required
                     )
 
             additional = schema.get("additionalProperties", False)
             if additional is not False:
-                res += " " + self.get_partial_rule_for_property_repetitive(
+                res += " " + self.get_partial_rule_for_repetitive_property(
                     "basic_string",
                     schema["additionalProperties"],
                     sub_rule_name=rule_name + "_add",
@@ -381,8 +382,8 @@ class JSONSchemaToEBNFConverter:
             # if additionalProperties is in the schema, we don't need to consider
             # unevaluatedProperties
             if "additionalProperties" not in schema and unevaluated is not False:
-                res += " " + self.get_partial_rule_for_property_repetitive(
-                    "basic_string",
+                res += " " + self.get_partial_rule_for_repetitive_property(
+                    self.BASIC_STRING,
                     unevaluated,
                     sub_rule_name=f"{rule_name}_uneval",
                 )
@@ -390,11 +391,18 @@ class JSONSchemaToEBNFConverter:
         res += ' "}"'
         return res
 
+    def get_property_pattern(self, prop_name: str, prop_schema: SchemaType, rule_name: str) -> str:
+        # the outer quote is for the string in EBNF grammar, and the inner quote is for
+        # the string in JSON
+        colon = f'"{self.colon}"'
+        key = f'"\\"{prop_name}\\""'
+        value = self.create_rule_with_schema(prop_schema, f"{rule_name}_{prop_name}")
+        return f"{key} {colon} {value}"
+
     def get_partial_rule_for_properties_all_optional(
         self, properties: List[Tuple[str, SchemaType]], rule_name: str
     ) -> str:
         assert len(properties) >= 1
-        colon = f'"{self.colon}"'
         # ("," (("a" ("" | "," b) | b) ("" | "," c) | c)) | ""
 
         first_sep = self.get_sep()
@@ -402,39 +410,53 @@ class JSONSchemaToEBNFConverter:
         res = ""
 
         for i, (prop_name, prop_schema) in enumerate(properties):
-            key = f'"\\"{prop_name}\\""'
-            value = self.create_rule_with_schema(f"{rule_name}_{prop_name}", prop_schema)
-            key_value = f"{key} {colon} {value}"
+            prop_pattern = self.get_property_pattern(prop_name, prop_schema, rule_name)
 
             if i == 0:
-                res = key_value
+                res = prop_pattern
             else:
-                res = f'({res}) ("" | {self.get_sep()} {key_value}) | {key_value}'
+                res = f'({res}) ("" | {self.get_sep()} {prop_pattern}) | {prop_pattern}'
 
-        res = f'{first_sep} ({res}) | ""'
+        res = f'({first_sep} ({res}) | "")'
         return res
 
-    def get_partial_rule_for_property_may_required(
-        self, prop_name: str, schema: str, sub_rule_name: str, required: bool
+    def get_partial_rule_for_properties_contain_required(
+        self,
+        properties: List[Tuple[str, SchemaType]],
+        rule_name: str,
+        first_required_idx: int,
+        required: List[str],
     ) -> str:
-        colon = f'"{self.colon}"'
-        # the outer quote is for the string in EBNF grammar, and the inner quote is for
-        # the string in JSON
-        key = f'"\\"{prop_name}\\""'
-        value = self.create_rule_with_schema(sub_rule_name, schema)
-        res = f"{self.get_sep()} {key} {colon} {value}"
-        if not required:
-            res = f"({res})?"
+        assert first_required_idx < len(properties)
+        res = self.get_sep()
+
+        for prop_name, prop_schema in properties[:first_required_idx]:
+            assert prop_schema is not False
+            property_pattern = self.get_property_pattern(prop_name, prop_schema, rule_name)
+            res += f" ({property_pattern} {self.get_sep()})?"
+
+        property_pattern = self.get_property_pattern(
+            properties[first_required_idx][0], properties[first_required_idx][1], rule_name
+        )
+        res += f" {property_pattern}"
+
+        for prop_name, prop_schema in properties[first_required_idx + 1 :]:
+            assert prop_schema is not False
+            property_pattern = self.get_property_pattern(prop_name, prop_schema, rule_name)
+            if prop_name in required:
+                res += f" {self.get_sep()} {property_pattern}"
+            else:
+                res += f" ({self.get_sep()} {property_pattern})?"
+
         return res
 
-    def get_partial_rule_for_property_repetitive(
-        self, key: str, schema: str, sub_rule_name: str
+    def get_partial_rule_for_repetitive_property(
+        self, key_pattern: str, schema: str, sub_rule_name: str
     ) -> str:
         colon = f'"{self.colon}"'
-        value = self.create_rule_with_schema(sub_rule_name, schema)
-        key_value = f"{key} {colon} {value}"
-
-        return f'("" | {self.get_sep()} {key_value} ({self.get_sep()} {key_value})*)'
+        value = self.create_rule_with_schema(schema, sub_rule_name)
+        property_pattern = f"{key_pattern} {colon} {value}"
+        return f'("" | {self.get_sep()} {property_pattern} ({self.get_sep()} {property_pattern})*)'
 
 
 def json_schema_to_ebnf(
