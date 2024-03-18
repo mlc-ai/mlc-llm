@@ -406,10 +406,9 @@ async def request_chat_completion(
     # - Check prompt length
     async_engine.record_event(request_id, event="start tokenization")
 
-    model_config = ServerContext.get_model_config(request.model)
-    image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
-
     if content_has_list:
+        model_config = ServerContext.get_model_config(request.model)
+        image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
         prompts = entrypoint_utils.process_prompts(
             conv_template.as_prompt_list(image_embed_size=image_embed_size),
             async_engine.tokenizer.encode,
