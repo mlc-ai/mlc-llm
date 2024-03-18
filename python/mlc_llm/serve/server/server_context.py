@@ -1,7 +1,9 @@
 """Server context that shared by multiple entrypoint files."""
 
+import json
 from typing import Dict, List, Optional
 
+from ...chat_module import _get_model_path
 from ...conversation_template import ConvTemplateRegistry
 from ...protocol.conversation_protocol import Conversation
 from .. import async_engine
@@ -14,6 +16,7 @@ class ServerContext:
 
     _models: Dict[str, async_engine.AsyncThreadedEngine] = {}
     _conv_templates: Dict[str, Conversation] = {}
+    _model_configs: Dict[str, Dict] = {}
 
     @staticmethod
     def add_model(hosted_model: str, engine: async_engine.AsyncThreadedEngine) -> None:
@@ -27,6 +30,11 @@ class ServerContext:
             conv_template = ConvTemplateRegistry.get_conv_template(engine.conv_template_name)
             if conv_template is not None:
                 ServerContext._conv_templates[hosted_model] = conv_template
+
+        _, config_file_path = _get_model_path(hosted_model)
+        with open(config_file_path, "r", encoding="utf-8") as file:
+            config = json.load(file)
+        ServerContext._model_configs[hosted_model] = config
 
     @staticmethod
     def get_engine(model: str) -> Optional[async_engine.AsyncThreadedEngine]:
@@ -45,3 +53,8 @@ class ServerContext:
     def get_model_list() -> List[str]:
         """Get the list of models on serve."""
         return list(ServerContext._models.keys())
+
+    @staticmethod
+    def get_model_config(model: str) -> Optional[Dict]:
+        """Get the model config path of the requested model."""
+        return ServerContext._model_configs.get(model, None)

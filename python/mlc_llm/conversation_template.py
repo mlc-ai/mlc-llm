@@ -154,3 +154,18 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[0],
     )
 )
+
+# Llava
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="llava",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="",
+        roles={"user": "USER", "assistant": "ASSISTANT", "tool": "USER"},
+        seps=[" "],
+        role_content_sep=": ",
+        role_empty_sep=":",
+        stop_str=["</s>"],
+        stop_token_ids=[2],
+    )
+)

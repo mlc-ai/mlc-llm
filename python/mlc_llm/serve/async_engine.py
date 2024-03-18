@@ -6,7 +6,7 @@ import asyncio
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Union
 
 import tvm
 
@@ -209,7 +209,10 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         self._background_loop_thread.join()
 
     async def generate(
-        self, prompt: Union[str, List[int]], generation_config: GenerationConfig, request_id: str
+        self,
+        prompt: Union[str, List[int], Sequence[Union[str, List[int], data.Data]]],
+        generation_config: GenerationConfig,
+        request_id: str,
     ) -> AsyncGenerator[List[AsyncStreamOutput], Any]:
         """Asynchronous text generation interface.
         The method is a coroutine that streams a list of AsyncStreamOutput
@@ -234,9 +237,20 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             # loop is the main driving event loop of the process.
             self._async_event_loop = asyncio.get_event_loop()
 
+        def convert_to_data(
+            prompt: Union[str, List[int], Sequence[Union[str, List[int], data.Data]]]
+        ) -> List[data.Data]:
+            if isinstance(prompt, data.Data):
+                return [prompt]
+            if isinstance(prompt, str):
+                return [data.TextData(prompt)]
+            if isinstance(prompt[0], int):
+                return [data.TokenData(prompt)]  # type: ignore
+            return [convert_to_data(x)[0] for x in prompt]  # type: ignore
+
         # Create the request with the given id, input data, generation
         # config and the created callback.
-        input_data = data.TextData(prompt) if isinstance(prompt, str) else data.TokenData(prompt)
+        input_data = convert_to_data(prompt)
         request = Request(request_id, input_data, generation_config)
 
         # Create the unique stream of the request.

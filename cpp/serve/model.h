@@ -85,6 +85,13 @@ class ModelObj : public Object {
                                int offset = 0) = 0;
 
   /*!
+   * \brief Compute embeddings for the input image.
+   * \param image The image to compute embedding for.
+   * \return The computed embeddings.
+   */
+  virtual ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
+
+  /*!
    * \brief Batch prefill function. Embedding in, logits out.
    * The embedding order of sequences in `embedding_arr` follows
    * the order of `seq_ids`.

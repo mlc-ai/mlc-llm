@@ -4,9 +4,11 @@
 import ast
 import json
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Optional, Union
+from typing import AsyncGenerator, Dict, List, Optional, Sequence, Union
 
 import fastapi
+
+from mlc_llm.serve import data
 
 from ...protocol import protocol_utils
 from ...protocol.conversation_protocol import Conversation
@@ -266,7 +268,6 @@ def chat_completion_check_message_validity(
         if isinstance(message.content, list):
             if message.role != "user":
                 return "Non-user message having a list of content is invalid."
-            return "User message having a list of content is not supported yet."
         if message.tool_calls is not None:
             if message.role != "assistant":
                 return "Non-assistant message having `tool_calls` is invalid."
@@ -388,11 +389,12 @@ async def request_chat_completion(
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
 
+    content_has_list = any(isinstance(message.content, list) for message in request.messages)
     for message in request.messages:
         role = message.role
         content = message.content
-        assert isinstance(content, str), "Internal error: content is not a string."
         if role == "system":
+            assert isinstance(content, str)
             conv_template.system_message = content if content is not None else ""
             continue
 
@@ -403,17 +405,27 @@ async def request_chat_completion(
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
     async_engine.record_event(request_id, event="start tokenization")
-    prompts = entrypoint_utils.process_prompts(
-        conv_template.as_prompt(), async_engine.tokenizer.encode
-    )
+
+    model_config = ServerContext.get_model_config(request.model)
+    image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
+
+    if content_has_list:
+        prompts = entrypoint_utils.process_prompts(
+            conv_template.as_prompt_list(image_embed_size=image_embed_size),
+            async_engine.tokenizer.encode,
+        )
+    else:
+        prompts = entrypoint_utils.process_prompts(
+            conv_template.as_prompt(), async_engine.tokenizer.encode
+        )
     async_engine.record_event(request_id, event="finish tokenization")
-    assert isinstance(prompts, list) and len(prompts) == 1, "Internal error"
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
     error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)
     if error is not None:
         return error
-    prompt = prompts[0]
+
+    prompt: Sequence[Union[List[int], data.ImageData]] = prompts
 
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(

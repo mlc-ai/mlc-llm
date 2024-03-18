@@ -371,7 +371,7 @@ class Engine:
 
     def generate(  # pylint: disable=too-many-locals
         self,
-        prompts: Union[str, List[str], List[int], List[List[int]]],
+        prompts: Union[str, List[str], List[int], List[List[int]], List[List[data.Data]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
     ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:
         """Generate texts for a list of input prompts.
@@ -409,7 +409,7 @@ class Engine:
         else:
             assert isinstance(prompts, list), (
                 "Input `prompts` is expected to be a string, a list of "
-                "str, a list of token ids or multiple lists of token ids."
+                "str, a list of token ids or multiple lists of token ids. "
             )
             if len(prompts) == 0:
                 return [], []
@@ -476,13 +476,16 @@ class Engine:
         # Override the callback function in engine.
         self._ffi["set_request_stream_callback"](request_stream_callback)
 
+        def convert_to_data(prompt: Union[str, List[int], List[data.Data]]) -> List[data.Data]:
+            if isinstance(prompt, str):
+                return [data.TextData(prompt)]
+            if isinstance(prompt[0], int):
+                return [data.TokenData(prompt)]  # type: ignore
+            return prompt  # type: ignore
+
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
-            input_data = (
-                data.TextData(prompt)
-                if isinstance(prompt, str)
-                else data.TokenData(prompt)  # type: ignore
-            )
+            input_data = convert_to_data(prompt)  # type: ignore
             self.add_request(
                 Request(
                     request_id=str(req_id),

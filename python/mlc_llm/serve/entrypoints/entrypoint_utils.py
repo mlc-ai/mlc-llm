@@ -2,9 +2,12 @@
 
 import uuid
 from http import HTTPStatus
-from typing import Callable, List, Optional, Union
+from io import BytesIO
+from typing import Callable, Dict, List, Optional, Union
 
 import fastapi
+
+from mlc_llm.serve import data
 
 from ...protocol import RequestProtocol
 from ...protocol.protocol_utils import ErrorResponse, get_unsupported_fields
@@ -56,9 +59,11 @@ def check_prompts_length(
 
 
 def process_prompts(
-    input_prompts: Union[str, List[int], List[Union[str, List[int]]]],
+    input_prompts: Union[
+        str, List[int], List[Union[str, List[int]]], List[Union[str, data.ImageData]]
+    ],
     ftokenize: Callable[[str], List[int]],
-) -> Union[List[List[int]], fastapi.responses.JSONResponse]:
+) -> Union[List[Union[List[int], data.ImageData]], fastapi.responses.JSONResponse]:
     """Convert all input tokens to list of token ids with regard to the
     given tokenization function.
     For each input prompt, return the list of token ids after tokenization.
@@ -86,7 +91,39 @@ def process_prompts(
         is_token_ids = isinstance(input_prompt, list) and all(
             isinstance(token_id, int) for token_id in input_prompt
         )
-        if not (is_str or is_token_ids):
+        is_image = isinstance(input_prompt, data.ImageData)
+        if not (is_str or is_token_ids or is_image):
             return create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
         output_prompts.append(ftokenize(input_prompt) if is_str else input_prompt)  # type: ignore
     return output_prompts
+
+
+def get_image_from_url(url: str):
+    """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
+
+    # pylint: disable=import-outside-toplevel, import-error
+    import requests
+    import tvm
+    from PIL import Image
+    from transformers import CLIPImageProcessor
+
+    response = requests.get(url, timeout=5)
+    image_tensor = Image.open(BytesIO(response.content)).convert("RGB")
+
+    image_processor = CLIPImageProcessor(
+        size={"shortest_edge": 336}, crop_size={"height": 336, "width": 336}
+    )
+    image_features = tvm.nd.array(
+        image_processor.preprocess(image_tensor, return_tensors="np")["pixel_values"].astype(
+            "float16"
+        )
+    )
+    return image_features
+
+
+def get_image_embed_size(config: Dict) -> int:
+    """Get the image embedding size from the model config file."""
+    image_size = config["model_config"]["vision_config"]["image_size"]
+    patch_size = config["model_config"]["vision_config"]["patch_size"]
+    embed_size = (image_size // patch_size) ** 2
+    return embed_size

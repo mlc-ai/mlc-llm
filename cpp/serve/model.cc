@@ -94,6 +94,20 @@ class ModelImpl : public ModelObj {
     }
   }
 
+  ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst, int offset) final {
+    CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
+    auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
+    ObjectRef embeddings = ft_.image_embed_func_(image_dref_or_nd, params_);
+    if (dst != nullptr) {
+      CHECK(dst->defined());
+      ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
+      return *dst;
+    } else {
+      CHECK_EQ(offset, 0);
+      return embeddings;
+    }
+  }
+
   NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                        const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
@@ -419,6 +433,7 @@ class ModelImpl : public ModelObj {
     } else {
       LOG(FATAL) << "Key \"vocab_size\" not found.";
     }
+
     return config;
   }
 
@@ -433,6 +448,7 @@ class ModelImpl : public ModelObj {
   int prefill_chunk_size_ = -1;
   int hidden_size_ = -1;
   int vocab_size_ = -1;
+  int image_embed_size_ = -1;
   //----------------------------
   // TVM related states
   //----------------------------

@@ -100,6 +100,29 @@ class TokenData : public Data {
   TVM_DEFINE_OBJECT_REF_METHODS(TokenData, Data, TokenDataNode);
 };
 
+/****************** ImageDataNode ******************/
+
+/*! \brief The class of image data, containing a 3D array of pixel values. */
+class ImageDataNode : public DataNode {
+ public:
+  /*! \brief The pixel values. */
+  NDArray image;
+  int embed_size;
+
+  int GetLength() const final;
+  ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
+
+  static constexpr const char* _type_key = "mlc.serve.ImageData";
+  TVM_DECLARE_BASE_OBJECT_INFO(ImageDataNode, DataNode);
+};
+
+class ImageData : public Data {
+ public:
+  explicit ImageData(NDArray image, int embed_size);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ImageData, Data, ImageDataNode);
+};
+
 /****************** SampleResult ******************/
 
 // The pair of a token id and its probability in sampling.

@@ -26,6 +26,8 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   for (Data input : inputs) {
     if (const auto* token_data = input.as<TokenDataNode>()) {
       input_total_length += token_data->token_ids.size();
+    } else if (const auto* image_data = input.as<ImageDataNode>()) {
+      input_total_length += image_data->GetLength();
     } else {
       input_total_length = -1;
       break;
