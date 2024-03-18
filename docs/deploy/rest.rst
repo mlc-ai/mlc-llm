@@ -95,69 +95,109 @@ The REST API provides the following endpoints:
 
    Get a response from MLC-Chat using a prompt, either with or without streaming.
 
-**Request body**
+**Chat Completion Request Object**
 
-**model**: *str* (required)
-   The model folder after compiling with MLC-LLM build process. The parameter
-   can either be the model name with its quantization scheme
-   (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
-   folder. In the former case, we will use the provided name to search
-   for the model folder over possible paths.
-**messages**: *list[ChatMessage]* (required)
-   A list of chat messages. The last message should be from the user.
-**stream**: *bool* (optional)
-   Whether to stream the response. If ``True``, the response will be streamed
-   as the model generates the response. If ``False``, the response will be
-   returned after the model finishes generating the response.
-**temperature**: *float* (optional)
-   The temperature applied to logits before sampling. The default value is
-   ``0.7``. A higher temperature encourages more diverse outputs, while a
-   lower temperature produces more deterministic outputs.
-**top_p**: *float* (optional)
-   This parameter determines the set of tokens from which we sample during
-   decoding. The default value is set to ``0.95``. At each step, we select
-   tokens from the minimal set that has a cumulative probability exceeding
-   the ``top_p`` parameter.
+- **messages** (*List[ChatCompletionMessage]*, required): A sequence of messages that have been exchanged in the conversation so far. Each message in the conversation is represented by a `ChatCompletionMessage` object, which includes the following fields:
+    - **content** (*Optional[Union[str, List[Dict[str, str]]]]*): The text content of the message or structured data in case of tool-generated messages.
+    - **role** (*Literal["system", "user", "assistant", "tool"]*): The role of the message sender, indicating whether the message is from the system, user, assistant, or a tool.
+    - **name** (*Optional[str]*): An optional name for the sender of the message.
+    - **tool_calls** (*Optional[List[ChatToolCall]]*): A list of calls to external tools or functions made within this message, applicable when the role is `tool`.
+    - **tool_call_id** (*Optional[str]*): A unique identifier for the tool call, relevant when integrating external tools or services.
+    
+- **model** (*str*, required): The model to be used for generating responses.
 
-   For additional information on top-p sampling, please refer to this blog
-   post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
-**repetition_penalty**: *float* (optional)
-   The repetition penalty controls the likelihood of the model generating
-   repeated texts. The default value is set to ``1.0``, indicating that no
-   repetition penalty is applied. Increasing the value reduces the
-   likelihood of repeat text generation. However, setting a high
-   ``repetition_penalty`` may result in the model generating meaningless
-   texts. The ideal choice of repetition penalty may vary among models.
+- **frequency_penalty** (*float*, optional, default=0.0): Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat tokens.
 
-   For more details on how repetition penalty controls text generation, please
-   check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
-**presence_penalty**: *float* (optional)
-   Positive values penalize new tokens if they are already present in the text so far,
-   decreasing the model's likelihood to repeat tokens.
-**frequency_penalty**: *float* (optional)
-   Positive values penalize new tokens based on their existing frequency in the text so far,
-   decreasing the model's likelihood to repeat tokens.
-**mean_gen_len**: *int* (optional)
-   The approximated average number of generated tokens in each round. Used
-   to determine whether the maximum window size would be exceeded.
-**max_gen_len**: *int* (optional)
-   This parameter determines the maximum length of the generated text. If it is
-   not set, the model will generate text until it encounters a stop token.
-**n**: *int* (optional)
-   This parameter determines the number of text samples to generate. The default
-   value is ``1``. Note that this parameter is only used when ``stream`` is set to
-   ``False``.
-**stop**: *str* or *list[str]* (optional)
-   When ``stop`` is encountered, the model will stop generating output.
-   It can be a string or a list of strings. If it is a list of strings, the model
-   will stop generating output when any of the strings in the list is encountered.
-   Note that this parameter does not override the default stop string of the model.
+- **presence_penalty** (*float*, optional, default=0.0): Positive values penalize new tokens if they are already present in the text so far, decreasing the model’s likelihood to repeat tokens.
+
+- **logprobs** (*bool*, optional, default=False): Indicates whether to include log probabilities for each token in the response.
+
+- **top_logprobs** (*int*, optional, default=0): An integer ranging from 0 to 5. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, 'logprobs' must be set to true.
+
+- **logit_bias** (*Optional[Dict[int, float]]*): Allows specifying biases for or against specific tokens during generation.
+
+- **max_tokens** (*Optional[int]*): The maximum number of tokens to generate in the response(s).
+
+- **n** (*int*, optional, default=1): Number of responses to generate for the given prompt.
+
+- **seed** (*Optional[int]*): A seed for deterministic generation. Using the same seed and inputs will produce the same output.
+
+- **stop** (*Optional[Union[str, List[str]]]*): One or more strings that, if encountered, will cause generation to stop.
+
+- **stream** (*bool*, optional, default=False): If `True`, responses are streamed back as they are generated.
+
+- **temperature** (*float*, optional, default=1.0): Controls the randomness of the generation. Lower values lead to less random completions.
+
+- **top_p** (*float*, optional, default=1.0): Nucleus sampling parameter that controls the diversity of the generated responses.
+
+- **tools** (*Optional[List[ChatTool]]*): Specifies external tools or functions that can be called as part of the chat.
+
+- **tool_choice** (*Optional[Union[Literal["none", "auto"], Dict]]*): Controls how tools are selected for use in responses.
+
+- **user** (*Optional[str]*): An optional identifier for the user initiating the request.
+
+- **ignore_eos** (*bool*, optional, default=False): If `True`, the model will ignore the end-of-sequence token for generating responses.
+
+- **response_format** (*RequestResponseFormat*, optional): Specifies the format of the response. Can be either "text" or "json_object", with optional schema definition for JSON responses.
+
+**Returns**
+
+- If `stream` is `False`, a `ChatCompletionResponse` object containing the generated response(s).
+- If `stream` is `True`, a stream of `ChatCompletionStreamResponse` objects, providing a real-time feed of generated responses.
+
+
+**ChatCompletionResponseChoice**
+
+- **finish_reason** (*Optional[Literal["stop", "length", "tool_calls", "error"]]*, optional): The reason the completion process was terminated. It can be due to reaching a stop condition, the maximum length, output of tool calls, or an error.
+  
+- **index** (*int*, required, default=0): Indicates the position of this choice within the list of choices.
+  
+- **message** (*ChatCompletionMessage*, required): The message part of the chat completion, containing the content of the chat response.
+  
+- **logprobs** (*Optional[LogProbs]*, optional): Optionally includes log probabilities for each output token
+
+**ChatCompletionStreamResponseChoice**
+
+- **finish_reason** (*Optional[Literal["stop", "length", "tool_calls"]]*, optional): Specifies why the streaming completion process ended. Valid reasons are "stop", "length", and "tool_calls".
+  
+- **index** (*int*, required, default=0): Indicates the position of this choice within the list of choices.
+  
+- **delta** (*ChatCompletionMessage*, required): Represents the incremental update or addition to the chat completion message in the stream.
+  
+- **logprobs** (*Optional[LogProbs]*, optional): Optionally includes log probabilities for each output token
+
+**ChatCompletionResponse**
+
+- **id** (*str*, required): A unique identifier for the chat completion session.
+  
+- **choices** (*List[ChatCompletionResponseChoice]*, required): A collection of `ChatCompletionResponseChoice` objects, representing the potential responses generated by the model.
+  
+- **created** (*int*, required, default=current time): The UNIX timestamp representing when the response was generated.
+  
+- **model** (*str*, required): The name of the model used to generate the chat completions.
+  
+- **system_fingerprint** (*str*, required): A system-generated fingerprint that uniquely identifies the computational environment.
+  
+- **object** (*Literal["chat.completion"]*, required, default="chat.completion"): A string literal indicating the type of object, here always "chat.completion".
+  
+- **usage** (*UsageInfo*, required, default=empty `UsageInfo` object): Contains information about the API usage for this specific request.
+
+**ChatCompletionStreamResponse**
+
+- **id** (*str*, required): A unique identifier for the streaming chat completion session.
+  
+- **choices** (*List[ChatCompletionStreamResponseChoice]*, required): A list of `ChatCompletionStreamResponseChoice` objects, each representing a part of the streaming chat response.
+  
+- **created** (*int*, required, default=current time): The creation time of the streaming response, represented as a UNIX timestamp.
+  
+- **model** (*str*, required): Specifies the model that was used for generating the streaming chat completions.
+  
+- **system_fingerprint** (*str*, required): A unique identifier for the system generating the streaming completions.
+  
+- **object** (*Literal["chat.completion.chunk"]*, required, default="chat.completion.chunk"): A literal indicating that this object represents a chunk of a streaming chat completion.
 
 ------------------------------------------------
 
-**Returns**
-   If ``stream`` is set to ``False``, the response will be a ``ChatCompletionResponse`` object.
-   If ``stream`` is set to ``True``, the response will be a stream of ``ChatCompletionStreamResponse`` objects.
 
 **Example**
 
@@ -187,6 +227,7 @@ Once you have launched the Server, you can use the API in your own program. Belo
    for choice in choices:
       print(f"{choice['message']['content']}\n")
 
+------------------------------------------------
 
 Below is an example of using the API to interact with MLC-Chat in Python with Streaming.
 
@@ -210,6 +251,8 @@ Below is an example of using the API to interact with MLC-Chat in Python with St
          content = response["choices"][0]["delta"].get("content", "")
          print(content, end="", flush=True)
    print("\n")
+
+------------------------------------------------
 
 
 There is also support for function calling similar to OpenAI (https://platform.openai.com/docs/guides/function-calling). Below is an example on how to use function calling in Python.
@@ -256,6 +299,8 @@ There is also support for function calling similar to OpenAI (https://platform.o
    print(f"{r.json()['choices'][0]['message']['tool_calls'][0]['function']}\n")
 
    # Output: {'name': 'get_current_weather', 'arguments': {'location': 'Pittsburgh, PA', 'unit': 'fahrenheit'}}
+
+------------------------------------------------
 
 Function Calling with streaming is also supported. Below is an example on how to use function calling with streaming in Python.
 
@@ -314,144 +359,4 @@ Function Calling with streaming is also supported. Below is an example on how to
    The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.
 
 
-.. http:get:: /chat/reset
-
-   Reset the chat.
-
-.. http:get:: /stats
-
-   Get the latest runtime stats (encode/decode speed).
-
-.. http:get:: /verbose_stats
-
-   Get the verbose runtime stats (encode/decode speed, total runtime).
-
-
-Request Objects
----------------
-
-**ChatMessage**
-
-**role**: *str* (required)
-   The role(author) of the message. It can be either ``user`` or ``assistant``.
-**content**: *str* (required)
-   The content of the message.
-**name**: *str* (optional)
-   The name of the author of the message.
-
-Response Objects
-----------------
-
-**CompletionResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``text.completion``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[CompletionResponseChoice]*
-   A list of choices generated by the model.
-**usage**: *UsageInfo* or *None*
-   The usage information of the model.
-
-------------------------------------------------
-
-**CompletionResponseChoice**
-
-**index**: *int*
-   The index of the choice.
-**text**: *str*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-
-------------------------------------------------
-
-**CompletionStreamResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``text.completion.chunk``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseStreamhoice]*
-   A list of choices generated by the model.
-
-------------------------------------------------
-
-**ChatCompletionResponseStreamChoice**
-
-**index**: *int*
-   The index of the choice.
-**text**: *str*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-------------------------------------------------
-
-**ChatCompletionResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``chat.completion``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseChoice]*
-   A list of choices generated by the model.
-**usage**: *UsageInfo* or *None*
-   The usage information of the model.
-
-------------------------------------------------
-
-**ChatCompletionResponseChoice**
-
-**index**: *int*
-   The index of the choice.
-**message**: *ChatMessage*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-------------------------------------------------
-
-**ChatCompletionStreamResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``chat.completion.chunk``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseStreamhoice]*
-   A list of choices generated by the model.
-
-------------------------------------------------
-
-**ChatCompletionResponseStreamChoice**
-
-**index**: *int*
-   The index of the choice.
-**delta**: *DeltaMessage*
-   The delta message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-------------------------------------------------
-
-
-**DeltaMessage**
-
-**role**: *str*
-   The role(author) of the message. It can be either ``user`` or ``assistant``.
-**content**: *str*
-   The content of the message.
 
