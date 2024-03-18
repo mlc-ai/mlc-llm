@@ -434,23 +434,6 @@ class ModelImpl : public ModelObj {
       LOG(FATAL) << "Key \"vocab_size\" not found.";
     }
 
-    if (config.count("vision_config")) {
-      picojson::object vision_config = config["vision_config"].get<picojson::object>();
-      int image_size = -1;
-      int patch_size = -1;
-      if (vision_config.count("image_size")) {
-        CHECK(vision_config["image_size"].is<int64_t>());
-      } else {
-        LOG(FATAL) << "Key \"image_size\" not found in vision_config.";
-      }
-      if (vision_config.count("patch_size")) {
-        CHECK(vision_config["patch_size"].is<int64_t>());
-      } else {
-        LOG(FATAL) << "Key \"patch_size\" not found in vision_config.";
-      }
-      this->image_embed_size_ = (image_size * image_size) / (patch_size * patch_size);
-    }
-
     return config;
   }
 

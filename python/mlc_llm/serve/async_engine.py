@@ -6,7 +6,7 @@ import asyncio
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Union
 
 import tvm
 
@@ -210,7 +210,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
     async def generate(
         self,
-        prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
+        prompt: Union[str, List[int], Sequence[Union[str, List[int], data.Data]]],
         generation_config: GenerationConfig,
         request_id: str,
     ) -> AsyncGenerator[List[AsyncStreamOutput], Any]:
@@ -238,7 +238,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self._async_event_loop = asyncio.get_event_loop()
 
         def convert_to_data(
-            prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]]
+            prompt: Union[str, List[int], Sequence[Union[str, List[int], data.Data]]]
         ) -> List[data.Data]:
             if isinstance(prompt, data.Data):
                 return [prompt]

@@ -1,11 +1,9 @@
 """The standard conversation protocol in MLC LLM"""
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field, field_validator
-
-from ..serve import data
 
 from ..serve import data
 
@@ -161,6 +159,7 @@ class Conversation(BaseModel):
         Returns:
             List[Union[str, data.ImageData]]: The list of prompts.
         """
+        # TODO: Unify this function with as_prompt() # pylint: disable=fixme
 
         # pylint: disable=import-outside-toplevel
         from ..serve.entrypoints.entrypoint_utils import get_image_from_url

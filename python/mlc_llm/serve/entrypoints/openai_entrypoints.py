@@ -4,7 +4,7 @@
 import ast
 import json
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Optional, Union
+from typing import AsyncGenerator, Dict, List, Optional, Sequence, Union
 
 import fastapi
 
@@ -406,8 +406,8 @@ async def request_chat_completion(
     # - Check prompt length
     async_engine.record_event(request_id, event="start tokenization")
 
-    model_config_path = ServerContext.get_model_config_path(request.model)
-    image_embed_size = entrypoint_utils.get_image_embed_size(model_config_path)
+    model_config = ServerContext.get_model_config(request.model)
+    image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
 
     if content_has_list:
         prompts = entrypoint_utils.process_prompts(
@@ -425,7 +425,7 @@ async def request_chat_completion(
     if error is not None:
         return error
 
-    prompt: List[Union[List[int], data.ImageData]] = prompts
+    prompt: Sequence[Union[List[int], data.ImageData]] = prompts
 
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(
@@ -440,7 +440,7 @@ async def request_chat_completion(
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
             async_engine.record_event(request_id, event="invoke generate")
             finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
-            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):  # type: ignore # pylint: disable=line-too-long
+            async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
                 assert len(delta_outputs) == generation_cfg.n
                 choices = []
                 for i, delta_output in enumerate(delta_outputs):
@@ -503,7 +503,7 @@ async def request_chat_completion(
         [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
     )
     async_engine.record_event(request_id, event="invoke generate")
-    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):  # type: ignore # pylint: disable=line-too-long
+    async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
