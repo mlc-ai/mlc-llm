@@ -818,7 +818,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
                 [
                     ChatCompletionMessage(role="user", content="Hello, how are you?"),
-                    ChatCompletionMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatCompletionMessage(role="assistant", \
+                        content="I'm fine, thank you. How about you?"),
                     ChatCompletionMessage(role="user", content="I'm good too."),
                 ]
         generation_config: Optional[GenerationConfig]
@@ -1040,7 +1041,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
                 [
                     ChatCompletionMessage(role="user", content="Hello, how are you?"),
-                    ChatCompletionMessage(role="assistant", content="I'm fine, thank you. How about you?"),
+                    ChatCompletionMessage(role="assistant", \
+                        content="I'm fine, thank you. How about you?"),
                     ChatCompletionMessage(role="user", content="I'm good too."),
                 ]
         decode_next_token : bool
