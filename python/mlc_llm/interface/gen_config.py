@@ -77,6 +77,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
 
 
 def check_string(s: str) -> bool:
+    """Check whether it's a string."""
     delimit = s[1]
     if s[0] != "b" or s[-1] != delimit:
         return False
