@@ -251,7 +251,7 @@ def _build_default():
     return build
 
 
-def detect_cuda_arch_list(target: Target) -> List[int]:
+def detect_cuda_arch_list(target: Target) -> List[str]:
     """Detect the CUDA architecture list from the target."""
     assert target.kind.name == "cuda", f"Expect target to be CUDA, but got {target}"
     if MLC_MULTI_ARCH is not None:
