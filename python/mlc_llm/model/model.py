@@ -307,7 +307,7 @@ MODELS: Dict[str, Model] = {
             "group-quant": llava_quantization.group_quant,
             "no-quant": llava_quantization.no_quant,
             "awq": llava_quantization.awq_quant,
-        }
+        },
     ),
     "rwkv6": Model(
         name="rwkv6",
