@@ -136,7 +136,8 @@ class Conversation(BaseModel):
                 assert isinstance(content, str)
                 role_prefix = (
                     ""
-                    # Do not append role prefix if this is the first message and there is already a system message
+                    # Do not append role prefix if this is the first message and there
+                    # is already a system message
                     if (not self.add_role_after_system_message and system_msg != "" and i == 0)
                     else self.roles[role] + self.role_content_sep
                 )
@@ -179,14 +180,14 @@ class Conversation(BaseModel):
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
         )
-        if system_msg != "":
-            system_msg += separators[0]
 
         # - Get the message strings.
         message_list: List[Union[str, data.ImageData]] = []
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
+        if system_msg != "":
+            system_msg += separators[0]
         message_list.append(system_msg)
         for role, content in self.messages:  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():

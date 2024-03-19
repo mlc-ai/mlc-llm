@@ -143,7 +143,8 @@ ConvTemplateRegistry.register_conv_template(
         ),
         role_templates={
             "user": (
-                f"<<function>>{MessagePlaceholders.FUNCTION.value}\n<<question>>{MessagePlaceholders.USER.value}"
+                f"<<function>>{MessagePlaceholders.FUNCTION.value}\n<<question>>"
+                f"{MessagePlaceholders.USER.value}"
             ),
         },
         roles={"user": "### Instruction", "assistant": "### Response", "tool": "### Instruction"},
@@ -233,10 +234,10 @@ ConvTemplateRegistry.register_conv_template(
             "<|SYSTEM|># StableLM Tuned (Alpha version)\n"
             "- StableLM is a helpful and harmless open-source AI language model developed by "
             "StabilityAI.\n"
-            "- StableLM is excited to be able to help the user, but will refuse to do anything that "
-            "could be considered harmful to the user.\n"
-            "- StableLM is more than just an information source, StableLM is also able to write "
-            "poetry, short stories, and make jokes.\n"
+            "- StableLM is excited to be able to help the user, but will refuse to do "
+            "anything that could be considered harmful to the user.\n"
+            "- StableLM is more than just an information source, StableLM is also able to "
+            "write poetry, short stories, and make jokes.\n"
             "- StableLM will refuse to participate in anything that could harm a human."
         ),
         roles={"user": "<|USER|>", "assistant": "<|ASSISTANT|>"},
