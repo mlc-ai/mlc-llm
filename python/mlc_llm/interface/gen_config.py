@@ -2,9 +2,8 @@
 
 import dataclasses
 import json
-import shutil
 import re
-import msgpack
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -77,7 +76,7 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
                 logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
-def txt2rwkvt(vocab: Path, out: Path) -> None:
+def txt2rwkv_tokenizer(vocab: Path, out: Path) -> None:
     """Generate tokenizer_model from RWKV vocab file."""
     idx2token = {}
 
@@ -93,10 +92,12 @@ def txt2rwkvt(vocab: Path, out: Path) -> None:
         idx2token[idx] = x
 
     with (out / "tokenizer_model").open("wb") as f:
+        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+
         msgpack.pack(idx2token, f)
 
 
-def json2rwkvt(vocab: Path, out: Path) -> None:
+def json2rwkv_tokenizer(vocab: Path, out: Path) -> None:
     """Generate tokenizer_model from RWKV vocab file."""
     idx2token = {}
 
@@ -108,6 +109,8 @@ def json2rwkvt(vocab: Path, out: Path) -> None:
             idx2token[int(value)] = x
 
     with (out / "tokenizer_model").open("wb") as f:
+        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+
         msgpack.pack(idx2token, f)
 
 
@@ -189,9 +192,9 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
                 "%s RWKV vocab file: %s. Genetating %s", FOUND, item, bold("tokenizer_model")
             )
             if item.name.endswith(".txt"):
-                txt2rwkvt(item, output)
+                txt2rwkv_tokenizer(item, output)
             else:
-                json2rwkvt(item, output)
+                json2rwkv_tokenizer(item, output)
     # 3.3. If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
     # `tokenizer.json` with `transformers`.
     tokenizer_json_file = config.parent / "tokenizer.json"
