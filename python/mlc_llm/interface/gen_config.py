@@ -76,6 +76,16 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
                 logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
+def check_string(s: str) -> bool:
+    delimit = s[1]
+    if s[0] != "b" or s[-1] != delimit:
+        return False
+    for i in range(2, len(s) - 1):
+        if s[i] == delimit and s[i - 1] != "\\":
+            return False
+    return True
+
+
 def txt2rwkv_tokenizer(vocab: Path, out: Path) -> None:
     """Generate tokenizer_model from RWKV vocab file."""
     idx2token = {}
@@ -85,11 +95,15 @@ def txt2rwkv_tokenizer(vocab: Path, out: Path) -> None:
 
     for l in lines:
         idx = int(l[: l.index(" ")])
-        x = eval(l[l.index(" ") : l.rindex(" ")])
-        x = x.encode("utf-8") if isinstance(x, str) else x
-        assert isinstance(x, bytes)
-        assert len(x) == int(l[l.rindex(" ") :])
-        idx2token[idx] = x
+        raw = l[l.index(" ") : l.rindex(" ")].strip()
+        if check_string(raw):
+            x = eval(raw)  # pylint: disable=eval-used
+            x = x.encode("utf-8") if isinstance(x, str) else x
+            assert isinstance(x, bytes)
+            assert len(x) == int(l[l.rindex(" ") :])
+            idx2token[idx] = x
+        else:
+            raise ValueError("Unsupported vocab dictionary")
 
     with (out / "tokenizer_model").open("wb") as f:
         import msgpack  # pylint: disable=import-outside-toplevel,import-error
