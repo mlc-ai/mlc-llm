@@ -194,7 +194,7 @@ inline std::string GrammarStateMatcherBase::PrintStackState(int steps_behind_lat
 inline void GrammarStateMatcherBase::InitStackState(RulePosition init_rule_position) {
   if (init_rule_position == kInvalidRulePosition) {
     // Initialize the stack with the main rule.
-    auto main_rule = grammar_->GetRule(0);
+    auto main_rule = grammar_->GetMainRule();
     auto main_rule_body = grammar_->GetRuleExpr(main_rule.body_expr_id);
     std::vector<int32_t> new_stack_tops;
     for (auto i : main_rule_body) {

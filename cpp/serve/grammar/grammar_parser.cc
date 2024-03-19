@@ -16,7 +16,7 @@ namespace serve {
 class EBNFParserImpl {
  public:
   /*! \brief The logic of parsing the grammar string. */
-  BNFGrammar DoParse(String ebnf_string);
+  BNFGrammar DoParse(String ebnf_string, String main_rule);
 
  private:
   using Rule = BNFGrammarNode::Rule;
@@ -391,7 +391,7 @@ void EBNFParserImpl::ResetStringIterator(const char* cur) {
   in_parentheses_ = false;
 }
 
-BNFGrammar EBNFParserImpl::DoParse(String ebnf_string) {
+BNFGrammar EBNFParserImpl::DoParse(String ebnf_string, String main_rule) {
   ResetStringIterator(ebnf_string.c_str());
   BuildRuleNameToId();
 
@@ -404,16 +404,17 @@ BNFGrammar EBNFParserImpl::DoParse(String ebnf_string) {
     ConsumeSpace();
   }
 
-  if (builder_.GetRuleId("main") == -1) {
-    ThrowParseError("There must be a rule named \"main\"");
+  // Check that the main rule is defined
+  if (builder_.GetRuleId(main_rule) == -1) {
+    ThrowParseError("The main rule with name \"" + main_rule + "\" is not found.");
   }
 
-  return builder_.Get();
+  return builder_.Get(main_rule);
 }
 
-BNFGrammar EBNFParser::Parse(String ebnf_string) {
+BNFGrammar EBNFParser::Parse(String ebnf_string, String main_rule) {
   EBNFParserImpl parser;
-  return parser.DoParse(ebnf_string);
+  return parser.DoParse(ebnf_string, main_rule);
 }
 
 BNFGrammar BNFJSONParser::Parse(String json_string) {

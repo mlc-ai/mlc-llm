@@ -152,9 +152,9 @@ class RulePositionTree {
   }
 
   /*!
-   * \brief Check if the given RulePosition points to the end of the grammar. We use
-   * (main_rule_id, sequence_id, length_of_sequence) to represent the end position. Here the
-   * element_id is the length of the sequence.
+   * \brief Check if the given RulePosition points to the end of the grammar. For a position, if its
+   * rule id is the main rule id, and the element id equals to the length of the sequence it refers
+   * to, it would be the end position.
    */
   bool IsEndPosition(const RulePosition& rule_position) const;
 
@@ -187,7 +187,10 @@ class RulePositionTree {
     return node_buffer_[id];
   }
 
-  /*! \brief Print the node with the given id to a string. */
+  /*! \brief Print the given rule_position to a string. */
+  std::string PrintNode(const RulePosition& rule_position) const;
+
+  /*! \brief Print the rule_position associated with the given id to a string. */
   std::string PrintNode(int32_t id) const;
 
   /*! \brief Print the stack with the given top id to a string. */
@@ -323,10 +326,13 @@ inline bool RulePositionTree::IsEndPosition(const RulePosition& rule_position) c
 }
 
 inline std::string RulePositionTree::PrintNode(int32_t id) const {
+  return "id: " + std::to_string(id) + ", " + PrintNode(node_buffer_[id]);
+}
+
+inline std::string RulePositionTree::PrintNode(const RulePosition& rule_position) const {
   std::stringstream ss;
-  const auto& rule_position = node_buffer_[id];
-  ss << "id: " << id;
-  ss << ", rule " << rule_position.rule_id << ": " << grammar_->GetRule(rule_position.rule_id).name;
+  ss << "RulePosition: rule " << rule_position.rule_id << ": "
+     << grammar_->GetRule(rule_position.rule_id).name;
   ss << ", sequence " << rule_position.sequence_id << ": "
      << BNFGrammarPrinter(grammar_).PrintRuleExpr(rule_position.sequence_id);
   ss << ", element id: " << rule_position.element_id;
