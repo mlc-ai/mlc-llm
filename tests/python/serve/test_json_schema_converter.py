@@ -1,9 +1,9 @@
 import json
 from enum import Enum
-from typing import Any, Dict, List, Literal, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm.testing
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, Field, TypeAdapter
 
 from mlc_llm.serve.grammar import BNFGrammar, GrammarStateMatcher
 from mlc_llm.serve.json_schema_converter import json_schema_to_ebnf
@@ -58,7 +58,7 @@ def check_schema_with_instance(
     separators: Union[Tuple[str, str], None] = None,
     strict_mode: bool = True,
 ):
-    instance_obj = instance.model_dump(round_trip=True)
+    instance_obj = instance.model_dump(mode="json", round_trip=True)
     instance_str = json.dumps(instance_obj, indent=indent, separators=separators)
     check_schema_with_json(schema, instance_str, check_accepted, indent, separators, strict_mode)
 
@@ -82,37 +82,32 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" | "") "}"
-main_any_array_field ::= "[" ("" | "\n    " basic_any ("\n    ," basic_any)*) "]"
-main_array_field ::= "[" ("" | "\n    " basic_string ("\n    ," basic_string)*) "]"
-main_tuple_field_2 ::= "[" ("" | "\n      " basic_string ("\n      ," basic_string)*) "]"
-main_tuple_field ::= "[" "\n    " basic_string "\n    ," basic_integer "\n    ," main_tuple_field_2 ("" | "\n    ," basic_any ("\n    ," basic_any)*) "]"
-main_object_field ::= "{" ("\n    " basic_string ": " basic_integer ("\n    ," basic_string ": " basic_integer)* "\n" | "") "}"
-main_nested_object_field_add ::= "{" ("\n      " basic_string ": " basic_integer ("\n      ," basic_string ": " basic_integer)* "\n" | "") "}"
-main_nested_object_field ::= "{" ("\n    " basic_string ": " main_nested_object_field_add ("\n    ," basic_string ": " main_nested_object_field_add)* "\n" | "") "}"
-main ::= "{" "\n  " "\"integer_field\"" ": " basic_integer "\n  ," "\"number_field\"" ": " basic_number "\n  ," "\"boolean_field\"" ": " basic_boolean "\n  ," "\"any_array_field\"" ": " main_any_array_field "\n  ," "\"array_field\"" ": " main_array_field "\n  ," "\"tuple_field\"" ": " main_tuple_field "\n  ," "\"object_field\"" ": " main_object_field "\n  ," "\"nested_object_field\"" ": " main_nested_object_field ("\n  ," basic_string ": " basic_any)* "\n" "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+main_any_array_field ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+main_array_field ::= "[" ("" | "" basic_string (", " basic_string)* "") "]"
+main_tuple_field_2 ::= "[" ("" | "" basic_string (", " basic_string)* "") "]"
+main_tuple_field ::= "[" "" basic_string ", " basic_integer ", " main_tuple_field_2 "" "]"
+main_object_field ::= "{" ("" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" | "") "}"
+main_nested_object_field_add ::= "{" ("" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" | "") "}"
+main_nested_object_field ::= "{" ("" basic_string ": " main_nested_object_field_add (", " basic_string ": " main_nested_object_field_add)* "" | "") "}"
+main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" ": " basic_number ", " "\"boolean_field\"" ": " basic_boolean ", " "\"any_array_field\"" ": " main_any_array_field ", " "\"array_field\"" ": " main_array_field ", " "\"tuple_field\"" ": " main_tuple_field ", " "\"object_field\"" ": " main_object_field ", " "\"nested_object_field\"" ": " main_nested_object_field "" "}"
 """
 
     instance = MainModel(
         integer_field=42,
         number_field=3.14e5,
         boolean_field=True,
-        any_array_field=[3.14, "foo", [None, True]],
+        any_array_field=[3.14, "foo", None, True],
         array_field=["foo", "bar"],
         tuple_field=("foo", 42, ["bar", "baz"]),
         object_field={"foo": 42, "bar": 43},
         nested_object_field={"foo": {"bar": 42}},
     )
 
-    check_schema_with_grammar(
-        MainModel.model_json_schema(), ebnf_grammar, indent=2, strict_mode=False
-    )
-    check_schema_with_instance(MainModel.model_json_schema(), instance, indent=2, strict_mode=False)
-
-
-test_basic()
-exit()
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
+    check_schema_with_instance(schema, instance)
 
 
 def test_indent():
@@ -129,31 +124,70 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" | "" basic_string ":" basic_any ("," basic_string ":" basic_any)*) "}"
-main_any_array_field ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-main_array_field ::= "[" ("" | "" basic_string ("," basic_string)*) "]"
-main_tuple_field_2 ::= "[" ("" | "" basic_string ("," basic_string)*) "]"
-main_tuple_field ::= "[" "" basic_string "," basic_integer "," main_tuple_field_2 ("" | "," basic_any ("," basic_any)*) "]"
-main_object_field ::= "{" ("" | "" basic_string ":" basic_integer ("," basic_string ":" basic_integer)*) "}"
-main_nested_object_field_add ::= "{" ("" | "" basic_string ":" basic_integer ("," basic_string ":" basic_integer)*) "}"
-main_nested_object_field ::= "{" ("" | "" basic_string ":" main_nested_object_field_add ("," basic_string ":" main_nested_object_field_add)*) "}"
-main ::= "{" "" "\"integer_field\"" ":" basic_integer "," "\"number_field\"" ":" basic_number "," "\"boolean_field\"" ":" basic_boolean "," "\"any_array_field\"" ":" main_any_array_field "," "\"array_field\"" ":" main_array_field "," "\"tuple_field\"" ":" main_tuple_field "," "\"object_field\"" ":" main_object_field "," "\"nested_object_field\"" ":" main_nested_object_field ("" | "," basic_string ":" basic_any ("," basic_string ":" basic_any)*) "}"
+basic_array ::= "[" ("" | "" basic_any ("," basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" | "") "}"
+main_array_field ::= "[" ("" | "\n    " basic_string (",\n    " basic_string)* "\n  ") "]"
+main_tuple_field_2 ::= "[" ("" | "\n      " basic_string (",\n      " basic_string)* "\n    ") "]"
+main_tuple_field ::= "[" "\n    " basic_string ",\n    " basic_integer ",\n    " main_tuple_field_2 "\n  " "]"
+main_object_field ::= "{" ("\n    " basic_string ": " basic_integer (",\n    " basic_string ": " basic_integer)* "\n  " | "") "}"
+main ::= "{" "\n  " "\"array_field\"" ": " main_array_field ",\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"object_field\"" ": " main_object_field "\n" "}"
 """
 
     instance = MainModel(
-        integer_field=42,
-        number_field=3.14e5,
-        boolean_field=True,
-        any_array_field=[3.14, "foo", [None, True]],
         array_field=["foo", "bar"],
         tuple_field=("foo", 42, ["bar", "baz"]),
         object_field={"foo": 42, "bar": 43},
-        nested_object_field={"foo": {"bar": 42}},
     )
 
-    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar, indent=2)
+    check_schema_with_instance(schema, instance, indent=2)
+    check_schema_with_instance(schema, instance, indent=None, separators=(",", ":"))
+
+
+def test_non_strict():
+    class Foo(BaseModel):
+        pass
+
+    class MainModel(BaseModel):
+        tuple_field: Tuple[str, Tuple[int, int]]
+        foo_field: Foo
+
+    ebnf_grammar = r"""basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= "[" ("" | "" basic_any ("," basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" | "") "}"
+main_tuple_field_1 ::= "[" "\n      " basic_integer ",\n      " basic_integer ("" | (",\n      " basic_any)*) "\n    " "]"
+main_tuple_field ::= "[" "\n    " basic_string ",\n    " main_tuple_field_1 ("" | (",\n    " basic_any)*) "\n  " "]"
+main_foo_field ::= "{" ("\n    " basic_string ": " basic_any (",\n    " basic_string ": " basic_any)* "\n  " | "") "}"
+main ::= "{" "\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"foo_field\"" ": " main_foo_field (",\n  " basic_string ": " basic_any)* "\n" "}"
+"""
+
+    instance_json = """{
+  "tuple_field": [
+    "foo",
+    [
+      12,
+      13,
+      "ext"
+    ],
+    "extra"
+  ],
+  "foo_field": {
+    "tmp": "str"
+  },
+  "extra": "field"
+}"""
+
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar, indent=2, strict_mode=False)
+    check_schema_with_json(schema, instance_json, indent=2, strict_mode=False)
 
 
 def test_enum_const():
@@ -176,20 +210,20 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" | "" basic_string ":" basic_any ("," basic_string ":" basic_any)*) "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
 main_bars ::= "\"a\""
 main_str_values ::= "\"a\\n\\r\\\"\""
 main_foo ::= ("\"a\"") | ("\"b\"") | ("\"c\"")
 main_values ::= ("1") | ("\"a\"") | ("true")
 main_field ::= ("\"foo\"") | ("\"bar\"")
-main ::= "{" "" "\"bars\"" ":" main_bars "," "\"str_values\"" ":" main_str_values "," "\"foo\"" ":" main_foo "," "\"values\"" ":" main_values "," "\"field\"" ":" main_field ("" | "," basic_string ":" basic_any ("," basic_string ":" basic_any)*) "}"
+main ::= "{" "" "\"bars\"" ": " main_bars ", " "\"str_values\"" ": " main_str_values ", " "\"foo\"" ": " main_foo ", " "\"values\"" ": " main_values ", " "\"field\"" ": " main_field "" "}"
 """
 
+    schema = MainModel.model_json_schema()
     instance = MainModel(foo="a", values=1, bars="a", str_values='a\n\r"', field=Field.FOO)
-
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
-    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
+    check_schema_with_grammar(schema, ebnf_grammar)
+    check_schema_with_instance(schema, instance)
 
 
 def test_optional():
@@ -207,24 +241,25 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" basic_string ":" basic_any ("," basic_string ":" basic_any)* "" | "") "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
 main_opt_bool ::= basic_boolean | basic_null
 main_size ::= basic_number | basic_null
-main ::= "{" "" ("\"num\"" ":" basic_integer ",")? ("\"opt_bool\"" ":" main_opt_bool ",")? "\"size\"" ":" main_size ("," "\"name\"" ":" basic_string)? ("," basic_string ":" basic_any)* "" "}"
+main ::= "{" "" ("\"num\"" ": " basic_integer ", ")? ("\"opt_bool\"" ": " main_opt_bool ", ")? "\"size\"" ": " main_size (", " "\"name\"" ": " basic_string)? "" "}"
 """
 
-    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
 
     instance = MainModel(num=42, opt_bool=True, size=3.14, name="foo")
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    check_schema_with_instance(schema, instance)
 
     instance = MainModel(size=None)
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    check_schema_with_instance(schema, instance)
 
-    check_schema_with_json(MainModel.model_json_schema(), '{"size":null}')
-    check_schema_with_json(MainModel.model_json_schema(), '{"size":null,"name":"foo"}')
-    check_schema_with_json(MainModel.model_json_schema(), '{"num":1,"size":null,"name":"foo"}')
+    check_schema_with_json(schema, '{"size": null}')
+    check_schema_with_json(schema, '{"size": null, "name": "foo"}')
+    check_schema_with_json(schema, '{"num": 1, "size": null, "name": "foo"}')
 
 
 def test_all_optional():
@@ -241,22 +276,42 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" basic_string ":" basic_any ("," basic_string ":" basic_any)* "" | "") "}"
-main_sub_2 ::= ("" | "," basic_string ":" basic_any ("," basic_string ":" basic_any)*)
-main_sub_1 ::= main_sub_2 | "," "\"num\"" ":" basic_number main_sub_2
-main_sub_0 ::= main_sub_1 | "," "\"state\"" ":" basic_boolean main_sub_1
-main ::= "{" ("" (("\"size\"" ":" basic_integer main_sub_0) | ("\"state\"" ":" basic_boolean main_sub_1) | ("\"num\"" ":" basic_number main_sub_2) | basic_string ":" basic_any main_sub_2) ""| "") "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+main_sub_1 ::= "" | ", " "\"num\"" ": " basic_number ""
+main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
+main ::= "{" ("" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number "")) "" | "") "}"
 """
 
-    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
 
     instance = MainModel(size=42, state=True, num=3.14)
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    check_schema_with_instance(schema, instance)
 
-    check_schema_with_json(MainModel.model_json_schema(), '{"state":false}')
-    check_schema_with_json(MainModel.model_json_schema(), '{"size":1,"num":1.5}')
-    check_schema_with_json(MainModel.model_json_schema(), '{"other":null}')
+    check_schema_with_json(schema, '{"state": false}')
+    check_schema_with_json(schema, '{"size": 1, "num": 1.5}')
+
+    ebnf_grammar_non_strict = r"""basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+main_sub_2 ::= ("" | ", " basic_string ": " basic_any (", " basic_string ": " basic_any)*)
+main_sub_1 ::= main_sub_2 | ", " "\"num\"" ": " basic_number main_sub_2
+main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
+main ::= "{" ("" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number main_sub_2) | basic_string ": " basic_any main_sub_2) "" | "") "}"
+"""
+
+    check_schema_with_grammar(schema, ebnf_grammar_non_strict, strict_mode=False)
+
+    check_schema_with_json(schema, '{"size": 1, "num": 1.5, "other": false}', strict_mode=False)
+    check_schema_with_json(schema, '{"other": false}', strict_mode=False)
 
 
 def test_reference():
@@ -285,19 +340,19 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" basic_string ":" basic_any ("," basic_string ":" basic_any)* "" | "") "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
 main_foo_size ::= basic_number | basic_null
-main_foo ::= "{" "" "\"count\"" ":" basic_integer ("," "\"size\"" ":" main_foo_size)? ("," basic_string ":" basic_any)* "" "}"
-main_bars_item_sub_1 ::= ("" | "," basic_string ":" basic_any ("," basic_string ":" basic_any)*)
-main_bars_item_sub_0 ::= main_bars_item_sub_1 | "," "\"banana\"" ":" basic_string main_bars_item_sub_1
-main_bars_item ::= "{" ("" (("\"apple\"" ":" basic_string main_bars_item_sub_0) | ("\"banana\"" ":" basic_string main_bars_item_sub_1) | basic_string ":" basic_any main_bars_item_sub_1) ""| "") "}"
-main_bars ::= "[" ("" | "" main_bars_item ("," main_bars_item)*) "]"
-main ::= "{" "" "\"foo\"" ":" main_foo "," "\"bars\"" ":" main_bars ("," basic_string ":" basic_any)* "" "}"
+main_foo ::= "{" "" "\"count\"" ": " basic_integer (", " "\"size\"" ": " main_foo_size)? "" "}"
+main_bars_item_sub_0 ::= "" | ", " "\"banana\"" ": " basic_string ""
+main_bars_item ::= "{" ("" (("\"apple\"" ": " basic_string main_bars_item_sub_0) | ("\"banana\"" ": " basic_string "")) "" | "") "}"
+main_bars ::= "[" ("" | "" main_bars_item (", " main_bars_item)* "") "]"
+main ::= "{" "" "\"foo\"" ": " main_foo ", " "\"bars\"" ": " main_bars "" "}"
 """
 
-    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
-    check_schema_with_instance(MainModel.model_json_schema(), instance)
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
+    check_schema_with_instance(schema, instance)
 
 
 def test_union():
@@ -321,10 +376,10 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)*) "]"
-basic_object ::= "{" ("" basic_string ":" basic_any ("," basic_string ":" basic_any)* "" | "") "}"
-main_0 ::= "{" "" "\"name\"" ":" basic_string "," "\"color\"" ":" basic_string ("," basic_string ":" basic_any)* "" "}"
-main_1 ::= "{" "" "\"name\"" ":" basic_string "," "\"breed\"" ":" basic_string ("," basic_string ":" basic_any)* "" "}"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+main_0 ::= "{" "" "\"name\"" ": " basic_string ", " "\"color\"" ": " basic_string "" "}"
+main_1 ::= "{" "" "\"name\"" ": " basic_string ", " "\"breed\"" ": " basic_string "" "}"
 main ::= main_0 | main_1
 """
 
@@ -332,10 +387,35 @@ main ::= main_0 | main_1
 
     check_schema_with_instance(model_schema, Cat(name="kitty", color="black"))
     check_schema_with_instance(model_schema, Dog(name="doggy", breed="bulldog"))
-    check_schema_with_json(model_schema, '{"name":"kitty","test":"black"}', False)
+    check_schema_with_json(model_schema, '{"name": "kitty", "test": "black"}', False)
 
 
-test_union()
-exit()
+def test_alias():
+    class MainModel(BaseModel):
+        test: str = Field(..., alias="name")
+
+    ebnf_grammar = r"""basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
+basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+main ::= "{" "" "\"name\"" ": " basic_string "" "}"
+"""
+
+    check_schema_with_grammar(MainModel.model_json_schema(), ebnf_grammar)
+
+    instance = MainModel(name="kitty")
+    instance_str = json.dumps(instance.model_dump(mode="json", round_trip=True, by_alias=False))
+    check_schema_with_json(MainModel.model_json_schema(by_alias=False), instance_str)
+
+    instance_str = json.dumps(instance.model_dump(mode="json", round_trip=True, by_alias=True))
+    check_schema_with_json(MainModel.model_json_schema(by_alias=True), instance_str)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

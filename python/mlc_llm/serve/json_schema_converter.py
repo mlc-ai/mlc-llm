@@ -23,19 +23,19 @@ class IndentManager:
         self.is_first.pop()
 
     def get_sep(self, is_end: bool = False) -> str:
-        if is_end:
-            return f'"\\n"' if self.enable_newline else ""
-
         res = ""
 
-        if not self.is_first[-1]:
+        if not self.is_first[-1] and not is_end:
             res += self.separator
         self.is_first[-1] = False
 
         if self.enable_newline:
             res += "\\n"
 
-        res += self.total_indent * " "
+        if not is_end:
+            res += self.total_indent * " "
+        else:
+            res += (self.total_indent - self.indent) * " "
 
         return f'"{res}"'
 
@@ -317,24 +317,40 @@ class JSONSchemaToEBNFConverter:
         res = '"["'
 
         with self.indent_manager:
+            have_prefix_items = False
             if "prefixItems" in schema:
                 for i, prefix_item in enumerate(schema["prefixItems"]):
                     assert prefix_item is not False
                     res += " " + self.get_partial_rule_for_item(prefix_item, f"{rule_name}_{i}")
+                    have_prefix_items = True
+
+            additional_item = None
+            additional_suffix = ""
 
             items = schema.get("items", False)
             if items is not False:
-                res += " " + self.get_partial_rule_for_repetitive_item(
-                    schema["items"], f"{rule_name}_item"
-                )
+                additional_item = items
+                additional_suffix = "item"
 
-            unevaluated = schema.get("unevaluatedItems", not self.strict_mode)
             # if items is in the schema, we don't need to consider unevaluatedItems
+            unevaluated = schema.get("unevaluatedItems", not self.strict_mode)
             if "items" not in schema and unevaluated is not False:
-                rest_schema = schema.get("unevaluatedItems", True)
-                res += " " + self.get_partial_rule_for_repetitive_item(
-                    rest_schema, f"{rule_name}_rest"
+                additional_item = unevaluated
+                additional_suffix = "uneval"
+
+            if additional_item is None:
+                res += f" {self.get_sep(is_end=True)}"
+            else:
+                additional_pattern = self.create_rule_with_schema(
+                    additional_item, f"{rule_name}_{additional_suffix}"
                 )
+                if have_prefix_items:
+                    res += f' ("" | ({self.get_sep()} {additional_pattern})*) {self.get_sep(is_end=True)}'
+                else:
+                    res += (
+                        f' ("" | {self.get_sep()} {additional_pattern} ({self.get_sep()} '
+                        f"{additional_pattern})* {self.get_sep(is_end=True)})"
+                    )
 
         res += ' "]"'
         return res
@@ -342,10 +358,6 @@ class JSONSchemaToEBNFConverter:
     def get_partial_rule_for_item(self, schema: SchemaType, sub_rule_name: str) -> str:
         item = self.create_rule_with_schema(schema, sub_rule_name)
         return f"{self.get_sep()} {item}"
-
-    def get_partial_rule_for_repetitive_item(self, schema: SchemaType, sub_rule_name: str) -> str:
-        item = self.create_rule_with_schema(schema, sub_rule_name)
-        return f'("" | {self.get_sep()} {item} ({self.get_sep()} {item})*)'
 
     def visit_object(self, schema: SchemaType, rule_name: str) -> str:
         assert schema["type"] == "object"
@@ -446,12 +458,11 @@ class JSONSchemaToEBNFConverter:
             last_rule_body = (
                 f'("" | {mid_sep} {additional_prop_pattern} ({mid_sep} {additional_prop_pattern})*)'
             )
+            last_rule_name = f"{rule_name}_sub_{len(properties)-1}"
+            self.rules.append((last_rule_name, last_rule_body))
+            rule_names[-1] = last_rule_name
         else:
-            last_rule_body = '""'
-
-        last_rule_name = f"{rule_name}_sub_{len(properties)-1}"
-        self.rules.append((last_rule_name, last_rule_body))
-        rule_names[-1] = last_rule_name
+            rule_names[-1] = '""'
 
         for i in reversed(range(0, len(properties) - 1)):
             prop_pattern = prop_patterns[i + 1]
@@ -469,7 +480,7 @@ class JSONSchemaToEBNFConverter:
         if additional is not None:
             res += f" | {additional_prop_pattern} {rule_names[-1]}"
 
-        res = f'({first_sep} ({res}) {last_sep}| "")'
+        res = f'({first_sep} ({res}) {last_sep} | "")'
         return res
 
     def get_partial_rule_for_properties_contain_required(
