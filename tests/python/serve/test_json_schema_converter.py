@@ -17,12 +17,9 @@ def check_schema_with_grammar(
     strict_mode: bool = True,
 ):
     schema_str = json.dumps(schema, indent=2)
-    print(schema_str)
     grammar = json_schema_to_ebnf(
         schema_str, indent=indent, separators=separators, strict_mode=strict_mode
     )
-    print(grammar)
-    print(expected_grammar)
     assert grammar == expected_grammar
 
 
@@ -41,8 +38,6 @@ def check_schema_with_json(
     )
     ebnf_grammar = BNFGrammar.from_ebnf_string(ebnf_grammar_str)
     matcher = GrammarStateMatcher(ebnf_grammar)
-
-    print("json str:", json_str)
 
     if check_accepted:
         assert matcher.debug_match_complete_string(json_str)
