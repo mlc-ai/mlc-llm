@@ -269,13 +269,13 @@ def _register_cuda_hook(target: Target):
         logger.info("Generating code for CUDA architecture: %s", bold(default_arch))
         logger.info(
             "To produce multi-arch fatbin, set environment variable %s. "
-            "Example: MLC_MULTI_ARCH=70,72,75,80,86,87,89,90",
+            "Example: MLC_MULTI_ARCH=70,72,75,80,86,87,89,90a",
             bold("MLC_MULTI_ARCH"),
         )
         multi_arch = None
     else:
         logger.info("%s %s: %s", FOUND, bold("MLC_MULTI_ARCH"), MLC_MULTI_ARCH)
-        multi_arch = [int(x.strip()) for x in MLC_MULTI_ARCH.split(",")]
+        multi_arch = [x.strip() for x in MLC_MULTI_ARCH.split(",")]
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
     @register_func("tvm_callback_cuda_compile", override=True)
