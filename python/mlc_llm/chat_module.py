@@ -24,7 +24,7 @@ from mlc_llm.support.config import ConfigBase
 from . import base as _
 
 if TYPE_CHECKING:
-    from mlc_llm.interface.openai_api import ChatMessage
+    from mlc_llm.protocol.openai_api_protocol import ChatCompletionMessage
 
 # pylint: disable=line-too-long
 _PYTHON_GET_STARTED_TUTORIAL_URL = "https://github.com/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb"
@@ -798,7 +798,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def generate(
         self,
-        prompt: Union[str, List["ChatMessage"]],
+        prompt: Union[str, List["ChatCompletionMessage"]],
         generation_config: Optional[GenerationConfig] = None,
         progress_callback=None,
         stateless=False,
@@ -809,7 +809,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        prompt: Union[str, List[ChatMessage]]
+        prompt: Union[str, List[ChatCompletionMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
             eg:
@@ -817,9 +817,10 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             .. code::
 
                 [
-                    ChatMessage(role="user", content="Hello, how are you?"),
-                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                    ChatMessage(role="user", content="I'm good too."),
+                    ChatCompletionMessage(role="user", content="Hello, how are you?"),
+                    ChatCompletionMessage(role="assistant", \
+                        content="I'm fine, thank you. How about you?"),
+                    ChatCompletionMessage(role="user", content="I'm good too."),
                 ]
         generation_config: Optional[GenerationConfig]
             The generation config object to override the ChatConfig generation settings.
@@ -1021,7 +1022,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
     def _prefill(
         self,
-        input: Union[str, List["ChatMessage"]],  # pylint: disable=redefined-builtin
+        input: Union[str, List["ChatCompletionMessage"]],  # pylint: disable=redefined-builtin
         decode_next_token: bool = True,
         place_in_prompt: PlaceInPrompt = PlaceInPrompt.All,
         generation_config: Optional[GenerationConfig] = None,
@@ -1031,7 +1032,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
         Parameters
         ----------
-        input : Union[str, List[ChatMessage]]
+        input : Union[str, List[ChatCompletionMessage]]
             The user input prompt, i.e. a question to ask the chat module.
             It can also be the whole conversation history (list of messages with role and content)
             eg:
@@ -1039,9 +1040,10 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             .. code::
 
                 [
-                    ChatMessage(role="user", content="Hello, how are you?"),
-                    ChatMessage(role="assistant", content="I'm fine, thank you. How about you?"),
-                    ChatMessage(role="user", content="I'm good too."),
+                    ChatCompletionMessage(role="user", content="Hello, how are you?"),
+                    ChatCompletionMessage(role="assistant", \
+                        content="I'm fine, thank you. How about you?"),
+                    ChatCompletionMessage(role="user", content="I'm good too."),
                 ]
         decode_next_token : bool
             Whether to decode the next token after prefilling.
