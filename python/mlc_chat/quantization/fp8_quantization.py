@@ -289,6 +289,7 @@ class MixtralExpertsFP8(
         activation_dtype: str = None,
         weight_dtype: str = None,
         runtime: str = "cast",
+        tensor_parallel_shards=1,
     ):  # pylint: disable=too-many-arguments
         super().__init__(num_local_experts, in_features, out_features, weight_config)
         self.activation_dtype = activation_dtype
@@ -296,6 +297,7 @@ class MixtralExpertsFP8(
         self.runtime = runtime
         self.weight_config = weight_config
         self.max_int_value = 448 if "e4m3" in activation_dtype else 57344
+        self.tensor_parallel_shards = tensor_parallel_shards
 
         if "max" in self.runtime:
             self.q_calibration_scale = nn.Parameter((1,), weight_config.model_dtype)
@@ -343,6 +345,7 @@ class MixtralExpertsFP8(
             activation_dtype=activation_dtype,
             weight_dtype=weight_dtype,
             runtime=runtime,
+            tensor_parallel_shards=src.tensor_parallel_shards,
         )
 
         if "shard_strategy" in src.weight.attrs:
@@ -361,9 +364,8 @@ class MixtralExpertsFP8(
                 max_int_value=self.max_int_value,
             )
 
-            # TODO(csullivan): Need to figure out a way to conditionally add the all reduce for
-            # only when tensor parallel sharding > 1 is used.
-            # local_scale = nn.op.ccl_allreduce(local_scale, op_type="max")
+            if self.tensor_parallel_shards > 1:
+                local_scale = nn.op.ccl_allreduce(local_scale, op_type="max")
             local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
             # Calibration done in fp16 mma
             x = nn.op.astype(x, dtype="float16")

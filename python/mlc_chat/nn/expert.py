@@ -8,12 +8,13 @@ from mlc_chat.op import extern, ft_gemm, moe_matmul
 class MixtralExperts(nn.Module):
     """Mixtral experts"""
 
-    def __init__(self, num_local_experts, in_features, out_features):
+    def __init__(self, num_local_experts, in_features, out_features, tensor_parallel_shards=1):
         self.num_local_experts = num_local_experts
         self.in_features = in_features
         self.out_features = out_features
         self.weight = nn.Parameter((num_local_experts, out_features, in_features))
         self.dtype = "float32"
+        self.tensor_parallel_shards = tensor_parallel_shards
 
     def forward(self, x: Tensor, indptr: Tensor):  # pylint: disable=invalid-name,missing-docstring
         assert x.ndim == 2
