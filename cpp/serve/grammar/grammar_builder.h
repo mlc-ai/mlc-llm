@@ -6,8 +6,9 @@
 
 #ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_
 #define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_
-
 #include <tvm/runtime/object.h>
+
+#include <cstdint>
 
 #include "grammar.h"
 
@@ -31,19 +32,17 @@ class BNFGrammarBuilder {
   BNFGrammarBuilder() : grammar_(make_object<BNFGrammarNode>()) {}
 
   /*!
-   * \brief Create grammar containing the rules and rule_exprs of an existing grammar. The old
-   * grammar remains unchanged.
-   * \param grammar The existing grammar.
+   * \brief Get the result grammar. This function will also set the main rule to the rule with the
+   * specified name. The rule should be already added to the grammar.
+   * \param main_rule The name of the main rule. Default is "main".
    */
-  explicit BNFGrammarBuilder(const BNFGrammar& grammar)
-      : grammar_(make_object<BNFGrammarNode>(*grammar.get())) {
-    // for (size_t i = 0; i < grammar_->rules_.size(); ++i) {
-    //   rule_name_to_id_[grammar_->rules_[i].name] = i;
-    // }
-  }
+  BNFGrammar Get(const std::string& main_rule = "main") {
+    int32_t main_rule_id = GetRuleId(main_rule);
+    CHECK(main_rule_id != -1) << "The in rule with name \"" << main_rule << "\" is not found.";
+    grammar_->main_rule_id_ = main_rule_id;
 
-  /*! \brief Get the result grammar. */
-  BNFGrammar Get() { return BNFGrammar(grammar_); }
+    return BNFGrammar(grammar_);
+  }
 
   /****************** RuleExpr handling ******************/
 
@@ -124,7 +123,7 @@ class BNFGrammarBuilder {
     int32_t id = grammar_->rules_.size();
     auto rules = grammar_->rules_;
     grammar_->rules_.push_back(rule);
-    ICHECK_EQ(rule_name_to_id_.count(rule.name), 0);
+    CHECK_EQ(rule_name_to_id_.count(rule.name), 0);
     rule_name_to_id_[rule.name] = id;
     return id;
   }

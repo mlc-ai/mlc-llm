@@ -34,9 +34,10 @@ class EBNFParser {
   /*!
    * \brief Parse the grammar string. If fails, throw ParseError with the error message.
    * \param ebnf_string The grammar string.
+   * \param main_rule The name of the main rule. Default is "main".
    * \return The parsed grammar.
    */
-  static BNFGrammar Parse(String ebnf_string);
+  static BNFGrammar Parse(String ebnf_string, String main_rule = "main");
 
   /*!
    * \brief The exception thrown when parsing fails.

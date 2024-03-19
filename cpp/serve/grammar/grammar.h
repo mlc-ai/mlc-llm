@@ -84,6 +84,12 @@ class BNFGrammarNode : public Object {
         << "rule_id " << rule_id << " is out of bound";
     return rules_[rule_id];
   }
+  /*! \brief Get the main rule of the grammar. */
+  const Rule& GetMainRule() const {
+    DCHECK(main_rule_id_ >= 0 && main_rule_id_ < static_cast<int32_t>(rules_.size()))
+        << "main_rule_id " << main_rule_id_ << " is out of bound";
+    return rules_[main_rule_id_];
+  }
 
   /*! \brief The type of the rule expr. */
   enum class RuleExprType : int32_t {
@@ -149,6 +155,8 @@ class BNFGrammarNode : public Object {
   /*! \brief The start index of every rule_expr in rule_expr_data_. rule_expr_id corresponds the
    * index of this vector. */
   std::vector<int32_t> rule_expr_indptr_;
+  /*! \brief The id of the main rule. */
+  int32_t main_rule_id_ = -1;
 
   friend class BNFGrammarBuilder;
   friend class BNFGrammarJSONSerializer;
@@ -161,6 +169,7 @@ class BNFGrammar : public ObjectRef {
    * \brief Construct a BNF grammar with a EBNF-formatted string. Will parse the string and
    * transform it into BNF AST.
    * \param ebnf_string The EBNF-formatted string.
+   * \param main_rule The name of the main rule.
    * \param normalize Whether to normalize the grammar. Default: true. Only set to false for the
    * purpose of testing.
    *
@@ -173,8 +182,8 @@ class BNFGrammar : public ObjectRef {
    * \param simplify Whether to simplify the grammar to make matching more efficient. Default: true.
    * Not implemented yet.
    */
-  static BNFGrammar FromEBNFString(const String& ebnf_string, bool normalize = true,
-                                   bool simplify = true);
+  static BNFGrammar FromEBNFString(const String& ebnf_string, const String& main_rule,
+                                   bool normalize = true, bool simplify = true);
 
   /*!
    * \brief Construct a BNF grammar from the dumped JSON string.
