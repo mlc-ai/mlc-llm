@@ -1,8 +1,8 @@
 """Flags for overriding model config."""
 
 import dataclasses
-from io import StringIO
 import re
+from io import StringIO
 from typing import Optional
 
 import tvm
