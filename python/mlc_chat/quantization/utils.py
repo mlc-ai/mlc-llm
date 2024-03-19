@@ -1,9 +1,14 @@
 """Common utilities for quantization"""
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
-from tvm import te, tir
+from tvm import te, tir, relax
 from tvm import DataType
+from tvm.ir import IRModule
+from tvm.target import Target
+from tvm import dlight as dl
+from tvm.relax.frontend import nn
+from mlc_chat.support import tensor_parallel as tp
 
 
 def convert_uint_to_float(  # pylint: disable=too-many-arguments
@@ -41,6 +46,7 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
         ).astype(model_dtype),
     )
 
+
 def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     weight: te.Tensor,
     bits: int,
@@ -69,16 +75,48 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
             tir.bitwise_and(
                 tir.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
-                    (
-                        (idx[axis] % num_elem_per_storage) * bits
-                    ).astype(storage_dtype),
+                    ((idx[axis] % num_elem_per_storage) * bits).astype(storage_dtype),
                 ),
                 tir_bin_mask,
-            )
+            ),
         ).astype(model_dtype),
     )
+
 
 def is_final_fc(name: str) -> bool:
     """Determines whether the parameter is the last layer based on its name."""
     # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
     return name in ["head", "lm_head"]
+
+
+def compile_quantize_func(mod: IRModule, device) -> Callable:
+    device_type = device.MASK2STR[device.device_type]
+    if device_type in ["cuda", "rocm", "metal", "vulkan"]:
+        target = Target.current()
+        if target is None:
+            target = Target.from_device(device)
+        with target:
+            mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            )(mod)
+    elif device_type == "cpu":
+        target = "llvm"
+        mod = relax.transform.LegalizeOps()(mod)
+    else:
+        raise NotImplementedError(f"Device type {device_type} is not supported")
+    ex = relax.build(mod, target=target)
+    vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
+    return vm["main"]
+
+
+def apply_sharding(shard, name: str, weight: nn.Parameter):
+    if isinstance(shard, tp.ShardSingleDim):
+        weight.attrs["shard_strategy"] = tp.ShardSingleDim(
+            name=name,
+            dim=shard.dim,
+            segs=shard.segs,
+        )
+    else:
+        raise NotImplementedError(f"Unknowing sharding strategy: {shard}")

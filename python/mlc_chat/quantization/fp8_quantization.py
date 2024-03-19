@@ -18,6 +18,8 @@ from mlc_chat.support import logging
 from mlc_chat.support import tensor_parallel as tp
 
 from . import group_quantization as gq
+from . import per_tensor_quantization as ptq
+from .utils import apply_sharding
 
 
 def quantize(
@@ -276,14 +278,14 @@ class GroupQuantizeLinearFP8E4M3CutlassScaleOnly(
 
 
 class MixtralExpertsFP8(
-    gq.GroupQuantizeMixtralExperts
+    ptq.PerTensorQuantizeMixtralExperts
 ):  # pylint: disable=too-many-instance-attributes
     def __init__(
         self,
         num_local_experts,
         in_features,
         out_features,
-        weight_config: gq.GroupQuantize,
+        weight_config: ptq.PerTensorQuantize,
         activation_dtype: str = None,
         weight_dtype: str = None,
         runtime: str = "cast",
@@ -312,13 +314,13 @@ class MixtralExpertsFP8(
     @staticmethod
     def from_mixtral_experts(
         src: "MixtralExperts",
-        weight_config: gq.GroupQuantize,
+        weight_config: ptq.PerTensorQuantize,
         activation_dtype: str = None,
         weight_dtype: str = None,
         runtime: str = "cast",
-    ) -> "GroupQuantizeMixtralExperts":
+    ) -> "MixtralExpertsFP8":
         """
-        Converts a non-quantized MixtralExperts to a group quantized GroupQuantizeMixtralExperts
+        Converts a non-quantized MixtralExperts to a per-tensor quantized MixtralExperts.
 
         Parameters
         ----------
@@ -330,8 +332,8 @@ class MixtralExpertsFP8(
 
         Returns
         -------
-        ret : GroupQuantizeMixtralExperts
-            The group quantized GroupQuantizeMixtralExperts layer.
+        ret : MixtralExpertsFP8
+            The per-tensor quantized MixtralExperts.
         """
         quantized_mistral_experts = MixtralExpertsFP8(
             num_local_experts=src.num_local_experts,
@@ -345,9 +347,9 @@ class MixtralExpertsFP8(
 
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            gq._apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
             if weight_dtype == "e4m3_float8":
-                _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
+                apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
 
         return quantized_mistral_experts
 
@@ -366,38 +368,22 @@ class MixtralExpertsFP8(
             local_scale = nn.op.maximum_inplace(local_scale, self.q_calibration_scale)
             # Calibration done in fp16 mma
             x = nn.op.astype(x, dtype="float16")
-            ### TODO: we probably want to consider using fp16 weights (no weight quantization) for calibration
-            # w = nn.op.astype(w, dtype="float16")
-            if DataType(self.weight_dtype).type_code == DataTypeCode.E4M3Float:
-                dequant_func = self.config._dequantize_e4m3
-            elif DataType(self.weight_dtype).type_code == DataTypeCode.E5M2Float:
-                dequant_func = self.config._dequantize_e5m2
+            if DataType(self.weight_dtype).type_code in [
+                DataTypeCode.E4M3Float,
+                DataTypeCode.E5M2Float,
+            ]:
+                dequant_func = self.config._dequantize_float8
             else:
                 raise NotImplementedError()
-            weight_shape = (self.num_local_experts, self.out_features, self.in_features)
-            if not self.no_scale:
-                w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-                    lambda weight, scale: dequant_func(  # pylint: disable=protected-access
-                        weight,
-                        scale,
-                        axis=self.config.linear_quant_axis,
-                        out_shape=weight_shape,
-                    ),
-                    name_hint="dequantize",
-                    args=[self.q_weight, self.q_scale],
-                )
-            else:
-                w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-                    lambda weight: dequant_func(  # pylint: disable=protected-access
-                        weight,
-                        axis=self.config.linear_quant_axis,
-                        out_shape=weight_shape,
-                    ),
-                    name_hint="dequantize",
-                    args=[
-                        self.q_weight,
-                    ],
-                )
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    scale,
+                    out_shape=(self.num_local_experts, self.out_features, self.in_features),
+                ),
+                name_hint="dequantize",
+                args=[self.q_weight, self.q_scale],
+            )
 
         elif self.runtime == "max":
             local_scale = self.q_calibration_scale
@@ -426,7 +412,6 @@ class MixtralExpertsFP8(
         a_format = self.activation_dtype.split("_")[0]
         w_format = self.weight_dtype.split("_")[0]
 
-        ### TODO: enable this for fp16 calibration
         if self.runtime == "max-calibration":
             func = "cutlass.group_gemm_scale_fp16_sm90"
         else:
@@ -443,7 +428,6 @@ class MixtralExpertsFP8(
                 total_scale = local_scale
             total_scale = nn.op.astype(total_scale, dtype="float32")
 
-        # TODO(csullivan): use the fp16 group gemm for calibration
         return nn.op.extern(
             func,
             [

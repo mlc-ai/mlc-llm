@@ -14,10 +14,15 @@ from tvm.target import Target
 from mlc_chat.loader import QuantizeMapping
 from mlc_chat.nn import MixtralExperts
 from mlc_chat.support import logging
-from mlc_chat.support import tensor_parallel as tp
 
 
-from .utils import convert_uint_to_float, is_final_fc, convert_uint_packed_fp8_to_float
+from .utils import (
+    convert_uint_to_float,
+    is_final_fc,
+    convert_uint_packed_fp8_to_float,
+    compile_quantize_func,
+    apply_sharding,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +132,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     not is_final_fc(name) or self.config.quantize_final_fc
                 ):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = partial(
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
@@ -140,12 +151,24 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                         return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, self.config)
                 if isinstance(node, MixtralExperts):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"] if not self.config.no_scale else [f"{name}.q_weight",]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     if self.config.name == "fp8_e4m3_e5m2_max_calibration":
                         op = fp8.MixtralExpertsFP8.from_mixtral_experts(
@@ -319,26 +342,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 bb.emit_func_output(gv)
             return bb.finalize()
 
-        def _compile_quantize_func(mod: IRModule) -> Callable:
-            if device_type in ["cuda", "rocm", "metal", "vulkan"]:
-                target = Target.current()
-                if target is None:
-                    target = Target.from_device(device)
-                with target:
-                    mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
-                        dl.gpu.Reduction(),
-                        dl.gpu.GeneralReduction(),
-                        dl.gpu.Fallback(),
-                    )(mod)
-            elif device_type == "cpu":
-                target = "llvm"
-                mod = relax.transform.LegalizeOps()(mod)
-            else:
-                raise NotImplementedError(f"Device type {device_type} is not supported")
-            ex = relax.build(mod, target=target)
-            vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
-            return vm["main"]
-
         key = (
             f"({weight.shape}, {weight.dtype}, {device_type}, "
             f"axis={axis}, output_transpose={output_transpose})"
@@ -346,7 +349,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_func = self._quantize_func_cache.get(key, None)
         if quantize_func is None:
             logger.info("Compiling quantize function for key: %s", key)
-            quantize_func = _compile_quantize_func(_create_quantize_func())
+            quantize_func = compile_quantize_func(_create_quantize_func(), device)
             self._quantize_func_cache[key] = quantize_func
         return quantize_func(weight)
 
@@ -598,11 +601,11 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             quantized_linear.bias.attrs = src.bias.attrs
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
             if (
                 not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float
             ):  # no scale for e5m2
-                _apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
+                apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -631,17 +634,21 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
 
         if self.config.linear_weight_layout == "NK":
             out_shape = [
-                tir.IntImm("int64", self.out_features)
-                if isinstance(self.out_features, int)
-                else weight.shape[0],
+                (
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[0]
+                ),
                 tir.IntImm("int64", self.in_features),
             ]
         else:
             out_shape = [
                 tir.IntImm("int64", self.in_features),
-                tir.IntImm("int64", self.out_features)
-                if isinstance(self.out_features, int)
-                else weight.shape[1],
+                (
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[1]
+                ),
             ]
 
         if not self.no_scale:
@@ -820,8 +827,8 @@ class GroupQuantizeEmbedding(nn.Module):
                     out_shape=[
                         (
                             tir.IntImm("int64", self.num)
-                        if isinstance(self.num, int)
-                        else weight.shape[0]
+                            if isinstance(self.num, int)
+                            else weight.shape[0]
                         ),
                         tir.IntImm("int64", self.dim),
                     ],
@@ -837,14 +844,16 @@ class GroupQuantizeEmbedding(nn.Module):
                     out_shape=[
                         (
                             tir.IntImm("int64", self.num)
-                        if isinstance(self.num, int)
-                        else weight.shape[0]
+                            if isinstance(self.num, int)
+                            else weight.shape[0]
                         ),
                         tir.IntImm("int64", self.dim),
                     ],
                 ),
                 name_hint="dequantize",
-                args=[self.q_weight,],
+                args=[
+                    self.q_weight,
+                ],
             )
         w = nn.op.permute_dims(w)
         return nn.op.matmul(x, w, out_dtype="float32")
@@ -908,9 +917,9 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         )
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
             if not config.no_scale:
-                _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
+                apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -974,14 +983,3 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
                 indptr_dtype=indptr.dtype,
                 group_size=self.group_size,
             )
-
-
-def _apply_sharding(shard, name: str, weight: nn.Parameter):
-    if isinstance(shard, tp.ShardSingleDim):
-        weight.attrs["shard_strategy"] = tp.ShardSingleDim(
-            name=name,
-            dim=shard.dim,
-            segs=shard.segs,
-        )
-    else:
-        raise NotImplementedError(f"Unknowing sharding strategy: {shard}")

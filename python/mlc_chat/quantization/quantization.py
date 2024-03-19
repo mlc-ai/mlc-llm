@@ -5,6 +5,7 @@ from .awq_quantization import AWQQuantize
 from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
+from .per_tensor_quantization import PerTensorQuantize
 
 Quantization = Any
 """Quantization is an object that represents an quantization algorithm. It is required to
@@ -162,40 +163,42 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         linear_weight_layout="NK",
     ),
-    "fp8_e4m3_e5m2_max_calibration": GroupQuantize(
+    "fp8_e4m3_e5m2_max_calibration": PerTensorQuantize(
         name="fp8_e4m3_e5m2_max_calibration",
-        kind="group-quant",
-        group_size=64,
-        quantize_dtype="e5m2_float8",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e5m2_float8",
         storage_dtype="uint32",
         model_dtype="float16",
-        linear_weight_layout="NK",
+        no_scale=True,
+        quantize_embedding=False,
     ),
-    "fp8_e4m3_e5m2_max": GroupQuantize(
+    "fp8_e4m3_e5m2_max": PerTensorQuantize(
         name="fp8_e4m3_e5m2_max",
-        kind="group-quant",
-        group_size=64,
-        quantize_dtype="e5m2_float8",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e5m2_float8",
         storage_dtype="uint32",
         model_dtype="float16",
-        linear_weight_layout="NK",
+        no_scale=True,
+        quantize_embedding=False,
     ),
-    "fp8_e4m3_e4m3_max_calibration": GroupQuantize(
+    "fp8_e4m3_e4m3_max_calibration": PerTensorQuantize(
         name="fp8_e4m3_e4m3_max_calibration",
-        kind="group-quant",
-        group_size=64,
-        quantize_dtype="e4m3_float8",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
         storage_dtype="uint32",
         model_dtype="float16",
-        linear_weight_layout="NK",
+        quantize_embedding=False,
     ),
-    "fp8_e4m3_e4m3_max_runtime": GroupQuantize(
-        name="fp8_e4m3_e4m3_max_runtime",
-        kind="group-quant",
-        group_size=64,
-        quantize_dtype="e4m3_float8",
+    "fp8_e4m3_e4m3_max": PerTensorQuantize(
+        name="fp8_e4m3_e4m3_max",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
         storage_dtype="uint32",
         model_dtype="float16",
-        linear_weight_layout="NK",
+        quantize_embedding=False,
     ),
 }
