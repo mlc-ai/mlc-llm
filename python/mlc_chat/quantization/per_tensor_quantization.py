@@ -551,11 +551,6 @@ class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-in
             quantized_mixtral_experts.no_scale = config.no_scale
         else:
             raise NotImplementedError()
-        if "shard_strategy" in src.weight.attrs:
-            shard = src.weight.attrs["shard_strategy"]
-            apply_sharding(shard, f"{shard.name}_q_weight", quantized_mixtral_experts.q_weight)
-            if not config.no_scale:
-                apply_sharding(shard, f"{shard.name}_q_scale", quantized_mixtral_experts.q_scale)
         return quantized_mixtral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
