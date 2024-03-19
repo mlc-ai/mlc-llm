@@ -12,8 +12,8 @@ from mlc_llm.serve.json_schema_converter import json_schema_to_ebnf
 def check_schema_with_grammar(
     schema: Dict[str, Any],
     expected_grammar: str,
-    indent: Union[int, None] = None,
-    separators: Union[Tuple[str, str], None] = None,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
 ):
     schema_str = json.dumps(schema, indent=2)
@@ -30,8 +30,8 @@ def check_schema_with_json(
     schema: Dict[str, Any],
     json_str: str,
     check_accepted=True,
-    indent: Union[int, None] = None,
-    separators: Union[Tuple[str, str], None] = None,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
 ):
     schema_str = json.dumps(schema, indent=2)
@@ -54,8 +54,8 @@ def check_schema_with_instance(
     schema: Dict[str, Any],
     instance: BaseModel,
     check_accepted=True,
-    indent: Union[int, None] = None,
-    separators: Union[Tuple[str, str], None] = None,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
 ):
     instance_obj = instance.model_dump(mode="json", round_trip=True)
@@ -302,7 +302,7 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
 basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
-main_sub_2 ::= ("" | ", " basic_string ": " basic_any (", " basic_string ": " basic_any)*)
+main_sub_2 ::= (", " basic_string ": " basic_any)*
 main_sub_1 ::= main_sub_2 | ", " "\"num\"" ": " basic_number main_sub_2
 main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
 main ::= "{" ("" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number main_sub_2) | basic_string ": " basic_any main_sub_2) "" | "") "}"

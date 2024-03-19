@@ -4,10 +4,24 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 SchemaType = Union[Dict[str, Any], bool]
+"""
+JSON schema specification defines the schema type could be a dictionary or a boolean value.
+"""
 
 
 class IndentManager:
-    def __init__(self, indent: Union[int, None], separator: str):
+    """Manage the indent and separator for the generation of EBNF grammar.
+
+    Parameters
+    ----------
+    indent : Optional[int]
+        The number of spaces for each indent. If it is None, there will be no indent or newline.
+
+    separator : str
+        The separator between different elements in json. Examples include "," and ", ".
+    """
+
+    def __init__(self, indent: Optional[int], separator: str):
         self.enable_newline = indent is not None
         self.indent = indent or 0
         self.separator = separator
@@ -15,14 +29,38 @@ class IndentManager:
         self.is_first = [True]
 
     def __enter__(self):
+        """Enter a new indent level."""
         self.total_indent += self.indent
         self.is_first.append(True)
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the current indent level."""
         self.total_indent -= self.indent
         self.is_first.pop()
 
     def get_sep(self, is_end: bool = False) -> str:
+        """Get the separator according to the current state. When first called in the current level,
+        the starting separator will be returned. When called again, the middle separator will be
+        returned. When called with `is_end=True`, the ending separator will be returned.
+
+        Parameters
+        ----------
+        is_end : bool
+            Get the separator for the end of the current level.
+
+        Examples
+        --------
+        >>> indent_manager = IndentManager(2, ", ")
+        >>> with indent_manager:
+        ...     print(indent_manager.get_sep()) # get the start separator
+        ...     print(indent_manager.get_sep()) # get the middle separator
+        ...     print(indent_manager.get_sep(is_end=True)) # get the end separator
+
+        Output:
+        "\n  "
+        ",\n  "
+        "\n"
+        """
         res = ""
 
         if not self.is_first[-1] and not is_end:
@@ -41,11 +79,15 @@ class IndentManager:
 
 
 class JSONSchemaToEBNFConverter:
+    """Convert JSON schema string to EBNF grammar string. The parameters follow
+    `json_schema_to_ebnf()`.
+    """
+
     def __init__(
         self,
         json_schema: SchemaType,
-        indent: Union[int, None] = None,
-        separators: Union[Tuple[str, str], None] = None,
+        indent: Optional[int] = None,
+        separators: Optional[Tuple[str, str]] = None,
         strict_mode: bool = False,
     ):
         self.json_schema = json_schema
@@ -62,13 +104,14 @@ class JSONSchemaToEBNFConverter:
         self.add_basic_rules()
 
     def convert(self) -> str:
+        """Main method. Convert the JSON schema to EBNF grammar string."""
         self.create_rule_with_schema(self.json_schema, "main")
         res = ""
         for rule_name, rule in self.rules:
             res += f"{rule_name} ::= {rule}\n"
         return res
 
-    # Basic rules
+    # The name of the basic rules
     BASIC_ANY = "basic_any"
     BASIC_INTEGER = "basic_integer"
     BASIC_NUMBER = "basic_number"
@@ -78,11 +121,12 @@ class JSONSchemaToEBNFConverter:
     BASIC_ARRAY = "basic_array"
     BASIC_OBJECT = "basic_object"
 
-    # Helper rules to construct basic rules
+    # The name of the helper rules to construct basic rules
     BASIC_ESCAPE = "basic_escape"
     BASIC_STRING_SUB = "basic_string_sub"
 
     def add_basic_rules(self):
+        """Add the basic rules to the rules list and the basic_rules_cache."""
         past_strict_mode = self.strict_mode
         self.strict_mode = False
         past_indent_manager = self.indent_manager
@@ -103,6 +147,7 @@ class JSONSchemaToEBNFConverter:
         self.indent_manager = past_indent_manager
 
     def add_helper_rules(self):
+        """Add helper rules for the basic rules."""
         self.rules.append(
             (
                 self.BASIC_ESCAPE,
@@ -122,10 +167,12 @@ class JSONSchemaToEBNFConverter:
         self.basic_rules_cache[self.get_schema_cache_index(schema)] = rule_name
 
     def get_sep(self, is_end: bool = False):
+        """Get the separator from the indent manager."""
         return self.indent_manager.get_sep(is_end)
 
     @staticmethod
     def warn_unsupported_keywords(schema: SchemaType, keywords: Union[str, List[str]]):
+        """Warn if any keyword is existing in the schema but not supported."""
         if isinstance(keywords, str):
             keywords = [keywords]
         for keyword in keywords:
@@ -133,6 +180,13 @@ class JSONSchemaToEBNFConverter:
                 logging.warning(f"Keyword {keyword} is not supported in schema {schema}")
 
     def create_rule_with_schema(self, schema: SchemaType, rule_name_hint: str) -> str:
+        """Create a rule with the given schema and rule name hint.
+
+        Returns
+        -------
+        The name of the rule will be returned. That is not necessarily the same as the
+        rule_name_hint due to the caching mechanism.
+        """
         idx = self.get_schema_cache_index(schema)
         if idx in self.basic_rules_cache:
             return self.basic_rules_cache[idx]
@@ -142,6 +196,7 @@ class JSONSchemaToEBNFConverter:
         self.rules.append((rule_name_hint, self.visit_schema(schema, rule_name_hint)))
         return rule_name_hint
 
+    # The keywords that will be ignored when finding the cached rule for a schema
     SKIPPED_KEYS = [
         "title",
         "default",
@@ -156,6 +211,7 @@ class JSONSchemaToEBNFConverter:
 
     @staticmethod
     def remove_skipped_keys_recursive(obj: Any) -> Any:
+        """Remove the skipped keys from the schema recursively."""
         if isinstance(obj, dict):
             return {
                 k: JSONSchemaToEBNFConverter.remove_skipped_keys_recursive(v)
@@ -168,6 +224,7 @@ class JSONSchemaToEBNFConverter:
             return obj
 
     def get_schema_cache_index(self, schema: SchemaType) -> str:
+        """Get the index for the schema in the cache."""
         return json.dumps(
             JSONSchemaToEBNFConverter.remove_skipped_keys_recursive(schema),
             sort_keys=True,
@@ -175,6 +232,7 @@ class JSONSchemaToEBNFConverter:
         )
 
     def visit_schema(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit the schema and return the rule body for later constructing the rule."""
         assert schema is not False
         if schema is True:
             return self.visit_any(schema, rule_name)
@@ -224,6 +282,7 @@ class JSONSchemaToEBNFConverter:
             return self.visit_any(schema, rule_name)
 
     def visit_ref(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a reference schema."""
         assert "$ref" in schema
         new_schema = self.uri_to_schema(schema["$ref"]).copy()
         if not (isinstance(new_schema, bool)):
@@ -231,6 +290,7 @@ class JSONSchemaToEBNFConverter:
         return self.visit_schema(new_schema, rule_name)
 
     def uri_to_schema(self, uri: str) -> SchemaType:
+        """Get the schema from the URI."""
         if uri.startswith("#/$defs/"):
             return self.json_schema["$defs"][uri[len("#/$defs/") :]]
         else:
@@ -238,10 +298,12 @@ class JSONSchemaToEBNFConverter:
             return True
 
     def visit_const(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a const schema."""
         assert "const" in schema
         return '"' + self.json_str_to_printable_str(json.dumps(schema["const"])) + '"'
 
     def visit_enum(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit an enum schema."""
         assert "enum" in schema
         res = ""
         for i, enum_value in enumerate(schema["enum"]):
@@ -256,11 +318,13 @@ class JSONSchemaToEBNFConverter:
     }
 
     def json_str_to_printable_str(self, json_str: str) -> str:
+        """Convert the JSON string to a printable string in BNF."""
         for k, v in self.REPLACE_MAPPING.items():
             json_str = json_str.replace(k, v)
         return json_str
 
     def visit_anyof(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit an anyOf schema."""
         assert "anyOf" in schema
         res = ""
         for i, anyof_schema in enumerate(schema["anyOf"]):
@@ -270,6 +334,7 @@ class JSONSchemaToEBNFConverter:
         return res
 
     def visit_any(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a true schema that can match anything."""
         # note integer is a subset of number, so we don't need to add integer here
         return (
             f"{self.BASIC_NUMBER} | {self.BASIC_STRING} | {self.BASIC_BOOLEAN} | "
@@ -277,6 +342,7 @@ class JSONSchemaToEBNFConverter:
         )
 
     def visit_integer(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit an integer schema."""
         assert schema["type"] == "integer"
         JSONSchemaToEBNFConverter.warn_unsupported_keywords(
             schema, ["multipleOf", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"]
@@ -284,6 +350,7 @@ class JSONSchemaToEBNFConverter:
         return '("0" | "-"? [1-9] [0-9]*) ".0"?'
 
     def visit_number(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a number schema."""
         assert schema["type"] == "number"
         JSONSchemaToEBNFConverter.warn_unsupported_keywords(
             schema, ["multipleOf", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"]
@@ -291,6 +358,7 @@ class JSONSchemaToEBNFConverter:
         return '("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?'
 
     def visit_string(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a string schema."""
         assert schema["type"] == "string"
         JSONSchemaToEBNFConverter.warn_unsupported_keywords(
             schema, ["minLength", "maxLength", "pattern", "format"]
@@ -298,16 +366,37 @@ class JSONSchemaToEBNFConverter:
         return f'["] {self.BASIC_STRING_SUB} ["]'
 
     def visit_boolean(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a boolean schema."""
         assert schema["type"] == "boolean"
 
         return '"true" | "false"'
 
     def visit_null(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit a null schema."""
         assert schema["type"] == "null"
 
         return '"null"'
 
     def visit_array(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit an array schema.
+
+        Examples
+        --------
+        Schema:
+        {
+            "type": "array",
+            "prefixItems": [
+                {"type": "boolean"},
+                {"type": "integer"}
+            ],
+            "items": {
+                "type": "string"
+            }
+        }
+
+        Rule (not considering the indent):
+        main ::= "[" basic_boolean ", " basic_integer (", " basic_string)* "]"
+        """
         assert schema["type"] == "array"
         JSONSchemaToEBNFConverter.warn_unsupported_keywords(
             schema,
@@ -317,13 +406,16 @@ class JSONSchemaToEBNFConverter:
         res = '"["'
 
         with self.indent_manager:
+            # 1. Handle prefix items
             have_prefix_items = False
             if "prefixItems" in schema:
                 for i, prefix_item in enumerate(schema["prefixItems"]):
                     assert prefix_item is not False
-                    res += " " + self.get_partial_rule_for_item(prefix_item, f"{rule_name}_{i}")
+                    item = self.create_rule_with_schema(prefix_item, f"{rule_name}_{i}")
+                    res += f" {self.get_sep()} {item}"
                     have_prefix_items = True
 
+            # 2. Find additional items
             additional_item = None
             additional_suffix = ""
 
@@ -338,6 +430,7 @@ class JSONSchemaToEBNFConverter:
                 additional_item = unevaluated
                 additional_suffix = "uneval"
 
+            # 3. Handle additional items and the end separator
             if additional_item is None:
                 res += f" {self.get_sep(is_end=True)}"
             else:
@@ -355,11 +448,46 @@ class JSONSchemaToEBNFConverter:
         res += ' "]"'
         return res
 
-    def get_partial_rule_for_item(self, schema: SchemaType, sub_rule_name: str) -> str:
-        item = self.create_rule_with_schema(schema, sub_rule_name)
-        return f"{self.get_sep()} {item}"
-
     def visit_object(self, schema: SchemaType, rule_name: str) -> str:
+        """Visit an object schema.
+
+        Examples
+        --------
+        Schema:
+        {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+                "b": {"type": "integer"}
+            },
+            "required": ["a"],
+            "additionalProperties": true
+        }
+
+        Rule (not considering the indent):
+        main ::= "{" "a" ":" basic_string (", " "b" ":" basic_integer)*
+                 (", " basic_string ": " basic_any)* "}"
+
+        We need special handling when all properties are optional, since the handling of separators
+        is tricky in this case. E.g.
+
+        Schema:
+        {
+            "type": "object",
+            "properties": {
+                "a": {"type": "string"},
+                "b": {"type": "integer"},
+                "c": {"type": "boolean"}
+            },
+            "additionalProperties": true
+        }
+
+        Rule (indent=2):
+        main ::= "{" ("\n  " (a main_sub_1 | b main_sub_2 | c main_sub_3 | d main_sub_3) "\n" | "") "}"
+        main_sub_1 ::= ",\n  " b r2 | r2
+        main_sub_2 ::= ",\n  " c r3 | r3
+        main_sub_3 ::= (",\n  " d)*
+        """
         assert schema["type"] == "object"
         JSONSchemaToEBNFConverter.warn_unsupported_keywords(
             schema, ["patternProperties", "minProperties", "maxProperties", "propertyNames"]
@@ -370,6 +498,7 @@ class JSONSchemaToEBNFConverter:
         required = schema.get("required", [])
 
         with self.indent_manager:
+            # 1. Find additional properties
             additional_property = None
             additional_suffix = ""
 
@@ -383,15 +512,18 @@ class JSONSchemaToEBNFConverter:
                 additional_property = unevaluated
                 additional_suffix = "uneval"
 
+            # 2. Handle properties
             properties_obj = schema.get("properties", {})
             properties = list(properties_obj.items())
 
             properties_all_optional = all(prop_name not in required for prop_name, _ in properties)
             if properties_all_optional and len(properties) > 0:
+                # 3.1 Case 1: properties are defined and all properties are optional
                 res += " " + self.get_partial_rule_for_properties_all_optional(
                     properties, additional_property, rule_name, additional_suffix
                 )
             elif len(properties) > 0:
+                # 3.2 Case 2: properties are defined and some properties are required
                 res += " " + self.get_partial_rule_for_properties_contain_required(
                     properties, required, rule_name
                 )
@@ -402,6 +534,7 @@ class JSONSchemaToEBNFConverter:
                     res += f" ({self.get_sep()} {other_property_pattern})*"
                 res += " " + self.get_sep(is_end=True)
             elif additional_property is not None:
+                # 3.3 Case 3: no properties are defined and additional properties are allowed
                 other_property_pattern = self.get_other_property_pattern(
                     self.BASIC_STRING, additional_property, rule_name, additional_suffix
                 )
@@ -413,20 +546,22 @@ class JSONSchemaToEBNFConverter:
         res += ' "}"'
         return res
 
-    def get_other_property_pattern(
-        self, key_pattern: str, prop_schema: SchemaType, rule_name: str, rule_name_suffix: str
-    ) -> str:
-        colon = f'"{self.colon}"'
-        value = self.create_rule_with_schema(prop_schema, rule_name + "_" + rule_name_suffix)
-        return f"{key_pattern} {colon} {value}"
-
     def get_property_pattern(self, prop_name: str, prop_schema: SchemaType, rule_name: str) -> str:
+        """Get the pattern for a property in the object schema."""
         # the outer quote is for the string in EBNF grammar, and the inner quote is for
         # the string in JSON
         key = f'"\\"{prop_name}\\""'
         colon = f'"{self.colon}"'
         value = self.create_rule_with_schema(prop_schema, rule_name + "_" + prop_name)
         return f"{key} {colon} {value}"
+
+    def get_other_property_pattern(
+        self, key_pattern: str, prop_schema: SchemaType, rule_name: str, rule_name_suffix: str
+    ) -> str:
+        """Get the pattern for the additional/unevaluated properties in the object schema."""
+        colon = f'"{self.colon}"'
+        value = self.create_rule_with_schema(prop_schema, rule_name + "_" + rule_name_suffix)
+        return f"{key_pattern} {colon} {value}"
 
     def get_partial_rule_for_properties_all_optional(
         self,
@@ -435,8 +570,9 @@ class JSONSchemaToEBNFConverter:
         rule_name: str,
         additional_suffix: str = "",
     ) -> str:
+        """Get the partial rule for the properties when all properties are optional. See the
+        above example."""
         assert len(properties) >= 1
-        # ("," (("a" ("" | "," b) | b) ("" | "," c) | c)) | ""
 
         first_sep = self.get_sep()
         mid_sep = self.get_sep()
@@ -451,19 +587,19 @@ class JSONSchemaToEBNFConverter:
 
         rule_names = [None] * len(properties)
 
+        # construct the last rule
         if additional is not None:
             additional_prop_pattern = self.get_other_property_pattern(
                 self.BASIC_STRING, additional, rule_name, additional_suffix
             )
-            last_rule_body = (
-                f'("" | {mid_sep} {additional_prop_pattern} ({mid_sep} {additional_prop_pattern})*)'
-            )
+            last_rule_body = f"({mid_sep} {additional_prop_pattern})*"
             last_rule_name = f"{rule_name}_sub_{len(properties)-1}"
             self.rules.append((last_rule_name, last_rule_body))
             rule_names[-1] = last_rule_name
         else:
             rule_names[-1] = '""'
 
+        # construct 0~(len(properties) - 2) rules
         for i in reversed(range(0, len(properties) - 1)):
             prop_pattern = prop_patterns[i + 1]
             last_rule_name = rule_names[i + 1]
@@ -472,6 +608,7 @@ class JSONSchemaToEBNFConverter:
             self.rules.append((cur_rule_name, cur_rule_body))
             rule_names[i] = cur_rule_name
 
+        # construct the main rule
         for i, prop_pattern in enumerate(prop_patterns):
             if i != 0:
                 res += " | "
@@ -480,6 +617,7 @@ class JSONSchemaToEBNFConverter:
         if additional is not None:
             res += f" | {additional_prop_pattern} {rule_names[-1]}"
 
+        # add separators and the empty string option
         res = f'({first_sep} ({res}) {last_sep} | "")'
         return res
 
@@ -489,6 +627,21 @@ class JSONSchemaToEBNFConverter:
         required: List[str],
         rule_name: str,
     ) -> str:
+        """Get the partial rule for the properties when some properties are required. See the
+        above example.
+
+        The constructed rule should be:
+
+        start_separator (optional_property separator)? (optional_property separator)? ...
+        first_required_property (separator optional_property)? separator required_property ...
+        end_separator
+
+        i.e. Before the first required property, all properties are in the form
+        (property separator); and after the first required property, all properties are in the form
+        (separator property).
+        """
+
+        # Find the index of the first required property
         first_required_idx = next(
             (i for i, (prop_name, _) in enumerate(properties) if prop_name in required),
             len(properties),
@@ -497,16 +650,19 @@ class JSONSchemaToEBNFConverter:
 
         res = self.get_sep()
 
+        # Handle the properties before the first required property
         for prop_name, prop_schema in properties[:first_required_idx]:
             assert prop_schema is not False
             property_pattern = self.get_property_pattern(prop_name, prop_schema, rule_name)
             res += f" ({property_pattern} {self.get_sep()})?"
 
+        # Handle the first required property
         property_pattern = self.get_property_pattern(
             properties[first_required_idx][0], properties[first_required_idx][1], rule_name
         )
         res += f" {property_pattern}"
 
+        # Handle the properties after the first required property
         for prop_name, prop_schema in properties[first_required_idx + 1 :]:
             assert prop_schema is not False
             property_pattern = self.get_property_pattern(prop_name, prop_schema, rule_name)
@@ -521,9 +677,30 @@ class JSONSchemaToEBNFConverter:
 def json_schema_to_ebnf(
     json_schema: str,
     *,
-    indent: Union[int, None] = None,
-    separators: Union[Tuple[str, str], None] = None,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
 ) -> str:
+    """Convert JSON schema string to EBNF grammar string.
+
+    Parameters
+    ----------
+    json_schema : str
+        The JSON schema string.
+
+    indent : Optional[int]
+        The number of spaces for each indent. If it is None, there will be no indent or newline.
+        The indent and separators parameters follow the same convention as
+        `json.dumps()`.
+
+    separators : Optional[Tuple[str, str]]
+        The separator between different elements in json. Examples include "," and ", ".
+
+    strict_mode : bool
+        Whether to use strict mode. In strict mode, the generated grammar will not allow
+        unevaluatedProperties and unevaluatedItems, i.e. these will be set to false by default.
+        This helps LLM to generate accurate output in the grammar-guided generation with JSON
+        schema.
+    """
     json_schema_schema = json.loads(json_schema)
     return JSONSchemaToEBNFConverter(json_schema_schema, indent, separators, strict_mode).convert()
