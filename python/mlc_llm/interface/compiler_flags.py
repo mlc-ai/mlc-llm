@@ -2,6 +2,7 @@
 
 import dataclasses
 from io import StringIO
+import re
 from typing import Optional
 
 import tvm
@@ -72,7 +73,7 @@ class OptimizationFlags:
                 return False
             arch_list = detect_cuda_arch_list(target)
             for arch in arch_list:
-                if arch < 80:
+                if int(re.findall(r"\d+", arch)[0]) < 80:
                     logger.warning("flashinfer is not supported on CUDA arch < 80")
                     return False
             return True
