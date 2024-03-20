@@ -85,7 +85,6 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 class QWen2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: QWen2Config):
-
         self.head_dim = config.head_dim
         self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
