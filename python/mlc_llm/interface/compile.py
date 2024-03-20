@@ -184,6 +184,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                     flashinfer=args.opt.flashinfer,
                     cublas_gemm=args.opt.cublas_gemm,
                     faster_transformer=args.opt.faster_transformer,
+                    allreduce_strategy=args.opt.allreduce_strategy,
                     variable_bounds=variable_bounds,
                     additional_tirs=additional_tirs,
                     ext_mods=ext_mods,

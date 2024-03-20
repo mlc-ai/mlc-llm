@@ -9,6 +9,7 @@ from tvm import dlight as dl
 from tvm.relax import register_pipeline  # pylint: disable=no-name-in-module
 from tvm.relax.frontend import nn
 
+from mlc_llm.interface.compiler_flags import AllReduceStrategyType
 from mlc_llm.support import logging
 
 from .attach_embedding_allocator import AttachAllocEmbeddingTensorFunc
@@ -75,6 +76,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     flashinfer: bool = False,
     cublas_gemm: bool = False,
     faster_transformer: bool = False,  # pylint: disable=unused-argument
+    allreduce_strategy: AllReduceStrategyType = AllReduceStrategyType.RING,
     variable_bounds: Dict[str, int] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
@@ -147,7 +149,13 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),
                 tvm.relax.transform.CallTIRRewrite(),
+                (
+                    tvm.relax.transform.IPCAllReduceRewrite(allreduce_strategy)
+                    if allreduce_strategy != AllReduceStrategyType.RING
+                    else tvm.transform.Sequential([])
+                ),
                 tvm.relax.transform.StaticPlanBlockMemory(),
+                tvm.relax.transform.LowerGPUIPCAllocStorage(),
                 AttachMetadataWithMemoryUsage(metadata),
                 tvm.relax.transform.RewriteCUDAGraph(),
                 tvm.relax.transform.LowerAllocTensor(),

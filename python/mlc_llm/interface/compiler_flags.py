@@ -1,6 +1,7 @@
 """Flags for overriding model config."""
 
 import dataclasses
+import enum
 import re
 from io import StringIO
 from typing import Optional
@@ -13,6 +14,14 @@ from mlc_llm.support.config import ConfigOverrideBase
 logger = logging.getLogger(__name__)
 
 
+class AllReduceStrategyType(enum.IntEnum):
+    """The all-reduce strategy."""
+
+    RING = 0
+    ONESHOT = 1
+    TWOSHOT = 2
+
+
 @dataclasses.dataclass
 class OptimizationFlags:
     """Optimization flags"""
@@ -22,6 +31,7 @@ class OptimizationFlags:
     faster_transformer: bool = False
     cudagraph: bool = False
     cutlass: bool = False
+    allreduce_strategy: AllReduceStrategyType = AllReduceStrategyType.RING
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -30,6 +40,7 @@ class OptimizationFlags:
         print(f";faster_transformer={int(self.faster_transformer)}", file=out, end="")
         print(f";cudagraph={int(self.cudagraph)}", file=out, end="")
         print(f";cutlass={int(self.cutlass)}", file=out, end="")
+        print(f";allreduce_strategy={self.allreduce_strategy.name}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -52,6 +63,12 @@ class OptimizationFlags:
         parser.add_argument("--faster_transformer", type=boolean, default=False)
         parser.add_argument("--cudagraph", type=boolean, default=False)
         parser.add_argument("--cutlass", type=boolean, default=False)
+        parser.add_argument(
+            "--allreduce-strategy",
+            type=str,
+            choices=["ring", "one-shot", "two-shot"],
+            default="ring",
+        )
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return OptimizationFlags(
             flashinfer=results.flashinfer,
@@ -59,6 +76,9 @@ class OptimizationFlags:
             faster_transformer=results.faster_transformer,
             cudagraph=results.cudagraph,
             cutlass=results.cutlass,
+            allreduce_strategy=AllReduceStrategyType[
+                results.allreduce_strategy.replace("-", "").upper()
+            ],
         )
 
     def update(self, target, quantization) -> None:
