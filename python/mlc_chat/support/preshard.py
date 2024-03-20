@@ -24,15 +24,31 @@ def _update_quantize_map(
     if mlc_name in quantize_map.param_map:
         # the parameter is quantized
         quantized_params = quantize_map.param_map[mlc_name]
-        param_names = quantized_params
+        quantized_params_to_shard = []
+        for param_name in quantized_params:
+            if "shard_strategy" in named_params[param_name].attrs:
+                quantized_params_to_shard.append(param_name)
+
+        param_names = quantized_params_to_shard
         quantize_func = quantize_map.map_func[mlc_name]
 
+
         for worker_id in range(tensor_parallel_shards):
-            sharded_mlc_name = _sharded_param_name(mlc_name, worker_id)
-            quantize_map.param_map[sharded_mlc_name] = [
-                _sharded_param_name(param_name, worker_id) for param_name in quantized_params
-            ]
-            quantize_map.map_func[sharded_mlc_name] = quantize_func
+            if quantized_params_to_shard:
+                sharded_mlc_name = _sharded_param_name(mlc_name, worker_id)
+                quantize_map.param_map[sharded_mlc_name] = [
+                    _sharded_param_name(param_name, worker_id) for param_name in quantized_params_to_shard
+                ]
+                quantize_map.map_func[sharded_mlc_name] = quantize_func
+
+        # Add non-sharded quantized params to the param_map entry for the last shard.
+        # Note that in the current implementation, the quantize_map.map_func is run
+        # one time per shard which means these non-sharded params will be recomputed
+        # multiple times (once per shard) even though their values are equivalent for
+        # each shard.
+        for param_name in quantized_params:
+            if param_name not in quantized_params_to_shard:
+                quantize_map.param_map[sharded_mlc_name].append(param_name)
 
     for param_name in param_names:
         param = named_params.pop(param_name)
