@@ -47,6 +47,9 @@ class Conversation(BaseModel):
     # The system token ids to be prepended at the beginning of tokenized
     # generated prompt.
     system_prefix_token_ids: Optional[List[int]] = None
+    # Whether or not to append user role and separator after the system message.
+    # This is mainly for [INST] [/INST] style prompt format
+    add_role_after_system_message: bool = True
 
     # The conversation roles
     roles: Dict[str, str]
@@ -125,15 +128,21 @@ class Conversation(BaseModel):
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
-        for role, content in self.messages:  # pylint: disable=not-an-iterable
+        for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
             if content is not None:
                 assert isinstance(content, str)
+                role_prefix = (
+                    ""
+                    # Do not append role prefix if this is the first message and there
+                    # is already a system message
+                    if (not self.add_role_after_system_message and system_msg != "" and i == 0)
+                    else self.roles[role] + self.role_content_sep
+                )
                 message_string = (
-                    self.roles[role]
-                    + self.role_content_sep
+                    role_prefix
                     + self.role_templates[role].replace(
                         MessagePlaceholders[role.upper()].value, content
                     )
@@ -143,7 +152,10 @@ class Conversation(BaseModel):
                 message_string = self.roles[role] + self.role_empty_sep
             message_list.append(message_string)
 
-        prompt = system_msg + separators[0] + "".join(message_list)
+        if system_msg != "":
+            system_msg += separators[0]
+
+        prompt = system_msg + "".join(message_list)
 
         # Replace the last function string placeholder with actual function string
         prompt = self.function_string.join(prompt.rsplit(MessagePlaceholders.FUNCTION.value, 1))
@@ -174,7 +186,9 @@ class Conversation(BaseModel):
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
-        message_list.append(system_msg + separators[0])
+        if system_msg != "":
+            system_msg += separators[0]
+        message_list.append(system_msg)
         for role, content in self.messages:  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
