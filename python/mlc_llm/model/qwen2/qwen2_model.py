@@ -36,7 +36,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
-    head_dim: int =0
+    head_dim: int = 0
     dtype: str = "float32"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -153,10 +153,19 @@ class QWen2DecoderLayer(nn.Module):
             k = self.self_attn.num_key_value_heads * hd
             v = self.self_attn.num_key_value_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.c_attn.weight,tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),)
-            _set(self.self_attn.c_attn.bias, tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),)
+            _set(
+                self.self_attn.c_attn.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            _set(
+                self.self_attn.c_attn.bias, 
+                tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+            )
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj.weight, 
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
+            )
             _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
