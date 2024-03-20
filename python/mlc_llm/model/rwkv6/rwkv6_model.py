@@ -61,6 +61,8 @@ class RWKV6Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 # pylint: disable=invalid-name, missing-docstring
 # pylint: disable=too-many-arguments, too-many-locals, redefined-argument-from-local
 def create_wkv6_func(
+    num_heads: int,
+    head_size: int,
     dtype: str,
     out_dtype: str,
     state_dtype: str,
@@ -77,7 +79,7 @@ def create_wkv6_func(
         out_state: T.handle,
     ):
         T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
-        batch_size, seq_len, head_size, num_heads = T.int64(), T.int64(), T.int64(), T.int64()
+        batch_size, seq_len = T.int64(), T.int64()
         # Inputs
         r_buf = T.match_buffer(r, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
         k_buf = T.match_buffer(k, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
@@ -264,7 +266,13 @@ class RWKV6_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         # w = op.reshape(w, [B, T, N, H])
 
         out, kv_state = op.tensor_ir_op(
-            create_wkv6_func(dtype=self.dtype, out_dtype="float32", state_dtype="float32"),
+            create_wkv6_func(
+                num_heads=self.num_heads,
+                head_size=self.head_size,
+                dtype=self.dtype,
+                out_dtype="float32",
+                state_dtype="float32",
+            ),
             "wkv6",
             [r, k, v, self.time_faaaa, w, kv_state],
             [
