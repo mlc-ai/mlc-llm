@@ -28,13 +28,14 @@ class ExternModuleStore:
     target: Optional[Target] = None
     flashinfer: bool = False
     faster_transformer: bool = False
+    cutlass_group_gemm: bool = False
 
 
 STORE: ExternModuleStore = ExternModuleStore()
 """Singleton of `ExternModuleStore`."""
 
 
-def enable(target: Target, flashinfer: bool, faster_transformer: bool) -> None:
+def enable(target: Target, flashinfer: bool, faster_transformer: bool, cutlass: bool) -> None:
     """Enable external modules. It should be called before any compilation happens."""
     global STORE  # pylint: disable=global-statement
     STORE = ExternModuleStore(
@@ -42,6 +43,9 @@ def enable(target: Target, flashinfer: bool, faster_transformer: bool) -> None:
         target=target,
         flashinfer=flashinfer,
         faster_transformer=faster_transformer,
+        cutlass_group_gemm=cutlass
+        and target.kind.name == "cuda"
+        and target.attrs.get("arch", "") == "sm_90a",
     )
 
 

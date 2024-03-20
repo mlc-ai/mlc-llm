@@ -131,6 +131,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             target=args.target,
             flashinfer=args.opt.flashinfer,
             faster_transformer=args.opt.faster_transformer,
+            cutlass=args.opt.cutlass,
         )
         # Step 1. Create the quantized model
         logger.info("Creating model from: %s", args.config)

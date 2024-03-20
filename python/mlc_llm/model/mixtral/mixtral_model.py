@@ -74,7 +74,9 @@ class MixtralMoE(nn.Module):
         # expert_weights: [num_tokens, experts_per_tok]
         # expert_indices: [num_tokens, experts_per_tok]
         expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(gate, experts_per_tok)
-        use_ft = op_ext.get_store().faster_transformer and self.dtype == "float16"
+        use_ft = (
+            op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer
+        ) and self.dtype == "float16"
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
             x = _expert_forward(x, expert_indices)
