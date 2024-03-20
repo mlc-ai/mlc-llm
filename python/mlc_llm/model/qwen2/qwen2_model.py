@@ -158,13 +158,12 @@ class QWen2DecoderLayer(nn.Module):
                 tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
             )
             _set(
-                self.self_attn.c_attn.bias, 
+                self.self_attn.c_attn.bias,
                 tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
             )
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
             _set(
-                self.mlp.gate_up_proj.weight, 
-                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
+                self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
             )
             _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
