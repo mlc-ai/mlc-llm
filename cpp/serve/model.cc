@@ -298,8 +298,11 @@ class ModelImpl : public ModelObj {
                           std::move(trace_recorder));
   }
 
-  Sampler CreateSampler(int max_num_sample, Optional<EventTraceRecorder> trace_recorder) {
-    if (Sampler::SupportGPUSampler(device_)) {
+  Sampler CreateSampler(int max_num_sample, int num_models,
+                        Optional<EventTraceRecorder> trace_recorder) {
+    if (num_models > 1) {  // speculative decoding uses cpu sampler
+      return Sampler::CreateCPUSampler(std::move(trace_recorder));
+    } else if (Sampler::SupportGPUSampler(device_)) {
       return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
                                        std::move(trace_recorder));
     } else {

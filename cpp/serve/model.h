@@ -170,7 +170,7 @@ class ModelObj : public Object {
                                               Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*! \brief Create a sampler from this model. */
-  virtual Sampler CreateSampler(int max_num_sample,
+  virtual Sampler CreateSampler(int max_num_sample, int num_models,
                                 Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!

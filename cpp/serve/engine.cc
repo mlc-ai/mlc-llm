@@ -87,7 +87,8 @@ class EngineImpl : public Engine {
     }
     LogitProcessor logit_processor =
         this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
-    Sampler sampler = this->models_[0]->CreateSampler(max_num_tokens, trace_recorder);
+    Sampler sampler = this->models_[0]->CreateSampler(
+        max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
     // Step 3. Initialize engine actions that represent state transitions.
     if (this->engine_mode_->enable_speculative) {
       // Speculative decoding is only possible for more than one model.
