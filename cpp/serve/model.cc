@@ -63,8 +63,8 @@ class ModelImpl : public ModelObj {
     memory::Allocator* allocator =
         memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
     ICHECK_NOTNULL(allocator);
-    token_ids_storage_ =
-        memory::Storage(allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)));
+    token_ids_storage_ = memory::Storage(
+        allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
     this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
   }
 
