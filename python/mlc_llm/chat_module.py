@@ -20,6 +20,7 @@ from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.support import logging
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.config import ConfigBase
+from mlc_llm.conversation_template import ConvTemplateRegistry
 
 from . import base as _
 
@@ -223,6 +224,8 @@ class ChatConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     def _from_json(cls, json_obj: dict):
         if "conv_template" in json_obj and isinstance(json_obj["conv_template"], dict):
             json_obj["conv_template"] = Conversation.from_json_dict(json_obj["conv_template"])
+        elif isinstance(json_obj["conv_template"], str):
+            json_obj["conv_template"] = ConvTemplateRegistry.get_conv_template(json_obj["conv_template"])
         return cls(**{k: v for k, v in json_obj.items() if k in inspect.signature(cls).parameters})
 
 
