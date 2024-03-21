@@ -1,8 +1,15 @@
 """Common utilities for quantization"""
 
-from typing import List, Optional
+from typing import Callable, List, Optional, Sequence
 
-from tvm import te, tir
+from tvm import IRModule
+from tvm import dlight as dl
+from tvm import relax, te, tir
+from tvm.relax.frontend import nn
+from tvm.runtime import DataType
+from tvm.target import Target
+
+from mlc_llm.support import tensor_parallel as tp
 
 
 def convert_uint_to_float(  # pylint: disable=too-many-arguments
@@ -50,3 +57,87 @@ def is_final_fc(name: str) -> bool:
 def is_moe_gate(name: str) -> bool:
     """Check whether the parameter is the MoE gate layer."""
     return name.endswith("gate")
+
+
+def compile_quantize_func(mod: IRModule, device) -> Callable:
+    """Compile a quantization function for a given device."""
+    device_type = device.MASK2STR[device.device_type]
+    if device_type in ["cuda", "rocm", "metal", "vulkan"]:
+        target = Target.current()
+        if target is None:
+            target = Target.from_device(device)
+        with target:
+            mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
+                dl.gpu.Reduction(),
+                dl.gpu.GeneralReduction(),
+                dl.gpu.Fallback(),
+            )(mod)
+    elif device_type == "cpu":
+        target = "llvm"
+        mod = relax.transform.LegalizeOps()(mod)
+    else:
+        raise NotImplementedError(f"Device type {device_type} is not supported")
+    ex = relax.build(mod, target=target)
+    vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
+    return vm["main"]
+
+
+def apply_sharding(shard_strategy, name: str, weight: nn.Parameter):
+    """Apply sharding strategy to a weight."""
+    if isinstance(shard_strategy, tp.ShardSingleDim):
+        weight.attrs["shard_strategy"] = tp.ShardSingleDim(
+            name=name,
+            dim=shard_strategy.dim,
+            segs=shard_strategy.segs,
+        )
+    else:
+        raise NotImplementedError(f"Unknowing sharding strategy: {shard_strategy}")
+
+
+def pack_weight(
+    weight: te.Tensor,
+    axis: int,
+    num_elem_per_storage: int,
+    weight_dtype: str,
+    storage_dtype: str,
+    out_shape: Optional[Sequence[tir.PrimExpr]] = None,
+):  # pylint: disable=too-many-arguments
+    """Convert a tensor to a packed format by packing consecutive bits.
+    This can be useful for sub-byte quantization.
+
+    Parameters
+    ----------
+    weight : te.Tensor
+        The weight
+    axis : int
+        The axis to pack.
+    num_elem_per_storage : int
+        The number of elements per storage.
+    weight_dtype : str
+        The dtype of the input tensor.
+    storage_dtype : str
+        The dtype of the packed tensor.
+    out_shape : Optional[Sequence[tir.PrimExpr]]
+        The output shape of the packed tensor. Zero-padding is added if needed.
+    """
+    assert weight.dtype == storage_dtype
+    shape = weight.shape
+    k = shape[axis]
+    axis = axis if axis >= 0 else len(shape) + axis
+    if out_shape is None:
+        out_shape = (*shape[axis], tir.ceildiv(k, num_elem_per_storage), *shape[axis + 1 :])
+    r = te.reduce_axis((0, num_elem_per_storage), name="r")  # pylint: disable=invalid-name
+    packed_weight = te.compute(
+        shape=out_shape,
+        fcompute=lambda *idx: tir.sum(
+            tir.if_then_else(
+                idx[axis] * num_elem_per_storage + r < k,
+                weight(*idx[:axis], idx[axis] * num_elem_per_storage + r, *idx[axis + 1 :])
+                << (r * DataType(weight_dtype).bits),
+                tir.const(0, storage_dtype),
+            ),
+            axis=r,
+        ),
+        name="packed_weight",
+    )
+    return packed_weight

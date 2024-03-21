@@ -2,21 +2,24 @@
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
-from tvm import DataType, DataTypeCode, IRModule
-from tvm import dlight as dl
-from tvm import relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
-from tvm.target import Target
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
 from mlc_llm.support import logging
-from mlc_llm.support import tensor_parallel as tp
 
-from .utils import convert_uint_to_float, is_final_fc, is_moe_gate
+from .utils import (
+    apply_sharding,
+    compile_quantize_func,
+    convert_uint_to_float,
+    is_final_fc,
+    is_moe_gate,
+    pack_weight,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -205,26 +208,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 bb.emit_func_output(gv)
             return bb.finalize()
 
-        def _compile_quantize_func(mod: IRModule) -> Callable:
-            if device_type in ["cuda", "rocm", "metal", "vulkan"]:
-                target = Target.current()
-                if target is None:
-                    target = Target.from_device(device)
-                with target:
-                    mod = dl.ApplyDefaultSchedule(  # type: ignore   # pylint: disable=not-callable
-                        dl.gpu.Reduction(),
-                        dl.gpu.GeneralReduction(),
-                        dl.gpu.Fallback(),
-                    )(mod)
-            elif device_type == "cpu":
-                target = "llvm"
-                mod = relax.transform.LegalizeOps()(mod)
-            else:
-                raise NotImplementedError(f"Device type {device_type} is not supported")
-            ex = relax.build(mod, target=target)
-            vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
-            return vm["main"]
-
         key = (
             f"({weight.shape}, {weight.dtype}, {device_type}, "
             f"axis={axis}, output_transpose={output_transpose})"
@@ -232,7 +215,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_func = self._quantize_func_cache.get(key, None)
         if quantize_func is None:
             logger.info("Compiling quantize function for key: %s", key)
-            quantize_func = _compile_quantize_func(_create_quantize_func())
+            quantize_func = compile_quantize_func(_create_quantize_func(), device=device)
             self._quantize_func_cache[key] = quantize_func
         return quantize_func(weight)
 
@@ -247,7 +230,6 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         shape = weight.shape  # pylint: disable=invalid-name
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
-        quantize_dtype = DataType(self.quantize_dtype)
         # compute scale per group
         r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
         num_group = tir.ceildiv(k, self.group_size)
@@ -285,23 +267,15 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             ).astype(self.storage_dtype),
         )
         # compute quantized weight per storage
-        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
         quantized_weight_shape = (*shape[:axis], num_storage, *shape[axis + 1 :])
-        quantized_weight = te.compute(
-            shape=quantized_weight_shape,
-            fcompute=lambda *idx: tir.sum(
-                tir.if_then_else(
-                    idx[axis] * self.num_elem_per_storage + r < k,
-                    scaled_weight(
-                        *idx[:axis], idx[axis] * self.num_elem_per_storage + r, *idx[axis + 1 :]
-                    )
-                    << (r * quantize_dtype.bits),
-                    0,
-                ),
-                axis=r,
-            ),
-            name="weight",
+        quantized_weight = pack_weight(
+            scaled_weight,
+            axis=axis,
+            num_elem_per_storage=self.num_elem_per_storage,
+            weight_dtype=self.quantize_dtype,
+            storage_dtype=self.storage_dtype,
+            out_shape=quantized_weight_shape,
         )
         if output_transpose:
             if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
@@ -378,8 +352,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             quantized_linear.bias.attrs = src.bias.attrs
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
-            _apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
+            apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -607,8 +581,8 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         )
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            _apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-            _apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
+            apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -653,14 +627,3 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
             indptr_dtype=indptr.dtype,
             group_size=self.group_size,
         )
-
-
-def _apply_sharding(shard, name: str, weight: nn.Parameter):
-    if isinstance(shard, tp.ShardSingleDim):
-        weight.attrs["shard_strategy"] = tp.ShardSingleDim(
-            name=name,
-            dim=shard.dim,
-            segs=shard.segs,
-        )
-    else:
-        raise NotImplementedError(f"Unknowing sharding strategy: {shard}")
