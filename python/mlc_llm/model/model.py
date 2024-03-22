@@ -83,6 +83,7 @@ MODELS: Dict[str, Model] = {
             "group-quant": llama_quantization.group_quant,
             "ft-quant": llama_quantization.ft_quant,
             "awq": llama_quantization.awq_quant,
+            "per-tensor-quant": llama_quantization.per_tensor_quant,
         },
     ),
     "mistral": Model(
@@ -139,6 +140,7 @@ MODELS: Dict[str, Model] = {
             "no-quant": mixtral_quantization.no_quant,
             "group-quant": mixtral_quantization.group_quant,
             "ft-quant": mixtral_quantization.ft_quant,
+            "per-tensor-quant": mixtral_quantization.per_tensor_quant,
         },
     ),
     "gpt_neox": Model(

@@ -3,6 +3,7 @@
 from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
+from typing import Optional
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 # pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements
@@ -173,6 +174,102 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         args=[x, w, scale, indptr],
         out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
     )
+
+
+def dequantize_float8_gemv(
+    x: Tensor,
+    w: Tensor,
+    scale: Optional[Tensor],
+    indptr: Tensor,
+    quantize_dtype: str,
+) -> Tensor:
+    (x_leading_dim, in_features), model_dtype = x.shape, x.dtype
+    (local_experts, out_features, _), storage_dtype = w.shape, w.dtype
+    _, experts_per_tok = indptr.shape
+    quantize_dtype_bits = DataType(quantize_dtype).bits
+    num_elem_per_storage = DataType(storage_dtype).bits // quantize_dtype_bits
+    num_storage = tir.ceildiv(in_features, num_elem_per_storage)
+
+    def _dequantize(w, s, e, i, j):
+        if num_elem_per_storage == 1:
+            w = tir.reinterpret(quantize_dtype, w[e, i, j])
+        else:
+            tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
+            w = w[e, i, j // num_elem_per_storage]
+            shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
+            w = tir.reinterpret(
+                quantize_dtype,
+                tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype("uint8"),
+            )
+        w = w.astype(model_dtype)
+        if s is not None:
+            w = w * s[0]
+        return w
+
+    def access_x(x, e, j):
+        return x[0, j] if x_leading_dim == 1 else x[e, j]
+
+    @T.prim_func(private=True)
+    def _func_with_scale(
+        x: T.Buffer((x_leading_dim, in_features), model_dtype),
+        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
+        scale: T.Buffer((1,), model_dtype),
+        indptr: T.Buffer((1, experts_per_tok), "int32"),
+        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            with T.block("gemv_o"):
+                e = T.axis.spatial(experts_per_tok, expert_id)
+                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("dequantize"):
+                        i, j = T.axis.remap("SS", [i1, i2])
+                        y[i, j] = _dequantize(w, scale, indptr[0, e], i, j)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("gemv"):
+                        i, j = T.axis.remap("SR", [i1, i2])
+                        with T.init():
+                            o[e, i] = T.cast(T.float16(0), model_dtype)
+                        o[e, i] += access_x(x, e, j) * y[i, j]
+
+    @T.prim_func(private=True)
+    def _func_without_scale(
+        x: T.Buffer((x_leading_dim, in_features), model_dtype),
+        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
+        indptr: T.Buffer((1, experts_per_tok), "int32"),
+        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            with T.block("gemv_o"):
+                e = T.axis.spatial(experts_per_tok, expert_id)
+                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("dequantize"):
+                        i, j = T.axis.remap("SS", [i1, i2])
+                        y[i, j] = _dequantize(w, None, indptr[0, e], i, j)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("gemv"):
+                        i, j = T.axis.remap("SR", [i1, i2])
+                        with T.init():
+                            o[e, i] = T.cast(T.float16(0), model_dtype)
+                        o[e, i] += access_x(x, e, j) * y[i, j]
+
+    if scale is not None:
+        return op.tensor_ir_op(
+            _func_with_scale,
+            "moe_dequantize_gemv",
+            args=[x, w, scale, indptr],
+            out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+        )
+    else:
+        return op.tensor_ir_op(
+            _func_without_scale,
+            "moe_dequantize_gemv",
+            args=[x, w, indptr],
+            out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+        )
 
 
 def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-many-statements

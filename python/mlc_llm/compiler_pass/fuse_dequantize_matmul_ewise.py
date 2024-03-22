@@ -15,7 +15,7 @@ class FuseDequantizeMatmulEwise:  # pylint: disable=too-few-public-methods
     ) -> IRModule:
         """IRModule-level transformation"""
         seq = []
-        for n_aux_tensor in [1, 2, 3, 4]:
+        for n_aux_tensor in [0, 1, 2, 3, 4]:
             for match_ewise in [0, 1, 2, 6]:
                 if match_ewise == 6 and n_aux_tensor != 4:
                     continue
