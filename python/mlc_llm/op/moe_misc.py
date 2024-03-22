@@ -101,7 +101,7 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                         with T.block("output"):
                             vj = T.axis.remap("S", [j])
                             out[vi, vj] = T.cast(
-                                T.exp(local_top_k_f32[j] - local_top_k_max[0])
+                                T.exp(local_top_k_f32[vj] - local_top_k_max[0])
                                 / (
                                     T.exp(local_top_k_f32[0] - local_top_k_max[0])
                                     + T.exp(local_top_k_f32[1] - local_top_k_max[0])
