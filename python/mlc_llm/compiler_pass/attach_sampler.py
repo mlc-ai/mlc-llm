@@ -107,7 +107,9 @@ def _attach_argsort_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                 sorted_indices,
                 primfunc_name_hint="take_sorted_probs",
             )
-        gv = bb.emit_func_output([sorted_values, sorted_indices])
+            output = (sorted_values, sorted_indices)
+            bb.emit_output(output)
+        gv = bb.emit_func_output(output)
     return gv
 
 
@@ -201,6 +203,7 @@ def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
                     sinfo_args=sample_indices.struct_info,  # pylint: disable=no-member
                 )
             )
+            bb.emit_output(result)
         gv = bb.emit_func_output(result)
     return gv
 
@@ -270,5 +273,6 @@ def _attach_take_probs_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                     ],
                 )
             )
+            bb.emit_output(taken_probs_indices)
         gv = bb.emit_func_output(taken_probs_indices)
     return gv
