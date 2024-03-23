@@ -9,7 +9,7 @@ from tvm.runtime import NDArray
 
 from mlc_llm.loader import QuantizeMapping
 
-from .utils import convert_uint_to_float, is_final_fc
+from .utils import convert_uint_to_float, is_final_fc, is_moe_gate
 
 
 def _make_divisible(c, divisor):  # pylint: disable=invalid-name
@@ -117,7 +117,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
                     The new node to replace current node.
                 """
 
-                if isinstance(node, nn.Linear) and not is_final_fc(name):
+                if isinstance(node, nn.Linear) and not is_final_fc(name) and not is_moe_gate(name):
                     return AWQQuantizeLinear.from_linear(node, self.config)
                 return self.visit(name, node)
 

@@ -21,7 +21,7 @@ from .group_quantization import (
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
 )
-from .utils import is_final_fc
+from .utils import is_final_fc, is_moe_gate
 
 logger = logging.getLogger(__name__)
 
@@ -147,8 +147,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         group_quantize = self.config.fallback_group_quantize()
                         self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                         return GroupQuantizeLinear.from_linear(node, group_quantize)
-                    self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    return FTQuantizeLinear.from_linear(node, self.config)
+                    if not is_moe_gate(name):
+                        self.quant_map.map_func[weight_name] = self.config.quantize_weight
+                        return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
