@@ -61,9 +61,7 @@ class Conversation(BaseModel):
     # The conversation history messages.
     # Each message is a pair of strings, denoting "(role, content)".
     # The content can be None.
-    messages: List[Tuple[str, Optional[Union[str, List[Dict[str, str]]]]]] = Field(
-        default_factory=lambda: []
-    )
+    messages: List[Tuple[str, Optional[Union[str, List[Dict]]]]] = Field(default_factory=lambda: [])
 
     # The separators between messages when concatenating into a single prompt.
     # List size should be either 1 or 2.
@@ -114,68 +112,11 @@ class Conversation(BaseModel):
         """Convert from a json dictionary"""
         return Conversation.model_validate(json_dict)
 
-    def as_prompt(self) -> str:
+    # pylint: disable=too-many-branches
+    def as_prompt(self, config=None) -> List[Union[str, data.ImageData]]:
         """Convert the conversation template and history messages to
         a single prompt.
         """
-        # - Get the system message.
-        system_msg = self.system_template.replace(
-            MessagePlaceholders.SYSTEM.value, self.system_message
-        )
-
-        # - Get the message strings.
-        message_list: List[str] = []
-        separators = list(self.seps)
-        if len(separators) == 1:
-            separators.append(separators[0])
-        for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
-            if role not in self.roles.keys():
-                raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
-            separator = separators[role == "assistant"]  # check assistant role
-            if content is not None:
-                assert isinstance(content, str)
-                role_prefix = (
-                    ""
-                    # Do not append role prefix if this is the first message and there
-                    # is already a system message
-                    if (not self.add_role_after_system_message and system_msg != "" and i == 0)
-                    else self.roles[role] + self.role_content_sep
-                )
-                message_string = (
-                    role_prefix
-                    + self.role_templates[role].replace(
-                        MessagePlaceholders[role.upper()].value, content
-                    )
-                    + separator
-                )
-            else:
-                message_string = self.roles[role] + self.role_empty_sep
-            message_list.append(message_string)
-
-        if system_msg != "":
-            system_msg += separators[0]
-
-        prompt = system_msg + "".join(message_list)
-
-        # Replace the last function string placeholder with actual function string
-        prompt = self.function_string.join(prompt.rsplit(MessagePlaceholders.FUNCTION.value, 1))
-        # Replace with remaining function string placeholders with empty string
-        prompt = prompt.replace(MessagePlaceholders.FUNCTION.value, "")
-
-        return prompt
-
-    def as_prompt_list(self, image_embed_size=None) -> List[Union[str, data.ImageData]]:
-        """Convert the conversation template and history messages to
-        a list of prompts.
-
-        Returns:
-            List[Union[str, data.ImageData]]: The list of prompts.
-        """
-        # TODO: Unify this function with as_prompt() # pylint: disable=fixme
-
-        # pylint: disable=import-outside-toplevel
-        from ..serve.entrypoints.entrypoint_utils import get_image_from_url
-
         # - Get the system message.
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
@@ -186,18 +127,26 @@ class Conversation(BaseModel):
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
+
         if system_msg != "":
             system_msg += separators[0]
-        message_list.append(system_msg)
-        for role, content in self.messages:  # pylint: disable=not-an-iterable
+            message_list.append(system_msg)
+
+        for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
             if content is not None:
+                role_prefix = (
+                    ""
+                    # Do not append role prefix if this is the first message and there
+                    # is already a system message
+                    if (not self.add_role_after_system_message and system_msg != "" and i == 0)
+                    else self.roles[role] + self.role_content_sep
+                )
                 if isinstance(content, str):
                     message_string = (
-                        self.roles[role]
-                        + self.role_content_sep
+                        role_prefix
                         + self.role_templates[role].replace(
                             MessagePlaceholders[role.upper()].value, content
                         )
@@ -205,10 +154,7 @@ class Conversation(BaseModel):
                     )
                     message_list.append(message_string)
                 else:
-                    assert isinstance(
-                        content, list
-                    ), "Content should be a string or a list of dicts"
-                    message_list.append(self.roles[role] + self.role_content_sep)
+                    message_list.append(role_prefix)
                     for item in content:
                         assert isinstance(
                             item, dict
@@ -221,23 +167,59 @@ class Conversation(BaseModel):
                                 )
                             )
                         elif item["type"] == "image_url":
-                            assert image_embed_size is not None, "Image embed size is required"
-                            message_list.append(
-                                data.ImageData(
-                                    image=get_image_from_url(item["image_url"]),
-                                    embed_size=image_embed_size,
-                                )
+                            assert config is not None, "Model config is required"
+
+                            # pylint: disable=import-outside-toplevel
+                            from ..serve.entrypoints.entrypoint_utils import (
+                                get_image_from_url,
                             )
+
+                            image_url = _get_url_from_item(item)
+                            message_list.append(get_image_from_url(image_url, config))
                         else:
                             raise ValueError(f"Unsupported content type: {item['type']}")
-                    message_list.append(separator)
 
+                    message_list.append(separator)
             else:
                 message_string = self.roles[role] + self.role_empty_sep
                 message_list.append(message_string)
 
-        prompt = message_list
+        prompt = _combine_consecutive_strings(message_list)
 
-        ## TODO: Support function calling # pylint: disable=fixme
+        if not any(isinstance(item, data.ImageData) for item in message_list):
+            # Replace the last function string placeholder with actual function string
+            prompt[0] = self.function_string.join(
+                prompt[0].rsplit(MessagePlaceholders.FUNCTION.value, 1)
+            )
+            # Replace with remaining function string placeholders with empty string
+            prompt[0] = prompt[0].replace(MessagePlaceholders.FUNCTION.value, "")
 
         return prompt
+
+
+def _get_url_from_item(item: Dict) -> str:
+    image_url: str
+    assert "image_url" in item, "Content item should have an image_url field"
+    if isinstance(item["image_url"], str):
+        image_url = item["image_url"]
+    elif isinstance(item["image_url"], dict):
+        assert (
+            "url" in item["image_url"]
+        ), "Content image_url item should be a string or a dict with a url field"  # pylint: disable=line-too-long
+        image_url = item["image_url"]["url"]
+    else:
+        raise ValueError(
+            "Content image_url item type not supported. "
+            "Should be a string or a dict with a url field."
+        )
+    return image_url
+
+
+def _combine_consecutive_strings(lst):
+    result = []
+    for item in lst:
+        if isinstance(item, str) and result and isinstance(result[-1], str):
+            result[-1] += item
+        else:
+            result.append(item)
+    return result
