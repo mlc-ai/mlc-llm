@@ -30,7 +30,6 @@ def serve(
 ):
 
     # Initialize model loading info and KV cache config
-    # Todo: JIT
     model_info = async_engine.ModelInfo(
         model=model,
         model_lib_path=model_lib_path,

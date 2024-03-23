@@ -145,6 +145,13 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
+
+        model_lib_idx_mult = len(model_args) // len(models)
+        for i in range(len(models)):
+            # model_args:
+            # [model_lib_path, model_path, device.device_type, device.device_id] * N
+            models[i].model_lib_path = model_args[i * model_lib_idx_mult]
+
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
         # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
         self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
