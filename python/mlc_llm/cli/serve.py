@@ -8,8 +8,8 @@ from mlc_llm.support.argparse import ArgumentParser
 
 
 def main(argv):
-    """Parse command line arguments and call `mlc_llm.interface.chat`."""
-    parser = ArgumentParser("MLC LLM Chat CLI")
+    """Parse command line arguments and call `mlc_llm.interface.serve`."""
+    parser = ArgumentParser("MLC LLM Serve CLI")
 
     parser.add_argument(
         "model",
@@ -46,12 +46,37 @@ def main(argv):
     )
     parser.add_argument("--prefill-chunk-size", type=int, help=HELP["prefill_chunk_size_serve"])
     parser.add_argument("--enable-tracing", action="store_true", help=HELP["enable_tracing_serve"])
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="host name")
-    parser.add_argument("--port", type=int, default=8000, help="port")
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="host name" + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="port" + ' (default: "%(default)s")',
+    )
     parser.add_argument("--allow-credentials", action="store_true", help="allow credentials")
-    parser.add_argument("--allow-origins", type=json.loads, default=["*"], help="allowed origins")
-    parser.add_argument("--allow-methods", type=json.loads, default=["*"], help="allowed methods")
-    parser.add_argument("--allow-headers", type=json.loads, default=["*"], help="allowed headers")
+    parser.add_argument(
+        "--allow-origins",
+        type=json.loads,
+        default=["*"],
+        help="allowed origins" + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--allow-methods",
+        type=json.loads,
+        default=["*"],
+        help="allowed methods" + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
+        "--allow-headers",
+        type=json.loads,
+        default=["*"],
+        help="allowed headers" + ' (default: "%(default)s")',
+    )
     parsed = parser.parse_args(argv)
 
     serve(
