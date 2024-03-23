@@ -23,10 +23,12 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
 """.strip(),
     "model": """
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
+It can also be a link to a HF repository pointing to an MLC compiled model.
 """.strip(),
     "model_lib_path": """
 The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
-the provided ``model`` to search over possible paths.
+the provided ``model`` to search over possible paths. It the model lib path is not found, it will be 
+compiled in a JIT manner.
 """.strip(),
     "model_type": """
 Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`.
