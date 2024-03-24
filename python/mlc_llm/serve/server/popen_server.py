@@ -1,4 +1,5 @@
 """The MLC LLM server launched in a subprocess."""
+
 import subprocess
 import sys
 import time
@@ -25,7 +26,6 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
-        # Todo
         """Please check out `python/mlc_llm/cli/serve.py` for the server arguments."""
         self.model = model
         self.model_lib_path = model_lib_path
