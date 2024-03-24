@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import time
 from typing import Any, List, Optional, Union
 
 import fastapi
@@ -9,7 +10,8 @@ import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.serve import async_engine, config
-from mlc_llm.serve.server import ServerContext
+from mlc_llm.serve.server import ServerContext, ServerContextMiddleware
+from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
 
 
 def serve(
@@ -45,22 +47,20 @@ def serve(
         model_info, kv_cache_config, enable_tracing=enable_tracing
     )
 
-    # Todo: context-based
-    ServerContext.add_model(model, engine)
+    with ServerContext() as server_context:
+        server_context.add_model(model, engine)
 
-    app = fastapi.FastAPI()
-    app.add_middleware(
-        CORSMiddleware,
-        allow_credentials=allow_credentials,
-        allow_origins=allow_origins,
-        allow_methods=allow_methods,
-        allow_headers=allow_headers,
-    )
+        app = fastapi.FastAPI()
+        app.add_middleware(
+            CORSMiddleware,
+            allow_credentials=allow_credentials,
+            allow_origins=allow_origins,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+        )
 
-    # Include the routers from subdirectories.
-    # Todo: move out?
-    from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
+        app.add_middleware(ServerContextMiddleware, server_context=server_context)
 
-    app.include_router(openai_entrypoints.app)
-    app.include_router(debug_entrypoints.app)
-    uvicorn.run(app, host=host, port=port, log_level="info")
+        app.include_router(openai_entrypoints.app)
+        app.include_router(debug_entrypoints.app)
+        uvicorn.run(app, host=host, port=port, log_level="info")

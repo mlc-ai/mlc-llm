@@ -39,11 +39,12 @@ app = fastapi.APIRouter()
 
 
 @app.get("/v1/models")
-async def request_models():
+async def request_models(request: fastapi.Request):
     """OpenAI-compatible served model query API.
     API reference: https://platform.openai.com/docs/api-reference/models
     """
-    return ListResponse(data=[ModelResponse(id=model) for model in ServerContext.get_model_list()])
+    server_context: ServerContext = request.scope["server_context"]
+    return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
 
 
 ################ v1/completions ################
@@ -55,7 +56,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     API reference: https://platform.openai.com/docs/api-reference/completions/create
     """
     # - Check the requested model.
-    async_engine = ServerContext.get_engine(request.model)
+    server_context: ServerContext = raw_request.scope["server_context"]
+    async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
@@ -355,7 +357,8 @@ async def request_chat_completion(
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
     # - Check the requested model.
-    async_engine = ServerContext.get_engine(request.model)
+    server_context = raw_request.scope["server_context"]
+    async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
@@ -364,7 +367,7 @@ async def request_chat_completion(
     async_engine.record_event(request_id, event="receive request")
 
     # - Check if the model supports chat conversation.
-    conv_template = ServerContext.get_conv_template(request.model)
+    conv_template = server_context.get_conv_template(request.model)
     if conv_template is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST,
@@ -407,7 +410,7 @@ async def request_chat_completion(
     async_engine.record_event(request_id, event="start tokenization")
 
     if content_has_list:
-        model_config = ServerContext.get_model_config(request.model)
+        model_config = server_context.get_model_config(request.model)
         image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
         prompts = entrypoint_utils.process_prompts(
             conv_template.as_prompt_list(image_embed_size=image_embed_size),
