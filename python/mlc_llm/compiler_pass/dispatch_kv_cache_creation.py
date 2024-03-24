@@ -13,7 +13,6 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert isinstance(func.body, relax.SeqExpr)
     assert len(func.body.blocks) == 1
     assert isinstance(func.body.blocks[0], relax.DataflowBlock)
-    assert len(func.body.blocks[0].bindings) == 1
     assert isinstance(func.body.blocks[0].bindings[0], relax.VarBinding)
     assert isinstance(func.body.blocks[0].bindings[0].value, relax.Call)
     assert func.body.blocks[0].bindings[0].value.op == tvm.ir.Op.get("relax.call_pure_packed")
