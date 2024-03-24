@@ -17,12 +17,6 @@ def main(argv):
         help=HELP["model"] + " (required)",
     )
     parser.add_argument(
-        "--opt",
-        type=str,
-        default="O2",
-        help=HELP["opt"] + ' (default: "%(default)s")',
-    )
-    parser.add_argument(
         "--device",
         type=str,
         default="auto",
@@ -34,7 +28,6 @@ def main(argv):
         default=None,
         help=HELP["model_lib_path"] + ' (default: "%(default)s")',
     )
-    # Todo: help
     parser.add_argument(
         "--max-batch-size",
         type=int,
@@ -82,7 +75,6 @@ def main(argv):
     serve(
         model=parsed.model,
         device=parsed.device,
-        opt=parsed.opt,
         model_lib_path=parsed.model_lib_path,
         max_batch_size=parsed.max_batch_size,
         max_total_sequence_length=parsed.max_total_seq_length,

@@ -1,23 +1,19 @@
 """Python entrypoint of serve."""
 
-import dataclasses
-import json
-import time
-from typing import Any, List, Optional, Union
+from typing import Any, Optional
 
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.serve import async_engine, config
-from mlc_llm.serve.server import ServerContext, ServerContextMiddleware
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
+from mlc_llm.serve.server import ServerContext, ServerContextMiddleware
 
 
 def serve(
     model: str,
     device: str,
-    opt: str,
     model_lib_path: Optional[str],
     max_batch_size: int,
     max_total_sequence_length: Optional[int],
@@ -29,8 +25,8 @@ def serve(
     allow_origins: Any,
     allow_methods: Any,
     allow_headers: Any,
-):
-
+):  # pylint: disable=too-many-arguments, too-many-locals
+    """Serve the model with the specified configuration."""
     # Initialize model loading info and KV cache config
     model_info = async_engine.ModelInfo(
         model=model,

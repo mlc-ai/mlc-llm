@@ -66,7 +66,9 @@ class ServerContext:
         return self._model_configs.get(model, None)
 
 
-class ServerContextMiddleware:
+class ServerContextMiddleware:  # pylint: disable=too-few-public-methods
+    """Middleware to inject the server context into the request state."""
+
     def __init__(self, app, server_context):
         self.app = app
         self.server_context = server_context

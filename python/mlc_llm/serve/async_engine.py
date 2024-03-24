@@ -147,10 +147,10 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         ) = _process_model_args(models)
 
         model_lib_idx_mult = len(model_args) // len(models)
-        for i in range(len(models)):
+        for i, model in enumerate(models):
             # model_args:
             # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            models[i].model_lib_path = model_args[i * model_lib_idx_mult]
+            model.model_lib_path = model_args[i * model_lib_idx_mult]
 
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
         # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
@@ -283,9 +283,12 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         try:
             async for request_output in stream:
                 yield request_output
-        except (Exception, asyncio.CancelledError) as e:  # pylint: disable=broad-exception-caught
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as exception:  # pylint: disable=broad-exception-caught
             await self.abort(request_id)
-            raise e
+            raise exception
 
     async def abort(self, request_id: str) -> None:
         """Generation abortion interface.
