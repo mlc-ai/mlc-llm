@@ -36,7 +36,7 @@ def main():
             raise RuntimeError(
                 f"Cannot find iOS lib for {model} from the following candidate paths: {paths}"
             )
-        tar_list.append(valid_paths[ls0])
+        tar_list.append(valid_paths[0])
         model_set.add(model)
 
     lib_path = os.path.join("build", "lib", "libmodel_iphone.a")
