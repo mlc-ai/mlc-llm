@@ -37,7 +37,7 @@ async def debug_dump_event_trace(request: fastapi.Request):
     # - Check the requested model.
     model = request_dict["model"]
 
-    server_context: ServerContext = request.scope["server_context"]
+    server_context: ServerContext = ServerContext.current()
     async_engine = server_context.get_engine(model)
 
     if async_engine is None:

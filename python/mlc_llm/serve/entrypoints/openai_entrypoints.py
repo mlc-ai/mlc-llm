@@ -39,11 +39,11 @@ app = fastapi.APIRouter()
 
 
 @app.get("/v1/models")
-async def request_models(request: fastapi.Request):
+async def request_models():
     """OpenAI-compatible served model query API.
     API reference: https://platform.openai.com/docs/api-reference/models
     """
-    server_context: ServerContext = request.scope["server_context"]
+    server_context: ServerContext = ServerContext.current()
     return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
 
 
@@ -56,7 +56,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     API reference: https://platform.openai.com/docs/api-reference/completions/create
     """
     # - Check the requested model.
-    server_context: ServerContext = raw_request.scope["server_context"]
+    server_context: ServerContext = ServerContext.current()
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(
@@ -357,7 +357,7 @@ async def request_chat_completion(
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
     # - Check the requested model.
-    server_context = raw_request.scope["server_context"]
+    server_context: ServerContext = ServerContext.current()
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(

@@ -14,12 +14,17 @@ class ServerContext:
     and corresponding async engines.
     """
 
+    server_context: Optional["ServerContext"] = None
+
     def __init__(self):
         self._models: Dict[str, async_engine.AsyncThreadedEngine] = {}
         self._conv_templates: Dict[str, Conversation] = {}
         self._model_configs: Dict[str, Dict] = {}
 
     def __enter__(self):
+        if ServerContext.server_context is not None:
+            raise RuntimeError("Server context already exists.")
+        ServerContext.server_context = self
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -28,6 +33,11 @@ class ServerContext:
         self._models.clear()
         self._conv_templates.clear()
         self._model_configs.clear()
+
+    @staticmethod
+    def current():
+        """Returns the current ServerContext."""
+        return ServerContext.server_context
 
     def add_model(self, hosted_model: str, engine: async_engine.AsyncThreadedEngine) -> None:
         """Add a new model to the server context together with the engine."""
@@ -64,16 +74,3 @@ class ServerContext:
     def get_model_config(self, model: str) -> Optional[Dict]:
         """Get the model config path of the requested model."""
         return self._model_configs.get(model, None)
-
-
-class ServerContextMiddleware:  # pylint: disable=too-few-public-methods
-    """Middleware to inject the server context into the request state."""
-
-    def __init__(self, app, server_context):
-        self.app = app
-        self.server_context = server_context
-
-    async def __call__(self, scope, receive, send):
-        # Add server_context to request state
-        scope["server_context"] = self.server_context
-        await self.app(scope, receive, send)

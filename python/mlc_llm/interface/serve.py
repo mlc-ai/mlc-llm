@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.serve import async_engine, config
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
-from mlc_llm.serve.server import ServerContext, ServerContextMiddleware
+from mlc_llm.serve.server import ServerContext
 
 
 def serve(
@@ -54,8 +54,6 @@ def serve(
             allow_methods=allow_methods,
             allow_headers=allow_headers,
         )
-
-        app.add_middleware(ServerContextMiddleware, server_context=server_context)
 
         app.include_router(openai_entrypoints.app)
         app.include_router(debug_entrypoints.app)
