@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
 
 from .. import async_engine, config
-from .server_context import ServerContext, ServerContextMiddleware
+from .server_context import ServerContext
 
 
 def parse_args_and_initialize() -> argparse.Namespace:
@@ -67,9 +67,6 @@ if __name__ == "__main__":
             allow_methods=["*"],
             allow_headers=["*"],
         )
-
-        # Include the routers from subdirectories.
-        app.add_middleware(ServerContextMiddleware, server_context=server_context)
 
         app.include_router(openai_entrypoints.app)
         app.include_router(debug_entrypoints.app)
