@@ -1,9 +1,11 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 import asyncio
+import json
 from typing import List
 
 import pytest
+from pydantic import BaseModel
 
 from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
 from mlc_llm.serve.async_engine import AsyncThreadedEngine
@@ -67,6 +69,61 @@ def test_batch_generation_with_grammar():
         else:
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
+
+
+def test_batch_generation_with_schema():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo(model_path, model_lib_path=model_lib_path)
+    kv_cache_config = KVCacheConfig(page_size=16)
+    # Create engine
+    engine = Engine(model, kv_cache_config)
+
+    prompt = (
+        "Generate a json containing three fields: an integer field named size, a "
+        "boolean field named is_accepted, and a float field named num:"
+    )
+    repeat_cnt = 3
+    prompts = [prompt] * repeat_cnt * 2
+
+    temperature = 1
+    repetition_penalty = 1
+    max_tokens = 512
+    generation_config_no_json = GenerationConfig(
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
+        max_tokens=max_tokens,
+        stop_token_ids=[2],
+        response_format=ResponseFormat(type="text"),
+    )
+
+    class Schema(BaseModel):
+        size: int
+        is_accepted: bool
+        num: float
+
+    schema_str = json.dumps(Schema.model_json_schema())
+
+    generation_config_json = GenerationConfig(
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
+        max_tokens=max_tokens,
+        stop_token_ids=[2],
+        response_format=ResponseFormat(type="json_object", schema=schema_str),
+    )
+
+    all_generation_configs = [generation_config_no_json] * repeat_cnt + [
+        generation_config_json
+    ] * repeat_cnt
+
+    # Generate output.
+    output_texts, _ = engine.generate(prompts, all_generation_configs)
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}: {outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}): {output}\n")
 
 
 async def run_async_engine():
@@ -144,7 +201,7 @@ def test_generation_config_error():
             repetition_penalty=1.0,
             max_tokens=128,
             stop_token_ids=[2],
-            response_format=ResponseFormat(type="text", json_schema="{}"),
+            response_format=ResponseFormat(type="text", schema="{}"),
         )
 
 

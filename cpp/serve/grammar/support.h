@@ -18,17 +18,20 @@ namespace serve {
 /*! \brief Manages a segment of externally provided memory and use it as a bitset. */
 class BitsetManager {
  public:
-  BitsetManager(uint32_t* data, int buffer_size) : data_(data), buffer_size_(buffer_size) {}
+  BitsetManager(uint32_t* data, int buffer_size, int element_cnt)
+      : data_(data), buffer_size_(buffer_size), element_cnt_(element_cnt) {
+    DCHECK(buffer_size >= CalculateBufferSize(element_cnt));
+  }
 
-  static int GetBitsetSize(int size) { return (size + 31) / 32; }
+  static int CalculateBufferSize(int element_cnt) { return (element_cnt + 31) / 32; }
 
   bool operator[](int index) const {
-    DCHECK(index >= 0 && index / 32 < buffer_size_);
+    DCHECK(index >= 0 && index < element_cnt_);
     return (data_[index / 32] >> (index % 32)) & 1;
   }
 
   void Set(int index, bool value) {
-    DCHECK(index >= 0 && index / 32 < buffer_size_);
+    DCHECK(index >= 0 && index < element_cnt_);
     if (value) {
       data_[index / 32] |= 1 << (index % 32);
     } else {
@@ -36,14 +39,14 @@ class BitsetManager {
     }
   }
 
-  void Reset(int size, bool value) {
-    DCHECK(buffer_size_ >= GetBitsetSize(size));
-    std::memset(data_, value ? 0xFF : 0, GetBitsetSize(size) * sizeof(uint32_t));
-  }
+  void Reset(bool value) { std::memset(data_, value ? 0xFF : 0, buffer_size_ * sizeof(uint32_t)); }
+
+  int GetElementCnt() const { return element_cnt_; }
 
  private:
   uint32_t* const data_;
   const int buffer_size_;
+  const int element_cnt_;
 };
 
 /*!

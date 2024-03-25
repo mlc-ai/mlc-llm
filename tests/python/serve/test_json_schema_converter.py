@@ -76,17 +76,20 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
-main_any_array_field ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-main_array_field ::= "[" ("" | "" basic_string (", " basic_string)* "") "]"
-main_tuple_field_2 ::= "[" ("" | "" basic_string (", " basic_string)* "") "]"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
+main_any_array_field ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+main_array_field ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
+main_tuple_field_2 ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
 main_tuple_field ::= "[" "" basic_string ", " basic_integer ", " main_tuple_field_2 "" "]"
-main_object_field ::= "{" ("" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" | "") "}"
-main_nested_object_field_add ::= "{" ("" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" | "") "}"
-main_nested_object_field ::= "{" ("" basic_string ": " main_nested_object_field_add (", " basic_string ": " main_nested_object_field_add)* "" | "") "}"
+main_object_field ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
+main_nested_object_field_add ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
+main_nested_object_field ::= ("{" "" basic_string ": " main_nested_object_field_add (", " basic_string ": " main_nested_object_field_add)* "" "}") | "{}"
 main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" ": " basic_number ", " "\"boolean_field\"" ": " basic_boolean ", " "\"any_array_field\"" ": " main_any_array_field ", " "\"array_field\"" ": " main_array_field ", " "\"tuple_field\"" ": " main_tuple_field ", " "\"object_field\"" ": " main_object_field ", " "\"nested_object_field\"" ": " main_nested_object_field "" "}"
 """
+
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
 
     instance = MainModel(
         integer_field=42,
@@ -98,10 +101,21 @@ main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" "
         object_field={"foo": 42, "bar": 43},
         nested_object_field={"foo": {"bar": 42}},
     )
+    check_schema_with_instance(schema, instance)
+
+    instance_empty = MainModel(
+        integer_field=42,
+        number_field=3.14e5,
+        boolean_field=True,
+        any_array_field=[],
+        array_field=[],
+        tuple_field=("foo", 42, []),
+        object_field={},
+        nested_object_field={},
+    )
 
     schema = MainModel.model_json_schema()
-    check_schema_with_grammar(schema, ebnf_grammar)
-    check_schema_with_instance(schema, instance)
+    check_schema_with_instance(schema, instance_empty)
 
 
 def test_indent():
@@ -118,12 +132,12 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" | "") "}"
-main_array_field ::= "[" ("" | "\n    " basic_string (",\n    " basic_string)* "\n  ") "]"
-main_tuple_field_2 ::= "[" ("" | "\n      " basic_string (",\n      " basic_string)* "\n    ") "]"
+basic_array ::= ("[" "" basic_any ("," basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" "}") | "{}"
+main_array_field ::= ("[" "\n    " basic_string (",\n    " basic_string)* "\n  " "]") | "[]"
+main_tuple_field_2 ::= ("[" "\n      " basic_string (",\n      " basic_string)* "\n    " "]") | "[]"
 main_tuple_field ::= "[" "\n    " basic_string ",\n    " basic_integer ",\n    " main_tuple_field_2 "\n  " "]"
-main_object_field ::= "{" ("\n    " basic_string ": " basic_integer (",\n    " basic_string ": " basic_integer)* "\n  " | "") "}"
+main_object_field ::= ("{" "\n    " basic_string ": " basic_integer (",\n    " basic_string ": " basic_integer)* "\n  " "}") | "{}"
 main ::= "{" "\n  " "\"array_field\"" ": " main_array_field ",\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"object_field\"" ": " main_object_field "\n" "}"
 """
 
@@ -155,11 +169,11 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any ("," basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" | "") "}"
-main_tuple_field_1 ::= "[" "\n      " basic_integer ",\n      " basic_integer ("" | (",\n      " basic_any)*) "\n    " "]"
-main_tuple_field ::= "[" "\n    " basic_string ",\n    " main_tuple_field_1 ("" | (",\n    " basic_any)*) "\n  " "]"
-main_foo_field ::= "{" ("\n    " basic_string ": " basic_any (",\n    " basic_string ": " basic_any)* "\n  " | "") "}"
+basic_array ::= ("[" "" basic_any ("," basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" "}") | "{}"
+main_tuple_field_1 ::= "[" "\n      " basic_integer ",\n      " basic_integer (",\n      " basic_any)* "\n    " "]"
+main_tuple_field ::= "[" "\n    " basic_string ",\n    " main_tuple_field_1 (",\n    " basic_any)* "\n  " "]"
+main_foo_field ::= ("{" "\n    " basic_string ": " basic_any (",\n    " basic_string ": " basic_any)* "\n  " "}") | "{}"
 main ::= "{" "\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"foo_field\"" ": " main_foo_field (",\n  " basic_string ": " basic_any)* "\n" "}"
 """
 
@@ -204,8 +218,8 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_bars ::= "\"a\""
 main_str_values ::= "\"a\\n\\r\\\"\""
 main_foo ::= ("\"a\"") | ("\"b\"") | ("\"c\"")
@@ -235,8 +249,8 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_opt_bool ::= basic_boolean | basic_null
 main_size ::= basic_number | basic_null
 main ::= "{" "" ("\"num\"" ": " basic_integer ", ")? ("\"opt_bool\"" ": " main_opt_bool ", ")? "\"size\"" ": " main_size (", " "\"name\"" ": " basic_string)? "" "}"
@@ -270,11 +284,11 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_sub_1 ::= "" | ", " "\"num\"" ": " basic_number ""
 main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
-main ::= "{" ("" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number "")) "" | "") "}"
+main ::= ("{" "" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number "")) "" "}") | "{}"
 """
 
     schema = MainModel.model_json_schema()
@@ -294,18 +308,44 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_sub_2 ::= (", " basic_string ": " basic_any)*
 main_sub_1 ::= main_sub_2 | ", " "\"num\"" ": " basic_number main_sub_2
 main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
-main ::= "{" ("" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number main_sub_2) | basic_string ": " basic_any main_sub_2) "" | "") "}"
+main ::= ("{" "" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number main_sub_2) | basic_string ": " basic_any main_sub_2) "" "}") | "{}"
 """
 
     check_schema_with_grammar(schema, ebnf_grammar_non_strict, strict_mode=False)
 
     check_schema_with_json(schema, '{"size": 1, "num": 1.5, "other": false}', strict_mode=False)
     check_schema_with_json(schema, '{"other": false}', strict_mode=False)
+
+
+def test_empty():
+    class MainModel(BaseModel):
+        pass
+
+    ebnf_grammar = r"""basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
+main ::= "{" "}"
+"""
+
+    schema = MainModel.model_json_schema()
+    check_schema_with_grammar(schema, ebnf_grammar)
+
+    instance = MainModel()
+    check_schema_with_instance(schema, instance)
+
+    check_schema_with_json(schema, '{"tmp": 123}', strict_mode=False)
 
 
 def test_reference():
@@ -334,13 +374,13 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_foo_size ::= basic_number | basic_null
 main_foo ::= "{" "" "\"count\"" ": " basic_integer (", " "\"size\"" ": " main_foo_size)? "" "}"
 main_bars_item_sub_0 ::= "" | ", " "\"banana\"" ": " basic_string ""
-main_bars_item ::= "{" ("" (("\"apple\"" ": " basic_string main_bars_item_sub_0) | ("\"banana\"" ": " basic_string "")) "" | "") "}"
-main_bars ::= "[" ("" | "" main_bars_item (", " main_bars_item)* "") "]"
+main_bars_item ::= ("{" "" (("\"apple\"" ": " basic_string main_bars_item_sub_0) | ("\"banana\"" ": " basic_string "")) "" "}") | "{}"
+main_bars ::= ("[" "" main_bars_item (", " main_bars_item)* "" "]") | "[]"
 main ::= "{" "" "\"foo\"" ": " main_foo ", " "\"bars\"" ": " main_bars "" "}"
 """
 
@@ -370,8 +410,8 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main_0 ::= "{" "" "\"name\"" ": " basic_string ", " "\"color\"" ": " basic_string "" "}"
 main_1 ::= "{" "" "\"name\"" ": " basic_string ", " "\"breed\"" ": " basic_string "" "}"
 main ::= main_0 | main_1
@@ -396,8 +436,8 @@ basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
 basic_string ::= ["] basic_string_sub ["]
 basic_boolean ::= "true" | "false"
 basic_null ::= "null"
-basic_array ::= "[" ("" | "" basic_any (", " basic_any)* "") "]"
-basic_object ::= "{" ("" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" | "") "}"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
 main ::= "{" "" "\"name\"" ": " basic_string "" "}"
 """
 

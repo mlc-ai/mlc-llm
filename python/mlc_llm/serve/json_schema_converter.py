@@ -4,6 +4,8 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from tvm._ffi import register_func
+
 SchemaType = Union[Dict[str, Any], bool]
 """
 JSON schema specification defines the schema type could be a dictionary or a boolean value.
@@ -33,6 +35,7 @@ class _IndentManager:
         """Enter a new indent level."""
         self.total_indent += self.indent
         self.is_first.append(True)
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         """Exit the current indent level."""
@@ -406,16 +409,16 @@ class _JSONSchemaToEBNFConverter:
         )
 
         res = '"["'
+        could_be_empty = False
 
         with self.indent_manager:
             # 1. Handle prefix items
-            have_prefix_items = False
-            if "prefixItems" in schema:
-                for i, prefix_item in enumerate(schema["prefixItems"]):
+            prefix_items = schema.get("prefixItems", [])
+            if len(prefix_items) > 0:
+                for i, prefix_item in enumerate(prefix_items):
                     assert prefix_item is not False
                     item = self._create_rule_with_schema(prefix_item, f"{rule_name}_{i}")
                     res += f" {self._get_sep()} {item}"
-                    have_prefix_items = True
 
             # 2. Find additional items
             additional_item = None
@@ -439,18 +442,22 @@ class _JSONSchemaToEBNFConverter:
                 additional_pattern = self._create_rule_with_schema(
                     additional_item, f"{rule_name}_{additional_suffix}"
                 )
-                if have_prefix_items:
+                if len(prefix_items) > 0:
                     res += (
-                        f' ("" | ({self._get_sep()} {additional_pattern})*)'
-                        f" {self._get_sep(is_end=True)}"
+                        f" ({self._get_sep()} {additional_pattern})* {self._get_sep(is_end=True)}"
                     )
                 else:
                     res += (
-                        f' ("" | {self._get_sep()} {additional_pattern} ({self._get_sep()} '
-                        f"{additional_pattern})* {self._get_sep(is_end=True)})"
+                        f" {self._get_sep()} {additional_pattern} ({self._get_sep()} "
+                        f"{additional_pattern})* {self._get_sep(is_end=True)}"
                     )
+                    could_be_empty = True
 
         res += ' "]"'
+
+        if could_be_empty:
+            res = f'({res}) | "[]"'
+
         return res
 
     def _visit_object(self, schema: SchemaType, rule_name: str) -> str:
@@ -500,6 +507,9 @@ class _JSONSchemaToEBNFConverter:
         )
 
         res = '"{"'
+        # Set could_be_empty to True when the rule could be "{}". We will handle this case at last,
+        # and handle non-empty cases before that.
+        could_be_empty = False
         # Now we only consider the required list for the properties field
         required = schema.get("required", [])
 
@@ -528,6 +538,7 @@ class _JSONSchemaToEBNFConverter:
                 res += " " + self._get_partial_rule_for_properties_all_optional(
                     properties, additional_property, rule_name, additional_suffix
                 )
+                could_be_empty = True
             elif len(properties) > 0:
                 # 3.2 Case 2: properties are defined and some properties are required
                 res += " " + self._get_partial_rule_for_properties_contain_required(
@@ -545,11 +556,15 @@ class _JSONSchemaToEBNFConverter:
                     self.BASIC_STRING, additional_property, rule_name, additional_suffix
                 )
                 res += (
-                    f" ({self._get_sep()} {other_property_pattern} ({self._get_sep()} "
-                    f'{other_property_pattern})* {self._get_sep(is_end=True)} | "")'
+                    f" {self._get_sep()} {other_property_pattern} ({self._get_sep()} "
+                    f"{other_property_pattern})* {self._get_sep(is_end=True)}"
                 )
+                could_be_empty = True
 
         res += ' "}"'
+
+        if could_be_empty:
+            res = f'({res}) | "{{}}"'
         return res
 
     def _get_property_pattern(self, prop_name: str, prop_schema: SchemaType, rule_name: str) -> str:
@@ -625,7 +640,7 @@ class _JSONSchemaToEBNFConverter:
             res += f" | {additional_prop_pattern} {rule_names[-1]}"
 
         # add separators and the empty string option
-        res = f'({first_sep} ({res}) {last_sep} | "")'
+        res = f"{first_sep} ({res}) {last_sep}"
         return res
 
     def _get_partial_rule_for_properties_contain_required(
@@ -711,3 +726,17 @@ def json_schema_to_ebnf(
     """
     json_schema_schema = json.loads(json_schema)
     return _JSONSchemaToEBNFConverter(json_schema_schema, indent, separators, strict_mode).convert()
+
+
+@register_func("mlc.serve.json_schema_to_ebnf")
+def json_schema_to_ebnf_register(
+    json_schema: str,
+    indent: Optional[int] = None,
+    separators: Optional[Tuple[str, str]] = None,
+    strict_mode: bool = True,
+) -> str:
+    """To register json_schema_to_ebnf in ffi, we need to create an equivalent function without
+    keyword-only arguments."""
+    return json_schema_to_ebnf(
+        json_schema, indent=indent, separators=separators, strict_mode=strict_mode
+    )

@@ -10,6 +10,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
+#include <optional>
+
 #include "../random.h"
 #include "../streamer.h"
 #include "config.h"
@@ -107,8 +109,9 @@ class RequestModelStateNode : public Object {
 
 class RequestModelState : public ObjectRef {
  public:
-  explicit RequestModelState(Request request, int model_id, int64_t internal_id, Array<Data> inputs,
-                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx);
+  explicit RequestModelState(
+      Request request, int model_id, int64_t internal_id, Array<Data> inputs,
+      const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
 };
@@ -213,10 +216,11 @@ class RequestStateEntryNode : public Object {
 
 class RequestStateEntry : public ObjectRef {
  public:
-  explicit RequestStateEntry(Request request, int num_models, int64_t internal_id, int rng_seed,
-                             const std::vector<std::string>& token_table,
-                             std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx,
-                             int parent_idx = -1);
+  explicit RequestStateEntry(
+      Request request, int num_models, int64_t internal_id, int rng_seed,
+      const std::vector<std::string>& token_table,
+      const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx,
+      int parent_idx = -1);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStateEntry, ObjectRef, RequestStateEntryNode);
 };

@@ -40,7 +40,7 @@ namespace serve {
  * elements at the end may be popped out, and the last element of the stack will be advanced.
  *
  * One stack may split since there may be multiple possible next positions. In this case, similar
- * stacks with different top elements will be added. When ome stack cannot accept the new character,
+ * stacks with different top elements will be added. When one stack cannot accept the new character,
  * it will be removed from the stacks.
  *
  * ## Storage of Stacks (see grammar_state_matcher_state.h)
@@ -59,7 +59,7 @@ namespace serve {
  * S ::= "" | [c] [d]
  * T ::= [e]
  *
- * ### Previous step
+ * ### The previous step
  * Previous accepted string: ab
  * Previous stack tree:
  * A------
@@ -76,7 +76,7 @@ namespace serve {
  * < means the stack top pointers in the previous step.
  * The stacks in the previous step is: (A, B, C), (A, D), (A, E)
  *
- * ### Current step
+ * ### The current step
  * Current accepted string: abc
  * Current stack tree:
  * A-----------------      G<<
@@ -87,7 +87,7 @@ namespace serve {
  *
  * F: (rule S, choice 1, element 1)
  * G: (rule main, choice 0, element 2) (means the matching process has finished, and will be deleted
- * when next char comes)
+ * when the next char comes)
  * H: (rule R, choice 1, element 2)
  * I: (rule T, choice 0, element 0)
  * << means the stack top pointers in the current step.
@@ -175,7 +175,7 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
    */
   bool AcceptStopToken();
 
-  friend IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher);
+  friend IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher, bool verbose);
 
   std::shared_ptr<GrammarStateInitContext> init_ctx_;
   int max_rollback_steps_;
@@ -381,12 +381,12 @@ void GrammarStateMatcherNodeImpl::SetTokenBitmask(DLTensor* next_token_bitmask,
       << "The provied bitmask's shape or dtype is not valid.";
 
   BitsetManager next_token_bitset(reinterpret_cast<uint32_t*>(next_token_bitmask->data),
-                                  next_token_bitmask->shape[0]);
+                                  next_token_bitmask->shape[0], init_ctx_->vocab_size);
 
   if (rejected_indices.size() == 1 && rejected_indices[0] == -1) {
     // If rejected_indices is the universal set, the final accepted token set is just
     // accepted_indices
-    next_token_bitset.Reset(init_ctx_->vocab_size, false);
+    next_token_bitset.Reset(false);
     for (int idx : accepted_indices) {
       next_token_bitset.Set(init_ctx_->sorted_token_codepoints[idx].id, true);
     }
@@ -399,7 +399,7 @@ void GrammarStateMatcherNodeImpl::SetTokenBitmask(DLTensor* next_token_bitmask,
     }
   } else {
     // Otherwise, the final rejected token set is (rejected_indices \ accepted_indices)
-    next_token_bitset.Reset(init_ctx_->vocab_size, true);
+    next_token_bitset.Reset(true);
 
     auto it_acc = accepted_indices.begin();
     for (auto i : rejected_indices) {
@@ -524,25 +524,83 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherDebugMatchCompleteString")
       return MatchCompleteString(matcher, str);
     });
 
+/*! \brief Print the accepted and rejected tokens stored in the bitset. For debug purposes. */
+void PrintAcceptedRejectedTokens(
+    const std::shared_ptr<mlc::llm::serve::GrammarStateInitContext>& init_ctx,
+    const BitsetManager& bitset, int threshold = 500) {
+  auto vocab_size = init_ctx->vocab_size;
+  std::vector<int64_t> accepted_ids;
+  std::vector<int64_t> rejected_ids;
+  for (int i = 0; i < vocab_size; i++) {
+    if (bitset[i]) {
+      accepted_ids.push_back(i);
+    } else {
+      rejected_ids.push_back(i);
+    }
+  }
+
+  if (accepted_ids.size() < threshold) {
+    std::cerr << "Accepted: ";
+    for (auto id : accepted_ids) {
+      std::cerr << "<";
+      auto token = init_ctx->token_table[id];
+      if (token.size() == 1 && (static_cast<unsigned char>(token[0]) >= 128 || token[0] == 0)) {
+        // First cast to unsigned, then cast to int
+        std::cerr << static_cast<int>(static_cast<unsigned char>(token[0]));
+      } else {
+        auto codepoints = Utf8StringToCodepoints(token.c_str());
+        for (auto c : codepoints) {
+          std::cerr << CodepointToPrintable(c);
+        }
+      }
+      std::cerr << "> ";
+    }
+    std::cerr << "\n";
+  }
+
+  if (rejected_ids.size() < threshold) {
+    std::cerr << "Rejected: ";
+    for (auto id : rejected_ids) {
+      std::cerr << "<";
+      auto token = init_ctx->token_table[id];
+      if (token.size() == 1 && ((unsigned char)token[0] >= 128 || token[0] == 0)) {
+        std::cerr << (int)(unsigned char)token[0];
+      } else {
+        auto codepoints = Utf8StringToCodepoints(token.c_str());
+        for (auto c : codepoints) {
+          std::cerr << CodepointToPrintable(c);
+        }
+      }
+      std::cerr << "> ";
+    }
+    std::cerr << "\n";
+  }
+}
+
 /*!
- * \brief Find the ids of the rejected tokens for the next step. For test purposes.
+ * \brief Find the ids of the rejected tokens for the next step. For debug purposes.
+ * \param matcher The matcher to test.
+ * \param verbose Whether to print information about the timing and results to stderr.
  * \returns A tuple of rejected token ids.
  */
-IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
+IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher, bool verbose = false) {
   auto init_ctx = matcher.as<GrammarStateMatcherNodeImpl>()->init_ctx_;
   auto vocab_size = init_ctx->vocab_size;
-  auto bitset_size = BitsetManager::GetBitsetSize(vocab_size);
+  auto bitset_size = BitsetManager::CalculateBufferSize(vocab_size);
   auto ndarray = NDArray::Empty(ShapeTuple{static_cast<long>(bitset_size)},
                                 DLDataType{kDLUInt, 32, 1}, DLDevice{kDLCPU, 0});
   auto dltensor = const_cast<DLTensor*>(ndarray.operator->());
 
-  auto start = std::chrono::high_resolution_clock::now();
+  std::chrono::time_point<std::chrono::high_resolution_clock> start, end;
+  if (verbose) {
+    start = std::chrono::high_resolution_clock::now();
+  }
   matcher->FindNextTokenBitmask(dltensor);
-  auto end = std::chrono::high_resolution_clock::now();
-  std::cerr << "FindNextTokenBitmask takes "
-            << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us";
+  if (verbose) {
+    end = std::chrono::high_resolution_clock::now();
+  }
 
-  auto bitset = BitsetManager(reinterpret_cast<uint32_t*>(dltensor->data), bitset_size);
+  auto bitset = BitsetManager(reinterpret_cast<uint32_t*>(dltensor->data), bitset_size, vocab_size);
   std::vector<int64_t> rejected_ids;
   for (int i = 0; i < vocab_size; i++) {
     if (bitset[i] == 0) {
@@ -550,8 +608,12 @@ IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher) {
     }
   }
 
-  std::cerr << ", found accepted: " << vocab_size - rejected_ids.size()
-            << ", rejected: " << rejected_ids.size() << std::endl;
+  if (verbose) {
+    std::cerr << "FindNextTokenBitmask takes "
+              << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << "us"
+              << ", found accepted: " << vocab_size - rejected_ids.size()
+              << ", rejected: " << rejected_ids.size() << std::endl;
+  }
 
   auto ret = IntTuple(rejected_ids);
   return ret;
