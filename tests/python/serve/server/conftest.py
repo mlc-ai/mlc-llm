@@ -28,8 +28,6 @@ def launch_server(served_model):  # pylint: disable=redefined-outer-name
         model_lib_path=served_model[1],
         enable_tracing=True,
     )
-    server.start()
-    yield
 
-    # Fixture teardown code.
-    server.terminate()
+    with server:
+        yield
