@@ -264,6 +264,21 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# StableLM-2
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="stablelm-2",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="",
+        roles={"user": "<|user|>", "assistant": "<|assistant|>"},
+        seps=["<|endoftext|>", "<|endoftext|>"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<|endoftext|>"],
+        stop_token_ids=[100257],
+    )
+)
+
 # Llava
 ConvTemplateRegistry.register_conv_template(
     Conversation(
