@@ -7,7 +7,9 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.runtime import Device
 from tvm.target import Target
+import logging
 
+logger = logging.getLogger('preshard')
 
 def _sharded_param_name(param_name, worker_id):
     return f"{param_name}_shard-{worker_id}"
@@ -107,9 +109,11 @@ def apply_preshard(
     bb = relax.BlockBuilder()
     param_to_shard_func = {}
     shard_func_names = set()
+    has_shard_strategy = False
     for name, param in model.state_dict().items():
         shard_strategy = param.attrs.get("shard_strategy", None)
         if shard_strategy is not None:
+            has_shard_strategy = True
             _update_quantize_map(quantize_map, named_params, name, tensor_parallel_shards)
 
             # create shard functions
@@ -117,7 +121,9 @@ def apply_preshard(
             if shard_strategy.name not in shard_func_names:
                 _create_shard_func(bb, param, tensor_parallel_shards)
                 shard_func_names.add(shard_strategy.name)
-
+    if not has_shard_strategy:
+        logger.warning("No parameters with 'shard_strategy' found. At least one parameter must have a 'shard_strategy' for presharding. "
+                      "The model will continue to convert weights in a non-presharded manner.")
     mod = bb.finalize()
     vm = _compile_shard_funcs(mod, args.device)
 
