@@ -1,15 +1,14 @@
 """Functions for pre-sharding weights"""
 from typing import Any, Dict, List
-
+import logging
 from tvm import IRModule
 from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.runtime import Device
 from tvm.target import Target
-import logging
 
-logger = logging.getLogger('preshard')
+logger = logging.getLogger("preshard")
 
 def _sharded_param_name(param_name, worker_id):
     return f"{param_name}_shard-{worker_id}"
@@ -122,8 +121,9 @@ def apply_preshard(
                 _create_shard_func(bb, param, tensor_parallel_shards)
                 shard_func_names.add(shard_strategy.name)
     if not has_shard_strategy:
-        logger.warning("No parameters with 'shard_strategy' found. At least one parameter must have a 'shard_strategy' for presharding. "
-                      "The model will continue to convert weights in a non-presharded manner.")
+        logger.warning("No parameters with 'shard_strategy' found."
+                       "At least one parameter must have a 'shard_strategy' for presharding. "
+                       "The model will continue to convert weights in a non-presharded manner.")
     mod = bb.finalize()
     vm = _compile_shard_funcs(mod, args.device)
 
