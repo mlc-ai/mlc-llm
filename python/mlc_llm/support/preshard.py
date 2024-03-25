@@ -10,6 +10,7 @@ from tvm.target import Target
 
 logger = logging.getLogger("preshard")
 
+
 def _sharded_param_name(param_name, worker_id):
     return f"{param_name}_shard-{worker_id}"
 
@@ -94,10 +95,7 @@ def _compile_shard_funcs(mod: IRModule, device: Device):
 
 
 def apply_preshard(
-    quantize_map: Any,
-    named_params: Dict[str, nn.Parameter],
-    tensor_parallel_shards: int,
-    args: Any,
+    quantize_map: Any, named_params: Dict[str, nn.Parameter], tensor_parallel_shards: int, args: Any
 ):
     """Update quantize_map and named_params, create shard functions based on shard strategies."""
     model_config = args.model.config.from_file(args.config)
@@ -121,9 +119,11 @@ def apply_preshard(
                 _create_shard_func(bb, param, tensor_parallel_shards)
                 shard_func_names.add(shard_strategy.name)
     if not has_shard_strategy:
-        logger.warning("No parameters with 'shard_strategy' found."
-                       "At least one parameter must have a 'shard_strategy' for presharding. "
-                       "The model will continue to convert weights in a non-presharded manner.")
+        logger.warning(
+            "No parameters with 'shard_strategy' found."
+            "At least one parameter must have a 'shard_strategy' for presharding. "
+            "The model will continue to convert weights in a non-presharded manner."
+        )
     mod = bb.finalize()
     vm = _compile_shard_funcs(mod, args.device)
 
