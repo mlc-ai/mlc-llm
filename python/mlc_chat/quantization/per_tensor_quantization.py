@@ -176,7 +176,18 @@ class PerTensorQuantize:
         quantize_dtype = DataType(self.weight_dtype)
 
         if self.no_scale:
-            scaled_weight = weight.astype(self.weight_dtype)
+            # TODO(csullivan, vinx13): Ensure scheduling is applied after lowering relax ops.
+            # Currently, dlight scheduling is applied before the R.cast is lowered.
+            # scaled_weight = weight.astype(self.weight_dtype)
+            scaled_weight = nn.tensor_expr_op(
+                lambda scaled_weight: te.compute(
+                    shape=weight.shape,
+                    fcompute=lambda *idx: scaled_weight(*idx).astype(self.weight_dtype),
+                    name="cast",
+                ),
+                "cast_weight",
+                args=[weight],
+            )
         else:
             from .fp8_quantization import quantize
 
@@ -218,7 +229,7 @@ class PerTensorQuantize:
         )
 
         if self.no_scale:
-            return quantized_weight
+            return (quantized_weight,)
         return quantized_weight, scale
 
     def _dequantize(
