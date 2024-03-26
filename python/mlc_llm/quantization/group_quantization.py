@@ -16,7 +16,7 @@ from mlc_llm.nn import MixtralExperts
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 
-from .utils import convert_uint_to_float, is_final_fc
+from .utils import convert_uint_to_float, is_final_fc, is_moe_gate
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if isinstance(node, nn.Linear) and (
-                    not is_final_fc(name) or self.config.quantize_final_fc
+                if (
+                    isinstance(node, nn.Linear)
+                    and (not is_final_fc(name) or self.config.quantize_final_fc)
+                    and not is_moe_gate(name)
                 ):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
