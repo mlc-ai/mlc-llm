@@ -63,7 +63,8 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     if ft_reorder:
         raise NotImplementedError()
     assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
-    tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
+    elem_storage_dtype = f"uint{bits}"
+    tir_bin_mask = tir.const((1 << bits) - 1, elem_storage_dtype)
     if out_shape is None:
         out_shape = weight.shape
         out_shape[axis] *= num_elem_per_storage
@@ -76,7 +77,7 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
                 tir.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                     ((idx[axis] % num_elem_per_storage) * bits).astype(storage_dtype),
-                ),
+                ).astype(elem_storage_dtype),
                 tir_bin_mask,
             ),
         ).astype(model_dtype),
