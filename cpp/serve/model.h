@@ -206,10 +206,11 @@ class Model : public ObjectRef {
    * \param model_path The path to the model weight parameters.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
+   * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
   TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device,
-                              int max_num_sequence);
+                              int max_num_sequence, bool trace_enabled);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };

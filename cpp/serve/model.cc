@@ -25,8 +25,9 @@ class ModelImpl;
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
 Model Model::Create(TVMArgValue reload_lib, String model_path, DLDevice device,
-                    int max_num_sequence) {
-  return Model(make_object<ModelImpl>(reload_lib, model_path, device, max_num_sequence));
+                    int max_num_sequence, bool trace_enabled) {
+  return Model(
+      make_object<ModelImpl>(reload_lib, model_path, device, max_num_sequence, trace_enabled));
 }
 
 class ModelImpl : public ModelObj {
@@ -36,7 +37,7 @@ class ModelImpl : public ModelObj {
    * \sa Model::Create
    */
   explicit ModelImpl(TVMArgValue reload_lib, String model_path, DLDevice device,
-                     int max_num_sequence)
+                     int max_num_sequence, bool trace_enabled)
       : device_(device) {
     // Step 1. Process model config json string.
     picojson::object model_config;
@@ -166,7 +167,9 @@ class ModelImpl : public ModelObj {
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (1, num_sequences, v)
@@ -223,7 +226,9 @@ class ModelImpl : public ModelObj {
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (b, 1, v)
@@ -280,7 +285,9 @@ class ModelImpl : public ModelObj {
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (1, total_length, v)
@@ -472,6 +479,8 @@ class ModelImpl : public ModelObj {
   // Shared NDArray
   memory::Storage token_ids_storage_{nullptr};
   NDArray logit_pos_arr_{nullptr};
+  // A boolean indicating if tracing is enabled.
+  bool trace_enabled_;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
