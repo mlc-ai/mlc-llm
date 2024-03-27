@@ -144,12 +144,12 @@ GenerationConfig::GenerationConfig(String config_json_str) {
       CHECK(response_format_json["type"].is<std::string>());
       response_format.type = response_format_json["type"].get<std::string>();
     }
-    if (response_format_json.count("json_schema")) {
-      if (response_format_json["json_schema"].is<picojson::null>()) {
-        response_format.json_schema = NullOpt;
+    if (response_format_json.count("schema")) {
+      if (response_format_json["schema"].is<picojson::null>()) {
+        response_format.schema = NullOpt;
       } else {
-        CHECK(response_format_json["json_schema"].is<std::string>());
-        response_format.json_schema = response_format_json["json_schema"].get<std::string>();
+        CHECK(response_format_json["schema"].is<std::string>());
+        response_format.schema = response_format_json["schema"].get<std::string>();
       }
     }
     n->response_format = response_format;
@@ -194,9 +194,9 @@ String GenerationConfigNode::AsJSONString() const {
 
   picojson::object response_format;
   response_format["type"] = picojson::value(this->response_format.type);
-  response_format["json_schema"] = this->response_format.json_schema
-                                       ? picojson::value(this->response_format.json_schema.value())
-                                       : picojson::value();
+  response_format["schema"] = this->response_format.schema
+                                  ? picojson::value(this->response_format.schema.value())
+                                  : picojson::value();
   config["response_format"] = picojson::value(response_format);
 
   return picojson::value(config).serialize(true);

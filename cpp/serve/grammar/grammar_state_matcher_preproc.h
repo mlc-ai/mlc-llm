@@ -57,6 +57,8 @@ class GrammarStateInitContext {
  public:
   /******************* Information about the tokenizer *******************/
 
+  /*! \brief The token table. Now only used for debug purpose. */
+  std::vector<std::string> token_table;
   /*! \brief The vocabulary size of the tokenizer. */
   size_t vocab_size;
   /*! \brief All tokens represented by the id and codepoints of each. The tokens are sorted by
@@ -246,6 +248,7 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
   auto ptr = std::make_shared<GrammarStateInitContext>();
 
   ptr->grammar = grammar;
+  ptr->token_table = token_table;
   ptr->vocab_size = token_table.size();
 
   if (ptr->vocab_size == 0) {
@@ -316,6 +319,55 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
   }
   return ptr;
 }
+
+class GrammarInitContextStorageImpl : public GrammarInitContextStorageNode {
+ public:
+  GrammarInitContextStorageImpl(const std::vector<std::string>& token_table);
+
+  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSONSchema(const std::string& schema);
+
+  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSON();
+
+  void ClearCache();
+
+ private:
+  /*! \brief The token table associated with this storage class. */
+  std::vector<std::string> token_table_;
+  /*! \brief The cache for the init context of a JSON schema. */
+  std::unordered_map<std::string, std::shared_ptr<GrammarStateInitContext>>
+      init_ctx_for_schema_cache_;
+  /*! \brief The init context for JSON. */
+  std::shared_ptr<GrammarStateInitContext> init_ctx_for_json_;
+};
+
+inline GrammarInitContextStorageImpl::GrammarInitContextStorageImpl(
+    const std::vector<std::string>& token_table)
+    : token_table_(token_table) {
+  init_ctx_for_json_ =
+      GrammarStateMatcher::CreateInitContext(BNFGrammar::GetGrammarOfJSON(), token_table_);
+}
+
+inline std::shared_ptr<GrammarStateInitContext>
+GrammarInitContextStorageImpl::GetInitContextForJSONSchema(const std::string& schema) {
+  auto it = init_ctx_for_schema_cache_.find(schema);
+  if (it != init_ctx_for_schema_cache_.end()) {
+    return it->second;
+  }
+  auto init_ctx =
+      GrammarStateMatcher::CreateInitContext(BNFGrammar::FromSchema(schema), token_table_);
+  init_ctx_for_schema_cache_[schema] = init_ctx;
+  return init_ctx;
+}
+
+inline std::shared_ptr<GrammarStateInitContext>
+GrammarInitContextStorageImpl::GetInitContextForJSON() {
+  return init_ctx_for_json_;
+}
+
+inline void GrammarInitContextStorageImpl::ClearCache() { init_ctx_for_schema_cache_.clear(); }
+
+GrammarInitContextStorage::GrammarInitContextStorage(const std::vector<std::string>& token_table)
+    : ObjectRef(make_object<GrammarInitContextStorageImpl>(token_table)) {}
 
 }  // namespace serve
 }  // namespace llm

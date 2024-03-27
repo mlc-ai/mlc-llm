@@ -18,6 +18,7 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+using namespace tvm;
 using namespace tvm::runtime;
 
 /*!
@@ -182,7 +183,7 @@ class BNFGrammar : public ObjectRef {
    * \param simplify Whether to simplify the grammar to make matching more efficient. Default: true.
    * Not implemented yet.
    */
-  static BNFGrammar FromEBNFString(const String& ebnf_string, const String& main_rule,
+  static BNFGrammar FromEBNFString(const String& ebnf_string, const String& main_rule = "main",
                                    bool normalize = true, bool simplify = true);
 
   /*!
@@ -192,7 +193,25 @@ class BNFGrammar : public ObjectRef {
    */
   static BNFGrammar FromJSON(const String& json_string);
 
-  /*！
+  /*!
+   * \brief Construct a BNF grammar from the json schema string. The schema string should be in the
+   * format of the schema of a JSON file. We will parse the schema and generate a BNF grammar.
+   * \param schema The schema string.
+   * \param indent The number of spaces for indentation. If -1, the output will be in one line.
+   * Default: -1.
+   * \param separators Two separators used in the schema: comma and colon. Examples: {",", ":"},
+   * {", ", ": "}. If NullOpt, the default separators will be used: {",", ": "} when the indent
+   * is not -1, and {", ", ": "} otherwise. Default: NullOpt.
+   * \param strict_mode Whether to use strict mode. In strict mode, the generated grammar will not
+   * allow unevaluatedProperties and unevaluatedItems, i.e. these will be set to false by default.
+   * This helps LLM to generate accurate output in the grammar-guided generation with JSON
+   * schema. Default: true.
+   */
+  static BNFGrammar FromSchema(const String& schema, int indent = -1,
+                               Optional<Array<String>> separators = NullOpt,
+                               bool strict_mode = true);
+
+  /*!
    * \brief Get the grammar of standard JSON format. We have built-in support for JSON.
    */
   static BNFGrammar GetGrammarOfJSON();

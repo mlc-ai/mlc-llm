@@ -21,7 +21,7 @@ using namespace tvm::runtime;
 /*! \brief The response format of a request. */
 struct ResponseFormat {
   String type = "text";
-  Optional<String> json_schema = NullOpt;
+  Optional<String> schema = NullOpt;
 };
 
 /*! \brief The generation configuration of a request. */

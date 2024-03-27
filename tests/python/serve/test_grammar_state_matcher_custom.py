@@ -3,14 +3,16 @@
 """This test is adopted from test_grammar_state_matcher_json.py, but the grammar is parsed from
 a unoptimized, non-simplified EBNF string. This is to test the robustness of the grammar state
 matcher."""
+import json
 import sys
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 import tvm
 import tvm.testing
+from pydantic import BaseModel
 
-from mlc_llm.serve import BNFGrammar, GrammarStateMatcher
+from mlc_llm.serve import BNFGrammar, GrammarStateMatcher, json_schema_to_ebnf
 from mlc_llm.tokenizer import Tokenizer
 
 
@@ -282,11 +284,11 @@ def test_find_next_rejected_tokens(
 
     real_sizes = []
     for c in input_find_rejected_tokens:
-        rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
+        rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
         real_sizes.append(len(rejected_token_ids))
         print("Accepting char:", c, file=sys.stderr)
         assert grammar_state_matcher.debug_accept_char(ord(c))
-    rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
+    rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
     real_sizes.append(len(rejected_token_ids))
 
     if expected_rejected_sizes is not None:
@@ -350,6 +352,44 @@ ws ::= [ \n\t]*
     grammar = BNFGrammar.from_ebnf_string(json_grammar_ebnf, "basic_string")
     assert GrammarStateMatcher(grammar).debug_match_complete_string(r'"abc\r\n"')
     assert not GrammarStateMatcher(grammar).debug_match_complete_string(r'{"name": "John" }')
+
+
+def test_find_next_rejected_tokens_schema():
+    class MainModel(BaseModel):
+        integer_field: int
+        number_field: float
+        boolean_field: bool
+        any_array_field: List
+        array_field: List[str]
+        tuple_field: Tuple[str, int, List[str]]
+        object_field: Dict[str, int]
+        nested_object_field: Dict[str, Dict[str, int]]
+
+    schema = MainModel.model_json_schema()
+    schema_str = json.dumps(schema)
+    ebnf_grammar = BNFGrammar.from_schema(schema_str, indent=2)
+
+    instance = MainModel(
+        integer_field=42,
+        number_field=3.14e5,
+        boolean_field=True,
+        any_array_field=[3.14, "foo", None, True],
+        array_field=["foo", "bar"],
+        tuple_field=("foo", 42, ["bar", "baz"]),
+        object_field={"foo": 42, "bar": 43},
+        nested_object_field={"foo": {"bar": 42}},
+    )
+    instance_str = instance.model_dump_json(indent=2, round_trip=True)
+
+    tokenizer_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    tokenizer = Tokenizer(tokenizer_path)
+    matcher = GrammarStateMatcher(ebnf_grammar, tokenizer)
+
+    for c in instance_str:
+        matcher.find_next_rejected_tokens(True)
+        print("Accepting char:", c, file=sys.stderr)
+        assert matcher.debug_accept_char(ord(c))
+    matcher.find_next_rejected_tokens(True)
 
 
 if __name__ == "__main__":

@@ -83,7 +83,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
     ObjectRef embeddings =
-        models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+        models_[0]->TokenEmbed({IntTuple(input_tokens.begin(), input_tokens.end())});
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
 
     // - Invoke model decode.

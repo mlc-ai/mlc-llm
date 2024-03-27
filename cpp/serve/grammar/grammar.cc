@@ -42,6 +42,34 @@ TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromJSON").set_body_typed([](String jso
   return BNFGrammar::FromJSON(json_string);
 });
 
+BNFGrammar BNFGrammar::FromSchema(const String& schema, int indent,
+                                  Optional<Array<String>> separators, bool strict_mode) {
+  static const PackedFunc* json_schema_to_ebnf = Registry::Get("mlc.serve.json_schema_to_ebnf");
+  CHECK(json_schema_to_ebnf != nullptr) << "mlc.serve.json_schema_to_ebnf is not registered.";
+
+  String ebnf_string;
+
+  // Convert the indent parameter to NullOpt for sending it to the PackedFunc.
+  if (indent == -1) {
+    // The conversion from TVMRetValue to String is ambiguous, so we call the conversion function
+    // explicitly
+    ebnf_string =
+        ((*json_schema_to_ebnf)(schema, Optional<ObjectRef>(NullOpt), separators, strict_mode)
+             .
+             operator String());
+  } else {
+    ebnf_string = (*json_schema_to_ebnf)(schema, indent, separators, strict_mode).operator String();
+    ;
+  }
+  return FromEBNFString(ebnf_string);
+}
+
+TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromSchema")
+    .set_body_typed([](const String& schema, int indent, Optional<Array<String>> separators,
+                       bool strict_mode) {
+      return BNFGrammar::FromSchema(schema, indent, separators, strict_mode);
+    });
+
 const std::string kJSONGrammarString = R"(
 main ::= (
     "{" ws members_or_embrace |

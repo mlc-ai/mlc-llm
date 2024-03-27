@@ -15,15 +15,15 @@ TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
 
 RequestModelState::RequestModelState(
     Request request, int model_id, int64_t internal_id, Array<Data> inputs,
-    std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx) {
+    const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx) {
   ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
   n->model_id = model_id;
   n->internal_id = internal_id;
   n->inputs = std::move(inputs);
 
-  if (request->generation_cfg->response_format.type == "json_object") {
+  if (grammar_state_init_ctx.has_value()) {
     // TODO(yixin): add support for stop_token_ids
-    n->grammar_state_matcher = GrammarStateMatcher(json_grammar_state_init_ctx);
+    n->grammar_state_matcher = GrammarStateMatcher(grammar_state_init_ctx.value());
   }
 
   n->request = std::move(request);
@@ -89,7 +89,8 @@ TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
 RequestStateEntry::RequestStateEntry(
     Request request, int num_models, int64_t internal_id, int rng_seed,
     const std::vector<std::string>& token_table,
-    std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx, int parent_idx) {
+    const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx,
+    int parent_idx) {
   ObjectPtr<RequestStateEntryNode> n = make_object<RequestStateEntryNode>();
   Array<RequestModelState> mstates;
   Array<Data> inputs;
@@ -98,8 +99,7 @@ RequestStateEntry::RequestStateEntry(
   }
   mstates.reserve(num_models);
   for (int i = 0; i < num_models; ++i) {
-    mstates.push_back(
-        RequestModelState(request, i, internal_id, inputs, json_grammar_state_init_ctx));
+    mstates.push_back(RequestModelState(request, i, internal_id, inputs, grammar_state_init_ctx));
   }
   n->status = RequestStateStatus::kPending;
   n->rng = RandomGenerator(rng_seed);
