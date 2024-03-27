@@ -130,7 +130,6 @@ class BaichuanDecoderLayer(nn.Module):
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, norm_eps, bias=False)
 
-
         def _set_tp():
             def _set(layer, hint):
                 layer.attrs["shard_strategy"] = hint
