@@ -14,47 +14,63 @@ class ServerContext:
     and corresponding async engines.
     """
 
-    _models: Dict[str, async_engine.AsyncThreadedEngine] = {}
-    _conv_templates: Dict[str, Conversation] = {}
-    _model_configs: Dict[str, Dict] = {}
+    server_context: Optional["ServerContext"] = None
+
+    def __init__(self):
+        self._models: Dict[str, async_engine.AsyncThreadedEngine] = {}
+        self._conv_templates: Dict[str, Conversation] = {}
+        self._model_configs: Dict[str, Dict] = {}
+
+    def __enter__(self):
+        if ServerContext.server_context is not None:
+            raise RuntimeError("Server context already exists.")
+        ServerContext.server_context = self
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for model_engine in self._models.values():
+            model_engine.terminate()
+        self._models.clear()
+        self._conv_templates.clear()
+        self._model_configs.clear()
 
     @staticmethod
-    def add_model(hosted_model: str, engine: async_engine.AsyncThreadedEngine) -> None:
+    def current():
+        """Returns the current ServerContext."""
+        return ServerContext.server_context
+
+    def add_model(self, hosted_model: str, engine: async_engine.AsyncThreadedEngine) -> None:
         """Add a new model to the server context together with the engine."""
-        if hosted_model in ServerContext._models:
+        if hosted_model in self._models:
             raise RuntimeError(f"Model {hosted_model} already running.")
-        ServerContext._models[hosted_model] = engine
+        self._models[hosted_model] = engine
 
         # Get the conversation template.
         if engine.conv_template_name is not None:
             conv_template = ConvTemplateRegistry.get_conv_template(engine.conv_template_name)
             if conv_template is not None:
-                ServerContext._conv_templates[hosted_model] = conv_template
+                self._conv_templates[hosted_model] = conv_template
 
         _, config_file_path = _get_model_path(hosted_model)
         with open(config_file_path, "r", encoding="utf-8") as file:
             config = json.load(file)
-        ServerContext._model_configs[hosted_model] = config
+        self._model_configs[hosted_model] = config
 
-    @staticmethod
-    def get_engine(model: str) -> Optional[async_engine.AsyncThreadedEngine]:
+    def get_engine(self, model: str) -> Optional[async_engine.AsyncThreadedEngine]:
         """Get the async engine of the requested model."""
-        return ServerContext._models.get(model, None)
+        return self._models.get(model, None)
 
-    @staticmethod
-    def get_conv_template(model: str) -> Optional[Conversation]:
+    def get_conv_template(self, model: str) -> Optional[Conversation]:
         """Get the conversation template of the requested model."""
-        conv_template = ServerContext._conv_templates.get(model, None)
+        conv_template = self._conv_templates.get(model, None)
         if conv_template is not None:
             return conv_template.model_copy(deep=True)
         return None
 
-    @staticmethod
-    def get_model_list() -> List[str]:
+    def get_model_list(self) -> List[str]:
         """Get the list of models on serve."""
-        return list(ServerContext._models.keys())
+        return list(self._models.keys())
 
-    @staticmethod
-    def get_model_config(model: str) -> Optional[Dict]:
+    def get_model_config(self, model: str) -> Optional[Dict]:
         """Get the model config path of the requested model."""
-        return ServerContext._model_configs.get(model, None)
+        return self._model_configs.get(model, None)

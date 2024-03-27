@@ -40,7 +40,7 @@ class OptimizationFlags:
         print(f";faster_transformer={int(self.faster_transformer)}", file=out, end="")
         print(f";cudagraph={int(self.cudagraph)}", file=out, end="")
         print(f";cutlass={int(self.cutlass)}", file=out, end="")
-        print(f";allreduce_strategy={self.allreduce_strategy.name}", file=out, end="")
+        print(f";allreduce_strategy={self.allreduce_strategy.name.lower()}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -64,7 +64,7 @@ class OptimizationFlags:
         parser.add_argument("--cudagraph", type=boolean, default=False)
         parser.add_argument("--cutlass", type=boolean, default=False)
         parser.add_argument(
-            "--allreduce-strategy",
+            "--allreduce_strategy",
             type=str,
             choices=["ring", "one-shot", "two-shot"],
             default="ring",

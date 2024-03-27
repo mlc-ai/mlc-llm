@@ -26,8 +26,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
-        """Please check out `python/mlc_llm/serve/server/__main__.py`
-        for the server arguments."""
+        """Please check out `python/mlc_llm/cli/serve.py` for the server arguments."""
         self.model = model
         self.model_lib_path = model_lib_path
         self.device = device
@@ -43,8 +42,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         Wait until the server becomes ready before return.
         """
         cmd = [sys.executable]
-        cmd += ["-m", "mlc_llm.serve.server"]
-        cmd += ["--model", self.model]
+        cmd += ["-m", "mlc_llm", "serve", self.model]
         cmd += ["--model-lib-path", self.model_lib_path]
         cmd += ["--device", self.device]
         cmd += ["--max-batch-size", str(self.max_batch_size)]

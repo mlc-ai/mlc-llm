@@ -1,4 +1,5 @@
 """Just-in-time compilation of MLC-Chat models."""
+
 import dataclasses
 import hashlib
 import json
