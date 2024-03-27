@@ -155,9 +155,9 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                     else tvm.transform.Sequential([])
                 ),
                 tvm.relax.transform.StaticPlanBlockMemory(),
-                tvm.relax.transform.LowerGPUIPCAllocStorage(),
                 AttachMetadataWithMemoryUsage(metadata),
                 tvm.relax.transform.RewriteCUDAGraph(),
+                tvm.relax.transform.LowerGPUIPCAllocStorage(),
                 tvm.relax.transform.LowerAllocTensor(),
                 tvm.relax.transform.KillAfterLastUse(),
                 tvm.relax.transform.VMBuiltinLower(),
