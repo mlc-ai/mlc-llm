@@ -332,11 +332,26 @@ class MixtralExpertsFP8(
         self.weight_dtype = weight_dtype
         self.runtime = runtime
         self.weight_config = weight_config
-        self.max_int_value = 448 if "e4m3" in activation_dtype else 57344
+        self.max_int_value = {
+            key: self.get_max_int(dtype)
+            for key, dtype in zip(["x", "w"], [self.activation_dtype, self.weight_dtype])
+        }
+
         self.tensor_parallel_shards = tensor_parallel_shards
 
         if "max" in self.runtime:
             self.q_calibration_scale = nn.Parameter((1,), weight_config.model_dtype)
+
+    @staticmethod
+    def get_max_int(dtype):
+        if dtype == "e4m3_float8":
+            return 448
+        elif dtype == "e5m2_float8":
+            return 57344
+        elif dtype == "float16":
+            return 65504
+        else:
+            raise NotImplementedError()
 
     def add_calibration_params(self, quant_map: QuantizeMapping, layer_name: str):
         scale_name = f"{layer_name}.q_calibration_scale"
@@ -434,17 +449,18 @@ class MixtralExpertsFP8(
                 DataTypeCode.E5M2Float,
             ]:
                 dequant_func = self.config._dequantize_float8
-            else:
-                raise NotImplementedError()
-            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
-                    weight,
-                    scale,
-                    out_shape=(self.num_local_experts, self.out_features, self.in_features),
-                ),
-                name_hint="dequantize",
-                args=[self.q_weight, self.q_scale],
-            )
+                # The below computes w = cast(reinterpret_cast(self.q_weight, float8_e4m3), float16) * self.q_scale
+                w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                    lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                        weight,
+                        scale,
+                        out_shape=(self.num_local_experts, self.out_features, self.in_features),
+                    ),
+                    name_hint="dequantize_weight",
+                    args=[self.q_weight, self.q_scale],
+                )
+            elif self.weight_dtype == "float16":
+                w = self.q_weight
 
         elif self.runtime == "max":
             local_scale = self.q_calibration_scale
@@ -470,12 +486,12 @@ class MixtralExpertsFP8(
 
         batch_size, in_features = x.shape
         num_local_experts, out_features, _ = self.q_weight.shape
-        a_format = self.activation_dtype.split("_")[0]
-        w_format = self.weight_dtype.split("_")[0]
 
         if self.runtime == "max-calibration":
             func = "cutlass.group_gemm_scale_fp16_sm90"
         else:
+            a_format = self.activation_dtype.split("_")[0]
+            w_format = self.weight_dtype.split("_")[0]
             func = f"cutlass.group_gemm_{a_format}_{w_format}_fp16"
 
         if self.runtime == "cast":

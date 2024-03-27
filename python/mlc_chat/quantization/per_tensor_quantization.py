@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 class PerTensorQuantize:
     name: str
     kind: str
-    activation_dtype: Literal["e4m3_float8", "e5m2_float8"]
-    weight_dtype: Literal["e4m3_float8", "e5m2_float8"]
+    activation_dtype: Literal["e4m3_float8", "e5m2_float8", "float16"]
+    weight_dtype: Literal["e4m3_float8", "e5m2_float8", "float16"]
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16"]
     quantize_embedding: bool = True
@@ -231,6 +231,10 @@ class PerTensorQuantize:
         if self.no_scale:
             return (quantized_weight,)
         return quantized_weight, scale
+
+    def _quantize_float16(self, weight: nn.Tensor):
+        shape = weight.shape
+        return (weight,)
 
     def _dequantize(
         self,

@@ -201,4 +201,14 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         quantize_embedding=False,
     ),
+    "fp16_max_calibration": PerTensorQuantize(
+        name="fp16_max_calibration",
+        kind="per-tensor-quant",
+        activation_dtype="float16",
+        weight_dtype="float16",
+        storage_dtype="float16",
+        model_dtype="float16",
+        quantize_embedding=False,
+        no_scale=True,
+    ),
 }
