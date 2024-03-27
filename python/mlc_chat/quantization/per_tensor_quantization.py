@@ -198,35 +198,48 @@ class PerTensorQuantize:
                 max_int_value=self.max_int_value,
             )
 
-        # TODO(csullivan): If using vector type fp8x4 this compute op can be deleted
-        # compute quantized weight per storage
-        axis = -1
-        k = shape[axis]
-        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
-        quantized_weight_shape = (
-            *weight.shape[:axis],
-            tir.ceildiv(weight.shape[axis], self.num_elem_per_storage),
-        )
-        quantized_weight = nn.tensor_expr_op(
-            lambda scaled_weight: te.compute(
-                shape=quantized_weight_shape,
-                fcompute=lambda *idx: tir.sum(
-                    tir.if_then_else(
-                        idx[axis] * self.num_elem_per_storage + r < k,
-                        tir.reinterpret(
-                            "uint8",
-                            scaled_weight(*idx[:axis], idx[axis] * self.num_elem_per_storage + r),
-                        ).astype(self.storage_dtype)
-                        << (r * quantize_dtype.bits),
-                        0,
-                    ),
-                    axis=r,
+        if self.num_elem_per_storage == 1:
+            quantized_weight = nn.tensor_expr_op(
+                lambda scaled_weight: te.compute(
+                    shape=scaled_weight.shape,
+                    fcompute=lambda *idx: tir.reinterpret(self.storage_dtype, scaled_weight(*idx)),
+                    name="quantized_weight",
                 ),
-                name="quantized_weight",
-            ),
-            "quantized_weight",
-            args=[scaled_weight],
-        )
+                "quantized_weight",
+                args=[scaled_weight],
+            )
+        else:
+            axis = -1
+            k = shape[axis]
+            r = te.reduce_axis(
+                (0, self.num_elem_per_storage), name="r"
+            )  # pylint: disable=invalid-name
+            quantized_weight_shape = (
+                *weight.shape[:axis],
+                tir.ceildiv(weight.shape[axis], self.num_elem_per_storage),
+            )
+            quantized_weight = nn.tensor_expr_op(
+                lambda scaled_weight: te.compute(
+                    shape=quantized_weight_shape,
+                    fcompute=lambda *idx: tir.sum(
+                        tir.if_then_else(
+                            idx[axis] * self.num_elem_per_storage + r < k,
+                            tir.reinterpret(
+                                "uint8",
+                                scaled_weight(
+                                    *idx[:axis], idx[axis] * self.num_elem_per_storage + r
+                                ),
+                            ).astype(self.storage_dtype)
+                            << (r * quantize_dtype.bits),
+                            0,
+                        ),
+                        axis=r,
+                    ),
+                    name="quantized_weight",
+                ),
+                "quantized_weight",
+                args=[scaled_weight],
+            )
 
         if self.no_scale:
             return (quantized_weight,)
@@ -259,16 +272,27 @@ class PerTensorQuantize:
     ) -> te.Tensor:
         if out_shape is None:
             out_shape = (*q_weight.shape[:-1], q_weight.shape[-1] * self.num_elem_per_storage)
-        weight = convert_uint_packed_fp8_to_float(
-            q_weight,
-            DataType(self.weight_dtype).bits,
-            self.num_elem_per_storage,
-            self.storage_dtype,
-            self.model_dtype,
-            self.weight_dtype,
-            axis=-1,
-            out_shape=out_shape,
-        )
+
+        if self.num_elem_per_storage == 1:
+            weight = te.compute(
+                shape=out_shape,
+                fcompute=lambda *idx: tir.reinterpret(self.weight_dtype, q_weight(*idx)).astype(
+                    self.model_dtype
+                ),
+                name="dequantize_weight",
+            )
+        else:
+            weight = convert_uint_packed_fp8_to_float(
+                q_weight,
+                DataType(self.weight_dtype).bits,
+                self.num_elem_per_storage,
+                self.storage_dtype,
+                self.model_dtype,
+                self.weight_dtype,
+                axis=-1,
+                out_shape=out_shape,
+            )
+
         if not self.no_scale:
             weight = weight * scale
         return weight
