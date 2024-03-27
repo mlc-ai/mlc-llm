@@ -197,7 +197,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         kind="per-tensor-quant",
         activation_dtype="e4m3_float8",
         weight_dtype="e4m3_float8",
-        storage_dtype="uint32",
+        storage_dtype="uint8",
         model_dtype="float16",
         quantize_embedding=False,
     ),
