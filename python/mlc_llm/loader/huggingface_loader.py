@@ -115,13 +115,15 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
         for mlc_name in tqdm(mlc_names):
             param = self._load_mlc_param(mlc_name, device=device)
-            if preshard_funcs is not None and mlc_name in preshard_funcs:
-                sharded_params = preshard_funcs[mlc_name](param)
-                for i, sharded_param in enumerate(sharded_params):
-                    sharded_name = _sharded_param_name(mlc_name, i)
-                    yield from self._load_or_quantize(sharded_name, sharded_param, device)
-            else:
-                yield from self._load_or_quantize(mlc_name, param, device)
+            # Apply quantization if needed, in this case the original parameter may become
+            # multiple quantized parameters.
+            for name, loader_param in self._load_or_quantize(mlc_name, param, device):
+                # Apply presharding if needed
+                if name in preshard_funcs:
+                    for shard_id, shard_param in enumerate(preshard_funcs[name](loader_param)):
+                        yield _sharded_param_name(name, shard_id), shard_param
+                else:
+                    yield name, loader_param
 
         cached_files = list(self.cached_files.keys())
         for path in cached_files:
