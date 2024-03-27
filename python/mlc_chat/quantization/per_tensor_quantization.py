@@ -35,6 +35,7 @@ class PerTensorQuantize:
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16"]
     quantize_embedding: bool = True
+    quantize_linear: bool = True
     quantize_final_fc: bool = True
 
     num_elem_per_storage: int = 0
@@ -104,8 +105,10 @@ class PerTensorQuantize:
                         f"{name}.q_weight",
                     ]
                 )
-                if isinstance(node, nn.Linear) and (
-                    not is_final_fc(name) or self.config.quantize_final_fc
+                if (
+                    isinstance(node, nn.Linear)
+                    and self.config.quantize_linear
+                    and (not is_final_fc(name) or self.config.quantize_final_fc)
                 ):
                     self.quant_map.param_map[weight_name] = param_names
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight

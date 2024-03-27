@@ -172,6 +172,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         no_scale=True,
         quantize_embedding=False,
+        quantize_linear=False,
     ),
     "fp8_e4m3_e5m2_max": PerTensorQuantize(
         name="fp8_e4m3_e5m2_max",
@@ -182,6 +183,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         no_scale=True,
         quantize_embedding=False,
+        quantize_linear=False,
     ),
     "fp8_e4m3_e4m3_max_calibration": PerTensorQuantize(
         name="fp8_e4m3_e4m3_max_calibration",
@@ -191,6 +193,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint8",
         model_dtype="float16",
         quantize_embedding=False,
+        quantize_linear=False,
     ),
     "fp8_e4m3_e4m3_max": PerTensorQuantize(
         name="fp8_e4m3_e4m3_max",
@@ -200,6 +203,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="uint8",
         model_dtype="float16",
         quantize_embedding=False,
+        quantize_linear=False,
     ),
     "fp16_max_calibration": PerTensorQuantize(
         name="fp16_max_calibration",
@@ -209,6 +213,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         storage_dtype="float16",
         model_dtype="float16",
         quantize_embedding=False,
+        quantize_linear=False,
         no_scale=True,
     ),
 }
