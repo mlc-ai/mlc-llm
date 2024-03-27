@@ -291,6 +291,8 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep=":",
         stop_str=["</s>"],
         stop_token_ids=[2],
+        system_prefix_token_ids=[1],
+        add_role_after_system_message=False,
     )
 )
 

@@ -389,7 +389,6 @@ async def request_chat_completion(
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
 
-    content_has_list = any(isinstance(message.content, list) for message in request.messages)
     for message in request.messages:
         role = message.role
         content = message.content
@@ -406,17 +405,12 @@ async def request_chat_completion(
     # - Check prompt length
     async_engine.record_event(request_id, event="start tokenization")
 
-    if content_has_list:
-        model_config = ServerContext.get_model_config(request.model)
-        image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
-        prompts = entrypoint_utils.process_prompts(
-            conv_template.as_prompt_list(image_embed_size=image_embed_size),
-            async_engine.tokenizer.encode,
-        )
-    else:
-        prompts = entrypoint_utils.process_prompts(
-            conv_template.as_prompt(), async_engine.tokenizer.encode
-        )
+    model_config = ServerContext.get_model_config(request.model)
+    prompts = entrypoint_utils.process_prompts(
+        conv_template.as_prompt(model_config),
+        async_engine.tokenizer.encode,
+    )
+
     async_engine.record_event(request_id, event="finish tokenization")
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
@@ -581,5 +575,7 @@ async def request_chat_completion(
         ],
         model=request.model,
         system_fingerprint="",
-        usage=UsageInfo(prompt_tokens=len(prompt), completion_tokens=num_completion_tokens),
+        usage=UsageInfo(
+            prompt_tokens=sum(len(item) for item in prompt), completion_tokens=num_completion_tokens
+        ),
     )

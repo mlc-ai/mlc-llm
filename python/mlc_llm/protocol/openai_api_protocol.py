@@ -184,7 +184,7 @@ class ChatToolCall(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
-    content: Optional[Union[str, List[Dict[str, str]]]] = None
+    content: Optional[Union[str, List[Dict]]] = None
     role: Literal["system", "user", "assistant", "tool"]
     name: Optional[str] = None
     tool_calls: Optional[List[ChatToolCall]] = None
