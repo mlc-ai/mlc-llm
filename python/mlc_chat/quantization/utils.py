@@ -119,5 +119,9 @@ def apply_sharding(shard, name: str, weight: nn.Parameter):
             dim=shard.dim,
             segs=shard.segs,
         )
+    elif isinstance(shard, tp.ShardScalar):
+        weight.attrs["shard_strategy"] = tp.ShardScalar(
+            name=name,
+        )
     else:
         raise NotImplementedError(f"Unknowing sharding strategy: {shard}")

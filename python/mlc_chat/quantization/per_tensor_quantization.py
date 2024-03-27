@@ -14,7 +14,7 @@ from tvm.target import Target
 from mlc_chat.loader import QuantizeMapping
 from mlc_chat.nn import MixtralExperts
 from mlc_chat.support import logging
-
+from mlc_chat.support import tensor_parallel as tp
 
 from .utils import (
     is_final_fc,
@@ -332,7 +332,9 @@ class PerTensorQuantizeLinear(nn.Module):
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
-            # scale doesn't need to be sharded since it's the same for all shards
+            apply_sharding(
+                tp.ShardScalar(name=shard.name), f"{shard.name}_q_scale", quantized_linear.q_scale
+            )
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name

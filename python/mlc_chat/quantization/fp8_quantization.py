@@ -351,7 +351,11 @@ class MixtralExpertsFP8(
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-            # scale doesn't need to be sharded since it's the same for all shards
+            apply_sharding(
+                tp.ShardScalar(name=shard.name),
+                f"{shard.name}_q_scale",
+                quantized_mistral_experts.q_scale,
+            )
 
         return quantized_mistral_experts
 
