@@ -5,6 +5,8 @@
 
 #include "action_commons.h"
 
+#include <tvm/runtime/nvtx.h>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -19,6 +21,7 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
 void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
                                         EngineState estate, Array<Model> models,
                                         int max_single_sequence_length) {
+  NVTXScopedRange nvtx_scope("Process finished requests");
   // - Remove the finished request state entries.
   for (const RequestStateEntry& rsentry : finished_rsentries) {
     // The finished entry must be a leaf.
@@ -83,6 +86,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int max_single_sequence_length) {
+  NVTXScopedRange nvtx_scope("EngineAction postproc");
   std::vector<RequestStateEntry> finished_rsentries;
   finished_rsentries.reserve(requests.size());
 
@@ -128,8 +132,11 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     }
   }
 
-  // - Invoke the stream callback function once for all collected requests.
-  request_stream_callback(callback_delta_outputs);
+  {
+    NVTXScopedRange nvtx_scope("Call request stream callback");
+    // - Invoke the stream callback function once for all collected requests.
+    request_stream_callback(callback_delta_outputs);
+  }
 
   ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
                                      std::move(models), max_single_sequence_length);
