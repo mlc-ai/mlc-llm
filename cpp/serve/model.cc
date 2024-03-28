@@ -7,6 +7,7 @@
 
 #include <picojson.h>
 #include <tvm/runtime/memory/memory_manager.h>
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
@@ -72,13 +73,18 @@ class ModelImpl : public ModelObj {
   /*********************** Model Computation  ***********************/
 
   ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
+    NVTXScopedRange nvtx_scope("TokenEmbed");
     int num_tokens = token_ids.size();
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
-    NDArray token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
-    int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
-    for (int i = 0; i < num_tokens; ++i) {
-      p_token_ids[i] = token_ids[i];
+    NDArray token_ids_nd;
+    {
+      NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
+      token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
+      int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
+      for (int i = 0; i < num_tokens; ++i) {
+        p_token_ids[i] = token_ids[i];
+      }
     }
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
@@ -96,6 +102,7 @@ class ModelImpl : public ModelObj {
   }
 
   ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst, int offset) final {
+    NVTXScopedRange nvtx_scope("ImageEmbed");
     CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
     auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
     ObjectRef embeddings = ft_.image_embed_func_(image_dref_or_nd, params_);
@@ -111,6 +118,7 @@ class ModelImpl : public ModelObj {
 
   NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                        const std::vector<int>& lengths) final {
+    NVTXScopedRange nvtx_scope("BatchPrefill");
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -180,6 +188,7 @@ class ModelImpl : public ModelObj {
   }
 
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
+    NVTXScopedRange nvtx_scope("BatchDecode");
     int num_sequence = seq_ids.size();
 
     CHECK(ft_.decode_func_.defined())
@@ -240,6 +249,7 @@ class ModelImpl : public ModelObj {
 
   NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                       const std::vector<int>& lengths) final {
+    NVTXScopedRange nvtx_scope("BatchVerify");
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();

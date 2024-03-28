@@ -3,6 +3,8 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include <tvm/runtime/nvtx.h>
+
 #include <numeric>
 
 #include "../../random.h"
@@ -40,12 +42,16 @@ class BatchDecodeActionObj : public EngineActionObj {
     }
 
     // Preempt request state entries when decode cannot apply.
-    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
-    while (!CanDecode(running_rsentries.size())) {
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
-      if (preempted.same_as(running_rsentries.back())) {
-        running_rsentries.pop_back();
+    std::vector<RequestStateEntry> running_rsentries;
+    {
+      NVTXScopedRange nvtx_scope("BatchDecode getting requests");
+      running_rsentries = GetRunningRequestStateEntries(estate);
+      while (!CanDecode(running_rsentries.size())) {
+        RequestStateEntry preempted =
+            PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+        if (preempted.same_as(running_rsentries.back())) {
+          running_rsentries.pop_back();
+        }
       }
     }
 
