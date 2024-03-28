@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import re
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -75,6 +76,59 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
                 logger.info("[System default] Setting %s: %s", bold(key), value)
 
 
+def check_string(s: str) -> bool:
+    """Check whether it's a string."""
+    delimit = s[1]
+    if s[0] != "b" or s[-1] != delimit:
+        return False
+    for i in range(2, len(s) - 1):
+        if s[i] == delimit and s[i - 1] != "\\":
+            return False
+    return True
+
+
+def txt2rwkv_tokenizer(vocab: Path, out: Path) -> None:
+    """Generate tokenizer_model from RWKV vocab file."""
+    idx2token = {}
+
+    with vocab.open("r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    for l in lines:
+        idx = int(l[: l.index(" ")])
+        raw = l[l.index(" ") : l.rindex(" ")].strip()
+        if check_string(raw):
+            x = eval(raw)  # pylint: disable=eval-used
+            x = x.encode("utf-8") if isinstance(x, str) else x
+            assert isinstance(x, bytes)
+            assert len(x) == int(l[l.rindex(" ") :])
+            idx2token[idx] = x
+        else:
+            raise ValueError("Unsupported vocab dictionary")
+
+    with (out / "tokenizer_model").open("wb") as f:
+        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+
+        msgpack.pack(idx2token, f)
+
+
+def json2rwkv_tokenizer(vocab: Path, out: Path) -> None:
+    """Generate tokenizer_model from RWKV vocab file."""
+    idx2token = {}
+
+    with vocab.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+        for key, value in data.items():
+            x = key.encode("utf-8") if isinstance(key, str) else key
+            assert isinstance(x, bytes)
+            idx2token[int(value)] = x
+
+    with (out / "tokenizer_model").open("wb") as f:
+        import msgpack  # pylint: disable=import-outside-toplevel,import-error
+
+        msgpack.pack(idx2token, f)
+
+
 def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
     config: Path,
     model: Model,
@@ -145,7 +199,18 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             logger.info("%s tokenizer config: %s. Copying to %s", FOUND, file, bold(str(dest)))
         else:
             logger.info("%s tokenizer config: %s", NOT_FOUND, file)
-    # 3.2. If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
+    # 3.2. Generate `tokenizer_model` for rwkv if `rwkv_vocab_.*` is found
+    pattern = re.compile(r"rwkv_vocab_v\d{8}\.(json|txt)")
+    for item in config.parent.iterdir():
+        if item.is_file() and pattern.match(item.name):
+            logger.info(
+                "%s RWKV vocab file: %s. Genetating %s", FOUND, item, bold("tokenizer_model")
+            )
+            if item.name.endswith(".txt"):
+                txt2rwkv_tokenizer(item, output)
+            else:
+                json2rwkv_tokenizer(item, output)
+    # 3.3. If we have `tokenizer.model` but not `tokenizer.json`, try convert it to
     # `tokenizer.json` with `transformers`.
     tokenizer_json_file = config.parent / "tokenizer.json"
     tokenizer_model_file = config.parent / "tokenizer.model"

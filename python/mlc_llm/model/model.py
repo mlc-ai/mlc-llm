@@ -23,6 +23,7 @@ from .phi import phi_loader, phi_model, phi_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
+from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
 
 ModelConfig = Any
@@ -306,6 +307,19 @@ MODELS: Dict[str, Model] = {
             "group-quant": llava_quantization.group_quant,
             "no-quant": llava_quantization.no_quant,
             "awq": llava_quantization.awq_quant,
+        },
+    ),
+    "rwkv6": Model(
+        name="rwkv6",
+        model=rwkv6_model.RWKV6_ForCasualLM,
+        config=rwkv6_model.RWKV6Config,
+        source={
+            "huggingface-torch": rwkv6_loader.huggingface,
+            "huggingface-safetensor": rwkv6_loader.huggingface,
+        },
+        quantize={
+            "no-quant": rwkv6_quantization.no_quant,
+            "group-quant": rwkv6_quantization.group_quant,
         },
     ),
 }

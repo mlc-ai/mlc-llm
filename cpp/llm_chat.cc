@@ -264,8 +264,8 @@ struct FunctionTable {
       this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
       this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
       this->fkvcache_array_popn_ = get_global_func("vm.builtin.kv_state_popn");
-      // TODO(mlc-team): enable backtracing when using paged kvcache
-      this->support_backtracking_kv_ = true;
+      // note: We use max sequence length = 1 for RNN state for now, so disable back tracking
+      this->support_backtracking_kv_ = this->use_kv_state == KVStateKind::kAttention;
     }
   }
 
