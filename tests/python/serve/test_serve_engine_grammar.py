@@ -185,7 +185,7 @@ async def run_async_engine():
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
 
-    print(async_engine.trace_recorder.dump_json(), file=open("tmpfiles/tmp.json", "w"))
+    print(async_engine.state.trace_recorder.dump_json(), file=open("tmpfiles/tmp.json", "w"))
 
     async_engine.terminate()
 

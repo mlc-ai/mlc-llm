@@ -115,6 +115,23 @@ class Engine {
  */
 std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args);
 
+constexpr const char* kEngineCreationErrorMessage =
+    "With `n` models, engine initialization "
+    "takes (6 + 4 * n) arguments. The first 6 arguments should be: "
+    "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
+    "window size of each model; "
+    "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
+    "weights directory; "
+    "3) (string) JSON configuration for the KVCache; "
+    "4) (string) JSON mode for Engine;"
+    "5) (packed function, optional) global request stream callback function. "
+    "6) (EventTraceRecorder, optional) the event trace recorder for requests."
+    "The following (4 * n) arguments, 4 for each model, should be: "
+    "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
+    "2) (string) Model path which includes weights and mlc-chat-config.json; "
+    "3) (int, enum DLDeviceType) Device type, e.g. CUDA, ROCm, etc; "
+    "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

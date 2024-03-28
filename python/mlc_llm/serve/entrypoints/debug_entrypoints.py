@@ -1,4 +1,5 @@
 """MLC LLM server debug entrypoints"""
+
 import json
 from http import HTTPStatus
 
@@ -40,9 +41,9 @@ async def debug_dump_event_trace(request: fastapi.Request):
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" is not served.'
         )
-    if async_engine.trace_recorder is None:
+    if async_engine.state.trace_recorder is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" does not enable tracing'
         )
 
-    return json.loads(async_engine.trace_recorder.dump_json())
+    return json.loads(async_engine.state.trace_recorder.dump_json())
