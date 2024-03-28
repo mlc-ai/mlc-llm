@@ -9,6 +9,7 @@
 #include <random>
 
 #include "data.h"
+#include "openai_api_protocol.h"
 
 namespace mlc {
 namespace llm {
@@ -156,6 +157,38 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   }
 
   data_ = std::move(n);
+}
+
+std::optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str,
+                                                           std::string& err) {
+  picojson::value json = LoadJsonFromString(json_str, err);
+  if (!err.empty()) {
+    return std::nullopt;
+  }
+  ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  picojson::object config = json.get<picojson::object>();
+
+  // ParseJsonField(config, "n", n->n, err, false);
+  // ParseJsonField(config, "temperature", n->temperature, err, false);
+  // ParseJsonField(config, "top_p", n->top_p, err, false);
+  // ParseJsonField(config, "frequency_penalty", n->frequency_penalty, err, false);
+  // ParseJsonField(config, "presence_penalty", n->presence_penalty, err, false);
+  // ParseJsonField(config, "repetition_penalty", n->repetition_penalty, err, false);
+  // ParseJsonField(config, "logprobs", n->logprobs, err, false);
+  // ParseJsonField(config, "top_logprobs", n->top_logprobs, err, false);
+  // ParseJsonField(config, "logit_bias", n->logit_bias, err, false);
+  // ParseJsonField(config, "max_tokens", n->max_tokens, err, false);
+  // ParseJsonField(config, "seed", n->seed, err, false);
+  // ParseJsonField(config, "stop_strs", n->stop_strs, err, false);
+  // ParseJsonField(config, "stop_token_ids", n->stop_token_ids, err, false);
+  // ParseJsonField(config, "ignore_eos", n->ignore_eos, err, false);
+
+  if (!err.empty()) {
+    return std::nullopt;
+  }
+  GenerationConfig gen_config;
+  gen_config.data_ = std::move(n);
+  return gen_config;
 }
 
 String GenerationConfigNode::AsJSONString() const {

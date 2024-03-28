@@ -9,6 +9,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
+#include <optional>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -56,6 +58,7 @@ class GenerationConfigNode : public Object {
 class GenerationConfig : public ObjectRef {
  public:
   explicit GenerationConfig(String config_json_str);
+  static std::optional<GenerationConfig> FromJSON(const std::string& json_str, std::string& err);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
