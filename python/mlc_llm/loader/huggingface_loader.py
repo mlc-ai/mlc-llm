@@ -119,7 +119,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             # multiple quantized parameters.
             for name, loader_param in self._load_or_quantize(mlc_name, param, device):
                 # Apply presharding if needed
-                if name in preshard_funcs:
+                if preshard_funcs is not None and name in preshard_funcs:
                     for shard_id, shard_param in enumerate(preshard_funcs[name](loader_param)):
                         yield _sharded_param_name(name, shard_id), shard_param
                 else:
