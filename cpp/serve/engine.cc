@@ -72,7 +72,8 @@ class EngineImpl : public Engine {
       String model_path = std::get<1>(model_info);
       DLDevice device = std::get<2>(model_info);
       Model model = Model::Create(model_lib, std::move(model_path), device,
-                                  kv_cache_config_->max_num_sequence);
+                                  kv_cache_config_->max_num_sequence,
+                                  /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(this->kv_cache_config_);
       CHECK_GE(model->GetMaxWindowSize(), this->max_single_sequence_length_)
           << "The window size of the model, " << model->GetMaxWindowSize()
