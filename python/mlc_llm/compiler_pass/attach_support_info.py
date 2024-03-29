@@ -64,8 +64,5 @@ class AttachCUDAGraphSymbolicCaptureHints:
                     mod[g_var] = func.with_attr(
                         "relax.rewrite_cuda_graph.capture_symbolic_vars", self.hints[func_name]
                     )
-                    print("hit", func_name)
-                else:
-                    print("miss", func_name)
 
         return mod
