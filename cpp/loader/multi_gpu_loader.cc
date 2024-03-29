@@ -182,8 +182,8 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
       }
     }
     LOG(INFO) << "Loading done. Time used:" << std::fixed << std::setprecision(3)  //
-              << " Loading " << FormatDuration(time_loading) << " s;"
-              << " Preprocessing " << FormatDuration(time_preproc) << " s.";
+              << " Loading " << FormatDuration(time_loading)
+              << " Preprocessing " << FormatDuration(time_preproc) << ".";
   } else {
     for (const NDArrayCacheMetadata::FileRecord& record : ndarray_cache_metadata.records) {
       for (size_t i = 0; i < record.records.size(); ++i) {
@@ -254,7 +254,7 @@ Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module rela
   }
   SyncWorker();
   if (worker_id == 0) {
-    LOG(INFO) << "Loading done. Time used: " << FormatDuration(time_loading);
+    LOG(INFO) << "Loading done. Time used: " << FormatDuration(time_loading) << ".";
   }
   return params;
 }
