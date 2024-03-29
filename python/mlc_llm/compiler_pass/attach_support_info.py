@@ -1,6 +1,6 @@
 """A couple of passes that simply supportive information onto the IRModule."""
 
-from typing import Dict
+from typing import Dict, List
 
 import tvm
 from tvm import IRModule, relax, tir
@@ -45,4 +45,27 @@ class AttachMemoryPlanAttr:  # pylint: disable=too-few-public-methods
         for g_var, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 mod[g_var] = func.with_attr("relax.memory_plan_dynamic_func_output", True)
+        return mod
+
+
+@tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphCaptureHints")
+class AttachCUDAGraphSymbolicCaptureHints:
+    """Attach CUDA graph capture hints to the IRModule"""
+
+    def __init__(self, hints: Dict[str, List[bool]]):
+        self.hints = hints
+
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+        """Entrypoint"""
+        for g_var, func in mod.functions_items():
+            func_name = g_var.name_hint
+            if isinstance(func, relax.Function):
+                if func_name in self.hints:
+                    mod[g_var] = func.with_attr(
+                        "relax.rewrite_cuda_graph.capture_symbolic_vars", self.hints[func_name]
+                    )
+                    print("hit", func_name)
+                else:
+                    print("miss", func_name)
+
         return mod
