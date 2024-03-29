@@ -162,6 +162,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         logger.info("Running optimizations using TVM Unity")
         additional_tirs = _apply_preproc_to_params(named_params, model_config)
         variable_bounds = _get_variable_bounds(model_config)
+        cuda_graph_symbolic_capture_hints = {"batch_decode": ["batch_size"]}
         metadata = {
             "model_type": args.model.name,
             "quantization": args.quantization.name,
@@ -186,6 +187,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                     faster_transformer=args.opt.faster_transformer,
                     allreduce_strategy=args.opt.ipc_allreduce_strategy,
                     variable_bounds=variable_bounds,
+                    cuda_graph_symbolic_capture_hints=cuda_graph_symbolic_capture_hints,
                     additional_tirs=additional_tirs,
                     ext_mods=ext_mods,
                     metadata=metadata,

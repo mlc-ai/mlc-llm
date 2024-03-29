@@ -17,6 +17,7 @@ from .attach_logit_processor import AttachLogitProcessFunc
 from .attach_sampler import AttachGPUSamplingFunc
 from .attach_support_info import (
     AttachAdditionalPrimFuncs,
+    AttachCUDAGraphSymbolicCaptureHints,
     AttachMemoryPlanAttr,
     AttachVariableBounds,
 )
@@ -78,12 +79,14 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     faster_transformer: bool = False,  # pylint: disable=unused-argument
     allreduce_strategy: IPCAllReduceStrategyType = IPCAllReduceStrategyType.NONE,
     variable_bounds: Dict[str, int] = None,
+    cuda_graph_symbolic_capture_hints: Dict[str, List[str]] = None,
     additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
     ext_mods: List[nn.ExternModule] = None,
     debug_dump: Optional[Path] = None,
 ):
     variable_bounds = variable_bounds or {}
+    cuda_graph_symbolic_capture_hints = cuda_graph_symbolic_capture_hints or {}
     additional_tirs = additional_tirs or {}
     metadata = metadata or {}
     ext_mods = ext_mods or []
@@ -95,6 +98,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 DispatchKVCacheCreation(target, flashinfer, metadata),
                 AttachVariableBounds(variable_bounds),
+                AttachCUDAGraphSymbolicCaptureHints(cuda_graph_symbolic_capture_hints),
                 AttachLogitProcessFunc(target),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
