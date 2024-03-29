@@ -1,3 +1,5 @@
+.. _deploy-rest-api:
+
 Rest API
 ========
 
