@@ -415,7 +415,7 @@ async def request_chat_completion(
     )
 
     async_engine.state.record_event(request_id, event="finish tokenization")
-    
+
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
     error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)
