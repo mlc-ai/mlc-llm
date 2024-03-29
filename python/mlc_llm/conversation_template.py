@@ -284,7 +284,7 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llava",
         system_template=f"{MessagePlaceholders.SYSTEM.value}",
-        system_message="",
+        system_message="\n",
         roles={"user": "USER", "assistant": "ASSISTANT"},
         seps=[" "],
         role_content_sep=": ",
