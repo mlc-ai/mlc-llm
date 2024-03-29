@@ -1,4 +1,5 @@
 """A compiler pass that lifts TIR-level global allocation to Relax."""
+
 from typing import Dict, List, Tuple
 
 import tvm
@@ -27,7 +28,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         super().__init__(mod)
         self.mod = mod
         self.gv2new_tensor_sinfo: Dict[
-            tvm.ir.GlobalVar, Tuple[List[relax.TensorStructInfo], tir.PrimFunc]
+            tvm.ir.GlobalVar, Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tir.PrimFunc]
         ] = {}
 
     def transform(self) -> IRModule:
@@ -36,8 +37,8 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
             if isinstance(func, tir.PrimFunc):
                 updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
                 if len(tensor_sinfo_list) > 0:
-                    self.gv2new_tensor_sinfo[g_var] = (tensor_sinfo_list, func)
-                    self.builder_.update_func(g_var, updated_func)
+                    new_gv = self.builder_.add_func(updated_func, g_var.name_hint)
+                    self.gv2new_tensor_sinfo[g_var] = (new_gv, tensor_sinfo_list, func)
 
         self.mod = self.builder_.get()
         for g_var, func in self.mod.functions_items():
@@ -45,7 +46,9 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
                 updated_func = self.visit_expr(func)
                 updated_func = remove_all_unused(updated_func)
                 self.builder_.update_func(g_var, updated_func)
-        return self.builder_.get()
+
+        mod = self.builder_.get()
+        return relax.transform.DeadCodeElimination()(mod)
 
     def visit_call_(self, call: relax.Call):  # pylint: disable=arguments-renamed
         call = self.visit_expr_post_order(call)
@@ -56,21 +59,22 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
             return call
 
         g_var = call.args[0]
-        tensor_sinfo, func_before_update = self.gv2new_tensor_sinfo[g_var]
+        new_gv, tensor_sinfo, func_before_update = self.gv2new_tensor_sinfo[g_var]
 
         assert len(call.sinfo_args) == 1
         if any(_has_symbolic_var(sinfo) for sinfo in tensor_sinfo):
             tensor_sinfo, success = _resolve_tir_var_mapping(func_before_update, call, tensor_sinfo)
             if not success:
                 # Cannot resolve TIR var mapping. Fall back to no lifting.
-                self.builder_.update_func(g_var, func_before_update)
                 self.gv2new_tensor_sinfo.pop(g_var)
                 return call
 
+        args = list(call.args)
+        args[0] = new_gv
         if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
             new_call = relax.Call(
                 call.op,
-                args=call.args,
+                args=args,
                 sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args) + tensor_sinfo)],
                 attrs=call.attrs,
             )
@@ -79,7 +83,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         assert isinstance(call.sinfo_args[0], relax.TupleStructInfo)
         return relax.Call(
             call.op,
-            args=call.args,
+            args=args,
             sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args[0].fields) + tensor_sinfo)],
             attrs=call.attrs,
         )
