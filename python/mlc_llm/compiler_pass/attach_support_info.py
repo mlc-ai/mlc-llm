@@ -49,7 +49,7 @@ class AttachMemoryPlanAttr:  # pylint: disable=too-few-public-methods
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachCUDAGraphCaptureHints")
-class AttachCUDAGraphSymbolicCaptureHints:
+class AttachCUDAGraphSymbolicCaptureHints:  # pylint: disable=too-few-public-methods
     """Attach CUDA graph capture hints to the IRModule"""
 
     def __init__(self, hints: Dict[str, List[str]]):
