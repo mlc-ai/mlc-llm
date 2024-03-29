@@ -179,7 +179,6 @@ class StableLmDecoderLayer(nn.Module):
         return out + residual
 
 
-
 class StableLmModel(nn.Module):
     def __init__(self, config: StableLmConfig):
         assert config.hidden_size % config.num_attention_heads == 0
