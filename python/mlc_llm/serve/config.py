@@ -14,7 +14,7 @@ class ResponseFormat:
     type : Literal["text", "json_object"]
         The type of response format. Default: "text".
 
-    json_schema : Optional[str]
+    schema : Optional[str]
         The JSON schema string for the JSON response format. If None, a legal json string without
         special restrictions will be generated.
 
@@ -22,11 +22,11 @@ class ResponseFormat:
     """
 
     type: Literal["text", "json_object"] = "text"
-    json_schema: Optional[str] = None
+    schema: Optional[str] = None
 
     def __post_init__(self):
-        if self.json_schema is not None and self.type != "json_object":
-            raise ValueError("JSON json_schema is only supported in JSON response format")
+        if self.schema is not None and self.type != "json_object":
+            raise ValueError("JSON schema is only supported in JSON response format")
 
 
 @dataclass

@@ -6,6 +6,7 @@
 #include "logit_processor.h"
 
 #include <picojson.h>
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
@@ -69,6 +70,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
                            const Array<String>& request_ids,               //
                            const std::vector<int>* cum_num_token,          //
                            const std::vector<std::vector<SampleResult>>* draft_tokens) final {
+    NVTXScopedRange nvtx_scope("Logit inplace update");
     CHECK_EQ(logits->ndim, 2);
     CHECK_EQ(logits->shape[1], vocab_size_);
     CHECK(logits.DataType() == DataType::Float(32));
@@ -109,6 +111,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
   NDArray ComputeProbsFromLogits(NDArray logits, const Array<GenerationConfig>& generation_cfg,
                                  const Array<String>& request_ids,
                                  const std::vector<int>* cum_num_token) final {
+    NVTXScopedRange nvtx_scope("Compute probs from logits");
     // logits: (n, v)
     CHECK_EQ(logits->ndim, 2);
     CHECK_LE(logits->shape[0], max_num_token_);

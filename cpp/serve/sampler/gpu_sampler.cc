@@ -4,6 +4,7 @@
  * \brief The implementation for GPU sampler functions.
  */
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 
 #include "../../random.h"
@@ -61,6 +62,7 @@ class GPUSampler : public SamplerObj {
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
                                               std::vector<NDArray>* output_prob_dist) final {
+    NVTXScopedRange nvtx_scope("BatchSampleTokens");
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     CHECK_EQ(probs_on_device->ndim, 2);

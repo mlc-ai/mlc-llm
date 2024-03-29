@@ -63,7 +63,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
     request_id = f"cmpl-{entrypoint_utils.random_uuid()}"
-    async_engine.record_event(request_id, event="receive request")
+    async_engine.state.record_event(request_id, event="receive request")
 
     # - Check if unsupported arguments are specified.
     error = entrypoint_utils.check_unsupported_fields(request)
@@ -71,9 +71,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return error
 
     # - Process prompt and check validity.
-    async_engine.record_event(request_id, event="start tokenization")
+    async_engine.state.record_event(request_id, event="start tokenization")
     prompts = entrypoint_utils.process_prompts(request.prompt, async_engine.tokenizer.encode)
-    async_engine.record_event(request_id, event="finish tokenization")
+    async_engine.state.record_event(request_id, event="finish tokenization")
     if isinstance(prompts, fastapi.responses.JSONResponse):
         # Errored when processing the prompts
         return prompts
@@ -115,7 +115,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             # - Generate new tokens.
             num_completion_tokens = 0
             finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
-            async_engine.record_event(request_id, event="invoke generate")
+            async_engine.state.record_event(request_id, event="invoke generate")
             async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
                 assert len(delta_outputs) == generation_cfg.n
                 choices = []
@@ -160,7 +160,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                     ),
                 )
                 yield f"data: {response.model_dump_json()}\n\n"
-            async_engine.record_event(request_id, event="finish")
+            async_engine.state.record_event(request_id, event="finish")
 
             # - Echo the suffix.
             if request.suffix is not None:
@@ -197,7 +197,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     logprob_json_strs_list: Optional[List[List[str]]] = (
         [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
     )
-    async_engine.record_event(request_id, event="invoke generate")
+    async_engine.state.record_event(request_id, event="invoke generate")
     async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -220,7 +220,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                 logprob_json_strs_list[i] += delta_output.delta_logprob_json_strs
     assert all(finish_reason is not None for finish_reason in finish_reasons)
     suffix = request.suffix if request.suffix is not None else ""
-    async_engine.record_event(request_id, event="finish")
+    async_engine.state.record_event(request_id, event="finish")
     response = CompletionResponse(
         id=request_id,
         choices=[
@@ -364,7 +364,7 @@ async def request_chat_completion(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
     request_id = f"chatcmpl-{entrypoint_utils.random_uuid()}"
-    async_engine.record_event(request_id, event="receive request")
+    async_engine.state.record_event(request_id, event="receive request")
 
     # - Check if the model supports chat conversation.
     conv_template = server_context.get_conv_template(request.model)
@@ -392,7 +392,6 @@ async def request_chat_completion(
     if error_msg is not None:
         return entrypoint_utils.create_error_response(HTTPStatus.BAD_REQUEST, message=error_msg)
 
-    content_has_list = any(isinstance(message.content, list) for message in request.messages)
     for message in request.messages:
         role = message.role
         content = message.content
@@ -407,20 +406,16 @@ async def request_chat_completion(
 
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
-    async_engine.record_event(request_id, event="start tokenization")
+    async_engine.state.record_event(request_id, event="start tokenization")
 
-    if content_has_list:
-        model_config = server_context.get_model_config(request.model)
-        image_embed_size = entrypoint_utils.get_image_embed_size(model_config)
-        prompts = entrypoint_utils.process_prompts(
-            conv_template.as_prompt_list(image_embed_size=image_embed_size),
-            async_engine.tokenizer.encode,
-        )
-    else:
-        prompts = entrypoint_utils.process_prompts(
-            conv_template.as_prompt(), async_engine.tokenizer.encode
-        )
-    async_engine.record_event(request_id, event="finish tokenization")
+    model_config = server_context.get_model_config(request.model)
+    prompts = entrypoint_utils.process_prompts(
+        conv_template.as_prompt(model_config),
+        async_engine.tokenizer.encode,
+    )
+
+    async_engine.state.record_event(request_id, event="finish tokenization")
+    
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
     error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)
@@ -440,7 +435,7 @@ async def request_chat_completion(
     if request.stream:
 
         async def completion_stream_generator() -> AsyncGenerator[str, None]:
-            async_engine.record_event(request_id, event="invoke generate")
+            async_engine.state.record_event(request_id, event="invoke generate")
             finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
             async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
                 assert len(delta_outputs) == generation_cfg.n
@@ -456,7 +451,7 @@ async def request_chat_completion(
                         finish_reason_updated = True
                     if not finish_reason_updated and delta_output.delta_text == "":
                         # Ignore empty delta text when finish reason is not updated.
-                        async_engine.record_event(request_id, event="skip empty delta text")
+                        async_engine.state.record_event(request_id, event="skip empty delta text")
                         continue
 
                     choices.append(
@@ -488,9 +483,9 @@ async def request_chat_completion(
                     model=request.model,
                     system_fingerprint="",
                 )
-                async_engine.record_event(request_id, event="yield delta output")
+                async_engine.state.record_event(request_id, event="yield delta output")
                 yield f"data: {response.model_dump_json()}\n\n"
-            async_engine.record_event(request_id, event="finish")
+            async_engine.state.record_event(request_id, event="finish")
             yield "data: [DONE]\n\n"
 
         return fastapi.responses.StreamingResponse(
@@ -504,7 +499,7 @@ async def request_chat_completion(
     logprob_json_strs_list: Optional[List[List[str]]] = (
         [[] for _ in range(generation_cfg.n)] if generation_cfg.logprobs else None
     )
-    async_engine.record_event(request_id, event="invoke generate")
+    async_engine.state.record_event(request_id, event="invoke generate")
     async for delta_outputs in async_engine.generate(prompt, generation_cfg, request_id):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -527,7 +522,7 @@ async def request_chat_completion(
                 logprob_json_strs_list[i] += delta_output.delta_logprob_json_strs
     assert all(finish_reason is not None for finish_reason in finish_reasons)
 
-    async_engine.record_event(request_id, event="finish")
+    async_engine.state.record_event(request_id, event="finish")
 
     tool_calls_list: List[List[ChatToolCall]] = [[] for _ in range(generation_cfg.n)]
     if conv_template.use_function_calling:
@@ -584,5 +579,7 @@ async def request_chat_completion(
         ],
         model=request.model,
         system_fingerprint="",
-        usage=UsageInfo(prompt_tokens=len(prompt), completion_tokens=num_completion_tokens),
+        usage=UsageInfo(
+            prompt_tokens=sum(len(item) for item in prompt), completion_tokens=num_completion_tokens
+        ),
     )

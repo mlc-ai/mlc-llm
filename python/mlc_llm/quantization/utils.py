@@ -45,3 +45,8 @@ def is_final_fc(name: str) -> bool:
     """Determines whether the parameter is the last layer based on its name."""
     # TODO: use more specious condition to determine final fc  # pylint: disable=fixme
     return name in ["head", "lm_head", "lm_head.linear", "embed_out"]
+
+
+def is_moe_gate(name: str) -> bool:
+    """Check whether the parameter is the MoE gate layer."""
+    return name.endswith("gate")

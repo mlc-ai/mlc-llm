@@ -63,13 +63,17 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         openai_v1_models_url = "http://127.0.0.1:8000/v1/models"
         query_result = None
         timeout = 60
-        attempts = 0
+        attempts = 0.0
         while query_result is None and attempts < timeout:
             try:
                 query_result = requests.get(openai_v1_models_url, timeout=60)
+                if query_result.status_code != 200:
+                    query_result = None
+                    attempts += 0.1
+                    time.sleep(0.1)
             except:  # pylint: disable=bare-except
-                attempts += 1
-                time.sleep(1)
+                attempts += 0.1
+                time.sleep(0.1)
 
         # Check if the subprocess terminates unexpectedly or
         # the queries reach the timeout.
@@ -116,3 +120,12 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         except subprocess.TimeoutExpired:
             pass
         self._proc = None
+
+    def __enter__(self):
+        """Start the server."""
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Terminate the server."""
+        self.terminate()

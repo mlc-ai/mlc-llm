@@ -69,7 +69,11 @@ class ModelResponse(BaseModel):
 
 class RequestResponseFormat(BaseModel):
     type: Literal["text", "json_object"] = "text"
-    json_schema: Optional[str] = None
+    json_schema: Optional[str] = Field(default=None, alias="schema")
+    """This field is named json_schema instead of schema because BaseModel defines a method called
+    schema. During construction of RequestResponseFormat, key "schema" still should be used:
+    `RequestResponseFormat(type="json_object", schema="{}")`
+    """
 
 
 class CompletionRequest(BaseModel):
@@ -180,7 +184,7 @@ class ChatToolCall(BaseModel):
 
 
 class ChatCompletionMessage(BaseModel):
-    content: Optional[Union[str, List[Dict[str, str]]]] = None
+    content: Optional[Union[str, List[Dict]]] = None
     role: Literal["system", "user", "assistant", "tool"]
     name: Optional[str] = None
     tool_calls: Optional[List[ChatToolCall]] = None
@@ -333,5 +337,5 @@ def openai_api_get_generation_config(
         kwargs["max_tokens"] = -1
     if request.stop is not None:
         kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
-    kwargs["response_format"] = ResponseFormat(**request.response_format.model_dump())
+    kwargs["response_format"] = ResponseFormat(**request.response_format.model_dump(by_alias=True))
     return kwargs

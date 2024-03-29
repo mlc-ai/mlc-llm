@@ -33,6 +33,9 @@ class AsyncThreadedEngine {
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;
 
+  /*! \brief Starts the request stream callback loop. */
+  virtual void RunBackgroundStreamBackLoop() = 0;
+
   /*!
    * \brief Notify the AsyncThreadedEngine to exit the background
    * request processing loop. This method is invoked by threads

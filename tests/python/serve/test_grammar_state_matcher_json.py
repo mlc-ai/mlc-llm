@@ -262,11 +262,11 @@ def test_find_next_rejected_tokens(
 
     real_sizes = []
     for c in input_find_rejected_tokens:
-        rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
+        rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
         real_sizes.append(len(rejected_token_ids))
         print("Accepting char:", c, file=sys.stderr)
         assert grammar_state_matcher.debug_accept_char(ord(c))
-    rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens()
+    rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
     real_sizes.append(len(rejected_token_ids))
     if expected_rejected_sizes is not None:
         assert real_sizes == expected_rejected_sizes

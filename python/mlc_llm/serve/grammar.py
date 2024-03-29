@@ -1,5 +1,6 @@
 """Classes handling the grammar guided generation of MLC LLM serving"""
-from typing import List, Union
+
+from typing import List, Optional, Tuple, Union
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -113,6 +114,47 @@ class BNFGrammar(Object):
         )
 
     @staticmethod
+    def from_schema(
+        schema: str,
+        *,
+        indent: Optional[int] = None,
+        separators: Optional[Tuple[str, str]] = None,
+        strict_mode: bool = True
+    ) -> "BNFGrammar":
+        """Construct a BNF grammar from the json schema string. The schema string should be in the
+        format of the schema of a JSON file. We will parse the schema and generate a BNF grammar.
+
+        Parameters
+        ----------
+        schema : str
+            The schema string.
+
+        indent : Optional[int]
+            The number of spaces for indentation. If None, the output will be in one line.
+            Default: None.
+
+        separators : Optional[Tuple[str, str]]
+            Two separators used in the schema: comma and colon. Examples: (",", ":"), (", ", ": ").
+            If None, the default separators will be used: (",", ": ") when the indent is not None,
+            and (", ", ": ") otherwise. Default: None.
+
+        strict_mode : bool
+            Whether to use strict mode. In strict mode, the generated grammar will not allow
+            unevaluatedProperties and unevaluatedItems, i.e. these will be set to false by default.
+            This helps LLM to generate accurate output in the grammar-guided generation with JSON
+            schema. Default: True.
+
+        Returns
+        -------
+        grammar : BNFGrammar
+            The generated BNF grammar.
+        """
+        indent_converted = -1 if indent is None else indent
+        return _ffi_api.BNFGrammarFromSchema(  # type: ignore  # pylint: disable=no-member
+            schema, indent_converted, separators, strict_mode
+        )
+
+    @staticmethod
     def get_grammar_of_json() -> "BNFGrammar":
         """Get the grammar of standard JSON.
 
@@ -197,8 +239,14 @@ class GrammarStateMatcher(Object):
         """
         return _ffi_api.GrammarStateMatcherAcceptToken(self, token_id)  # type: ignore  # pylint: disable=no-member
 
-    def find_next_rejected_tokens(self) -> List[int]:
+    def find_next_rejected_tokens(self, verbose: bool = False) -> List[int]:
         """Find the ids of the rejected tokens for the next step.
+
+        Parameters
+        ----------
+        verbose : bool
+            Whether to print information about the timing and results to stderr. For debug purposes.
+            Default: False.
 
         Returns
         -------
@@ -206,7 +254,7 @@ class GrammarStateMatcher(Object):
             A list of rejected token ids.
         """
 
-        return _ffi_api.GrammarStateMatcherFindNextRejectedTokens(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.GrammarStateMatcherFindNextRejectedTokens(self, verbose)  # type: ignore  # pylint: disable=no-member
 
     def rollback(self, num_tokens: int) -> None:
         """Rollback the matcher to a previous state.

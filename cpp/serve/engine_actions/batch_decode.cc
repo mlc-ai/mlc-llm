@@ -3,6 +3,8 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include <tvm/runtime/nvtx.h>
+
 #include <numeric>
 
 #include "../../random.h"
@@ -40,12 +42,16 @@ class BatchDecodeActionObj : public EngineActionObj {
     }
 
     // Preempt request state entries when decode cannot apply.
-    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
-    while (!CanDecode(running_rsentries.size())) {
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
-      if (preempted.same_as(running_rsentries.back())) {
-        running_rsentries.pop_back();
+    std::vector<RequestStateEntry> running_rsentries;
+    {
+      NVTXScopedRange nvtx_scope("BatchDecode getting requests");
+      running_rsentries = GetRunningRequestStateEntries(estate);
+      while (!CanDecode(running_rsentries.size())) {
+        RequestStateEntry preempted =
+            PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+        if (preempted.same_as(running_rsentries.back())) {
+          running_rsentries.pop_back();
+        }
       }
     }
 
@@ -83,7 +89,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
     ObjectRef embeddings =
-        models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+        models_[0]->TokenEmbed({IntTuple(input_tokens.begin(), input_tokens.end())});
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
 
     // - Invoke model decode.

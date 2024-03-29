@@ -3,6 +3,8 @@
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
+#include <tvm/runtime/nvtx.h>
+
 #include "../config.h"
 #include "../model.h"
 #include "../sampler/sampler.h"
@@ -33,10 +35,17 @@ class NewRequestPrefillActionObj : public EngineActionObj {
 
   Array<Request> Step(EngineState estate) final {
     // - Find the requests in `waiting_queue` that can prefill in this step.
-    auto [rsentries, prefill_lengths] = GetRequestStateEntriesToPrefill(estate);
-    ICHECK_EQ(rsentries.size(), prefill_lengths.size());
-    if (rsentries.empty()) {
-      return {};
+    Array<RequestStateEntry> rsentries;
+    std::vector<int> prefill_lengths;
+    {
+      NVTXScopedRange nvtx_scope("NewRequestPrefill getting requests");
+      auto tuple = GetRequestStateEntriesToPrefill(estate);
+      rsentries = std::move(std::get<0>(tuple));
+      prefill_lengths = std::move(std::get<1>(tuple));
+      ICHECK_EQ(rsentries.size(), prefill_lengths.size());
+      if (rsentries.empty()) {
+        return {};
+      }
     }
 
     int num_rsentries = rsentries.size();

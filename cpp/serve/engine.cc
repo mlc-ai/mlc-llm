@@ -12,6 +12,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <optional>
 #include <tuple>
 #include <unordered_set>
 
@@ -61,8 +62,7 @@ class EngineImpl : public Engine {
     this->trace_recorder_ = trace_recorder;
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
     this->token_table_ = tokenizer_->TokenTable();
-    this->json_grammar_state_init_ctx_ =
-        GrammarStateMatcher::CreateInitContext(BNFGrammar::GetGrammarOfJSON(), this->token_table_);
+    this->grammar_init_context_storage_ = GrammarInitContextStorage(this->token_table_);
     // Step 2. Initialize each model independently.
     //         Create the logit processor and sampler.
     this->models_.clear();
@@ -72,7 +72,8 @@ class EngineImpl : public Engine {
       String model_path = std::get<1>(model_info);
       DLDevice device = std::get<2>(model_info);
       Model model = Model::Create(model_lib, std::move(model_path), device,
-                                  kv_cache_config_->max_num_sequence);
+                                  kv_cache_config_->max_num_sequence,
+                                  /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(this->kv_cache_config_);
       CHECK_GE(model->GetMaxWindowSize(), this->max_single_sequence_length_)
           << "The window size of the model, " << model->GetMaxWindowSize()
@@ -160,11 +161,13 @@ class EngineImpl : public Engine {
 
     int n = request->generation_cfg->n;
     int rng_seed = request->generation_cfg->seed;
+    auto grammar_state_init_ctx =
+        ResponseFormatToGrammarInitContext(request->generation_cfg->response_format);
 
     std::vector<RequestStateEntry> rsentries;
     // Create the request state entry for the input.
     rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
-                           token_table_, json_grammar_state_init_ctx_);
+                           token_table_, grammar_state_init_ctx);
     if (n > 1) {
       // Then create a request state entry for each parallel generation branch.
       // We add a offset to the rng seed so that to make generations different.
@@ -173,7 +176,7 @@ class EngineImpl : public Engine {
       for (int i = 0; i < n; ++i) {
         rsentries[0]->child_indices.push_back(rsentries.size());
         rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
-                               rng_seed + i + 1, token_table_, json_grammar_state_init_ctx_,
+                               rng_seed + i + 1, token_table_, grammar_state_init_ctx,
                                /*parent_idx=*/0);
       }
     }
@@ -247,6 +250,20 @@ class EngineImpl : public Engine {
         std::max(max_concurrency - host_cpu_usage, 1), kv_cache_config_->max_num_sequence));
   }
 
+  /*! \brief Create a grammar init context according to the response format. If the response format
+   * is not JSON, return std::nullopt. */
+  std::optional<std::shared_ptr<GrammarStateInitContext>> ResponseFormatToGrammarInitContext(
+      const ResponseFormat& response_format) {
+    if (response_format.type != "json_object") {
+      return std::nullopt;
+    } else if (!response_format.schema) {
+      return grammar_init_context_storage_->GetInitContextForJSON();
+    } else {
+      return grammar_init_context_storage_->GetInitContextForJSONSchema(
+          response_format.schema.value());
+    }
+  }
+
   // Engine state, managing requests and request states.
   EngineState estate_;
   // Configurations and singletons
@@ -255,8 +272,8 @@ class EngineImpl : public Engine {
   int max_single_sequence_length_;
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
-  // The initial context for the grammar state matching of JSON.
-  std::shared_ptr<GrammarStateInitContext> json_grammar_state_init_ctx_;
+  // Helper to get the grammar init context for requests.
+  GrammarInitContextStorage grammar_init_context_storage_;
   // Models
   Array<Model> models_;
   // Workspace of each model.
@@ -288,23 +305,6 @@ void ClearGlobalMemoryManager() {
 }
 
 std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
-  static const char* kErrorMessage =
-      "With `n` models, engine initialization "
-      "takes (6 + 4 * n) arguments. The first 6 arguments should be: "
-      "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
-      "window size of each model; "
-      "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
-      "weights directory; "
-      "3) (string) JSON configuration for the KVCache; "
-      "4) (string) JSON mode for Engine;"
-      "5) (packed function, optional) global request stream callback function. "
-      "6) (EventTraceRecorder, optional) the event trace recorder for requests."
-      "The following (4 * n) arguments, 4 for each model, should be: "
-      "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
-      "2) (string) Model path which includes weights and mlc-chat-config.json; "
-      "3) (int, enum DLDeviceType) Device type, e.g. CUDA, ROCm, etc; "
-      "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
-
   ClearGlobalMemoryManager();
   const int num_non_model_args = 6;
   const int num_model_args = 4;
@@ -335,7 +335,7 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
       model_infos.emplace_back(model_lib, model_path, DLDevice{device_type, device_id});
     }
   } catch (const dmlc::Error& e) {
-    LOG(FATAL) << "ValueError: " << e.what() << kErrorMessage;
+    LOG(FATAL) << "ValueError: " << e.what() << kEngineCreationErrorMessage;
   }
   return Engine::Create(max_single_sequence_length, tokenizer_path, kv_cache_config_json_str,
                         engine_mode_json_str, request_stream_callback, std::move(trace_recorder),
