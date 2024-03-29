@@ -43,7 +43,8 @@ async def request_models():
     """OpenAI-compatible served model query API.
     API reference: https://platform.openai.com/docs/api-reference/models
     """
-    return ListResponse(data=[ModelResponse(id=model) for model in ServerContext.get_model_list()])
+    server_context: ServerContext = ServerContext.current()
+    return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
 
 
 ################ v1/completions ################
@@ -55,7 +56,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     API reference: https://platform.openai.com/docs/api-reference/completions/create
     """
     # - Check the requested model.
-    async_engine = ServerContext.get_engine(request.model)
+    server_context: ServerContext = ServerContext.current()
+    async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
@@ -355,7 +357,8 @@ async def request_chat_completion(
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
     # - Check the requested model.
-    async_engine = ServerContext.get_engine(request.model)
+    server_context: ServerContext = ServerContext.current()
+    async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
@@ -364,7 +367,7 @@ async def request_chat_completion(
     async_engine.state.record_event(request_id, event="receive request")
 
     # - Check if the model supports chat conversation.
-    conv_template = ServerContext.get_conv_template(request.model)
+    conv_template = server_context.get_conv_template(request.model)
     if conv_template is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST,
@@ -405,13 +408,14 @@ async def request_chat_completion(
     # - Check prompt length
     async_engine.state.record_event(request_id, event="start tokenization")
 
-    model_config = ServerContext.get_model_config(request.model)
+    model_config = server_context.get_model_config(request.model)
     prompts = entrypoint_utils.process_prompts(
         conv_template.as_prompt(model_config),
         async_engine.tokenizer.encode,
     )
 
     async_engine.state.record_event(request_id, event="finish tokenization")
+
     if conv_template.system_prefix_token_ids is not None:
         prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
     error = entrypoint_utils.check_prompts_length(prompts, async_engine.max_input_sequence_length)

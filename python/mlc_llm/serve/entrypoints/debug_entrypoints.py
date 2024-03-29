@@ -36,7 +36,10 @@ async def debug_dump_event_trace(request: fastapi.Request):
 
     # - Check the requested model.
     model = request_dict["model"]
-    async_engine = ServerContext.get_engine(model)
+
+    server_context: ServerContext = ServerContext.current()
+    async_engine = server_context.get_engine(model)
+
     if async_engine is None:
         return entrypoint_utils.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" is not served.'

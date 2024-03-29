@@ -1,4 +1,5 @@
 """Help message for CLI arguments."""
+
 HELP = {
     "config": (
         """
@@ -22,10 +23,12 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
 """.strip(),
     "model": """
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
+It can also be a link to a HF repository pointing to an MLC compiled model.
 """.strip(),
     "model_lib_path": """
 The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
-the provided ``model`` to search over possible paths.
+the provided ``model`` to search over possible paths. It the model lib path is not found, it will be 
+compiled in a JIT manner.
 """.strip(),
     "model_type": """
 Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`.
@@ -111,7 +114,7 @@ This flag subjects to future refactoring.
 the number of sinks is 4. This flag subjects to future refactoring.
 """.strip(),
     "max_batch_size": """
-The maximum allowed batch size set for batch prefill/decode function.
+The maximum allowed batch size set for the KV cache to concurrently support.
 """.strip(),
     """tensor_parallel_shards""": """
 Number of shards to split the model into in tensor parallelism multi-gpu inference.
@@ -138,5 +141,22 @@ The prompt of the text generation.
 """.strip(),
     "generate_length": """
 The target length of the text generation.
+""".strip(),
+    "max_total_sequence_length_serve": """
+The KV cache total token capacity, i.e., the maximum total number of tokens that
+the KV cache support. This decides the GPU memory size that the KV cache consumes.
+If not specified, system will automatically estimate the maximum capacity based
+on the vRAM size on GPU.
+""".strip(),
+    "prefill_chunk_size_serve": """
+The maximum number of tokens the model passes for prefill each time.
+It should not exceed the prefill chunk size in model config.
+If not specified, this defaults to the prefill chunk size in model config.
+""".strip(),
+    "enable_tracing_serve": """
+Enable Chrome Tracing for the server.
+After enabling, you can send POST request to the "debug/dump_event_trace" entrypoint
+to get the Chrome Trace. For example,
+"curl -X POST http://127.0.0.1:8000/debug/dump_event_trace -H "Content-Type: application/json" -d '{"model": "dist/llama"}'"
 """.strip(),
 }
