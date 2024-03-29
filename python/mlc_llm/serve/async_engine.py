@@ -273,11 +273,10 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             self.conv_template_name,
         ) = _process_model_args(models)
 
-        model_lib_idx_mult = len(model_args) // len(models)
         for i, model in enumerate(models):
             # model_args:
             # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            model.model_lib_path = model_args[i * model_lib_idx_mult]
+            model.model_lib_path = model_args[i * (len(model_args) // len(models))]
 
         # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
         self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
