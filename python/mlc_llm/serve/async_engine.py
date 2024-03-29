@@ -6,7 +6,17 @@ import asyncio
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Tuple, Union
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import tvm
 
@@ -102,6 +112,123 @@ class AsyncRequestStream:
         return result
 
 
+class _AsyncThreadedEngineState:
+    """The engine states that the request stream callback function may use.
+    We use this state class to avoid the callback function from capturing
+    the AsyncThreadedEngine.
+    """
+
+    trace_recorder = None
+    # The mapping from request ids to request asynchronous stream.
+    request_tools: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
+    num_unfinished_generations: Dict[str, int] = {}
+    _async_event_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def __init__(self, enable_tracing: bool) -> None:
+        if enable_tracing:
+            self.trace_recorder = EventTraceRecorder()
+
+    def lazy_init_event_loop(self) -> None:
+        """Lazily set the asyncio event loop so that the event
+        loop is the main driving event loop of the process.
+        """
+        if self._async_event_loop is None:
+            self._async_event_loop = asyncio.get_event_loop()
+
+    def get_request_stream_callback(self) -> Callable[[List[data.RequestStreamOutput]], None]:
+        """Construct a callback function and return."""
+
+        def _callback(delta_outputs: List[data.RequestStreamOutput]) -> None:
+            self._request_stream_callback(delta_outputs)
+
+        return _callback
+
+    def _request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+        """The request stream callback function for engine to stream back
+        the request generation results.
+
+        Parameters
+        ----------
+        delta_outputs : List[data.RequestStreamOutput]
+            The delta output of each requests.
+            Check out data.RequestStreamOutput for the fields of the outputs.
+
+        Note
+        ----
+        This callback function uses `call_soon_threadsafe` in asyncio to
+        schedule the invocation in the event loop, so that the underlying
+        callback logic will be executed asynchronously in the future rather
+        than right now.
+        """
+
+        # Schedule a callback run in the event loop without executing right now.
+        # NOTE: This function causes GIL during execution.
+        self._async_event_loop.call_soon_threadsafe(
+            self._request_stream_callback_impl, delta_outputs
+        )
+
+    def _request_stream_callback_impl(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+        """The underlying implementation of request stream callback."""
+        for delta_output in delta_outputs:
+            request_id, stream_outputs = delta_output.unpack()
+            tools = self.request_tools.get(request_id, None)
+            if tools is None:
+                continue
+
+            self.record_event(request_id, event="start callback")
+            stream, text_streamers = tools
+            outputs = []
+            for stream_output, text_streamer in zip(stream_outputs, text_streamers):
+                self.record_event(request_id, event="start detokenization")
+                delta_text = (
+                    text_streamer.put(stream_output.delta_token_ids)
+                    if len(stream_output.delta_token_ids) > 0
+                    else ""
+                )
+                if stream_output.finish_reason is not None:
+                    delta_text += text_streamer.finish()
+                self.record_event(request_id, event="finish detokenization")
+
+                outputs.append(
+                    AsyncStreamOutput(
+                        delta_text=delta_text,
+                        num_delta_tokens=len(stream_output.delta_token_ids),
+                        delta_logprob_json_strs=stream_output.delta_logprob_json_strs,
+                        finish_reason=stream_output.finish_reason,
+                    )
+                )
+                if stream_output.finish_reason is not None:
+                    self.num_unfinished_generations[request_id] -= 1
+
+            # Push new delta text to the stream.
+            stream.push(outputs)
+            if self.num_unfinished_generations[request_id] == 0:
+                stream.finish()
+                self.request_tools.pop(request_id, None)
+            self.record_event(request_id, event="finish callback")
+
+    def record_event(self, request_id: str, event: str) -> None:
+        """Record a event for the the input request in the trace
+        recorder when the recorder exists.
+
+        Parameters
+        ----------
+        request_id : str
+            The subject request of the event.
+
+        event : str
+            The event in a string name.
+            It can have one of the following patterns:
+            - "start xxx", which marks the start of event "xxx",
+            - "finish xxx", which marks the finish of event "xxx",
+            - "yyy", which marks the instant event "yyy".
+            The "starts" and "finishes" will be automatically paired in the trace recorder.
+        """
+        if self.trace_recorder is None:
+            return
+        self.trace_recorder.add_event(request_id, event)
+
+
 class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
     """The asynchronous engine for generate text asynchronously,
     backed by ThreadedEngine.
@@ -145,9 +272,9 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             prefill_chunk_size,
             self.conv_template_name,
         ) = _process_model_args(models)
-        self.trace_recorder = EventTraceRecorder() if enable_tracing else None
         # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
         self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
+        self.state = _AsyncThreadedEngineState(enable_tracing)
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
@@ -169,6 +296,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
                 "add_request",
                 "abort_request",
                 "run_background_loop",
+                "run_background_stream_back_loop",
                 "init_background_engine",
                 "exit_background_loop",
             ]
@@ -178,28 +306,30 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             # The default engine mode: non-speculative
             engine_mode = EngineMode()
 
-        # The mapping from request ids to request asynchronous stream.
-        self._request_tools: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
-        self._num_unfinished_generations: Dict[str, int] = {}
-
         def _background_loop():
             self._ffi["init_background_engine"](
                 max_single_sequence_length,
                 tokenizer_path,
                 kv_cache_config.asjson(),
                 engine_mode.asjson(),
-                self._request_stream_callback,
-                self.trace_recorder,
+                self.state.get_request_stream_callback(),
+                self.state.trace_recorder,
                 *model_args,
             )
             self._ffi["run_background_loop"]()
 
+        def _background_stream_back_loop():
+            self._ffi["run_background_stream_back_loop"]()
+
         # Create the background engine-driving thread and start the loop.
         self._background_loop_thread: threading.Thread = threading.Thread(target=_background_loop)
+        self._background_stream_back_loop_thread: threading.Thread = threading.Thread(
+            target=_background_stream_back_loop
+        )
         self._background_loop_thread.start()
+        self._background_stream_back_loop_thread.start()
         # The main thread request handling asyncio event loop, which will
         # be lazily initialized.
-        self._async_event_loop: Optional[asyncio.AbstractEventLoop] = None
         self._terminated = False
 
     def terminate(self):
@@ -207,6 +337,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         self._terminated = True
         self._ffi["exit_background_loop"]()
         self._background_loop_thread.join()
+        self._background_stream_back_loop_thread.join()
 
     async def generate(
         self,
@@ -232,10 +363,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
         """
         if self._terminated:
             raise ValueError("The AsyncThreadedEngine has terminated.")
-        if self._async_event_loop is None:
-            # Lazily set the asyncio event loop so that the event
-            # loop is the main driving event loop of the process.
-            self._async_event_loop = asyncio.get_event_loop()
+        self.state.lazy_init_event_loop()
 
         def convert_to_data(
             prompt: Union[str, List[int], Sequence[Union[str, List[int], data.Data]]]
@@ -255,7 +383,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
         # Create the unique stream of the request.
         stream = AsyncRequestStream()
-        if request_id in self._request_tools:
+        if request_id in self.state.request_tools:
             # Report error in the stream if the request id already exists.
             stream.push(
                 RuntimeError(
@@ -265,11 +393,11 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             )
         else:
             # Record the stream in the tracker
-            self._request_tools[request_id] = (
+            self.state.request_tools[request_id] = (
                 stream,
                 [TextStreamer(self.tokenizer) for _ in range(generation_config.n)],
             )
-            self._num_unfinished_generations[request_id] = generation_config.n
+            self.state.num_unfinished_generations[request_id] = generation_config.n
             self._ffi["add_request"](request)
 
         # Iterate the stream asynchronously and yield the token.
@@ -292,89 +420,5 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
 
     def _abort(self, request_id: str):
         """Internal implementation of request abortion."""
-        self._request_tools.pop(request_id, None)
+        self.state.request_tools.pop(request_id, None)
         self._ffi["abort_request"](request_id)
-
-    def _request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The request stream callback function for engine to stream back
-        the request generation results.
-
-        Parameters
-        ----------
-        delta_outputs : List[data.RequestStreamOutput]
-            The delta output of each requests.
-            Check out data.RequestStreamOutput for the fields of the outputs.
-
-        Note
-        ----
-        This callback function uses `call_soon_threadsafe` in asyncio to
-        schedule the invocation in the event loop, so that the underlying
-        callback logic will be executed asynchronously in the future rather
-        than right now.
-        """
-        # Schedule a callback run in the event loop without executing right now.
-        # NOTE: This function causes GIL during execution.
-        self._async_event_loop.call_soon_threadsafe(
-            self._request_stream_callback_impl, delta_outputs
-        )
-
-    def _request_stream_callback_impl(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The underlying implementation of request stream callback."""
-        for delta_output in delta_outputs:
-            request_id, stream_outputs = delta_output.unpack()
-            tools = self._request_tools.get(request_id, None)
-            if tools is None:
-                continue
-
-            self.record_event(request_id, event="start callback")
-            stream, text_streamers = tools
-            outputs = []
-            for stream_output, text_streamer in zip(stream_outputs, text_streamers):
-                self.record_event(request_id, event="start detokenization")
-                delta_text = (
-                    text_streamer.put(stream_output.delta_token_ids)
-                    if len(stream_output.delta_token_ids) > 0
-                    else ""
-                )
-                if stream_output.finish_reason is not None:
-                    delta_text += text_streamer.finish()
-                self.record_event(request_id, event="finish detokenization")
-
-                outputs.append(
-                    AsyncStreamOutput(
-                        delta_text=delta_text,
-                        num_delta_tokens=len(stream_output.delta_token_ids),
-                        delta_logprob_json_strs=stream_output.delta_logprob_json_strs,
-                        finish_reason=stream_output.finish_reason,
-                    )
-                )
-                if stream_output.finish_reason is not None:
-                    self._num_unfinished_generations[request_id] -= 1
-
-            # Push new delta text to the stream.
-            stream.push(outputs)
-            if self._num_unfinished_generations[request_id] == 0:
-                stream.finish()
-                self._request_tools.pop(request_id, None)
-            self.record_event(request_id, event="finish callback")
-
-    def record_event(self, request_id: str, event: str) -> None:
-        """Record a event for the the input request in the trace
-        recorder when the recorder exists.
-
-        Parameters
-        ----------
-        request_id : str
-            The subject request of the event.
-
-        event : str
-            The event in a string name.
-            It can have one of the following patterns:
-            - "start xxx", which marks the start of event "xxx",
-            - "finish xxx", which marks the finish of event "xxx",
-            - "yyy", which marks the instant event "yyy".
-            The "starts" and "finishes" will be automatically paired in the trace recorder.
-        """
-        if self.trace_recorder is None:
-            return
-        self.trace_recorder.add_event(request_id, event)
