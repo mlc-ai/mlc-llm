@@ -3,6 +3,7 @@
  * \file serve/sampler/gpu_sampler.cc
  * \brief The implementation for GPU sampler functions.
  */
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
@@ -14,9 +15,19 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-inline void CopyArray(NDArray src, NDArray dst) {
+inline void CopyArray(NDArray src, NDArray dst, TVMStreamHandle copy_stream) {
   DLTensor dl_dst = *(dst.operator->());
-  NDArray::CopyFromTo(src.operator->(), &dl_dst);
+  NDArray::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
+}
+
+inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
+                           TVMStreamHandle copy_stream) {
+  // - If there is no particular copy stream, no action is needed.
+  if (copy_stream == nullptr) {
+    return;
+  }
+  // - Sync two streams.
+  DeviceAPI::Get(device)->SyncStreamFromTo(device, copy_stream, compute_stream);
 }
 
 /*********************** GPU Sampler ***********************/
@@ -54,6 +65,22 @@ class GPUSampler : public SamplerObj {
     sample_indices_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     top_p_device_ = NDArray::Empty({max_num_sample}, dtype_f32_, device);
     top_prob_offsets_device_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device);
+
+    // If the device is CUDA/ROCm, we create a standalone copy stream, in
+    // purpose to hide the latency of auxiliary stream copy.
+    if (device.device_type == DLDeviceType::kDLCUDA ||
+        device.device_type == DLDeviceType::kDLROCM) {
+      // The compute stream is the default stream.
+      compute_stream_ = DeviceAPI::Get(device)->GetCurrentStream(device);
+      copy_stream_ = DeviceAPI::Get(device)->CreateStream(device);
+    }
+  }
+
+  ~GPUSampler() {
+    // Free the copy stream if defined.
+    if (copy_stream_ != nullptr) {
+      DeviceAPI::Get(device_)->FreeStream(device_, copy_stream_);
+    }
   }
 
   std::vector<SampleResult> BatchSampleTokens(NDArray probs_on_device,                        //
@@ -151,8 +178,8 @@ class GPUSampler : public SamplerObj {
     NDArray uniform_samples_device = uniform_samples_device_.CreateView({num_samples}, dtype_f32_);
     NDArray sample_indices_host = sample_indices_host_.CreateView({num_samples}, dtype_i32_);
     NDArray sample_indices_device = sample_indices_device_.CreateView({num_samples}, dtype_i32_);
-    CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device);
-    CopyArray(/*src=*/sample_indices_host, /*dst=*/sample_indices_device);
+    CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
+    CopyArray(/*src=*/sample_indices_host, /*dst=*/sample_indices_device, copy_stream_);
     return {uniform_samples_device, sample_indices_device};
   }
 
@@ -201,6 +228,7 @@ class GPUSampler : public SamplerObj {
 
     if (!need_top_p && !need_prob_values) {
       // - Short path: If top_p and prob values are not needed, we directly sample from multinomial.
+      SyncCopyStream(device_, compute_stream_, copy_stream_);
       sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
           probs_on_device, uniform_samples_device, sample_indices_device);
       return {sampled_token_ids_device, sampled_probs_device, top_prob_probs_device,
@@ -213,11 +241,25 @@ class GPUSampler : public SamplerObj {
     NDArray sorted_probs_on_device = argsort_results[0];
     NDArray sorted_indices_on_device = argsort_results[1];
 
+    // - Copy auxiliary array for top-p and prob values in ahead.
+    NDArray top_p_device;
+    NDArray top_prob_offsets_device;
+    if (need_top_p) {
+      NDArray top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
+      top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
+      CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device, copy_stream_);
+    }
+    if (need_prob_values) {
+      int num_top_probs = top_prob_offset_indptr.back();
+      NDArray top_prob_offsets_host =
+          top_prob_offsets_host_.CreateView({num_top_probs}, dtype_i32_);
+      top_prob_offsets_device = top_prob_offsets_device_.CreateView({num_top_probs}, dtype_i32_);
+      CopyArray(/*src=*/top_prob_offsets_host, /*dst=*/top_prob_offsets_device, copy_stream_);
+    }
+    SyncCopyStream(device_, compute_stream_, copy_stream_);
+
     if (need_top_p) {
       // - Sample with top_p applied.
-      NDArray top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
-      NDArray top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
-      CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device);
       sampled_token_ids_device =
           gpu_sample_with_top_p_func_(sorted_probs_on_device, sorted_indices_on_device,
                                       uniform_samples_device, sample_indices_device, top_p_device);
@@ -229,12 +271,6 @@ class GPUSampler : public SamplerObj {
 
     if (need_prob_values) {
       // - Take the probability values.
-      int num_top_probs = top_prob_offset_indptr.back();
-      NDArray top_prob_offsets_host =
-          top_prob_offsets_host_.CreateView({num_top_probs}, dtype_i32_);
-      NDArray top_prob_offsets_device =
-          top_prob_offsets_device_.CreateView({num_top_probs}, dtype_i32_);
-      CopyArray(/*src=*/top_prob_offsets_host, /*dst=*/top_prob_offsets_device);
       Array<NDArray> prob_value_results = gpu_sampler_take_probs_func_(
           probs_on_device, sorted_indices_on_device, sample_indices_device,
           sampled_token_ids_device, top_prob_offsets_device);
@@ -258,7 +294,7 @@ class GPUSampler : public SamplerObj {
     ICHECK_EQ(sampled_token_ids_device->ndim, 1);
     ICHECK_EQ(sampled_token_ids_device->shape[0], num_samples);
     NDArray sampled_token_ids_host = sampled_token_ids_host_.CreateView({num_samples}, dtype_i32_);
-    CopyArray(/*src=*/sampled_token_ids_device, /*dst=*/sampled_token_ids_host);
+    CopyArray(/*src=*/sampled_token_ids_device, /*dst=*/sampled_token_ids_host, compute_stream_);
 
     NDArray sampled_probs_host{nullptr};
     NDArray top_prob_probs_host{nullptr};
@@ -276,10 +312,10 @@ class GPUSampler : public SamplerObj {
       sampled_probs_host = sampled_probs_host_.CreateView({num_samples}, dtype_i32_);
       top_prob_probs_host = top_prob_probs_host_.CreateView({num_top_probs}, dtype_f32_);
       top_prob_indices_host = top_prob_indices_host_.CreateView({num_top_probs}, dtype_i32_);
-      CopyArray(/*src=*/sampled_probs_device, /*dst=*/sampled_probs_host);
+      CopyArray(/*src=*/sampled_probs_device, /*dst=*/sampled_probs_host, compute_stream_);
       if (num_top_probs > 0) {
-        CopyArray(/*src=*/top_prob_probs_device, /*dst=*/top_prob_probs_host);
-        CopyArray(/*src=*/top_prob_indices_device, /*dst=*/top_prob_indices_host);
+        CopyArray(/*src=*/top_prob_probs_device, /*dst=*/top_prob_probs_host, compute_stream_);
+        CopyArray(/*src=*/top_prob_indices_device, /*dst=*/top_prob_indices_host, compute_stream_);
       }
     }
 
@@ -316,6 +352,10 @@ class GPUSampler : public SamplerObj {
   NDArray top_prob_offsets_device_;
   // The event trace recorder for requests. */
   Optional<EventTraceRecorder> trace_recorder_;
+  // The device stream for the default computation operations.
+  TVMStreamHandle compute_stream_ = nullptr;
+  // The device stream for copying auxiliary data structure to GPU.
+  TVMStreamHandle copy_stream_ = nullptr;
   const float eps_ = 1e-5;
 };
 
