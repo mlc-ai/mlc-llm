@@ -241,11 +241,14 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             }
         )
         seq_len = T.int64()
+        position_map_elem_offset = T.int64()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(var_position_map, (seq_len,), "int32")
+        position_map = T.match_buffer(
+            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
+        )
         for iters in T.grid(seq_len, fused_heads, head_dim):
             with T.block("llama_fused_rope"):
                 s, h, d = T.axis.remap("SSS", iters)
