@@ -340,8 +340,8 @@ class ModelImpl : public ModelObj {
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
 
-  void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) final {
-    ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id);
+  void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos) final {
+    ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id, fork_pos);
   }
 
   void RemoveSequence(int64_t seq_id) final {
