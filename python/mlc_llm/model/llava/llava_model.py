@@ -48,7 +48,6 @@ class LlavaVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attrib
     patch_size: int
     projection_dim: int
     vocab_size: int
-    dtype: str = "float16"
     num_channels: int = 3
     layer_norm_eps: float = 1e-06
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -72,7 +71,6 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     sliding_window_size: int = -1
     prefill_chunk_size: int = -1
     tensor_parallel_shards: int = 1
-    dtype: str = "float16"
     max_batch_size: int = 1
     text_architecture: str = "LlamaForCausalLM"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -141,21 +139,18 @@ class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attribu
         self.embed_dim = config.hidden_size
         self.image_size = config.image_size
         self.patch_size = config.patch_size
-        self.class_embedding = nn.Parameter((self.embed_dim,), dtype=config.dtype)
+        self.class_embedding = nn.Parameter((self.embed_dim,))
         self.patch_embedding = Conv2D(
             in_channels=config.num_channels,
             out_channels=self.embed_dim,
             kernel_size=self.patch_size,
             stride=self.patch_size,
             bias=False,
-            dtype=config.dtype,
         )
 
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches + 1
-        self.position_embedding = nn.Embedding(
-            num=self.num_positions, dim=self.embed_dim, dtype=config.dtype
-        )
+        self.position_embedding = nn.Embedding(num=self.num_positions, dim=self.embed_dim)
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         batch_size = pixel_values.shape[0]
@@ -207,8 +202,8 @@ class CLIPMLP(Module):
     def __init__(self, config: LlavaVisionConfig):
         super().__init__()
         self.activation_fn = LlavaQuickGELU()
-        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, dtype=config.dtype)
-        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size, dtype=config.dtype)
+        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
+        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         hidden_states = self.fc1(hidden_states)
@@ -229,10 +224,10 @@ class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
                 f" and `num_heads`: {self.num_heads})."
             )
         self.scale = self.head_dim**-0.5
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
     def _shape(self, tensor: Tensor, seq_len: int, bsz: int):
         reshape_tensor = reshape(tensor, shape=(bsz, seq_len, self.num_heads, self.head_dim))
@@ -276,13 +271,9 @@ class CLIPEncoderLayer(Module):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.self_attn = CLIPAttention(config)
-        self.layer_norm1 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps, dtype=config.dtype
-        )
+        self.layer_norm1 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
         self.mlp = CLIPMLP(config)
-        self.layer_norm2 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps, dtype=config.dtype
-        )
+        self.layer_norm2 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         residual = hidden_states
@@ -321,9 +312,9 @@ class CLIPVisionTransformer(Module):
         super().__init__()
         embed_dim = config.hidden_size
         self.embeddings = CLIPVisionEmbeddings(config)
-        self.pre_layrnorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps, dtype=config.dtype)
+        self.pre_layrnorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
         self.encoder = CLIPEncoder(config)
-        self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps, dtype=config.dtype)
+        self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         hidden_states = self.embeddings(pixel_values)
@@ -368,7 +359,13 @@ class LlavaForCasualLM(Module):
         self.multi_modal_projector = LlavaMultiModalProjector(config)
         self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
-        self.dtype = config.dtype
+        self.dtype = "float32"
+
+    def to(self, dtype: Optional[str] = None):
+        super().to(dtype=dtype)
+        self.language_model.to(dtype=dtype)
+        if dtype is not None:
+            self.dtype = dtype
 
     def _embed_input_ids(self, input_ids: Tensor) -> Tensor:
         return self.language_model.embed(input_ids)
