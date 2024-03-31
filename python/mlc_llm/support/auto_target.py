@@ -227,7 +227,7 @@ def _build_webgpu():
             system_lib=True,
         ).export_library(
             str(output),
-            custom_bc_files=[bc_path],
+            libs=[bc_path],
         )
 
     return build
