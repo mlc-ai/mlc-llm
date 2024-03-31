@@ -225,7 +225,7 @@ stage('Model Compilation') {
     'WASM': {
       node('CPU-SMALL') {
         ws(per_exec_ws('mlc-llm-compile-wasm')) {
-          init_git(false)
+          init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')
