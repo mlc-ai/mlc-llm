@@ -32,9 +32,9 @@ To launch the MLC Server for MLC-Chat, run the following command in your termina
 
 .. code:: bash
 
-   python -m mlc_llm.serve.server --model MODEL --model-lib-path MODEL_LIB_PATH [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
+   python -m mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
 
---model                The model folder after compiling with MLC-LLM build process. The parameter
+MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
                        (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
                        folder. In the former case, we will use the provided name to search
@@ -89,7 +89,7 @@ The REST API provides the following endpoints:
       print("Error:", response.status_code)
 
 
-.. http:get:: /v1/chat/completions
+.. http:post:: /v1/chat/completions
 
 ------------------------------------------------
 
