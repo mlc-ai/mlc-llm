@@ -22,6 +22,7 @@ elif [[ ${GPU} == wasm* ]]; then
 	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 	export TVM_HOME=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
 	cd $TVM_HOME/web/ && make -j${NUM_THREADS} && cd -
+	cd web/ && make -j${NUM_THREADS} && cd -
 elif [[ ${GPU} == ios ]]; then
 	TARGET=ios
 	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly
