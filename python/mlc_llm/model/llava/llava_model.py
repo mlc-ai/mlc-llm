@@ -7,6 +7,7 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional, Tuple
 
+from transformers import AutoConfig
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
@@ -23,10 +24,12 @@ from tvm.relax.frontend.nn.op import (
 from tvm.relax.op import arange, strided_slice
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.nn import PagedKVCache, RopeMode
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
+from ..mistral.mistral_model import MistralConfig, MistralForCasualLM
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +54,10 @@ class LlavaVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attrib
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
+CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
+ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCasualLM, "MistralForCausalLM": MistralForCasualLM}
+
+
 @dataclasses.dataclass
 class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """
@@ -61,11 +68,13 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     text_config: LlamaConfig
     vision_config: LlavaVisionConfig
     vocab_size: int
-    context_window_size: int = 0
-    prefill_chunk_size: int = 0
+    context_window_size: int = -1
+    sliding_window_size: int = -1
+    prefill_chunk_size: int = -1
     tensor_parallel_shards: int = 1
     dtype: str = "float16"
     max_batch_size: int = 1
+    text_architecture: str = "LlamaForCausalLM"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -81,41 +90,45 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         self.vision_config = LlavaVisionConfig.from_dict(vision_config_dict)
 
         text_config_dict: Dict[str, Any]
-        if isinstance(self.text_config, LlamaConfig):
+        if isinstance(self.text_config, ConfigBase):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:
             text_config_dict = dict(self.text_config)
 
         if "_name_or_path" in text_config_dict:
-            if text_config_dict["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
-                text_config_dict["hidden_size"] = text_config_dict.pop("hidden_size", 4096)
-                text_config_dict["intermediate_size"] = text_config_dict.pop(
-                    "intermediate_size", 11008
-                )
-                text_config_dict["num_attention_heads"] = text_config_dict.pop(
-                    "num_attention_heads", 32
-                )
-                text_config_dict["num_hidden_layers"] = text_config_dict.pop(
-                    "num_hidden_layers", 32
-                )
-                text_config_dict["rms_norm_eps"] = text_config_dict.pop("rms_norm_eps", 1e-06)
-                text_config_dict["vocab_size"] = text_config_dict.pop("vocab_size", 32064)
-                text_config_dict["context_window_size"] = text_config_dict.pop(
-                    "context_window_size", 4096
-                )
-            else:
-                raise ValueError("Unsupported text model")
+            hf_config = self.get_hf_config(text_config_dict)
+            text_config_dict.update(hf_config)
+            architectures = text_config_dict["architectures"]
+            assert len(architectures) == 1
+            self.text_architecture = architectures[0]
         else:
             for k, v in text_config_dict.pop("kwargs", {}).items():
                 text_config_dict[k] = v
 
-        self.text_config = LlamaConfig.from_dict(text_config_dict)
+        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(text_config_dict)
 
-        if self.context_window_size <= 0:
-            self.context_window_size = self.text_config.context_window_size
+        for k in ["context_window_size", "sliding_window_size", "prefill_chunk_size"]:
+            if getattr(self, k) <= 0:
+                if hasattr(self.text_config, k):
+                    setattr(self, k, getattr(self.text_config, k))
 
-        if self.prefill_chunk_size <= 0:
-            self.prefill_chunk_size = self.text_config.prefill_chunk_size
+    def get_hf_config(self, text_config_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get the Hugging Face config of the text model
+        """
+        hf_config: Dict[str, Any]
+        try:
+            hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
+        except OSError as e:
+            # Llama2 is gated so it throws an OSError. Get the config from preset instead
+            if text_config_dict["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
+                hf_config = MODEL_PRESETS["llama2_7b"]
+            elif text_config_dict["_name_or_path"] == "meta-llama/Llama-2-13b-hf":
+                hf_config = MODEL_PRESETS["llama2_13b"]
+            else:
+                raise ValueError("Unsupported text model") from e
+
+        return hf_config
 
 
 # pylint: disable=missing-docstring
@@ -353,7 +366,7 @@ class LlavaForCasualLM(Module):
         self.config = config
         self.vision_tower = CLIPVisionModel(config.vision_config)
         self.multi_modal_projector = LlavaMultiModalProjector(config)
-        self.language_model = LlamaForCasualLM(config.text_config)
+        self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
         self.dtype = config.dtype
 
