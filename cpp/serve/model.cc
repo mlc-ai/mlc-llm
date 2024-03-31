@@ -395,7 +395,7 @@ class ModelImpl : public ModelObj {
       embedding_shape = embedding_nd.Shape();
     }
     ICHECK_EQ(embedding_shape.size(), 2);
-    ICHECK_EQ(embedding_shape[0], prefill_chunk_size_);
+    ICHECK_GE(embedding_shape[0], prefill_chunk_size_);
     this->hidden_size_ = embedding_shape[1];
     return embedding;
   }
