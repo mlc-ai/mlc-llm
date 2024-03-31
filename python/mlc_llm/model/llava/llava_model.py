@@ -7,7 +7,6 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from transformers import AutoConfig
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
@@ -114,6 +113,9 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         """
         Get the Hugging Face config of the text model
         """
+        # pylint: disable=import-outside-toplevel, import-error
+        from transformers import AutoConfig
+
         hf_config: Dict[str, Any]
         try:
             hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
