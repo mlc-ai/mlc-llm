@@ -138,7 +138,7 @@ class ModelObj : public Object {
   virtual void AddNewSequence(int64_t seq_id) = 0;
 
   /*! \brief Fork a sequence from a given parent sequence. */
-  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id) = 0;
+  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos = -1) = 0;
 
   /*! \brief Remove the given sequence from the KV cache in the model. */
   virtual void RemoveSequence(int64_t seq_id) = 0;
