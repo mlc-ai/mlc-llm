@@ -197,7 +197,7 @@
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Install Wasm Build Environment</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#step-1-install-emsdk">Step 1: Install EMSDK</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#step-2-set-tvm-home">Step 2: Set TVM_HOME</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#step-2-set-tvm-home-and-mlc-llm-home">Step 2: Set TVM_HOME and MLC_LLM_HOME</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#step-3-prepare-wasm-runtime">Step 3: Prepare Wasm Runtime</a></li>
 </ul>
 </li>
@@ -308,12 +308,15 @@ to install the latest emsdk.</p></li>
 </pre></div>
 </div>
 </section>
-<section id="step-2-set-tvm-home">
-<h2>Step 2: Set TVM_HOME<a class="headerlink" href="#step-2-set-tvm-home" title="Permalink to this heading">¶</a></h2>
+<section id="step-2-set-tvm-home-and-mlc-llm-home">
+<h2>Step 2: Set TVM_HOME and MLC_LLM_HOME<a class="headerlink" href="#step-2-set-tvm-home-and-mlc-llm-home" title="Permalink to this heading">¶</a></h2>
 <p>We need to set a path to a tvm source in order to build tvm runtime.
 Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
-Set environment variable in your shell startup profile in to point to <code class="docutils literal notranslate"><span class="pre">3rdparty/tvm</span></code></p>
+Set environment variable in your shell startup profile in to point to <code class="docutils literal notranslate"><span class="pre">3rdparty/tvm</span></code> (if preferred, you could also
+point to your own TVM address if you installed TVM from source).</p>
+<p>Besides, we also need to set <code class="docutils literal notranslate"><span class="pre">MLC_LLM_HOME</span></code> so that we can locate <code class="docutils literal notranslate"><span class="pre">mlc_wasm_runtime.bc</span></code> when compiling a model library wasm.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">TVM_HOME</span><span class="o">=</span>/path/to/3rdparty/tvm
+<span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_HOME</span><span class="o">=</span>/path/to/mlc-llm
 </pre></div>
 </div>
 </section>
