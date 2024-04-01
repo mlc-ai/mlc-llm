@@ -30,8 +30,7 @@ all: dist/wasm/mlc_wasm_runtime.wasm
 
 EMCC = emcc
 
-# Pass in COMPILE_MLC_WASM_RUNTIME so unsupported code would not be compiled in to the .bc file
-EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes -D COMPILE_MLC_WASM_RUNTIME
+EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes
 
 EMCC_LDFLAGS = --no-entry -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s STANDALONE_WASM=1\
  -s ERROR_ON_UNDEFINED_SYMBOLS=0

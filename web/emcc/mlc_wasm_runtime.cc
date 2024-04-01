@@ -27,6 +27,9 @@
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
 
+// Pass in COMPILE_MLC_WASM_RUNTIME so unsupported code would not be compiled in to the .bc file
+#define COMPILE_MLC_WASM_RUNTIME 1
+
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 // Grammar related
