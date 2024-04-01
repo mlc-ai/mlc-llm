@@ -2,6 +2,7 @@
 
 from typing import List, Optional, Tuple, Union
 
+import tvm
 import tvm._ffi
 from tvm.runtime import Object
 
@@ -255,6 +256,17 @@ class GrammarStateMatcher(Object):
         """
 
         return _ffi_api.GrammarStateMatcherFindNextRejectedTokens(self, verbose)  # type: ignore  # pylint: disable=no-member
+
+    def find_next_token_bitmask_as_ndarray(self) -> tvm.nd.array:
+        """Find the ids of the rejected tokens for the next step.
+
+        Returns
+        -------
+        rejected_token_ids : List[int]
+            A list of rejected token ids.
+        """
+
+        return _ffi_api.GrammarStateMatcherFindNextTokenBitmaskAsNDArray(self)  # type: ignore  # pylint: disable=no-member
 
     def rollback(self, num_tokens: int) -> None:
         """Rollback the matcher to a previous state.

@@ -1,6 +1,7 @@
 """Helper functions for target auto-detection."""
 
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
@@ -197,6 +198,28 @@ def _build_webgpu():
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".wasm"
+
+        # Try to locate `mlc_wasm_runtime.bc`
+        bc_path = None
+        bc_candidates = ["web/dist/wasm/mlc_wasm_runtime.bc"]
+        if os.environ.get("MLC_LLM_HOME", None):
+            mlc_source_home_dir = os.environ["MLC_LLM_HOME"]
+            bc_candidates.append(
+                os.path.join(mlc_source_home_dir, "web", "dist", "wasm", "mlc_wasm_runtime.bc")
+            )
+        error_info = (
+            "Cannot find library: mlc_wasm_runtime.bc\n"
+            + "Make sure you have run `scripts/prep_emcc_deps.sh` and "
+            + "`export MLC_LLM_HOME=/path/to/mlc-llm` so that we can locate the file. "
+            + "We tried to look at candidate paths:\n"
+        )
+        for candidate in bc_candidates:
+            error_info += candidate + "\n"
+            if Path(candidate).exists():
+                bc_path = candidate
+        if not bc_path:
+            raise RuntimeError(error_info)
+
         relax.build(
             mod,
             target=args.target,
@@ -204,6 +227,7 @@ def _build_webgpu():
             system_lib=True,
         ).export_library(
             str(output),
+            libs=[bc_path],
         )
 
     return build

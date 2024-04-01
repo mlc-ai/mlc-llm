@@ -176,6 +176,7 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
   bool AcceptStopToken();
 
   friend IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher, bool verbose);
+  friend NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher);
 
   std::shared_ptr<GrammarStateInitContext> init_ctx_;
   int max_rollback_steps_;
@@ -448,6 +449,8 @@ GrammarStateMatcher::GrammarStateMatcher(std::shared_ptr<GrammarStateInitContext
                                          int max_rollback_steps)
     : ObjectRef(make_object<GrammarStateMatcherNodeImpl>(init_ctx, max_rollback_steps)) {}
 
+#ifndef COMPILE_MLC_WASM_RUNTIME
+// This creates tokenizer dependency issue in WASM building for web, hence skipped
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
     .set_body_typed([](BNFGrammar grammar, Optional<Tokenizer> tokenizer, int max_rollback_steps) {
       auto preproc_start = std::chrono::high_resolution_clock::now();
@@ -461,6 +464,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
                 << "us" << std::endl;
       return GrammarStateMatcher(init_ctx, max_rollback_steps);
     });
+#endif
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenTable")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -621,6 +625,24 @@ IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher, bool verbose = fals
 
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFindNextRejectedTokens")
     .set_body_typed(FindNextRejectedTokens);
+
+/*!
+ * \brief Find the bitmask for the next token as an NDArray.
+ * \returns An NDArray of the bitmask for the next token of shape (bitmask_size,).
+ */
+NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher) {
+  auto init_ctx = matcher.as<GrammarStateMatcherNodeImpl>()->init_ctx_;
+  auto vocab_size = init_ctx->vocab_size;
+  auto bitset_size = BitsetManager::CalculateBufferSize(vocab_size);
+  auto bitmask = NDArray::Empty(ShapeTuple{static_cast<long>(bitset_size)},
+                                DLDataType{kDLUInt, 32, 1}, DLDevice{kDLCPU, 0});
+  auto dltensor = const_cast<DLTensor*>(bitmask.operator->());
+  matcher->FindNextTokenBitmask(dltensor);
+  return bitmask;
+}
+
+TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFindNextTokenBitmaskAsNDArray")
+    .set_body_typed(FindNextTokenBitmaskAsNDArray);
 
 }  // namespace serve
 }  // namespace llm
