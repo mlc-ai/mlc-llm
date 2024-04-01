@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/engine_actions/new_request_prefill.cc
+ * \file serve/engine_actions/eagle_new_request_prefill.cc
  */
 
 #include <tvm/runtime/nvtx.h>
@@ -19,12 +19,13 @@ namespace serve {
  * \brief The action that prefills requests in the `waiting_queue` of
  * the engine state.
  */
-class NewRequestPrefillActionObj : public EngineActionObj {
+class EagleNewRequestPrefillActionObj : public EngineActionObj {
  public:
-  explicit NewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
-                                      Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
-                                      KVCacheConfig kv_cache_config, EngineMode engine_mode,
-                                      Optional<EventTraceRecorder> trace_recorder)
+  explicit EagleNewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
+                                           Sampler sampler,
+                                           std::vector<ModelWorkspace> model_workspaces,
+                                           KVCacheConfig kv_cache_config, EngineMode engine_mode,
+                                           Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
@@ -81,7 +82,13 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     // - Get embedding and run prefill for each model.
     std::vector<int> prefill_lengths;
     prefill_lengths.resize(/*size=*/num_rsentries, /*value=*/-1);
+    NDArray hidden_states_for_input{nullptr};
+    NDArray hidden_states_for_sample{nullptr};
     NDArray logits_for_sample{nullptr};
+    // A map used to record the entry and child_idx pair needed to fork sequence.
+    // The base model (id 0) should record all the pairs and all the small models
+    // fork sequences according to this map.
+    std::unordered_map<int, std::unordered_set<int>> fork_rsentry_child_map;
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
       std::vector<int64_t> request_internal_ids;
       request_internal_ids.reserve(num_rsentries);
@@ -117,83 +124,125 @@ class NewRequestPrefillActionObj : public EngineActionObj {
           }
         }
         request_internal_ids.push_back(mstate->internal_id);
-        RECORD_EVENT(trace_recorder_, rsentry->request->id, "start embedding");
-        for (int i = 0; i < static_cast<int>(input_data.size()); ++i) {
-          embeddings = input_data[i]->GetEmbedding(models_[model_id],
-                                                   /*dst=*/!single_input ? &embeddings : nullptr,
-                                                   /*offset=*/cum_prefill_length);
-          cum_prefill_length += input_data[i]->GetLength();
+        RECORD_EVENT(trace_recorder_, prefill_inputs[i].rsentry->request->id, "start embedding");
+        // Speculative models shift left the input tokens by 1 when base model has committed tokens.
+        // Note: for n > 1 cases Eagle doesn't work because parent entry doesn't shift input tokens.
+        int embed_offset =
+            prefill_inputs[i].rsentry->mstates[model_id]->committed_tokens.empty() ? 0 : 1;
+        for (int j = 0; j < static_cast<int>(input_data.size()); ++j) {
+          if (j == static_cast<int>(input_data.size()) - 1) {
+            std::vector<int32_t> tail_tokens;
+            TokenData tk_data = Downcast<TokenData>(input_data[j]);
+            CHECK(tk_data.defined());
+            for (int k = embed_offset; k < static_cast<int>(tk_data->token_ids.size()); ++k) {
+              tail_tokens.push_back(tk_data->token_ids[k]);
+            }
+            embeddings = models_[model_id]->TokenEmbed(
+                {tail_tokens.begin(), tail_tokens.end()},
+                /*dst=*/!single_input ? &model_workspaces_[model_id].embeddings : nullptr,
+                /*offset=*/cum_prefill_length);
+            cum_prefill_length += input_data[j]->GetLength();
+            cum_prefill_length -= embed_offset;
+          } else {
+            embeddings = input_data[i]->GetEmbedding(
+                models_[model_id],
+                /*dst=*/!single_input ? &model_workspaces_[model_id].embeddings : nullptr,
+                /*offset=*/cum_prefill_length);
+            cum_prefill_length += input_data[j]->GetLength();
+          }
+        }
+        if (embed_offset > 0) {
+          std::vector<int32_t> new_tokens = {prefill_inputs[i]
+                                                 .rsentry->mstates[model_id]
+                                                 ->committed_tokens.back()
+                                                 .sampled_token_id.first};
+          embeddings =
+              models_[model_id]->TokenEmbed({new_tokens.begin(), new_tokens.end()},
+                                            /*dst=*/&model_workspaces_[model_id].embeddings,
+                                            /*offset=*/cum_prefill_length);
+          cum_prefill_length += new_tokens.size();
         }
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "finish embedding");
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      NDArray logits =
-          models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
+      ObjectRef fused_hidden_states = models_[model_id]->FuseEmbedHidden(
+          embeddings, hidden_states_for_input, /*batch_size*/ 1, /*seq_len*/ cum_prefill_length);
+      NDArray hidden_states = models_[model_id]->BatchPrefillToLastHidden(
+          fused_hidden_states, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
-      ICHECK_EQ(logits->ndim, 3);
-      ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], num_rsentries);
+      ICHECK_EQ(hidden_states->ndim, 3);
+      ICHECK_EQ(hidden_states->shape[0], 1);
+      ICHECK_EQ(hidden_states->shape[1], cum_prefill_length);
 
       if (model_id == 0) {
         // We only need to sample for model 0 in prefill.
-        logits_for_sample = logits;
-      }
-    }
-
-    // - Update logits.
-    ICHECK(logits_for_sample.defined());
-    Array<GenerationConfig> generation_cfg;
-    Array<RequestModelState> mstates_for_logitproc;
-    generation_cfg.reserve(num_rsentries);
-    mstates_for_logitproc.reserve(num_rsentries);
-    for (int i = 0; i < num_rsentries; ++i) {
-      generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
-      mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[0]);
-    }
-    logits_for_sample = logits_for_sample.CreateView({num_rsentries, logits_for_sample->shape[2]},
-                                                     logits_for_sample->dtype);
-    logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg, mstates_for_logitproc,
-                                          request_ids);
-
-    // - Compute probability distributions.
-    NDArray probs_on_device =
-        logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
-
-    // - Sample tokens.
-    //   For rsentries which have children, sample
-    //   one token for each rstate that is depending.
-    //   Otherwise, sample a token for the current rstate.
-    std::vector<int> sample_indices;
-    std::vector<RequestStateEntry> rsentries_for_sample;
-    std::vector<RandomGenerator*> rngs;
-    sample_indices.reserve(num_rsentries);
-    rsentries_for_sample.reserve(num_rsentries);
-    rngs.reserve(num_rsentries);
-    request_ids.clear();
-    generation_cfg.clear();
-    for (int i = 0; i < num_rsentries; ++i) {
-      const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
-      // No sample for rsentries with remaining inputs.
-      if (!rsentry->mstates[0]->inputs.empty()) {
-        continue;
+        hidden_states_for_input = hidden_states;
       }
 
-      for (int child_idx : rsentry->child_indices) {
-        if (rstates_of_entries[i]->entries[child_idx]->mstates[0]->committed_tokens.empty()) {
-          // If rstates_of_entries[i]->entries[child_idx] has no committed token,
-          // the prefill of the current rsentry will unblock
-          // rstates_of_entries[i]->entries[child_idx],
-          // and thus we want to sample a token for rstates_of_entries[i]->entries[child_idx].
-          sample_indices.push_back(i);
-          rsentries_for_sample.push_back(rstates_of_entries[i]->entries[child_idx]);
-          request_ids.push_back(rsentry->request->id);
-          generation_cfg.push_back(rsentry->request->generation_cfg);
-          rngs.push_back(&rstates_of_entries[i]->entries[child_idx]->rng);
+      // Whether to use base model to get logits.
+      int sample_model_id = !models_[model_id]->CanGetLogits() ? 0 : model_id;
+      hidden_states_for_sample = models_[sample_model_id]->BatchSelectLastHidden(
+          hidden_states, request_internal_ids, prefill_lengths);
+      logits_for_sample =
+          models_[sample_model_id]->GetLogits(hidden_states_for_sample, 1, num_rsentries);
+      ICHECK_EQ(hidden_states_for_sample->ndim, 3);
+      ICHECK_EQ(hidden_states_for_sample->shape[0], 1);
+      ICHECK_EQ(hidden_states_for_sample->shape[1], num_rsentries);
 
-          ICHECK(rstates_of_entries[i]->entries[child_idx]->status == RequestStateStatus::kPending);
-          rstates_of_entries[i]->entries[child_idx]->status = RequestStateStatus::kAlive;
-          for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
+      // - Update logits.
+      ICHECK(logits_for_sample.defined());
+      Array<GenerationConfig> generation_cfg;
+      Array<RequestModelState> mstates_for_logitproc;
+      generation_cfg.reserve(num_rsentries);
+      mstates_for_logitproc.reserve(num_rsentries);
+      for (int i = 0; i < num_rsentries; ++i) {
+        generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
+        mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[sample_model_id]);
+      }
+      logits_for_sample = logits_for_sample.CreateView({num_rsentries, logits_for_sample->shape[2]},
+                                                       logits_for_sample->dtype);
+      logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg,
+                                            mstates_for_logitproc, request_ids);
+
+      // - Compute probability distributions.
+      NDArray probs_on_device =
+          logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
+
+      // - Sample tokens.
+      //   For prefill_inputs which have children, sample
+      //   one token for each rstate that is depending.
+      //   Otherwise, sample a token for the current rstate.
+      std::vector<int> sample_indices;
+      std::vector<RequestStateEntry> rsentries_for_sample;
+      std::vector<RandomGenerator*> rngs;
+      sample_indices.reserve(num_rsentries);
+      rsentries_for_sample.reserve(num_rsentries);
+      rngs.reserve(num_rsentries);
+      request_ids.clear();
+      generation_cfg.clear();
+      for (int i = 0; i < num_rsentries; ++i) {
+        const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
+        for (int child_idx : rsentry->child_indices) {
+          // Only use base model to judge if we need to add child entries.
+          if (rstates_of_entries[i]->entries[child_idx]->mstates[0]->committed_tokens.empty() ||
+              fork_rsentry_child_map[i].count(child_idx)) {
+            // If rstates_of_entries[i]->entries[child_idx] has no committed token,
+            // the prefill of the current rsentry will unblock
+            // rstates_of_entries[i]->entries[child_idx],
+            // and thus we want to sample a token for rstates_of_entries[i]->entries[child_idx].
+            fork_rsentry_child_map[i].insert(child_idx);
+            sample_indices.push_back(i);
+            rsentries_for_sample.push_back(rstates_of_entries[i]->entries[child_idx]);
+            request_ids.push_back(rsentry->request->id);
+            generation_cfg.push_back(rsentry->request->generation_cfg);
+            rngs.push_back(&rstates_of_entries[i]->entries[child_idx]->rng);
+
+            if (model_id == 0) {
+              ICHECK(rstates_of_entries[i]->entries[child_idx]->status ==
+                     RequestStateStatus::kPending);
+              rstates_of_entries[i]->entries[child_idx]->status = RequestStateStatus::kAlive;
+            }
             int64_t child_internal_id =
                 rstates_of_entries[i]->entries[child_idx]->mstates[model_id]->internal_id;
             models_[model_id]->ForkSequence(rsentry->mstates[model_id]->internal_id,
@@ -204,29 +253,41 @@ class NewRequestPrefillActionObj : public EngineActionObj {
             }
           }
         }
+        if (rsentry->child_indices.empty()) {
+          // If rsentry has no child, we sample a token for itself.
+          sample_indices.push_back(i);
+          rsentries_for_sample.push_back(rsentry);
+          request_ids.push_back(rsentry->request->id);
+          generation_cfg.push_back(rsentry->request->generation_cfg);
+          rngs.push_back(&rsentry->rng);
+        }
       }
-      if (rsentry->child_indices.empty()) {
-        // If rsentry has no child, we sample a token for itself.
-        sample_indices.push_back(i);
-        rsentries_for_sample.push_back(rsentry);
-        request_ids.push_back(rsentry->request->id);
-        generation_cfg.push_back(rsentry->request->generation_cfg);
-        rngs.push_back(&rsentry->rng);
-      }
-    }
-    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
-        probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
+      std::vector<NDArray> prob_dist;
+      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
+          probs_on_device, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+      ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
 
-    // - Update the committed tokens of states.
-    // - If a request is first-time prefilled, set the prefill finish time.
-    auto tnow = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-      for (const RequestModelState& mstate : rsentries_for_sample[i]->mstates) {
-        mstate->CommitToken(sample_results[i]);
-      }
-      if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
-        rsentries_for_sample[i]->tprefill_finish = tnow;
+      // - Update the committed tokens of states.
+      // - If a request is first-time prefilled, set the prefill finish time.
+      auto tnow = std::chrono::high_resolution_clock::now();
+      for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+        if (model_id == 0) {
+          for (int mid = 0; mid < static_cast<int>(models_.size()); ++mid) {
+            rsentries_for_sample[i]->mstates[mid]->CommitToken(sample_results[i]);
+          }
+          // Only base model trigger timing records.
+          if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
+            rsentries_for_sample[i]->tprefill_finish = tnow;
+          }
+        } else {
+          // - Slice hidden_states_for_sample
+          NDArray last_hidden_on_device = GetTokenHidden(hidden_states_for_sample, i);
+          CHECK(i < static_cast<int>(prob_dist.size()));
+          CHECK(prob_dist[i].defined());
+          rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i], prob_dist[i],
+                                                                    last_hidden_on_device);
+          estate->stats.total_draft_length += 1;
+        }
       }
     }
 
@@ -454,6 +515,26 @@ class NewRequestPrefillActionObj : public EngineActionObj {
     ICHECK(false) << "Cannot reach here";
   }
 
+  /*!
+   * \brief Get one item from a hidden_states array, which corresponds to the last token.
+   * \param hidden_states The hidden_states of all the tokens.
+   * \param token_pos The desired token position in the sequence.
+   * \return The desired token's hidden_states
+   */
+  NDArray GetTokenHidden(NDArray hidden_states, int token_pos) {
+    ICHECK_EQ(hidden_states->ndim, 3);
+    NDArray last_hidden_on_device =
+        NDArray::Empty({hidden_states->shape[2]}, hidden_states->dtype, hidden_states->device);
+
+    int64_t ndata = hidden_states->shape[2];
+    const int16_t* __restrict p_hidden =
+        static_cast<int16_t*>(__builtin_assume_aligned(hidden_states->data, 2)) +
+        (token_pos * ndata);
+
+    last_hidden_on_device.CopyFromBytes(p_hidden, ndata * sizeof(int16_t));
+    return last_hidden_on_device;
+  }
+
   /*! \brief The models to run prefill in. */
   Array<Model> models_;
   /*! \brief The logit processor. */
@@ -470,12 +551,13 @@ class NewRequestPrefillActionObj : public EngineActionObj {
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
-                                             Sampler sampler,
-                                             std::vector<ModelWorkspace> model_workspaces,
-                                             KVCacheConfig kv_cache_config, EngineMode engine_mode,
-                                             Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<NewRequestPrefillActionObj>(
+EngineAction EngineAction::EagleNewRequestPrefill(Array<Model> models,
+                                                  LogitProcessor logit_processor, Sampler sampler,
+                                                  std::vector<ModelWorkspace> model_workspaces,
+                                                  KVCacheConfig kv_cache_config,
+                                                  EngineMode engine_mode,
+                                                  Optional<EventTraceRecorder> trace_recorder) {
+  return EngineAction(make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(kv_cache_config), std::move(engine_mode),
       std::move(trace_recorder)));

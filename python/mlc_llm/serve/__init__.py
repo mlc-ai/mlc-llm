@@ -2,7 +2,7 @@
 
 # Load MLC LLM library by importing base
 from .. import base
-from .config import EngineMode, GenerationConfig, KVCacheConfig
+from .config import EngineMode, GenerationConfig, KVCacheConfig, SpeculativeMode
 from .data import Data, ImageData, RequestStreamOutput, TextData, TokenData
 from .engine import AsyncEngine, Engine
 from .grammar import BNFGrammar, GrammarStateMatcher

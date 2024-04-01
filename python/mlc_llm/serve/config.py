@@ -1,5 +1,6 @@
 """Configuration dataclasses used in MLC LLM serving"""
 
+import enum
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Literal, Optional
@@ -162,25 +163,53 @@ class KVCacheConfig:
         return KVCacheConfig(**json.loads(json_str))
 
 
+class SpeculativeMode(enum.Enum):
+    """The speculative mode."""
+
+    DISABLE = 0
+    SMALL_DRAFT = 1
+    EAGLE = 2
+
+
+def speculative_mode_to_int(speculative_mode: SpeculativeMode):
+    """Convert speculative mode to int value
+
+    Parameters
+    ----------
+    speculative_mode (SpeculativeMode):
+        the speculative mode
+    """
+    if speculative_mode == SpeculativeMode.DISABLE:
+        return 0
+    if speculative_mode == SpeculativeMode.SMALL_DRAFT:
+        return 1
+    if speculative_mode == SpeculativeMode.EAGLE:
+        return 2
+    raise RuntimeError("Unknown speculative mode.")
+
+
 @dataclass
 class EngineMode:
     """The Engine execution mode.
 
     Parameters
     ----------
-    enable_speculative : bool
-        Whether the speculative decoding mode is enabled, default False.
 
     spec_draft_length : int
         The number of tokens to generate in speculative proposal (draft), default 4.
+
+    speculative_mode: SpeculativeMode
+        The speculative mode.
     """
 
-    enable_speculative: bool = False
     spec_draft_length: int = 4
+    speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
-        return json.dumps(asdict(self))
+        dt = asdict(self)
+        dt["speculative_mode"] = speculative_mode_to_int(self.speculative_mode)
+        return json.dumps(dt)
 
     @staticmethod
     def from_json(json_str: str) -> "EngineMode":

@@ -67,6 +67,23 @@ class EngineAction : public ObjectRef {
                                         KVCacheConfig kv_cache_config, EngineMode engine_mode,
                                         Optional<EventTraceRecorder> trace_recorder);
   /*!
+   * \brief Create the action that prefills requests in the `waiting_queue`
+   * of the engine state.
+   * \param models The models to run prefill in.
+   * \param logit_processor The logit processor.
+   * \param sampler The sampler to sample new tokens.
+   * \param model_workspaces The workspace of each model.
+   * \param kv_cache_config The KV cache config to help decide prefill is doable.
+   * \param engine_mode The engine operation mode.
+   * \param trace_recorder The event trace recorder for requests.
+   * \return The created action object.
+   */
+  static EngineAction EagleNewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
+                                             Sampler sampler,
+                                             std::vector<ModelWorkspace> model_workspaces,
+                                             KVCacheConfig kv_cache_config, EngineMode engine_mode,
+                                             Optional<EventTraceRecorder> trace_recorder);
+  /*!
    * \brief Create the action that runs one-step decode for requests in the
    * `running_queue` of engine state. Preempt low-priority requests
    * accordingly when it is impossible to decode all the running requests.
@@ -98,6 +115,23 @@ class EngineAction : public ObjectRef {
                                  int draft_length = 4);
 
   /*!
+   * \brief Create the action that runs one-step speculative draft proposal for
+   * requests in the `running_queue` of engine state. Preempt low-priority requests
+   * accordingly when it is impossible to decode all the running requests.
+   * \param models The model to run decode in. When there are multiple
+   * models, the `Step` function of the created action will not take effect.
+   * \param sampler The sampler to sample new tokens.
+   * \param model_workspaces The workspace of each model.
+   * \param trace_recorder The event trace recorder for requests.
+   * \param draft_length The number of draft proposal rounds.
+   * \return The created action object.
+   */
+  static EngineAction EagleBatchDraft(Array<Model> models, LogitProcessor logit_processor,
+                                      Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
+                                      Optional<EventTraceRecorder> trace_recorder,
+                                      int draft_length = 4);
+
+  /*!
    * \brief Create the action that runs one-step speculative verification for requests in the
    * `running_queue` of engine state. Preempt low-priority requests
    * accordingly when it is impossible to decode all the running requests.
@@ -111,6 +145,24 @@ class EngineAction : public ObjectRef {
   static EngineAction BatchVerify(Array<Model> models, LogitProcessor logit_processor,
                                   Sampler sampler, KVCacheConfig kv_cache_config,
                                   Optional<EventTraceRecorder> trace_recorder);
+
+  /*!
+   * \brief Create the action that runs one-step speculative verification for requests in the
+   * `running_queue` of engine state. Preempt low-priority requests
+   * accordingly when it is impossible to decode all the running requests.
+   * \param models The model to run decode in. When there are multiple
+   * models, the `Step` function of the created action will not take effect.
+   * \param sampler The sampler to sample new tokens.
+   * \param model_workspaces The workspace of each model.
+   * \param kv_cache_config The KV cache config to help decide verify is doable.
+   * \param trace_recorder The event trace recorder for requests.
+   * \return The created action object.
+   */
+  static EngineAction EagleBatchVerify(Array<Model> models, LogitProcessor logit_processor,
+                                       Sampler sampler,
+                                       std::vector<ModelWorkspace> model_workspaces,
+                                       KVCacheConfig kv_cache_config,
+                                       Optional<EventTraceRecorder> trace_recorder);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
 };

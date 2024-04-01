@@ -29,7 +29,15 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
             return mod
 
         bb = relax.BlockBuilder(mod)
-        vocab_size = mod["prefill"].ret_struct_info.fields[0].shape[-1]
+        # Prefill method exists in base models.
+        # Prefill_to_last_hidden method exists in base model and speculative small models
+        if "prefill" in mod:
+            vocab_size = mod["prefill"].ret_struct_info.fields[0].shape[-1]
+        else:
+            assert (
+                "prefill_to_last_hidden_states" in mod
+            ), "Everay model should either has 'prefill' or 'prefill_to_last_hidden_states' method"
+            vocab_size = mod["prefill_to_last_hidden_states"].ret_struct_info.fields[0].shape[-1]
         gv_names = [
             gv.name_hint
             for gv in [

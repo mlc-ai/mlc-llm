@@ -59,9 +59,11 @@ void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   }
 }
 
-void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist) {
+void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist,
+                                          NDArray last_hidden_on_device) {
   draft_output_tokens.push_back(std::move(sampled_token));
   draft_output_prob_dist.push_back(std::move(prob_dist));
+  draft_last_hidden_on_device.push_back(std::move(last_hidden_on_device));
   appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
 }
 
@@ -116,14 +118,6 @@ RequestStateEntry::RequestStateEntry(
 
 DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tokenizer,
                                                             int max_single_sequence_length) {
-  // - Case 0. There is remaining draft output ==> Unfinished
-  //   All draft outputs are supposed to be processed before finish.
-  for (RequestModelState mstate : this->mstates) {
-    if (!mstate->draft_output_tokens.empty()) {
-      return {{}, {}, Optional<String>()};
-    }
-  }
-
   std::vector<int32_t> return_token_ids;
   std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
