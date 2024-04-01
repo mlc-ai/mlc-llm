@@ -144,13 +144,22 @@ class InternLMDecoderLayer(nn.Module):
             k = self.self_attn.num_heads * hd
             v = self.self_attn.num_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.wqkv_pack.weight, tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),)
+            _set(
+                self.self_attn.wqkv_pack.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
             if config.bias:
-                _set(self.self_attn.wqkv_pack.bias, tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]), )
+                _set(
+                    self.self_attn.wqkv_pack.bias,
+                    tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+                )
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o_weight", dim=1))
             if config.bias:
                 _set(self.self_attn.o_proj.bias, tp.ShardSingleDim("_shard_o_bias", dim=0))
-            _set(self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_gate_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_gate_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down_proj", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -167,7 +176,6 @@ class InternLMDecoderLayer(nn.Module):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
-
 
 
 class InternLMModel(nn.Module):
