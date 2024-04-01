@@ -146,12 +146,13 @@ class EngineImpl : public Engine {
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->input_total_length, -1);
 
-    if (request->input_total_length >= kv_cache_config_->prefill_chunk_size) {
-      // If the request input length exceeds the prefill chunk size,
+    if (request->input_total_length >= max_single_sequence_length_) {
+      // If the request input length exceeds the maximum allowed single sequence length,
       // invoke callback and do not process the request.
-      // Todo(mlc-team): Use "maximum single sequence length" after impl input chunking.
       Array<RequestStreamOutput> output{RequestStreamOutput(
-          request->id, {}, Optional<Array<Array<String>>>(), {String("length")})};
+          request->id, std::vector<IntTuple>(request->generation_cfg->n),
+          Optional<Array<Array<String>>>(),
+          std::vector<Optional<String>>(request->generation_cfg->n, String("length")))};
       request_stream_callback_.value()(std::move(output));
       return;
     }

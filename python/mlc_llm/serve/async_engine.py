@@ -278,8 +278,7 @@ class AsyncThreadedEngine:  # pylint: disable=too-many-instance-attributes
             # [model_lib_path, model_path, device.device_type, device.device_id] * N
             model.model_lib_path = model_args[i * (len(model_args) // len(models))]
 
-        # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
-        self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
+        self.max_input_sequence_length = max_single_sequence_length
         self.state = _AsyncThreadedEngineState(enable_tracing)
 
         if kv_cache_config.max_total_sequence_length is None:

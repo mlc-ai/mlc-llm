@@ -338,8 +338,7 @@ class Engine:
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
-        # Todo(mlc-team): use `max_single_sequence_length` only after impl input chunking.
-        self.max_input_sequence_length = min(max_single_sequence_length, prefill_chunk_size)
+        self.max_input_sequence_length = max_single_sequence_length
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(

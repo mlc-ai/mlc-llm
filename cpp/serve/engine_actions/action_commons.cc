@@ -159,6 +159,9 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   }
   ICHECK_NE(preempt_rstate_idx, -1);
   RequestStateEntry rsentry = rstate->entries[preempt_rstate_idx];
+  // When the request state entry still has pending inputs,
+  // it means the request is still in the waiting queue.
+  bool partially_alive = !rsentry->mstates[0]->inputs.empty();
 
   // Remove from models.
   // - Clear model speculation draft.
@@ -167,7 +170,6 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   rsentry->status = RequestStateStatus::kPending;
   for (RequestModelState mstate : rsentry->mstates) {
     mstate->RemoveAllDraftTokens();
-    ICHECK(mstate->inputs.empty());
     std::vector<int32_t> committed_token_ids;
     committed_token_ids.reserve(mstate->committed_tokens.size());
     for (const SampleResult& committed_token : mstate->committed_tokens) {
@@ -197,7 +199,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
     // Remove from running queue.
     estate->running_queue.erase(estate->running_queue.end() - 1);
   }
-  if (preempt_rstate_idx == static_cast<int>(rstate->entries.size()) - 1) {
+  if (!partially_alive && preempt_rstate_idx == static_cast<int>(rstate->entries.size()) - 1) {
     // Add to the front of waiting queue.
     estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
   }
