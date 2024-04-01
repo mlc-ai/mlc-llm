@@ -470,7 +470,7 @@ ConvTemplateRegistry.register_conv_template(
         seps=[""],
         role_content_sep="",
         role_empty_sep="",
-        stop_str=[""],
+        stop_str=[],
         stop_token_ids=[2],
         system_prefix_token_ids=[1],
     )
