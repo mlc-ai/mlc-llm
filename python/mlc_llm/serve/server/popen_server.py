@@ -17,9 +17,9 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
-        model_lib_path: str,
         device: str = "auto",
         *,
+        model_lib_path: Optional[str] = None,
         max_batch_size: int = 80,
         max_total_sequence_length: Optional[int] = None,
         enable_tracing: bool = False,
@@ -43,7 +43,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         """
         cmd = [sys.executable]
         cmd += ["-m", "mlc_llm", "serve", self.model]
-        cmd += ["--model-lib-path", self.model_lib_path]
+        if self.model_lib_path is not None:
+            cmd += ["--model-lib-path", self.model_lib_path]
         cmd += ["--device", self.device]
         cmd += ["--max-batch-size", str(self.max_batch_size)]
         if self.max_total_sequence_length is not None:

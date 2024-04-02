@@ -7,10 +7,10 @@ from typing import List
 import pytest
 from pydantic import BaseModel
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.async_engine import AsyncThreadedEngine
+from mlc_llm.serve import AsyncEngine, GenerationConfig, KVCacheConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve.sync_engine import SyncEngine
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
@@ -26,7 +26,7 @@ def test_batch_generation_with_grammar():
     model = ModelInfo(model_path, model_lib_path=model_lib_path)
     kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncEngine(model, kv_cache_config)
 
     prompt_len = len(prompts_list)
     prompts = prompts_list * 3
@@ -76,7 +76,7 @@ def test_batch_generation_with_schema():
     model = ModelInfo(model_path, model_lib_path=model_lib_path)
     kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncEngine(model, kv_cache_config)
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -131,7 +131,7 @@ async def run_async_engine():
     model = ModelInfo(model_path, model_lib_path=model_lib_path)
     kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    async_engine = AsyncThreadedEngine(model, kv_cache_config, enable_tracing=True)
+    async_engine = AsyncEngine(model, kv_cache_config, enable_tracing=True)
 
     prompts = prompts_list * 20
 
@@ -152,14 +152,14 @@ async def run_async_engine():
     ]
 
     async def generate_task(
-        async_engine: AsyncThreadedEngine,
+        async_engine: AsyncEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
     ):
         print(f"Start generation task for request {request_id}")
         rid = int(request_id)
-        async for delta_outputs in async_engine.generate(
+        async for delta_outputs in async_engine._generate(
             prompt, generation_cfg, request_id=request_id
         ):
             assert len(delta_outputs) == generation_cfg.n

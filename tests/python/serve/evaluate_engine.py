@@ -4,8 +4,9 @@ import os
 import random
 from typing import List, Tuple
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve import GenerationConfig, KVCacheConfig
+from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve.sync_engine import SyncEngine
 
 
 def _parse_args():
@@ -21,7 +22,6 @@ def _parse_args():
     parsed.model = os.path.dirname(parsed.model_lib_path)
     assert parsed.batch_size % 16 == 0
     assert parsed.page_size == 16
-    assert parsed.max_total_seq_length >= 2048
     return parsed
 
 
@@ -52,7 +52,7 @@ def benchmark(args: argparse.Namespace):
     )
 
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncEngine(model, kv_cache_config)
 
     print(args)
     for num_requests in [1, 2, 4, 8, 16, 32, 64]:
