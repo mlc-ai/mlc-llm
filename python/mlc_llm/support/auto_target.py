@@ -209,7 +209,7 @@ def _build_webgpu():
             )
         error_info = (
             "Cannot find library: mlc_wasm_runtime.bc\n"
-            + "Make sure you have run `scripts/prep_emcc_deps.sh` and "
+            + "Make sure you have run `./web/prep_emcc_deps.sh` and "
             + "`export MLC_LLM_HOME=/path/to/mlc-llm` so that we can locate the file. "
             + "We tried to look at candidate paths:\n"
         )

@@ -21,7 +21,7 @@ This folder contains MLC-LLM WebAssembly Runtime.
 
 Please refer to https://llm.mlc.ai/docs/install/emcc.html.
 
-The main step is running `make` under this folder, a step included in `scripts/prep_emcc_deps.sh`.
+The main step is running `make` under this folder, a step included in `web/prep_emcc_deps.sh`.
 
 `make` creates `web/dist/wasm/mlc_wasm_runtime.bc`, which will be included in the model library wasm
 when we compile the model. Thus during runtime, runtimes like WebLLM can directly reuse source
