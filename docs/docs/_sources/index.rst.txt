@@ -158,6 +158,7 @@ It is recommended to have at least 6GB free VRAM to run it.
    deploy/python.rst
    deploy/ios.rst
    deploy/android.rst
+   deploy/ide_integration.rst
 
 .. toctree::
    :maxdepth: 1
