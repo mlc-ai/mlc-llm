@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
@@ -36,6 +37,7 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    head_dim: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -56,6 +58,9 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %s (%d)",
@@ -73,7 +78,6 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 bold("context_window_size"),
             )
             self.prefill_chunk_size = self.context_window_size
-        assert self.tensor_parallel_shards == 1, "QWEN currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -82,16 +86,12 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: QWenConfig):
         self.hidden_size = config.hidden_size
-        self.rope_theta = config.rotary_emb_base
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
-        self.head_dim = self.hidden_size // self.num_heads
-        self.projection_size = config.kv_channels * config.num_attention_heads
-        self.c_attn = nn.Linear(
-            in_features=config.hidden_size,
-            out_features=3 * self.projection_size,
-            bias=True,
-        )
-        self.c_proj = nn.Linear(config.hidden_size, self.projection_size, bias=False)
+        self.head_dim = config.head_dim
+
+        self.c_attn = nn.Linear(config.hidden_size, 3 * self.num_heads * self.head_dim, bias=True)
+
+        self.c_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=False)
 
     def forward(  # pylint: disable=too-many-locals
         self,
@@ -134,12 +134,44 @@ class QWenBlock(nn.Module):
         self.ln_1 = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
         self.ln_2 = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.attn.num_heads * hd
+            k = self.attn.num_heads * hd
+            v = self.attn.num_heads * hd
+            i = self.mlp.intermediate_size // 2
+            _set(
+                self.attn.c_attn.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            _set(
+                self.attn.c_attn.bias,
+                tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+            )
+            _set(self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1))
+            _set(
+                self.mlp.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_gate_up_proj", segs=[i, i], dim=0),
+            )
+            _set(self.mlp.c_proj.weight, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.ln_2(hidden_states))
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
 
 class QWenModel(nn.Module):
@@ -165,7 +197,7 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         self.vocab_size = config.vocab_size
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.head_dim = config.head_dim
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.rotary_emb_base = config.rotary_emb_base
         self.dtype = "float32"
@@ -191,6 +223,8 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.transformer.wte(input_ids)
 
     def prefill(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
@@ -221,6 +255,8 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         return logits, paged_kv_cache
 
     def batch_prefill(self, inputs: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache):
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(inputs, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
