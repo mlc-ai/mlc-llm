@@ -51,7 +51,7 @@ Now we can prepare wasm runtime using the script in mlc-llm repo
 
 .. code:: bash
     
-    ./scripts/prep_emcc_deps.sh
+    ./web/prep_emcc_deps.sh
 
 We can then validate the outcome
 
