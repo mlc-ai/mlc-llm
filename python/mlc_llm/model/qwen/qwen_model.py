@@ -91,9 +91,7 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         self.c_attn = nn.Linear(config.hidden_size, 3 * self.num_heads * self.head_dim, bias=True)
 
-        self.c_proj = nn.Linear(
-            self.num_heads * self.head_dim, config.hidden_size, bias=False
-        )
+        self.c_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=False)
 
 
     def forward(  # pylint: disable=too-many-locals
@@ -156,10 +154,10 @@ class QWenBlock(nn.Module):
             )
             _set(self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1))
             _set(
-                self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_gate_up_proj", segs=[i, i], dim=0)
+                self.mlp.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_gate_up_proj", segs=[i, i], dim=0)
             )
             _set(self.mlp.c_proj.weight, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
-
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
