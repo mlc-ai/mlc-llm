@@ -13,16 +13,43 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "../support/load_bytes_from_file.h"
+#include "../support/utils.h"
 #include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
+
+Optional<IntTuple> GetDiscoWorkerCPUBinding(int num_workers) {
+  const char* raw_cpu_binding = std::getenv("MLC_DISCO_WORKER_CPU_BINDING");
+  if (raw_cpu_binding == nullptr) {
+    return NullOpt;
+  }
+
+  std::string cpu_binding_str(raw_cpu_binding);
+  std::vector<std::string> cpu_ids_str = Split(cpu_binding_str, ',');
+  std::vector<int64_t> cpu_ids;
+  for (const std::string& cpu_id_str : cpu_ids_str) {
+    try {
+      cpu_ids.push_back(std::stol(cpu_id_str));
+    } catch (std::invalid_argument const& ex) {
+      LOG(FATAL) << "Invalid MLC_DISCO_WORKER_CPU_BINDING \"" << cpu_binding_str << "\"";
+    }
+  }
+  if (static_cast<int>(cpu_ids.size()) < num_workers) {
+    LOG(FATAL) << "Insufficient number of specified CPU workers in MLC_DISCO_WORKER_CPU_BINDING, "
+                  "expecting at least "
+               << num_workers << "CPU ids but only " << cpu_ids.size() << " are given.";
+  }
+
+  return IntTuple{cpu_ids};
+}
 
 PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name) {
   return PackedFunc([sess, func = std::move(sess_func), name = std::move(name)](
@@ -100,6 +127,10 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
       }
       return SessionFuncAsPackedFunc(sess, func, name);
     };
+    if (Optional<IntTuple> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
+      IntTuple cpu_ids_value = cpu_ids.value();
+      sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"), cpu_ids_value);
+    }
     this->get_global_func = [this](const std::string& name) -> PackedFunc {
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
     };
