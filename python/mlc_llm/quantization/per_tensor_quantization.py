@@ -1,7 +1,7 @@
 """The per-tensor quantization config"""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, Type
 
 from tvm import DataType, DataTypeCode, IRModule, te, tir, topi
 from tvm.relax.frontend import nn
@@ -481,7 +481,7 @@ class PerTensorQuantizeEmbedding(nn.Module):
 class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An MixtralExperts module with group quantization"""
 
-    _IMPL: Dict[str, PerTensorQuantizeMixtralExperts] = {}
+    _IMPL: Dict[str, Type["PerTensorQuantizeMixtralExperts"]] = {}
 
     def __init__(
         self,
