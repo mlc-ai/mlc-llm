@@ -1,6 +1,6 @@
 """Mixture of Experts operators"""
 
-from typing import Optional
+from typing import Optional, Literal
 
 from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
@@ -182,9 +182,9 @@ def dequantize_float8_gemv(
     w: Tensor,
     scale: Optional[Tensor],
     indptr: Tensor,
-    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"]
+    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"],
 ) -> Tensor:
-    """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in 
+    """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
     fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
 
     Parameters
@@ -287,13 +287,12 @@ def dequantize_float8_gemv(
             args=[x, w, scale, indptr],
             out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
         )
-    else:
-        return op.tensor_ir_op(
-            _func_without_scale,
-            "moe_dequantize_gemv",
-            args=[x, w, indptr],
-            out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
-        )
+    return op.tensor_ir_op(
+        _func_without_scale,
+        "moe_dequantize_gemv",
+        args=[x, w, indptr],
+        out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+    )
 
 
 def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-many-statements
