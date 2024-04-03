@@ -1,7 +1,7 @@
 """The per-tensor quantization config"""
 
 from dataclasses import dataclass
-from typing import Any, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, List, Literal, Optional, Sequence, Tuple, Union
 
 from tvm import DataType, DataTypeCode, IRModule, te, tir, topi
 from tvm.relax.frontend import nn
@@ -122,7 +122,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         model = mutator.visit(name_prefix, model)
         return model
 
-    def quantize_weight(self, weight) -> Union[Tuple[NDArray, NDArray], NDArray]:
+    def quantize_weight(self, weight) -> List[NDArray]:
         """
         Quantize weight with per-tensor quantization.
 
@@ -133,7 +133,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
 
         Returns
         -------
-        ret : Union[Tuple[NDArray, NDArray], NDArray]
+        ret : List[NDArray]
             The quantized weight and the scale if use_scale is True.
         """
         device = weight.device
