@@ -1,4 +1,5 @@
 """ Quantization techniques for FP8 """
+
 import numpy as np
 from tvm import nd, relax
 from tvm.relax.frontend import nn
@@ -90,3 +91,7 @@ class FP8PerTensorQuantizeMixtralExperts(
             args=[w, self.q_scale, self.config.weight_dtype],
         )
         return moe_matmul.group_gemm(x, w, indptr)
+
+
+# pylint: disable=protected-access
+ptq.PerTensorQuantizeMixtralExperts._IMPL["fp8"] = FP8PerTensorQuantizeMixtralExperts
