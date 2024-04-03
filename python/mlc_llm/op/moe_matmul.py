@@ -1,6 +1,6 @@
 """Mixture of Experts operators"""
 
-from typing import Optional, Literal
+from typing import Literal, Optional
 
 from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
