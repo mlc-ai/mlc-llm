@@ -3,8 +3,7 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Sequence, Tuple, Union
 
-from tvm import DataType, DataTypeCode, IRModule
-from tvm import te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 

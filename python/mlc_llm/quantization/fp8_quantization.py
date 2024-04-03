@@ -13,7 +13,8 @@ from .utils import apply_sharding
 class FP8PerTensorQuantizeMixtralExperts(
     ptq.PerTensorQuantizeMixtralExperts
 ):  # pylint: disable=too-many-instance-attributes
-    """ MixtralExperts with per-tensor quantization in FP8. """
+    """MixtralExperts with per-tensor quantization in FP8."""
+
     def __init__(
         self,
         num_local_experts,
@@ -70,7 +71,7 @@ class FP8PerTensorQuantizeMixtralExperts(
             )
 
         if extern.get_store().cutlass_group_gemm:
-            # TODO: calibration scale should be used to convert x to fp8
+            # NOTE: calibration scale should be used to convert x to fp8 when calibration is enabled
             x = nn.op.astype(x, dtype=self.config.activation_dtype)
             scale = (
                 self.q_scale.astype("float32")
@@ -82,7 +83,10 @@ class FP8PerTensorQuantizeMixtralExperts(
             return cutlass.group_gemm(
                 x, w, indptr, scale, self.config.weight_dtype, self.config.model_dtype
             )
-        else:
-            # Note: convert_weight is target agnostic, so a fallback must be provided
-            w =nn.tensor_expr_op(self.config.dequantize_float8, "dequantize", args=[w, self.q_scale, self.config.weight_dtype])
-            return moe_matmul.group_gemm(x, w, indptr)
+        # Note: convert_weight is target agnostic, so a fallback must be provided
+        w = nn.tensor_expr_op(
+            self.config.dequantize_float8,
+            "dequantize",
+            args=[w, self.q_scale, self.config.weight_dtype],
+        )
+        return moe_matmul.group_gemm(x, w, indptr)

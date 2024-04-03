@@ -1,9 +1,10 @@
 """Mixture of Experts operators"""
 
+from typing import Optional
+
 from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
-from typing import Optional
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 # pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements
@@ -181,8 +182,31 @@ def dequantize_float8_gemv(
     w: Tensor,
     scale: Optional[Tensor],
     indptr: Tensor,
-    quantize_dtype: str,
+    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"]
 ) -> Tensor:
+    """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in 
+    fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
+
+    Parameters
+    ----------
+    x : Tensor
+        For project-in, the input tensor of shape (1, in_features); and for project-out, the input
+        shape is (experts_per_tok, in_features), where `experts_per_tok` is the number of activated
+        experts per token.
+
+    w : Tensor
+        The quantized weight tensor of shape (local_experts, out_features, in_features)
+
+    scale : Optional[Tensor]
+        The optional scale tensor of shape (1,)
+
+    indptr : Tensor
+        The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
+        number of activated experts per token.
+
+    quantize_dtype : Literal["e5m2_float8", "e4m3_float8"]
+        The quantize dtype of the weight tensor, which is either e5m2_float8 or e4m3_float8.
+    """
     (x_leading_dim, in_features), model_dtype = x.shape, x.dtype
     (local_experts, out_features, _), storage_dtype = w.shape, w.dtype
     _, experts_per_tok = indptr.shape
