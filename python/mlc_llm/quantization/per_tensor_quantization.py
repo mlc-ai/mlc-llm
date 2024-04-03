@@ -1,7 +1,7 @@
 """The per-tensor quantization config"""
 
 from dataclasses import dataclass
-from typing import Any, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 from tvm import DataType, DataTypeCode, IRModule, te, tir, topi
 from tvm.relax.frontend import nn
@@ -481,6 +481,8 @@ class PerTensorQuantizeEmbedding(nn.Module):
 class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
     """An MixtralExperts module with group quantization"""
 
+    _IMPL: Dict[str, PerTensorQuantizeMixtralExperts] = {}
+
     def __init__(
         self,
         num_local_experts,
@@ -531,16 +533,8 @@ class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-in
             DataTypeCode.E4M3Float,
             DataTypeCode.E5M2Float,
         ]:
-            # pylint: disable=import-outside-toplevel
-            from .fp8_quantization import FP8PerTensorQuantizeMixtralExperts
-
-            quantized_mixtral_experts = FP8PerTensorQuantizeMixtralExperts.from_mixtral_experts(
-                src,
-                config,
-            )
-        else:
-            raise NotImplementedError()
-        return quantized_mixtral_experts
+            return PerTensorQuantizeMixtralExperts._IMPL["fp8"].from_mixtral_experts(src, config)
+        raise NotImplementedError()
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
         """Forward method for per-tensor quantized mistral experts.
