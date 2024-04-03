@@ -1,7 +1,7 @@
 """The per-tensor quantization config"""
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Union, Type
+from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Type, Union
 
 from tvm import DataType, DataTypeCode, IRModule, te, tir, topi
 from tvm.relax.frontend import nn
