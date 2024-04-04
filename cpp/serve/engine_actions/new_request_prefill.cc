@@ -330,6 +330,8 @@ class NewRequestPrefillActionObj : public EngineActionObj {
             std::min(input_length, kv_cache_config_->prefill_chunk_size - total_input_length);
         num_require_pages =
             (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+        total_input_length += input_length;
+        total_required_pages += num_require_pages;
         if (input_length > 0 &&
             CanPrefill(estate, num_prefill_rsentries + 1 + rsentry->child_indices.size(),
                        total_input_length, total_required_pages, num_available_pages,
