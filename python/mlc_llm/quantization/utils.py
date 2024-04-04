@@ -94,6 +94,44 @@ def apply_sharding(shard_strategy, name: str, weight: nn.Parameter):
         raise NotImplementedError(f"Unknowing sharding strategy: {shard_strategy}")
 
 
+def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
+    weight: te.Tensor,
+    num_elem_per_storage: int,
+    storage_dtype: str,
+    model_dtype: str,
+    quant_dtype: str,
+    axis: int = -1,
+    out_shape: Optional[Sequence[tir.PrimExpr]] = None,
+) -> te.Tensor:
+    """Unpack a fp8 value from the storage dtype and convert to float."""
+    assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
+    bits = DataType(quant_dtype).bits
+    elem_storage_dtype = DataType(f"uint{bits}")
+    tir_bin_mask = tir.const((1 << bits) - 1, "uint8")
+    if axis < 0:
+        axis += len(weight.shape)
+    if out_shape is None:
+        out_shape = (
+            *weight.shape[:axis],
+            weight.shape[axis] * num_elem_per_storage,
+            *weight.shape[axis + 1 :],
+        )
+    axis = axis if axis >= 0 else len(out_shape) + axis
+    return te.compute(
+        shape=out_shape,
+        fcompute=lambda *idx: tir.reinterpret(
+            quant_dtype,
+            tir.bitwise_and(
+                tir.shift_right(
+                    weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
+                    ((idx[axis] % num_elem_per_storage) * bits).astype(storage_dtype),
+                ).astype(elem_storage_dtype),
+                tir_bin_mask,
+            ),
+        ).astype(model_dtype),
+    )
+
+
 def pack_weight(
     weight: te.Tensor,
     axis: int,
@@ -122,10 +160,12 @@ def pack_weight(
     """
     assert weight.dtype == storage_dtype
     shape = weight.shape
+    if axis < 0:
+        axis += len(shape)
     k = shape[axis]
     axis = axis if axis >= 0 else len(shape) + axis
     if out_shape is None:
-        out_shape = (*shape[axis], tir.ceildiv(k, num_elem_per_storage), *shape[axis + 1 :])
+        out_shape = (*shape[:axis], tir.ceildiv(k, num_elem_per_storage), *shape[axis + 1 :])
     r = te.reduce_axis((0, num_elem_per_storage), name="r")  # pylint: disable=invalid-name
     packed_weight = te.compute(
         shape=out_shape,
