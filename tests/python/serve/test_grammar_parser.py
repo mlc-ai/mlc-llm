@@ -17,7 +17,7 @@ c ::= "c"
 b ::= (([b]))
 c ::= (([c]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -36,7 +36,7 @@ b_1 ::= ("" | ([a] [b] b_1))
 c_1 ::= (([acep-z] c_1) | ([acep-z]))
 d_1 ::= ("" | ([d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -60,7 +60,7 @@ e_star_1 ::= [f]*
 e_star_2 ::= [g]*
 d_1_choice ::= (([b] [c] [d]) | ([p] [q]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -75,7 +75,7 @@ rest ::= (([a-zA-Z0-9\-] [\u0234-\u0345] [\u6d4b-\u8bd5] [\--\]] rest1))
 rest1 ::= ((([\?] [\"] [\'] [\u6d4b] [\u8bd5] [\u3042] [c]) ([\U0001f440]) ""))
 """
     # Disable unwrap_nesting_rules to expose the result before unwrapping.
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, False, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", False, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -90,7 +90,7 @@ main::="a"  "b" ("c""d"
 """
     expected = """main ::= (([a] [b] [c] [d] [e]) | ([f]) | ([g]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -101,7 +101,7 @@ def test_nest():
     expected = """main ::= (([a] main_choice) | ([e] [f]))
 main_choice ::= (([b]) | ([c] [d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -122,7 +122,7 @@ nested_rest ::= (([a]) | ([b] [c]) | ([d]) | ([e] [f]) | ([g]))
 empty_test ::= ("" | ([d]) | ([a]))
 sequence_test_choice ::= (([c]) | ([d]))
 """
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -159,7 +159,7 @@ exponent_choice ::= (([e]) | ([E]))
 exponent_choice_1 ::= ("" | ([+]) | ([\-]))
 """
 
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_string()
     assert after == expected
 
@@ -176,9 +176,9 @@ c_1 ::= (c_2 c_1) | c_2
 c_2 ::= [acep-z]
 d_1 ::= [d] | ""
 """
-    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, "main", True, False)
     output_string_1 = bnf_grammar_1.to_string()
-    bnf_grammar_2 = BNFGrammar.from_ebnf_string(output_string_1, True, False)
+    bnf_grammar_2 = BNFGrammar.from_ebnf_string(output_string_1, "main", True, False)
     output_string_2 = bnf_grammar_2.to_string()
     assert output_string_1 == output_string_2
 
@@ -240,7 +240,8 @@ def test_error():
 
     with pytest.raises(
         TVMError,
-        match='TVMError: EBNF parse error at line 1, column 10: There must be a rule named "main"',
+        match="TVMError: EBNF parse error at line 1, column 10: "
+        'The main rule with name "main" is not found.',
     ):
         BNFGrammar.from_ebnf_string('a ::= "a"')
 
@@ -256,7 +257,7 @@ c ::= [a-z]
         '4,3,7,8,9,5,1,10,0,2,97,122,4,1,12,5,1,13],"rules":[{"body_expr_id":6,"name":"main"},'
         '{"body_expr_id":11,"name":"b"},{"body_expr_id":14,"name":"c"}]}'
     )
-    bnf_grammar = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar = BNFGrammar.from_ebnf_string(before, "main", True, False)
     after = bnf_grammar.to_json(False)
     assert after == expected
 
@@ -271,7 +272,7 @@ c_1 ::= ((c_2 c_1) | (c_2))
 c_2 ::= (([acep-z]))
 d_1 ::= ("" | ([d]))
 """
-    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, True, False)
+    bnf_grammar_1 = BNFGrammar.from_ebnf_string(before, "main", True, False)
     output_json_1 = bnf_grammar_1.to_json(False)
     bnf_grammar_2 = BNFGrammar.from_json(output_json_1)
     output_json_2 = bnf_grammar_2.to_json(False)
