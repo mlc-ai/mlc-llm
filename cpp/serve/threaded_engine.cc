@@ -1,9 +1,9 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/async_threaded_engine.cc
- * \brief The implementation for asynchronous threaded serving engine in MLC LLM.
+ * \file serve/threaded_engine.cc
+ * \brief The implementation for threaded serving engine in MLC LLM.
  */
-#include "async_threaded_engine.h"
+#include "threaded_engine.h"
 
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
@@ -23,24 +23,9 @@ namespace serve {
 using tvm::Device;
 using namespace tvm::runtime;
 
-/*! \brief The implementation of AsyncThreadedEngine. */
-class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
+/*! \brief The implementation of ThreadedEngine. */
+class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
-  TVM_MODULE_VTABLE_ENTRY("add_request", &AsyncThreadedEngineImpl::AddRequest);
-  TVM_MODULE_VTABLE_ENTRY("abort_request", &AsyncThreadedEngineImpl::AbortRequest);
-  TVM_MODULE_VTABLE_ENTRY("run_background_loop", &AsyncThreadedEngineImpl::RunBackgroundLoop);
-  TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
-                          &AsyncThreadedEngineImpl::RunBackgroundStreamBackLoop);
-  TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &AsyncThreadedEngineImpl::ExitBackgroundLoop);
-  if (_name == "init_background_engine") {
-    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
-      SelfPtr self = static_cast<SelfPtr>(_self.get());
-      self->InitBackgroundEngine(args);
-    });
-  }
-  TVM_MODULE_VTABLE_END();
-
   void InitBackgroundEngine(TVMArgs args) {
     Optional<PackedFunc> request_stream_callback;
     try {
@@ -50,7 +35,7 @@ class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
     }
 
     CHECK(request_stream_callback.defined())
-        << "AsyncThreadedEngine requires request stream callback function, but it is not given.";
+        << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
 
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
@@ -158,7 +143,9 @@ class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
           flattened_callback_inputs.push_back(callback_input);
         }
       }
-      request_stream_callback_(Array<RequestStreamOutput>(flattened_callback_inputs));
+      if (!flattened_callback_inputs.empty()) {
+        request_stream_callback_(Array<RequestStreamOutput>(flattened_callback_inputs));
+      }
       flattened_callback_inputs.clear();
     }
   }
@@ -222,9 +209,34 @@ class AsyncThreadedEngineImpl : public AsyncThreadedEngine, public ModuleNode {
   bool stream_callback_waiting_ = false;
 };
 
+/*! \brief The implementation of ThreadedEngine. */
+class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
+ public:
+  TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
+  TVM_MODULE_VTABLE_ENTRY("add_request", &ThreadedEngineImpl::AddRequest);
+  TVM_MODULE_VTABLE_ENTRY("abort_request", &ThreadedEngineImpl::AbortRequest);
+  TVM_MODULE_VTABLE_ENTRY("run_background_loop", &ThreadedEngineImpl::RunBackgroundLoop);
+  TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
+                          &ThreadedEngineImpl::RunBackgroundStreamBackLoop);
+  TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
+  if (_name == "init_background_engine") {
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
+      SelfPtr self = static_cast<SelfPtr>(_self.get());
+      self->InitBackgroundEngine(args);
+    });
+  }
+  TVM_MODULE_VTABLE_END();
+};
+
 TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
-  return Module(make_object<AsyncThreadedEngineImpl>());
+  return Module(make_object<ThreadedEngineModule>());
 });
+
+std::unique_ptr<ThreadedEngine> CreateThreadedEnginePacked(TVMArgs args) {
+  std::unique_ptr<ThreadedEngineImpl> threaded_engine = std::make_unique<ThreadedEngineImpl>();
+  threaded_engine->InitBackgroundEngine(args);
+  return std::move(threaded_engine);
+}
 
 }  // namespace serve
 }  // namespace llm

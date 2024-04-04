@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/async_threaded_engine.h
- * \brief The header of threaded asynchronous serving engine in MLC LLM.
+ * \file serve/threaded_engine.h
+ * \brief The header of threaded serving engine in MLC LLM.
  */
-#ifndef MLC_LLM_SERVE_ASYNC_THREADED_ENGINE_H_
-#define MLC_LLM_SERVE_ASYNC_THREADED_ENGINE_H_
+#ifndef MLC_LLM_SERVE_THREADED_ENGINE_H_
+#define MLC_LLM_SERVE_THREADED_ENGINE_H_
 
 #include <tvm/runtime/packed_func.h>
 
@@ -19,16 +19,16 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*!
- * \brief The interface asynchronous threaded engine in MLC LLM.
+ * \brief The interface threaded engine in MLC LLM.
  * The threaded engine keeps running a background request processing
  * loop on a standalone thread. Ensuring thread safety, it exposes
  * `AddRequest` and `AbortRequest` to receive new requests or
  * abortions from other threads, and the internal request processing
  * is backed by a normal engine wrapped inside.
  */
-class AsyncThreadedEngine {
+class ThreadedEngine {
  public:
-  virtual ~AsyncThreadedEngine() = default;
+  virtual ~ThreadedEngine() = default;
 
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;
@@ -37,7 +37,7 @@ class AsyncThreadedEngine {
   virtual void RunBackgroundStreamBackLoop() = 0;
 
   /*!
-   * \brief Notify the AsyncThreadedEngine to exit the background
+   * \brief Notify the ThreadedEngine to exit the background
    * request processing loop. This method is invoked by threads
    * other than the engine-driving thread.
    */
@@ -50,8 +50,15 @@ class AsyncThreadedEngine {
   virtual void AbortRequest(const String& request_id) = 0;
 };
 
+/*!
+ * \brief Create a ThreadedEngine from packed arguments in TVMArgs.
+ * \param args The arguments of engine construction.
+ * \return The constructed threaded engine in unique pointer.
+ */
+std::unique_ptr<ThreadedEngine> CreateThreadedEnginePacked(TVMArgs args);
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_ASYNC_THREADED_ENGINE_H_
+#endif  // MLC_LLM_SERVE_THREADED_ENGINE_H_
