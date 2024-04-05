@@ -335,7 +335,7 @@ ConvTemplateRegistry.register_conv_template(
         roles={"user": "<human>", "assistant": "<bot>"},
         seps=["\n"],
         role_content_sep=": ",
-        role_empty_sep=": ",
+        role_empty_sep=":",
         stop_str=["<human>"],
         stop_token_ids=[0],
     )
