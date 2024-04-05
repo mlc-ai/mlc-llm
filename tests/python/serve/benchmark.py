@@ -23,15 +23,16 @@ def _parse_args():
     args.add_argument("--dataset", type=str, required=True)
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--num-prompts", type=int, default=500)
-    args.add_argument("--batch-size", type=int, default=80)
+    args.add_argument("--max-num-sequence", type=int, default=80)
     args.add_argument("--page-size", type=int, default=16)
     args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
     args.add_argument("--json-output", type=bool, default=False)
+    args.add_argument("--cuda-profile", type=bool, default=False)
 
     parsed = args.parse_args()
     parsed.model = os.path.dirname(parsed.model_lib_path)
-    assert parsed.batch_size % 16 == 0
+    assert parsed.max_num_sequence % 16 == 0
     assert parsed.page_size == 16
     return parsed
 
@@ -108,7 +109,7 @@ def benchmark(args: argparse.Namespace):
     model = ModelInfo(args.model, args.model_lib_path, args.device)
     kv_cache_config = KVCacheConfig(
         page_size=args.page_size,
-        max_num_sequence=args.batch_size,
+        max_num_sequence=args.max_num_sequence,
         max_total_sequence_length=args.max_total_seq_length,
     )
 
@@ -137,6 +138,15 @@ def benchmark(args: argparse.Namespace):
         engine_total_decode_time.append(engine_stats["engine_total_decode_time"])
         total_prefill_tokens.append(engine_stats["total_prefill_tokens"])
         total_decode_tokens.append(engine_stats["total_decode_tokens"])
+
+    if args.cuda_profile:
+        import cuda
+        import cuda.cudart
+
+        cuda.cudart.cudaProfilerStart()
+        engine_generate()
+        cuda.cudart.cudaProfilerStop()
+        return
 
     e2e_latency = time_evaluator(engine_generate, args=[], num_runs=num_runs)
     single_token_prefill_latency = np.array(single_token_prefill_latency)
