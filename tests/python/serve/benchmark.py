@@ -7,12 +7,12 @@ import random
 import time
 from typing import Any, Callable, List, Tuple
 
+import numpy as np
+from transformers import AutoTokenizer
+
 from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
 from mlc_llm.serve.config import ResponseFormat
 from mlc_llm.serve.engine import ModelInfo
-
-import numpy as np
-from transformers import AutoTokenizer
 
 
 def _parse_args():
