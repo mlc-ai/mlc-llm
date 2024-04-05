@@ -332,10 +332,14 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-rocm57<span class="w"> </span>mlc-ai-nightly-rocm57
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-1-1-5" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-5" name="1-5" role="tabpanel" tabindex="0"><p>Supported in all Linux packages.</p>
+</div><div aria-labelledby="tab-1-1-5" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-5" name="1-5" role="tabpanel" tabindex="0"><p>Supported in all Linux packages. Checkout the following instructions
+to install the latest vulkan loader to avoid vulkan not found issue.</p>
 </div></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gcc<span class="w"> </span>libvulkan-loader
+</pre></div>
+</div>
 <p>If encountering issues with GLIBC not found, please install the latest glibc in conda:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libgcc-ng
 </pre></div>
