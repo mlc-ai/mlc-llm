@@ -28,7 +28,16 @@ using namespace tvm::runtime;
  */
 class ThreadedEngine {
  public:
+  /*! \brief Create a ThreadedEngine. */
+  static std::unique_ptr<ThreadedEngine> Create();
+
   virtual ~ThreadedEngine() = default;
+
+  /*!
+   * \brief Initialize the threaded engine from packed arguments in TVMArgs.
+   * \param args The arguments of engine construction.
+   */
+  virtual void InitBackgroundEngine(TVMArgs args) = 0;
 
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;
@@ -49,13 +58,6 @@ class ThreadedEngine {
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
 };
-
-/*!
- * \brief Create a ThreadedEngine from packed arguments in TVMArgs.
- * \param args The arguments of engine construction.
- * \return The constructed threaded engine in unique pointer.
- */
-std::unique_ptr<ThreadedEngine> CreateThreadedEnginePacked(TVMArgs args);
 
 }  // namespace serve
 }  // namespace llm
