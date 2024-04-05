@@ -26,7 +26,7 @@ using namespace tvm::runtime;
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitBackgroundEngine(TVMArgs args) {
+  void InitBackgroundEngine(TVMArgs args) final {
     Optional<PackedFunc> request_stream_callback;
     try {
       request_stream_callback = args.At<Optional<PackedFunc>>(4);
@@ -232,9 +232,8 @@ TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
   return Module(make_object<ThreadedEngineModule>());
 });
 
-std::unique_ptr<ThreadedEngine> CreateThreadedEnginePacked(TVMArgs args) {
+std::unique_ptr<ThreadedEngine> ThreadedEngine::Create() {
   std::unique_ptr<ThreadedEngineImpl> threaded_engine = std::make_unique<ThreadedEngineImpl>();
-  threaded_engine->InitBackgroundEngine(args);
   return std::move(threaded_engine);
 }
 
