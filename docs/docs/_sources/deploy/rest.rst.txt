@@ -1,6 +1,6 @@
 .. _deploy-rest-api:
 
-Rest API
+REST API
 ========
 
 .. contents:: Table of Contents
@@ -8,33 +8,65 @@ Rest API
    :depth: 2
 
 We provide `REST API <https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.>`_
-for a user to interact with MLC-Chat in their own programs.
+for a user to interact with MLC-LLM in their own programs.
 
-Install MLC-Chat Package
+Install MLC-LLM Package
 ------------------------
 
-SERVE is a part of the MLC-Chat package, installation instruction for which we be found here :doc:`<../install/mlc_llm>`.
-
-Verify Installation
-^^^^^^^^^^^^^^^^^^^
+SERVE is a part of the MLC-LLM package, installation instruction for which can be found :ref:`here <install-mlc-packages>`. Once you have install the MLC-LLM package, you can run the following command to check if the installation was successful:
 
 .. code:: bash
 
-   python -m mlc_llm.serve.server --help
+   mlc_llm serve --help
 
-You are expected to see the help information of the MLC SERVE.
+You should see serve help message if the installation was successful.
 
-.. _mlcchat_package_build_from_source:
+Quick start
+------------
+
+This section provides a quick start guide to work with MLC-LLM REST API. To launch a server, run the following command:
+
+.. code:: bash
+
+   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH]
+
+where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found under :ref:`Launch the server <rest_launch_server>` section.
+
+Once you have launched the Server, you can use the API in your own program to send requests. Below is an example of using the API to interact with MLC-LLM in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
+
+.. code:: bash
+
+   import requests
+
+   # Get a response using a prompt without streaming
+   payload = {
+      "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
+      "messages": [
+         {"role": "user", "content": "Write a haiku about apples."},
+      ],
+      "stream": False,
+      # "n": 1,
+      "max_tokens": 300,
+   }
+   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
+   choices = r.json()["choices"]
+   for choice in choices:
+      print(f"{choice['message']['content']}\n")
+
+------------------------------------------------
+
+
+.. _rest_launch_server:
 
 
 Launch the Server
 -----------------
 
-To launch the MLC Server for MLC-Chat, run the following command in your terminal.
+To launch the MLC Server for MLC-LLM, run the following command in your terminal.
 
 .. code:: bash
 
-   python -m mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
+   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
 
 MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
@@ -71,7 +103,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-   Get a list of models available for MLC-Chat.
+   Get a list of models available for MLC-LLM.
 
 **Example**
 
@@ -95,7 +127,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-   Get a response from MLC-Chat using a prompt, either with or without streaming.
+   Get a response from MLC-LLM using a prompt, either with or without streaming.
 
 **Chat Completion Request Object**
 
@@ -203,35 +235,7 @@ The REST API provides the following endpoints:
 
 **Example**
 
-Once you have launched the Server, you can use the API in your own program. Below is an example of using the API to interact with MLC-Chat in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
-
-.. code:: bash
-
-   import requests
-
-   # Get a response using a prompt without streaming
-   payload = {
-      "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
-      "messages": [
-         {"role": "user", "content": "Hello! Our project is MLC LLM."},
-         {
-               "role": "assistant",
-               "content": "Hello! It's great to hear about your project, MLC LLM.",
-         },
-         {"role": "user", "content": "What is the name of our project?"},
-      ],
-      "stream": False,
-      # "n": 1,
-      "max_tokens": 300,
-   }
-   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
-   choices = r.json()["choices"]
-   for choice in choices:
-      print(f"{choice['message']['content']}\n")
-
-------------------------------------------------
-
-Below is an example of using the API to interact with MLC-Chat in Python with Streaming.
+Below is an example of using the API to interact with MLC-LLM in Python with Streaming.
 
 .. code:: bash
    
@@ -255,7 +259,6 @@ Below is an example of using the API to interact with MLC-Chat in Python with St
    print("\n")
 
 ------------------------------------------------
-
 
 There is also support for function calling similar to OpenAI (https://platform.openai.com/docs/guides/function-calling). Below is an example on how to use function calling in Python.
 
