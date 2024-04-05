@@ -27,8 +27,8 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     return op.sum(x, axis=dim)
 
 
-def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
-    """Compute the softmax score, choose the top-k experts, and renormalize the selected scores.
+def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor, Tensor]:
+    """Compute the softmax score, choose the top-k experts, and returns selected scores.
 
     Parameters
     ----------
@@ -38,10 +38,13 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
     k : int
         The number of top elements to be selected, which is `num_experts_per_tok` in MoE.
 
+    norm_topk_prob : bool
+        Whether to normalize the top-k expert scores.
+
     Returns
     -------
     expert_weights: Tensor
-        The renormalized top-k expert scores with shape [batch_size, k].
+        The top-k expert scores with shape [batch_size, k].
 
     expert_indices: Tensor
         The top-k expert indices with shape [batch_size, k].
@@ -54,7 +57,7 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
 
     # specialized kernel for top 2 case
     @T.prim_func(private=True)
-    def topk_softmax_func(
+    def topk_softmax_norm_func(
         var_x: T.handle,
         var_out: T.handle,
         var_out_index: T.handle,
@@ -107,9 +110,10 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                             )
                             out_index[vi, vj] = local_top_k_index[vj]
 
-    if k == 2:
+    # fast path for Mixtral
+    if k == 2 and norm_topk_prob:
         return op.tensor_ir_op(
-            topk_softmax_func,
+            topk_softmax_norm_func,
             "top2_softmax",
             args=[x],
             out=(
@@ -117,10 +121,17 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                 Tensor.placeholder([batch_size, 2], index_dtype),
             ),
         )
-    expert_score, expert_indices = op.topk(
-        x, k, axis=-1, ret_type="both", largest=True, dtype=index_dtype
-    )
-    expert_score = op.softmax(expert_score.astype("float32"), axis=-1).astype(dtype)
+    if norm_topk_prob:
+        # Compute topk first and then softmax to avoid extra re-normalize
+        expert_score, expert_indices = op.topk(
+            x, k, axis=-1, ret_type="both", largest=True, dtype=index_dtype
+        )
+        expert_score = op.softmax(expert_score.astype("float32"), axis=-1).astype(dtype)
+    else:
+        expert_score = op.softmax(x.astype("float32"), axis=-1).astype(dtype)
+        expert_score, expert_indices = op.topk(
+            expert_score, k, axis=-1, ret_type="both", largest=True, dtype=index_dtype
+        )
     return expert_score, expert_indices
 
 
