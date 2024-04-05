@@ -8,12 +8,12 @@ REST API
    :depth: 2
 
 We provide `REST API <https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.>`_
-for a user to interact with MLC-Chat in their own programs.
+for a user to interact with MLC-LLM in their own programs.
 
-Install MLC-Chat Package
+Install MLC-LLM Package
 ------------------------
 
-SERVE is a part of the MLC-Chat package, installation instruction for which can be found :ref:`here <install-mlc-packages>`. Once you have install the MLC-Chat package, you can run the following command to check if the installation was successful:
+SERVE is a part of the MLC-LLM package, installation instruction for which can be found :ref:`here <install-mlc-packages>`. Once you have install the MLC-LLM package, you can run the following command to check if the installation was successful:
 
 .. code:: bash
 
@@ -32,7 +32,7 @@ This section provides a quick start guide to work with MLC-LLM REST API. To laun
 
 where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found under :ref:`Launch the server <rest_launch_server>` section.
 
-Once you have launched the Server, you can use the API in your own program to send requests. Below is an example of using the API to interact with MLC-Chat in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
+Once you have launched the Server, you can use the API in your own program to send requests. Below is an example of using the API to interact with MLC-LLM in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
 
 .. code:: bash
 
@@ -62,7 +62,7 @@ Once you have launched the Server, you can use the API in your own program to se
 Launch the Server
 -----------------
 
-To launch the MLC Server for MLC-Chat, run the following command in your terminal.
+To launch the MLC Server for MLC-LLM, run the following command in your terminal.
 
 .. code:: bash
 
@@ -103,7 +103,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-   Get a list of models available for MLC-Chat.
+   Get a list of models available for MLC-LLM.
 
 **Example**
 
@@ -127,7 +127,7 @@ The REST API provides the following endpoints:
 
 ------------------------------------------------
 
-   Get a response from MLC-Chat using a prompt, either with or without streaming.
+   Get a response from MLC-LLM using a prompt, either with or without streaming.
 
 **Chat Completion Request Object**
 
@@ -235,7 +235,7 @@ The REST API provides the following endpoints:
 
 **Example**
 
-Below is an example of using the API to interact with MLC-Chat in Python with Streaming.
+Below is an example of using the API to interact with MLC-LLM in Python with Streaming.
 
 .. code:: bash
    
