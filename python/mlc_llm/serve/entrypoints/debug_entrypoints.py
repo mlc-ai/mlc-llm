@@ -5,8 +5,8 @@ from http import HTTPStatus
 
 import fastapi
 
-from ..server import ServerContext
-from . import entrypoint_utils
+from mlc_llm.protocol import error_protocol
+from mlc_llm.serve.server import ServerContext
 
 app = fastapi.APIRouter()
 
@@ -26,11 +26,11 @@ async def debug_dump_event_trace(request: fastapi.Request):
         # Parse the JSON string
         request_dict = json.loads(request_json_str)
     except json.JSONDecodeError:
-        return entrypoint_utils.create_error_response(
+        return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
         )
     if "model" not in request_dict:
-        return entrypoint_utils.create_error_response(
+        return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
         )
 
@@ -41,11 +41,11 @@ async def debug_dump_event_trace(request: fastapi.Request):
     async_engine = server_context.get_engine(model)
 
     if async_engine is None:
-        return entrypoint_utils.create_error_response(
+        return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" is not served.'
         )
     if async_engine.state.trace_recorder is None:
-        return entrypoint_utils.create_error_response(
+        return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" does not enable tracing'
         )
 

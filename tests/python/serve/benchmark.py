@@ -10,9 +10,10 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 from transformers import AutoTokenizer
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
+from mlc_llm.serve import GenerationConfig, KVCacheConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve.sync_engine import SyncEngine
 
 
 def _parse_args():
@@ -114,7 +115,7 @@ def benchmark(args: argparse.Namespace):
     )
 
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncEngine(model, kv_cache_config)
     # Sample prompts from dataset
     prompts, generation_config = sample_requests(
         args.dataset, args.num_prompts, args.model, args.json_output

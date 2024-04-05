@@ -3,13 +3,8 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import (
-    AsyncThreadedEngine,
-    EngineMode,
-    GenerationConfig,
-    KVCacheConfig,
-)
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve import AsyncEngine, EngineMode, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.engine_base import ModelInfo
 
 prompts = [
     "What is the meaning of life?",
@@ -38,7 +33,7 @@ async def test_engine_generate():
     kv_cache_config = KVCacheConfig(page_size=16)
     engine_mode = EngineMode(enable_speculative=True)
     # Create engine
-    async_engine = AsyncThreadedEngine([llm, ssm], kv_cache_config, engine_mode)
+    async_engine = AsyncEngine([llm, ssm], kv_cache_config, engine_mode)
 
     num_requests = 10
     max_tokens = 256
@@ -49,14 +44,14 @@ async def test_engine_generate():
     ]
 
     async def generate_task(
-        async_engine: AsyncThreadedEngine,
+        async_engine: AsyncEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
     ):
         print(f"generate task for request {request_id}")
         rid = int(request_id)
-        async for delta_outputs in async_engine.generate(
+        async for delta_outputs in async_engine._generate(
             prompt, generation_cfg, request_id=request_id
         ):
             assert len(delta_outputs) == generation_cfg.n

@@ -2,8 +2,6 @@
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
-
 from ..serve.config import GenerationConfig
 from . import RequestProtocol
 from .openai_api_protocol import ChatCompletionRequest as OpenAIChatCompletionRequest
@@ -12,14 +10,6 @@ from .openai_api_protocol import (
     openai_api_get_generation_config,
     openai_api_get_unsupported_fields,
 )
-
-
-class ErrorResponse(BaseModel):
-    """The class of error response."""
-
-    object: str = "error"
-    message: str
-    code: int = None
 
 
 def get_unsupported_fields(request: RequestProtocol) -> List[str]:

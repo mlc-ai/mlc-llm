@@ -5,8 +5,6 @@ from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 from pydantic import BaseModel, Field, field_validator
 
-from ..serve import data
-
 
 # The message placeholders in the message prompts according to roles.
 class MessagePlaceholders(Enum):
@@ -113,17 +111,25 @@ class Conversation(BaseModel):
         return Conversation.model_validate(json_dict)
 
     # pylint: disable=too-many-branches
-    def as_prompt(self, config=None) -> List[Union[str, data.ImageData]]:
+    def as_prompt(self, config=None) -> List[Any]:
         """Convert the conversation template and history messages to
         a single prompt.
+
+        Returns
+        -------
+        prompts : List[Union[str, "mlc_llm.serve.data.Data"]]
+            The prompts converted from the conversation messages.
+            We use Any in the signature to avoid cyclic import.
         """
+        from ..serve import data  # pylint: disable=import-outside-toplevel
+
         # - Get the system message.
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
         )
 
         # - Get the message strings.
-        message_list: List[Union[str, data.ImageData]] = []
+        message_list: List[Union[str, data.Data]] = []
         separators = list(self.seps)
         if len(separators) == 1:
             separators.append(separators[0])
@@ -136,55 +142,48 @@ class Conversation(BaseModel):
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
-            if content is not None:
-                role_prefix = (
-                    ""
-                    # Do not append role prefix if this is the first message and there
-                    # is already a system message
-                    if (not self.add_role_after_system_message and system_msg != "" and i == 0)
-                    else self.roles[role] + self.role_content_sep
-                )
-                if isinstance(content, str):
-                    message_string = (
-                        role_prefix
-                        + self.role_templates[role].replace(
-                            MessagePlaceholders[role.upper()].value, content
-                        )
-                        + separator
+
+            if content is None:
+                message_list.append(self.roles[role] + self.role_empty_sep)
+                continue
+
+            role_prefix = (
+                ""
+                # Do not append role prefix if this is the first message and there
+                # is already a system message
+                if (not self.add_role_after_system_message and system_msg != "" and i == 0)
+                else self.roles[role] + self.role_content_sep
+            )
+            if isinstance(content, str):
+                message_list.append(
+                    role_prefix
+                    + self.role_templates[role].replace(
+                        MessagePlaceholders[role.upper()].value, content
                     )
-                    message_list.append(message_string)
+                    + separator
+                )
+                continue
+
+            message_list.append(role_prefix)
+
+            for item in content:
+                assert isinstance(item, dict), "Content should be a string or a list of dicts"
+                assert "type" in item, "Content item should have a type field"
+                if item["type"] == "text":
+                    message = self.role_templates[role].replace(
+                        MessagePlaceholders[role.upper()].value, item["text"]
+                    )
+                    message_list.append(message)
+                elif item["type"] == "image_url":
+                    assert config is not None, "Model config is required"
+                    image_url = _get_url_from_item(item)
+                    message_list.append(data.ImageData.from_url(image_url, config))
                 else:
-                    message_list.append(role_prefix)
-                    for item in content:
-                        assert isinstance(
-                            item, dict
-                        ), "Content should be a string or a list of dicts"
-                        assert "type" in item, "Content item should have a type field"
-                        if item["type"] == "text":
-                            message_list.append(
-                                self.role_templates[role].replace(
-                                    MessagePlaceholders[role.upper()].value, item["text"]
-                                )
-                            )
-                        elif item["type"] == "image_url":
-                            assert config is not None, "Model config is required"
+                    raise ValueError(f"Unsupported content type: {item['type']}")
 
-                            # pylint: disable=import-outside-toplevel
-                            from ..serve.entrypoints.entrypoint_utils import (
-                                get_image_from_url,
-                            )
+            message_list.append(separator)
 
-                            image_url = _get_url_from_item(item)
-                            message_list.append(get_image_from_url(image_url, config))
-                        else:
-                            raise ValueError(f"Unsupported content type: {item['type']}")
-
-                    message_list.append(separator)
-            else:
-                message_string = self.roles[role] + self.role_empty_sep
-                message_list.append(message_string)
-
-        prompt = _combine_consecutive_strings(message_list)
+        prompt = _combine_consecutive_messages(message_list)
 
         if not any(isinstance(item, data.ImageData) for item in message_list):
             # Replace the last function string placeholder with actual function string
@@ -215,11 +214,27 @@ def _get_url_from_item(item: Dict) -> str:
     return image_url
 
 
-def _combine_consecutive_strings(lst):
-    result = []
-    for item in lst:
-        if isinstance(item, str) and result and isinstance(result[-1], str):
-            result[-1] += item
+def _combine_consecutive_messages(messages: List[Any]) -> List[Any]:
+    """Combining consecutive strings into one.
+
+    Parameters
+    ----------
+    messages : List[Union[str, "mlc_llm.serve.data.Data"]]
+        The input messages to be combined.
+        We use Any in the signature to avoid cyclic import.
+
+    Returns
+    -------
+    updated_messages : List[Union[str, "mlc_llm.serve.data.Data"]]
+        The combined messages
+    """
+    if len(messages) == 0:
+        return []
+
+    combined_messages = [messages[0]]
+    for message in messages[1:]:
+        if isinstance(message, str) and isinstance(combined_messages[-1], str):
+            combined_messages[-1] += message
         else:
-            result.append(item)
-    return result
+            combined_messages.append(message)
+    return combined_messages

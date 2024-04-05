@@ -6,7 +6,8 @@ import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
-from mlc_llm.serve import async_engine, config
+from mlc_llm.protocol import error_protocol
+from mlc_llm.serve import config, engine, engine_base
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
 from mlc_llm.serve.server import ServerContext
 
@@ -28,7 +29,7 @@ def serve(
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
     # Initialize model loading info and KV cache config
-    model_info = async_engine.ModelInfo(
+    model_info = engine_base.ModelInfo(
         model=model,
         model_lib_path=model_lib_path,
         device=device,
@@ -39,12 +40,10 @@ def serve(
         prefill_chunk_size=prefill_chunk_size,
     )
     # Create engine and start the background loop
-    engine = async_engine.AsyncThreadedEngine(
-        model_info, kv_cache_config, enable_tracing=enable_tracing
-    )
+    async_engine = engine.AsyncEngine(model_info, kv_cache_config, enable_tracing=enable_tracing)
 
     with ServerContext() as server_context:
-        server_context.add_model(model, engine)
+        server_context.add_model(model, async_engine)
 
         app = fastapi.FastAPI()
         app.add_middleware(
@@ -57,4 +56,7 @@ def serve(
 
         app.include_router(openai_entrypoints.app)
         app.include_router(debug_entrypoints.app)
+        app.exception_handler(error_protocol.BadRequestError)(
+            error_protocol.bad_request_error_handler
+        )
         uvicorn.run(app, host=host, port=port, log_level="info")
