@@ -61,9 +61,16 @@ Select your operating system/compute platform and run the command in your termin
 
             .. tab:: Vulkan
 
-                Supported in all Linux packages.
+                Supported in all Linux packages. Checkout the following instructions
+                to install the latest vulkan loader to avoid vulkan not found issue.
 
         .. note::
+
+
+            .. code-block:: bash
+
+                conda install -c conda-forge gcc libvulkan-loader
+
 
             If encountering issues with GLIBC not found, please install the latest glibc in conda:
 
