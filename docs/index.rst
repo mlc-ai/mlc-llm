@@ -74,6 +74,16 @@ It is recommended to have at least 6GB free VRAM to run it.
 
       mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 
+
+    If you are using windows/linux/steamdeck and would like to use vulkan,
+    we recommend installing necessary vulkan loader dependency via conda
+    to avoid vulkan not found issues.
+
+    .. code:: bash
+
+      conda install -c conda-forge gcc libvulkan-loader
+
+
   .. tab:: Web Browser
 
     `WebLLM <https://webllm.mlc.ai/#chat-demo>`__. MLC LLM generates performant code for WebGPU and WebAssembly,
