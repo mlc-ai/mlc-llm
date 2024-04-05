@@ -100,8 +100,8 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       auto frequest_stream_callback_wrapper = [self](TVMArgs args, TVMRetValue* ret) {
         ICHECK_EQ(args.size(), 1);
         Array<RequestStreamOutput> delta_outputs = args[0];
-        std::string response = self->GetResponseFromStreamOutput(delta_outputs);
-        self->request_stream_callback_(response);
+        Array<String> responses = self->GetResponseFromStreamOutput(delta_outputs);
+        self->request_stream_callback_(responses);
       };
 
       std::vector<TVMValue> values{args.values, args.values + args.size()};
@@ -176,7 +176,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   }
 };
 
-TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateEngine").set_body_typed([]() {
+TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed([]() {
   return Module(make_object<JSONFFIEngineImpl>());
 });
 
