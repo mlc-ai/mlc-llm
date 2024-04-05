@@ -552,12 +552,16 @@ class EngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public
                 self.model_config_dicts.append(json.load(file))
 
         self.state = EngineState(enable_tracing)
-        self.max_input_sequence_length = max_single_sequence_length
 
         if kv_cache_config.max_total_sequence_length is None:
             kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
                 models, config_file_paths, kv_cache_config.max_num_sequence
             )
+        self.max_input_sequence_length = min(
+            max_single_sequence_length, kv_cache_config.max_total_sequence_length
+        )
+        prefill_chunk_size = min(prefill_chunk_size, kv_cache_config.max_total_sequence_length)
+
         if kv_cache_config.prefill_chunk_size is None:
             kv_cache_config.prefill_chunk_size = prefill_chunk_size
         elif kv_cache_config.prefill_chunk_size > prefill_chunk_size:
