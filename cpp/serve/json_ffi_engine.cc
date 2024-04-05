@@ -6,6 +6,8 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+JSONFFIEngine::JSONFFIEngine() { engine_ = ThreadedEngine::Create(); }
+
 bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string request_id) {
   std::optional<ChatCompletionRequest> optional_request =
       ChatCompletionRequest::FromJSON(request_json_str, err_);
@@ -62,13 +64,9 @@ bool JSONFFIEngine::Abort(std::string request_id) {
 
 std::string JSONFFIEngine::GetLastError() { return err_; }
 
-void JSONFFIEngine::Terminate() {
-  this->engine_->ExitBackgroundLoop();
-  this->background_loop_thread_.join();
-  this->background_stream_back_loop_thread_.join();
-}
+void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); }
 
-JSONFFIEngine::~JSONFFIEngine() { this->Terminate(); }
+JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 
 class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
  public:
@@ -76,7 +74,10 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
-  TVM_MODULE_VTABLE_ENTRY("terminate", &JSONFFIEngineImpl::Terminate);
+  TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
+  TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
+                          &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
+  TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   if (_name == "init") {
     return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
       SelfPtr self = static_cast<SelfPtr>(_self.get());
@@ -108,18 +109,14 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       TVMArgsSetter setter(values.data(), type_codes.data());
       request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
       setter(4, request_stream_callback);
-      self->engine_ =
-          CreateThreadedEnginePacked(TVMArgs(values.data(), type_codes.data(), args.size()));
-      self->InitBackgroundThreads();
+      self->engine_->InitBackgroundEngine(TVMArgs(values.data(), type_codes.data(), args.size()));
     });
   }
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundThreads() {
-    background_loop_thread_ = std::thread([this]() { this->engine_->RunBackgroundLoop(); });
-    background_stream_back_loop_thread_ =
-        std::thread([this]() { this->engine_->RunBackgroundStreamBackLoop(); });
-  }
+  void RunBackgroundLoop() { this->engine_->RunBackgroundLoop(); }
+
+  void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
   std::string GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
     std::map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
@@ -177,8 +174,6 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     }
     return picojson::value(response_arr).serialize();
   }
-
-  // JSONFFIEngineImpl(TVMArgs args) : JSONFFIEngine(args) {}
 };
 
 TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateEngine").set_body_typed([]() {

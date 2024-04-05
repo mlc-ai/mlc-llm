@@ -29,12 +29,10 @@ class JSONFFIEngine {
  public:
   std::unique_ptr<ThreadedEngine> engine_;
   std::string err_;
-  std::thread background_loop_thread_;
-  std::thread background_stream_back_loop_thread_;
   PackedFunc request_stream_callback_;
   Tokenizer tokenizer_;
-  //   JSONFFIEngine() {}
-  //   JSONFFIEngine(TVMArgs args);
+
+  JSONFFIEngine();
 
   ~JSONFFIEngine();
 
@@ -44,7 +42,7 @@ class JSONFFIEngine {
 
   std::string GetLastError();
 
-  void Terminate();
+  void ExitBackgroundLoop();
 };
 
 }  // namespace serve

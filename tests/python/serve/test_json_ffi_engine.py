@@ -1,22 +1,21 @@
-import tvm
-import json
-import mlc_llm
-from mlc_llm.tokenizer import Tokenizer
-from mlc_llm.serve.engine import ModelInfo, _process_model_args, EventTraceRecorder
-from mlc_llm.protocol.openai_api_protocol import ChatCompletionResponse
-from typing import List
-from collections import defaultdict
-import time
 import asyncio
+import json
+import threading
+from collections import defaultdict
+from typing import List
 
+import tvm
 
-jsonDict = {
+from mlc_llm.protocol.openai_api_protocol import ChatCompletionResponse
+from mlc_llm.serve.engine_base import EventTraceRecorder, ModelInfo, _process_model_args
+
+json_dict = {
     "max_single_sequence_length": 128,
     "tokenizer_path": "/ssd1/abohara/MLC/mlc-llm/dist/Llama-2-13b-chat-hf-q4f16_1-MLC/params/tokenizer.json",
     "kv_cache_config": {
         "page_size": 16,
         "max_num_sequence": 2,
-        "max_total_sequence_length": 128,
+        "max_total_sequence_length": 1024,
         "prefill_chunk_size": 128,
     },
     "engine_mode": {
@@ -31,8 +30,8 @@ jsonDict = {
 }
 
 model = ModelInfo(
-    model=jsonDict["model_info"]["model"],
-    model_lib_path=jsonDict["model_info"]["model_lib_path"],
+    model=json_dict["model_info"]["model"],
+    model_lib_path=json_dict["model_info"]["model_lib_path"],
 )
 
 (
@@ -47,19 +46,6 @@ model = ModelInfo(
 output_texts = defaultdict(asyncio.Queue)
 
 
-def request_stream_callback(chat_completion_responses_json_str: str):
-    try:
-        chat_completion_responses: List[ChatCompletionResponse] = json.loads(
-            chat_completion_responses_json_str
-        )
-        for chat_completion_response in chat_completion_responses:
-            output_texts[chat_completion_response["id"]].put_nowait(
-                chat_completion_response["choices"][0]
-            )
-    except Exception as e:
-        print(f"Error in request_stream_callback: {e}")
-
-
 async def print_responses(key):
     while True:
         response = await output_texts[key].get()
@@ -68,22 +54,51 @@ async def print_responses(key):
 
 create_engine = tvm.get_global_func("mlc.json_ffi.CreateEngine")
 engine = create_engine()
-init_engine = engine["init"]
 chat_completion = engine["chat_completion"]
 get_last_error = engine["get_last_error"]
 
 
 async def main():
+    async_event_loop = asyncio.get_event_loop()
 
-    init_engine(
-        jsonDict["max_single_sequence_length"],
-        jsonDict["tokenizer_path"],
-        json.dumps(jsonDict["kv_cache_config"]),
-        json.dumps(jsonDict["engine_mode"]),
-        request_stream_callback,
-        EventTraceRecorder(),
-        *model_args,
+    def request_stream_callback(chat_completion_responses_json_str: str):
+        async_event_loop.call_soon_threadsafe(
+            request_stream_callback_impl, chat_completion_responses_json_str
+        )
+
+    def request_stream_callback_impl(chat_completion_responses_json_str: str):
+        try:
+            chat_completion_responses: List[ChatCompletionResponse] = json.loads(
+                chat_completion_responses_json_str
+            )
+            for chat_completion_response in chat_completion_responses:
+                output_texts[chat_completion_response["id"]].put_nowait(
+                    chat_completion_response["choices"][0]
+                )
+        except Exception as e:
+            print(f"Error in request_stream_callback: {e}")
+
+    def _background_loop():
+        engine["init"](
+            json_dict["max_single_sequence_length"],
+            json_dict["tokenizer_path"],
+            json.dumps(json_dict["kv_cache_config"]),
+            json.dumps(json_dict["engine_mode"]),
+            request_stream_callback,
+            EventTraceRecorder(),
+            *model_args,
+        )
+        engine["run_background_loop"]()
+
+    def _background_stream_back_loop():
+        engine["run_background_stream_back_loop"]()
+
+    background_loop_thread: threading.Thread = threading.Thread(target=_background_loop)
+    background_stream_back_loop_thread: threading.Thread = threading.Thread(
+        target=_background_stream_back_loop
     )
+    background_loop_thread.start()
+    background_stream_back_loop_thread.start()
 
     request = {
         "messages": [
@@ -104,10 +119,14 @@ async def main():
 
     ret = chat_completion(json.dumps(request), request_id)
 
-    print(ret)
+    print(f"success = {ret}")
     await asyncio.gather(print_responses(request_id))
 
     print(get_last_error())
+
+    engine["exit_background_loop"]()
+    background_loop_thread.join()
+    background_stream_back_loop_thread.join()
 
 
 asyncio.run(main())
