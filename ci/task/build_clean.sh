@@ -8,4 +8,4 @@ set -x
 rm -rf ${WORKSPACE_CWD}/build/ \
 	${WORKSPACE_CWD}/python/dist/ \
 	${WORKSPACE_CWD}/python/build/ \
-	${WORKSPACE_CWD}/python/mlc_chat.egg-info
+	${WORKSPACE_CWD}/python/mlc_llm.egg-info

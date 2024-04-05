@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "../support/load_bytes_from_file.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -42,6 +43,7 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
 }
 
 void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object model_config) {
+  local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
   {
@@ -53,6 +55,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     }
   }
   this->model_config = model_config;
+  this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
     String lib_path{nullptr};
@@ -83,7 +86,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
       device_ids[i] = i;
     }
     this->use_disco = true;
-    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_chat.cli.worker");
+    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        lib_path, null_device);
@@ -100,12 +103,9 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->get_global_func = [this](const std::string& name) -> PackedFunc {
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
     };
+    this->model_metadata_ =
+        ModelMetadata::FromModule(this->disco_mod->DebugGetFromRemote(0), std::move(model_config));
     this->_InitFunctions();
-    {
-      Module mod = this->disco_mod->DebugGetFromRemote(0);
-      this->softmax_func_ = mod->GetFunction("softmax_with_temperature");
-      this->model_metadata_ = ModelMetadata::FromModule(mod, std::move(model_config));
-    }
   } else {
     Module executable{nullptr};
     if (reload_lib.type_code() == kTVMModuleHandle) {
@@ -151,7 +151,10 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       DRef loader = loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod);
       params = loader_load_all(loader);
     } else {
-      PackedFunc loader = this->get_global_func("mlc.loader.LoadMultiGPU");
+      auto load_func_name = getenv("MLC_INTERNAL_PRESHARD_NUM") == nullptr
+                                ? "mlc.loader.LoadMultiGPU"
+                                : "mlc.loader.LoadMultiGPUPresharded";
+      PackedFunc loader = this->get_global_func(load_func_name);
       params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize());
     }
     return params;
@@ -188,31 +191,45 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
 
 void FunctionTable::_InitFunctions() {
   this->embed_func_ = mod_get_func("embed");
+  this->image_embed_func_ = mod_get_func("image_embed");
   this->single_batch_prefill_func_ = mod_get_func("prefill");
   this->single_batch_decode_func_ = mod_get_func("decode");
   this->prefill_func_ = mod_get_func("batch_prefill");
   this->decode_func_ = mod_get_func("batch_decode");
   this->verify_func_ = mod_get_func("batch_verify");
-  this->softmax_func_ = mod_get_func("softmax_with_temperature");
+  Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
+  this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
+  this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
+  this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
+  this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
+  this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (!this->create_kv_cache_func_.defined()) {
     this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
     ICHECK(this->create_kv_cache_func_.defined());
   }
-  this->reset_kv_cache_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_clear");
-  this->kv_cache_add_sequence_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_add_sequence");
-  this->kv_cache_remove_sequence_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_remove_sequence");
-  this->kv_cache_begin_forward_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_begin_forward");
-  this->kv_cache_end_forward_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_end_forward");
-  this->kv_cache_attention_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_attention");
-  this->kv_cache_popn_func_ = get_global_func("vm.builtin.paged_attention_kv_cache_popn");
+  this->reset_kv_cache_func_ = get_global_func("vm.builtin.kv_state_clear");
+  this->kv_cache_add_sequence_func_ = get_global_func("vm.builtin.kv_state_add_sequence");
+  this->kv_cache_fork_sequence_func_ = get_global_func("vm.builtin.kv_state_fork_sequence");
+  this->kv_cache_enable_sliding_window_for_seq_ =
+      get_global_func("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq");
+  this->kv_cache_remove_sequence_func_ = get_global_func("vm.builtin.kv_state_remove_sequence");
+  this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
+  this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
+  this->kv_cache_popn_func_ = get_global_func("vm.builtin.kv_state_popn");
   this->kv_cache_get_num_available_pages_func_ =
-      get_global_func("vm.builtin.paged_attention_kv_cache_get_num_available_pages");
-  this->view_func_ = get_global_func("vm.builtin.reshape");
+      *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_num_available_pages");
+  this->kv_cache_get_total_sequence_length_func_ =
+      *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_total_sequence_length");
+  if (Sampler::SupportGPUSampler(local_gpu_device)) {
+    gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
+    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
+    gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
+    gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
+  }
+  this->nd_view_func_ = get_global_func("vm.builtin.reshape");
+  this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
+  this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
 }
 
@@ -226,23 +243,36 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
   }
 }
 
-ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String tensor_name,
+ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                                        ShapeTuple max_reserved_shape) {
-  Device null_device{DLDeviceType(0), 0};
+  ICHECK(host_array->device.device_type == DLDeviceType::kDLCPU);
   if (this->use_disco) {
+    Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);
-    if (this->disco_buffers.count(tensor_name)) {
-      buffer = this->disco_buffers[tensor_name];
+    auto it = this->cached_buffers.find(buffer_cache_key);
+    if (it != this->cached_buffers.end()) {
+      buffer = Downcast<DRef>((*it).second);
     } else {
       buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
-      this->disco_buffers.Set(tensor_name, buffer);
+      this->cached_buffers.Set(buffer_cache_key, buffer);
     }
     ShapeTuple real_shape = host_array.Shape();
-    DRef buffer_view = view_func_(buffer, real_shape);
+    DRef buffer_view = nd_view_func_(buffer, real_shape);
     sess->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {
-    return host_array;
+    auto it = this->cached_buffers.find(buffer_cache_key);
+    NDArray buffer{nullptr};
+    if (it != this->cached_buffers.end()) {
+      buffer = Downcast<NDArray>((*it).second);
+    } else {
+      buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+      this->cached_buffers.Set(buffer_cache_key, buffer);
+    }
+    buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
+    DLTensor copy_dst = *(buffer.operator->());
+    NDArray::CopyFromTo(host_array.operator->(), &copy_dst);
+    return buffer;
   }
 }
 

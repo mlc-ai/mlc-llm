@@ -1,8 +1,8 @@
-from mlc_chat import ChatModule
-from mlc_chat.callback import StreamToStdout
+from mlc_llm import ChatModule
+from mlc_llm.callback import StreamToStdout
 
 # From the mlc-llm directory, run
-# $ python examples/python/sample_mlc_chat.py
+# $ python examples/python/sample_mlc_llm.py
 
 # Create a ChatModule instance
 cm = ChatModule(

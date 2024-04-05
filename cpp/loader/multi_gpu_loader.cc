@@ -124,6 +124,13 @@ NDArray ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& p
   return result;
 }
 
+std::string FormatDuration(DurationType duration) {
+  std::ostringstream os;
+  auto float_seconds = std::chrono::duration_cast<std::chrono::duration<float>>(duration).count();
+  os << std::fixed << std::setprecision(3) << float_seconds << " s";
+  return os.str();
+}
+
 Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
                             const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
@@ -174,10 +181,9 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
         TVMSynchronize(device.device_type, device.device_id, nullptr);
       }
     }
-    auto f_convert = [](DurationType time) { return static_cast<double>(time.count()) / 1e6; };
     LOG(INFO) << "Loading done. Time used:" << std::fixed << std::setprecision(3)  //
-              << " Loading " << f_convert(time_loading) << " s;"
-              << " Preprocessing " << f_convert(time_preproc) << " s.";
+              << " Loading " << FormatDuration(time_loading) << " Preprocessing "
+              << FormatDuration(time_preproc) << ".";
   } else {
     for (const NDArrayCacheMetadata::FileRecord& record : ndarray_cache_metadata.records) {
       for (size_t i = 0; i < record.records.size(); ++i) {
@@ -226,7 +232,9 @@ Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module rela
   const NDArrayCacheMetadata::FileRecord* current_file_;
   std::string current_file_stream_;
   params.reserve(model_metadata.params.size());
+  DurationType time_loading(0);
   for (const ModelMetadata::Param& param : model_metadata.params) {
+    RangeTimer _(&time_loading);
     bool needs_sharding = !param.preprocs.empty();
     std::string param_name = needs_sharding
                                  ? static_cast<const std::stringstream&>(
@@ -243,6 +251,10 @@ Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module rela
     }
 
     params.push_back(param_record->Load(device, &current_file_stream_));
+  }
+  SyncWorker();
+  if (worker_id == 0) {
+    LOG(INFO) << "Loading done. Time used: " << FormatDuration(time_loading) << ".";
   }
   return params;
 }

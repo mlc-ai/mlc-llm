@@ -20,7 +20,7 @@ using namespace tvm::runtime;
 
 /*!
  * \brief This class parses a BNF/EBNF grammar string into an BNF abstract syntax tree (AST).
- * \details This function accepts the EBNF notation from the W3C XML Specification
+ * \details This function accepts the EBNF notation defined in the W3C XML Specification
  * (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
  * changes:
  * - Using # as comment mark instead of /**\/
@@ -34,9 +34,10 @@ class EBNFParser {
   /*!
    * \brief Parse the grammar string. If fails, throw ParseError with the error message.
    * \param ebnf_string The grammar string.
+   * \param main_rule The name of the main rule. Default is "main".
    * \return The parsed grammar.
    */
-  static BNFGrammar Parse(String ebnf_string);
+  static BNFGrammar Parse(String ebnf_string, String main_rule = "main");
 
   /*!
    * \brief The exception thrown when parsing fails.

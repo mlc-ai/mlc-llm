@@ -12,7 +12,10 @@
 
 #include "../base.h"
 #include "config.h"
+#include "event_trace_recorder.h"
 #include "function_table.h"
+#include "logit_processor.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -20,6 +23,23 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+
+// Declare the sampler class for `Model::CreateSampler`.
+class Sampler;
+
+/*!
+ * \brief The workspace tensors that may be shared across different
+ * calls to Model. For example, the prefill action use the `embeddings`
+ * workspace for the concatenated embeddings of different sequences.
+ * The workspace tensor is created by Model but owned by engine.
+ */
+struct ModelWorkspace {
+  /*!
+   * \brief The embedding tensor. It can be either an NDArray when tensor
+   * model parallelism is not enabled, or a DRef when using tensor model parallelism.
+   */
+  ObjectRef embeddings{nullptr};
+};
 
 /*!
  * \brief The model module for LLM functions.
@@ -51,10 +71,25 @@ class ModelObj : public Object {
 
   /*!
    * \brief Compute embeddings for the input token ids.
+   * When the input destination pointer is defined, it in-place writes the
+   * embedding into the input destination array at the given offset.
+   * Otherwise, the embeddings will be directly returned back.
    * \param token_ids The token ids to compute embedding for.
+   * \param dst The destination array of the embedding lookup.
+   * \param offset The token offset where the computed embeddings will be written
+   * into the destination array.
+   * \return The updated destination embedding array or the computed embeddings.
+   * \note When `dst` is undefined, we require `offset` to be 0.
+   */
+  virtual ObjectRef TokenEmbed(IntTuple batch_token_ids, ObjectRef* dst = nullptr,
+                               int offset = 0) = 0;
+
+  /*!
+   * \brief Compute embeddings for the input image.
+   * \param image The image to compute embedding for.
    * \return The computed embeddings.
    */
-  virtual NDArray TokenEmbed(IntTuple batch_token_ids) = 0;
+  virtual ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
@@ -65,8 +100,7 @@ class ModelObj : public Object {
    * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  virtual NDArray BatchPrefill(const Array<NDArray>& embedding_arr,
-                               const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                                const std::vector<int>& lengths) = 0;
 
   /*!
@@ -77,7 +111,7 @@ class ModelObj : public Object {
    * \param seq_id The id of the sequence in the KV cache.
    * \return The logits for the next token for each sequence in the batch.
    */
-  virtual NDArray BatchDecode(const NDArray& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+  virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
    * \brief Batch verify function. Embedding in, logits out.
@@ -89,17 +123,8 @@ class ModelObj : public Object {
    * That is to say, it does not accept "running a verify step for a subset
    * of the full batch".
    */
-  virtual NDArray BatchVerify(const NDArray& embeddings, const std::vector<int64_t>& seq_ids,
+  virtual NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                               const std::vector<int>& lengths) = 0;
-
-  /*!
-   * \brief Computing probabilities from logits with softmax and temperatures.
-   * \param logits The logits to compute from.
-   * \param generation_cfg The generation config which contains the temperatures.
-   * \return The computed probabilities distribution.
-   */
-  virtual NDArray SoftmaxWithTemperature(NDArray logits,
-                                         Array<GenerationConfig> generation_cfg) = 0;
 
   /*********************** KV Cache Management  ***********************/
 
@@ -112,16 +137,41 @@ class ModelObj : public Object {
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
 
+  /*! \brief Fork a sequence from a given parent sequence. */
+  virtual void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos = -1) = 0;
+
   /*! \brief Remove the given sequence from the KV cache in the model. */
   virtual void RemoveSequence(int64_t seq_id) = 0;
+
+  /*! \brief Pop out N pages from KV cache. */
+  virtual void PopNFromKVCache(int64_t seq_id, int num_tokens) = 0;
+
+  /*!
+   * \brief Enabling sliding window for the given sequence.
+   * It is a no-op if the model does not support sliding window.
+   * \note Given this operation is tied with the underlying KV cache,
+   * we add the function in Model interface to expose this for Engine.
+   * This may be optimized with decoupling KV cache and Model in the future.
+   */
+  virtual void EnableSlidingWindowForSeq(int64_t seq_id) = 0;
+
+  /************** Raw Info Query **************/
 
   /*! \brief Get the number of available pages in KV cache. */
   virtual int GetNumAvailablePages() const = 0;
 
-  /*! \brief Pop out N pages from KV cache. */
-  virtual void PopNFromKVCache(int seq_id, int num_tokens) = 0;
+  /*! \brief Get the current total sequence length in the KV cache. */
+  virtual int GetCurrentTotalSequenceLength() const = 0;
 
   /*********************** Utilities  ***********************/
+
+  /*! \brief Create a logit processor from this model. */
+  virtual LogitProcessor CreateLogitProcessor(int max_num_token,
+                                              Optional<EventTraceRecorder> trace_recorder) = 0;
+
+  /*! \brief Create a sampler from this model. */
+  virtual Sampler CreateSampler(int max_num_sample, int num_models,
+                                Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!
    * \brief Estimate number of CPU units required to drive the model
@@ -132,8 +182,11 @@ class ModelObj : public Object {
    */
   virtual int EstimateHostCPURequirement() const = 0;
 
-  /*! \brief Get the max window size of the model. */
+  /*! \brief Get the max window size of the model. "-1" means infinite length. */
   virtual int GetMaxWindowSize() const = 0;
+
+  /*! \brief Allocate an embedding tensor with the prefill chunk size. */
+  virtual ObjectRef AllocEmbeddingTensor() = 0;
 
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;
@@ -153,10 +206,11 @@ class Model : public ObjectRef {
    * \param model_path The path to the model weight parameters.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
+   * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
   TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device,
-                              int max_num_sequence);
+                              int max_num_sequence, bool trace_enabled);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };

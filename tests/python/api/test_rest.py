@@ -13,7 +13,7 @@ MODELS = ["Llama-2-7b-chat-hf-q4f16_1"]
 
 @pytest.fixture
 def run_rest_server(model):
-    cmd = f"python -m mlc_chat.rest --model {model}"
+    cmd = f"python -m mlc_llm.rest --model {model}"
     print(cmd)
     os.environ["PYTHONPATH"] = "./python"
     with subprocess.Popen(cmd.split()) as server_proc:

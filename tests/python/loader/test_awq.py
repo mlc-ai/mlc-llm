@@ -5,10 +5,10 @@ from typing import Union
 import pytest
 import tvm
 
-from mlc_chat.loader import HuggingFaceLoader
-from mlc_chat.model import MODEL_PRESETS, MODELS
-from mlc_chat.quantization import QUANTIZATION
-from mlc_chat.support import logging, tqdm
+from mlc_llm.loader import HuggingFaceLoader
+from mlc_llm.model import MODEL_PRESETS, MODELS
+from mlc_llm.quantization import QUANTIZATION
+from mlc_llm.support import logging, tqdm
 
 logging.enable_logging()
 

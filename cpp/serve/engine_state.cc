@@ -26,7 +26,6 @@ String EngineStats::AsJSON() const {
 }
 
 void EngineStats::Reset() {
-  current_total_seq_len = 0;
   request_total_prefill_time = 0.0f;
   request_total_decode_time = 0.0f;
   engine_total_prefill_time = 0.0f;
@@ -50,7 +49,9 @@ void EngineStateObj::Reset() {
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {
-  return request_states.at(request->id);
+  auto it = request_states.find(request->id);
+  ICHECK(it != request_states.end());
+  return it->second;
 }
 
 }  // namespace serve

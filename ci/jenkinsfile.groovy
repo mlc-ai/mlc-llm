@@ -47,7 +47,10 @@ def unpack_lib(name, libs) {
 
 def init_git(submodule = false) {
   cleanWs()
-  checkout scm
+  // add retry in case checkout timeouts
+  retry(5) {
+    checkout scm
+  }
   if (submodule) {
     retry(5) {
       timeout(time: 10, unit: 'MINUTES') {
@@ -222,7 +225,7 @@ stage('Model Compilation') {
     'WASM': {
       node('CPU-SMALL') {
         ws(per_exec_ws('mlc-llm-compile-wasm')) {
-          init_git(false)
+          init_git(true)
           sh(script: "ls -alh", label: 'Show work directory')
           unpack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
           sh(script: "${run_cpu} conda env export --name ci-unittest", label: 'Checkout version')

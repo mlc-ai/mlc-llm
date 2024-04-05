@@ -177,6 +177,7 @@ StopStrHandlerObj::StopStrHandlerObj(Array<String> stop_strs,
   // Create the KMP partial match table for each stop string.
   partial_match_tables_.reserve(num_stop_strs);
   for (const String& stop_str : stop_strs_) {
+    CHECK(!stop_str.empty()) << "Stop string cannot be empty.";
     partial_match_tables_.push_back(CreatePartialMatchTable(stop_str));
   }
 }

@@ -12,17 +12,21 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <optional>
 #include <tuple>
+#include <unordered_set>
 
 #include "../tokenizers.h"
 #include "engine_actions/action.h"
 #include "engine_actions/action_commons.h"
 #include "engine_state.h"
 #include "event_trace_recorder.h"
+#include "grammar/grammar_state_matcher.h"
+#include "logit_processor.h"
 #include "model.h"
 #include "request.h"
 #include "request_state.h"
-#include "sampler.h"
+#include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
@@ -48,49 +52,70 @@ class EngineImpl : public Engine {
     CHECK_GE(model_infos.size(), 1) << "ValueError: No model is provided in the engine.";
     // Step 1. Initialize metadata and singleton states inside the engine
     this->estate_->Reset();
-    this->max_single_sequence_length_ = max_single_sequence_length;
+    // Being "-1" means there is no limit on single sequence length.
+    this->max_single_sequence_length_ = max_single_sequence_length != -1
+                                            ? max_single_sequence_length
+                                            : std::numeric_limits<int>::max();
     this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
     this->engine_mode_ = EngineMode(engine_mode_json_str);
     this->request_stream_callback_ = std::move(request_stream_callback);
     this->trace_recorder_ = trace_recorder;
-    this->sampler_ = Sampler::Create(/*sampler_kind=*/"cpu", trace_recorder_);
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
     this->token_table_ = tokenizer_->TokenTable();
+    this->grammar_init_context_storage_ = GrammarInitContextStorage(this->token_table_);
     // Step 2. Initialize each model independently.
+    //         Create the logit processor and sampler.
     this->models_.clear();
+    this->model_workspaces_.clear();
     for (const auto& model_info : model_infos) {
       TVMArgValue model_lib = std::get<0>(model_info);
       String model_path = std::get<1>(model_info);
       DLDevice device = std::get<2>(model_info);
       Model model = Model::Create(model_lib, std::move(model_path), device,
-                                  kv_cache_config_->max_num_sequence);
+                                  kv_cache_config_->max_num_sequence,
+                                  /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(this->kv_cache_config_);
       CHECK_GE(model->GetMaxWindowSize(), this->max_single_sequence_length_)
           << "The window size of the model, " << model->GetMaxWindowSize()
           << ", is smaller than the pre-defined max single sequence length, "
           << this->max_single_sequence_length_;
       this->models_.push_back(model);
+      this->model_workspaces_.push_back(ModelWorkspace{model->AllocEmbeddingTensor()});
     }
+    int max_num_tokens = kv_cache_config_->max_num_sequence;
+    if (engine_mode_->enable_speculative) {
+      max_num_tokens *= engine_mode_->spec_draft_length;
+    }
+    LogitProcessor logit_processor =
+        this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
+    Sampler sampler = this->models_[0]->CreateSampler(
+        max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
     // Step 3. Initialize engine actions that represent state transitions.
     if (this->engine_mode_->enable_speculative) {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
       this->actions_ = {
-          EngineAction::NewRequestPrefill(this->models_,           //
-                                          this->sampler_,          //
-                                          this->kv_cache_config_,  //
+          EngineAction::NewRequestPrefill(this->models_,            //
+                                          logit_processor,          //
+                                          sampler,                  //
+                                          this->model_workspaces_,  //
+                                          this->kv_cache_config_,   //
+                                          this->engine_mode_,       //
                                           this->trace_recorder_),
-          EngineAction::BatchDraft(this->models_, this->sampler_, this->trace_recorder_,
+          EngineAction::BatchDraft(this->models_, logit_processor, sampler, this->trace_recorder_,
                                    this->engine_mode_->spec_draft_length),
-          EngineAction::BatchVerify(this->models_, this->sampler_, this->kv_cache_config_,
+          EngineAction::BatchVerify(this->models_, logit_processor, sampler, this->kv_cache_config_,
                                     this->trace_recorder_)};
     } else {
-      this->actions_ = {
-          EngineAction::NewRequestPrefill(this->models_,           //
-                                          this->sampler_,          //
-                                          this->kv_cache_config_,  //
-                                          this->trace_recorder_),
-          EngineAction::BatchDecode(this->models_, this->sampler_, this->trace_recorder_)};
+      this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
+                                                        logit_processor,          //
+                                                        sampler,                  //
+                                                        this->model_workspaces_,  //
+                                                        this->kv_cache_config_,   //
+                                                        this->engine_mode_,       //
+                                                        this->trace_recorder_),
+                        EngineAction::BatchDecode(this->models_, logit_processor, sampler,
+                                                  this->trace_recorder_)};
     }
     // Step 4. Automatically set the threading backend max concurrency.
     SetThreadMaxConcurrency();
@@ -120,11 +145,43 @@ class EngineImpl : public Engine {
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->input_total_length, -1);
+
+    if (request->input_total_length >= max_single_sequence_length_) {
+      // If the request input length exceeds the maximum allowed single sequence length,
+      // invoke callback and do not process the request.
+      Array<RequestStreamOutput> output{RequestStreamOutput(
+          request->id, std::vector<IntTuple>(request->generation_cfg->n),
+          Optional<Array<Array<String>>>(),
+          std::vector<Optional<String>>(request->generation_cfg->n, String("length")))};
+      request_stream_callback_.value()(std::move(output));
+      return;
+    }
+
     // Append to the waiting queue and create the request state.
     estate_->waiting_queue.push_back(request);
-    estate_->request_states.emplace(
-        request->id,
-        RequestState(request, models_.size(), estate_->id_manager.GetNewId(), token_table_));
+
+    int n = request->generation_cfg->n;
+    int rng_seed = request->generation_cfg->seed;
+    auto grammar_state_init_ctx =
+        ResponseFormatToGrammarInitContext(request->generation_cfg->response_format);
+
+    std::vector<RequestStateEntry> rsentries;
+    // Create the request state entry for the input.
+    rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
+                           token_table_, grammar_state_init_ctx);
+    if (n > 1) {
+      // Then create a request state entry for each parallel generation branch.
+      // We add a offset to the rng seed so that to make generations different.
+      rsentries.reserve(n + 1);
+      rsentries[0]->child_indices.reserve(n);
+      for (int i = 0; i < n; ++i) {
+        rsentries[0]->child_indices.push_back(rsentries.size());
+        rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
+                               rng_seed + i + 1, token_table_, grammar_state_init_ctx,
+                               /*parent_idx=*/0);
+      }
+    }
+    estate_->request_states.emplace(request->id, RequestState(std::move(rsentries)));
   }
 
   void AbortRequest(const String& request_id) final {
@@ -135,26 +192,30 @@ class EngineImpl : public Engine {
     }
 
     RequestState rstate = it_rstate->second;
-    Request request = rstate->request;
+    Request request = rstate->entries[0]->request;
 
     // - Check if the request is running or pending.
     auto it_running =
         std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
     auto it_waiting =
         std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
-    ICHECK(it_running != estate_->running_queue.end() ||
-           it_waiting != estate_->waiting_queue.end());
 
-    int64_t req_internal_id = rstate->mstates[0]->internal_id;
-    estate_->id_manager.RecycleId(req_internal_id);
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      estate_->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+    }
     estate_->request_states.erase(request->id);
     if (it_running != estate_->running_queue.end()) {
       // The request to abort is in running queue
       estate_->running_queue.erase(it_running);
-      estate_->stats.current_total_seq_len -=
-          request->input_total_length + rstate->mstates[0]->committed_tokens.size() - 1;
-      RemoveRequestFromModel(estate_, req_internal_id, models_);
-    } else {
+
+      for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
+        if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
+          continue;
+        }
+        RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
+      }
+    }
+    if (it_waiting != estate_->waiting_queue.end()) {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);
     }
@@ -168,7 +229,7 @@ class EngineImpl : public Engine {
     for (EngineAction action : actions_) {
       Array<Request> processed_requests = action->Step(estate_);
       if (!processed_requests.empty()) {
-        ActionStepPostProcess(processed_requests, estate_, models_,
+        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_.value(), max_single_sequence_length_);
         return;
       }
@@ -190,17 +251,34 @@ class EngineImpl : public Engine {
         std::max(max_concurrency - host_cpu_usage, 1), kv_cache_config_->max_num_sequence));
   }
 
+  /*! \brief Create a grammar init context according to the response format. If the response format
+   * is not JSON, return std::nullopt. */
+  std::optional<std::shared_ptr<GrammarStateInitContext>> ResponseFormatToGrammarInitContext(
+      const ResponseFormat& response_format) {
+    if (response_format.type != "json_object") {
+      return std::nullopt;
+    } else if (!response_format.schema) {
+      return grammar_init_context_storage_->GetInitContextForJSON();
+    } else {
+      return grammar_init_context_storage_->GetInitContextForJSONSchema(
+          response_format.schema.value());
+    }
+  }
+
   // Engine state, managing requests and request states.
   EngineState estate_;
   // Configurations and singletons
   KVCacheConfig kv_cache_config_;
   EngineMode engine_mode_;
   int max_single_sequence_length_;
-  Sampler sampler_;
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
+  // Helper to get the grammar init context for requests.
+  GrammarInitContextStorage grammar_init_context_storage_;
   // Models
   Array<Model> models_;
+  // Workspace of each model.
+  std::vector<ModelWorkspace> model_workspaces_;
   // Request stream callback function
   Optional<PackedFunc> request_stream_callback_;
   // Engine actions.
@@ -228,23 +306,6 @@ void ClearGlobalMemoryManager() {
 }
 
 std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
-  static const char* kErrorMessage =
-      "With `n` models, engine initialization "
-      "takes (6 + 4 * n) arguments. The first 6 arguments should be: "
-      "1) (int) maximum length of a sequence, which must be equal or smaller than the context "
-      "window size of each model; "
-      "2) (string) path to tokenizer configuration files, which in MLC LLM, usually in a model "
-      "weights directory; "
-      "3) (string) JSON configuration for the KVCache; "
-      "4) (string) JSON mode for Engine;"
-      "5) (packed function, optional) global request stream callback function. "
-      "6) (EventTraceRecorder, optional) the event trace recorder for requests."
-      "The following (4 * n) arguments, 4 for each model, should be: "
-      "1) (tvm.runtime.Module) The model library loaded into TVM's RelaxVM; "
-      "2) (string) Model path which includes weights and mlc-chat-config.json; "
-      "3) (int, enum DLDeviceType) Device type, e.g. CUDA, ROCm, etc; "
-      "4) (int) Device id, i.e. the ordinal index of the device that exists locally.";
-
   ClearGlobalMemoryManager();
   const int num_non_model_args = 6;
   const int num_model_args = 4;
@@ -275,7 +336,7 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
       model_infos.emplace_back(model_lib, model_path, DLDevice{device_type, device_id});
     }
   } catch (const dmlc::Error& e) {
-    LOG(FATAL) << "ValueError: " << e.what() << kErrorMessage;
+    LOG(FATAL) << "ValueError: " << e.what() << kEngineCreationErrorMessage;
   }
   return Engine::Create(max_single_sequence_length, tokenizer_path, kv_cache_config_json_str,
                         engine_mode_json_str, request_stream_callback, std::move(trace_recorder),

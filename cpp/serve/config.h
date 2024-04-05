@@ -13,24 +13,37 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+using namespace tvm;
 using namespace tvm::runtime;
 
 /****************** GenerationConfig ******************/
 
+/*! \brief The response format of a request. */
+struct ResponseFormat {
+  String type = "text";
+  Optional<String> schema = NullOpt;
+};
+
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
+  int n = 1;
   double temperature = 0.8;
   double top_p = 0.95;
   double frequency_penalty = 0.0;
   double presence_penalty = 0.0;
   double repetition_penalty = 1.0;
+  bool logprobs = false;
+  int top_logprobs = 0;
+  std::vector<std::pair<int, float>> logit_bias;
   int seed;
   bool ignore_eos = false;
 
   int max_tokens = 128;
   Array<String> stop_strs;
   std::vector<int> stop_token_ids;
+
+  ResponseFormat response_format;
 
   String AsJSONString() const;
 

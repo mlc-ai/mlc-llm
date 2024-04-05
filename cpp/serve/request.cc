@@ -26,6 +26,8 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   for (Data input : inputs) {
     if (const auto* token_data = input.as<TokenDataNode>()) {
       input_total_length += token_data->token_ids.size();
+    } else if (const auto* image_data = input.as<ImageDataNode>()) {
+      input_total_length += image_data->GetLength();
     } else {
       input_total_length = -1;
       break;
@@ -77,24 +79,6 @@ TVM_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request requ
 TVM_REGISTER_GLOBAL("mlc.serve.RequestGetGenerationConfigJSON").set_body_typed([](Request request) {
   return request->generation_cfg->AsJSONString();
 });
-
-/****************** RequestStreamOutput ******************/
-
-TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
-
-RequestStreamOutput::RequestStreamOutput(String request_id, TokenData delta_tokens,
-                                         Optional<String> finish_reason) {
-  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
-  n->request_id = std::move(request_id);
-  n->delta_tokens = std::move(delta_tokens);
-  n->finish_reason = std::move(finish_reason);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
-    .set_body_typed([](RequestStreamOutput output) {
-      return Array<ObjectRef>{output->request_id, output->delta_tokens, output->finish_reason};
-    });
 
 }  // namespace serve
 }  // namespace llm

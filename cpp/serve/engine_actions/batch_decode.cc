@@ -3,10 +3,14 @@
  * \file serve/engine_actions/batch_decode.cc
  */
 
+#include <tvm/runtime/nvtx.h>
+
+#include <numeric>
+
 #include "../../random.h"
 #include "../config.h"
 #include "../model.h"
-#include "../sampler.h"
+#include "../sampler/sampler.h"
 #include "action.h"
 #include "action_commons.h"
 
@@ -24,9 +28,10 @@ namespace serve {
  */
 class BatchDecodeActionObj : public EngineActionObj {
  public:
-  explicit BatchDecodeActionObj(Array<Model> models, Sampler sampler,
-                                Optional<EventTraceRecorder> trace_recorder)
+  explicit BatchDecodeActionObj(Array<Model> models, LogitProcessor logit_processor,
+                                Sampler sampler, Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
+        logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         trace_recorder_(std::move(trace_recorder)) {}
 
@@ -36,72 +41,84 @@ class BatchDecodeActionObj : public EngineActionObj {
       return {};
     }
 
-    // Preempt requests when decode cannot apply.
-    int num_available_pages = models_[0]->GetNumAvailablePages();
-    while (!CanDecode(estate->running_queue.size())) {
-      PreemptLastRunningRequest(estate, models_, trace_recorder_);
+    // Preempt request state entries when decode cannot apply.
+    std::vector<RequestStateEntry> running_rsentries;
+    {
+      NVTXScopedRange nvtx_scope("BatchDecode getting requests");
+      running_rsentries = GetRunningRequestStateEntries(estate);
+      while (!CanDecode(running_rsentries.size())) {
+        RequestStateEntry preempted =
+            PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+        if (preempted.same_as(running_rsentries.back())) {
+          running_rsentries.pop_back();
+        }
+      }
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();
 
-    // NOTE: Right now we only support decode all the running requests at a time.
-    int num_requests = estate->running_queue.size();
-    estate->stats.current_total_seq_len += num_requests;
+    // NOTE: Right now we only support decode all the running request states at a time.
+    int num_rsentries = running_rsentries.size();
     // Collect
     // - the last committed token,
-    // - the request states,
-    // - the sampling parameters,
-    // of each request.
+    // - the request id,
+    // - the generation config,
+    // - the random number generator,
+    // of each request state entry.
     std::vector<int> input_tokens;
     Array<String> request_ids;
     std::vector<int64_t> request_internal_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
-    input_tokens.reserve(num_requests);
-    request_ids.reserve(num_requests);
-    request_internal_ids.reserve(num_requests);
-    mstates.reserve(num_requests);
-    generation_cfg.reserve(num_requests);
-    rngs.reserve(num_requests);
-    for (Request request : estate->running_queue) {
-      RequestState rstate = estate->GetRequestState(request);
-      input_tokens.push_back(rstate->mstates[0]->committed_tokens.back());
-      request_ids.push_back(request->id);
-      request_internal_ids.push_back(rstate->mstates[0]->internal_id);
-      mstates.push_back(rstate->mstates[0]);
-      generation_cfg.push_back(request->generation_cfg);
-      rngs.push_back(&rstate->rng);
+    input_tokens.reserve(num_rsentries);
+    request_ids.reserve(num_rsentries);
+    request_internal_ids.reserve(num_rsentries);
+    mstates.reserve(num_rsentries);
+    generation_cfg.reserve(num_rsentries);
+    rngs.reserve(num_rsentries);
+    for (const RequestStateEntry& rsentry : running_rsentries) {
+      input_tokens.push_back(rsentry->mstates[0]->committed_tokens.back().sampled_token_id.first);
+      request_ids.push_back(rsentry->request->id);
+      request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
+      mstates.push_back(rsentry->mstates[0]);
+      generation_cfg.push_back(rsentry->request->generation_cfg);
+      rngs.push_back(&rsentry->rng);
     }
 
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
-    NDArray embeddings =
-        models_[0]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+    ObjectRef embeddings =
+        models_[0]->TokenEmbed({IntTuple(input_tokens.begin(), input_tokens.end())});
     RECORD_EVENT(trace_recorder_, request_ids, "finish embedding");
-    ICHECK_EQ(embeddings->ndim, 3);
-    ICHECK_EQ(embeddings->shape[0], 1);
-    ICHECK_EQ(embeddings->shape[1], num_requests);
-    embeddings = embeddings.CreateView({num_requests, 1, embeddings->shape[2]}, embeddings->dtype);
 
     // - Invoke model decode.
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
     NDArray logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], embeddings->shape[0]);
+    ICHECK_EQ(logits->shape[0], num_rsentries);
     ICHECK_EQ(logits->shape[1], 1);
 
+    // - Update logits.
+    logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
+    logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
+
+    // - Compute probability distributions.
+    NDArray probs_on_device =
+        logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
+
     // - Sample tokens.
-    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    std::vector<int32_t> next_tokens =
-        sampler_->BatchSampleTokens(logits, models_[0], mstates, generation_cfg, rngs);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    ICHECK_EQ(next_tokens.size(), num_requests);
+    // Fill range [0, num_rsentries) into `sample_indices`.
+    std::vector<int> sample_indices(num_rsentries);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
+        probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
+    ICHECK_EQ(sample_results.size(), num_rsentries);
 
     // - Update the committed tokens of states.
-    for (int i = 0; i < num_requests; ++i) {
-      mstates[i]->CommitToken(next_tokens[i]);
+    for (int i = 0; i < num_rsentries; ++i) {
+      mstates[i]->CommitToken(sample_results[i]);
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -111,10 +128,10 @@ class BatchDecodeActionObj : public EngineActionObj {
   }
 
  private:
-  /*! \brief Check if the input requests can be decoded under conditions. */
-  bool CanDecode(int num_requests) {
+  /*! \brief Check if the input request state entries can be decoded under conditions. */
+  bool CanDecode(int num_rsentries) {
     int num_available_pages = models_[0]->GetNumAvailablePages();
-    return num_requests <= num_available_pages;
+    return num_rsentries <= num_available_pages;
   }
 
   /*!
@@ -122,16 +139,20 @@ class BatchDecodeActionObj : public EngineActionObj {
    * models, the `Step` function of the created action will not take effect.
    */
   Array<Model> models_;
+  /*! \brief The logit processor. */
+  LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-EngineAction EngineAction::BatchDecode(Array<Model> models, Sampler sampler,
+EngineAction EngineAction::BatchDecode(Array<Model> models, LogitProcessor logit_processor,
+                                       Sampler sampler,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchDecodeActionObj>(std::move(models), std::move(sampler),
-                                                        std::move(trace_recorder)));
+  return EngineAction(
+      make_object<BatchDecodeActionObj>(std::move(models), std::move(logit_processor),
+                                        std::move(sampler), std::move(trace_recorder)));
 }
 
 }  // namespace serve

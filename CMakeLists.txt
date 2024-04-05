@@ -56,7 +56,11 @@ set(USE_LIBBACKTRACE OFF)
 set(CMAKE_CUDA_ARCHITECTURES "90a")
 set(BUILD_DUMMY_LIBTVM ON)
 if (NOT DEFINED TVM_HOME)
-  set(TVM_HOME 3rdparty/tvm)
+  if(DEFINED ENV{TVM_HOME})
+    set(TVM_HOME "$ENV{TVM_HOME}")
+  else()
+    set(TVM_HOME 3rdparty/tvm)
+  endif(DEFINED ENV{TVM_HOME})
 endif (NOT DEFINED TVM_HOME)
 message(STATUS "TVM_HOME: ${TVM_HOME}")
 add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
@@ -94,7 +98,10 @@ set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
-find_library(FLASH_ATTN_LIBRARY flash_attn)
+find_library(
+  FLASH_ATTN_LIBRARY flash_attn
+  HINTS ${TVM_HOME}/*/3rdparty/libflash_attn/src
+)
 
 if (FLASH_ATTN_LIBRARY STREQUAL "FLASH_ATTN_LIBRARY-NOTFOUND")
   message(WARNING "Cannot find libflash_attn. The model must not have been built with --use-flash-attn-mqa option.")
@@ -102,6 +109,11 @@ else ()
   target_link_libraries(mlc_llm PUBLIC -Wl,--no-as-needed ${FLASH_ATTN_LIBRARY})
 endif()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(mlc_llm PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_objs PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_static PRIVATE "TVM_LOG_DEBUG")
+endif()
 
 if (BUILD_CPP_TEST)
   message(STATUS "Building cpp unittests")

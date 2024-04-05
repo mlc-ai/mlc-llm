@@ -29,6 +29,11 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
 
   picojson::object config = config_json.get<picojson::object>();
+  if (config.count("n")) {
+    CHECK(config["n"].is<int64_t>());
+    n->n = config["n"].get<int64_t>();
+    CHECK_GT(n->n, 0) << "\"n\" should be at least 1";
+  }
   if (config.count("temperature")) {
     CHECK(config["temperature"].is<double>());
     n->temperature = config["temperature"].get<double>();
@@ -51,6 +56,34 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     CHECK(config["repetition_penalty"].is<double>());
     n->repetition_penalty = config["repetition_penalty"].get<double>();
     CHECK(n->repetition_penalty > 0) << "Repetition penalty must be a positive number!";
+  }
+  if (config.count("logprobs")) {
+    CHECK(config["logprobs"].is<bool>());
+    n->logprobs = config["logprobs"].get<bool>();
+  }
+  if (config.count("top_logprobs")) {
+    CHECK(config["top_logprobs"].is<int64_t>());
+    n->top_logprobs = config["top_logprobs"].get<int64_t>();
+    CHECK(n->top_logprobs >= 0 && n->top_logprobs <= 5)
+        << "At most 5 top logprob tokens are supported";
+    CHECK(n->top_logprobs == 0 || n->logprobs)
+        << "\"logprobs\" must be true to support \"top_logprobs\"";
+  }
+  if (config.count("logit_bias")) {
+    CHECK(config["logit_bias"].is<picojson::null>() || config["logit_bias"].is<picojson::object>());
+    if (config["logit_bias"].is<picojson::object>()) {
+      picojson::object logit_bias_json = config["logit_bias"].get<picojson::object>();
+      std::vector<std::pair<int, float>> logit_bias;
+      logit_bias.reserve(logit_bias_json.size());
+      for (auto [token_id_str, bias] : logit_bias_json) {
+        CHECK(bias.is<double>());
+        double bias_value = bias.get<double>();
+        CHECK_LE(std::fabs(bias_value), 100.0)
+            << "Logit bias value should be in range [-100, 100].";
+        logit_bias.emplace_back(std::stoi(token_id_str), bias_value);
+      }
+      n->logit_bias = std::move(logit_bias);
+    }
   }
   if (config.count("max_tokens")) {
     if (config["max_tokens"].is<int64_t>()) {
@@ -102,18 +135,47 @@ GenerationConfig::GenerationConfig(String config_json_str) {
     CHECK(config["ignore_eos"].is<bool>());
     n->ignore_eos = config["ignore_eos"].get<bool>();
   }
+
+  if (config.count("response_format")) {
+    CHECK(config["response_format"].is<picojson::object>());
+    picojson::object response_format_json = config["response_format"].get<picojson::object>();
+    ResponseFormat response_format;
+    if (response_format_json.count("type")) {
+      CHECK(response_format_json["type"].is<std::string>());
+      response_format.type = response_format_json["type"].get<std::string>();
+    }
+    if (response_format_json.count("schema")) {
+      if (response_format_json["schema"].is<picojson::null>()) {
+        response_format.schema = NullOpt;
+      } else {
+        CHECK(response_format_json["schema"].is<std::string>());
+        response_format.schema = response_format_json["schema"].get<std::string>();
+      }
+    }
+    n->response_format = response_format;
+  }
+
   data_ = std::move(n);
 }
 
 String GenerationConfigNode::AsJSONString() const {
   picojson::object config;
+  config["n"] = picojson::value(static_cast<int64_t>(this->n));
   config["temperature"] = picojson::value(this->temperature);
   config["top_p"] = picojson::value(this->top_p);
   config["frequency_penalty"] = picojson::value(this->frequency_penalty);
   config["presence_penalty"] = picojson::value(this->presence_penalty);
   config["repetition_penalty"] = picojson::value(this->repetition_penalty);
+  config["logprobs"] = picojson::value(this->logprobs);
+  config["top_logprobs"] = picojson::value(static_cast<int64_t>(this->top_logprobs));
   config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
   config["seed"] = picojson::value(static_cast<int64_t>(this->seed));
+
+  picojson::object logit_bias_obj;
+  for (auto [token_id, bias] : logit_bias) {
+    logit_bias_obj[std::to_string(token_id)] = picojson::value(static_cast<double>(bias));
+  }
+  config["logit_bias"] = picojson::value(logit_bias_obj);
 
   picojson::array stop_strs_arr;
   for (String stop_str : this->stop_strs) {
@@ -129,6 +191,13 @@ String GenerationConfigNode::AsJSONString() const {
 
   // Params for benchmarking. Not the part of openai spec.
   config["ignore_eos"] = picojson::value(this->ignore_eos);
+
+  picojson::object response_format;
+  response_format["type"] = picojson::value(this->response_format.type);
+  response_format["schema"] = this->response_format.schema
+                                  ? picojson::value(this->response_format.schema.value())
+                                  : picojson::value();
+  config["response_format"] = picojson::value(response_format);
 
   return picojson::value(config).serialize(true);
 }
@@ -183,10 +252,9 @@ KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_seque
   if (config.count("max_num_sequence")) {
     CHECK(config["max_num_sequence"].is<int64_t>());
     max_num_sequence = config["max_num_sequence"].get<int64_t>();
-  }
-
-  if (max_num_sequence == -1) {
-    max_num_sequence = max_total_sequence_length / max_single_sequence_length;
+    CHECK_GT(max_num_sequence, 0) << "Max number of sequence should be positive.";
+  } else {
+    LOG(FATAL) << "Key \"max_num_sequence\" not found.";
   }
 
   ObjectPtr<KVCacheConfigNode> n = make_object<KVCacheConfigNode>();

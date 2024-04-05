@@ -9,8 +9,10 @@ from itertools import product
 
 import tvm
 
-from mlc_chat.model import MODEL_PRESETS
-from mlc_chat.support.constants import MLC_TEMP_DIR
+from mlc_llm.model import MODEL_PRESETS
+from mlc_llm.model import MODELS as SUPPORTED_MODELS
+from mlc_llm.quantization import QUANTIZATION as SUPPORTED_QUANTS
+from mlc_llm.support.constants import MLC_TEMP_DIR
 
 OPT_LEVEL = "O2"
 DEVICE2TARGET = {
@@ -59,12 +61,13 @@ DEVICE2SUFFIX = {
     "ios": "tar",
 }
 MODELS = list(MODEL_PRESETS.keys())
-QUANTS = [  # TODO(@junrushao): use `list(mlc_chat.quantization.QUANTIZATION.keys())`
+QUANTS = [  # TODO(@junrushao): use `list(mlc_llm.quantization.QUANTIZATION.keys())`
     "q0f16",
     "q0f32",
     "q3f16_1",
     "q4f16_1",
     "q4f32_1",
+    "q4f16_ft",
 ]
 TENSOR_PARALLEL_SHARDS = [
     1,
@@ -102,11 +105,19 @@ def test_model_compile():  # pylint: disable=too-many-locals
                     TENSOR_PARALLEL_SHARDS,
                 )
             ):
+                if (
+                    SUPPORTED_QUANTS[quant].kind
+                    not in SUPPORTED_MODELS[MODEL_PRESETS[model]["model_type"]].quantize
+                ):
+                    continue
+                if not target.startswith("cuda") and quant == "q4f16_ft":
+                    # FasterTransformer only works with cuda
+                    continue
                 log_file = os.path.join(tmp_dir, f"lib{idx}.log")
                 cmd = [
                     sys.executable,
                     "-m",
-                    "mlc_chat",
+                    "mlc_llm",
                     "compile",
                     model,
                     "--quantization",
