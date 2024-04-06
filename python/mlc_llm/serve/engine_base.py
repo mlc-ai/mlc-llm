@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-lines
 
+import ast
 import asyncio
 import json
 import os
@@ -1068,3 +1069,139 @@ def create_completion_suffix_response(
         ),
     )
     return response
+
+
+def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+    """Convert a (possibly list) of function call string to a list of json objects.
+    Return None for invalid function call string."""
+
+    def parse_function_call(call_str: str):
+        node = ast.parse(call_str, mode="eval")
+        call_node = node.body
+        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
+            name = call_node.func.id
+            arguments = {}
+            for keyword in call_node.keywords:
+                arguments[keyword.arg] = ast.literal_eval(keyword.value)
+            return {"name": name, "arguments": arguments}
+        return None
+
+    if (
+        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
+    ):  # hacky way to check if string list
+        calls = ast.literal_eval(stringified_calls)
+    else:
+        calls = [stringified_calls]
+    function_calls_json = [parse_function_call(call_str) for call_str in calls]
+    return function_calls_json
+
+
+def process_function_call_output(
+    output_texts: List[str], finish_reasons: List[str]
+) -> Tuple[bool, List[List[openai_api_protocol.ChatToolCall]]]:
+    """Process the potential function call results outputted by model,
+    according to the finish reasons.
+    Return whether the output has function call, and the list of tool calls.
+    """
+    n = len(output_texts)
+    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]] = [[] for _ in range(n)]
+    use_function_calling = any(finish_reason == "tool_calls" for finish_reason in finish_reasons)
+    if use_function_calling:
+        for i, output_text in enumerate(output_texts):
+            try:
+                fn_json_list = convert_function_str_to_json(output_text)
+            except (SyntaxError, ValueError):
+                output_text = "Got an invalid function call output from model"
+                finish_reasons[i] = "error"
+            else:
+                tool_calls_list[i] = [
+                    openai_api_protocol.ChatToolCall(
+                        type="function",
+                        function=openai_api_protocol.ChatFunctionCall(
+                            name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
+                        ),
+                    )
+                    for fn_json_obj in fn_json_list
+                    if fn_json_obj is not None
+                ]
+                if len(tool_calls_list[i]) == 0:
+                    output_texts[i] = "Got an invalid function call output from model"
+                    finish_reasons[i] = "error"
+                else:
+                    finish_reasons[i] = "tool_calls"
+    return use_function_calling, tool_calls_list
+
+
+def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
+    request_id: str,
+    model: str,
+    output_texts: List[str],
+    finish_reasons: List[str],
+    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]],
+    logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
+    use_function_calling: bool,
+    num_prompt_tokens: int,
+    num_completion_tokens: int,
+) -> openai_api_protocol.ChatCompletionResponse:
+    """Wrap the non-streaming chat completion results to ChatCompletionResponse instance."""
+    return openai_api_protocol.ChatCompletionResponse(
+        id=request_id,
+        choices=[
+            openai_api_protocol.ChatCompletionResponseChoice(
+                index=i,
+                finish_reason=finish_reasons[i],
+                message=(
+                    openai_api_protocol.ChatCompletionMessage(role="assistant", content=output_text)
+                    if not use_function_calling or finish_reason == "error"
+                    else openai_api_protocol.ChatCompletionMessage(
+                        role="assistant", tool_calls=tool_calls
+                    )
+                ),
+                logprobs=(
+                    openai_api_protocol.LogProbs(content=logprob_results[i])
+                    if logprob_results is not None
+                    else None
+                ),
+            )
+            for i, (output_text, finish_reason, tool_calls) in enumerate(
+                zip(output_texts, finish_reasons, tool_calls_list)
+            )
+        ],
+        model=model,
+        system_fingerprint="",
+        usage=openai_api_protocol.UsageInfo(
+            prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens
+        ),
+    )
+
+
+def wrap_completion_response(  # pylint: disable=too-many-arguments
+    request_id: str,
+    model: str,
+    output_texts: List[str],
+    finish_reasons: List[str],
+    logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
+    num_prompt_tokens: int,
+    num_completion_tokens: int,
+) -> openai_api_protocol.CompletionResponse:
+    """Wrap the non-streaming completion results to CompletionResponse instance."""
+    return openai_api_protocol.CompletionResponse(
+        id=request_id,
+        choices=[
+            openai_api_protocol.CompletionResponseChoice(
+                index=i,
+                finish_reason=finish_reason,
+                text=output_text,
+                logprobs=(
+                    openai_api_protocol.LogProbs(content=logprob_results[i])
+                    if logprob_results is not None
+                    else None
+                ),
+            )
+            for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
+        ],
+        model=model,
+        usage=openai_api_protocol.UsageInfo(
+            prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens
+        ),
+    )

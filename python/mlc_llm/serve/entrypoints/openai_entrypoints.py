@@ -1,30 +1,20 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
 # pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
-import ast
 from http import HTTPStatus
-from typing import AsyncGenerator, Dict, List, Optional, Union
+from typing import AsyncGenerator, List, Optional
 
 import fastapi
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.protocol.openai_api_protocol import (
-    ChatCompletionMessage,
     ChatCompletionRequest,
-    ChatCompletionResponse,
-    ChatCompletionResponseChoice,
-    ChatFunctionCall,
-    ChatToolCall,
     CompletionRequest,
-    CompletionResponse,
-    CompletionResponseChoice,
     ListResponse,
-    LogProbs,
     LogProbsContent,
     ModelResponse,
-    UsageInfo,
 )
-from mlc_llm.serve import engine_utils
+from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
 app = fastapi.APIRouter()
@@ -115,50 +105,18 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                 logprob_results[choice.index] += choice.logprobs.content
 
     assert all(finish_reason is not None for finish_reason in finish_reasons)
-    return CompletionResponse(
-        id=request_id,
-        choices=[
-            CompletionResponseChoice(
-                index=i,
-                finish_reason=finish_reason,
-                text=output_text,
-                logprobs=(
-                    LogProbs(content=logprob_results[i]) if logprob_results is not None else None
-                ),
-            )
-            for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
-        ],
+    return engine_base.wrap_completion_response(
+        request_id=request_id,
         model=request.model,
-        usage=UsageInfo(prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens),
+        output_texts=output_texts,
+        finish_reasons=finish_reasons,
+        logprob_results=logprob_results,
+        num_prompt_tokens=num_prompt_tokens,
+        num_completion_tokens=num_completion_tokens,
     )
 
 
 ################ v1/chat/completions ################
-
-
-def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
-    """Convert a (possibly list) of function call string to a list of json objects.
-    Return None for invalid function call string."""
-
-    def parse_function_call(call_str: str):
-        node = ast.parse(call_str, mode="eval")
-        call_node = node.body
-        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
-            name = call_node.func.id
-            arguments = {}
-            for keyword in call_node.keywords:
-                arguments[keyword.arg] = ast.literal_eval(keyword.value)
-            return {"name": name, "arguments": arguments}
-        return None
-
-    if (
-        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
-    ):  # hacky way to check if string list
-        calls = ast.literal_eval(stringified_calls)
-    else:
-        calls = [stringified_calls]
-    function_calls_json = [parse_function_call(call_str) for call_str in calls]
-    return function_calls_json
 
 
 @app.post("/v1/chat/completions")
@@ -235,53 +193,17 @@ async def request_chat_completion(
                 logprob_results[choice.index] += choice.logprobs.content
 
     assert all(finish_reason is not None for finish_reason in finish_reasons)
-
-    tool_calls_list: List[List[ChatToolCall]] = [[] for _ in range(request.n)]
-    use_function_calling = any(finish_reason == "tool_calls" for finish_reason in finish_reasons)
-    if use_function_calling:
-        for i, output_text in enumerate(output_texts):
-            try:
-                fn_json_list = convert_function_str_to_json(output_text)
-            except (SyntaxError, ValueError):
-                output_text = "Got an invalid function call output from model"
-                finish_reasons[i] = "error"
-            else:
-                tool_calls_list[i] = [
-                    ChatToolCall(
-                        type="function",
-                        function=ChatFunctionCall(
-                            name=fn_json_obj["name"], arguments=fn_json_obj["arguments"]
-                        ),
-                    )
-                    for fn_json_obj in fn_json_list
-                    if fn_json_obj is not None
-                ]
-                if len(tool_calls_list[i]) == 0:
-                    output_texts[i] = "Got an invalid function call output from model"
-                    finish_reasons[i] = "error"
-                else:
-                    finish_reasons[i] = "tool_calls"
-
-    return ChatCompletionResponse(
-        id=request_id,
-        choices=[
-            ChatCompletionResponseChoice(
-                index=i,
-                finish_reason=finish_reasons[i],
-                message=(
-                    ChatCompletionMessage(role="assistant", content=output_text)
-                    if not use_function_calling or finish_reason == "error"
-                    else ChatCompletionMessage(role="assistant", tool_calls=tool_calls)
-                ),
-                logprobs=(
-                    LogProbs(content=logprob_results[i]) if logprob_results is not None else None
-                ),
-            )
-            for i, (output_text, finish_reason, tool_calls) in enumerate(
-                zip(output_texts, finish_reasons, tool_calls_list)
-            )
-        ],
+    use_function_calling, tool_calls_list = engine_base.process_function_call_output(
+        output_texts, finish_reasons
+    )
+    return engine_base.wrap_chat_completion_response(
+        request_id=request_id,
         model=request.model,
-        system_fingerprint="",
-        usage=UsageInfo(prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens),
+        output_texts=output_texts,
+        finish_reasons=finish_reasons,
+        tool_calls_list=tool_calls_list,
+        logprob_results=logprob_results,
+        use_function_calling=use_function_calling,
+        num_prompt_tokens=num_prompt_tokens,
+        num_completion_tokens=num_completion_tokens,
     )
