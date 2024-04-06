@@ -324,4 +324,17 @@ MODELS: Dict[str, Model] = {
             "group-quant": rwkv6_quantization.group_quant,
         },
     ),
+    "chatglm": Model(
+        name="chatglm",
+        model=chatglm3_model.ChatGLMForCausalLM,
+        config=chatglm3_model.GLMConfig,
+        source={
+            "huggingface-torch": chatglm3_loader.huggingface,
+            "huggingface-safetensor": chatglm3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": chatglm3_quantization.no_quant,
+            "group-quant": chatglm3_quantization.group_quant,
+        },
+    ),
 }
