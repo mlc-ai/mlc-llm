@@ -4,6 +4,8 @@
 
 import asyncio
 import queue
+import sys
+import weakref
 from typing import (
     Any,
     AsyncGenerator,
@@ -29,47 +31,31 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
-class AsyncEngine(engine_base.EngineBase):
-    """The AsyncEngine in MLC LLM that provides the asynchronous
-    interfaces with regard to OpenAI API.
+class Chat:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to chat completions."""
 
-    Parameters
-    ----------
-    models : Union[ModelInfo, List[ModelInfo]]
-        One or a list of model info (specifying which models to load and
-        which device to load to) to launch the engine.
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        assert isinstance(engine(), (AsyncEngine, Engine))
+        self.completions = (
+            AsyncChatCompletion(engine)  # type: ignore
+            if isinstance(engine(), AsyncEngine)
+            else ChatCompletion(engine)  # type: ignore
+        )
 
-    kv_cache_config : KVCacheConfig
-        The configuration of the paged KV cache.
 
-    engine_mode : Optional[EngineMode]
-        The Engine execution mode.
+class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to async chat completions."""
 
-    enable_tracing : bool
-        A boolean indicating if to enable event logging for requests.
-    """
+    if sys.version_info >= (3, 9):
+        engine: weakref.ReferenceType["AsyncEngine"]
+    else:
+        engine: weakref.ReferenceType
 
-    def __init__(
-        self,
-        models: Union[engine_base.ModelInfo, List[engine_base.ModelInfo]],
-        kv_cache_config: KVCacheConfig,
-        engine_mode: Optional[EngineMode] = None,
-        enable_tracing: bool = False,
-    ) -> None:
-        super().__init__("async", models, kv_cache_config, engine_mode, enable_tracing)
-
-    async def abort(self, request_id: str) -> None:
-        """Generation abortion interface.
-
-        Parameter
-        ---------
-        request_id : str
-            The id of the request to abort.
-        """
-        self._abort(request_id)
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        self.engine = engine
 
     @overload
-    async def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         messages: List[Dict[str, Any]],
@@ -119,7 +105,7 @@ class AsyncEngine(engine_base.EngineBase):
         """
 
     @overload
-    async def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         messages: List[Dict[str, Any]],
@@ -168,7 +154,7 @@ class AsyncEngine(engine_base.EngineBase):
             BadRequestError is raised when the request is invalid.
         """
 
-    async def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         messages: List[Dict[str, Any]],
@@ -196,6 +182,643 @@ class AsyncEngine(engine_base.EngineBase):
         openai_api_protocol.ChatCompletionResponse,
     ]:
         """Asynchronous chat completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/chat/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+        return await self.engine()._chat_completion(  # pylint: disable=protected-access
+            messages=messages,
+            model=model,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            logit_bias=logit_bias,
+            max_tokens=max_tokens,
+            n=n,
+            seed=seed,
+            stop=stop,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            tools=tools,
+            tool_choice=tool_choice,
+            user=user,
+            ignore_eos=ignore_eos,
+            response_format=response_format,
+            request_id=request_id,
+        )
+
+
+class ChatCompletion:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to chat completions."""
+
+    if sys.version_info >= (3, 9):
+        engine: weakref.ReferenceType["Engine"]
+    else:
+        engine: weakref.ReferenceType
+
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        self.engine = engine
+
+    @overload
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        model: str,
+        stream: Literal[True],
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: Optional[int] = None,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
+        """Synchronous streaming chat completion interface with OpenAI API compatibility.
+        The method streams back ChatCompletionStreamResponse that conforms to
+        OpenAI API one at a time via yield.
+
+        See https://platform.openai.com/docs/api-reference/chat/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Yields
+        ------
+        stream_response : ChatCompletionStreamResponse
+            The stream response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/chat/streaming for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    @overload
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        model: str,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: Optional[int] = None,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: Literal[False] = False,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> openai_api_protocol.ChatCompletionResponse:
+        """Synchronous non-streaming chat completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/chat/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Returns
+        ------
+        response : ChatCompletionResponse
+            The chat completion response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/chat/object for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        model: str,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: Optional[int] = None,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: bool = False,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Union[
+        Iterator[openai_api_protocol.ChatCompletionStreamResponse],
+        openai_api_protocol.ChatCompletionResponse,
+    ]:
+        """Synchronous chat completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/chat/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+        return self.engine()._chat_completion(  # pylint: disable=protected-access
+            messages=messages,
+            model=model,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            logit_bias=logit_bias,
+            max_tokens=max_tokens,
+            n=n,
+            seed=seed,
+            stop=stop,
+            stream=stream,
+            temperature=temperature,
+            top_p=top_p,
+            tools=tools,
+            tool_choice=tool_choice,
+            user=user,
+            ignore_eos=ignore_eos,
+            response_format=response_format,
+            request_id=request_id,
+        )
+
+
+class AsyncCompletion:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to async completions."""
+
+    if sys.version_info >= (3, 9):
+        engine: weakref.ReferenceType["AsyncEngine"]
+    else:
+        engine: weakref.ReferenceType
+
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        self.engine = engine
+
+    @overload
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        stream: Literal[True],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+        """Asynchronous streaming completion interface with OpenAI API compatibility.
+        The method is a coroutine that streams CompletionResponse
+        that conforms to OpenAI API one at a time via yield.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Yields
+        ------
+        stream_response : CompletionResponse
+            The stream response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/completions/object for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    @overload
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: Literal[False] = False,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> openai_api_protocol.CompletionResponse:
+        """Asynchronous non-streaming completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Returns
+        ------
+        response : CompletionResponse
+            The completion response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/completions/object for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    async def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: bool = False,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Union[
+        AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
+        openai_api_protocol.CompletionResponse,
+    ]:
+        """Asynchronous completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+        return await self.engine()._completion(  # pylint: disable=protected-access
+            model=model,
+            prompt=prompt,
+            best_of=best_of,
+            echo=echo,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            logit_bias=logit_bias,
+            max_tokens=max_tokens,
+            n=n,
+            seed=seed,
+            stop=stop,
+            stream=stream,
+            suffix=suffix,
+            temperature=temperature,
+            top_p=top_p,
+            user=user,
+            ignore_eos=ignore_eos,
+            response_format=response_format,
+            request_id=request_id,
+        )
+
+
+class Completion:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to completions."""
+
+    if sys.version_info >= (3, 9):
+        engine: weakref.ReferenceType["Engine"]
+    else:
+        engine: weakref.ReferenceType
+
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        self.engine = engine
+
+    @overload
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        stream: Literal[True],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> openai_api_protocol.CompletionResponse:
+        """Synchronous streaming completion interface with OpenAI API compatibility.
+        The method streams back CompletionResponse that conforms to
+        OpenAI API one at a time via yield.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Yields
+        ------
+        stream_response : CompletionResponse
+            The stream response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/completions/object for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    @overload
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: Literal[False] = False,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Iterator[openai_api_protocol.CompletionResponse]:
+        """Synchronous non-streaming completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Returns
+        ------
+        response : CompletionResponse
+            The completion response conforming to OpenAI API.
+            See mlc_llm/protocol/openai_api_protocol.py or
+            https://platform.openai.com/docs/api-reference/completions/object for specification.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        model: str,
+        prompt: Union[str, List[int]],
+        best_of: int = 1,
+        echo: bool = False,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: int = 16,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: bool = False,
+        suffix: Optional[str] = None,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Iterator[openai_api_protocol.CompletionResponse]:
+        """Synchronous completion interface with OpenAI API compatibility.
+
+        See https://platform.openai.com/docs/api-reference/completions/create for specification.
+
+        Parameters
+        ----------
+        request_id : Optional[str]
+            The optional request id.
+            A random one will be generated if it is not given.
+
+        Raises
+        ------
+        e : BadRequestError
+            BadRequestError is raised when the request is invalid.
+        """
+        return self.engine()._completion(  # pylint: disable=protected-access
+            model=model,
+            prompt=prompt,
+            best_of=best_of,
+            echo=echo,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            logit_bias=logit_bias,
+            max_tokens=max_tokens,
+            n=n,
+            seed=seed,
+            stop=stop,
+            stream=stream,
+            suffix=suffix,
+            temperature=temperature,
+            top_p=top_p,
+            user=user,
+            ignore_eos=ignore_eos,
+            response_format=response_format,
+            request_id=request_id,
+        )
+
+
+class AsyncEngine(engine_base.EngineBase):
+    """The AsyncEngine in MLC LLM that provides the asynchronous
+    interfaces with regard to OpenAI API.
+
+    Parameters
+    ----------
+    models : Union[ModelInfo, List[ModelInfo]]
+        One or a list of model info (specifying which models to load and
+        which device to load to) to launch the engine.
+
+    kv_cache_config : KVCacheConfig
+        The configuration of the paged KV cache.
+
+    engine_mode : Optional[EngineMode]
+        The Engine execution mode.
+
+    enable_tracing : bool
+        A boolean indicating if to enable event logging for requests.
+    """
+
+    def __init__(
+        self,
+        models: Union[engine_base.ModelInfo, List[engine_base.ModelInfo]],
+        kv_cache_config: KVCacheConfig,
+        engine_mode: Optional[EngineMode] = None,
+        enable_tracing: bool = False,
+    ) -> None:
+        super().__init__("async", models, kv_cache_config, engine_mode, enable_tracing)
+        self.chat = Chat(weakref.ref(self))
+        self.completions = AsyncCompletion(weakref.ref(self))
+
+    async def abort(self, request_id: str) -> None:
+        """Generation abortion interface.
+
+        Parameter
+        ---------
+        request_id : str
+            The id of the request to abort.
+        """
+        self._abort(request_id)
+
+    async def _chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        model: str,
+        frequency_penalty: float = 0.0,
+        presence_penalty: float = 0.0,
+        logprobs: bool = False,
+        top_logprobs: int = 0,
+        logit_bias: Optional[Dict[int, float]] = None,
+        max_tokens: Optional[int] = None,
+        n: int = 1,
+        seed: Optional[int] = None,
+        stop: Optional[Union[str, List[str]]] = None,
+        stream: bool = False,
+        temperature: float = 1.0,
+        top_p: float = 1.0,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
+        user: Optional[str] = None,
+        ignore_eos: bool = False,
+        response_format: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> Union[
+        AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any],
+        openai_api_protocol.ChatCompletionResponse,
+    ]:
+        """Asynchronous chat completion internal interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/chat/create for specification.
 
@@ -289,107 +912,7 @@ class AsyncEngine(engine_base.EngineBase):
             num_completion_tokens=num_completion_tokens,
         )
 
-    @overload
-    async def completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        model: str,
-        prompt: Union[str, List[int]],
-        stream: Literal[True],
-        best_of: int = 1,
-        echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
-        """Asynchronous streaming completion interface with OpenAI API compatibility.
-        The method is a coroutine that streams CompletionResponse
-        that conforms to OpenAI API one at a time via yield.
-
-        See https://platform.openai.com/docs/api-reference/completions/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Yields
-        ------
-        stream_response : CompletionResponse
-            The stream response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/completions/object for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    @overload
-    async def completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        model: str,
-        prompt: Union[str, List[int]],
-        best_of: int = 1,
-        echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream: Literal[False] = False,
-        suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> openai_api_protocol.CompletionResponse:
-        """Asynchronous non-streaming completion interface with OpenAI API compatibility.
-
-        See https://platform.openai.com/docs/api-reference/completions/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Returns
-        ------
-        response : CompletionResponse
-            The completion response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/completions/object for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    async def completion(  # pylint: disable=too-many-arguments,too-many-locals
+    async def _completion(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         model: str,
@@ -417,7 +940,7 @@ class AsyncEngine(engine_base.EngineBase):
         AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
         openai_api_protocol.CompletionResponse,
     ]:
-        """Asynchronous completion interface with OpenAI API compatibility.
+        """Asynchronous completion internal interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/completions/create for specification.
 
@@ -714,6 +1237,8 @@ class Engine(engine_base.EngineBase):
         enable_tracing: bool = False,
     ) -> None:
         super().__init__("sync", models, kv_cache_config, engine_mode, enable_tracing)
+        self.chat = Chat(weakref.ref(self))
+        self.completions = Completion(weakref.ref(self))
 
     def abort(self, request_id: str) -> None:
         """Generation abortion interface.
@@ -725,105 +1250,7 @@ class Engine(engine_base.EngineBase):
         """
         self._ffi["abort_request"](request_id)
 
-    @overload
-    def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        messages: List[Dict[str, Any]],
-        model: str,
-        stream: Literal[True],
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: Optional[int] = None,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
-        """Synchronous streaming chat completion interface with OpenAI API compatibility.
-        The method streams back ChatCompletionStreamResponse that conforms to
-        OpenAI API one at a time via yield.
-
-        See https://platform.openai.com/docs/api-reference/chat/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Yields
-        ------
-        stream_response : ChatCompletionStreamResponse
-            The stream response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/chat/streaming for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    @overload
-    def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        messages: List[Dict[str, Any]],
-        model: str,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: Optional[int] = None,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream: Literal[False] = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> openai_api_protocol.ChatCompletionResponse:
-        """Synchronous non-streaming chat completion interface with OpenAI API compatibility.
-
-        See https://platform.openai.com/docs/api-reference/chat/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Returns
-        ------
-        response : ChatCompletionResponse
-            The chat completion response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/chat/object for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+    def _chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         messages: List[Dict[str, Any]],
@@ -850,7 +1277,7 @@ class Engine(engine_base.EngineBase):
         Iterator[openai_api_protocol.ChatCompletionStreamResponse],
         openai_api_protocol.ChatCompletionResponse,
     ]:
-        """Synchronous chat completion interface with OpenAI API compatibility.
+        """Synchronous chat completion internal interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/chat/create for specification.
 
@@ -944,107 +1371,7 @@ class Engine(engine_base.EngineBase):
             num_completion_tokens=num_completion_tokens,
         )
 
-    @overload
-    def completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        model: str,
-        prompt: Union[str, List[int]],
-        stream: Literal[True],
-        best_of: int = 1,
-        echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> openai_api_protocol.CompletionResponse:
-        """Synchronous streaming completion interface with OpenAI API compatibility.
-        The method streams back CompletionResponse that conforms to
-        OpenAI API one at a time via yield.
-
-        See https://platform.openai.com/docs/api-reference/completions/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Yields
-        ------
-        stream_response : CompletionResponse
-            The stream response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/completions/object for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    @overload
-    def completion(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        *,
-        model: str,
-        prompt: Union[str, List[int]],
-        best_of: int = 1,
-        echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
-        logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
-        n: int = 1,
-        seed: Optional[int] = None,
-        stop: Optional[Union[str, List[str]]] = None,
-        stream: Literal[False] = False,
-        suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
-        user: Optional[str] = None,
-        ignore_eos: bool = False,
-        response_format: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
-    ) -> Iterator[openai_api_protocol.CompletionResponse]:
-        """Synchronous non-streaming completion interface with OpenAI API compatibility.
-
-        See https://platform.openai.com/docs/api-reference/completions/create for specification.
-
-        Parameters
-        ----------
-        request_id : Optional[str]
-            The optional request id.
-            A random one will be generated if it is not given.
-
-        Returns
-        ------
-        response : CompletionResponse
-            The completion response conforming to OpenAI API.
-            See mlc_llm/protocol/openai_api_protocol.py or
-            https://platform.openai.com/docs/api-reference/completions/object for specification.
-
-        Raises
-        ------
-        e : BadRequestError
-            BadRequestError is raised when the request is invalid.
-        """
-
-    def completion(  # pylint: disable=too-many-arguments,too-many-locals
+    def _completion(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         model: str,
@@ -1069,7 +1396,7 @@ class Engine(engine_base.EngineBase):
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
     ) -> Iterator[openai_api_protocol.CompletionResponse]:
-        """Synchronous completion interface with OpenAI API compatibility.
+        """Synchronous completion internal interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/completions/create for specification.
 

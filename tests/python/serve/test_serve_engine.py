@@ -74,7 +74,7 @@ def test_chat_completion():
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
-        for response in engine.chat_completion(
+        for response in engine.chat.completions.create(
             messages=[{"role": "user", "content": prompts[rid]}],
             model=model.model,
             max_tokens=max_tokens,
@@ -117,7 +117,7 @@ def test_chat_completion_non_stream():
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
-        response = engine.chat_completion(
+        response = engine.chat.completions.create(
             messages=[{"role": "user", "content": prompts[rid]}],
             model=model.model,
             max_tokens=max_tokens,
@@ -159,7 +159,7 @@ def test_completion():
 
     for rid in range(num_requests):
         print(f"completion for request {rid}")
-        for response in engine.completion(
+        for response in engine.completions.create(
             prompt=prompts[rid],
             model=model.model,
             max_tokens=max_tokens,
@@ -202,7 +202,7 @@ def test_completion_non_stream():
 
     for rid in range(num_requests):
         print(f"completion for request {rid}")
-        response = engine.completion(
+        response = engine.completions.create(
             prompt=prompts[rid],
             model=model.model,
             max_tokens=max_tokens,
