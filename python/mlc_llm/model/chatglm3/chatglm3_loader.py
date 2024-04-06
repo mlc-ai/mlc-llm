@@ -40,25 +40,16 @@ def huggingface(model_config: GLMConfig, quantization: Quantization) -> ExternMa
 
     mapping = ExternMapping()
 
-
-
-
-
     mlc_name = f"transformer.embedding.weight"
     mlc_param = named_parameters[mlc_name]
     mapping.add_mapping(
         mlc_name,
-        [
-            f"transformer.embedding.word_embeddings.weight"
-        ],
+        [f"transformer.embedding.word_embeddings.weight"],
         functools.partial(
             lambda x, dtype: x.astype(dtype),
             dtype=mlc_param.dtype,
         ),
     )
-
-
-
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
