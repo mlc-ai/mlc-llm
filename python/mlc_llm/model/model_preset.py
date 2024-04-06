@@ -629,8 +629,6 @@ MODEL_PRESETS: Dict[str, Any] = {
             "AutoConfig": "configuration_chatglm.ChatGLMConfig",
             "AutoModel": "modeling_chatglm.ChatGLMForConditionalGeneration",
             "AutoModelForCausalLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
-            "AutoModelForSeq2SeqLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
-            "AutoModelForSequenceClassification": "modeling_chatglm.ChatGLMForSequenceClassification",
         },
         "add_bias_linear": False,
         "add_qkv_bias": True,
