@@ -93,14 +93,21 @@ class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.multi_query_attention = config.multi_query_attention
-        self.num_key_value_heads = (config.multi_query_group_num
-                                   if config.multi_query_attention else
-                                   config.num_attention_heads)
+        self.num_key_value_heads = (
+            config.multi_query_group_num
+            if config.multi_query_attention else
+            config.num_attention_heads
+        )
         self.head_dim = self.hidden_size // self.num_heads
-        self.query_key_value = nn.Linear(config.hidden_size, (2 * self.num_key_value_heads + self.num_heads) * self.head_dim,
-                                     bias=config.add_bias_linear or config.add_qkv_bias)
-        self.dense = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=config.add_bias_linear)
-
+        self.query_key_value = nn.Linear(
+            config.hidden_size,
+            (2 * self.num_key_value_heads + self.num_heads) * self.head_dim,
+            bias=config.add_bias_linear or config.add_qkv_bias
+        )
+        self.dense = nn.Linear(
+            self.num_heads * self.head_dim, config.hidden_size, bias=config.add_bias_linear
+        )
+        
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
@@ -144,8 +151,12 @@ class GLMBlock(nn.Module):
     def __init__(self, config: GLMConfig):
         self.self_attention = GLMAttention(config=config)
         self.mlp = GLMMLP(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.layernorm_epsilon, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.layernorm_epsilon, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.layernorm_epsilon, bias=False
+        )
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.layernorm_epsilon, bias=False
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attention(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
@@ -153,7 +164,6 @@ class GLMBlock(nn.Module):
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = out + hidden_states
         return hidden_states
-
 
 
 class GLMTransformer(nn.Module):
@@ -166,13 +176,13 @@ class GLMTransformer(nn.Module):
         self.num_layers = config.num_layers
 
         # Transformer layers.
-        self.layers = nn.ModuleList(
-            [GLMBlock(config) for _ in range(config.num_layers)]
-        )
+        self.layers = nn.ModuleList([GLMBlock(config) for _ in range(config.num_layers)])
 
         if self.post_layer_norm:
             if config.rmsnorm:
-                self.final_layernorm = nn.RMSNorm(config.hidden_size, -1, config.layernorm_epsilon, bias=False)
+                self.final_layernorm = nn.RMSNorm(
+                    config.hidden_size, -1, config.layernorm_epsilon, bias=False
+                )
             else:
                 self.final_layernorm = nn.LayerNorm(config.hidden_size, config.layernorm_epsilon)
 
@@ -184,12 +194,11 @@ class GLMTransformer(nn.Module):
         return hidden_states
 
 
-
 class ChatGLMModel(nn.Module):
     def __init__(self, config: GLMConfig):
         self.embedding = nn.Embedding(config.vocab_size, config.hidden_size)
         self.encoder = GLMTransformer(config)
-        self.output_layer = nn.Linear(config.hidden_size,config.vocab_size,bias=False)
+        self.output_layer = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
@@ -203,9 +212,11 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.num_hidden_layers = config.num_layers
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
-        self.num_key_value_heads =  (config.multi_query_group_num
-                                   if config.multi_query_attention else
-                                   config.num_attention_heads)
+        self.num_key_value_heads = (
+            config.multi_query_group_num
+            if config.multi_query_attention else
+            config.num_attention_heads
+        )
         self.head_dim = self.hidden_size // self.num_attention_heads
         self.vocab_size = config.vocab_size
         self.rope_theta = 10000
