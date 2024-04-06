@@ -630,7 +630,7 @@ MODEL_PRESETS: Dict[str, Any] = {
             "AutoModel": "modeling_chatglm.ChatGLMForConditionalGeneration",
             "AutoModelForCausalLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
             "AutoModelForSeq2SeqLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
-            "AutoModelForSequenceClassification": "modeling_chatglm.ChatGLMForSequenceClassification"
+            "AutoModelForSequenceClassification": "modeling_chatglm.ChatGLMForSequenceClassification",
         },
         "add_bias_linear": False,
         "add_qkv_bias": True,
@@ -659,6 +659,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.30.2",
         "tie_word_embeddings": False,
         "eos_token_id": 2,
-        "pad_token_id": 0
+        "pad_token_id": 0,
     },
 }
