@@ -625,6 +625,7 @@ MODEL_PRESETS: Dict[str, Any] = {
     },
     "chatglm": {
         "architectures": ["ChatGLMModel"],
+        "model_type": "chatglm",
         "auto_map": {
             "AutoConfig": "configuration_chatglm.ChatGLMConfig",
             "AutoModel": "modeling_chatglm.ChatGLMForConditionalGeneration",
