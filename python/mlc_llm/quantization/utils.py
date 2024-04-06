@@ -62,7 +62,7 @@ def is_moe_gate(name: str) -> bool:
 def compile_quantize_func(mod: IRModule, device) -> Callable:
     """Compile a quantization function for a given device."""
     device_type = device.MASK2STR[device.device_type]
-    if device_type in ["cuda", "rocm", "metal", "vulkan"]:
+    if device_type in ["cuda", "rocm", "metal", "vulkan", "opencl"]:
         target = Target.current()
         if target is None:
             target = Target.from_device(device)
