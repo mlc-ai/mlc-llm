@@ -1,10 +1,9 @@
 """This file specifies how MLC's ChatGLM parameters are quantized using group quantization
 or other formats."""
-from typing import Tuple
-
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import FTQuantize, GroupQuantize, NoQuantize
 from tvm.relax.frontend import nn
+from typing import Tuple
 
 from .chatglm3_model import ChatGLMForCausalLM, GLMConfig
 
