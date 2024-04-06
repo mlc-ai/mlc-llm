@@ -94,16 +94,67 @@ async def test_chat_completion():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate chat completion task for request {request_id}")
         rid = int(request_id)
-        async for response in async_engine.chat_completion(
+        async for response in await async_engine.chat_completion(
             messages=[{"role": "user", "content": prompt}],
             model=model.model,
             max_tokens=max_tokens,
             n=n,
             request_id=request_id,
+            stream=True,
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
                 output_texts[rid][choice.index] += choice.delta.content
+
+    tasks = [
+        asyncio.create_task(generate_task(prompts[i], request_id=str(i)))
+        for i in range(num_requests)
+    ]
+
+    await asyncio.gather(*tasks)
+
+    # Print output.
+    print("Chat completion all finished")
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
+
+    async_engine.terminate()
+    del async_engine
+
+
+async def test_chat_completion_non_stream():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
+    # Create engine
+    async_engine = AsyncEngine(model, kv_cache_config)
+
+    num_requests = 2
+    max_tokens = 32
+    n = 1
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+
+    async def generate_task(prompt: str, request_id: str):
+        print(f"generate chat completion task for request {request_id}")
+        rid = int(request_id)
+        response = await async_engine.chat_completion(
+            messages=[{"role": "user", "content": prompt}],
+            model=model.model,
+            max_tokens=max_tokens,
+            n=n,
+            request_id=request_id,
+        )
+        for choice in response.choices:
+            assert choice.message.role == "assistant"
+            output_texts[rid][choice.index] += choice.message.content
 
     tasks = [
         asyncio.create_task(generate_task(prompts[i], request_id=str(i)))
@@ -144,13 +195,14 @@ async def test_completion():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate completion task for request {request_id}")
         rid = int(request_id)
-        async for response in async_engine.completion(
+        async for response in await async_engine.completion(
             prompt=prompt,
             model=model.model,
             max_tokens=max_tokens,
             n=n,
             ignore_eos=True,
             request_id=request_id,
+            stream=True,
         ):
             for choice in response.choices:
                 output_texts[rid][choice.index] += choice.text
@@ -163,7 +215,57 @@ async def test_completion():
     await asyncio.gather(*tasks)
 
     # Print output.
-    print("Chat completion all finished")
+    print("Completion all finished")
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
+
+    async_engine.terminate()
+    del async_engine
+
+
+async def test_completion_non_stream():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
+    # Create engine
+    async_engine = AsyncEngine(model, kv_cache_config)
+
+    num_requests = 2
+    max_tokens = 128
+    n = 1
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+
+    async def generate_task(prompt: str, request_id: str):
+        print(f"generate completion task for request {request_id}")
+        rid = int(request_id)
+        response = await async_engine.completion(
+            prompt=prompt,
+            model=model.model,
+            max_tokens=max_tokens,
+            n=n,
+            ignore_eos=True,
+            request_id=request_id,
+        )
+        for choice in response.choices:
+            output_texts[rid][choice.index] += choice.text
+
+    tasks = [
+        asyncio.create_task(generate_task(prompts[i], request_id=str(i)))
+        for i in range(num_requests)
+    ]
+
+    await asyncio.gather(*tasks)
+
+    # Print output.
+    print("Completion all finished")
     for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
         if len(outputs) == 1:
@@ -179,4 +281,6 @@ async def test_completion():
 if __name__ == "__main__":
     asyncio.run(test_engine_generate())
     asyncio.run(test_chat_completion())
+    asyncio.run(test_chat_completion_non_stream())
     asyncio.run(test_completion())
+    asyncio.run(test_completion_non_stream())

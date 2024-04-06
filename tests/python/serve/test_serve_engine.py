@@ -80,10 +80,53 @@ def test_chat_completion():
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
+            stream=True,
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
                 output_texts[rid][choice.index] += choice.delta.content
+
+    # Print output.
+    print("Chat completion all finished")
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
+
+    engine.terminate()
+    del engine
+
+
+def test_chat_completion_non_stream():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
+    # Create engine
+    engine = Engine(model, kv_cache_config)
+
+    num_requests = 2
+    max_tokens = 64
+    n = 2
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+
+    for rid in range(num_requests):
+        print(f"chat completion for request {rid}")
+        response = engine.chat_completion(
+            messages=[{"role": "user", "content": prompts[rid]}],
+            model=model.model,
+            max_tokens=max_tokens,
+            n=n,
+            request_id=str(rid),
+        )
+        for choice in response.choices:
+            assert choice.message.role == "assistant"
+            output_texts[rid][choice.index] += choice.message.content
 
     # Print output.
     print("Chat completion all finished")
@@ -123,12 +166,55 @@ def test_completion():
             n=n,
             ignore_eos=True,
             request_id=str(rid),
+            stream=True,
         ):
             for choice in response.choices:
                 output_texts[rid][choice.index] += choice.text
 
     # Print output.
-    print("Chat completion all finished")
+    print("Completion all finished")
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
+
+    engine.terminate()
+    del engine
+
+
+def test_completion_non_stream():
+    # Initialize model loading info and KV cache config
+    model = ModelInfo(
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    )
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
+    # Create engine
+    engine = Engine(model, kv_cache_config)
+
+    num_requests = 2
+    max_tokens = 128
+    n = 1
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+
+    for rid in range(num_requests):
+        print(f"completion for request {rid}")
+        response = engine.completion(
+            prompt=prompts[rid],
+            model=model.model,
+            max_tokens=max_tokens,
+            n=n,
+            ignore_eos=True,
+            request_id=str(rid),
+        )
+        for choice in response.choices:
+            output_texts[rid][choice.index] += choice.text
+
+    # Print output.
+    print("Completion all finished")
     for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
         if len(outputs) == 1:
@@ -144,4 +230,6 @@ def test_completion():
 if __name__ == "__main__":
     test_engine_generate()
     test_chat_completion()
+    test_chat_completion_non_stream()
     test_completion()
+    test_completion_non_stream()
