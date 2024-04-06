@@ -5,8 +5,6 @@ PyTorch, HuggingFace safetensors.
 
 import functools
 
-import numpy as np
-
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
@@ -41,11 +39,11 @@ def huggingface(model_config: GLMConfig, quantization: Quantization) -> ExternMa
 
     mapping = ExternMapping()
 
-    mlc_name = f"transformer.embedding.weight"
+    mlc_name = "transformer.embedding.weight"
     mlc_param = named_parameters[mlc_name]
     mapping.add_mapping(
         mlc_name,
-        [f"transformer.embedding.word_embeddings.weight"],
+        ["transformer.embedding.word_embeddings.weight"],
         functools.partial(
             lambda x, dtype: x.astype(dtype),
             dtype=mlc_param.dtype,
