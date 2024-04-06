@@ -95,19 +95,19 @@ class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.multi_query_attention = config.multi_query_attention
         self.num_key_value_heads = (
             config.multi_query_group_num
-            if config.multi_query_attention else
-            config.num_attention_heads
+            if config.multi_query_attention
+            else config.num_attention_heads
         )
         self.head_dim = self.hidden_size // self.num_heads
         self.query_key_value = nn.Linear(
             config.hidden_size,
             (2 * self.num_key_value_heads + self.num_heads) * self.head_dim,
-            bias=config.add_bias_linear or config.add_qkv_bias
+            bias=config.add_bias_linear or config.add_qkv_bias,
         )
         self.dense = nn.Linear(
             self.num_heads * self.head_dim, config.hidden_size, bias=config.add_bias_linear
         )
-        
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
@@ -214,8 +214,8 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = (
             config.multi_query_group_num
-            if config.multi_query_attention else
-            config.num_attention_heads
+            if config.multi_query_attention
+            else config.num_attention_heads
         )
         self.head_dim = self.hidden_size // self.num_attention_heads
         self.vocab_size = config.vocab_size
