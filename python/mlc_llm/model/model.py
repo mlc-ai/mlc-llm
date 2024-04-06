@@ -9,6 +9,7 @@ from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
+from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
@@ -322,6 +323,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": rwkv6_quantization.no_quant,
             "group-quant": rwkv6_quantization.group_quant,
+        },
+    ),
+    "chatglm": Model(
+        name="chatglm",
+        model=chatglm3_model.ChatGLMForCausalLM,
+        config=chatglm3_model.GLMConfig,
+        source={
+            "huggingface-torch": chatglm3_loader.huggingface,
+            "huggingface-safetensor": chatglm3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": chatglm3_quantization.no_quant,
+            "group-quant": chatglm3_quantization.group_quant,
         },
     ),
 }
