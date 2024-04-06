@@ -8,7 +8,7 @@ import functools
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .chatglm3_model import GLMConfig, ChatGLMForCausalLM
+from .chatglm3_model import ChatGLMForCausalLM, GLMConfig
 
 
 def huggingface(model_config: GLMConfig, quantization: Quantization) -> ExternMapping:
