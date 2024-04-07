@@ -1,5 +1,10 @@
-#ifndef OPENAI_API_PROTOCOL_H
-#define OPENAI_API_PROTOCOL_H
+/*!
+ *  Copyright (c) 2023 by Contributors
+ * \file protocol/openai_api_protocol.h
+ * \brief The header of OpenAI API Protocol in MLC LLM.
+ */
+#ifndef MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H
+#define MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H
 
 #include <ctime>
 #include <map>
@@ -19,6 +24,7 @@ enum class Role { system, user, assistant, tool };
 enum class Type { text, json_object, function };
 enum class FinishReason { stop, length, tool_calls, error };
 
+// TODO: Implement the following class
 class ChatFunction {
  public:
   std::optional<std::string> description = std::nullopt;
@@ -28,6 +34,7 @@ class ChatFunction {
   static std::optional<ChatFunction> FromJSON(const picojson::value& json, std::string& err);
 };
 
+// TODO: Implement the following class
 class ChatTool {
  public:
   Type type = Type::function;
@@ -36,6 +43,7 @@ class ChatTool {
   static std::optional<ChatTool> FromJSON(const picojson::value& json, std::string& err);
 };
 
+// TODO: Implement the following class
 class ChatFunctionCall {
  public:
   std::string name;
@@ -43,6 +51,7 @@ class ChatFunctionCall {
       std::nullopt;  // Assuming arguments are string key-value pairs
 };
 
+// TODO: Implement the following class
 class ChatToolCall {
  public:
   std::string id;  // TODO: python code initializes this to an random string
@@ -56,8 +65,8 @@ class ChatCompletionMessage {
       std::nullopt;  // Assuming content is a list of string key-value pairs
   Role role;
   std::optional<std::string> name = std::nullopt;
-  std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;
-  std::optional<std::string> tool_call_id = std::nullopt;
+  std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;  // TODO: Implement this
+  std::optional<std::string> tool_call_id = std::nullopt;              // TODO: Implement this
 
   static std::optional<ChatCompletionMessage> FromJSON(const picojson::value& json,
                                                        std::string& err);
@@ -128,7 +137,7 @@ class ChatCompletionResponse {
   std::string model;
   std::string system_fingerprint;
   std::string object = "chat.completion";
-  // UsageInfo usage; // TODO
+  // TODO: usage_info
 
   picojson::object ToJSON();
 };
@@ -140,9 +149,9 @@ class ChatCompletionStreamResponse {
   int created = static_cast<int>(std::time(nullptr));
   std::string model;
   std::string system_fingerprint;
-  std::string object = "chat.completion";
+  std::string object = "chat.completion.chunk";
 
   picojson::object ToJSON();
 };
 
-#endif  // OPENAI_API_PROTOCOL_H
+#endif  // MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H

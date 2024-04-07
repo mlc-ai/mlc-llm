@@ -9,6 +9,34 @@ using namespace tvm::runtime;
 JSONFFIEngine::JSONFFIEngine() { engine_ = ThreadedEngine::Create(); }
 
 bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string request_id) {
+  bool success = this->AddRequest(request_json_str, request_id);
+  if (!success) {
+    this->StreamBackError(request_id);
+  }
+  return success;
+}
+
+void JSONFFIEngine::StreamBackError(std::string request_id) {
+  ChatCompletionMessage delta;
+  delta.content =
+      std::vector<std::map<std::string, std::string>>{{{"type", "text"}, {"text", this->err_}}};
+  delta.role = Role::assistant;
+
+  ChatCompletionStreamResponseChoice choice;
+  choice.finish_reason = FinishReason::error;
+  choice.index = 0;
+  choice.delta = delta;
+
+  ChatCompletionStreamResponse response;
+  response.id = request_id;
+  response.choices = std::vector<ChatCompletionStreamResponseChoice>{choice};
+  response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
+  response.system_fingerprint = "";
+
+  this->request_stream_callback_(Array<String>{picojson::value(response.ToJSON()).serialize()});
+}
+
+bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
   std::optional<ChatCompletionRequest> optional_request =
       ChatCompletionRequest::FromJSON(request_json_str, err_);
   if (!optional_request.has_value()) {
@@ -78,12 +106,12 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
-  if (_name == "init") {
+  if (_name == "init_background_engine") {
     return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
       SelfPtr self = static_cast<SelfPtr>(_self.get());
 
       std::string tokenizer_path = args.At<std::string>(1);
-      self->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
+      self->streamer_ = TextStreamer(Tokenizer::FromPath(tokenizer_path));
 
       // Callback wrapper
       Optional<PackedFunc> request_stream_callback;
@@ -118,7 +146,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
   void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
-  std::string GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
+  Array<String> GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
     std::map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
@@ -154,7 +182,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
       delta.content = std::vector<std::map<std::string, std::string>>();
       delta.content.value().push_back(std::map<std::string, std::string>{
-          {"type", "text"}, {"text", this->tokenizer_->Decode(delta_token_ids_vec)}});
+          {"type", "text"}, {"text", this->streamer_->Put(delta_token_ids_vec)}});
 
       delta.role = Role::assistant;
 
@@ -163,16 +191,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       response_map[request_id].push_back(choice);
     }
 
-    picojson::array response_arr;
+    Array<String> response_arr;
     for (const auto& [request_id, choices] : response_map) {
       ChatCompletionStreamResponse response;
       response.id = request_id;
       response.choices = choices;
       response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
       response.system_fingerprint = "";
-      response_arr.push_back(picojson::value(response.ToJSON()));
+      response_arr.push_back(picojson::value(response.ToJSON()).serialize());
     }
-    return picojson::value(response_arr).serialize();
+    return response_arr;
   }
 };
 

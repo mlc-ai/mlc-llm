@@ -99,13 +99,13 @@ class JSONFFIEngine:
         self._ffi = {
             key: module[key]
             for key in [
-                "add_request",
-                "abort_request",
+                "init_background_engine",
+                "chat_completion",
+                "abort",
+                "get_last_error",
                 "run_background_loop",
                 "run_background_stream_back_loop",
-                "init_background_engine",
                 "exit_background_loop",
-                # Todo
             ]
         }
         self.tokenizer = Tokenizer(tokenizer_path)
@@ -136,6 +136,12 @@ class JSONFFIEngine:
         self._background_loop_thread.start()
         self._background_stream_back_loop_thread.start()
         self._terminated = False
+
+    def terminate(self):
+        self._terminated = True
+        self._ffi["exit_background_loop"]()
+        self._background_loop_thread.join()
+        self._background_stream_back_loop_thread.join()
 
     def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
         self,
@@ -196,7 +202,7 @@ class JSONFFIEngine:
                     if response_format is not None
                     else None
                 ),
-            ).model_validate_json(),
+            ).model_dump_json(),
             n=n,
             request_id=request_id,
         )
@@ -209,41 +215,36 @@ class JSONFFIEngine:
         self.state.sync_queue = queue.Queue()
         num_unfinished_requests = n
 
-        success = bool(self.module["chat_completion"](request_json_str, request_id))  # Todo
-
-        if not success:
-            error_msg = self.module["get_last_error"]()
-            raise error_protocol.BadRequestError(error_msg)
+        success = bool(self._ffi["chat_completion"](request_json_str, request_id))
 
         try:
             while num_unfinished_requests > 0:
-                chat_completion_stream_responses_json_str = (
-                    self.state.sync_queue.get()
-                )  # todo: get from queue (already in OpenAI API format)
+                chat_completion_stream_responses_json_str = self.state.sync_queue.get()
                 for chat_completion_response_json_str in chat_completion_stream_responses_json_str:
                     chat_completion_response = (
                         openai_api_protocol.ChatCompletionStreamResponse.model_validate_json(
                             chat_completion_response_json_str
                         )
                     )
-                    if chat_completion_response.finish_reason is not None:
-                        num_unfinished_requests -= 1
+                    for choice in chat_completion_response.choices:
+                        if choice.finish_reason is not None:
+                            num_unfinished_requests -= 1
                     yield chat_completion_response
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            self.abort(request_id)
+            self._ffi["abort"](request_id)
             raise exception
 
 
 def test_chat_completion(engine: JSONFFIEngine):
     num_requests = 2
     max_tokens = 64
-    n = 2
+    n = 1
     output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
         for response in engine.chat_completion(
-            messages=[{"role": "user", "content": prompts[rid]}],
+            messages=[{"role": "user", "content": [{"type": "text", "text": prompts[rid]}]}],
             model=model.model,
             max_tokens=max_tokens,
             n=n,
@@ -251,7 +252,9 @@ def test_chat_completion(engine: JSONFFIEngine):
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
-                output_texts[rid][choice.index] += choice.delta.content
+                assert isinstance(choice.delta.content[0], Dict)
+                assert choice.delta.content[0]["type"] == "text"
+                output_texts[rid][choice.index] += choice.delta.content[0]["text"]
 
     # Print output.
     print("Chat completion all finished")
@@ -263,17 +266,11 @@ def test_chat_completion(engine: JSONFFIEngine):
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
 
-    engine.terminate()
-    del engine
-
 
 def test_malformed_request(engine: JSONFFIEngine):
-    try:
-        engine._handle_chat_completion("malformed_string", n=1, request_id="123")
-    except error_protocol.BadRequestError as e:
-        pass
-    else:
-        assert False
+    for response in engine._handle_chat_completion("malformed_string", n=1, request_id="123"):
+        assert len(response.choices) == 1
+        assert response.choices[0].finish_reason == "error"
 
 
 if __name__ == "__main__":
@@ -282,8 +279,11 @@ if __name__ == "__main__":
         "dist/Llama-2-7b-chat-hf-q0f16-MLC",
         model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
     )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
+    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=1024)
     engine = JSONFFIEngine(model, kv_cache_config)
 
     test_chat_completion(engine)
     test_malformed_request(engine)
+
+    engine.terminate()
+    del engine

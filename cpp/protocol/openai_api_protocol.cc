@@ -168,7 +168,7 @@ picojson::object ChatCompletionMessage::ToJSON() {
 picojson::object ChatCompletionResponseChoice::ToJSON() {
   picojson::object obj;
   if (!this->finish_reason.has_value()) {
-    obj["finish_reason"] = picojson::value("null");
+    obj["finish_reason"] = picojson::value();
   } else {
     if (this->finish_reason == FinishReason::stop) {
       obj["finish_reason"] = picojson::value("stop");
@@ -188,7 +188,7 @@ picojson::object ChatCompletionResponseChoice::ToJSON() {
 picojson::object ChatCompletionStreamResponseChoice::ToJSON() {
   picojson::object obj;
   if (!this->finish_reason.has_value()) {
-    obj["finish_reason"] = picojson::value("null");
+    obj["finish_reason"] = picojson::value();
   } else {
     if (this->finish_reason.value() == FinishReason::stop) {
       obj["finish_reason"] = picojson::value("stop");
