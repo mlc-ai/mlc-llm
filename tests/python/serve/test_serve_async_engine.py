@@ -94,7 +94,7 @@ async def test_chat_completion():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate chat completion task for request {request_id}")
         rid = int(request_id)
-        async for response in await async_engine.chat_completion(
+        async for response in await async_engine.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model.model,
             max_tokens=max_tokens,
@@ -145,7 +145,7 @@ async def test_chat_completion_non_stream():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate chat completion task for request {request_id}")
         rid = int(request_id)
-        response = await async_engine.chat_completion(
+        response = await async_engine.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=model.model,
             max_tokens=max_tokens,
@@ -195,7 +195,7 @@ async def test_completion():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate completion task for request {request_id}")
         rid = int(request_id)
-        async for response in await async_engine.completion(
+        async for response in await async_engine.completions.create(
             prompt=prompt,
             model=model.model,
             max_tokens=max_tokens,
@@ -246,7 +246,7 @@ async def test_completion_non_stream():
     async def generate_task(prompt: str, request_id: str):
         print(f"generate completion task for request {request_id}")
         rid = int(request_id)
-        response = await async_engine.completion(
+        response = await async_engine.completions.create(
             prompt=prompt,
             model=model.model,
             max_tokens=max_tokens,
