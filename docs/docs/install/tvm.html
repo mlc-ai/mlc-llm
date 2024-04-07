@@ -416,7 +416,8 @@ conda<span class="w"> </span>env<span class="w"> </span>remove<span class="w"> <
 conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>tvm-build-venv<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="s2">&quot;llvmdev&gt;=15&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>git
+<span class="w">    </span>git<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
 <span class="c1"># enter the build environment</span>
 conda<span class="w"> </span>activate<span class="w"> </span>tvm-build-venv
 </pre></div>
