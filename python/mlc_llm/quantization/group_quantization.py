@@ -2,23 +2,26 @@
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule
+from tvm import dlight as dl
+from tvm import relax, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
+from tvm.target import Target
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
 from mlc_llm.support import logging
 
+
 from .utils import (
-    apply_sharding,
-    compile_quantize_func,
     convert_uint_to_float,
     is_final_fc,
-    is_moe_gate,
-    pack_weight,
+    convert_uint_packed_fp8_to_float,
+    compile_quantize_func,
+    apply_sharding,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +34,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     name: str
     kind: str
     group_size: int
-    quantize_dtype: Literal["int3", "int4", "int8"]
+    quantize_dtype: Literal["int3", "int4", "int8", "e4m3_float8", "e5m2_float8"]
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16", "float32"]
     linear_weight_layout: Literal["KN", "NK"]
@@ -47,7 +50,12 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_dtype = DataType(self.quantize_dtype)
         storage_dtype = DataType(self.storage_dtype)
         model_dtype = DataType(self.model_dtype)
-        assert quantize_dtype.type_code == DataTypeCode.INT
+        if quantize_dtype.type_code in (DataTypeCode.E4M3Float, DataTypeCode.E5M2Float):
+            self.fp8_quant = True
+        else:
+            self.fp8_quant = False
+            assert quantize_dtype.type_code == DataTypeCode.INT
+        self.no_scale = quantize_dtype.type_code == DataTypeCode.E5M2Float
         assert storage_dtype.type_code == DataTypeCode.UINT
         assert model_dtype.type_code == DataTypeCode.FLOAT
         if storage_dtype.bits < quantize_dtype.bits:
@@ -57,7 +65,15 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         if self.group_size % self.num_elem_per_storage != 0:
             raise ValueError("Group size should be divisible by numbers of elements per storage")
         self.num_storage_per_group = self.group_size // self.num_elem_per_storage
-        self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
+        if self.fp8_quant:
+            if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+                self.max_int_value = 448
+            elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
+                self.max_int_value = 57344
+            else:
+                raise NotImplementedError()
+        else:
+            self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
         self.linear_quant_axis = 0 if self.linear_weight_layout == "KN" else 1
         self._quantize_func_cache = {}
 
@@ -110,28 +126,82 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
-                if (
-                    isinstance(node, nn.Linear)
-                    and (not is_final_fc(name) or self.config.quantize_final_fc)
-                    and not is_moe_gate(name)
+                from . import fp8_quantization as fp8
+
+                if isinstance(node, nn.Linear) and (
+                    not is_final_fc(name) or self.config.quantize_final_fc
                 ):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = partial(
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
                     )
-                    return GroupQuantizeLinear.from_linear(node, self.config)
+                    if False and self.config.quantize_dtype == "e4m3_float8":
+                        return fp8.GroupQuantizeLinearFP8E4M3CutlassScaleOnly.from_linear(
+                            node, self.config
+                        )
+                    else:
+                        return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, self.config)
                 if isinstance(node, MixtralExperts):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = (
+                        [f"{name}.q_weight", f"{name}.q_scale"]
+                        if not self.config.no_scale
+                        else [
+                            f"{name}.q_weight",
+                        ]
+                    )
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
+                    if self.config.name == "fp8_e4m3_e5m2_max_calibration":
+                        op = fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e5m2_float8",
+                            runtime="max-calibration",
+                        )
+                        self.quant_map = op.add_calibration_params(self.quant_map, name)
+                        return op
+                    elif self.config.name == "fp8_e4m3_e5m2_max":
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e4m3_float8",
+                            weight_dtype="e5m2_float8",
+                            runtime="max",
+                        )
+                    elif self.config.name == "fp8_e5m2_e5m2":
+                        return fp8.MixtralExpertsFP8.from_mixtral_experts(
+                            node,
+                            self.config,
+                            activation_dtype="e5m2_float8",
+                            weight_dtype="e5m2_float8",
+                        )
+                    elif "fp8" in self.config.name:
+                        raise NotImplementedError(
+                            f"Requested FP8 quantization config {self.config.name} is not implemented"
+                        )
+                    else:
+                        return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
+
                 return self.visit(name, node)
 
         model.to(dtype=self.model_dtype)
@@ -165,12 +235,60 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             fcompute=lambda *idx: tir.multiply(
                 tir.subtract(
                     float_weight(*idx),
-                    tir_max_int,
+                    tir_max_int,  # TODO(jmcmahan): the max_int shift to remove negatives is not necessary for fp8
                 ),
                 scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
             ),
             name="dequantize",
         )
+
+    def _dequantize_e4m3(
+        self,
+        weight: te.Tensor,
+        scale: te.Tensor,
+        axis: int,
+        out_shape: Optional[List[tir.PrimExpr]] = None,
+    ):
+        float_e4m3_weight = convert_uint_packed_fp8_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            self.quantize_dtype,
+            axis=axis,
+            out_shape=out_shape,
+        )
+        if out_shape is None:
+            out_shape = weight.shape
+            out_shape[axis] *= self.num_elem_per_storage
+        axis = axis if axis >= 0 else len(out_shape) + axis
+        return te.compute(
+            shape=out_shape,
+            fcompute=lambda *idx: tir.multiply(
+                float_e4m3_weight(*idx),
+                scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+            ),
+            name="dequantize",
+        )
+
+    def _dequantize_e5m2(
+        self,
+        weight: te.Tensor,
+        axis: int,  # axis is still relevant, because it determines which axis is packed into u32 storage
+        out_shape: Optional[List[tir.PrimExpr]] = None,
+    ):
+        float_e5m2_weight = convert_uint_packed_fp8_to_float(
+            weight,
+            DataType(self.quantize_dtype).bits,
+            self.num_elem_per_storage,
+            self.storage_dtype,
+            self.model_dtype,
+            self.quantize_dtype,
+            axis=axis,
+            out_shape=out_shape,
+        )
+        return float_e5m2_weight
 
     def quantize_weight(
         self, weight: NDArray, axis: int = -1, output_transpose: bool = False
@@ -199,12 +317,28 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         axis = axis if axis >= 0 else len(weight.shape) + axis
 
         def _create_quantize_func() -> IRModule:
+            if self.fp8_quant:
+                if (
+                    DataType(self.quantize_dtype).type_code == DataTypeCode.E4M3Float
+                    or DataType(self.quantize_dtype).type_code == DataTypeCode.E5M2Float
+                ):
+                    quantize_func = self._quantize_float8
+                else:
+                    assert NotImplementedError()
+            else:
+                quantize_func = self._quantize
+
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
             weight_var = relax.Var("weight", relax.TensorStructInfo(weight.shape, weight.dtype))
             with bb.function(name="main", params=[weight_var]):
                 with bb.dataflow():
-                    lv = bb.emit_te(self._quantize, weight_var, axis, output_transpose)
-                    gv = bb.emit_output(lv)  # pylint: disable=invalid-name
+                    lv = bb.emit_te(quantize_func, weight_var, axis, output_transpose)
+                    if isinstance(lv.struct_info, relax.TupleStructInfo):
+                        tuple_output = bb.emit(lv)
+                    else:
+                        tuple_output = bb.emit((lv,))
+                    gv = bb.emit_output(tuple_output)  # pylint: disable=invalid-name
+
                 bb.emit_func_output(gv)
             return bb.finalize()
 
@@ -215,7 +349,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         quantize_func = self._quantize_func_cache.get(key, None)
         if quantize_func is None:
             logger.info("Compiling quantize function for key: %s", key)
-            quantize_func = compile_quantize_func(_create_quantize_func(), device=device)
+            quantize_func = compile_quantize_func(_create_quantize_func(), device)
             self._quantize_func_cache[key] = quantize_func
         return quantize_func(weight)
 
@@ -230,6 +364,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         shape = weight.shape  # pylint: disable=invalid-name
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
+        quantize_dtype = DataType(self.quantize_dtype)
         # compute scale per group
         r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
         num_group = tir.ceildiv(k, self.group_size)
@@ -267,15 +402,23 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             ).astype(self.storage_dtype),
         )
         # compute quantized weight per storage
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         num_storage = self.num_storage_per_group * num_group
         quantized_weight_shape = (*shape[:axis], num_storage, *shape[axis + 1 :])
-        quantized_weight = pack_weight(
-            scaled_weight,
-            axis=axis,
-            num_elem_per_storage=self.num_elem_per_storage,
-            weight_dtype=self.quantize_dtype,
-            storage_dtype=self.storage_dtype,
-            out_shape=quantized_weight_shape,
+        quantized_weight = te.compute(
+            shape=quantized_weight_shape,
+            fcompute=lambda *idx: tir.sum(
+                tir.if_then_else(
+                    idx[axis] * self.num_elem_per_storage + r < k,
+                    scaled_weight(
+                        *idx[:axis], idx[axis] * self.num_elem_per_storage + r, *idx[axis + 1 :]
+                    )
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
+                axis=r,
+            ),
+            name="weight",
         )
         if output_transpose:
             if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
@@ -285,6 +428,109 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             quantized_weight = topi.transpose(quantized_weight)
             scale = topi.transpose(scale)
         return quantized_weight, scale
+
+    def _quantize_float8(  # pylint: disable=too-many-locals
+        self,
+        weight: te.Tensor,
+        axis: int = -1,
+        output_transpose: bool = False,
+    ) -> Tuple[te.Tensor, te.Tensor]:
+        """Group quantization for weight tensor, defined in tensor expression."""
+
+        shape = weight.shape  # pylint: disable=invalid-name
+        quantize_dtype = DataType(self.quantize_dtype)
+        k = shape[axis]
+
+        if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+            # compute scale per group
+            num_group = tir.ceildiv(k, self.group_size)
+            max_int = tir.const(self.max_int_value, self.model_dtype)
+            axis = axis if axis >= 0 else len(shape) + axis
+            r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
+            scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
+
+            # min_scaling_factor taken from TRT-LLM
+            min_scaling_factor = tir.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
+            max_abs = te.compute(
+                shape=scale_shape,
+                fcompute=lambda *idx: te.max(
+                    tir.if_then_else(
+                        idx[axis] * self.group_size + r < k,
+                        te.abs(
+                            weight(*idx[:axis], idx[axis] * self.group_size + r, *idx[axis + 1 :])
+                        ),
+                        te.min_value(self.model_dtype),
+                    ),
+                    axis=r,
+                ),
+                name="max_abs_value",
+            )
+            scale = te.compute(
+                scale_shape,
+                lambda *idx: te.max(
+                    max_abs(*idx).astype(self.model_dtype) / max_int, min_scaling_factor
+                ),
+                name="scale",
+            )
+            # compute scaled weight
+            # TODO(fp8-team): Convince ourselves that we don't need to clip the quantized weight
+            # Need a cast to FP8, then reinerpret cast
+            scaled_weight = te.compute(
+                shape=weight.shape,
+                fcompute=lambda *idx: tir.reinterpret(
+                    # TODO(csullivan) Change this to a vector type to simplify storage and improving casting
+                    self.storage_dtype,
+                    tir.Cast(
+                        self.quantize_dtype,
+                        weight(*idx)
+                        / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :]),
+                    ),
+                ),
+            )
+        elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
+            scaled_weight = te.compute(
+                shape=weight.shape,
+                fcompute=lambda *idx: tir.reinterpret(
+                    self.storage_dtype,
+                    tir.Cast(  # TODO(jmcmahan): verify that this cast (fp16 -> e5m2) does the expected mantissa clip
+                        self.quantize_dtype, weight(*idx)
+                    ),
+                ),
+            )
+
+        # TODO(csullivan): If using vector type fp8x4 this compute op can be deleted
+        # compute quantized weight per storage
+        r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
+        num_storage = tir.ceildiv(k, self.num_elem_per_storage)
+        quantized_weight_shape = (*shape[:axis], num_storage, *shape[axis + 1 :])
+        quantized_weight = te.compute(
+            shape=quantized_weight_shape,
+            fcompute=lambda *idx: tir.sum(
+                tir.if_then_else(
+                    idx[axis] * self.num_elem_per_storage + r < k,
+                    scaled_weight(
+                        *idx[:axis], idx[axis] * self.num_elem_per_storage + r, *idx[axis + 1 :]
+                    )
+                    << (r * quantize_dtype.bits),
+                    0,
+                ),
+                axis=r,
+            ),
+            name="weight",
+        )
+
+        if output_transpose:
+            if len(quantized_weight.shape) != 2 or len(scale.shape) != 2:
+                raise ValueError(
+                    "Does not support transpose output quantized weight with ndim != 2"
+                )
+            quantized_weight = topi.transpose(quantized_weight)
+            if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+                scale = topi.transpose(scale)
+        if quantize_dtype.type_code == DataTypeCode.E4M3Float:
+            return quantized_weight, scale
+        elif quantize_dtype.type_code == DataTypeCode.E5M2Float:
+            return quantized_weight
 
 
 class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attributes
@@ -303,17 +549,20 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(in_features, config.group_size)
         if config.linear_weight_layout == "KN":
             self.q_weight = nn.Parameter(
                 (config.num_storage_per_group * num_group, out_features), config.storage_dtype
             )
-            self.q_scale = nn.Parameter((num_group, out_features), config.model_dtype)
+            if not self.no_scale:
+                self.q_scale = nn.Parameter((num_group, out_features), config.model_dtype)
         else:
             self.q_weight = nn.Parameter(
                 (out_features, config.num_storage_per_group * num_group), config.storage_dtype
             )
-            self.q_scale = nn.Parameter((out_features, num_group), config.model_dtype)
+            if not self.no_scale:
+                self.q_scale = nn.Parameter((out_features, num_group), config.model_dtype)
         if bias:
             self.bias = nn.Parameter(
                 (out_features,), config.model_dtype if out_dtype is None else out_dtype
@@ -321,8 +570,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         else:
             self.bias = None
 
-    @staticmethod
-    def from_linear(src: nn.Linear, config: GroupQuantize) -> "GroupQuantizeLinear":
+    @classmethod
+    def from_linear(cls, src: nn.Linear, config: GroupQuantize) -> "GroupQuantizeLinear":
         """
         Converts a non-quantized nn.Linear to a group quantized GroupQuantizeLinear
 
@@ -341,7 +590,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         """
         # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tir.Var("name")`
         out_features, in_features = src.weight.shape
-        quantized_linear = GroupQuantizeLinear(
+        quantized_linear = cls(
             in_features=in_features,
             out_features=out_features,
             config=config,
@@ -353,7 +602,10 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             apply_sharding(shard, f"{shard.name}_q_weight", quantized_linear.q_weight)
-            apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
+            if (
+                not DataType(config.quantize_dtype).type_code == DataTypeCode.E5M2Float
+            ):  # no scale for e5m2
+                apply_sharding(shard, f"{shard.name}_q_scale", quantized_linear.q_scale)
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -370,34 +622,59 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : nn.Tensor
             The output tensor for the group quantized linear layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                scale,
-                axis=self.config.linear_quant_axis,
-                out_shape=(
-                    [
-                        (
-                            tir.IntImm("int64", self.out_features)
-                            if isinstance(self.out_features, int)
-                            else weight.shape[0]
-                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-                        tir.IntImm("int64", self.in_features),
-                    ]
-                    if self.config.linear_weight_layout == "NK"
-                    else [
-                        tir.IntImm("int64", self.in_features),
-                        (
-                            tir.IntImm("int64", self.out_features)
-                            if isinstance(self.out_features, int)
-                            else weight.shape[1]
-                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-                    ]
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            elif DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float:
+                dequant_func = self.config._dequantize_e5m2
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
+
+        if self.config.linear_weight_layout == "NK":
+            out_shape = [
+                (
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[0]
                 ),
-            ),
-            name_hint="dequantize",
-            args=[self.q_weight, self.q_scale],
-        )
+                tir.IntImm("int64", self.in_features),
+            ]
+        else:
+            out_shape = [
+                tir.IntImm("int64", self.in_features),
+                (
+                    tir.IntImm("int64", self.out_features)
+                    if isinstance(self.out_features, int)
+                    else weight.shape[1]
+                ),
+            ]
+
+        if not self.no_scale:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    scale,
+                    axis=self.config.linear_quant_axis,
+                    out_shape=out_shape,
+                ),
+                name_hint="dequantize",
+                args=[self.q_weight, self.q_scale],
+            )
+        else:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    axis=self.config.linear_quant_axis,
+                    out_shape=out_shape,
+                ),
+                name_hint="dequantize",
+                args=[
+                    self.q_weight,
+                ],
+            )
+
         if self.config.linear_weight_layout == "NK":
             w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
@@ -411,7 +688,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         Otherwise, we might run into dtype mismatch when computing x + self.bias.
         """
         self.q_weight.to(dtype=dtype)
-        self.q_scale.to(dtype=dtype)
+        if not self.no_scale:
+            self.q_scale.to(dtype=dtype)
         if self.bias is not None and self.out_dtype is None:
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
@@ -425,11 +703,13 @@ class GroupQuantizeEmbedding(nn.Module):
         self.num = num
         self.dim = dim
         self.config = config
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(dim, config.group_size)
         self.q_weight = nn.Parameter(
             (num, config.num_storage_per_group * num_group), config.storage_dtype
         )
-        self.q_scale = nn.Parameter((num, num_group), config.model_dtype)
+        if not self.no_scale:
+            self.q_scale = nn.Parameter((num, num_group), config.model_dtype)
 
     @staticmethod
     def from_embedding(embedding: nn.Embedding, config: GroupQuantize) -> "GroupQuantizeEmbedding":
@@ -466,23 +746,47 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the embedding layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                scale,
-                axis=-1,
-                out_shape=[
-                    (
-                        tir.IntImm("int64", self.num)
-                        if isinstance(self.num, int)
-                        else weight.shape[0]
-                    ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-                    tir.IntImm("int64", self.dim),
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            elif DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float:
+                dequant_func = self.config._dequantize_e5m2
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
+
+        out_shape = [
+            (
+                tir.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0]
+            ),  # Reuse same tir.Var for symbolic shape (after Exporter)
+            tir.IntImm("int64", self.dim),
+        ]
+
+        if not self.no_scale:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    scale,
+                    axis=-1,
+                    out_shape=out_shape,
+                ),
+                name_hint="dequantize",
+                args=[self.q_weight, self.q_scale],
+            )
+        else:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    axis=-1,
+                    out_shape=out_shape,
+                ),
+                name_hint="dequantize",
+                args=[
+                    self.q_weight,
                 ],
-            ),
-            name_hint="dequantize",
-            args=[self.q_weight, self.q_scale],
-        )
+            )
+
         if x.ndim == 1:
             return nn.op.take(w, x, axis=0)
         return nn.op.reshape(
@@ -504,23 +808,53 @@ class GroupQuantizeEmbedding(nn.Module):
         ret : nn.Tensor
             The output tensor for the lm_head layer.
         """
-        w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                scale,
-                axis=-1,
-                out_shape=[
-                    (
-                        tir.IntImm("int64", self.num)
-                        if isinstance(self.num, int)
-                        else weight.shape[0]
-                    ),
-                    tir.IntImm("int64", self.dim),
+        if self.config.fp8_quant:
+            if DataType(self.config.quantize_dtype).type_code == DataTypeCode.E4M3Float:
+                dequant_func = self.config._dequantize_e4m3
+            elif DataType(self.config.quantize_dtype).type_code == DataTypeCode.E5M2Float:
+                dequant_func = self.config._dequantize_e5m2
+            else:
+                raise NotImplementedError()
+        else:
+            dequant_func = self.confg._dequantize
+
+        if not self.no_scale:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight, scale: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    scale,
+                    axis=-1,
+                    out_shape=[
+                        (
+                            tir.IntImm("int64", self.num)
+                            if isinstance(self.num, int)
+                            else weight.shape[0]
+                        ),
+                        tir.IntImm("int64", self.dim),
+                    ],
+                ),
+                name_hint="dequantize",
+                args=[self.q_weight, self.q_scale],
+            )
+        else:
+            w = nn.op.tensor_expr_op(  # pylint: disable=invalid-name
+                lambda weight: dequant_func(  # pylint: disable=protected-access
+                    weight,
+                    axis=-1,
+                    out_shape=[
+                        (
+                            tir.IntImm("int64", self.num)
+                            if isinstance(self.num, int)
+                            else weight.shape[0]
+                        ),
+                        tir.IntImm("int64", self.dim),
+                    ],
+                ),
+                name_hint="dequantize",
+                args=[
+                    self.q_weight,
                 ],
-            ),
-            name_hint="dequantize",
-            args=[self.q_weight, self.q_scale],
-        )
+            )
         w = nn.op.permute_dims(w)
         return nn.op.matmul(x, w, out_dtype="float32")
 
@@ -539,14 +873,16 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         self.in_features = in_features
         self.out_features = out_features
         self.config = config
+        self.no_scale = self.config.no_scale
         num_group = tir.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
             (num_local_experts, out_features, config.num_storage_per_group * num_group),
             config.storage_dtype,
         )
-        self.q_scale = nn.Parameter(
-            (num_local_experts, out_features, num_group), config.model_dtype
-        )
+        if not self.no_scale:
+            self.q_scale = nn.Parameter(
+                (num_local_experts, out_features, num_group), config.model_dtype
+            )
         self.quantize_dtype = config.quantize_dtype
         self.group_size = config.group_size
         self.dtype = config.model_dtype
@@ -582,7 +918,8 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
             apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
-            apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
+            if not config.no_scale:
+                apply_sharding(shard, f"{shard.name}_q_scale", quantized_mistral_experts.q_scale)
         return quantized_mistral_experts
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
@@ -604,26 +941,45 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         ret : nn.Tensor
             The output tensor for the group quantized mistral experts layer.
         """
-        from mlc_llm.op import moe_matmul  # pylint: disable=import-outside-toplevel
+        from mlc_chat.op import moe_matmul  # pylint: disable=import-outside-toplevel
 
         assert x.ndim == 2
         if indptr.ndim == 2:  # single-batch
             assert indptr.shape[0] == 1
-            return moe_matmul.dequantize_gemv(
+            if not self.no_scale:
+                return moe_matmul.dequantize_gemv(
+                    x,
+                    self.q_weight,
+                    self.q_scale,
+                    indptr,
+                    quantize_dtype=self.quantize_dtype,
+                    group_size=self.group_size,
+                )
+            else:
+                return moe_matmul.dequantize_gemv_no_scale(
+                    x,
+                    self.q_weight,
+                    indptr,
+                    quantize_dtype=self.quantize_dtype,
+                    group_size=self.group_size,
+                )
+        assert indptr.ndim == 1
+        if not self.no_scale:
+            return moe_matmul.dequantize_group_gemm(
                 x,
                 self.q_weight,
                 self.q_scale,
                 indptr,
                 quantize_dtype=self.quantize_dtype,
+                indptr_dtype=indptr.dtype,
                 group_size=self.group_size,
             )
-        assert indptr.ndim == 1
-        return moe_matmul.dequantize_group_gemm(
-            x,
-            self.q_weight,
-            self.q_scale,
-            indptr,
-            quantize_dtype=self.quantize_dtype,
-            indptr_dtype=indptr.dtype,
-            group_size=self.group_size,
-        )
+        else:
+            return moe_matmul.dequantize_group_gemm_no_scale(
+                x,
+                self.q_weight,
+                indptr,
+                quantize_dtype=self.quantize_dtype,
+                indptr_dtype=indptr.dtype,
+                group_size=self.group_size,
+            )

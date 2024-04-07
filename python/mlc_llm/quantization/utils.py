@@ -119,16 +119,19 @@ def compile_quantize_func(mod: IRModule, device) -> Callable:
     return vm["main"]
 
 
-def apply_sharding(shard_strategy, name: str, weight: nn.Parameter):
-    """Apply sharding strategy to a weight."""
-    if isinstance(shard_strategy, tp.ShardSingleDim):
+def apply_sharding(shard, name: str, weight: nn.Parameter):
+    if isinstance(shard, tp.ShardSingleDim):
         weight.attrs["shard_strategy"] = tp.ShardSingleDim(
             name=name,
-            dim=shard_strategy.dim,
-            segs=shard_strategy.segs,
+            dim=shard.dim,
+            segs=shard.segs,
+        )
+    elif isinstance(shard, tp.ShardScalar):
+        weight.attrs["shard_strategy"] = tp.ShardScalar(
+            name=name,
         )
     else:
-        raise NotImplementedError(f"Unknowing sharding strategy: {shard_strategy}")
+        raise NotImplementedError(f"Unknowing sharding strategy: {shard}")
 
 
 def pack_weight(
