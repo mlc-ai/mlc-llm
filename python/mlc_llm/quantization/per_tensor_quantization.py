@@ -11,10 +11,10 @@ from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 from tvm.target import Target
 
-from mlc_chat.loader import QuantizeMapping
-from mlc_chat.nn import MixtralExperts
-from mlc_chat.support import logging
-from mlc_chat.support import tensor_parallel as tp
+from mlc_llm.loader import QuantizeMapping
+from mlc_llm.nn import MixtralExperts
+from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 
 from .utils import (
     is_final_fc,

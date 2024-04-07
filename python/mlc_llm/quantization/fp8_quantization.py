@@ -12,10 +12,10 @@ from tvm.runtime import NDArray
 from tvm.script import tir as T
 from tvm.target import Target
 
-from mlc_chat.loader import QuantizeMapping
-from mlc_chat.nn import MixtralExperts
-from mlc_chat.support import logging
-from mlc_chat.support import tensor_parallel as tp
+from mlc_llm.loader import QuantizeMapping
+from mlc_llm.nn import MixtralExperts
+from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 
 from . import group_quantization as gq
 from . import per_tensor_quantization as ptq

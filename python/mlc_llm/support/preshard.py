@@ -8,7 +8,7 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.runtime import Device, NDArray
 from tvm.target import Target
-from mlc_chat.support import tensor_parallel as tp
+from mlc_llm.support import tensor_parallel as tp
 
 logger = logging.getLogger("preshard")
 
