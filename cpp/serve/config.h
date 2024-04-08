@@ -9,6 +9,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
+#include <optional>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -56,6 +58,12 @@ class GenerationConfigNode : public Object {
 class GenerationConfig : public ObjectRef {
  public:
   explicit GenerationConfig(String config_json_str);
+
+  /*!
+   * \brief Parse the generation config from the given JSON string.
+   * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
+   */
+  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };

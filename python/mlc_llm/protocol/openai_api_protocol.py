@@ -329,7 +329,7 @@ class ChatCompletionResponseChoice(BaseModel):
 
 
 class ChatCompletionStreamResponseChoice(BaseModel):
-    finish_reason: Optional[Literal["stop", "length", "tool_calls"]] = None
+    finish_reason: Optional[Literal["stop", "length", "tool_calls", "error"]] = None
     index: int = 0
     delta: ChatCompletionMessage
     logprobs: Optional[LogProbs] = None

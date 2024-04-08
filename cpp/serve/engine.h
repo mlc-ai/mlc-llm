@@ -11,6 +11,7 @@
 #include "data.h"
 #include "event_trace_recorder.h"
 #include "request.h"
+#include "request_state.h"
 
 namespace mlc {
 namespace llm {

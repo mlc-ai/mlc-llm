@@ -10,6 +10,8 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
+#include <optional>
+
 namespace mlc {
 namespace llm {
 namespace json {
@@ -20,6 +22,53 @@ namespace json {
  * \return The parsed JSON object.
  */
 picojson::object ParseToJsonObject(const std::string& json_str);
+
+// Todo(mlc-team): implement "Result<T, E>" class for JSON parsing with error collection.
+/*!
+ * \brief Parse input JSON string into JSON dict.
+ * Any error will be dumped to the input error string.
+ */
+inline std::optional<picojson::object> LoadJSONFromString(const std::string& json_str,
+                                                          std::string* err) {
+  ICHECK_NOTNULL(err);
+  picojson::value json;
+  *err = picojson::parse(json, json_str);
+  if (!json.is<picojson::object>()) {
+    *err += "The input JSON string does not correspond to a JSON dict.";
+    return std::nullopt;
+  }
+  return json.get<picojson::object>();
+}
+
+/*!
+ * \brief  // Todo(mlc-team): document this function.
+ * \tparam T
+ * \param json_obj
+ * \param field
+ * \param value
+ * \param err
+ * \param required
+ * \return
+ */
+template <typename T>
+inline bool ParseJSONField(const picojson::object& json_obj, const std::string& field, T& value,
+                           std::string* err, bool required) {
+  // T can be int, double, bool, string, picojson::array
+  if (json_obj.count(field)) {
+    if (!json_obj.at(field).is<T>()) {
+      *err += "Field " + field + " is not of type " + typeid(T).name() + "\n";
+      return false;
+    }
+    value = json_obj.at(field).get<T>();
+  } else {
+    if (required) {
+      *err += "Field " + field + " is required\n";
+      return false;
+    }
+  }
+  return true;
+}
+
 /*!
  * \brief Lookup a JSON object by a key, and convert it to a given type.
  * \param json The JSON object to look up.
