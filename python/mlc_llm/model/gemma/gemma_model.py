@@ -39,7 +39,7 @@ class GemmaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
-        if self.hidden_act != "gelu":
+        if self.hidden_act not in ("gelu", "gelu_pytorch_tanh"):
             raise ValueError("Only GeLU is supported as the activation for gemma.")
         if self.attention_bias:
             raise ValueError('Only "False" attention_bias is supported for gemma')
@@ -115,7 +115,7 @@ class GemmaMLP(nn.Module):
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        return self.down_proj(op.gelu(x1) * x2)
+        return self.down_proj(op.gelu(x1, approximate="tanh") * x2)
 
 
 class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
