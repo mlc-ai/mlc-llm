@@ -8,15 +8,17 @@ import os
 
 CURRENT_DIR = os.path.dirname(__file__)
 
+
 def get_lib_path():
     """Get library path, name and version"""
     # Directly exec libinfo to get the right setup
-    libinfo_py = os.path.join(CURRENT_DIR, "./python/mlc_chat/libinfo.py")
+    libinfo_py = os.path.join(CURRENT_DIR, "./python/mlc_llm/libinfo.py")
     libinfo = {"__file__": libinfo_py}
     with open(libinfo_py, "rb") as f:
         exec(compile(f.read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
     return version
+
 
 def git_describe_version(original_version):
     """Get git describe version."""
