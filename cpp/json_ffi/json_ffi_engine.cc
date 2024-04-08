@@ -1,12 +1,16 @@
 #include "json_ffi_engine.h"
 
+#include <picojson.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/registry.h>
+
 namespace mlc {
 namespace llm {
-namespace serve {
+namespace json_ffi {
 
 using namespace tvm::runtime;
 
-JSONFFIEngine::JSONFFIEngine() { engine_ = ThreadedEngine::Create(); }
+JSONFFIEngine::JSONFFIEngine() { engine_ = serve::ThreadedEngine::Create(); }
 
 bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string request_id) {
   bool success = this->AddRequest(request_json_str, request_id);
@@ -18,8 +22,8 @@ bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string req
 
 void JSONFFIEngine::StreamBackError(std::string request_id) {
   ChatCompletionMessage delta;
-  delta.content =
-      std::vector<std::map<std::string, std::string>>{{{"type", "text"}, {"text", this->err_}}};
+  delta.content = std::vector<std::unordered_map<std::string, std::string>>{
+      {{"type", "text"}, {"text", this->err_}}};
   delta.role = Role::assistant;
 
   ChatCompletionStreamResponseChoice choice;
@@ -38,7 +42,7 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
 
 bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
   std::optional<ChatCompletionRequest> optional_request =
-      ChatCompletionRequest::FromJSON(request_json_str, err_);
+      ChatCompletionRequest::FromJSON(request_json_str, &err_);
   if (!optional_request.has_value()) {
     return false;
   }
@@ -73,9 +77,8 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   }
 
   // generation_cfg
-  std::optional<GenerationConfig> generation_cfg =
-      GenerationConfig::FromJSON(request_json_str, err_);
-  if (!generation_cfg.has_value()) {
+  Optional<GenerationConfig> generation_cfg = GenerationConfig::FromJSON(request_json_str, &err_);
+  if (!generation_cfg.defined()) {
     return false;
   }
 
@@ -147,7 +150,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
   Array<String> GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
-    std::map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
+    std::unordered_map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
       if (response_map.find(request_id) == response_map.end()) {
@@ -180,8 +183,8 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       // Size of delta_output->group_delta_token_ids Array should be 1
       IntTuple delta_token_ids = delta_output->group_delta_token_ids[0];
       std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
-      delta.content = std::vector<std::map<std::string, std::string>>();
-      delta.content.value().push_back(std::map<std::string, std::string>{
+      delta.content = std::vector<std::unordered_map<std::string, std::string>>();
+      delta.content.value().push_back(std::unordered_map<std::string, std::string>{
           {"type", "text"}, {"text", this->streamer_->Put(delta_token_ids_vec)}});
 
       delta.role = Role::assistant;
@@ -208,6 +211,6 @@ TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed([]() {
   return Module(make_object<JSONFFIEngineImpl>());
 });
 
-}  // namespace serve
+}  // namespace json_ffi
 }  // namespace llm
 }  // namespace mlc

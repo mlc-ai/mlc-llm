@@ -1,24 +1,22 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file protocol/openai_api_protocol.h
+ * \file json_ffi/openai_api_protocol.h
  * \brief The header of OpenAI API Protocol in MLC LLM.
  */
-#ifndef MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H
-#define MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H
+#ifndef MLC_LLM_JSON_FFI_OPENAI_API_PROTOCOL_H
+#define MLC_LLM_JSON_FFI_OPENAI_API_PROTOCOL_H
 
 #include <ctime>
-#include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "picojson.h"
 
-picojson::value LoadJsonFromString(const std::string& json_str, std::string& err);
-
-template <typename T>
-bool ParseJsonField(picojson::object& json_obj, const std::string& field, T& value,
-                    std::string& err, bool required = false);
+namespace mlc {
+namespace llm {
+namespace json_ffi {
 
 enum class Role { system, user, assistant, tool };
 enum class Type { text, json_object, function };
@@ -29,9 +27,10 @@ class ChatFunction {
  public:
   std::optional<std::string> description = std::nullopt;
   std::string name;
-  std::map<std::string, std::string> parameters;  // Assuming parameters are string key-value pairs
+  std::unordered_map<std::string, std::string>
+      parameters;  // Assuming parameters are string key-value pairs
 
-  static std::optional<ChatFunction> FromJSON(const picojson::value& json, std::string& err);
+  static std::optional<ChatFunction> FromJSON(const picojson::value& json, std::string* err);
 };
 
 // TODO: Implement the following class
@@ -40,14 +39,14 @@ class ChatTool {
   Type type = Type::function;
   ChatFunction function;
 
-  static std::optional<ChatTool> FromJSON(const picojson::value& json, std::string& err);
+  static std::optional<ChatTool> FromJSON(const picojson::value& json, std::string* err);
 };
 
 // TODO: Implement the following class
 class ChatFunctionCall {
  public:
   std::string name;
-  std::optional<std::map<std::string, std::string>> arguments =
+  std::optional<std::unordered_map<std::string, std::string>> arguments =
       std::nullopt;  // Assuming arguments are string key-value pairs
 };
 
@@ -61,7 +60,7 @@ class ChatToolCall {
 
 class ChatCompletionMessage {
  public:
-  std::optional<std::vector<std::map<std::string, std::string>>> content =
+  std::optional<std::vector<std::unordered_map<std::string, std::string>>> content =
       std::nullopt;  // Assuming content is a list of string key-value pairs
   Role role;
   std::optional<std::string> name = std::nullopt;
@@ -69,7 +68,7 @@ class ChatCompletionMessage {
   std::optional<std::string> tool_call_id = std::nullopt;              // TODO: Implement this
 
   static std::optional<ChatCompletionMessage> FromJSON(const picojson::value& json,
-                                                       std::string& err);
+                                                       std::string* err);
   picojson::object ToJSON();
 };
 
@@ -87,7 +86,7 @@ class ChatCompletionRequest {
   double presence_penalty = 0.0;
   bool logprobs = false;
   int top_logprobs = 0;
-  std::optional<std::map<int, double>> logit_bias = std::nullopt;
+  std::optional<std::unordered_map<int, double>> logit_bias = std::nullopt;
   std::optional<int> max_tokens = std::nullopt;
   int n = 1;
   std::optional<int> seed = std::nullopt;
@@ -101,10 +100,18 @@ class ChatCompletionRequest {
   bool ignore_eos = false;
   //   RequestResponseFormat response_format; //TODO: implement this
 
-  static std::optional<ChatCompletionRequest> FromJSON(const picojson::value& json,
-                                                       std::string& err);
+  /*!
+   * \brief Create a ChatCompletionRequest instance from the given JSON object.
+   * When creation fails, errors are dumped to the input error string, and nullopt is returned.
+   */
+  static std::optional<ChatCompletionRequest> FromJSON(const picojson::object& json_obj,
+                                                       std::string* err);
+  /*!
+   * \brief Parse and create a ChatCompletionRequest instance from the given JSON string.
+   * When creation fails, errors are dumped to the input error string, and nullopt is returned.
+   */
   static std::optional<ChatCompletionRequest> FromJSON(const std::string& json_str,
-                                                       std::string& err);
+                                                       std::string* err);
 
   // TODO: check_penalty_range, check_logit_bias, check_logprobs
 };
@@ -154,4 +161,8 @@ class ChatCompletionStreamResponse {
   picojson::object ToJSON();
 };
 
-#endif  // MLC_LLM_PROTOCOL_OPENAI_API_PROTOCOL_H
+}  // namespace json_ffi
+}  // namespace llm
+}  // namespace mlc
+
+#endif  // MLC_LLM_JSON_FFI_OPENAI_API_PROTOCOL_H

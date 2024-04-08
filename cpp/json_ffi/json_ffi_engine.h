@@ -6,32 +6,26 @@
 #ifndef MLC_LLM_JSON_FFI_JSON_FFI_ENGINE_H_
 #define MLC_LLM_JSON_FFI_JSON_FFI_ENGINE_H_
 
-#include <dlpack/dlpack.h>
-#include <picojson.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
-#include <thread>
+#include <string>
 
-#include "../protocol/openai_api_protocol.h"
 #include "../serve/threaded_engine.h"
 #include "../streamer.h"
+#include "openai_api_protocol.h"
 
 namespace mlc {
 namespace llm {
-namespace serve {
-using namespace tvm::runtime;
+namespace json_ffi {
 
+using namespace tvm::runtime;
+using namespace mlc::llm::serve;
+
+/*!
+ * \brief // Todo: document this class, fields and member functions
+ */
 class JSONFFIEngine {
  public:
-  std::unique_ptr<ThreadedEngine> engine_;
-  std::string err_;
-  PackedFunc request_stream_callback_;
-  TextStreamer streamer_;  // TODO: Support different streamers for each request
-
   JSONFFIEngine();
 
   ~JSONFFIEngine();
@@ -47,9 +41,15 @@ class JSONFFIEngine {
   std::string GetLastError();
 
   void ExitBackgroundLoop();
+
+ protected:
+  std::unique_ptr<ThreadedEngine> engine_;
+  std::string err_;
+  PackedFunc request_stream_callback_;
+  TextStreamer streamer_;  // TODO: Support "n", and support different streamers for each request
 };
 
-}  // namespace serve
+}  // namespace json_ffi
 }  // namespace llm
 }  // namespace mlc
 

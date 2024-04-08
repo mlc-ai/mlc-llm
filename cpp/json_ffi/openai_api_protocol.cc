@@ -1,34 +1,20 @@
+/*!
+ *  Copyright (c) 2023 by Contributors
+ * \file json_ffi/openai_api_protocol.cc
+ * \brief The implementation of OpenAI API Protocol in MLC LLM.
+ */
 #include "openai_api_protocol.h"
 
-picojson::value LoadJsonFromString(const std::string& json_str, std::string& err) {
-  picojson::value json;
-  err = picojson::parse(json, json_str);
-  return json;
-}
+#include "../metadata/json_parser.h"
 
-template <typename T>
-bool ParseJsonField(picojson::object& json_obj, const std::string& field, T& value,
-                    std::string& err, bool required) {
-  // T can be int, double, bool, string, picojson::array
-  if (json_obj.count(field)) {
-    if (!json_obj[field].is<T>()) {
-      err += "Field " + field + " is not of type " + typeid(T).name() + "\n";
-      return false;
-    }
-    value = json_obj[field].get<T>();
-  } else {
-    if (required) {
-      err += "Field " + field + " is required\n";
-      return false;
-    }
-  }
-  return true;
-}
+namespace mlc {
+namespace llm {
+namespace json_ffi {
 
 std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picojson::value& json,
-                                                                     std::string& err) {
+                                                                     std::string* err) {
   if (!json.is<picojson::object>()) {
-    err += "Input is not a valid JSON object";
+    *err += "Input is not a valid JSON object";
     return std::nullopt;
   }
   picojson::object json_obj = json.get<picojson::object>();
@@ -37,16 +23,16 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picoj
 
   // content
   picojson::array content_arr;
-  if (!ParseJsonField(json_obj, "content", content_arr, err, true)) {
+  if (!json::ParseJSONField(json_obj, "content", content_arr, err, true)) {
     return std::nullopt;
   }
-  std::vector<std::map<std::string, std::string> > content;
+  std::vector<std::unordered_map<std::string, std::string> > content;
   for (const auto& item : content_arr) {
     if (!item.is<picojson::object>()) {
-      err += "Content item is not an object";
+      *err += "Content item is not an object";
       return std::nullopt;
     }
-    std::map<std::string, std::string> item_map;
+    std::unordered_map<std::string, std::string> item_map;
     picojson::object item_obj = item.get<picojson::object>();
     for (picojson::value::object::const_iterator i = item_obj.begin(); i != item_obj.end(); ++i) {
       item_map[i->first] = i->second.to_str();
@@ -57,7 +43,7 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picoj
 
   // role
   std::string role_str;
-  if (!ParseJsonField(json_obj, "role", role_str, err, true)) {
+  if (!json::ParseJSONField(json_obj, "role", role_str, err, true)) {
     return std::nullopt;
   }
   if (role_str == "system") {
@@ -69,13 +55,13 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picoj
   } else if (role_str == "tool") {
     message.role = Role::tool;
   } else {
-    err += "Invalid role";
+    *err += "Invalid role";
     return std::nullopt;
   }
 
   // name
   std::string name;
-  if (ParseJsonField(json_obj, "name", name, err, false)) {
+  if (json::ParseJSONField(json_obj, "name", name, err, false)) {
     message.name = name;
   }
 
@@ -84,19 +70,13 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picoj
   return message;
 }
 
-std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const picojson::value& json,
-                                                                     std::string& err) {
-  if (!json.is<picojson::object>()) {
-    err += "Input is not a valid JSON object";
-    return std::nullopt;
-  }
-  picojson::object json_obj = json.get<picojson::object>();
-
+std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(
+    const picojson::object& json_obj, std::string* err) {
   ChatCompletionRequest request;
 
   // messages
   picojson::array messages_arr;
-  if (!ParseJsonField(json_obj, "messages", messages_arr, err, true)) {
+  if (!json::ParseJSONField(json_obj, "messages", messages_arr, err, true)) {
     return std::nullopt;
   }
   std::vector<ChatCompletionMessage> messages;
@@ -111,20 +91,20 @@ std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const picoj
 
   // model
   std::string model;
-  if (!ParseJsonField(json_obj, "model", model, err, true)) {
+  if (!json::ParseJSONField(json_obj, "model", model, err, true)) {
     return std::nullopt;
   }
   request.model = model;
 
   // frequency_penalty
   double frequency_penalty;
-  if (ParseJsonField(json_obj, "frequency_penalty", frequency_penalty, err, false)) {
+  if (json::ParseJSONField(json_obj, "frequency_penalty", frequency_penalty, err, false)) {
     request.frequency_penalty = frequency_penalty;
   }
 
   // presence_penalty
   double presence_penalty;
-  if (ParseJsonField(json_obj, "presence_penalty", presence_penalty, err, false)) {
+  if (json::ParseJSONField(json_obj, "presence_penalty", presence_penalty, err, false)) {
     request.presence_penalty = presence_penalty;
   }
 
@@ -134,9 +114,12 @@ std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const picoj
 }
 
 std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string& json_str,
-                                                                     std::string& err) {
-  picojson::value json = LoadJsonFromString(json_str, err);
-  return ChatCompletionRequest::FromJSON(json, err);
+                                                                     std::string* err) {
+  std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
+  if (!json_obj.has_value()) {
+    return std::nullopt;
+  }
+  return ChatCompletionRequest::FromJSON(json_obj.value(), err);
 }
 
 picojson::object ChatCompletionMessage::ToJSON() {
@@ -235,3 +218,7 @@ picojson::object ChatCompletionStreamResponse::ToJSON() {
   obj["object"] = picojson::value(this->object);
   return obj;
 }
+
+}  // namespace json_ffi
+}  // namespace llm
+}  // namespace mlc

@@ -8,7 +8,8 @@
 
 #include <random>
 
-#include "../protocol/openai_api_protocol.h"
+#include "../json_ffi/openai_api_protocol.h"
+#include "../metadata/json_parser.h"
 #include "data.h"
 
 namespace mlc {
@@ -159,19 +160,18 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   data_ = std::move(n);
 }
 
-std::optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str,
-                                                           std::string& err) {
-  picojson::value json = LoadJsonFromString(json_str, err);
-  if (!err.empty()) {
-    return std::nullopt;
+Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str,
+                                                      std::string* err) {
+  std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
+  if (!err->empty() || !json_obj.has_value()) {
+    return NullOpt;
   }
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
-  picojson::object config = json.get<picojson::object>();
 
-  // TODO: Support parameters
+  // TODO(mlc-team): Pass the parameters from `json_obj` to `n`.
 
-  if (!err.empty()) {
-    return std::nullopt;
+  if (!err->empty()) {
+    return NullOpt;
   }
   GenerationConfig gen_config;
   gen_config.data_ = std::move(n);
