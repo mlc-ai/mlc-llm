@@ -120,7 +120,7 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             from transformers import AutoConfig
 
             hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
-        except Exception as e:
+        except (ImportError, OSError) as e:
             # If transformers is not installed, get the config from preset
             # Llama2 is gated so it throws an OSError. Get the config from preset instead
             preset_mapping = {
