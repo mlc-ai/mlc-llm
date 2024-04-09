@@ -54,9 +54,9 @@ def is_final_fc(name: str) -> bool:
     return name in ["head", "lm_head", "lm_head.linear", "embed_out"]
 
 
-def is_moe_gate(name: str) -> bool:
+def is_moe_gate(name: str, node: nn.Linear) -> bool:
     """Check whether the parameter is the MoE gate layer."""
-    return name.endswith("gate")
+    return name.endswith("gate") and isinstance(node.out_features, int) and node.out_features < 16
 
 
 def compile_quantize_func(mod: IRModule, device) -> Callable:
