@@ -16,7 +16,7 @@ namespace serve {
 class EBNFParserImpl {
  public:
   /*! \brief The logic of parsing the grammar string. */
-  BNFGrammar DoParse(String ebnf_string, String main_rule);
+  BNFGrammar DoParse(std::string ebnf_string, std::string main_rule);
 
  private:
   using Rule = BNFGrammarNode::Rule;
@@ -192,7 +192,7 @@ int32_t EBNFParserImpl::ParseString() {
   std::vector<int32_t> character_classes;
   while (Peek() && Peek() != '\"') {
     if (Peek() == '\r' || Peek() == '\n') {
-      ThrowParseError("String should not contain newline");
+      ThrowParseError("There should be no newline character in a string literal");
     }
     auto [codepoint, len] = Utf8OrEscapeToCodepoint(cur_);
     if (codepoint == static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8)) {
@@ -391,7 +391,7 @@ void EBNFParserImpl::ResetStringIterator(const char* cur) {
   in_parentheses_ = false;
 }
 
-BNFGrammar EBNFParserImpl::DoParse(String ebnf_string, String main_rule) {
+BNFGrammar EBNFParserImpl::DoParse(std::string ebnf_string, std::string main_rule) {
   ResetStringIterator(ebnf_string.c_str());
   BuildRuleNameToId();
 
@@ -412,12 +412,12 @@ BNFGrammar EBNFParserImpl::DoParse(String ebnf_string, String main_rule) {
   return builder_.Get(main_rule);
 }
 
-BNFGrammar EBNFParser::Parse(String ebnf_string, String main_rule) {
+BNFGrammar EBNFParser::Parse(std::string ebnf_string, std::string main_rule) {
   EBNFParserImpl parser;
   return parser.DoParse(ebnf_string, main_rule);
 }
 
-BNFGrammar BNFJSONParser::Parse(String json_string) {
+BNFGrammar BNFJSONParser::Parse(std::string json_string) {
   auto node = make_object<BNFGrammarNode>();
   auto grammar_json = json::ParseToJsonObject(json_string);
   auto rules_json = json::Lookup<picojson::array>(grammar_json, "rules");

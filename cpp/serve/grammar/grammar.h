@@ -11,6 +11,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -183,33 +184,38 @@ class BNFGrammar : public ObjectRef {
    * \param simplify Whether to simplify the grammar to make matching more efficient. Default: true.
    * Not implemented yet.
    */
-  static BNFGrammar FromEBNFString(const String& ebnf_string, const String& main_rule = "main",
-                                   bool normalize = true, bool simplify = true);
+  static BNFGrammar FromEBNFString(const std::string& ebnf_string,
+                                   const std::string& main_rule = "main", bool normalize = true,
+                                   bool simplify = true);
 
   /*!
    * \brief Construct a BNF grammar from the dumped JSON string.
    * \param json_string The JSON-formatted string. This string should have the same format as
    * the result of BNFGrammarJSONSerializer::ToString.
    */
-  static BNFGrammar FromJSON(const String& json_string);
+  static BNFGrammar FromJSON(const std::string& json_string);
 
   /*!
    * \brief Construct a BNF grammar from the json schema string. The schema string should be in the
    * format of the schema of a JSON file. We will parse the schema and generate a BNF grammar.
    * \param schema The schema string.
-   * \param indent The number of spaces for indentation. If -1, the output will be in one line.
-   * Default: -1.
+   * \param indent The number of spaces for indentation. If set to std::nullopt, the output will be
+   * in one line. Default: std::nullopt.
    * \param separators Two separators used in the schema: comma and colon. Examples: {",", ":"},
-   * {", ", ": "}. If NullOpt, the default separators will be used: {",", ": "} when the indent
-   * is not -1, and {", ", ": "} otherwise. Default: NullOpt.
+   * {", ", ": "}. If std::nullopt, the default separators will be used: {",", ": "} when the
+   * indent is not -1, and {", ", ": "} otherwise. This follows the convention in python
+   * json.dumps(). Default: std::nullopt.
    * \param strict_mode Whether to use strict mode. In strict mode, the generated grammar will not
-   * allow unevaluatedProperties and unevaluatedItems, i.e. these will be set to false by default.
+   * allow properties and items that is not specified in the schema. This is equivalent to
+   * setting unevaluatedProperties and unevaluatedItems to false.
+   *
    * This helps LLM to generate accurate output in the grammar-guided generation with JSON
    * schema. Default: true.
    */
-  static BNFGrammar FromSchema(const String& schema, int indent = -1,
-                               Optional<Array<String>> separators = NullOpt,
-                               bool strict_mode = true);
+  static BNFGrammar FromSchema(
+      const std::string& schema, std::optional<int> indent = std::nullopt,
+      std::optional<std::pair<std::string, std::string>> separators = std::nullopt,
+      bool strict_mode = true);
 
   /*!
    * \brief Get the grammar of standard JSON format. We have built-in support for JSON.

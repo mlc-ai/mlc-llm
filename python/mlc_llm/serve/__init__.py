@@ -6,6 +6,5 @@ from .config import EngineMode, GenerationConfig, KVCacheConfig
 from .data import Data, ImageData, RequestStreamOutput, TextData, TokenData
 from .engine import AsyncEngine, Engine
 from .grammar import BNFGrammar, GrammarStateMatcher
-from .json_schema_converter import json_schema_to_ebnf
 from .request import Request
 from .server import PopenServer
