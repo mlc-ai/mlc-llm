@@ -113,18 +113,24 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         """
         Get the Hugging Face config of the text model
         """
-        # pylint: disable=import-outside-toplevel, import-error
-        from transformers import AutoConfig
 
         hf_config: Dict[str, Any]
         try:
+            # pylint: disable=import-outside-toplevel, import-error
+            from transformers import AutoConfig
+
             hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
-        except OSError as e:
+        except Exception as e:
+            # If transformers is not installed, get the config from preset
             # Llama2 is gated so it throws an OSError. Get the config from preset instead
-            if text_config_dict["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
-                hf_config = MODEL_PRESETS["llama2_7b"]
-            elif text_config_dict["_name_or_path"] == "meta-llama/Llama-2-13b-hf":
-                hf_config = MODEL_PRESETS["llama2_13b"]
+            preset_mapping = {
+                "meta-llama/Llama-2-7b-hf": "llama2_7b",
+                "meta-llama/Llama-2-13b-hf": "llama2_13b",
+                "lmsys/vicuna-7b-v1.5": "llama2_7b",
+                "mistralai/Mistral-7B-v0.1": "mistral_7b",
+            }
+            if text_config_dict["_name_or_path"] in preset_mapping:
+                hf_config = MODEL_PRESETS[preset_mapping[text_config_dict["_name_or_path"]]]
             else:
                 raise ValueError("Unsupported text model") from e
 
