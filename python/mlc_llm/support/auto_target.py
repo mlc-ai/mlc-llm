@@ -41,7 +41,7 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
         The hint for the host CPU, default is "auto".
     """
     target, build_func = _detect_target_gpu(target_hint)
-    if target.host is None or host_hint != "auto":
+    if target.host is None:
         target = Target(target, host=_detect_target_host(host_hint))
     if target.kind.name == "cuda":
         # Enable thrust for CUDA
