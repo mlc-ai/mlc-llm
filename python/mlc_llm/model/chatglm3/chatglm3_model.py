@@ -191,14 +191,14 @@ class GLMBlock(nn.Module):
             )
             if config.add_bias_linear:
                 _set(
-                    self.mlp.dense_h_to_4h.bias, 
-                    tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0)
+                    self.mlp.dense_h_to_4h.bias,
+                    tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
                 )
             _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
             if config.add_bias_linear:
                 _set(
                     self.mlp.dense_4h_to_h.bias,
-                    tp.ShardSingleDim("_shard_dense_4h_to_h_bias", dim=1)
+                    tp.ShardSingleDim("_shard_dense_4h_to_h_bias", dim=1),
                 )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
