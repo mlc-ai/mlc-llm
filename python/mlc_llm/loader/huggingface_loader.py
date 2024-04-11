@@ -98,7 +98,10 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         check_parameter_usage(extern_param_map, set(self.torch_to_path.keys()))
 
     def load(
-        self, device: Device, preshard_funcs: Dict[str, Callable] = None
+        self,
+        device: Device,
+        preshard_funcs: Dict[str, Callable] = None,
+        smoothquant_funcs: Dict[str, Callable] = None,
     ) -> Iterator[Tuple[str, NDArray]]:
         """Load the parameters and yield the MLC parameter and its value.
 
@@ -119,8 +122,12 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
                 sharded_params = preshard_funcs[mlc_name](param)
                 for i, sharded_param in enumerate(sharded_params):
                     sharded_name = _sharded_param_name(mlc_name, i)
+                    if smoothquant_funcs is not None and sharded_name in smoothquant_funcs:
+                        sharded_param = smoothquant_funcs[sharded_name](sharded_param)
                     yield from self._load_or_quantize(sharded_name, sharded_param, device)
             else:
+                if smoothquant_funcs is not None and mlc_name in smoothquant_funcs:
+                    param = smoothquant_funcs[mlc_name](param)
                 yield from self._load_or_quantize(mlc_name, param, device)
 
         cached_files = list(self.cached_files.keys())

@@ -5,7 +5,7 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import QuantizeMapping
-from mlc_llm.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize
+from mlc_llm.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize, SmoothQuantize
 
 from .llama_model import LlamaConfig, LlamaForCasualLM
 
@@ -66,4 +66,20 @@ def no_quant(
     model: nn.Module = LlamaForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
+    return model, quant_map
+
+
+def smooth_quant(
+    model_config: LlamaConfig,
+    quantization: SmoothQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a Llama-architecture model using SmoothQuant."""
+    model: nn.Module = LlamaForCasualLM(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
+    model = quantization.quantize_model(
+        model,
+        quant_map,
+        "",
+    )
     return model, quant_map

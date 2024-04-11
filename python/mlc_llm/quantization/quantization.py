@@ -6,6 +6,7 @@ from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
 from .per_tensor_quantization import PerTensorQuantize
+from .smooth_quantization import SmoothQuantize
 
 Quantization = Any
 """Quantization is an object that represents an quantization algorithm. It is required to
@@ -137,6 +138,87 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         quantize_embedding=False,
         quantize_linear=False,
+    ),
+    "smq_q8i8f16_0": SmoothQuantize(
+        name="smq_q8i8f16_0",
+        kind="smoothquant",
+        activation_dtype="int8",
+        weight_dtype="int8",
+        zero_point_dtype="int8",
+        accumulator_dtype="int32",
+        model_dtype="float16",
+    ),
+    "smq_q8i8f16_1": SmoothQuantize(
+        name="smq_q8i8f16_1",
+        kind="smoothquant",
+        activation_dtype="int8",
+        weight_dtype="int8",
+        zero_point_dtype="int8",
+        accumulator_dtype="int32",
+        model_dtype="float16",
+    ),
+    "smq_q8i8f16_2": SmoothQuantize(
+        name="smq_q8i8f16_2",
+        kind="smoothquant",
+        activation_dtype="int8",
+        weight_dtype="int8",
+        zero_point_dtype="int8",
+        accumulator_dtype="int32",
+        model_dtype="float16",
+    ),
+    "smq_e4m3_float8_0": SmoothQuantize(
+        name="smq_e4m3_float8_0",
+        kind="smoothquant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
+    ),
+    "smq_e4m3_float8_1": SmoothQuantize(
+        name="smq_e4m3_float8_1",
+        kind="smoothquant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
+    ),
+    "smq_e4m3_float8_2": SmoothQuantize(
+        name="smq_e4m3_float8_2",
+        kind="smoothquant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
+    ),
+    "smq_e5m2_float8_0": SmoothQuantize(
+        name="smq_e5m2_float8_0",
+        kind="smoothquant",
+        activation_dtype="e5m2_float8",
+        weight_dtype="e5m2_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
+    ),
+    "smq_e5m2_float8_1": SmoothQuantize(
+        name="smq_e5m2_float8_1",
+        kind="smoothquant",
+        activation_dtype="e5m2_float8",
+        weight_dtype="e5m2_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
+    ),
+    "smq_e5m2_float8_2": SmoothQuantize(
+        name="smq_e5m2_float8_2",
+        kind="smoothquant",
+        activation_dtype="e5m2_float8",
+        weight_dtype="e5m2_float8",
+        zero_point_dtype="float16",
+        accumulator_dtype="float32",
+        model_dtype="float16",
     ),
     "fp16_max_calibration": PerTensorQuantize(
         name="fp16_max_calibration",
