@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import tvm.testing
 from pydantic import BaseModel, Field, TypeAdapter
 
-from mlc_llm.serve import BNFGrammar, GrammarStateMatcher, json_schema_to_ebnf
+from mlc_llm.serve import BNFGrammar, GrammarStateMatcher
 
 
 def check_schema_with_grammar(
@@ -16,7 +16,7 @@ def check_schema_with_grammar(
     strict_mode: bool = True,
 ):
     schema_str = json.dumps(schema, indent=2)
-    grammar = json_schema_to_ebnf(
+    grammar = BNFGrammar.debug_json_schema_to_ebnf(
         schema_str, indent=indent, separators=separators, strict_mode=strict_mode
     )
     assert grammar == expected_grammar
@@ -25,17 +25,14 @@ def check_schema_with_grammar(
 def check_schema_with_json(
     schema: Dict[str, Any],
     json_str: str,
-    check_accepted=True,
+    check_accepted: bool = True,
     indent: Optional[int] = None,
     separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
 ):
-    schema_str = json.dumps(schema, indent=2)
-
-    ebnf_grammar_str = json_schema_to_ebnf(
-        schema_str, indent=indent, separators=separators, strict_mode=strict_mode
+    ebnf_grammar = BNFGrammar.from_schema(
+        json.dumps(schema, indent=2), indent=indent, separators=separators, strict_mode=strict_mode
     )
-    ebnf_grammar = BNFGrammar.from_ebnf_string(ebnf_grammar_str)
     matcher = GrammarStateMatcher(ebnf_grammar)
 
     if check_accepted:
@@ -47,7 +44,7 @@ def check_schema_with_json(
 def check_schema_with_instance(
     schema: Dict[str, Any],
     instance: BaseModel,
-    check_accepted=True,
+    check_accepted: bool = True,
     indent: Optional[int] = None,
     separators: Optional[Tuple[str, str]] = None,
     strict_mode: bool = True,
@@ -78,14 +75,14 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_any_array_field ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
-main_array_field ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
-main_tuple_field_2 ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
-main_tuple_field ::= "[" "" basic_string ", " basic_integer ", " main_tuple_field_2 "" "]"
-main_object_field ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
-main_nested_object_field_add ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
-main_nested_object_field ::= ("{" "" basic_string ": " main_nested_object_field_add (", " basic_string ": " main_nested_object_field_add)* "" "}") | "{}"
-main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" ": " basic_number ", " "\"boolean_field\"" ": " basic_boolean ", " "\"any_array_field\"" ": " main_any_array_field ", " "\"array_field\"" ": " main_array_field ", " "\"tuple_field\"" ": " main_tuple_field ", " "\"object_field\"" ": " main_object_field ", " "\"nested_object_field\"" ": " main_nested_object_field "" "}"
+main_prop_3 ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+main_prop_4 ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
+main_prop_5_item_2 ::= ("[" "" basic_string (", " basic_string)* "" "]") | "[]"
+main_prop_5 ::= "[" "" basic_string ", " basic_integer ", " main_prop_5_item_2 "" "]"
+main_prop_6 ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
+main_prop_7_addl ::= ("{" "" basic_string ": " basic_integer (", " basic_string ": " basic_integer)* "" "}") | "{}"
+main_prop_7 ::= ("{" "" basic_string ": " main_prop_7_addl (", " basic_string ": " main_prop_7_addl)* "" "}") | "{}"
+main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" ": " basic_number ", " "\"boolean_field\"" ": " basic_boolean ", " "\"any_array_field\"" ": " main_prop_3 ", " "\"array_field\"" ": " main_prop_4 ", " "\"tuple_field\"" ": " main_prop_5 ", " "\"object_field\"" ": " main_prop_6 ", " "\"nested_object_field\"" ": " main_prop_7 "" "}"
 """
 
     schema = MainModel.model_json_schema()
@@ -134,11 +131,11 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any ("," basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" "}") | "{}"
-main_array_field ::= ("[" "\n    " basic_string (",\n    " basic_string)* "\n  " "]") | "[]"
-main_tuple_field_2 ::= ("[" "\n      " basic_string (",\n      " basic_string)* "\n    " "]") | "[]"
-main_tuple_field ::= "[" "\n    " basic_string ",\n    " basic_integer ",\n    " main_tuple_field_2 "\n  " "]"
-main_object_field ::= ("{" "\n    " basic_string ": " basic_integer (",\n    " basic_string ": " basic_integer)* "\n  " "}") | "{}"
-main ::= "{" "\n  " "\"array_field\"" ": " main_array_field ",\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"object_field\"" ": " main_object_field "\n" "}"
+main_prop_0 ::= ("[" "\n    " basic_string (",\n    " basic_string)* "\n  " "]") | "[]"
+main_prop_1_item_2 ::= ("[" "\n      " basic_string (",\n      " basic_string)* "\n    " "]") | "[]"
+main_prop_1 ::= "[" "\n    " basic_string ",\n    " basic_integer ",\n    " main_prop_1_item_2 "\n  " "]"
+main_prop_2 ::= ("{" "\n    " basic_string ": " basic_integer (",\n    " basic_string ": " basic_integer)* "\n  " "}") | "{}"
+main ::= "{" "\n  " "\"array_field\"" ": " main_prop_0 ",\n  " "\"tuple_field\"" ": " main_prop_1 ",\n  " "\"object_field\"" ": " main_prop_2 "\n" "}"
 """
 
     instance = MainModel(
@@ -171,10 +168,10 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any ("," basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any ("," basic_string ": " basic_any)* "" "}") | "{}"
-main_tuple_field_1 ::= "[" "\n      " basic_integer ",\n      " basic_integer (",\n      " basic_any)* "\n    " "]"
-main_tuple_field ::= "[" "\n    " basic_string ",\n    " main_tuple_field_1 (",\n    " basic_any)* "\n  " "]"
-main_foo_field ::= ("{" "\n    " basic_string ": " basic_any (",\n    " basic_string ": " basic_any)* "\n  " "}") | "{}"
-main ::= "{" "\n  " "\"tuple_field\"" ": " main_tuple_field ",\n  " "\"foo_field\"" ": " main_foo_field (",\n  " basic_string ": " basic_any)* "\n" "}"
+main_prop_0_item_1 ::= "[" "\n      " basic_integer ",\n      " basic_integer (",\n      " basic_any)* "\n    " "]"
+main_prop_0 ::= "[" "\n    " basic_string ",\n    " main_prop_0_item_1 (",\n    " basic_any)* "\n  " "]"
+main_prop_1 ::= ("{" "\n    " basic_string ": " basic_any (",\n    " basic_string ": " basic_any)* "\n  " "}") | "{}"
+main ::= "{" "\n  " "\"tuple_field\"" ": " main_prop_0 ",\n  " "\"foo_field\"" ": " main_prop_1 (",\n  " basic_string ": " basic_any)* "\n" "}"
 """
 
     instance_json = """{
@@ -220,12 +217,12 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_bars ::= "\"a\""
-main_str_values ::= "\"a\\n\\r\\\"\""
-main_foo ::= ("\"a\"") | ("\"b\"") | ("\"c\"")
-main_values ::= ("1") | ("\"a\"") | ("true")
-main_field ::= ("\"foo\"") | ("\"bar\"")
-main ::= "{" "" "\"bars\"" ": " main_bars ", " "\"str_values\"" ": " main_str_values ", " "\"foo\"" ": " main_foo ", " "\"values\"" ": " main_values ", " "\"field\"" ": " main_field "" "}"
+main_prop_0 ::= "\"a\""
+main_prop_1 ::= "\"a\\n\\r\\\"\""
+main_prop_2 ::= ("\"a\"") | ("\"b\"") | ("\"c\"")
+main_prop_3 ::= ("1") | ("\"a\"") | ("true")
+main_prop_4 ::= ("\"foo\"") | ("\"bar\"")
+main ::= "{" "" "\"bars\"" ": " main_prop_0 ", " "\"str_values\"" ": " main_prop_1 ", " "\"foo\"" ": " main_prop_2 ", " "\"values\"" ": " main_prop_3 ", " "\"field\"" ": " main_prop_4 "" "}"
 """
 
     schema = MainModel.model_json_schema()
@@ -251,9 +248,9 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_opt_bool ::= basic_boolean | basic_null
-main_size ::= basic_number | basic_null
-main ::= "{" "" ("\"num\"" ": " basic_integer ", ")? ("\"opt_bool\"" ": " main_opt_bool ", ")? "\"size\"" ": " main_size (", " "\"name\"" ": " basic_string)? "" "}"
+main_prop_1 ::= basic_boolean | basic_null
+main_prop_2 ::= basic_number | basic_null
+main ::= "{" "" ("\"num\"" ": " basic_integer ", ")? ("\"opt_bool\"" ": " main_prop_1 ", ")? "\"size\"" ": " main_prop_2 (", " "\"name\"" ": " basic_string)? "" "}"
 """
 
     schema = MainModel.model_json_schema()
@@ -286,9 +283,9 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_sub_1 ::= "" | ", " "\"num\"" ": " basic_number ""
-main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
-main ::= ("{" "" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number "")) "" "}") | "{}"
+main_part_1 ::= "" | ", " "\"num\"" ": " basic_number ""
+main_part_0 ::= main_part_1 | ", " "\"state\"" ": " basic_boolean main_part_1
+main ::= ("{" "" (("\"size\"" ": " basic_integer main_part_0) | ("\"state\"" ": " basic_boolean main_part_1) | ("\"num\"" ": " basic_number "")) "" "}") | "{}"
 """
 
     schema = MainModel.model_json_schema()
@@ -310,10 +307,10 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_sub_2 ::= (", " basic_string ": " basic_any)*
-main_sub_1 ::= main_sub_2 | ", " "\"num\"" ": " basic_number main_sub_2
-main_sub_0 ::= main_sub_1 | ", " "\"state\"" ": " basic_boolean main_sub_1
-main ::= ("{" "" (("\"size\"" ": " basic_integer main_sub_0) | ("\"state\"" ": " basic_boolean main_sub_1) | ("\"num\"" ": " basic_number main_sub_2) | basic_string ": " basic_any main_sub_2) "" "}") | "{}"
+main_part_2 ::= (", " basic_string ": " basic_any)*
+main_part_1 ::= main_part_2 | ", " "\"num\"" ": " basic_number main_part_2
+main_part_0 ::= main_part_1 | ", " "\"state\"" ": " basic_boolean main_part_1
+main ::= ("{" "" (("\"size\"" ": " basic_integer main_part_0) | ("\"state\"" ": " basic_boolean main_part_1) | ("\"num\"" ": " basic_number main_part_2) | basic_string ": " basic_any main_part_2) "" "}") | "{}"
 """
 
     check_schema_with_grammar(schema, ebnf_grammar_non_strict, strict_mode=False)
@@ -376,12 +373,12 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_foo_size ::= basic_number | basic_null
-main_foo ::= "{" "" "\"count\"" ": " basic_integer (", " "\"size\"" ": " main_foo_size)? "" "}"
-main_bars_item_sub_0 ::= "" | ", " "\"banana\"" ": " basic_string ""
-main_bars_item ::= ("{" "" (("\"apple\"" ": " basic_string main_bars_item_sub_0) | ("\"banana\"" ": " basic_string "")) "" "}") | "{}"
-main_bars ::= ("[" "" main_bars_item (", " main_bars_item)* "" "]") | "[]"
-main ::= "{" "" "\"foo\"" ": " main_foo ", " "\"bars\"" ": " main_bars "" "}"
+main_prop_0_prop_1 ::= basic_number | basic_null
+main_prop_0 ::= "{" "" "\"count\"" ": " basic_integer (", " "\"size\"" ": " main_prop_0_prop_1)? "" "}"
+main_prop_1_items_part_0 ::= "" | ", " "\"banana\"" ": " basic_string ""
+main_prop_1_items ::= ("{" "" (("\"apple\"" ": " basic_string main_prop_1_items_part_0) | ("\"banana\"" ": " basic_string "")) "" "}") | "{}"
+main_prop_1 ::= ("[" "" main_prop_1_items (", " main_prop_1_items)* "" "]") | "[]"
+main ::= "{" "" "\"foo\"" ": " main_prop_0 ", " "\"bars\"" ": " main_prop_1 "" "}"
 """
 
     schema = MainModel.model_json_schema()
@@ -412,9 +409,9 @@ basic_boolean ::= "true" | "false"
 basic_null ::= "null"
 basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
 basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
-main_0 ::= "{" "" "\"name\"" ": " basic_string ", " "\"color\"" ": " basic_string "" "}"
-main_1 ::= "{" "" "\"name\"" ": " basic_string ", " "\"breed\"" ": " basic_string "" "}"
-main ::= main_0 | main_1
+main_case_0 ::= "{" "" "\"name\"" ": " basic_string ", " "\"color\"" ": " basic_string "" "}"
+main_case_1 ::= "{" "" "\"name\"" ": " basic_string ", " "\"breed\"" ": " basic_string "" "}"
+main ::= main_case_0 | main_case_1
 """
 
     check_schema_with_grammar(model_schema, ebnf_grammar)
@@ -449,6 +446,32 @@ main ::= "{" "" "\"name\"" ": " basic_string "" "}"
 
     instance_str = json.dumps(instance.model_dump(mode="json", round_trip=True, by_alias=True))
     check_schema_with_json(MainModel.model_json_schema(by_alias=True), instance_str)
+
+    # property name contains space
+    class MainModelSpace(BaseModel):
+        test: Literal["abc"] = Field(..., alias="name 1")
+
+    ebnf_grammar_space = r"""basic_escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
+basic_string_sub ::= "" | [^"\\\r\n] basic_string_sub | "\\" basic_escape basic_string_sub
+basic_any ::= basic_number | basic_string | basic_boolean | basic_null | basic_array | basic_object
+basic_integer ::= ("0" | "-"? [1-9] [0-9]*) ".0"?
+basic_number ::= ("0" | "-"? [1-9] [0-9]*) ("." [0-9]+)? ([eE] [+-]? [0-9]+)?
+basic_string ::= ["] basic_string_sub ["]
+basic_boolean ::= "true" | "false"
+basic_null ::= "null"
+basic_array ::= ("[" "" basic_any (", " basic_any)* "" "]") | "[]"
+basic_object ::= ("{" "" basic_string ": " basic_any (", " basic_string ": " basic_any)* "" "}") | "{}"
+main_prop_0 ::= "\"abc\""
+main ::= "{" "" "\"name 1\"" ": " main_prop_0 "" "}"
+"""
+
+    check_schema_with_grammar(MainModelSpace.model_json_schema(), ebnf_grammar_space)
+
+    instance_space = MainModelSpace(**{"name 1": "abc"})
+    instance_space_str = json.dumps(
+        instance_space.model_dump(mode="json", round_trip=True, by_alias=True)
+    )
+    check_schema_with_json(MainModelSpace.model_json_schema(by_alias=True), instance_space_str)
 
 
 if __name__ == "__main__":

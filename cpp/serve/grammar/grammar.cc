@@ -8,6 +8,7 @@
 #include "grammar_parser.h"
 #include "grammar_serializer.h"
 #include "grammar_simplifier.h"
+#include "json_schema_converter.h"
 
 namespace mlc {
 namespace llm {
@@ -20,7 +21,7 @@ std::ostream& operator<<(std::ostream& os, const BNFGrammar& grammar) {
   return os;
 }
 
-BNFGrammar BNFGrammar::FromEBNFString(const String& ebnf_string, const String& main_rule,
+BNFGrammar BNFGrammar::FromEBNFString(const std::string& ebnf_string, const std::string& main_rule,
                                       bool normalize, bool simplify) {
   auto grammar = EBNFParser::Parse(ebnf_string, main_rule);
   if (normalize) {
@@ -34,7 +35,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromEBNFString")
       return BNFGrammar::FromEBNFString(ebnf_string, main_rule, normalize, simplify);
     });
 
-BNFGrammar BNFGrammar::FromJSON(const String& json_string) {
+BNFGrammar BNFGrammar::FromJSON(const std::string& json_string) {
   return BNFJSONParser::Parse(json_string);
 }
 
@@ -42,33 +43,31 @@ TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromJSON").set_body_typed([](String jso
   return BNFGrammar::FromJSON(json_string);
 });
 
-BNFGrammar BNFGrammar::FromSchema(const String& schema, int indent,
-                                  Optional<Array<String>> separators, bool strict_mode) {
-  static const PackedFunc* json_schema_to_ebnf = Registry::Get("mlc.serve.json_schema_to_ebnf");
-  CHECK(json_schema_to_ebnf != nullptr) << "mlc.serve.json_schema_to_ebnf is not registered.";
-
-  String ebnf_string;
-
-  // Convert the indent parameter to NullOpt for sending it to the PackedFunc.
-  if (indent == -1) {
-    // The conversion from TVMRetValue to String is ambiguous, so we call the conversion function
-    // explicitly
-    ebnf_string =
-        ((*json_schema_to_ebnf)(schema, Optional<ObjectRef>(NullOpt), separators, strict_mode)
-             .
-             operator String());
-  } else {
-    ebnf_string = (*json_schema_to_ebnf)(schema, indent, separators, strict_mode).operator String();
-    ;
-  }
-  return FromEBNFString(ebnf_string);
+BNFGrammar BNFGrammar::FromSchema(const std::string& schema, std::optional<int> indent,
+                                  std::optional<std::pair<std::string, std::string>> separators,
+                                  bool strict_mode) {
+  return FromEBNFString(JSONSchemaToEBNF(schema, indent, separators, strict_mode));
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromSchema")
-    .set_body_typed([](const String& schema, int indent, Optional<Array<String>> separators,
-                       bool strict_mode) {
-      return BNFGrammar::FromSchema(schema, indent, separators, strict_mode);
-    });
+TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromSchema").set_body([](TVMArgs args, TVMRetValue* rv) {
+  std::optional<int> indent;
+  if (args[1].type_code() != kTVMNullptr) {
+    indent = args[1];
+  } else {
+    indent = std::nullopt;
+  }
+
+  std::optional<std::pair<std::string, std::string>> separators;
+  if (args[2].type_code() != kTVMNullptr) {
+    Array<String> separators_arr = args[2];
+    CHECK(separators_arr.size() == 2);
+    separators = std::make_pair(separators_arr[0], separators_arr[1]);
+  } else {
+    separators = std::nullopt;
+  }
+
+  *rv = BNFGrammar::FromSchema(args[0], indent, separators, args[3]);
+});
 
 const std::string kJSONGrammarString = R"(
 main ::= (

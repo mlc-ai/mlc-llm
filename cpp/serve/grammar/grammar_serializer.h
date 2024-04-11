@@ -27,7 +27,7 @@ class BNFGrammarSerializer {
   explicit BNFGrammarSerializer(const BNFGrammar& grammar) : grammar_(grammar) {}
 
   /*! \brief Serialize the grammar to string. */
-  virtual String ToString() = 0;
+  virtual std::string ToString() = 0;
 
  protected:
   const BNFGrammar& grammar_;
@@ -50,7 +50,7 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
   explicit BNFGrammarPrinter(const BNFGrammar& grammar) : BNFGrammarSerializer(grammar) {}
 
   /*! \brief Print the complete grammar. */
-  String ToString() final;
+  std::string ToString() final;
 
   /*! \brief Print a rule. */
   std::string PrintRule(const Rule& rule);
@@ -102,7 +102,7 @@ class BNFGrammarJSONSerializer : public BNFGrammarSerializer {
    * \brief Dump the raw representation of the AST to a JSON file.
    * \param prettify Whether to format the JSON string. If false, all whitespaces will be removed.
    */
-  String ToString() final;
+  std::string ToString() final;
 
  private:
   bool prettify_;
