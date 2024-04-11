@@ -113,7 +113,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 if (
                     isinstance(node, nn.Linear)
                     and (not is_final_fc(name) or self.config.quantize_final_fc)
-                    and not is_moe_gate(name)
+                    and not is_moe_gate(name, node)
                 ):
                     weight_name = f"{name}.weight"
                     self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]

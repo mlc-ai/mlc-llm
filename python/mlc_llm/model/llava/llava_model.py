@@ -23,10 +23,12 @@ from tvm.relax.frontend.nn.op import (
 from tvm.relax.op import arange, strided_slice
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.nn import PagedKVCache, RopeMode
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
+from ..mistral.mistral_model import MistralConfig, MistralForCasualLM
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +47,13 @@ class LlavaVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attrib
     patch_size: int
     projection_dim: int
     vocab_size: int
-    dtype: str = "float16"
     num_channels: int = 3
     layer_norm_eps: float = 1e-06
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
+ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCasualLM, "MistralForCausalLM": MistralForCasualLM}
 
 
 @dataclasses.dataclass
@@ -61,11 +66,12 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     text_config: LlamaConfig
     vision_config: LlavaVisionConfig
     vocab_size: int
-    context_window_size: int = 0
-    prefill_chunk_size: int = 0
+    context_window_size: int = -1
+    sliding_window_size: int = -1
+    prefill_chunk_size: int = -1
     tensor_parallel_shards: int = 1
-    dtype: str = "float16"
     max_batch_size: int = 1
+    text_architecture: str = "LlamaForCausalLM"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -81,41 +87,54 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         self.vision_config = LlavaVisionConfig.from_dict(vision_config_dict)
 
         text_config_dict: Dict[str, Any]
-        if isinstance(self.text_config, LlamaConfig):
+        if isinstance(self.text_config, ConfigBase):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:
             text_config_dict = dict(self.text_config)
 
         if "_name_or_path" in text_config_dict:
-            if text_config_dict["_name_or_path"] == "meta-llama/Llama-2-7b-hf":
-                text_config_dict["hidden_size"] = text_config_dict.pop("hidden_size", 4096)
-                text_config_dict["intermediate_size"] = text_config_dict.pop(
-                    "intermediate_size", 11008
-                )
-                text_config_dict["num_attention_heads"] = text_config_dict.pop(
-                    "num_attention_heads", 32
-                )
-                text_config_dict["num_hidden_layers"] = text_config_dict.pop(
-                    "num_hidden_layers", 32
-                )
-                text_config_dict["rms_norm_eps"] = text_config_dict.pop("rms_norm_eps", 1e-06)
-                text_config_dict["vocab_size"] = text_config_dict.pop("vocab_size", 32064)
-                text_config_dict["context_window_size"] = text_config_dict.pop(
-                    "context_window_size", 4096
-                )
-            else:
-                raise ValueError("Unsupported text model")
+            hf_config = self.get_hf_config(text_config_dict)
+            text_config_dict.update(hf_config)
+            architectures = text_config_dict["architectures"]
+            assert len(architectures) == 1
+            self.text_architecture = architectures[0]
         else:
             for k, v in text_config_dict.pop("kwargs", {}).items():
                 text_config_dict[k] = v
 
-        self.text_config = LlamaConfig.from_dict(text_config_dict)
+        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(text_config_dict)
 
-        if self.context_window_size <= 0:
-            self.context_window_size = self.text_config.context_window_size
+        for k in ["context_window_size", "sliding_window_size", "prefill_chunk_size"]:
+            if getattr(self, k) <= 0:
+                if hasattr(self.text_config, k):
+                    setattr(self, k, getattr(self.text_config, k))
 
-        if self.prefill_chunk_size <= 0:
-            self.prefill_chunk_size = self.text_config.prefill_chunk_size
+    def get_hf_config(self, text_config_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get the Hugging Face config of the text model
+        """
+
+        hf_config: Dict[str, Any]
+        try:
+            # pylint: disable=import-outside-toplevel, import-error
+            from transformers import AutoConfig
+
+            hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
+        except (ImportError, OSError) as e:
+            # If transformers is not installed, get the config from preset
+            # Llama2 is gated so it throws an OSError. Get the config from preset instead
+            preset_mapping = {
+                "meta-llama/Llama-2-7b-hf": "llama2_7b",
+                "meta-llama/Llama-2-13b-hf": "llama2_13b",
+                "lmsys/vicuna-7b-v1.5": "llama2_7b",
+                "mistralai/Mistral-7B-v0.1": "mistral_7b",
+            }
+            if text_config_dict["_name_or_path"] in preset_mapping:
+                hf_config = MODEL_PRESETS[preset_mapping[text_config_dict["_name_or_path"]]]
+            else:
+                raise ValueError("Unsupported text model") from e
+
+        return hf_config
 
 
 # pylint: disable=missing-docstring
@@ -128,21 +147,18 @@ class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attribu
         self.embed_dim = config.hidden_size
         self.image_size = config.image_size
         self.patch_size = config.patch_size
-        self.class_embedding = nn.Parameter((self.embed_dim,), dtype=config.dtype)
+        self.class_embedding = nn.Parameter((self.embed_dim,))
         self.patch_embedding = Conv2D(
             in_channels=config.num_channels,
             out_channels=self.embed_dim,
             kernel_size=self.patch_size,
             stride=self.patch_size,
             bias=False,
-            dtype=config.dtype,
         )
 
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches + 1
-        self.position_embedding = nn.Embedding(
-            num=self.num_positions, dim=self.embed_dim, dtype=config.dtype
-        )
+        self.position_embedding = nn.Embedding(num=self.num_positions, dim=self.embed_dim)
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         batch_size = pixel_values.shape[0]
@@ -194,8 +210,8 @@ class CLIPMLP(Module):
     def __init__(self, config: LlavaVisionConfig):
         super().__init__()
         self.activation_fn = LlavaQuickGELU()
-        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size, dtype=config.dtype)
-        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size, dtype=config.dtype)
+        self.fc1 = nn.Linear(config.hidden_size, config.intermediate_size)
+        self.fc2 = nn.Linear(config.intermediate_size, config.hidden_size)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         hidden_states = self.fc1(hidden_states)
@@ -216,10 +232,10 @@ class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
                 f" and `num_heads`: {self.num_heads})."
             )
         self.scale = self.head_dim**-0.5
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
-        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, dtype=config.dtype)
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
     def _shape(self, tensor: Tensor, seq_len: int, bsz: int):
         reshape_tensor = reshape(tensor, shape=(bsz, seq_len, self.num_heads, self.head_dim))
@@ -263,13 +279,9 @@ class CLIPEncoderLayer(Module):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.self_attn = CLIPAttention(config)
-        self.layer_norm1 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps, dtype=config.dtype
-        )
+        self.layer_norm1 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
         self.mlp = CLIPMLP(config)
-        self.layer_norm2 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps, dtype=config.dtype
-        )
+        self.layer_norm2 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         residual = hidden_states
@@ -308,9 +320,9 @@ class CLIPVisionTransformer(Module):
         super().__init__()
         embed_dim = config.hidden_size
         self.embeddings = CLIPVisionEmbeddings(config)
-        self.pre_layrnorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps, dtype=config.dtype)
+        self.pre_layrnorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
         self.encoder = CLIPEncoder(config)
-        self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps, dtype=config.dtype)
+        self.post_layernorm = nn.LayerNorm(embed_dim, eps=config.layer_norm_eps)
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         hidden_states = self.embeddings(pixel_values)
@@ -353,9 +365,15 @@ class LlavaForCasualLM(Module):
         self.config = config
         self.vision_tower = CLIPVisionModel(config.vision_config)
         self.multi_modal_projector = LlavaMultiModalProjector(config)
-        self.language_model = LlamaForCasualLM(config.text_config)
+        self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
-        self.dtype = config.dtype
+        self.dtype = "float32"
+
+    def to(self, dtype: Optional[str] = None):
+        super().to(dtype=dtype)
+        self.language_model.to(dtype=dtype)
+        if dtype is not None:
+            self.dtype = dtype
 
     def _embed_input_ids(self, input_ids: Tensor) -> Tensor:
         return self.language_model.embed(input_ids)

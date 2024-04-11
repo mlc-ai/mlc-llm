@@ -5,19 +5,13 @@
 #ifndef MLC_LLM_CPP_MODEL_METADATA_H_
 #define MLC_LLM_CPP_MODEL_METADATA_H_
 
+#include <picojson.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
 
 #include <unordered_map>
-
-// Forward declare picojson's value, object and array
-namespace picojson {
-class value;
-using object = std::unordered_map<std::string, value>;
-using array = std::vector<value>;
-}  // namespace picojson
 
 namespace mlc {
 namespace llm {

@@ -83,7 +83,7 @@ class ImageData(Data):
         return self.embed_size
 
     @staticmethod
-    def from_url(url: str, config: Dict) -> "ImageData":
+    def from_url(url: str, config: Dict) -> "ImageData":  # pylint: disable=too-many-locals
         """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
 
         # pylint: disable=import-outside-toplevel, import-error
@@ -105,22 +105,36 @@ class ImageData(Data):
         else:
             raise ValueError(f"Unsupported image URL format: {url}")
 
-        image_input_size = config["model_config"]["vision_config"]["image_size"]
-        image_embed_size = (
-            image_input_size // config["model_config"]["vision_config"]["patch_size"]
-        ) ** 2
+        image_input_size = ImageData.get_input_size(config)
+        image_embed_size = ImageData.get_embed_size(config)
 
         image_processor = CLIPImageProcessor(
             size={"shortest_edge": image_input_size},
             crop_size={"height": image_input_size, "width": image_input_size},
         )
+        quantization = config["quantization"]
+        out_dtype = "float16" if "f16" in quantization else "float32"
         image_features = tvm.nd.array(
             image_processor.preprocess(image_tensor, return_tensors="np")["pixel_values"].astype(
-                "float16"
+                out_dtype
             )
         )
         image_data = ImageData(image_features, image_embed_size)
         return image_data
+
+    @staticmethod
+    def get_embed_size(config: Dict) -> int:
+        """Get the image embedding size from the model config file."""
+        image_size = config["model_config"]["vision_config"]["image_size"]
+        patch_size = config["model_config"]["vision_config"]["patch_size"]
+        embed_size = (image_size // patch_size) ** 2
+        return embed_size
+
+    @staticmethod
+    def get_input_size(config: Dict) -> int:
+        """Get the image input size from the model config file."""
+        image_size = config["model_config"]["vision_config"]["image_size"]
+        return image_size
 
 
 @dataclass

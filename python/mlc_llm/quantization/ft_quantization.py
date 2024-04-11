@@ -147,7 +147,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         group_quantize = self.config.fallback_group_quantize()
                         self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                         return GroupQuantizeLinear.from_linear(node, group_quantize)
-                    if not is_moe_gate(name):
+                    if not is_moe_gate(name, node):
                         self.quant_map.map_func[weight_name] = self.config.quantize_weight
                         return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):
