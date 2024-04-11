@@ -24,14 +24,15 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   explicit EagleNewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
                                            Sampler sampler,
                                            std::vector<ModelWorkspace> model_workspaces,
-                                           KVCacheConfig kv_cache_config, EngineMode engine_mode,
+                                           KVCacheConfig kv_cache_config,
+                                           EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
         kv_cache_config_(std::move(kv_cache_config)),
-        engine_mode_(std::move(engine_mode)),
+        engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
@@ -421,8 +422,8 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
 
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
-    int spec_factor = engine_mode_->speculative_mode != SpeculativeMode::kDisable
-                          ? engine_mode_->spec_draft_length
+    int spec_factor = engine_config_->speculative_mode != SpeculativeMode::kDisable
+                          ? engine_config_->spec_draft_length
                           : 1;
     if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
         std::min(kv_cache_config_->max_num_sequence, kv_cache_config_->prefill_chunk_size)) {
@@ -546,7 +547,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   /*! \brief The KV cache config to help decide prefill is doable. */
   KVCacheConfig kv_cache_config_;
   /*! \brief The engine operation mode. */
-  EngineMode engine_mode_;
+  EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
@@ -555,11 +556,11 @@ EngineAction EngineAction::EagleNewRequestPrefill(Array<Model> models,
                                                   LogitProcessor logit_processor, Sampler sampler,
                                                   std::vector<ModelWorkspace> model_workspaces,
                                                   KVCacheConfig kv_cache_config,
-                                                  EngineMode engine_mode,
+                                                  EngineConfig engine_config,
                                                   Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
-      std::move(model_workspaces), std::move(kv_cache_config), std::move(engine_mode),
+      std::move(model_workspaces), std::move(kv_cache_config), std::move(engine_config),
       std::move(trace_recorder)));
 }
 

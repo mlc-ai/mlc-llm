@@ -18,9 +18,11 @@ from typing import (
     overload,
 )
 
+from tvm.runtime import Device
+
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineMode, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.request import Request
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -756,28 +758,112 @@ class AsyncEngine(engine_base.EngineBase):
 
     Parameters
     ----------
-    models : Union[ModelInfo, List[ModelInfo]]
-        One or a list of model info (specifying which models to load and
-        which device to load to) to launch the engine.
+    models : str
+        A path to ``mlc-chat-config.json``, or an MLC model directory that contains
+        `mlc-chat-config.json`.
+        It can also be a link to a HF repository pointing to an MLC compiled model.
 
-    kv_cache_config : KVCacheConfig
-        The configuration of the paged KV cache.
+    device: Union[str, Device]
+        The device used to deploy the model such as "cuda" or "cuda:0".
+        Will default to "auto" and detect from local available GPUs if not specified.
 
-    engine_mode : Optional[EngineMode]
-        The Engine execution mode.
+    model_lib_path : Optional[str]
+        The full path to the model library file to use (e.g. a ``.so`` file).
+        If unspecified, we will use the provided ``model`` to search over possible paths.
+        It the model lib path is not found, it will be compiled in a JIT manner.
+
+    mode : Literal["local", "interactive", "server"]
+        The engine mode in MLC LLM.
+        We provide three preset modes: "local", "interactive" and "server".
+        The default mode is "local".
+        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        and "prefill_chunk_size" when they are not explicitly specified.
+        1. Mode "local" refers to the local server deployment which has low
+        request concurrency. So the max batch size will be set to 4, and max
+        total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        2. Mode "interactive" refers to the interactive use of server, which
+        has at most 1 concurrent request. So the max batch size will be set to 1,
+        and max total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        3. Mode "server" refers to the large server use case which may handle
+        many concurrent request and want to use GPU memory as much as possible.
+        In this mode, we will automatically infer the largest possible max batch
+        size and max total sequence length.
+
+        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        "prefill_chunk_size" to override the automatic inferred values.
+
+    additional_models : Optional[List[str]]
+        The model paths and (optional) model library paths of additional models
+        (other than the main model).
+        When engine is enabled with speculative decoding, additional models are needed.
+        Each string in the list is either in form "model_path" or "model_path:model_lib_path".
+        When the model lib path of a model is not given, JIT model compilation will
+        be activated to compile the model automatically.
+
+    max_batch_size : Optional[int]
+        The maximum allowed batch size set for the KV cache to concurrently support.
+
+    max_total_sequence_length : Optional[int]
+        The KV cache total token capacity, i.e., the maximum total number of tokens that
+        the KV cache support. This decides the GPU memory size that the KV cache consumes.
+        If not specified, system will automatically estimate the maximum capacity based
+        on the vRAM size on GPU.
+
+    prefill_chunk_size : Optional[int]
+        The maximum number of tokens the model passes for prefill each time.
+        It should not exceed the prefill chunk size in model config.
+        If not specified, this defaults to the prefill chunk size in model config.
+
+    gpu_memory_utilization : Optional[float]
+        A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
+        It is used to infer to maximum possible KV cache capacity.
+        When it is unspecified, it defaults to 0.90.
+        Under mode "local" or "interactive", the actual memory usage may be
+        significantly smaller than this number. Under mode "server", the actual
+        memory usage may be slightly larger than this number.
+
+    engine_config : Optional[EngineConfig]
+        The Engine execution configuration.
+        Currently speculative decoding mode is specified via engine config.
+        For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
+        to specify the eagle-style speculative decoding.
+        Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
-        models: Union[engine_base.ModelInfo, List[engine_base.ModelInfo]],
-        kv_cache_config: KVCacheConfig,
-        engine_mode: Optional[EngineMode] = None,
+        model: str,
+        device: Union[str, Device] = "auto",
+        *,
+        model_lib_path: Optional[str] = None,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
+        max_total_sequence_length: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        gpu_memory_utilization: Optional[float] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
     ) -> None:
-        super().__init__("async", models, kv_cache_config, engine_mode, enable_tracing)
+        super().__init__(
+            "async",
+            model=model,
+            device=device,
+            model_lib_path=model_lib_path,
+            mode=mode,
+            additional_models=additional_models,
+            max_batch_size=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            gpu_memory_utilization=gpu_memory_utilization,
+            engine_config=engine_config,
+            enable_tracing=enable_tracing,
+        )
         self.chat = Chat(weakref.ref(self))
         self.completions = AsyncCompletion(weakref.ref(self))
 
@@ -1215,28 +1301,112 @@ class Engine(engine_base.EngineBase):
 
     Parameters
     ----------
-    models : Union[ModelInfo, List[ModelInfo]]
-        One or a list of model info (specifying which models to load and
-        which device to load to) to launch the engine.
+    models : str
+        A path to ``mlc-chat-config.json``, or an MLC model directory that contains
+        `mlc-chat-config.json`.
+        It can also be a link to a HF repository pointing to an MLC compiled model.
 
-    kv_cache_config : KVCacheConfig
-        The configuration of the paged KV cache.
+    device: Union[str, Device]
+        The device used to deploy the model such as "cuda" or "cuda:0".
+        Will default to "auto" and detect from local available GPUs if not specified.
 
-    engine_mode : Optional[EngineMode]
-        The Engine execution mode.
+    model_lib_path : Optional[str]
+        The full path to the model library file to use (e.g. a ``.so`` file).
+        If unspecified, we will use the provided ``model`` to search over possible paths.
+        It the model lib path is not found, it will be compiled in a JIT manner.
+
+    mode : Literal["local", "interactive", "server"]
+        The engine mode in MLC LLM.
+        We provide three preset modes: "local", "interactive" and "server".
+        The default mode is "local".
+        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        and "prefill_chunk_size" when they are not explicitly specified.
+        1. Mode "local" refers to the local server deployment which has low
+        request concurrency. So the max batch size will be set to 4, and max
+        total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        2. Mode "interactive" refers to the interactive use of server, which
+        has at most 1 concurrent request. So the max batch size will be set to 1,
+        and max total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        3. Mode "server" refers to the large server use case which may handle
+        many concurrent request and want to use GPU memory as much as possible.
+        In this mode, we will automatically infer the largest possible max batch
+        size and max total sequence length.
+
+        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        "prefill_chunk_size" to override the automatic inferred values.
+
+    additional_models : Optional[List[str]]
+        The model paths and (optional) model library paths of additional models
+        (other than the main model).
+        When engine is enabled with speculative decoding, additional models are needed.
+        Each string in the list is either in form "model_path" or "model_path:model_lib_path".
+        When the model lib path of a model is not given, JIT model compilation will
+        be activated to compile the model automatically.
+
+    max_batch_size : Optional[int]
+        The maximum allowed batch size set for the KV cache to concurrently support.
+
+    max_total_sequence_length : Optional[int]
+        The KV cache total token capacity, i.e., the maximum total number of tokens that
+        the KV cache support. This decides the GPU memory size that the KV cache consumes.
+        If not specified, system will automatically estimate the maximum capacity based
+        on the vRAM size on GPU.
+
+    prefill_chunk_size : Optional[int]
+        The maximum number of tokens the model passes for prefill each time.
+        It should not exceed the prefill chunk size in model config.
+        If not specified, this defaults to the prefill chunk size in model config.
+
+    gpu_memory_utilization : Optional[float]
+        A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
+        It is used to infer to maximum possible KV cache capacity.
+        When it is unspecified, it defaults to 0.90.
+        Under mode "local" or "interactive", the actual memory usage may be
+        significantly smaller than this number. Under mode "server", the actual
+        memory usage may be slightly larger than this number.
+
+    engine_config : Optional[EngineConfig]
+        The Engine execution configuration.
+        Currently speculative decoding mode is specified via engine config.
+        For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
+        to specify the eagle-style speculative decoding.
+        Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
-        models: Union[engine_base.ModelInfo, List[engine_base.ModelInfo]],
-        kv_cache_config: KVCacheConfig,
-        engine_mode: Optional[EngineMode] = None,
+        model: str,
+        device: Union[str, Device] = "auto",
+        *,
+        model_lib_path: Optional[str] = None,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
+        max_total_sequence_length: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        gpu_memory_utilization: Optional[float] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
     ) -> None:
-        super().__init__("sync", models, kv_cache_config, engine_mode, enable_tracing)
+        super().__init__(
+            "sync",
+            model=model,
+            device=device,
+            model_lib_path=model_lib_path,
+            mode=mode,
+            additional_models=additional_models,
+            max_batch_size=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            gpu_memory_utilization=gpu_memory_utilization,
+            engine_config=engine_config,
+            enable_tracing=enable_tracing,
+        )
         self.chat = Chat(weakref.ref(self))
         self.completions = Completion(weakref.ref(self))
 

@@ -2,8 +2,7 @@
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 from typing import List
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve import Engine, GenerationConfig
 
 prompts = [
     "What is the meaning of life?",
@@ -20,14 +19,15 @@ prompts = [
 
 
 def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = Engine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 10
     max_tokens = 256
@@ -58,14 +58,15 @@ def test_engine_generate():
 
 
 def test_chat_completion():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = Engine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 64
@@ -76,7 +77,7 @@ def test_chat_completion():
         print(f"chat completion for request {rid}")
         for response in engine.chat.completions.create(
             messages=[{"role": "user", "content": prompts[rid]}],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
@@ -101,14 +102,15 @@ def test_chat_completion():
 
 
 def test_chat_completion_non_stream():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = Engine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 64
@@ -119,7 +121,7 @@ def test_chat_completion_non_stream():
         print(f"chat completion for request {rid}")
         response = engine.chat.completions.create(
             messages=[{"role": "user", "content": prompts[rid]}],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
@@ -143,14 +145,15 @@ def test_chat_completion_non_stream():
 
 
 def test_completion():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = Engine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 128
@@ -161,7 +164,7 @@ def test_completion():
         print(f"completion for request {rid}")
         for response in engine.completions.create(
             prompt=prompts[rid],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             ignore_eos=True,
@@ -186,14 +189,15 @@ def test_completion():
 
 
 def test_completion_non_stream():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = Engine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 128
@@ -204,7 +208,7 @@ def test_completion_non_stream():
         print(f"completion for request {rid}")
         response = engine.completions.create(
             prompt=prompts[rid],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             ignore_eos=True,

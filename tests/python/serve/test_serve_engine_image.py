@@ -1,8 +1,7 @@
 import json
 from pathlib import Path
 
-from mlc_llm.serve import GenerationConfig, KVCacheConfig, data
-from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve import GenerationConfig, data
 from mlc_llm.serve.sync_engine import SyncEngine
 
 
@@ -11,17 +10,18 @@ def get_test_image(config) -> data.ImageData:
 
 
 def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/llava-1.5-7b-hf-q4f16_1-MLC/params",
-        model_lib_path="dist/llava-1.5-7b-hf-q4f16_1-MLC/llava-1.5-7b-hf-q4f16_1-MLC.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = SyncEngine(model, kv_cache_config)
+    model = "dist/llava-1.5-7b-hf-q4f16_1-MLC/params"
+    model_lib_path = "dist/llava-1.5-7b-hf-q4f16_1-MLC/llava-1.5-7b-hf-q4f16_1-MLC.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
     max_tokens = 256
 
-    with open(Path(model.model) / "mlc-chat-config.json", "r", encoding="utf-8") as file:
+    with open(Path(model) / "mlc-chat-config.json", "r", encoding="utf-8") as file:
         model_config = json.load(file)
 
     prompts = [

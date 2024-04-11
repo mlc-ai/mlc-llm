@@ -45,7 +45,7 @@ class EngineImpl : public Engine {
   /********************** Engine Management **********************/
 
   explicit EngineImpl(int max_single_sequence_length, const String& tokenizer_path,
-                      const String& kv_cache_config_json_str, const String& engine_mode_json_str,
+                      const String& kv_cache_config_json_str, const String& engine_config_json_str,
                       Optional<PackedFunc> request_stream_callback,
                       Optional<EventTraceRecorder> trace_recorder,
                       const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos) {
@@ -57,7 +57,7 @@ class EngineImpl : public Engine {
                                             ? max_single_sequence_length
                                             : std::numeric_limits<int>::max();
     this->kv_cache_config_ = KVCacheConfig(kv_cache_config_json_str, max_single_sequence_length);
-    this->engine_mode_ = EngineMode(engine_mode_json_str);
+    this->engine_config_ = EngineConfig(engine_config_json_str);
     this->request_stream_callback_ = std::move(request_stream_callback);
     this->trace_recorder_ = trace_recorder;
     this->tokenizer_ = Tokenizer::FromPath(tokenizer_path);
@@ -84,29 +84,29 @@ class EngineImpl : public Engine {
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
     int max_num_tokens = kv_cache_config_->max_num_sequence;
-    if (engine_mode_->speculative_mode != SpeculativeMode::kDisable) {
-      max_num_tokens *= engine_mode_->spec_draft_length;
+    if (engine_config_->speculative_mode != SpeculativeMode::kDisable) {
+      max_num_tokens *= engine_config_->spec_draft_length;
     }
     LogitProcessor logit_processor =
         this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
     Sampler sampler = this->models_[0]->CreateSampler(
         max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
     // Step 3. Initialize engine actions that represent state transitions.
-    if (this->engine_mode_->speculative_mode != SpeculativeMode::kDisable) {
+    if (this->engine_config_->speculative_mode != SpeculativeMode::kDisable) {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
-      switch (this->engine_mode_->speculative_mode) {
+      switch (this->engine_config_->speculative_mode) {
         case SpeculativeMode::kEagle:
           this->actions_ = {EngineAction::EagleNewRequestPrefill(this->models_,            //
                                                                  logit_processor,          //
                                                                  sampler,                  //
                                                                  this->model_workspaces_,  //
                                                                  this->kv_cache_config_,   //
-                                                                 this->engine_mode_,       //
+                                                                 this->engine_config_,     //
                                                                  this->trace_recorder_),
                             EngineAction::EagleBatchDraft(
                                 this->models_, logit_processor, sampler, this->model_workspaces_,
-                                this->trace_recorder_, this->engine_mode_->spec_draft_length),
+                                this->trace_recorder_, this->engine_config_->spec_draft_length),
                             EngineAction::EagleBatchVerify(
                                 this->models_, logit_processor, sampler, this->model_workspaces_,
                                 this->kv_cache_config_, this->trace_recorder_)};
@@ -118,11 +118,11 @@ class EngineImpl : public Engine {
                                               sampler,                  //
                                               this->model_workspaces_,  //
                                               this->kv_cache_config_,   //
-                                              this->engine_mode_,       //
+                                              this->engine_config_,     //
                                               this->trace_recorder_),
               EngineAction::BatchDraft(this->models_, logit_processor, sampler,
                                        this->trace_recorder_,
-                                       this->engine_mode_->spec_draft_length),
+                                       this->engine_config_->spec_draft_length),
               EngineAction::BatchVerify(this->models_, logit_processor, sampler,
                                         this->kv_cache_config_, this->trace_recorder_)};
       }
@@ -132,7 +132,7 @@ class EngineImpl : public Engine {
                                                         sampler,                  //
                                                         this->model_workspaces_,  //
                                                         this->kv_cache_config_,   //
-                                                        this->engine_mode_,       //
+                                                        this->engine_config_,     //
                                                         this->trace_recorder_),
                         EngineAction::BatchDecode(this->models_, logit_processor, sampler,
                                                   this->trace_recorder_)};
@@ -289,7 +289,7 @@ class EngineImpl : public Engine {
   EngineState estate_;
   // Configurations and singletons
   KVCacheConfig kv_cache_config_;
-  EngineMode engine_mode_;
+  EngineConfig engine_config_;
   int max_single_sequence_length_;
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
@@ -309,11 +309,11 @@ class EngineImpl : public Engine {
 
 std::unique_ptr<Engine> Engine::Create(
     int max_single_sequence_length, const String& tokenizer_path,
-    const String& kv_cache_config_json_str, const String& engine_mode_json_str,
+    const String& kv_cache_config_json_str, const String& engine_config_json_str,
     Optional<PackedFunc> request_stream_callback, Optional<EventTraceRecorder> trace_recorder,
     const std::vector<std::tuple<TVMArgValue, String, DLDevice>>& model_infos) {
   return std::make_unique<EngineImpl>(
-      max_single_sequence_length, tokenizer_path, kv_cache_config_json_str, engine_mode_json_str,
+      max_single_sequence_length, tokenizer_path, kv_cache_config_json_str, engine_config_json_str,
       request_stream_callback, std::move(trace_recorder), model_infos);
 }
 
@@ -333,7 +333,7 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
   int max_single_sequence_length;
   std::string tokenizer_path;
   std::string kv_cache_config_json_str;
-  std::string engine_mode_json_str;
+  std::string engine_config_json_str;
   Optional<PackedFunc> request_stream_callback;
   Optional<EventTraceRecorder> trace_recorder;
   std::vector<std::tuple<TVMArgValue, String, DLDevice>> model_infos;
@@ -344,7 +344,7 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
     max_single_sequence_length = args.At<int>(0);
     tokenizer_path = args.At<std::string>(1);
     kv_cache_config_json_str = args.At<std::string>(2);
-    engine_mode_json_str = args.At<std::string>(3);
+    engine_config_json_str = args.At<std::string>(3);
     request_stream_callback = args.At<Optional<PackedFunc>>(4);
     trace_recorder = args.At<Optional<EventTraceRecorder>>(5);
     for (int i = 0; i < num_models; ++i) {
@@ -359,7 +359,7 @@ std::unique_ptr<Engine> CreateEnginePacked(TVMArgs args) {
     LOG(FATAL) << "ValueError: " << e.what() << kEngineCreationErrorMessage;
   }
   return Engine::Create(max_single_sequence_length, tokenizer_path, kv_cache_config_json_str,
-                        engine_mode_json_str, request_stream_callback, std::move(trace_recorder),
+                        engine_config_json_str, request_stream_callback, std::move(trace_recorder),
                         model_infos);
 }
 

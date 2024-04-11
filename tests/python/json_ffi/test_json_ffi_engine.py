@@ -7,13 +7,14 @@ from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 import tvm
 
-from mlc_llm.protocol import error_protocol, openai_api_protocol
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig, engine_utils
+from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
-    EngineMode,
-    ModelInfo,
-    _estimate_max_total_sequence_length,
+    EngineConfig,
+    _infer_kv_cache_config,
+    _parse_models,
     _process_model_args,
+    detect_device,
 )
 from mlc_llm.tokenizer import Tokenizer
 
@@ -52,49 +53,57 @@ class EngineState:
 class JSONFFIEngine:
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
-        models: Union[ModelInfo, List[ModelInfo]],
-        kv_cache_config: KVCacheConfig,
-        engine_mode: Optional[EngineMode] = None,
+        model: str,
+        device: Union[str, tvm.runtime.Device] = "auto",
+        *,
+        model_lib_path: Optional[str] = None,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
+        max_total_sequence_length: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        engine_config: Optional[EngineConfig] = None,
+        gpu_memory_utilization: Optional[float] = None,
     ) -> None:
-        if isinstance(models, ModelInfo):
-            models = [models]
+        # - Initialize model loading info.
+        models = _parse_models(model, model_lib_path, additional_models)
+        if isinstance(device, str):
+            device = detect_device(device)
+        assert isinstance(device, tvm.runtime.Device)
         (
             model_args,
-            config_file_paths,
+            model_config_paths,
             tokenizer_path,
-            max_single_sequence_length,
-            prefill_chunk_size,
             self.conv_template,
-        ) = _process_model_args(models)
+        ) = _process_model_args(models, device)
 
+        # - Load the raw model config into dict
         self.model_config_dicts = []
-        for i, model in enumerate(models):
+        for i, model_info in enumerate(models):
             # model_args:
             # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            model.model_lib_path = model_args[i * (len(model_args) // len(models))]
-            with open(config_file_paths[i], "r", encoding="utf-8") as file:
+            model_info.model_lib_path = model_args[i * (len(model_args) // len(models))]
+            with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
-        self.state = EngineState()
-
-        if kv_cache_config.max_total_sequence_length is None:
-            kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
-                models, config_file_paths, kv_cache_config.max_num_sequence
-            )
+        # - Decide the KV cache config based on mode and user input.
+        kv_cache_config, max_single_sequence_length = _infer_kv_cache_config(
+            mode,
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            gpu_memory_utilization,
+            models,
+            device,
+            self.model_config_dicts,
+            model_config_paths,
+        )
         self.max_input_sequence_length = min(
             max_single_sequence_length, kv_cache_config.max_total_sequence_length
         )
-        prefill_chunk_size = min(prefill_chunk_size, kv_cache_config.max_total_sequence_length)
 
-        if kv_cache_config.prefill_chunk_size is None:
-            kv_cache_config.prefill_chunk_size = prefill_chunk_size
-        elif kv_cache_config.prefill_chunk_size > prefill_chunk_size:
-            raise ValueError(
-                f"The specified prefill chunk size {kv_cache_config.prefill_chunk_size} is "
-                f"larger than the maximum prefill chunk size {prefill_chunk_size} supported by "
-                "models. Please specify a smaller prefill chunk size."
-            )
-
+        # - Initialize engine state and engine.
+        self.state = EngineState()
         module = tvm.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
         self._ffi = {
             key: module[key]
@@ -109,16 +118,16 @@ class JSONFFIEngine:
             ]
         }
         self.tokenizer = Tokenizer(tokenizer_path)
-        if engine_mode is None:
+        if engine_config is None:
             # The default engine mode: non-speculative
-            engine_mode = EngineMode()
+            engine_config = EngineConfig()
 
         def _background_loop():
             self._ffi["init_background_engine"](
                 max_single_sequence_length,
                 tokenizer_path,
                 kv_cache_config.asjson(),
-                engine_mode.asjson(),
+                engine_config.asjson(),
                 self.state.get_request_stream_callback(),
                 None,
                 *model_args,
@@ -245,7 +254,7 @@ def test_chat_completion(engine: JSONFFIEngine):
         print(f"chat completion for request {rid}")
         for response in engine.chat_completion(
             messages=[{"role": "user", "content": [{"type": "text", "text": prompts[rid]}]}],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
@@ -274,13 +283,14 @@ def test_malformed_request(engine: JSONFFIEngine):
 
 
 if __name__ == "__main__":
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    # Create engine.
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = JSONFFIEngine(
+        model,
+        model_lib_path=model_lib_path,
+        max_total_sequence_length=1024,
     )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=1024)
-    engine = JSONFFIEngine(model, kv_cache_config)
 
     test_chat_completion(engine)
     test_malformed_request(engine)

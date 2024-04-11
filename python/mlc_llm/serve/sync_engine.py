@@ -9,16 +9,17 @@ the test and debug purpose because of its simplicity.
 """
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import tvm
 
 from mlc_llm.serve import data
-from mlc_llm.serve.config import EngineMode, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.engine_base import (
-    ModelInfo,
-    _estimate_max_total_sequence_length,
+    _infer_kv_cache_config,
+    _parse_models,
     _process_model_args,
+    detect_device,
 )
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.serve.request import Request
@@ -79,31 +80,66 @@ class SyncEngine:
         the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
 
-    engine_mode : Optional[EngineMode]
-        The Engine execution mode.
+    engine_config : Optional[EngineConfig]
+        The Engine execution configuration.
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
         self,
-        models: Union[ModelInfo, List[ModelInfo]],
-        kv_cache_config: KVCacheConfig,
-        engine_mode: Optional[EngineMode] = None,
-        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
+        model: str,
+        device: Union[str, tvm.runtime.Device] = "auto",
+        *,
+        model_lib_path: Optional[str] = None,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
+        max_total_sequence_length: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        gpu_memory_utilization: Optional[float] = None,
         enable_tracing: bool = False,
+        engine_config: Optional[EngineConfig] = None,
+        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
-        if isinstance(models, ModelInfo):
-            models = [models]
+        # - Initialize model loading info.
+        models = _parse_models(model, model_lib_path, additional_models)
+        if isinstance(device, str):
+            device = detect_device(device)
+        assert isinstance(device, tvm.runtime.Device)
         (
             model_args,
-            config_file_paths,
+            model_config_paths,
             tokenizer_path,
-            max_single_sequence_length,
+            self.conv_template,
+        ) = _process_model_args(models, device)
+
+        # - Load the raw model config into dict
+        self.model_config_dicts = []
+        for i, model_info in enumerate(models):
+            # model_args:
+            # [model_lib_path, model_path, device.device_type, device.device_id] * N
+            model_info.model_lib_path = model_args[i * (len(model_args) // len(models))]
+            with open(model_config_paths[i], "r", encoding="utf-8") as file:
+                self.model_config_dicts.append(json.load(file))
+
+        # - Decide the KV cache config based on mode and user input.
+        kv_cache_config, max_single_sequence_length = _infer_kv_cache_config(
+            mode,
+            max_batch_size,
+            max_total_sequence_length,
             prefill_chunk_size,
-            self.conv_template_name,
-        ) = _process_model_args(models)
+            gpu_memory_utilization,
+            models,
+            device,
+            self.model_config_dicts,
+            model_config_paths,
+        )
+        self.max_input_sequence_length = min(
+            max_single_sequence_length, kv_cache_config.max_total_sequence_length
+        )
+
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
             ffi_funcs=[
@@ -118,30 +154,16 @@ class SyncEngine:
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
-        self.max_input_sequence_length = max_single_sequence_length
 
-        if kv_cache_config.max_total_sequence_length is None:
-            kv_cache_config.max_total_sequence_length = _estimate_max_total_sequence_length(
-                models, config_file_paths, kv_cache_config.max_num_sequence
-            )
-        if kv_cache_config.prefill_chunk_size is None:
-            kv_cache_config.prefill_chunk_size = prefill_chunk_size
-        elif kv_cache_config.prefill_chunk_size > prefill_chunk_size:
-            raise ValueError(
-                f"The specified prefill chunk size {kv_cache_config.prefill_chunk_size} is "
-                f"larger than the maximum prefill chunk size {prefill_chunk_size} supported by "
-                "models. Please specify a smaller prefill chunk size."
-            )
-
-        if engine_mode is None:
+        if engine_config is None:
             # The default engine mode: non-speculative
-            engine_mode = EngineMode()
+            engine_config = EngineConfig()
 
         self._ffi["init"](
             max_single_sequence_length,
             tokenizer_path,
             kv_cache_config.asjson(),
-            engine_mode.asjson(),
+            engine_config.asjson(),
             request_stream_callback,
             self.trace_recorder,
             *model_args,

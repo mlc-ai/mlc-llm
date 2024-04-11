@@ -10,9 +10,8 @@ from typing import Any, Callable, List, Tuple
 import numpy as np
 from transformers import AutoTokenizer
 
-from mlc_llm.serve import GenerationConfig, KVCacheConfig
+from mlc_llm.serve import GenerationConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.engine_base import ModelInfo
 from mlc_llm.serve.sync_engine import SyncEngine
 
 
@@ -25,7 +24,6 @@ def _parse_args():
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--num-prompts", type=int, default=500)
     args.add_argument("--max-num-sequence", type=int, default=80)
-    args.add_argument("--page-size", type=int, default=16)
     args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
     args.add_argument("--json-output", type=bool, default=False)
@@ -34,7 +32,6 @@ def _parse_args():
     parsed = args.parse_args()
     parsed.model = os.path.dirname(parsed.model_lib_path)
     assert parsed.max_num_sequence % 16 == 0
-    assert parsed.page_size == 16
     return parsed
 
 
@@ -106,16 +103,16 @@ def time_evaluator(func: Callable, args: List[Any], num_runs: int = 3):
 def benchmark(args: argparse.Namespace):
     random.seed(args.seed)
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(args.model, args.model_lib_path, args.device)
-    kv_cache_config = KVCacheConfig(
-        page_size=args.page_size,
-        max_num_sequence=args.max_num_sequence,
+    # Create engine
+    engine = SyncEngine(
+        model=args.model,
+        model_lib_path=args.model_lib_path,
+        device=args.device,
+        mode="server",
+        max_batch_size=args.max_num_sequence,
         max_total_sequence_length=args.max_total_seq_length,
     )
 
-    # Create engine
-    engine = SyncEngine(model, kv_cache_config)
     # Sample prompts from dataset
     prompts, generation_config = sample_requests(
         args.dataset, args.num_prompts, args.model, args.json_output

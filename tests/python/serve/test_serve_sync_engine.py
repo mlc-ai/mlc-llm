@@ -4,14 +4,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_llm.serve import (
-    GenerationConfig,
-    KVCacheConfig,
-    Request,
-    RequestStreamOutput,
-    data,
-)
-from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
 from mlc_llm.serve.sync_engine import SyncEngine
 
 prompts = [
@@ -67,13 +60,6 @@ def test_engine_basic():
     requests + max_tokens - 1). Then check the output of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -92,7 +78,14 @@ def test_engine_basic():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    engine = SyncEngine(model, kv_cache_config, request_stream_callback=fcallback)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
@@ -128,13 +121,6 @@ def test_engine_continuous_batching_1():
     of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
-
     # Hyperparameters for tests (you can try different combinations)
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
@@ -168,7 +154,14 @@ def test_engine_continuous_batching_1():
 
     # Create engine
     timer = CallbackTimer()
-    engine = SyncEngine(model, kv_cache_config, request_stream_callback=timer.callback_getter())
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        request_stream_callback=timer.callback_getter(),
+    )
 
     # Create requests
     requests = create_requests(
@@ -209,13 +202,6 @@ def test_engine_continuous_batching_2():
     of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
-
     # Hyperparameters for tests (you can try different combinations)
     num_requests = 10  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
@@ -249,7 +235,14 @@ def test_engine_continuous_batching_2():
 
     # Create engine
     timer = CallbackTimer()
-    engine = SyncEngine(model, kv_cache_config, request_stream_callback=timer.callback_getter())
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        request_stream_callback=timer.callback_getter(),
+    )
 
     # Create requests
     requests = create_requests(
@@ -288,13 +281,6 @@ def test_engine_continuous_batching_3():
     - Engine keeps running `step` until all requests finish.
     Then check the output of each request.
     """
-
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
 
     # Hyperparameters for tests (you can try different combinations)
     num_requests = 10  # [4, 8, 10]
@@ -335,7 +321,14 @@ def test_engine_continuous_batching_3():
 
     # Create engine
     timer = CallbackTimer()
-    engine = SyncEngine(model, kv_cache_config, request_stream_callback=timer.callback_getter())
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        request_stream_callback=timer.callback_getter(),
+    )
 
     # Create requests
     requests = create_requests(
@@ -369,14 +362,15 @@ def test_engine_continuous_batching_3():
 
 
 def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    engine = SyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 10
     max_tokens = 256
