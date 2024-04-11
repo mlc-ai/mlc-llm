@@ -173,9 +173,15 @@ class GLMBlock(nn.Module):
             k = self.self_attention.num_key_value_heads * hd
             v = self.self_attention.num_key_value_heads * hd
             i = self.mlp.ffn_hidden_size
-            _set(self.self_attention.query_key_value.weight,tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),)
+            _set(
+                self.self_attention.query_key_value.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
             if config.add_bias_linear or config.add_qkv_bias:
-                _set(self.self_attention.query_key_value.bias, tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),)
+                _set(
+                    self.self_attention.query_key_value.bias,
+                    tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+                )
             _set(self.self_attention.dense.weight, tp.ShardSingleDim("_shard_dense_weight", dim=1))
             if config.add_bias_linear:
                 _set(self.self_attention.dense.bias, tp.ShardSingleDim("_shard_dense_bias", dim=0))
@@ -184,25 +190,32 @@ class GLMBlock(nn.Module):
                 tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
             )
             if config.add_bias_linear:
-                _set(self.mlp.dense_h_to_4h.bias, tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0))
+                _set(
+                    self.mlp.dense_h_to_4h.bias, 
+                    tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0)
+                )
             _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
             if config.add_bias_linear:
-                _set(self.mlp.dense_4h_to_h.bias, tp.ShardSingleDim("_shard_dense_4h_to_h_bias", dim=1))
+                _set(
+                    self.mlp.dense_4h_to_h.bias,
+                    tp.ShardSingleDim("_shard_dense_4h_to_h_bias", dim=1)
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attention(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
+
 
 class GLMTransformer(nn.Module):
     """Transformer class."""
