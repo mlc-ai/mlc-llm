@@ -172,7 +172,6 @@ class GLMBlock(nn.Module):
             q = self.self_attention.num_heads * hd
             k = self.self_attention.num_key_value_heads * hd
             v = self.self_attention.num_key_value_heads * hd
-            i = self.mlp.ffn_hidden_size
             _set(
                 self.self_attention.query_key_value.weight,
                 tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
