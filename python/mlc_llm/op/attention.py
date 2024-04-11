@@ -103,12 +103,12 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         and k.dtype == "float16"
         and v.dtype == "float16"
     ):
-        if group_size not in [1, 4, 8]:
+        if group_size not in [1, 4, 6, 8]:
             global WARN_FLASHINFER_GROUP_SIZE  # pylint: disable=global-statement
             if not WARN_FLASHINFER_GROUP_SIZE:
                 WARN_FLASHINFER_GROUP_SIZE = True
                 logger.warning(
-                    "FlashInfer only supports group size in [1, 4, 8], but got %d. Skip and "
+                    "FlashInfer only supports group size in [1, 4, 6, 8], but got %d. Skip and "
                     "fallback to default implementation.",
                     group_size,
                 )
