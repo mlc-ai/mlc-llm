@@ -224,15 +224,43 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits
+        return self.get_logits(hidden_states)
+
+    def batch_forward_to_last_hidden_states(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+    ):
+        op_ext.configure()
+
+        hidden_states = self.model(input_embeds, paged_kv_cache)
+        return hidden_states
 
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
+
+    def get_logits(self, hidden_states: Tensor):
+        op_ext.configure()
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
+    def batch_get_logits(self, hidden_states: Tensor, logit_positions: Tensor):
+        op_ext.configure()
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
+        hidden_states = op.take(hidden_states, logit_positions, axis=0)
+        return self.get_logits(hidden_states)
+
+    def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
+        op_ext.configure()
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
+        hidden_states = op.take(hidden_states, logit_positions, axis=0)
+        return hidden_states
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
@@ -243,19 +271,27 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
+
+    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        return hidden_states, paged_kv_cache
 
     def batch_prefill(
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
@@ -272,6 +308,24 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
         logits = self.batch_forward(input_embeds, paged_kv_cache)
         return logits, paged_kv_cache
+
+    def batch_prefill_to_last_hidden_states(
+        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def batch_decode_to_last_hidden_states(
+        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def batch_verify_to_last_hidden_states(
+        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        return hidden_states, paged_kv_cache
 
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
@@ -309,6 +363,29 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                     "effect_mode": "none",
                 },
             },
+            "get_logits": {
+                "hidden_states": nn.spec.Tensor(["batch_size", self.hidden_size], self.dtype),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_get_logits": {
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_select_last_hidden_states": {
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
@@ -318,6 +395,22 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "decode": {
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill_to_last_hidden_states": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode_to_last_hidden_states": {
                 "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -343,6 +436,30 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill_to_last_hidden_states": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode_to_last_hidden_states": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify_to_last_hidden_states": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {

@@ -80,10 +80,11 @@ class EngineImpl : public Engine {
           << ", is smaller than the pre-defined max single sequence length, "
           << this->max_single_sequence_length_;
       this->models_.push_back(model);
-      this->model_workspaces_.push_back(ModelWorkspace{model->AllocEmbeddingTensor()});
+      this->model_workspaces_.push_back(
+          ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
     int max_num_tokens = kv_cache_config_->max_num_sequence;
-    if (engine_mode_->enable_speculative) {
+    if (engine_mode_->speculative_mode != SpeculativeMode::kDisable) {
       max_num_tokens *= engine_mode_->spec_draft_length;
     }
     LogitProcessor logit_processor =
@@ -91,21 +92,40 @@ class EngineImpl : public Engine {
     Sampler sampler = this->models_[0]->CreateSampler(
         max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
     // Step 3. Initialize engine actions that represent state transitions.
-    if (this->engine_mode_->enable_speculative) {
+    if (this->engine_mode_->speculative_mode != SpeculativeMode::kDisable) {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
-      this->actions_ = {
-          EngineAction::NewRequestPrefill(this->models_,            //
-                                          logit_processor,          //
-                                          sampler,                  //
-                                          this->model_workspaces_,  //
-                                          this->kv_cache_config_,   //
-                                          this->engine_mode_,       //
-                                          this->trace_recorder_),
-          EngineAction::BatchDraft(this->models_, logit_processor, sampler, this->trace_recorder_,
-                                   this->engine_mode_->spec_draft_length),
-          EngineAction::BatchVerify(this->models_, logit_processor, sampler, this->kv_cache_config_,
-                                    this->trace_recorder_)};
+      switch (this->engine_mode_->speculative_mode) {
+        case SpeculativeMode::kEagle:
+          this->actions_ = {EngineAction::EagleNewRequestPrefill(this->models_,            //
+                                                                 logit_processor,          //
+                                                                 sampler,                  //
+                                                                 this->model_workspaces_,  //
+                                                                 this->kv_cache_config_,   //
+                                                                 this->engine_mode_,       //
+                                                                 this->trace_recorder_),
+                            EngineAction::EagleBatchDraft(
+                                this->models_, logit_processor, sampler, this->model_workspaces_,
+                                this->trace_recorder_, this->engine_mode_->spec_draft_length),
+                            EngineAction::EagleBatchVerify(
+                                this->models_, logit_processor, sampler, this->model_workspaces_,
+                                this->kv_cache_config_, this->trace_recorder_)};
+          break;
+        default:
+          this->actions_ = {
+              EngineAction::NewRequestPrefill(this->models_,            //
+                                              logit_processor,          //
+                                              sampler,                  //
+                                              this->model_workspaces_,  //
+                                              this->kv_cache_config_,   //
+                                              this->engine_mode_,       //
+                                              this->trace_recorder_),
+              EngineAction::BatchDraft(this->models_, logit_processor, sampler,
+                                       this->trace_recorder_,
+                                       this->engine_mode_->spec_draft_length),
+              EngineAction::BatchVerify(this->models_, logit_processor, sampler,
+                                        this->kv_cache_config_, this->trace_recorder_)};
+      }
     } else {
       this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
                                                         logit_processor,          //

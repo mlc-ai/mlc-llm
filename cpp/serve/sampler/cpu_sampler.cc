@@ -22,7 +22,8 @@ namespace serve {
  * The input is a batch of distributions, and we use `unit_offset` to specify
  * which distribution to sample from.
  * \param prob The input batch of probability distributions.
- * \param unit_offset The offset specifying which distribution to sample from.
+ * \param unit_offset The offset specifying which distribution to output
+ * \param input_prob_offset The offset specifying which distribution to sample from.
  * \param top_p The top-p value of sampling.
  * \param uniform_sample The random number in [0, 1] for sampling.
  * \param output_prob_dist Optional pointer to store the corresponding probability distribution of
@@ -31,7 +32,8 @@ namespace serve {
  * \note This function is an enhancement of SampleTopPFromProb in TVM Unity.
  * We will upstream the enhancement after it gets stable.
  */
-TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, double uniform_sample,
+TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_offset, double top_p,
+                                 double uniform_sample,
                                  std::vector<NDArray>* output_prob_dist = nullptr) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
@@ -50,10 +52,11 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, double top_p, do
 
   int64_t ndata = prob->shape[prob->ndim - 1];
   const float* __restrict p_prob =
-      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
+      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (input_prob_offset * ndata);
   constexpr double one = 1.0f - 1e-5f;
 
   if (output_prob_dist) {
+    ICHECK_LT(unit_offset, static_cast<int>(output_prob_dist->size()));
     if (!(*output_prob_dist)[unit_offset].defined()) {
       (*output_prob_dist)[unit_offset] = NDArray::Empty({ndata}, prob->dtype, DLDevice{kDLCPU, 0});
     }
@@ -294,7 +297,7 @@ class CPUSampler : public SamplerObj {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           sample_results[i].sampled_token_id = SampleTopPFromProb(
-              probs_host, sample_indices[i],
+              probs_host, i, sample_indices[i],
               generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
               rngs[i]->GetRandomNumber(), output_prob_dist);
           if (output_prob_dist == nullptr) {
@@ -341,7 +344,9 @@ class CPUSampler : public SamplerObj {
         [&](int i) {
           int verify_start = cum_verify_lengths[i];
           int verify_end = cum_verify_lengths[i + 1];
-          for (int cur_token_idx = 0; cur_token_idx < verify_end - verify_start; ++cur_token_idx) {
+          int cur_token_idx = 0;
+          // Sub 1 to ignore the last prediction.
+          for (; cur_token_idx < verify_end - verify_start - 1; ++cur_token_idx) {
             float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
             int cur_token = draft_output_tokens[i][cur_token_idx].sampled_token_id.first;
             float q_value = draft_output_tokens[i][cur_token_idx].sampled_token_id.second;
@@ -383,13 +388,27 @@ class CPUSampler : public SamplerObj {
             // sample a new token from the new distribution
             SampleResult sample_result;
             sample_result.sampled_token_id = SampleTopPFromProb(
-                probs_host, verify_start + cur_token_idx,
+                probs_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
                 generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
                 rngs[i]->GetRandomNumber());
             sample_result.top_prob_tokens = ComputeTopProbs(
                 probs_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
             sample_results[i].push_back(sample_result);
             break;
+          }
+          // if cur_token_idx == verify_end - verify_start - 1
+          // all draft tokens are accepted
+          // we sample a new token
+          if (cur_token_idx == verify_end - verify_start - 1) {
+            SampleResult sample_result;
+            // sample a new token from the original distribution
+            sample_result.sampled_token_id = SampleTopPFromProb(
+                probs_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
+                generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
+                rngs[i]->GetRandomNumber());
+            sample_result.top_prob_tokens = ComputeTopProbs(
+                probs_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
+            sample_results[i].push_back(sample_result);
           }
         },
         0, num_sequence);

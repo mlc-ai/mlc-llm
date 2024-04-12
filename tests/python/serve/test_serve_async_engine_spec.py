@@ -3,7 +3,13 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncEngine, EngineMode, GenerationConfig, KVCacheConfig
+from mlc_llm.serve import (
+    AsyncEngine,
+    EngineMode,
+    GenerationConfig,
+    KVCacheConfig,
+    SpeculativeMode,
+)
 from mlc_llm.serve.engine_base import ModelInfo
 
 prompts = [
@@ -31,7 +37,7 @@ async def test_engine_generate():
         model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
     )
     kv_cache_config = KVCacheConfig(page_size=16)
-    engine_mode = EngineMode(enable_speculative=True)
+    engine_mode = EngineMode(speculative_mode=SpeculativeMode.SMALL_DRAFT)
     # Create engine
     async_engine = AsyncEngine([llm, ssm], kv_cache_config, engine_mode)
 

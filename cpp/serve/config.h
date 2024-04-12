@@ -98,13 +98,20 @@ class KVCacheConfig : public ObjectRef {
 
 /****************** Engine Mode ******************/
 
+/*! \brief The speculative mode. */
+enum class SpeculativeMode : int {
+  kDisable = 0,
+  kSmallDraft = 1,
+  kEagle = 2,
+};
+
 /*! \brief The configuration of engine execution mode. */
 class EngineModeNode : public Object {
  public:
-  /* Whether the speculative decoding mode is enabled */
-  bool enable_speculative;
   /* The number of tokens to generate in speculative proposal (draft) */
   int spec_draft_length;
+  /* The speculative mode. */
+  SpeculativeMode speculative_mode;
 
   String AsJSONString() const;
 
@@ -116,7 +123,7 @@ class EngineModeNode : public Object {
 
 class EngineMode : public ObjectRef {
  public:
-  explicit EngineMode(bool enable_speculative, int spec_draft_length);
+  explicit EngineMode(int spec_draft_length, int speculative_mode);
 
   explicit EngineMode(const std::string& config_str);
 

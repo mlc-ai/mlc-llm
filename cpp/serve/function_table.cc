@@ -228,7 +228,16 @@ void FunctionTable::_InitFunctions() {
   this->prefill_func_ = mod_get_func("batch_prefill");
   this->decode_func_ = mod_get_func("batch_decode");
   this->verify_func_ = mod_get_func("batch_verify");
+  this->single_batch_prefill_to_last_hidden_func_ = mod_get_func("prefill_to_last_hidden_states");
+  this->single_batch_decode_to_last_hidden_func_ = mod_get_func("decode_to_last_hidden_states");
+  this->prefill_to_last_hidden_func_ = mod_get_func("batch_prefill_to_last_hidden_states");
+  this->decode_to_last_hidden_func_ = mod_get_func("batch_decode_to_last_hidden_states");
+  this->verify_to_last_hidden_func_ = mod_get_func("batch_verify_to_last_hidden_states");
+  this->fuse_embed_hidden_func_ = mod_get_func("fuse_embed_hidden_states");
   Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
+  this->get_logits_func_ = mod->GetFunction("get_logits", true);
+  this->batch_get_logits_func_ = mod->GetFunction("batch_get_logits", true);
+  this->batch_select_last_hidden_func_ = mod->GetFunction("batch_select_last_hidden_states", true);
   this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
   this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
@@ -276,7 +285,6 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
 
 ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                                        ShapeTuple max_reserved_shape) {
-  ICHECK(host_array->device.device_type == DLDeviceType::kDLCPU);
   if (this->use_disco) {
     Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);

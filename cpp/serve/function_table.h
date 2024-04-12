@@ -72,6 +72,15 @@ struct FunctionTable {
   PackedFunc prefill_func_;
   PackedFunc decode_func_;
   PackedFunc verify_func_;
+  PackedFunc single_batch_prefill_to_last_hidden_func_;
+  PackedFunc single_batch_decode_to_last_hidden_func_;
+  PackedFunc prefill_to_last_hidden_func_;
+  PackedFunc decode_to_last_hidden_func_;
+  PackedFunc verify_to_last_hidden_func_;
+  PackedFunc fuse_embed_hidden_func_;
+  PackedFunc get_logits_func_;
+  PackedFunc batch_get_logits_func_;
+  PackedFunc batch_select_last_hidden_func_;
   PackedFunc softmax_func_;
   PackedFunc apply_logit_bias_func_;
   PackedFunc apply_penalty_func_;
