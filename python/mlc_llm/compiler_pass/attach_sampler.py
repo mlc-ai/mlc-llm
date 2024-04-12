@@ -20,6 +20,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
             "num_samples": max_batch_size,
             "num_positions": 6 * max_batch_size,
         }
+        self.non_negative_var = ["vocab_size"]
         self.target = target
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
@@ -50,7 +51,11 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
         mod = bb.finalize()
         for gv_name in gv_names:
-            mod[gv_name] = mod[gv_name].with_attr("tir_var_upper_bound", self.variable_bounds)
+            mod[gv_name] = (
+                mod[gv_name]
+                .with_attr("tir_var_upper_bound", self.variable_bounds)
+                .with_attr("tir_non_negative_var", self.non_negative_var)
+            )
         return mod
 
 
