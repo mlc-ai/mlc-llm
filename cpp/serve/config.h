@@ -105,8 +105,8 @@ enum class SpeculativeMode : int {
   kEagle = 2,
 };
 
-/*! \brief The configuration of engine execution mode. */
-class EngineModeNode : public Object {
+/*! \brief The configuration of engine execution config. */
+class EngineConfigNode : public Object {
  public:
   /* The number of tokens to generate in speculative proposal (draft) */
   int spec_draft_length;
@@ -115,19 +115,19 @@ class EngineModeNode : public Object {
 
   String AsJSONString() const;
 
-  static constexpr const char* _type_key = "mlc.serve.EngineMode";
+  static constexpr const char* _type_key = "mlc.serve.EngineConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(EngineModeNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(EngineConfigNode, Object);
 };
 
-class EngineMode : public ObjectRef {
+class EngineConfig : public ObjectRef {
  public:
-  explicit EngineMode(int spec_draft_length, int speculative_mode);
+  explicit EngineConfig(int spec_draft_length, int speculative_mode);
 
-  explicit EngineMode(const std::string& config_str);
+  explicit EngineConfig(const std::string& config_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(EngineMode, ObjectRef, EngineModeNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
 };
 
 }  // namespace serve

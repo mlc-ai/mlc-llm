@@ -1,8 +1,10 @@
 """Configuration dataclasses used in MLC LLM serving"""
 
+import argparse
 import enum
 import json
 from dataclasses import asdict, dataclass, field
+from io import StringIO
 from typing import Dict, List, Literal, Optional
 
 
@@ -163,7 +165,7 @@ class KVCacheConfig:
         return KVCacheConfig(**json.loads(json_str))
 
 
-class SpeculativeMode(enum.Enum):
+class SpeculativeMode(enum.IntEnum):
     """The speculative mode."""
 
     DISABLE = 0
@@ -171,30 +173,12 @@ class SpeculativeMode(enum.Enum):
     EAGLE = 2
 
 
-def speculative_mode_to_int(speculative_mode: SpeculativeMode):
-    """Convert speculative mode to int value
-
-    Parameters
-    ----------
-    speculative_mode (SpeculativeMode):
-        the speculative mode
-    """
-    if speculative_mode == SpeculativeMode.DISABLE:
-        return 0
-    if speculative_mode == SpeculativeMode.SMALL_DRAFT:
-        return 1
-    if speculative_mode == SpeculativeMode.EAGLE:
-        return 2
-    raise RuntimeError("Unknown speculative mode.")
-
-
 @dataclass
-class EngineMode:
-    """The Engine execution mode.
+class EngineConfig:
+    """The class of Engine execution configuration.
 
     Parameters
     ----------
-
     spec_draft_length : int
         The number of tokens to generate in speculative proposal (draft), default 4.
 
@@ -205,13 +189,37 @@ class EngineMode:
     spec_draft_length: int = 4
     speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE
 
+    def __repr__(self) -> str:
+        out = StringIO()
+        print(f"spec_draft_length={self.spec_draft_length}", file=out, end="")
+        print(f";speculative_mode={self.speculative_mode.name}", file=out, end="")
+        return out.getvalue().rstrip()
+
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
         dt = asdict(self)
-        dt["speculative_mode"] = speculative_mode_to_int(self.speculative_mode)
+        dt["speculative_mode"] = int(self.speculative_mode)
         return json.dumps(dt)
 
     @staticmethod
-    def from_json(json_str: str) -> "EngineMode":
+    def from_json(json_str: str) -> "EngineConfig":
         """Construct a config from JSON string."""
-        return EngineMode(**json.loads(json_str))
+        return EngineConfig(**json.loads(json_str))
+
+    @staticmethod
+    def from_str(source: str) -> "EngineConfig":
+        """Parse engine config from a string."""
+
+        parser = argparse.ArgumentParser(description="optimization flags")
+        parser.add_argument("--spec_draft_length", type=int, default=4)
+        parser.add_argument(
+            "--speculative_mode",
+            type=str,
+            choices=["DISABLE", "SMALL_DRAFT", "EAGLE"],
+            default="DISABLE",
+        )
+        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
+        return EngineConfig(
+            spec_draft_length=results.spec_draft_length,
+            speculative_mode=SpeculativeMode[results.speculative_mode],
+        )

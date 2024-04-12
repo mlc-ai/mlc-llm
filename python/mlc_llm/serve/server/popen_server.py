@@ -4,10 +4,13 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import List, Literal, Optional, Union
 
 import psutil
 import requests
+from tvm.runtime import Device
+
+from mlc_llm.serve.config import EngineConfig
 
 
 class PopenServer:  # pylint: disable=too-many-instance-attributes
@@ -17,11 +20,16 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
     def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
-        device: str = "auto",
+        device: Union[str, Device] = "auto",
         *,
         model_lib_path: Optional[str] = None,
-        max_batch_size: int = 80,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        gpu_memory_utilization: Optional[float] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
         host: str = "127.0.0.1",
         port: int = 8000,
@@ -30,14 +38,19 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.model = model
         self.model_lib_path = model_lib_path
         self.device = device
+        self.mode = mode
+        self.additional_models = additional_models
         self.max_batch_size = max_batch_size
         self.max_total_sequence_length = max_total_sequence_length
+        self.prefill_chunk_size = prefill_chunk_size
+        self.gpu_memory_utilization = gpu_memory_utilization
+        self.engine_config = engine_config
         self.enable_tracing = enable_tracing
         self.host = host
         self.port = port
         self._proc: Optional[subprocess.Popen] = None
 
-    def start(self) -> None:
+    def start(self) -> None:  # pylint: disable=too-many-branches
         """Launch the server in a popen subprocess.
         Wait until the server becomes ready before return.
         """
@@ -46,9 +59,20 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         if self.model_lib_path is not None:
             cmd += ["--model-lib-path", self.model_lib_path]
         cmd += ["--device", self.device]
-        cmd += ["--max-batch-size", str(self.max_batch_size)]
+        if self.mode is not None:
+            cmd += ["--mode", self.mode]
+        if self.additional_models is not None:
+            cmd += ["--additional-models", *self.additional_models]
+        if self.max_batch_size is not None:
+            cmd += ["--max-batch-size", str(self.max_batch_size)]
         if self.max_total_sequence_length is not None:
             cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
+        if self.prefill_chunk_size is not None:
+            cmd += ["--prefill-chunk-size", str(self.prefill_chunk_size)]
+        if self.engine_config is not None:
+            cmd += ["--engine-config", str(self.engine_config)]
+        if self.gpu_memory_utilization is not None:
+            cmd += ["--gpu-memory-utilization", str(self.gpu_memory_utilization)]
         if self.enable_tracing:
             cmd += ["--enable-tracing"]
 

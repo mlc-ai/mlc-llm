@@ -1,13 +1,14 @@
 """Python entrypoint of serve."""
 
-from typing import Any, Optional
+from typing import Any, List, Literal, Optional
 
 import fastapi
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.protocol import error_protocol
-from mlc_llm.serve import config, engine, engine_base
+from mlc_llm.serve import engine
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
 from mlc_llm.serve.server import ServerContext
 
@@ -16,9 +17,13 @@ def serve(
     model: str,
     device: str,
     model_lib_path: Optional[str],
-    max_batch_size: int,
+    mode: Literal["local", "interactive", "server"],
+    additional_models: List[str],
+    max_batch_size: Optional[int],
     max_total_sequence_length: Optional[int],
     prefill_chunk_size: Optional[int],
+    gpu_memory_utilization: Optional[float],
+    engine_config: Optional[EngineConfig],
     enable_tracing: bool,
     host: str,
     port: int,
@@ -28,19 +33,20 @@ def serve(
     allow_headers: Any,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
-    # Initialize model loading info and KV cache config
-    model_info = engine_base.ModelInfo(
+    # Create engine and start the background loop
+    async_engine = engine.AsyncEngine(
         model=model,
-        model_lib_path=model_lib_path,
         device=device,
-    )
-    kv_cache_config = config.KVCacheConfig(
-        max_num_sequence=max_batch_size,
+        model_lib_path=model_lib_path,
+        mode=mode,
+        additional_models=additional_models,
+        max_batch_size=max_batch_size,
         max_total_sequence_length=max_total_sequence_length,
         prefill_chunk_size=prefill_chunk_size,
+        gpu_memory_utilization=gpu_memory_utilization,
+        engine_config=engine_config,
+        enable_tracing=enable_tracing,
     )
-    # Create engine and start the background loop
-    async_engine = engine.AsyncEngine(model_info, kv_cache_config, enable_tracing=enable_tracing)
 
     with ServerContext() as server_context:
         server_context.add_model(model, async_engine)

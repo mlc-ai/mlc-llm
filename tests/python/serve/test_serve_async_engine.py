@@ -3,8 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncEngine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve import AsyncEngine, GenerationConfig
 
 prompts = [
     "What is the meaning of life?",
@@ -21,14 +20,15 @@ prompts = [
 
 
 async def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 10
     max_tokens = 256
@@ -77,14 +77,15 @@ async def test_engine_generate():
 
 
 async def test_chat_completion():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 32
@@ -96,7 +97,7 @@ async def test_chat_completion():
         rid = int(request_id)
         async for response in await async_engine.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             request_id=request_id,
@@ -128,14 +129,15 @@ async def test_chat_completion():
 
 
 async def test_chat_completion_non_stream():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 32
@@ -147,7 +149,7 @@ async def test_chat_completion_non_stream():
         rid = int(request_id)
         response = await async_engine.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             request_id=request_id,
@@ -178,14 +180,15 @@ async def test_chat_completion_non_stream():
 
 
 async def test_completion():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 128
@@ -197,7 +200,7 @@ async def test_completion():
         rid = int(request_id)
         async for response in await async_engine.completions.create(
             prompt=prompt,
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             ignore_eos=True,
@@ -229,14 +232,15 @@ async def test_completion():
 
 
 async def test_completion_non_stream():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+    )
 
     num_requests = 2
     max_tokens = 128
@@ -248,7 +252,7 @@ async def test_completion_non_stream():
         rid = int(request_id)
         response = await async_engine.completions.create(
             prompt=prompt,
-            model=model.model,
+            model=model,
             max_tokens=max_tokens,
             n=n,
             ignore_eos=True,

@@ -3,14 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import (
-    AsyncEngine,
-    EngineMode,
-    GenerationConfig,
-    KVCacheConfig,
-    SpeculativeMode,
-)
-from mlc_llm.serve.engine_base import ModelInfo
+from mlc_llm.serve import AsyncEngine, EngineConfig, GenerationConfig, SpeculativeMode
 
 prompts = [
     "What is the meaning of life?",
@@ -27,19 +20,20 @@ prompts = [
 
 
 async def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    llm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.SMALL_DRAFT)
     # Create engine
-    async_engine = AsyncEngine([llm, ssm], kv_cache_config, engine_mode)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
+    async_engine = AsyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+    )
 
     num_requests = 10
     max_tokens = 256

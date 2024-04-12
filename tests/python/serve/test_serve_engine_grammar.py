@@ -7,9 +7,8 @@ from typing import List
 import pytest
 from pydantic import BaseModel
 
-from mlc_llm.serve import AsyncEngine, GenerationConfig, KVCacheConfig
+from mlc_llm.serve import AsyncEngine, GenerationConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.engine_base import ModelInfo
 from mlc_llm.serve.sync_engine import SyncEngine
 
 prompts_list = [
@@ -22,11 +21,8 @@ model_lib_path = "dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
 
 
 def test_batch_generation_with_grammar():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = SyncEngine(model, kv_cache_config)
+    engine = SyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt_len = len(prompts_list)
     prompts = prompts_list * 3
@@ -72,11 +68,8 @@ def test_batch_generation_with_grammar():
 
 
 def test_batch_generation_with_schema():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = SyncEngine(model, kv_cache_config)
+    engine = SyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -127,11 +120,8 @@ def test_batch_generation_with_schema():
 
 
 async def run_async_engine():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    async_engine = AsyncEngine(model, kv_cache_config, enable_tracing=True)
+    async_engine = AsyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompts = prompts_list * 20
 
@@ -184,8 +174,6 @@ async def run_async_engine():
         else:
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
-
-    print(async_engine.state.trace_recorder.dump_json(), file=open("tmpfiles/tmp.json", "w"))
 
     async_engine.terminate()
 

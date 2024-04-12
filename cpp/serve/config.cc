@@ -295,18 +295,18 @@ String KVCacheConfigNode::AsJSONString() const {
   return picojson::value(config).serialize(true);
 }
 
-/****************** EngineMode ******************/
+/****************** EngineConfig ******************/
 
-TVM_REGISTER_OBJECT_TYPE(EngineModeNode);
+TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
 
-EngineMode::EngineMode(int spec_draft_length, int speculative_mode) {
-  ObjectPtr<EngineModeNode> n = make_object<EngineModeNode>();
+EngineConfig::EngineConfig(int spec_draft_length, int speculative_mode) {
+  ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
   n->spec_draft_length = spec_draft_length;
   n->speculative_mode = SpeculativeMode(speculative_mode);
   data_ = std::move(n);
 }
 
-EngineMode::EngineMode(const std::string& config_str) {
+EngineConfig::EngineConfig(const std::string& config_str) {
   int spec_draft_length = 4;
   int speculative_mode = 0;
 
@@ -327,13 +327,13 @@ EngineMode::EngineMode(const std::string& config_str) {
     speculative_mode = config["speculative_mode"].get<int64_t>();
   }
 
-  ObjectPtr<EngineModeNode> n = make_object<EngineModeNode>();
+  ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
   n->spec_draft_length = spec_draft_length;
   n->speculative_mode = SpeculativeMode(speculative_mode);
   data_ = std::move(n);
 }
 
-String EngineModeNode::AsJSONString() const {
+String EngineConfigNode::AsJSONString() const {
   picojson::object config;
   config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
   config["speculative_mode"] = picojson::value(static_cast<int64_t>(this->speculative_mode));

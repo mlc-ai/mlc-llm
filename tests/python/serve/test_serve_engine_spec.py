@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from mlc_llm.serve import (
-    EngineMode,
+    EngineConfig,
     GenerationConfig,
     KVCacheConfig,
     Request,
@@ -69,18 +69,6 @@ def test_engine_basic():
     requests + max_tokens - 1). Then check the output of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.SMALL_DRAFT)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = len(prompts)  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -99,7 +87,21 @@ def test_engine_basic():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, fcallback)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
@@ -135,18 +137,6 @@ def test_engine_eagle_basic():
     - Use Eagle model as speculative model
     """
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Eagle-llama2-7b-chat-q0f16-MLC",
-        model_lib_path="dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(spec_draft_length=2, speculative_mode=SpeculativeMode.EAGLE)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = len(prompts)  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -165,7 +155,21 @@ def test_engine_eagle_basic():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, fcallback)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
+    small_model_lib_path = (
+        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    )
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(spec_draft_length=2, speculative_mode=SpeculativeMode.EAGLE),
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
@@ -201,18 +205,6 @@ def test_engine_continuous_batching_1():
     of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.SMALL_DRAFT)
-
     # Hyperparameters for tests (you can try different combinations)
     num_requests = len(prompts)  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
@@ -245,8 +237,22 @@ def test_engine_continuous_batching_1():
             self.timer += 1
 
     # Create engine
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
     timer = CallbackTimer()
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, timer.callback_getter())
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        request_stream_callback=timer.callback_getter(),
+    )
 
     # Create requests
     requests = create_requests(
@@ -285,18 +291,6 @@ def test_engine_eagle_continuous_batching_1():
     of each request.
     """
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Eagle-llama2-7b-chat-q4f16_1-MLC",
-        model_lib_path="dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.EAGLE)
-
     # Hyperparameters for tests (you can try different combinations)
     num_requests = len(prompts)  # [4, 8, 10]
     temperature = 0.9  # [0.8, 0.9, 1.0, 1.1]
@@ -329,8 +323,22 @@ def test_engine_eagle_continuous_batching_1():
             self.timer += 1
 
     # Create engine
+    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
+    )
     timer = CallbackTimer()
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, timer.callback_getter())
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.EAGLE),
+        request_stream_callback=timer.callback_getter(),
+    )
 
     # Create requests
     requests = create_requests(
@@ -359,19 +367,21 @@ def test_engine_eagle_continuous_batching_1():
 
 
 def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.SMALL_DRAFT)
     # Create engine
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+    )
 
     num_requests = 10
     max_tokens = 256
@@ -390,19 +400,21 @@ def test_engine_generate():
 
 
 def test_engine_eagle_generate():
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Eagle-llama2-7b-chat-q4f16_1-MLC",
-        model_lib_path="dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so",
-    )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(speculative_mode=SpeculativeMode.EAGLE)
     # Create engine
-    engine = SyncEngine([model, ssm], kv_cache_config, engine_mode)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
+    )
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(speculative_mode=SpeculativeMode.EAGLE),
+    )
 
     num_requests = 10
     max_tokens = 256
@@ -423,13 +435,6 @@ def test_engine_eagle_generate():
 def test_engine_efficiency():
     """Test engine speculative decoding efficiency."""
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(
-        "dist/Llama-2-13b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = 1  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -448,7 +453,15 @@ def test_engine_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    engine = SyncEngine(model, kv_cache_config, request_stream_callback=fcallback)
+    model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
+    engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
@@ -485,23 +498,6 @@ def test_engine_efficiency():
 def test_engine_spec_efficiency():
     """Test engine speculative decoding efficiency."""
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    # If Flashinfer allows head_dim < 128, we can test this model
-    # ssm = ModelInfo(
-    #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC",
-    #     model_lib_path="dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so",
-    # )
-    model = ModelInfo(
-        "dist/Llama-2-13b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(spec_draft_length=6, speculative_mode=SpeculativeMode.SMALL_DRAFT)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = 1  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -520,7 +516,28 @@ def test_engine_spec_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    spec_engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, fcallback)
+    model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
+    # If Flashinfer allows head_dim < 128, we can test this model
+    # small_model = "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC"
+    # small_model_lib_path = (
+    #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so"
+    # )
+    spec_engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(
+            spec_draft_length=6, speculative_mode=SpeculativeMode.SMALL_DRAFT
+        ),
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
@@ -557,23 +574,6 @@ def test_engine_spec_efficiency():
 def test_engine_eagle_spec_efficiency():
     """Test engine speculative decoding efficiency."""
 
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Eagle-llama2-7b-chat-q0f16-MLC",
-        model_lib_path="dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so",
-    )
-    # If Flashinfer allows head_dim < 128, we can test this model
-    # ssm = ModelInfo(
-    #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC",
-    #     model_lib_path="dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so",
-    # )
-    model = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16, max_total_sequence_length=4096)
-    engine_mode = EngineMode(spec_draft_length=6, speculative_mode=SpeculativeMode.EAGLE)
-
     # Hyperparameters for tests (you can try different combinations).
     num_requests = 1  # [4, 8, 10]
     temperature = 0.9  # [0, 0.8, 0.9, 1.0, 1.1]
@@ -592,7 +592,21 @@ def test_engine_eagle_spec_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    spec_engine = SyncEngine([model, ssm], kv_cache_config, engine_mode, fcallback)
+    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
+    small_model_lib_path = (
+        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    )
+    spec_engine = SyncEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        max_total_sequence_length=4096,
+        additional_models=[small_model + ":" + small_model_lib_path],
+        engine_config=EngineConfig(spec_draft_length=6, speculative_mode=SpeculativeMode.EAGLE),
+        request_stream_callback=fcallback,
+    )
 
     # Create requests
     requests = create_requests(
