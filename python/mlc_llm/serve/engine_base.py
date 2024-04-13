@@ -296,7 +296,7 @@ def _get_model_config_limit(model_config_dicts: List[Dict[str, Any]]) -> Tuple[i
     return model_max_single_sequence_length, model_max_prefill_chunk_size, model_max_batch_size
 
 
-def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches
+def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
     mode: Literal["local", "interactive", "server"],
     max_batch_size: Optional[int],
     max_total_sequence_length: Optional[int],
@@ -314,105 +314,152 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
         model_max_batch_size,
     ) = _get_model_config_limit(model_config_dicts)
 
-    logging_msg = 'Engine mode is "' + green(mode) + '". '
-    # - max_batch_size
-    if max_batch_size is None:
-        max_batch_size = (
-            min(4, model_max_batch_size)
-            if mode == "local"
-            else (1 if mode == "interactive" else model_max_batch_size)
+    def infer_args_under_mode(
+        mode: Literal["local", "interactive", "server"],
+        max_batch_size: Optional[int],
+        max_total_sequence_length: Optional[int],
+        prefill_chunk_size: Optional[int],
+    ) -> Tuple[KVCacheConfig, List[float]]:
+        logging_msg = ""
+        # - max_batch_size
+        if max_batch_size is None:
+            max_batch_size = (
+                min(4, model_max_batch_size)
+                if mode == "local"
+                else (1 if mode == "interactive" else model_max_batch_size)
+            )
+            logging_msg += f"max batch size is set to {max_batch_size}, "
+        else:
+            logging_msg += f"max batch size {max_batch_size} is specified by user, "
+        # - infer the maximum total sequence length that can fit GPU memory.
+        (
+            total_mem_usage_except_kv_cache,
+            model_params_bytes,
+            kv_bytes_per_token,
+            kv_aux_workspace_bytes,
+            temp_workspace_bytes,
+            model_max_total_sequence_length,
+        ) = _estimate_mem_usage_and_max_total_sequence_length(
+            models,
+            device,
+            model_config_paths,
+            model_config_dicts,
+            max_batch_size,
+            gpu_memory_utilization,
         )
-        logging_msg += "Max batch size is set to " + green(str(max_batch_size)) + ". "
-    else:
-        logging_msg += "Max batch size " + green(str(max_batch_size)) + " is specified by user. "
-    # - infer the maximum total sequence length that can fit GPU memory.
-    (
-        total_mem_usage_except_kv_cache,
-        model_params_bytes,
-        kv_bytes_per_token,
-        kv_aux_workspace_bytes,
-        temp_workspace_bytes,
-        model_max_total_sequence_length,
-    ) = _estimate_mem_usage_and_max_total_sequence_length(
-        models,
-        device,
-        model_config_paths,
-        model_config_dicts,
-        max_batch_size,
-        gpu_memory_utilization,
-    )
-    # - max_total_sequence_length
-    if max_total_sequence_length is None:
+        # - max_total_sequence_length
+        if max_total_sequence_length is None:
+            if mode == "local":
+                max_total_sequence_length = min(
+                    model_max_total_sequence_length, model_max_single_sequence_length, 8192
+                )
+            elif mode == "interactive":
+                max_total_sequence_length = min(
+                    model_max_total_sequence_length, model_max_single_sequence_length
+                )
+            else:
+                max_total_sequence_length = min(
+                    model_max_total_sequence_length,
+                    max_batch_size * model_max_single_sequence_length,
+                )
+            logging_msg += f"max KV cache token capacity is set to {max_total_sequence_length}, "
+        else:
+            logging_msg += (
+                f"max KV cache token capacity {max_total_sequence_length} is specified by user. "
+            )
+        # - prefill_chunk_size
+        if prefill_chunk_size is None:
+            if mode in ["local", "interactive"]:
+                prefill_chunk_size = min(
+                    model_max_prefill_chunk_size,
+                    model_max_total_sequence_length,
+                    model_max_single_sequence_length,
+                )
+            else:
+                prefill_chunk_size = model_max_prefill_chunk_size
+            logging_msg += f"prefill chunk size is set to {prefill_chunk_size}. "
+        else:
+            logging_msg += f"prefill chunk size {prefill_chunk_size} is specified by user. "
+
         if mode == "local":
-            max_total_sequence_length = min(
-                model_max_total_sequence_length, model_max_single_sequence_length, 8192
+            logging_msg += (
+                "We choose small max batch size and KV cache capacity to use less GPU memory."
             )
         elif mode == "interactive":
-            max_total_sequence_length = min(
-                model_max_total_sequence_length, model_max_single_sequence_length
-            )
+            logging_msg += "We fix max batch size to 1 for interactive single sequence use."
         else:
-            max_total_sequence_length = min(
-                model_max_total_sequence_length, max_batch_size * model_max_single_sequence_length
+            logging_msg += (
+                "We use as much GPU memory as possible (within the"
+                " limit of gpu_memory_utilization)."
             )
-        logging_msg += (
-            "Max KV cache token capacity is set to " + green(str(max_total_sequence_length)) + ". "
-        )
-    else:
-        logging_msg += (
-            "Max KV cache token capacity "
-            + green(str(max_total_sequence_length))
-            + " is specified by user. "
-        )
-    # - prefill_chunk_size
-    if prefill_chunk_size is None:
-        if mode in ["local", "interactive"]:
-            prefill_chunk_size = min(
-                model_max_prefill_chunk_size,
-                model_max_total_sequence_length,
-                model_max_single_sequence_length,
-            )
-        else:
-            prefill_chunk_size = model_max_prefill_chunk_size
-        logging_msg += "Prefill chunk size is set to " + green(str(prefill_chunk_size)) + ". "
-    else:
-        logging_msg += (
-            "Prefill chunk size " + green(str(prefill_chunk_size)) + " is specified by user. "
-        )
-    logger.info(logging_msg)
-    # - Estimate total GPU memory usage on single GPU.
-    total_mem_usage = (
-        total_mem_usage_except_kv_cache + max_total_sequence_length * kv_bytes_per_token
+        logger.info('Under mode "%s", %s', mode, logging_msg)
+
+        # - Construct the KV cache config
+        # - Estimate total GPU memory usage on single GPU.
+        return KVCacheConfig(
+            max_num_sequence=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+        ), [
+            total_mem_usage_except_kv_cache + max_total_sequence_length * kv_bytes_per_token,
+            model_params_bytes,
+            kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes,
+            temp_workspace_bytes,
+        ]
+
+    # - Infer KV cache config and estimate memory usage for each mode.
+    local_kv_cache_config, local_mem_usage_list = infer_args_under_mode(
+        "local", max_batch_size, max_total_sequence_length, prefill_chunk_size
     )
+    interactive_kv_cache_config, interactive_mem_usage_list = infer_args_under_mode(
+        "interactive", max_batch_size, max_total_sequence_length, prefill_chunk_size
+    )
+    server_kv_cache_config, server_mem_usage_list = infer_args_under_mode(
+        "server", max_batch_size, max_total_sequence_length, prefill_chunk_size
+    )
+
+    # - Select the config based on the actual mode.
+    if mode == "local":
+        kv_cache_config = local_kv_cache_config
+        mem_usage_list = local_mem_usage_list
+    elif mode == "interactive":
+        kv_cache_config = interactive_kv_cache_config
+        mem_usage_list = interactive_mem_usage_list
+    else:
+        kv_cache_config = server_kv_cache_config
+        mem_usage_list = server_mem_usage_list
+
+    logger.info(
+        'The actual engine mode is "%s". So max batch size is %s, '
+        "max KV cache token capacity is %s, prefill chunk size is %s.",
+        green(mode),
+        green(str(kv_cache_config.max_num_sequence)),
+        green(str(kv_cache_config.max_total_sequence_length)),
+        green(str(kv_cache_config.prefill_chunk_size)),
+    )
+
     logger.info(
         "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB). "
         "The actual usage might be slightly larger than the estimated number.",
         green("Estimated total single GPU memory usage"),
-        total_mem_usage / 1024 / 1024,
-        model_params_bytes / 1024 / 1024,
-        (kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes) / 1024 / 1024,
-        temp_workspace_bytes / 1024 / 1024,
+        *list(mem_usage / 1024 / 1024 for mem_usage in mem_usage_list),
     )
     # - Final messages
+    override_msg = "Please override the arguments if you have particular values to set."
     if mode in ["local", "interactive"]:
         logger.info(
             'Please switch to mode "server" if you want to use more GPU memory '
-            "and support more concurrent requests."
+            "and support more concurrent requests. %s",
+            override_msg,
         )
     else:
         logger.info(
             'Please switch to mode "local" or "interactive" if you want to use less GPU memory '
-            "or do not have many concurrent requests to process."
+            "or do not have many concurrent requests to process. %s",
+            override_msg,
         )
 
-    return (
-        KVCacheConfig(
-            max_num_sequence=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-        ),
-        model_max_single_sequence_length,
-    )
+    return kv_cache_config, model_max_single_sequence_length
 
 
 @dataclass
