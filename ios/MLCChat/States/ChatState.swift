@@ -37,7 +37,7 @@ final class ChatState: ObservableObject {
     @Published var infoText = ""
     @Published var displayName = ""
     @Published var useVision = false
-    
+
     private let modelChatStateLock = NSLock()
     private var modelChatState: ModelChatState = .ready
 
@@ -46,12 +46,12 @@ final class ChatState: ObservableObject {
     private var modelLib = ""
     private var modelPath = ""
     var modelID = ""
-    
+
     init() {
         threadWorker.qualityOfService = QualityOfService.userInteractive
         threadWorker.start()
     }
-    
+
     var isInterruptible: Bool {
         return getModelChatState() == .ready
         || getModelChatState() == .generating
@@ -71,7 +71,7 @@ final class ChatState: ObservableObject {
         return getModelChatState() == .ready
         || getModelChatState() == .generating
     }
-    
+
     func requestResetChat() {
         assert(isResettable)
         interruptChat(prologue: {
@@ -80,7 +80,7 @@ final class ChatState: ObservableObject {
             self?.mainResetChat()
         })
     }
-    
+
     func requestTerminateChat(callback: @escaping () -> Void) {
         assert(isInterruptible)
         interruptChat(prologue: {
@@ -89,7 +89,7 @@ final class ChatState: ObservableObject {
             self?.mainTerminateChat(callback: callback)
         })
     }
-    
+
     func requestReloadChat(modelID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
         if (isCurrentModel(modelID: modelID)) {
             return
@@ -105,7 +105,7 @@ final class ChatState: ObservableObject {
                                  displayName: displayName)
         })
     }
-    
+
     func requestGenerate(prompt: String) {
         assert(isChattable)
         switchToGenerating()
@@ -222,7 +222,7 @@ private extension ChatState {
 
     func interruptChat(prologue: () -> Void, epilogue: @escaping () -> Void) {
         assert(isInterruptible)
-        if getModelChatState() == .ready 
+        if getModelChatState() == .ready
             || getModelChatState() == .failed
             || getModelChatState() == .pendingImageUpload {
             prologue()
