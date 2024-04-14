@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
@@ -40,6 +41,7 @@ class GLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
+    head_dim: int = 0
     max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -65,6 +67,9 @@ class GLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %s (%d)",
@@ -82,7 +87,6 @@ class GLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 bold("context_window_size"),
             )
             self.prefill_chunk_size = self.context_window_size
-            assert self.tensor_parallel_shards == 1, "ChatGLM currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -91,14 +95,14 @@ class GLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GLMConfig):
         self.hidden_size = config.hidden_size
-        self.num_heads = config.num_attention_heads
+        self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.multi_query_attention = config.multi_query_attention
         self.num_key_value_heads = (
             config.multi_query_group_num
             if config.multi_query_attention
             else config.num_attention_heads
-        )
-        self.head_dim = self.hidden_size // self.num_heads
+        ) // config.tensor_parallel_shards
+        self.head_dim = config.head_dim
         self.query_key_value = nn.Linear(
             config.hidden_size,
             (2 * self.num_key_value_heads + self.num_heads) * self.head_dim,
@@ -123,13 +127,15 @@ class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
 class GLMMLP(nn.Module):
     def __init__(self, config: GLMConfig):
+        self.ffn_hidden_size = config.ffn_hidden_size // config.tensor_parallel_shards
+
         self.dense_h_to_4h = nn.Linear(
             config.hidden_size,
-            config.ffn_hidden_size * 2,
+            self.ffn_hidden_size * 2,
             bias=config.add_bias_linear,
         )
         self.dense_4h_to_h = nn.Linear(
-            config.ffn_hidden_size,
+            self.ffn_hidden_size,
             config.hidden_size,
             bias=config.add_bias_linear,
         )
@@ -158,12 +164,56 @@ class GLMBlock(nn.Module):
             config.hidden_size, -1, config.layernorm_epsilon, bias=False
         )
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attention.num_heads * hd
+            k = self.self_attention.num_key_value_heads * hd
+            v = self.self_attention.num_key_value_heads * hd
+            _set(
+                self.self_attention.query_key_value.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            if config.add_bias_linear or config.add_qkv_bias:
+                _set(
+                    self.self_attention.query_key_value.bias,
+                    tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+                )
+            _set(self.self_attention.dense.weight, tp.ShardSingleDim("_shard_dense_weight", dim=1))
+            if config.add_bias_linear:
+                _set(self.self_attention.dense.bias, tp.ShardSingleDim("_shard_dense_bias", dim=0))
+            _set(
+                self.mlp.dense_h_to_4h.weight,
+                tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
+            )
+            if config.add_bias_linear:
+                _set(
+                    self.mlp.dense_h_to_4h.bias,
+                    tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
+                )
+            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
+            if config.add_bias_linear:
+                _set(
+                    self.mlp.dense_4h_to_h.bias,
+                    tp.ShardSingleDim("_shard_dense_4h_to_h_bias", dim=1),
+                )
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.self_attention(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = out + hidden_states
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
 
 class GLMTransformer(nn.Module):
@@ -217,7 +267,7 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             if config.multi_query_attention
             else config.num_attention_heads
         )
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.head_dim = config.head_dim
         self.vocab_size = config.vocab_size
         self.rope_theta = 10000
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -245,6 +295,8 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.transformer.embedding(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -273,6 +325,8 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
     def batch_prefill(
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
