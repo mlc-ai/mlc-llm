@@ -171,10 +171,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="deploy/javascript.html">WebLLM and Javascript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deploy/javascript.html">WebLLM and JavaScript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/cli.html">CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="deploy/python.html">Python API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deploy/python_engine.html">Python API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/android.html">Android App</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deploy/ide_integration.html">Code Completion IDE Integration</a></li>
@@ -296,42 +296,63 @@
 <p>To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
 It is recommended to have at least 6GB free VRAM to run it.</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>Install MLC LLM Python</strong>. <a class="reference internal" href="install/mlc_llm.html"><span class="doc">MLC LLM</span></a> is available via pip.
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Python</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">REST Server</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Command Line</button><button aria-controls="panel-0-0-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-3" name="0-3" role="tab" tabindex="-1">Web Browser</button><button aria-controls="panel-0-0-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-4" name="0-4" role="tab" tabindex="-1">iOS</button><button aria-controls="panel-0-0-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-5" name="0-5" role="tab" tabindex="-1">Android</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><p><strong>Install MLC LLM</strong>. <a class="reference internal" href="install/mlc_llm.html"><span class="doc">MLC LLM</span></a> is available via pip.
 It is always recommended to install it in an isolated conda virtual environment.</p>
-<p><strong>Download pre-quantized weights</strong>. The commands below download the int4-quantized Llama2-7B from HuggingFace:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>lfs<span class="w"> </span>install<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>dist/
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
-<span class="w">                                  </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-</pre></div>
-</div>
-<p><strong>Download pre-compiled model library</strong>. The pre-compiled model library is available as below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
-</pre></div>
-</div>
-<p><strong>Run in Python.</strong> The following Python script showcases the Python API of MLC LLM and its stream capability:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">ChatModule</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
+<p><strong>Run chat completion in Python.</strong> The following Python script showcases the Python API of MLC LLM:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">Engine</span>
 
-<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span>
-    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;dist/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span><span class="p">,</span>
-    <span class="n">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so&quot;</span>
-    <span class="c1"># Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so</span>
-    <span class="c1"># Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
-    <span class="c1"># Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}</span>
-<span class="p">)</span>
-<span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span> <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">))</span>
+<span class="c1"># Create engine</span>
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">Engine</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+<span class="c1"># Run chat completion in OpenAI API.</span>
+<span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">choice</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">content</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">engine</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
 </pre></div>
 </div>
-<p><strong>Colab walkthrough.</strong>  A Jupyter notebook on <a class="reference external" href="https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb">Colab</a>
-is provided with detailed walkthrough of the Python API.</p>
-<p><strong>Documentation and tutorial.</strong> Python API reference and its tutorials are <a class="reference external" href="https://llm.mlc.ai/docs/deploy/python.html#api-reference">available online</a>.</p>
+<p><strong>Documentation and tutorial.</strong> Python API reference and its tutorials are <a class="reference internal" href="deploy/python_engine.html"><span class="doc">available online</span></a>.</p>
 <figure class="align-center" id="id1">
-<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg" style="width: 600px;" /></a>
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg" style="width: 600px;" /></a>
 <figcaption>
 <p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id1" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><strong>Install MLC LLM</strong>. <a class="reference internal" href="install/mlc_llm.html"><span class="doc">MLC LLM</span></a> is available via pip.
+It is always recommended to install it in an isolated conda virtual environment.</p>
+<p><strong>Launch a REST server.</strong> Run the following command from command line to launch a REST server at <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8000</span></code>.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+</pre></div>
+</div>
+<p><strong>Send requests to server.</strong> When the server is ready (showing <code class="docutils literal notranslate"><span class="pre">INFO:</span> <span class="pre">Uvicorn</span> <span class="pre">running</span> <span class="pre">on</span> <span class="pre">http://127.0.0.1:8000</span> <span class="pre">(Press</span> <span class="pre">CTRL+C</span> <span class="pre">to</span> <span class="pre">quit)</span></code>),
+open a new shell and send a request via the following command:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">        &quot;model&quot;: &quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;,</span>
+<span class="s1">        &quot;messages&quot;: [</span>
+<span class="s1">            {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello! Our project is MLC LLM. What is the name of our project?&quot;}</span>
+<span class="s1">        ]</span>
+<span class="s1">  }&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:8000/v1/chat/completions
+</pre></div>
+</div>
+<p><strong>Documentation and tutorial.</strong> Check out <a class="reference internal" href="deploy/rest.html#deploy-rest-api"><span class="std std-ref">REST API</span></a> for the REST API reference and tutorial.
+Our REST API has complete OpenAI API support.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-serve-request.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-serve-request.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-serve-request.jpg" style="width: 600px;" /></a>
+<figcaption>
+<p><span class="caption-text">Send HTTP request to REST server in MLC LLM</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p><strong>Install MLC LLM</strong>. <a class="reference internal" href="install/mlc_llm.html"><span class="doc">MLC LLM</span></a> is available via pip.
 It is always recommended to install it in an isolated conda virtual environment.</p>
 <p>For Windows/Linux users, make sure to have latest <a class="reference internal" href="install/gpu.html#vulkan-driver"><span class="std std-ref">Vulkan driver</span></a> installed.</p>
 <p><strong>Run in command line</strong>.</p>
@@ -344,18 +365,18 @@ to avoid vulkan not found issues.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gcc<span class="w"> </span>libvulkan-loader
 </pre></div>
 </div>
-</div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM</a>. MLC LLM generates performant code for WebGPU and WebAssembly,
+</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p><a class="reference external" href="https://webllm.mlc.ai/#chat-demo">WebLLM</a>. MLC LLM generates performant code for WebGPU and WebAssembly,
 so that LLMs can be run locally in a web browser without server resources.</p>
 <p><strong>Download pre-quantized weights</strong>. This step is self-contained in WebLLM.</p>
 <p><strong>Download pre-compiled model library</strong>. WebLLM automatically downloads WebGPU code to execute.</p>
 <p><strong>Check browser compatibility</strong>. The latest Google Chrome provides WebGPU runtime and <a class="reference external" href="https://webgpureport.org/">WebGPU Report</a> as a useful tool to verify WebGPU capabilities of your browser.</p>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id3">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/redpajama/web.gif"><img alt="https://blog.mlc.ai/img/redpajama/web.gif" src="https://blog.mlc.ai/img/redpajama/web.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Web</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-3" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-3" name="0-3" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat iOS</strong>. It is available on AppStore:</p>
+</div><div aria-labelledby="tab-0-0-4" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-4" name="0-4" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat iOS</strong>. It is available on AppStore:</p>
 <a class="reference external image-reference" href="https://apps.apple.com/us/app/mlc-chat/id6448482937"><img alt="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" width="135" /></a>
 <div class="line-block">
 <div class="line"><br /></div>
@@ -363,13 +384,13 @@ so that LLMs can be run locally in a web browser without server resources.</p>
 <p><strong>Requirement</strong>. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.</p>
 <p><strong>Tutorial and source code</strong>. The source code of the iOS app is fully <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/ios">open source</a>,
 and a <a class="reference internal" href="deploy/ios.html"><span class="doc">tutorial</span></a> is included in documentation.</p>
-<figure class="align-center" id="id3">
+<figure class="align-center" id="id4">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/redpajama/ios.gif"><img alt="https://blog.mlc.ai/img/redpajama/ios.gif" src="https://blog.mlc.ai/img/redpajama/ios.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC Chat on iOS</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-</div><div aria-labelledby="tab-0-0-4" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-4" name="0-4" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat Android</strong>. A prebuilt is available as an APK:</p>
+</div><div aria-labelledby="tab-0-0-5" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-5" name="0-5" role="tabpanel" tabindex="0"><p><strong>Install MLC Chat Android</strong>. A prebuilt is available as an APK:</p>
 <a class="reference external image-reference" href="https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk"><img alt="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" src="https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png" style="width: 135px;" /></a>
 <div class="line-block">
 <div class="line"><br /></div>
@@ -383,13 +404,33 @@ The demo is tested on</p>
 </ul>
 <p><strong>Tutorial and source code</strong>. The source code of the android app is fully <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/android">open source</a>,
 and a <a class="reference internal" href="deploy/android.html"><span class="doc">tutorial</span></a> is included in documentation.</p>
-<figure class="align-center" id="id4">
+<figure class="align-center" id="id5">
 <a class="reference internal image-reference" href="https://blog.mlc.ai/img/android/android-recording.gif"><img alt="https://blog.mlc.ai/img/android/android-recording.gif" src="https://blog.mlc.ai/img/android/android-recording.gif" style="width: 300px;" /></a>
 <figcaption>
-<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id4" title="Permalink to this image">¶</a></p>
+<p><span class="caption-text">MLC LLM on Android</span><a class="headerlink" href="#id5" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
 </div></div>
+</section>
+<section id="what-to-do-next">
+<h2>What to Do Next<a class="headerlink" href="#what-to-do-next" title="Permalink to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Depending on your use case, check out our API documentation and tutorial pages:</p>
+<ul>
+<li><p><a class="reference internal" href="deploy/javascript.html#webllm-runtime"><span class="std std-ref">WebLLM and JavaScript API</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/rest.html#deploy-rest-api"><span class="std std-ref">REST API</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/ios.html#deploy-ios"><span class="std std-ref">iOS App and Swift API</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/android.html#deploy-android"><span class="std std-ref">Android App</span></a></p></li>
+<li><p><a class="reference internal" href="deploy/ide_integration.html#deploy-ide-integration"><span class="std std-ref">Code Completion IDE Integration</span></a></p></li>
+</ul>
+</li>
+<li><p>Deploy your local model: check out <a class="reference internal" href="compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> to convert your model weights to MLC format.</p></li>
+<li><p>Deploy models to Web or build iOS/Android apps on your own: check out <a class="reference internal" href="compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> to compile the models into binary libraries.</p></li>
+<li><p>Customize model optimizations: check out <a class="reference internal" href="compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>.</p></li>
+<li><p>Report any problem or ask any question: open new issues in our <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues">GitHub repo</a>.</p></li>
+</ul>
 <div class="toctree-wrapper compound">
 </div>
 <div class="toctree-wrapper compound">

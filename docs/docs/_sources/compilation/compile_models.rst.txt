@@ -21,7 +21,7 @@ We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for al
     Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
     backend to compile models with MLC LLM.
 
-    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python` to obtain
+    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-chat-module` to obtain
     the CLI app / Python API that can be used to chat with the compiled model.
     Finally, we strongly recommend you to read :ref:`project-overview` first to get
     familiarized with the high-level terminologies.
