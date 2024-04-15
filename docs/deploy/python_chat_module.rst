@@ -1,15 +1,21 @@
-.. _deploy-python:
+.. _deploy-python-chat-module:
 
-Python API
-==========
+Python API (Chat Module)
+========================
+
+.. note::
+   ❗ The Python API with :class:`mlc_llm.ChatModule` introduced in this page will be
+   deprecated in the near future.
+   Please go to :ref:`deploy-python-engine` for the latest Python API with complete
+   OpenAI API support.
 
 .. contents:: Table of Contents
    :local:
    :depth: 2
 
-We expose Python API for the MLC-Chat for easy integration into other Python projects.
+We expose ChatModule Python API for the MLC-LLM for easy integration into other Python projects.
 
-The Python API is a part of the MLC-Chat package, which we have prepared pre-built pip wheels via
+The Python API is a part of the MLC-LLM package, which we have prepared pre-built pip wheels via
 the :doc:`installation page <../install/mlc_llm>`.
 
 Instead of following this page, you could also checkout the following tutorials in
@@ -340,7 +346,7 @@ We provide an example below.
 API Reference
 -------------
 
-User can initiate a chat module by creating :class:`mlc_llm.ChatModule` class, which is a wrapper of the MLC-Chat model.
+User can initiate a chat module by creating :class:`mlc_llm.ChatModule` class, which is a wrapper of the MLC-LLM model.
 The :class:`mlc_llm.ChatModule` class provides the following methods:
 
 .. currentmodule:: mlc_llm
