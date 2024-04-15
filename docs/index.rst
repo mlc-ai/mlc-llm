@@ -17,49 +17,75 @@ It is recommended to have at least 6GB free VRAM to run it.
 
   .. tab:: Python
 
-    **Install MLC LLM Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
+    **Install MLC LLM**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
     It is always recommended to install it in an isolated conda virtual environment.
 
-    **Download pre-quantized weights**. The commands below download the int4-quantized Llama2-7B from HuggingFace:
-
-    .. code:: bash
-
-      git lfs install && mkdir dist/
-      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-    **Download pre-compiled model library**. The pre-compiled model library is available as below:
-
-    .. code:: bash
-
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
-
-    **Run in Python.** The following Python script showcases the Python API of MLC LLM and its stream capability:
+    **Run chat completion in Python.** The following Python script showcases the Python API of MLC LLM:
 
     .. code:: python
 
-      from mlc_llm import ChatModule
-      from mlc_llm.callback import StreamToStdout
+      from mlc_llm import Engine
 
-      cm = ChatModule(
-          model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-          model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
-          # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-          # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
-          # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
-      )
-      cm.generate(prompt="What is the meaning of life?", progress_callback=StreamToStdout(callback_interval=2))
+      # Create engine
+      model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
+      engine = Engine(model)
 
-    **Colab walkthrough.**  A Jupyter notebook on `Colab <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
-    is provided with detailed walkthrough of the Python API.
+      # Run chat completion in OpenAI API.
+      for response in engine.chat.completions.create(
+          messages=[{"role": "user", "content": "What is the meaning of life?"}],
+          model=model,
+          stream=True,
+      ):
+          for choice in response.choices:
+              print(choice.delta.content, end="", flush=True)
+      print("\n")
 
-    **Documentation and tutorial.** Python API reference and its tutorials are `available online <https://llm.mlc.ai/docs/deploy/python.html#api-reference>`_.
+      engine.terminate()
 
-    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
+    .. Todo: link the colab notebook when ready:
+
+    **Documentation and tutorial.** Python API reference and its tutorials are :doc:`available online <deploy/python_engine>`.
+
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg
       :width: 600
       :align: center
 
       MLC LLM Python API
+
+  .. tab:: REST Server
+
+    **Install MLC LLM**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
+    It is always recommended to install it in an isolated conda virtual environment.
+
+    **Launch a REST server.** Run the following command from command line to launch a REST server at ``http://127.0.0.1:8000``.
+
+    .. code:: shell
+
+      mlc_llm serve HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+
+    **Send requests to server.** When the server is ready (showing ``INFO: Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)``),
+    open a new shell and send a request via the following command:
+
+    .. code:: shell
+
+      curl -X POST \
+        -H "Content-Type: application/json" \
+        -d '{
+              "model": "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC",
+              "messages": [
+                  {"role": "user", "content": "Hello! Our project is MLC LLM. What is the name of our project?"}
+              ]
+        }' \
+        http://127.0.0.1:8000/v1/chat/completions
+
+    **Documentation and tutorial.** Check out :ref:`deploy-rest-api` for the REST API reference and tutorial.
+    Our REST API has complete OpenAI API support.
+
+    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-serve-request.jpg
+      :width: 600
+      :align: center
+
+      Send HTTP request to REST server in MLC LLM
 
   .. tab:: Command Line
 
@@ -149,6 +175,25 @@ It is recommended to have at least 6GB free VRAM to run it.
       MLC LLM on Android
 
 
+What to Do Next
+---------------
+
+- Depending on your use case, check out our API documentation and tutorial pages:
+
+  - :ref:`webllm-runtime`
+  - :ref:`deploy-rest-api`
+  - :ref:`deploy-cli`
+  - :ref:`deploy-python-engine`
+  - :ref:`deploy-ios`
+  - :ref:`deploy-android`
+  - :ref:`deploy-ide-integration`
+
+- Deploy your local model: check out :ref:`convert-weights-via-MLC` to convert your model weights to MLC format.
+- Deploy models to Web or build iOS/Android apps on your own: check out :ref:`compile-model-libraries` to compile the models into binary libraries.
+- Customize model optimizations: check out :ref:`compile-model-libraries`.
+- Report any problem or ask any question: open new issues in our `GitHub repo <https://github.com/mlc-ai/mlc-llm/issues>`_.
+
+
 .. toctree::
    :maxdepth: 1
    :caption: Get Started
@@ -165,7 +210,7 @@ It is recommended to have at least 6GB free VRAM to run it.
    deploy/javascript.rst
    deploy/rest.rst
    deploy/cli.rst
-   deploy/python.rst
+   deploy/python_engine.rst
    deploy/ios.rst
    deploy/android.rst
    deploy/ide_integration.rst
