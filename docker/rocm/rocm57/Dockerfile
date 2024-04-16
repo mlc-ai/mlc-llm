@@ -6,17 +6,16 @@ ENV MLC_PATH /mlcllm
 # setup python 3 and pip, load the mlc-ai nightlies
 
 RUN apt update                      && \
-    apt install --yes  python3 pip  && \
-    pip install --pre --force-reinstall -f https://mlc.ai/wheels \
-    mlc-ai-nightly-rocm57 mlc-chat-nightly-rocm57   &&\
+    apt install --yes  python3.11 pip git git-lfs  && \
+    pip install --pre -U -f https://mlc.ai/wheels \
+    mlc-llm-nightly-rocm57 mlc-ai-nightly-rocm57   &&\
     mkdir -p $MLC_PATH 
 
 VOLUME ${MLC_PATH} 
 
 WORKDIR ${MLC_PATH}
 
-ENTRYPOINT ["python3", "-m", "mlc_chat.rest"] 
+ENTRYPOINT ["mlc_llm"]
 
-CMD ["--model", "Llama-2-7b-chat-hf-q4f16_1", "--device", "rocm",  "--host", "0.0.0.0", "--port", "8000"]
-
+CMD ["chat", "HF://mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC"]
 

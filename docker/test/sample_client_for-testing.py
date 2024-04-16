@@ -15,30 +15,31 @@ class color:
 
 # Get a response using a prompt without streaming
 payload = {
-    "model": "vicuna-v1-7b",
-    "messages": [{"role": "user", "content": "Write a haiku"}],
+#    "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
+    "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
+    "messages": [{"role": "user", "content": "write a haiku"}],
     "stream": False
 }
 r = requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload)
 print(f"{color.BOLD}Without streaming:{color.END}\n{color.GREEN}{r.json()['choices'][0]['message']['content']}{color.END}\n")
 
-# Reset the chat
-r = requests.post("http://127.0.0.1:8000/chat/reset", json=payload)
-print(f"{color.BOLD}Reset chat:{color.END} {str(r)}\n")
 
-# Get a response using a prompt with streaming
 payload = {
-    "model": "vicuna-v1-7b",
-    "messages": [{"role": "user", "content": "Write a haiku"}],
+#    "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
+    "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
+    "messages": [{"role": "user", "content": "Write a 500 words essay about the civil war"}],
     "stream": True
 }
-with requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload, stream=True) as r:
-    print(f"{color.BOLD}With streaming:{color.END}")
-    for chunk in r:
-        content = json.loads(chunk[6:])["choices"][0]["delta"].get("content", "")
-        print(f"{color.GREEN}{content}{color.END}", end="", flush=True)
-    print("\n")
 
-# Get the latest runtime stats
-r = requests.get("http://127.0.0.1:8000/stats")
-print(f"{color.BOLD}Runtime stats:{color.END} {r.json()}\n")
+print(f"{color.BOLD}With streaming:{color.END}")
+with requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload, stream=True) as r:
+   for chunk in r.iter_content(chunk_size=None):
+      chunk = chunk.decode("utf-8")
+      if "[DONE]" in chunk[6:]:
+         break
+      response = json.loads(chunk[6:])
+      content = response["choices"][0]["delta"].get("content", "")
+      print(f"{color.GREEN}{content}{color.END}", end="", flush=True)
+
+print("\n")
+

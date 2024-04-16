@@ -1,6 +1,6 @@
-## Containers for mlc-llm REST API
+## Containers for mlc_llm REST API and instant command line interface (CLI) chat with LLM
 
-A set of docker container templates for your scaled production deployment of GPU-accelerated mlc-llms.  Based on the work in the [LLM  Performance Benchmark](https://github.com/mlc-ai/llm-perf-bench) project.  
+A set of docker container templates for your scaled production deployment of GPU-accelerated mlc_llms.  Based on the recent work on the SLM, jit flow, and OpenAI compatible APIs including function calling.
 
 These containers are designed to be:
 
@@ -8,53 +8,54 @@ These containers are designed to be:
 * non-opinionated - use CNCF k8s or docker compose or swarm or whatever you have for orchestration
 * adaptive and composable - nobody knows what you intend to do with these containers, and we don't guess
 * compatible - with multi-GPU support maturing and batching still in testing, these containers should suvive upcoming changes without needing to be severely revamped. 
-* practical NOW - usable and deployable TODAY with 2023/2024 level hardware and mlc-ai
+* practical NOW - usable and deployable TODAY with 2024/2025 level workstation/consumer hardware and mlc-ai
 
 ###  Structure
 
-Containers are segregated by GPU acceleration stacks.  See the README of the sub-folders for more information
+Base containers are segregated by GPU acceleration stacks.  See the README of the sub-folders for more information
 ```
 cuda
-|-- cuda121
-|-- cuda121bundled  
+|-- cuda122
+
 
 rocm
-|-- rocm37
-|-- rocm37bundled
+|-- rocm57
+
+bin
 
 test
 ```
+
+The `bin` folder has the template executables that will start the containers.
+
+The `test` folder contains the tests.
+
 ####  Community contribution
 
-This structure enables the greater community to easily contribute new tested templates for other cuda and rocm releases, for example.
+This structure enables the greater community to easily contribute new tested templates for other cuda and rocm releases, for example.   
 
-####  Bundled for greatly improved UX
+####  Greatly enhanced out-of-box UX
 
-Having the weights and library seperated for each and every model powers great flexibility but makes for a horrandous user experience.   
+Managing the huge physical size of the weights for an LLM model is a major hurdle when deploying modern LLM in production / experimental environment at any scale.   Couple this with the need to compile NN network support library for every combination and permutation of GPU hardware vs OS supported - and an _impossibly frustrating_ out-of-box user experience is guaranteed.
 
-The `bundled` variants of the containers include both weights and the library for a model inside the single mega-sized image.   It is actually constructed based on the non-bundled image (composable), it just "add weights and the lib" to the image.  
+The latest improvement in JIT and SLM flow for MLC_LLM specifically addresses this.   And these docker container templates further enhances the out-of-box UX, down to one single easy to use command line (with automatic cached LLM weights management). 
 
-Users of such images can simply decide to run "llama2 7b on cuda 12.1" and in a few seconds pull down  an image onto their workstation running AI apps served by Llama 2 already GPU accelerated.
+Users of such images can simply decide to run "llama2 7b on cuda 12.2" and in one single command immediately pull down an image onto their workstation running AI apps served by Llama 2 already GPU accelerated.    The weights are downloaded directly from huggingface and converted _specifically for her/his GPU hardware and OS_  the first time the command is executed;  any subsequent invocation can start _instantly_ using the already converted weights.
 
-The tradeoff here is the storage requirement, and possibly network bandwidth during deployment.
-
-Here is a glimpse of what the size difference between bundled vs unbundled version. (7.7 GB for the q4f16 llama2 weights, for example)
+As an example the command to start an interactive chat with this LLM on Cuda 1.22 accelerated Linux is:
 
 ```
-REPOSITORY           TAG       IMAGE ID       CREATED         SIZE
-llama2rocm57         v0.1      249adf862921   3 minutes ago   27.7GB
-mlc-rocm57           v0.1      f4b7894e8724   3 hours ago     20GB
-``` 
-Ultimately mlc-ai may decide to publish on its public Docker Hub some images of bundled popular models (such as mistral 7b on cuda 121 and rocm37) to enhance "out of box" UX for the project.
+startcuda122chat.sh Llama-2-7b-chat-hf-q4f32_1
+```
 
-##### Loss of flexibility?
+One container template is supplied for REST API serving, and another one is available for interactive command line chat with any supported LLMs.
 
-There is no flexibility loss in deploying bundled containers because, as least for 2023/2024 hardware. The research community is working on multi-requests based on batching.  This means that once the weights of a massive LLM is loaded into GPU VRAM, it ain't moving.  Instead inference requests are batched against the loaded LLM for concurrent processing. The "GPU to LLM" mapping will remain static.
 
-#### Unbundled containers
+##### Compatibility with future improvements
 
-Non-bundled container is coded by default to serve _llama2 7b q4f16_, but you can change the command line during `docker run` to have it serve any supported mlc-llms.  Yes, you will have to download the weights and build the library yourself and place them in the docker mounted volume.  See `red pajama` examples in the `test` directory.
+There is no loss of flexibility in using these containers, the REST API implementation already support batching - the ability to handle multiple concurrent inferences at the same time. And any future improvements in MLC_AI will be 
 
 #### Tests
-Tests are made global to conserve storage.  
+
+Tests are made global as they apply to mlc_ai running across any supported GPU configurations. 
  

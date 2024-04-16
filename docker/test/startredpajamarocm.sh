@@ -1,1 +1,0 @@
-docker run --device=/dev/kfd --device=/dev/dri  --security-opt seccomp=unconfined --group-add video --rm --network host  -v ./mlcllm:/mlcllm mlc-rocm57:v0.1  --model RedPajama-INCITE-Chat-3B-v1-q4f16_1 --device rocm --host 0.0.0.0 --port 8000
