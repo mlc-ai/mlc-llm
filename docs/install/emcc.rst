@@ -21,16 +21,20 @@ Validate that emcc is accessible in shell
 
     emcc --version
 
-Step 2: Set TVM_HOME
---------------------
+Step 2: Set TVM_HOME and MLC_LLM_HOME
+-------------------------------------
 
 We need to set a path to a tvm source in order to build tvm runtime.
 Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
-Set environment variable in your shell startup profile in to point to ``3rdparty/tvm``
+Set environment variable in your shell startup profile in to point to ``3rdparty/tvm`` (if preferred, you could also
+point to your own TVM address if you installed TVM from source).
+
+Besides, we also need to set ``MLC_LLM_HOME`` so that we can locate ``mlc_wasm_runtime.bc`` when compiling a model library wasm.
 
 .. code:: bash
 
     export TVM_HOME=/path/to/3rdparty/tvm
+    export MLC_LLM_HOME=/path/to/mlc-llm
 
 
 Step 3: Prepare Wasm Runtime
@@ -47,9 +51,9 @@ Now we can prepare wasm runtime using the script in mlc-llm repo
 
 .. code:: bash
     
-    ./scripts/prep_emcc_deps.sh
+    ./web/prep_emcc_deps.sh
 
-We cna then validate the outcome
+We can then validate the outcome
 
 .. code:: bash
 

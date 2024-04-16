@@ -9,14 +9,13 @@ import Foundation
 
 final class AppState: ObservableObject {
     @Published var models = [ModelState]()
-    @Published var exampleModels = [ExampleModelConfig]()
     @Published var chatState = ChatState()
 
     @Published var alertMessage = "" // TODO: Should move out
     @Published var alertDisplayed = false // TODO: Should move out
     
     private var appConfig: AppConfig?
-    private var localModelIDs = Set<String>()
+    private var modelIDs = Set<String>()
 
     private let fileManager: FileManager = FileManager.default
     private lazy var cacheDirectoryURL: URL = {
@@ -32,32 +31,16 @@ final class AppState: ObservableObject {
         guard let appConfig else {
             return
         }
-
         loadModelsConfig(modelList: appConfig.modelList)
-        loadExampleModelsConfig(exampleModels: appConfig.exampleModels)
-
-        loadPrebuiltModels()
-    }
-
-    func requestAddModel(url: String, localID: String?) {
-        if let localID, localModelIDs.contains(localID) {
-            showAlert(message: "Local ID: \(localID) has been occupied")
-        } else {
-            if let modelURL = URL(string: url) {
-                downloadConfig(modelURL: modelURL, localID: localID, isBuiltin: false)
-            } else {
-                showAlert(message: "Failed to resolve the given url")
-            }
-        }
     }
     
-    func requestDeleteModel(localId: String) {
+    func requestDeleteModel(modelID: String) {
         // model dir should have been deleted in ModelState
-        assert(!fileManager.fileExists(atPath: cacheDirectoryURL.appending(path: localId).path()))
-        localModelIDs.remove(localId)
-        models.removeAll(where: {$0.modelConfig.localID == localId})
+        assert(!fileManager.fileExists(atPath: cacheDirectoryURL.appending(path: modelID).path()))
+        modelIDs.remove(modelID)
+        models.removeAll(where: {$0.modelConfig.modelID == modelID})
         updateAppConfig {
-            appConfig?.modelList.removeAll(where: {$0.localID == localId})
+            appConfig?.modelList.removeAll(where: {$0.modelID == modelID})
         }
     }
 }
@@ -82,64 +65,75 @@ private extension AppState {
             return nil
         }
     }
-
+    
     func loadModelsConfig(modelList: [AppConfig.ModelRecord]) {
         for model in modelList {
-            let modelConfigFileURL = cacheDirectoryURL
-                .appending(path: model.localID)
-                .appending(path: Constants.modelConfigFileName)
-            if fileManager.fileExists(atPath: modelConfigFileURL.path()) {
-                if let modelConfig = loadModelConfig(modelConfigURL: modelConfigFileURL) {
-                    addModelConfig(
-                        modelConfig: modelConfig,
-                        modelURL: URL(string: model.modelURL),
+            if model.modelPath != nil {
+                // local model
+                let modelDir = Bundle.main.bundleURL.appending(path: Constants.prebuiltModelDir).appending(path: model.modelPath!)
+                let modelConfigURL = modelDir.appending(path: Constants.modelConfigFileName)
+                if fileManager.fileExists(atPath: modelConfigURL.path()) {
+                    if let modelConfig = loadModelConfig(
+                        modelConfigURL: modelConfigURL,
+                        modelLib: model.modelLib,
+                        modelID: model.modelID,
+                        estimatedVRAMReq: model.estimatedVRAMReq
+                    ) {
+                        addModelConfig(
+                            modelConfig: modelConfig,
+                            modelPath: model.modelPath!,
+                            modelURL: nil,
+                            isBuiltin: true
+                        )
+                    } else {
+                        showAlert(message: "Failed to load prebuilt model: \(model.modelPath!)")
+                    }
+                } else {
+                    showAlert(message: "Prebuilt mlc-chat-config.json file not found: \(model.modelPath!)")
+                }
+            } else if model.modelURL != nil {
+                // remote model
+                let modelConfigFileURL = cacheDirectoryURL
+                    .appending(path: model.modelID)
+                    .appending(path: Constants.modelConfigFileName)
+                if fileManager.fileExists(atPath: modelConfigFileURL.path()) {
+                    if let modelConfig = loadModelConfig(
+                        modelConfigURL: modelConfigFileURL,
+                        modelLib: model.modelLib,
+                        modelID: model.modelID,
+                        estimatedVRAMReq: model.estimatedVRAMReq
+                    ) {
+                        addModelConfig(
+                            modelConfig: modelConfig,
+                            modelPath: nil,
+                            modelURL: URL(string: model.modelURL!),
+                            isBuiltin: true
+                        )
+                    }
+                } else {
+                    downloadConfig(
+                        modelURL: URL(string: model.modelURL!),
+                        modelLib: model.modelLib,
+                        modelID: model.modelID,
+                        estimatedVRAMReq: model.estimatedVRAMReq,
                         isBuiltin: true
                     )
                 }
             } else {
-                downloadConfig(
-                    modelURL: URL(string: model.modelURL),
-                    localID: model.localID,
-                    isBuiltin: true)
+                showAlert(message: "Path or URL should be provided in app config: \(model.modelID)")
             }
         }
     }
 
-    func loadExampleModelsConfig(exampleModels: [AppConfig.ModelRecord]) {
-        self.exampleModels = exampleModels.map{
-            ExampleModelConfig(modelURL: $0.modelURL, localID: $0.localID)
-        }
-    }
-
-    func loadPrebuiltModels() {
-        // models in dist
-        do {
-            let distDirURL = Bundle.main.bundleURL.appending(path: Constants.prebuiltModelDir)
-            let contents = try fileManager.contentsOfDirectory(at: distDirURL, includingPropertiesForKeys: nil)
-            let modelDirs = contents.filter{ $0.hasDirectoryPath }
-            for modelDir in modelDirs {
-                let modelConfigURL = modelDir.appending(path: Constants.modelConfigFileName)
-                if fileManager.fileExists(atPath: modelConfigURL.path()) {
-                    if let modelConfig = loadModelConfig(modelConfigURL: modelConfigURL) {
-                        assert(modelDir.lastPathComponent == modelConfig.localID)
-                        addModelConfig(modelConfig: modelConfig, modelURL: nil, isBuiltin: true)
-                    }
-                }
-            }
-        } catch {
-            showAlert(message: "Failed to load prebuilt models: \(error.localizedDescription)")
-        }
-    }
-
-    func loadModelConfig(modelConfigURL: URL) -> ModelConfig? {
+    func loadModelConfig(modelConfigURL: URL, modelLib: String, modelID: String, estimatedVRAMReq: Int) -> ModelConfig? {
         do {
             assert(fileManager.fileExists(atPath: modelConfigURL.path()))
             let fileHandle = try FileHandle(forReadingFrom: modelConfigURL)
             let data = fileHandle.readDataToEndOfFile()
-            let modelConfig = try jsonDecoder.decode(ModelConfig.self, from: data)
-            if !isModelConfigAllowed(modelConfig: modelConfig) {
-                return nil
-            }
+            var modelConfig = try jsonDecoder.decode(ModelConfig.self, from: data)
+            modelConfig.modelLib = modelLib 
+            modelConfig.modelID = modelID
+            modelConfig.estimatedVRAMReq = estimatedVRAMReq
             return modelConfig
         } catch {
             showAlert(message: "Failed to resolve model config: \(error.localizedDescription)")
@@ -159,15 +153,7 @@ private extension AppState {
         }
     }
 
-    func isModelConfigAllowed(modelConfig: ModelConfig) -> Bool {
-        if appConfig?.modelLibs.contains(modelConfig.modelLib) ?? true {
-            return true
-        }
-        showAlert(message: "Model lib \(modelConfig.modelLib) is not supported")
-        return false
-    }
-
-    func downloadConfig(modelURL: URL?, localID: String?, isBuiltin: Bool) {
+    func downloadConfig(modelURL: URL?, modelLib: String, modelID: String, estimatedVRAMReq: Int, isBuiltin: Bool) {
         guard let modelConfigURL = modelURL?.appending(path: "resolve").appending(path: "main").appending(path: Constants.modelConfigFileName) else {
             return
         }
@@ -198,27 +184,33 @@ private extension AppState {
             }
 
             do {
-                guard let modelConfig = loadModelConfig(modelConfigURL: tempFileURL) else {
+                guard let modelConfig = loadModelConfig(
+                    modelConfigURL: tempFileURL,
+                    modelLib: modelLib,
+                    modelID: modelID,
+                    estimatedVRAMReq: estimatedVRAMReq
+                ) else {
                     try fileManager.removeItem(at: tempFileURL)
                     return
                 }
 
-                if localID != nil {
-                    assert(localID == modelConfig.localID)
-                }
-
-                if localModelIDs.contains(modelConfig.localID) {
+                if modelIDs.contains(modelConfig.modelID!) {
                     try fileManager.removeItem(at: tempFileURL)
                     return
                 }
 
-                let modelBaseUrl = cacheDirectoryURL.appending(path: modelConfig.localID)
+                let modelBaseUrl = cacheDirectoryURL.appending(path: modelConfig.modelID!)
                 try fileManager.createDirectory(at: modelBaseUrl, withIntermediateDirectories: true)
                 let modelConfigUrl = modelBaseUrl.appending(path: Constants.modelConfigFileName)
                 try fileManager.moveItem(at: tempFileURL, to: modelConfigUrl)
                 assert(fileManager.fileExists(atPath: modelConfigUrl.path()))
                 assert(!fileManager.fileExists(atPath: tempFileURL.path()))
-                addModelConfig(modelConfig: modelConfig, modelURL: modelURL, isBuiltin: isBuiltin)
+                addModelConfig(
+                    modelConfig: modelConfig,
+                    modelPath: nil,
+                    modelURL: modelURL,
+                    isBuiltin: isBuiltin
+                )
             } catch {
                 showAlert(message: "Failed to import model: \(error.localizedDescription)")
             }
@@ -226,18 +218,18 @@ private extension AppState {
         downloadTask.resume()
     }
 
-    func addModelConfig(modelConfig: ModelConfig, modelURL: URL?, isBuiltin: Bool) {
-        assert(!localModelIDs.contains(modelConfig.localID))
-        localModelIDs.insert(modelConfig.localID)
+    func addModelConfig(modelConfig: ModelConfig, modelPath: String?, modelURL: URL?, isBuiltin: Bool) {
+        assert(!modelIDs.contains(modelConfig.modelID!))
+        modelIDs.insert(modelConfig.modelID!)
         let modelBaseURL: URL
 
-        // local-id dir should exist
+        // model_id dir should exist
         if modelURL == nil {
             // prebuilt model in dist
-            modelBaseURL = Bundle.main.bundleURL.appending(path: Constants.prebuiltModelDir).appending(path: modelConfig.localID)
+            modelBaseURL = Bundle.main.bundleURL.appending(path: Constants.prebuiltModelDir).appending(path: modelPath!)
         } else {
             // download model in cache
-            modelBaseURL = cacheDirectoryURL.appending(path: modelConfig.localID)
+            modelBaseURL = cacheDirectoryURL.appending(path: modelConfig.modelID!)
         }
         assert(fileManager.fileExists(atPath: modelBaseURL.path()))
 
@@ -248,9 +240,18 @@ private extension AppState {
         let model = ModelState(modelConfig: modelConfig, modelLocalBaseURL: modelBaseURL, startState: self, chatState: chatState)
         model.checkModelDownloadState(modelURL: modelURL)
         models.append(model)
+
         if modelURL != nil && !isBuiltin {
             updateAppConfig {
-                appConfig?.modelList.append(AppConfig.ModelRecord(modelURL: modelURL!.absoluteString, localID: modelConfig.localID))
+                appConfig?.modelList.append(
+                    AppConfig.ModelRecord(
+                        modelPath: nil,
+                        modelURL: modelURL!.absoluteString,
+                        modelLib: modelConfig.modelLib!,
+                        estimatedVRAMReq: modelConfig.estimatedVRAMReq!,
+                        modelID: modelConfig.modelID!
+                    )
+                )
             }
         }
     }

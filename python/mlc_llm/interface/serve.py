@@ -1,0 +1,68 @@
+"""Python entrypoint of serve."""
+
+from typing import Any, List, Literal, Optional
+
+import fastapi
+import uvicorn
+from fastapi.middleware.cors import CORSMiddleware
+
+from mlc_llm.protocol import error_protocol
+from mlc_llm.serve import engine
+from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
+from mlc_llm.serve.server import ServerContext
+
+
+def serve(
+    model: str,
+    device: str,
+    model_lib_path: Optional[str],
+    mode: Literal["local", "interactive", "server"],
+    additional_models: List[str],
+    max_batch_size: Optional[int],
+    max_total_sequence_length: Optional[int],
+    prefill_chunk_size: Optional[int],
+    gpu_memory_utilization: Optional[float],
+    engine_config: Optional[EngineConfig],
+    enable_tracing: bool,
+    host: str,
+    port: int,
+    allow_credentials: bool,
+    allow_origins: Any,
+    allow_methods: Any,
+    allow_headers: Any,
+):  # pylint: disable=too-many-arguments, too-many-locals
+    """Serve the model with the specified configuration."""
+    # Create engine and start the background loop
+    async_engine = engine.AsyncEngine(
+        model=model,
+        device=device,
+        model_lib_path=model_lib_path,
+        mode=mode,
+        additional_models=additional_models,
+        max_batch_size=max_batch_size,
+        max_total_sequence_length=max_total_sequence_length,
+        prefill_chunk_size=prefill_chunk_size,
+        gpu_memory_utilization=gpu_memory_utilization,
+        engine_config=engine_config,
+        enable_tracing=enable_tracing,
+    )
+
+    with ServerContext() as server_context:
+        server_context.add_model(model, async_engine)
+
+        app = fastapi.FastAPI()
+        app.add_middleware(
+            CORSMiddleware,
+            allow_credentials=allow_credentials,
+            allow_origins=allow_origins,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+        )
+
+        app.include_router(openai_entrypoints.app)
+        app.include_router(debug_entrypoints.app)
+        app.exception_handler(error_protocol.BadRequestError)(
+            error_protocol.bad_request_error_handler
+        )
+        uvicorn.run(app, host=host, port=port, log_level="info")

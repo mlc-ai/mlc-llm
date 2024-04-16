@@ -1,9 +1,9 @@
 .. _deploy-cli:
 
-CLI and C++ API
+CLI
 ===============
 
-MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box. You may install it from the prebuilt package we provide, or compile it from the source.
+MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box.
 
 .. contents:: Table of Contents
   :local:
@@ -18,247 +18,89 @@ To use other GPU runtimes, e.g. CUDA, please instead :ref:`build it from source 
 
 .. code:: shell
 
-    conda create -n mlc-chat-venv -c mlc-ai -c conda-forge mlc-chat-cli-nightly
-    conda activate mlc-chat-venv
-    mlc_chat_cli --help
-
-After installation, activating ``mlc-chat-venv`` environment in Conda will give the ``mlc_chat_cli`` command available.
+    conda activate your-environment
+    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
+    mlc_llm chat -h
 
 .. note::
     The prebuilt package supports **Metal** on macOS and **Vulkan** on Linux and Windows. It is possible to use other GPU runtimes such as **CUDA** by compiling MLCChat CLI from the source.
 
-.. _mlcchat_build_from_source:
 
 Option 2. Build MLC Runtime from Source
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We also provide options to build mlc runtime libraries and ``mlc_chat_cli`` from source.
-This step is useful when you want to directly obtain a version of mlc runtime library
-and the cli. Please click the details below to see the instructions.
+We also provide options to build mlc runtime libraries and ``mlc_llm`` from source.
+This step is useful if the prebuilt is unavailable on your platform, or if you would like to build a runtime
+that supports other GPU runtime than the prebuilt version. We can build a customized version
+of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
 
-.. collapse:: Details
-
-    **Step 1. Set up build dependency.** To build from source, you need to ensure that the following build dependencies are satisfied:
-
-    * CMake >= 3.24
-    * Git
-    * `Rust and Cargo <https://www.rust-lang.org/tools/install>`_, required by Hugging Face's tokenizer
-    * One of the GPU runtimes:
-
-      * CUDA >= 11.8 (NVIDIA GPUs)
-      * Metal (Apple GPUs)
-      * Vulkan (NVIDIA, AMD, Intel GPUs)
-
-    .. code-block:: bash
-        :caption: Set up build dependencies in Conda
-
-        # make sure to start with a fresh environment
-        conda env remove -n mlc-chat-venv
-        # create the conda environment with build dependency
-        conda create -n mlc-chat-venv -c conda-forge \
-            "cmake>=3.24" \
-            rust \
-            git
-        # enter the build environment
-        conda activate mlc-chat-venv
-
-    .. note::
-        :doc:`TVM Unity </install/tvm>` compiler is not a dependency on MLCChat CLI. Only its runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
-
-    **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
-
-    .. code-block:: bash
-        :caption: Configure and build
-
-        # clone from GitHub
-        git clone --recursive https://github.com/mlc-ai/mlc-llm.git && cd mlc-llm/
-        # create build directory
-        mkdir -p build && cd build
-        # generate build configuration
-        python3 ../cmake/gen_cmake_config.py
-        # build `mlc_chat_cli`
-        cmake .. && cmake --build . --parallel $(nproc) && cd ..
-
-    **Step 3. Validate installation.** You may validate if MLCChat CLI is compiled successfully using the following command:
-
-    .. code-block:: bash
-        :caption: Validate installation
-
-        # expected to see `mlc_chat_cli`, `libmlc_llm.so` and `libtvm_runtime.so`
-        ls -l ./build/
-        # expected to see help message
-        ./build/mlc_chat_cli --help
+First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
+Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
 
 .. `|` adds a blank line
 
 |
 
 Run Models through MLCChat CLI
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once ``mlc_chat_cli`` is installed, you are able to run any MLC-compiled model on the command line.
+Once ``mlc_llm`` is installed, you are able to run any MLC-compiled model on the command line.
 
-**Ensure Model Exists.** As the input to ``mlc_chat_cli``, it is always good to double check if the compiled model exists.
+To run a model with MLC LLM in any platform, you can either:
 
-.. collapse:: Details
+- Use off-the-shelf model prebuilts from the MLC Huggingface repo (see :ref:`Model Prebuilts` for details).
+- Use locally compiled model weights and libraries following :doc:`the model compilation page </compilation/compile_models>`.
 
-  .. tabs ::
+**Option 1: Use model prebuilts**
 
-     .. tab :: Check prebuilt models
-
-        If you downloaded prebuilt models from MLC LLM, by default:
-
-        - Model lib should be placed at ``./dist/prebuilt/lib/$(local_id)-$(arch).$(suffix)``.
-        - Model weights and chat config are located under ``./dist/prebuilt/mlc-chat-$(local_id)/``.
-
-        .. note::
-          Please make sure that you have the same directory structure as above, because the CLI tool
-          relies on it to automatically search for model lib and weights. If you would like to directly
-          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
-          to the CLI
-
-        .. collapse:: Example
-
-          .. code:: shell
-
-            >>> ls -l ./dist/prebuilt/lib
-            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(local_id)-$(arch).$(suffix)
-            Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-            ...
-            >>> ls -l ./dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1  # Format: ./dist/prebuilt/mlc-chat-$(local_id)/
-            # chat config:
-            mlc-chat-config.json
-            # model weights:
-            ndarray-cache.json
-            params_shard_*.bin
-            ...
-
-     .. tab :: Check compiled models
-
-        If you have compiled models using MLC LLM, by default:
-
-        - Model libraries should be placed at ``./dist/$(local_id)/$(local_id)-$(arch).$(suffix)``.
-        - Model weights and chat config are located under ``./dist/$(local_id)/params/``.
-
-        .. note::
-          Please make sure that you have the same directory structure as above, because the CLI tool
-          relies on it to automatically search for model lib and weights. If you would like to directly
-          provide a full model lib path to override the auto-search, you can pass in a ``--model-lib-path`` argument
-          to the CLI
-
-        .. collapse:: Example
-
-          .. code:: shell
-
-            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/ # Format: ./dist/$(local_id)/
-            Llama-2-7b-chat-hf-q4f16_1-metal.so  # Format: $(local_id)-$(arch).$(suffix)
-            ...
-            >>> ls -l ./dist/Llama-2-7b-chat-hf-q4f16_1/params  # Format: ``./dist/$(local_id)/params/``
-            # chat config:
-            mlc-chat-config.json
-            # model weights:
-            ndarray-cache.json
-            params_shard_*.bin
-            ...
-
-|
-
-**Run the Model.** Next run ``mlc_chat_cli`` in command line:
+To run ``mlc_llm``, you can specify the Huggingface MLC prebuilt model repo path with the prefix ``HF://``.
+For example, to run the MLC Llama 2 7B Q4F16_1 model (`Repo link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`_),
+simply use ``HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC``. The model weights and library will be downloaded
+automatically from Huggingface.
 
 .. code:: shell
 
-  # `local_id` is `$(model_name)-$(quantize_mode)`
-  # In this example, `model_name` is `Llama-2-7b-chat-hf`, and `quantize_mode` is `q4f16_1`
-  >>> mlc_chat_cli --model Llama-2-7b-chat-hf-q4f16_1
-  Use MLC config: "....../mlc-chat-config.json"
-  Use model weights: "....../ndarray-cache.json"
-  Use model library: "....../Llama-2-7b-chat-hf-q4f16_1-metal.so"
+  mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC --device "cuda:0" --overrides context_window_size=1024
+
+.. code:: shell
+
+  You can use the following special commands:
+    /help               print the special commands
+    /exit               quit the cli
+    /stats              print out the latest stats (token/sec)
+    /reset              restart a fresh chat
+    /set [overrides]    override settings in the generation config. For example,
+                        `/set temperature=0.5;max_gen_len=100;stop=end,stop`
+                        Note: Separate stop words in the `stop` option with commas (,).
+    Multi-line input: Use escape+enter to start a new line.
+
+  [INST]: What's the meaning of life
+  [/INST]:
+  Ah, a question that has puzzled philosophers and theologians for centuries! The meaning
+  of life is a deeply personal and subjective topic, and there are many different
+  perspectives on what it might be. However, here are some possible answers that have been
+  proposed by various thinkers and cultures:
   ...
 
-Have fun chatting with MLC-compiled LLM!
 
-Advanced: Build Apps with C++ API
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**Option 2: Use locally compiled model weights and libraries**
 
-MLC-compiled models can be integrated into **any C++ project** using TVM's C/C++ API without going through the command line.
+For models other than the prebuilt ones we provided:
 
-**Step 1. Create libmlc_llm.** Both static and shared libraries are available via the :ref:`CMake instructions <mlcchat_build_from_source>`, and the downstream developer may include either one into the C++ project according to needs.
+1. If the model is a variant to an existing model library (e.g. ``WizardMathV1.1`` and ``OpenHermes`` are variants of ``Mistral``),
+   follow :ref:`convert-weights-via-MLC` to convert the weights and reuse existing model libraries.
+2. Otherwise, follow :ref:`compile-model-libraries` to compile both the model library and weights.
 
-**Step 2. Calling into the model in your C++ Project.** Use ``tvm::runtime::Module`` API from TVM runtime to interact with MLC LLM without MLCChat.
+Once you have the model locally compiled with a model library and model weights, to run ``mlc_llm``, simply
 
-.. note::
-    `DLPack <https://dmlc.github.io/dlpack/latest/c_api.html>`_ that comes with TVM is an in-memory representation of tensors in deep learning. It is widely adopted in
-    `NumPy <https://numpy.org/devdocs/reference/generated/numpy.from_dlpack.html>`_,
-    `PyTorch <https://pytorch.org/docs/stable/dlpack.html>`_,
-    `JAX <https://jax.readthedocs.io/en/latest/jax.dlpack.html>`_,
-    `TensorFlow <https://www.tensorflow.org/api_docs/python/tf/experimental/dlpack/>`_,
-    etc.
+- Specify the path to ``mlc-chat-config.json`` and the converted model weights to ``--model``
+- Specify the path to the compiled model library (e.g. a .so file) to ``--model-lib-path``
 
-Using MLCChat APIs in Your Own Programs
----------------------------------------
+.. code:: shell
 
-Below is a minimal example of using MLCChat C++ APIs.
-
-.. code:: c++
-
-  #define TVM_USE_LIBBACKTRACE 0
-  #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-
-  #include <tvm/runtime/packed_func.h>
-  #include <tvm/runtime/module.h>
-  #include <tvm/runtime/registry.h>
-
-  // DLPack is a widely adopted in-memory representation of tensors in deep learning.
-  #include <dlpack/dlpack.h>
-
-  void ChatModule(
-    const DLDeviceType& device_type, // from dlpack.h
-    int device_id, // which one if there are multiple devices, usually 0
-    const std::string& path_model_lib,
-    const std::string& path_weight_config
-  ) {
-    // Step 0. Make sure the following files exist:
-    // - model lib  : `$(path_model_lib)`
-    // - chat config: `$(path_weight_config)/mlc-chat-config.json`
-    // - weights    : `$(path_weight_config)/ndarray-cache.json`
-    using tvm::runtime::PackedFunc;
-
-    // Step 1. Call `mlc.llm_chat_create`
-    // This method will exist if `libmlc_llm` is successfully loaded or linked as a shared or static library.
-    const PackedFunc* llm_chat_create = tvm::runtime::Registry::Get("mlc.llm_chat_create");
-    assert(llm_chat_create != nullptr);
-    tvm::runtime::Module mlc_llm = (*llm_chat_create)(
-      static_cast<int>(device_type),
-      device_id,
-    );
-    // Step 2. Obtain all available functions in `mlc_llm`
-    PackedFunc prefill = mlc_llm->GetFunction("prefill");
-    PackedFunc decode = mlc_llm->GetFunction("decode");
-    PackedFunc stopped = mlc_llm->GetFunction("stopped");
-    PackedFunc get_message = mlc_llm->GetFunction("get_message");
-    PackedFunc reload = mlc_llm->GetFunction("reload");
-    PackedFunc get_role0 = mlc_llm->GetFunction("get_role0");
-    PackedFunc get_role1 = mlc_llm->GetFunction("get_role1");
-    PackedFunc runtime_stats_text = mlc_llm->GetFunction("runtime_stats_text");
-    PackedFunc reset_chat = mlc_llm->GetFunction("reset_chat");
-    PackedFunc process_system_prompts = mlc_llm->GetFunction("process_system_prompts");
-    // Step 3. Load the model lib containing optimized tensor computation
-    tvm::runtime::Module model_lib = tvm::runtime::Module::LoadFromFile(path_model_lib);
-    // Step 4. Inform MLC LLM to use `model_lib`
-    reload(model_lib, path_weight_config);
-  }
-
-.. note::
-
-  MLCChat CLI can be considered as a `single-file <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/cli_main.cc>`_ project serving a good example of using MLC LLM in any C++ project.
-
-
-**Step 3. Set up compilation flags.** To properly compile the code above, you will have to set up compiler flags properly in your own C++ project:
-
-- Make sure the following directories are included where ``TVM_HOME`` is ``/path/to/mlc-llm/3rdparty/tvm``:
-
-  - TVM runtime: ``${TVM_HOME}/include``,
-  - Header-only DLPack: ``${TVM_HOME}/3rdparty/dlpack/include``,
-  - Header-only DMLC core: ``${TVM_HOME}/3rdparty/dmlc-core/include``.
-
-- Make sure to link either the static or the shared ``libtvm_runtime`` library, which is provided via :ref:`CMake <mlcchat_build_from_source>`.
+  mlc_llm chat dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
+               --device "cuda:0" --overrides context_window_size=1024 \
+               --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+               # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
+               # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
+               # Same rule applies for other platforms

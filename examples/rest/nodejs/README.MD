@@ -1,4 +1,4 @@
-# Node/Javascript/Typescript Access Examples for MLC_CHAT REST APIs
+# Node/Javascript/Typescript Access Examples for mlc_llm REST APIs
 
 Please make sure you are running v18.17.x of node (and npm v9.6.7)  --  v20.x currently has some compatibility problems with typescript used in the langchain example.
 
@@ -8,7 +8,7 @@ First install dependencies.
 
 Copy `dotenv.exmaple` to `.env`.
 
-To run JS chat completion (both streaming and non-streaming) example: 
+To run JS chat completion (both streaming and non-streaming) example:
 
 `node sample_client.js`
 

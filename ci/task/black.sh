@@ -1,13 +1,10 @@
 #!/bin/bash
 set -eo pipefail
-
-source ~/.bashrc
-micromamba activate ci-lint
-export NUM_THREADS=$(nproc)
-export PYTHONPATH="./python:$PYTHONPATH"
-
 set -x
+: ${NUM_THREADS:=$(nproc)}
+: ${WORKSPACE_CWD:=$(pwd)}
+: ${GPU:="cpu"}
 
-black --check --workers $NUM_THREADS \
+black --diff --check --workers $NUM_THREADS \
 	./python/ \
 	./tests/python

@@ -13,7 +13,7 @@ CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
 def get_lib_path():
     """Get library path, name and version"""
     # Directly exec libinfo to get the right setup
-    libinfo_py = os.path.join(CURRENT_DIR, "./mlc_chat/libinfo.py")
+    libinfo_py = os.path.join(CURRENT_DIR, "./mlc_llm/libinfo.py")
     libinfo = {"__file__": libinfo_py}
     with open(libinfo_py, "rb") as f:
         exec(compile(f.read(), libinfo_py, "exec"), libinfo, libinfo)
@@ -40,6 +40,9 @@ def git_describe_version(original_version):
     _, gd_version = libver["git_describe_version"]()
     if gd_version is not None and gd_version != original_version:
         print(f"Use git describe based version {gd_version}")
+    if gd_version is None:
+        print(f"Use original version {original_version}")
+        return original_version
     return gd_version
 
 
@@ -66,15 +69,15 @@ def main():
         with open("MANIFEST.in", "w", encoding="utf-8") as fo:
             for path in LIB_LIST:
                 if os.path.isfile(path):
-                    shutil.copy(path, os.path.join(CURRENT_DIR, "mlc_chat"))
+                    shutil.copy(path, os.path.join(CURRENT_DIR, "mlc_llm"))
                     _, libname = os.path.split(path)
-                    fo.write(f"include mlc_chat/{libname}\n")
+                    fo.write(f"include mlc_llm/{libname}\n")
         setup_kwargs = {"include_package_data": True}
 
     setup(
-        name="mlc_chat",
+        name="mlc_llm",
         version=__version__,
-        description="MLC Chat: an universal runtime running LLMs",
+        description="MLC LLM: an universal LLM deployment engine via ML compilation.",
         url="https://llm.mlc.ai/",
         author="MLC LLM Contributors",
         license="Apache 2.0",
@@ -90,12 +93,21 @@ def main():
         zip_safe=False,
         packages=find_packages(),
         entry_points={
-            "console_scripts": [
-                "mlc_chat = mlc_chat.__main__:main",
-            ],
+            "console_scripts": ["mlc_llm = mlc_llm.__main__:main"],
         },
-        package_dir={"mlc_chat": "mlc_chat"},
-        install_requires=["fastapi", "uvicorn", "shortuuid"],
+        package_dir={"mlc_llm": "mlc_llm"},
+        install_requires=[
+            "fastapi",
+            "uvicorn",
+            "shortuuid",
+            "torch",
+            "safetensors",
+            "requests",
+            "tqdm",
+            "tiktoken",
+            "prompt_toolkit",
+            "openai",
+        ],
         distclass=BinaryDistribution,
         **setup_kwargs,
     )
@@ -112,7 +124,7 @@ def main():
         os.remove("MANIFEST.in")
         for path in LIB_LIST:
             _, libname = os.path.split(path)
-            _remove_path(f"mlc_chat/{libname}")
+            _remove_path(f"mlc_llm/{libname}")
 
 
 main()

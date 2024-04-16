@@ -20,6 +20,6 @@ To start using the package, you can refer to the example code provided in the ex
 
 Execute the example with Cargo using the following command:
 ```bash
-cargo run --example mlc_chat
+cargo run --example mlc_llm
 ```
 

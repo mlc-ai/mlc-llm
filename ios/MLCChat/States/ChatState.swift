@@ -45,7 +45,7 @@ final class ChatState: ObservableObject {
     private let chatModule = ChatModule()
     private var modelLib = ""
     private var modelPath = ""
-    var localID = ""
+    var modelID = ""
     
     init() {
         threadWorker.qualityOfService = QualityOfService.userInteractive
@@ -90,15 +90,15 @@ final class ChatState: ObservableObject {
         })
     }
     
-    func requestReloadChat(localID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
-        if (isCurrentModel(localID: localID)) {
+    func requestReloadChat(modelID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
+        if (isCurrentModel(modelID: modelID)) {
             return
         }
         assert(isInterruptible)
         interruptChat(prologue: {
             switchToReloading()
         }, epilogue: { [weak self] in
-            self?.mainReloadChat(localID: localID,
+            self?.mainReloadChat(modelID: modelID,
                                  modelLib: modelLib,
                                  modelPath: modelPath,
                                  estimatedVRAMReq: estimatedVRAMReq,
@@ -157,8 +157,8 @@ final class ChatState: ObservableObject {
         }
     }
 
-    func isCurrentModel(localID: String) -> Bool {
-        return self.localID == localID
+    func isCurrentModel(modelID: String) -> Bool {
+        return self.modelID == modelID
     }
 }
 
@@ -267,7 +267,7 @@ private extension ChatState {
             chatModule.unload()
             DispatchQueue.main.async {
                 self.clearHistory()
-                self.localID = ""
+                self.modelID = ""
                 self.modelLib = ""
                 self.modelPath = ""
                 self.displayName = ""
@@ -278,10 +278,10 @@ private extension ChatState {
         }
     }
 
-    func mainReloadChat(localID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
+    func mainReloadChat(modelID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
         clearHistory()
         let prevUseVision = useVision
-        self.localID = localID
+        self.modelID = modelID
         self.modelLib = modelLib
         self.modelPath = modelPath
         self.displayName = displayName

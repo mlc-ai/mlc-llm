@@ -15,7 +15,6 @@
 		A773CC652A5DC98200467BFE /* ImageProcessing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A773CC642A5DC98200467BFE /* ImageProcessing.swift */; };
 		AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */; };
 		AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFB2A85C3B000254E67 /* AppConfig.swift */; };
-		AEC27EFE2A85C45700254E67 /* ExampleModelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFD2A85C45700254E67 /* ExampleModelConfig.swift */; };
 		AEC27F022A86337E00254E67 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27F012A86337E00254E67 /* Constants.swift */; };
 		C06A74F229F9A78800BC4BE6 /* dist in CopyFiles */ = {isa = PBXBuildFile; fileRef = C06A74E029F99C9F00BC4BE6 /* dist */; };
 		C09834192A16F4E000A05B51 /* app-config.json in CopyFiles */ = {isa = PBXBuildFile; fileRef = C09834182A16F4CB00A05B51 /* app-config.json */; };
@@ -61,7 +60,6 @@
 		A773CC642A5DC98200467BFE /* ImageProcessing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessing.swift; sourceTree = "<group>"; };
 		AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParamsConfig.swift; sourceTree = "<group>"; };
 		AEC27EFB2A85C3B000254E67 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		AEC27EFD2A85C45700254E67 /* ExampleModelConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleModelConfig.swift; sourceTree = "<group>"; };
 		AEC27F012A86337E00254E67 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		C06A74E029F99C9F00BC4BE6 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; path = dist; sourceTree = "<group>"; };
 		C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCChat.entitlements; sourceTree = "<group>"; };
@@ -94,7 +92,6 @@
 				1453A4CD2A1354B9001B909F /* ModelConfig.swift */,
 				AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */,
 				AEC27EFB2A85C3B000254E67 /* AppConfig.swift */,
-				AEC27EFD2A85C45700254E67 /* ExampleModelConfig.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -271,7 +268,6 @@
 				1453A4D32A1354B9001B909F /* ModelState.swift in Sources */,
 				C0D643C829F99B34004DDAA4 /* MessageView.swift in Sources */,
 				1453A4D22A1354B9001B909F /* ModelConfig.swift in Sources */,
-				AEC27EFE2A85C45700254E67 /* ExampleModelConfig.swift in Sources */,
 				AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */,
 				AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */,
 				AEC27F022A86337E00254E67 /* Constants.swift in Sources */,
@@ -404,12 +400,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = MLCChat/MLCChat.entitlements;
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"MLCChat/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
-				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 3FR42MXLK9;
+				DEVELOPMENT_TEAM = 3FR42MXLK9;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				"HEADER_SEARCH_PATHS[arch=*]" = "";
@@ -429,7 +424,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/build/lib",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",
@@ -442,7 +437,6 @@
 				PRODUCT_BUNDLE_IDENTIFIER = mlc.Chat;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "mlc-chat-iosappstore";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -482,7 +476,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/build/lib",
 				);
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.3;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",

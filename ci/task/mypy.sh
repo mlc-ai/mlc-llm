@@ -1,11 +1,6 @@
 #!/bin/bash
-set -eo pipefail
-
-source ~/.bashrc
-micromamba activate ci-lint
-export NUM_THREADS=$(nproc)
-export PYTHONPATH="./python:$PYTHONPATH"
-
-set -x
+: ${NUM_THREADS:=$(nproc)}
+: ${WORKSPACE_CWD:=$(pwd)}
+: ${GPU:="cpu"}
 
 mypy --install-types --non-interactive ./python/ ./tests/python/

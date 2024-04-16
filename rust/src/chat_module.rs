@@ -7,6 +7,10 @@ use tvm_rt::{function::Function, Module};
 
 use super::config::*;
 
+extern "C" {
+    fn LLMChatDummyLinkFunc();
+}
+
 #[derive(Debug)]
 pub enum ChatModuleError {
     /// Global function in a TVM Module is not found
@@ -338,6 +342,10 @@ impl ChatModule {
             "rocm" => 10,
             _ => panic!("{}", device_err_msg),
         };
+
+        unsafe {
+            LLMChatDummyLinkFunc();
+        }
 
         static GLOBAL_FUNC_NAME: &str = "mlc.llm_chat_create";
         let f = Function::get(GLOBAL_FUNC_NAME).ok_or(ChatModuleError::GlobalFuncNotFound)?;

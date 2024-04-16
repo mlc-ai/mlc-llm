@@ -127,6 +127,14 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
       <td>StableLM</td>
       <td></td>
     </tr>
+    <tr>
+      <td>Mistral</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td>Phi</td>
+      <td></td>
+    </tr>
   </tbody>
 </table>
 

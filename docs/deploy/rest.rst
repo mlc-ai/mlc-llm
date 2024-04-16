@@ -1,4 +1,6 @@
-Rest API
+.. _deploy-rest-api:
+
+REST API
 ========
 
 .. contents:: Table of Contents
@@ -6,56 +8,72 @@ Rest API
    :depth: 2
 
 We provide `REST API <https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.>`_
-for a user to interact with MLC-Chat in their own programs.
+for a user to interact with MLC-LLM in their own programs.
 
-Install MLC-Chat Package
+Install MLC-LLM Package
 ------------------------
 
-The REST API is a part of the MLC-Chat package, which we have prepared pre-built :doc:`pip wheels <../install/mlc_llm>`.
-
-Verify Installation
-^^^^^^^^^^^^^^^^^^^
+SERVE is a part of the MLC-LLM package, installation instruction for which can be found :ref:`here <install-mlc-packages>`. Once you have install the MLC-LLM package, you can run the following command to check if the installation was successful:
 
 .. code:: bash
 
-   python -m mlc_chat.rest --help
+   mlc_llm serve --help
 
-You are expected to see the help information of the REST API.
+You should see serve help message if the installation was successful.
 
-.. _mlcchat_package_build_from_source:
+Quick start
+------------
 
-Optional: Build from Source
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If the prebuilt is unavailable on your platform, or you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. We can build a customized version
-of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
-
-First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
-You can choose to only pip install `mlc-ai-nightly` that comes with the tvm unity but skip `mlc-chat-nightly`.
-Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
-
-You can now use ``mlc_chat`` package by including the `python` directory to ``PYTHONPATH`` environment variable.
+This section provides a quick start guide to work with MLC-LLM REST API. To launch a server, run the following command:
 
 .. code:: bash
 
-   PYTHONPATH=python python -m mlc_chat.rest --help
+   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH]
+
+where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found under :ref:`Launch the server <rest_launch_server>` section.
+
+Once you have launched the Server, you can use the API in your own program to send requests. Below is an example of using the API to interact with MLC-LLM in Python without Streaming (suppose the server is running on ``http://127.0.0.1:8080/``):
+
+.. code:: bash
+
+   import requests
+
+   # Get a response using a prompt without streaming
+   payload = {
+      "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
+      "messages": [
+         {"role": "user", "content": "Write a haiku about apples."},
+      ],
+      "stream": False,
+      # "n": 1,
+      "max_tokens": 300,
+   }
+   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
+   choices = r.json()["choices"]
+   for choice in choices:
+      print(f"{choice['message']['content']}\n")
+
+------------------------------------------------
+
+
+.. _rest_launch_server:
+
 
 Launch the Server
 -----------------
 
-To launch the REST server for MLC-Chat, run the following command in your terminal.
+To launch the MLC Server for MLC-LLM, run the following command in your terminal.
 
 .. code:: bash
 
-   python -m mlc_chat.rest --model MODEL [--lib-path LIB_PATH] [--device DEVICE] [--host HOST] [--port PORT]
+   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
 
---model                The model folder after compiling with MLC-LLM build process. The parameter
+MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
                        (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
                        folder. In the former case, we will use the provided name to search
                        for the model folder over possible paths.
---lib-path             An optional field to specify the full path to the model library file to use (e.g. a ``.so`` file).
+--model-lib-path       A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
 --device               The description of the device to run on. User should provide a string in the
                        form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
                        'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
@@ -63,6 +81,15 @@ To launch the REST server for MLC-Chat, run the following command in your termin
                        with the device id set to 0 for default.
 --host                 The host at which the server should be started, defaults to ``127.0.0.1``.
 --port                 The port on which the server should be started, defaults to ``8000``.
+--allow-credentials    A flag to indicate whether the server should allow credentials. If set, the server will
+                       include the ``CORS`` header in the response
+--allowed-origins      Specifies the allowed origins. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all origins.
+--allowed-methods      Specifies the allowed methods. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all methods.
+--allowed-headers      Specifies the allowed headers. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all headers.
+--max-batch-size       The maximum batch size for processing.
+--max-total-seq-length   The maximum total number of tokens whose KV data are allowed to exist in the KV cache at any time. Set it to None to enable automatic computation of the max total sequence length.
+--prefill-chunk-size   The maximum total sequence length in a prefill. If not specified, it will be automatically inferred from model config.
+--enable-tracing       A boolean indicating if to enable event logging for requests.
 
 You can access ``http://127.0.0.1:PORT/docs`` (replace ``PORT`` with the port number you specified) to see the list of
 supported endpoints.
@@ -72,323 +99,269 @@ API Endpoints
 
 The REST API provides the following endpoints:
 
-.. http:get:: /v1/completions
+.. http:get:: /v1/models
 
 ------------------------------------------------
 
-   Get a completion from MLC-Chat using a prompt.
+   Get a list of models available for MLC-LLM.
 
-**Request body**
+**Example**
 
-**model**: *str* (required)
-   The model folder after compiling with MLC-LLM build process. The parameter
-   can either be the model name with its quantization scheme
-   (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
-   folder. In the former case, we will use the provided name to search
-   for the model folder over possible paths.
-**prompt**: *str* (required)
-   A list of chat messages. The last message should be from the user.
-**stream**: *bool* (optional)
-   Whether to stream the response. If ``True``, the response will be streamed
-   as the model generates the response. If ``False``, the response will be
-   returned after the model finishes generating the response.
-**temperature**: *float* (optional)
-   The temperature applied to logits before sampling. The default value is
-   ``0.7``. A higher temperature encourages more diverse outputs, while a
-   lower temperature produces more deterministic outputs.
-**top_p**: *float* (optional)
-   This parameter determines the set of tokens from which we sample during
-   decoding. The default value is set to ``0.95``. At each step, we select
-   tokens from the minimal set that has a cumulative probability exceeding
-   the ``top_p`` parameter.
+.. code:: bash
 
-   For additional information on top-p sampling, please refer to this blog
-   post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
-**repetition_penalty**: *float* (optional)
-   The repetition penalty controls the likelihood of the model generating
-   repeated texts. The default value is set to ``1.0``, indicating that no
-   repetition penalty is applied. Increasing the value reduces the
-   likelihood of repeat text generation. However, setting a high
-   ``repetition_penalty`` may result in the model generating meaningless
-   texts. The ideal choice of repetition penalty may vary among models.
+   import requests
 
-   For more details on how repetition penalty controls text generation, please
-   check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
-**presence_penalty**: *float* (optional)
-   Positive values penalize new tokens if they are already present in the text so far, 
-   decreasing the model's likelihood to repeat tokens.
-**frequency_penalty**: *float* (optional)
-   Positive values penalize new tokens based on their existing frequency in the text so far, 
-   decreasing the model's likelihood to repeat tokens.
-**mean_gen_len**: *int* (optional)
-   The approximated average number of generated tokens in each round. Used
-   to determine whether the maximum window size would be exceeded.
-**max_gen_len**: *int* (optional)
-   This parameter determines the maximum length of the generated text. If it is
-   not set, the model will generate text until it encounters a stop token.
+   url = "http://127.0.0.1:8000/v1/models"
+   headers = {"accept": "application/json"}
+
+   response = requests.get(url, headers=headers)
+
+   if response.status_code == 200:
+      print("Response:")
+      print(response.json())
+   else:
+      print("Error:", response.status_code)
+
+
+.. http:post:: /v1/chat/completions
 
 ------------------------------------------------
 
-**Returns** 
-   If ``stream`` is set to ``False``, the response will be a ``CompletionResponse`` object.
-   If ``stream`` is set to ``True``, the response will be a stream of ``CompletionStreamResponse`` objects.
+   Get a response from MLC-LLM using a prompt, either with or without streaming.
 
+**Chat Completion Request Object**
 
-.. http:get:: /v1/chat/completions
+- **messages** (*List[ChatCompletionMessage]*, required): A sequence of messages that have been exchanged in the conversation so far. Each message in the conversation is represented by a `ChatCompletionMessage` object, which includes the following fields:
+    - **content** (*Optional[Union[str, List[Dict[str, str]]]]*): The text content of the message or structured data in case of tool-generated messages.
+    - **role** (*Literal["system", "user", "assistant", "tool"]*): The role of the message sender, indicating whether the message is from the system, user, assistant, or a tool.
+    - **name** (*Optional[str]*): An optional name for the sender of the message.
+    - **tool_calls** (*Optional[List[ChatToolCall]]*): A list of calls to external tools or functions made within this message, applicable when the role is `tool`.
+    - **tool_call_id** (*Optional[str]*): A unique identifier for the tool call, relevant when integrating external tools or services.
+    
+- **model** (*str*, required): The model to be used for generating responses.
 
-------------------------------------------------
+- **frequency_penalty** (*float*, optional, default=0.0): Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat tokens.
 
-   Get a response from MLC-Chat using a prompt, either with or without streaming.
+- **presence_penalty** (*float*, optional, default=0.0): Positive values penalize new tokens if they are already present in the text so far, decreasing the model’s likelihood to repeat tokens.
 
-**Request body**
+- **logprobs** (*bool*, optional, default=False): Indicates whether to include log probabilities for each token in the response.
 
-**model**: *str* (required)
-   The model folder after compiling with MLC-LLM build process. The parameter
-   can either be the model name with its quantization scheme
-   (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
-   folder. In the former case, we will use the provided name to search
-   for the model folder over possible paths.
-**messages**: *list[ChatMessage]* (required)
-   A list of chat messages. The last message should be from the user.
-**stream**: *bool* (optional)
-   Whether to stream the response. If ``True``, the response will be streamed
-   as the model generates the response. If ``False``, the response will be
-   returned after the model finishes generating the response.
-**temperature**: *float* (optional)
-   The temperature applied to logits before sampling. The default value is
-   ``0.7``. A higher temperature encourages more diverse outputs, while a
-   lower temperature produces more deterministic outputs.
-**top_p**: *float* (optional)
-   This parameter determines the set of tokens from which we sample during
-   decoding. The default value is set to ``0.95``. At each step, we select
-   tokens from the minimal set that has a cumulative probability exceeding
-   the ``top_p`` parameter.
+- **top_logprobs** (*int*, optional, default=0): An integer ranging from 0 to 5. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, 'logprobs' must be set to true.
 
-   For additional information on top-p sampling, please refer to this blog
-   post: https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling.
-**repetition_penalty**: *float* (optional)
-   The repetition penalty controls the likelihood of the model generating
-   repeated texts. The default value is set to ``1.0``, indicating that no
-   repetition penalty is applied. Increasing the value reduces the
-   likelihood of repeat text generation. However, setting a high
-   ``repetition_penalty`` may result in the model generating meaningless
-   texts. The ideal choice of repetition penalty may vary among models.
+- **logit_bias** (*Optional[Dict[int, float]]*): Allows specifying biases for or against specific tokens during generation.
 
-   For more details on how repetition penalty controls text generation, please
-   check out the CTRL paper (https://arxiv.org/pdf/1909.05858.pdf).
-**presence_penalty**: *float* (optional)
-   Positive values penalize new tokens if they are already present in the text so far, 
-   decreasing the model's likelihood to repeat tokens.
-**frequency_penalty**: *float* (optional)
-   Positive values penalize new tokens based on their existing frequency in the text so far, 
-   decreasing the model's likelihood to repeat tokens.
-**mean_gen_len**: *int* (optional)
-   The approximated average number of generated tokens in each round. Used
-   to determine whether the maximum window size would be exceeded.
-**max_gen_len**: *int* (optional)
-   This parameter determines the maximum length of the generated text. If it is
-   not set, the model will generate text until it encounters a stop token.
-**n**: *int* (optional)
-   This parameter determines the number of text samples to generate. The default
-   value is ``1``. Note that this parameter is only used when ``stream`` is set to
-   ``False``.
-**stop**: *str* or *list[str]* (optional)
-   When ``stop`` is encountered, the model will stop generating output.
-   It can be a string or a list of strings. If it is a list of strings, the model
-   will stop generating output when any of the strings in the list is encountered.
-   Note that this parameter does not override the default stop string of the model.
+- **max_tokens** (*Optional[int]*): The maximum number of tokens to generate in the response(s).
 
-------------------------------------------------
+- **n** (*int*, optional, default=1): Number of responses to generate for the given prompt.
 
-**Returns** 
-   If ``stream`` is set to ``False``, the response will be a ``ChatCompletionResponse`` object.
-   If ``stream`` is set to ``True``, the response will be a stream of ``ChatCompletionStreamResponse`` objects.
+- **seed** (*Optional[int]*): A seed for deterministic generation. Using the same seed and inputs will produce the same output.
 
-.. http:get:: /chat/reset
+- **stop** (*Optional[Union[str, List[str]]]*): One or more strings that, if encountered, will cause generation to stop.
 
-   Reset the chat.
+- **stream** (*bool*, optional, default=False): If `True`, responses are streamed back as they are generated.
 
-.. http:get:: /stats
+- **temperature** (*float*, optional, default=1.0): Controls the randomness of the generation. Lower values lead to less random completions.
 
-   Get the latest runtime stats (encode/decode speed).
+- **top_p** (*float*, optional, default=1.0): Nucleus sampling parameter that controls the diversity of the generated responses.
 
-.. http:get:: /verbose_stats
+- **tools** (*Optional[List[ChatTool]]*): Specifies external tools or functions that can be called as part of the chat.
 
-   Get the verbose runtime stats (encode/decode speed, total runtime).
+- **tool_choice** (*Optional[Union[Literal["none", "auto"], Dict]]*): Controls how tools are selected for use in responses.
 
+- **user** (*Optional[str]*): An optional identifier for the user initiating the request.
 
-Request Objects
----------------
+- **ignore_eos** (*bool*, optional, default=False): If `True`, the model will ignore the end-of-sequence token for generating responses.
 
-**ChatMessage**
+- **response_format** (*RequestResponseFormat*, optional): Specifies the format of the response. Can be either "text" or "json_object", with optional schema definition for JSON responses.
 
-**role**: *str* (required)
-   The role(author) of the message. It can be either ``user`` or ``assistant``.
-**content**: *str* (required)
-   The content of the message.
-**name**: *str* (optional)
-   The name of the author of the message.
+**Returns**
 
-Response Objects
-----------------
+- If `stream` is `False`, a `ChatCompletionResponse` object containing the generated response(s).
+- If `stream` is `True`, a stream of `ChatCompletionStreamResponse` objects, providing a real-time feed of generated responses.
 
-**CompletionResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``text.completion``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[CompletionResponseChoice]*
-   A list of choices generated by the model.
-**usage**: *UsageInfo* or *None*
-   The usage information of the model.
-
-------------------------------------------------
-
-**CompletionResponseChoice**
-
-**index**: *int*
-   The index of the choice.
-**text**: *str*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-
-------------------------------------------------
-
-**CompletionStreamResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``text.completion.chunk``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseStreamhoice]*
-   A list of choices generated by the model.
-
-------------------------------------------------
-
-**ChatCompletionResponseStreamChoice**
-
-**index**: *int*
-   The index of the choice.
-**text**: *str*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
-
-------------------------------------------------
-
-**ChatCompletionResponse**
-
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``chat.completion``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseChoice]*
-   A list of choices generated by the model.
-**usage**: *UsageInfo* or *None*
-   The usage information of the model.
-
-------------------------------------------------
 
 **ChatCompletionResponseChoice**
 
-**index**: *int*
-   The index of the choice.
-**message**: *ChatMessage*
-   The message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
+- **finish_reason** (*Optional[Literal["stop", "length", "tool_calls", "error"]]*, optional): The reason the completion process was terminated. It can be due to reaching a stop condition, the maximum length, output of tool calls, or an error.
+  
+- **index** (*int*, required, default=0): Indicates the position of this choice within the list of choices.
+  
+- **message** (*ChatCompletionMessage*, required): The message part of the chat completion, containing the content of the chat response.
+  
+- **logprobs** (*Optional[LogProbs]*, optional): Optionally includes log probabilities for each output token
 
-------------------------------------------------
+**ChatCompletionStreamResponseChoice**
+
+- **finish_reason** (*Optional[Literal["stop", "length", "tool_calls"]]*, optional): Specifies why the streaming completion process ended. Valid reasons are "stop", "length", and "tool_calls".
+  
+- **index** (*int*, required, default=0): Indicates the position of this choice within the list of choices.
+  
+- **delta** (*ChatCompletionMessage*, required): Represents the incremental update or addition to the chat completion message in the stream.
+  
+- **logprobs** (*Optional[LogProbs]*, optional): Optionally includes log probabilities for each output token
+
+**ChatCompletionResponse**
+
+- **id** (*str*, required): A unique identifier for the chat completion session.
+  
+- **choices** (*List[ChatCompletionResponseChoice]*, required): A collection of `ChatCompletionResponseChoice` objects, representing the potential responses generated by the model.
+  
+- **created** (*int*, required, default=current time): The UNIX timestamp representing when the response was generated.
+  
+- **model** (*str*, required): The name of the model used to generate the chat completions.
+  
+- **system_fingerprint** (*str*, required): A system-generated fingerprint that uniquely identifies the computational environment.
+  
+- **object** (*Literal["chat.completion"]*, required, default="chat.completion"): A string literal indicating the type of object, here always "chat.completion".
+  
+- **usage** (*UsageInfo*, required, default=empty `UsageInfo` object): Contains information about the API usage for this specific request.
 
 **ChatCompletionStreamResponse**
 
-**id**: *str*
-   The id of the completion.
-**object**: *str*
-   The object name ``chat.completion.chunk``.
-**created**: *int*
-   The time when the completion is created.
-**choices**: *list[ChatCompletionResponseStreamhoice]*
-   A list of choices generated by the model.
-
-------------------------------------------------
-
-**ChatCompletionResponseStreamChoice**
-
-**index**: *int*
-   The index of the choice.
-**delta**: *DeltaMessage*
-   The delta message generated by the model.
-**finish_reason**: *str*
-   The reason why the model finishes generating the message. It can be either
-   ``stop`` or ``length``.
+- **id** (*str*, required): A unique identifier for the streaming chat completion session.
+  
+- **choices** (*List[ChatCompletionStreamResponseChoice]*, required): A list of `ChatCompletionStreamResponseChoice` objects, each representing a part of the streaming chat response.
+  
+- **created** (*int*, required, default=current time): The creation time of the streaming response, represented as a UNIX timestamp.
+  
+- **model** (*str*, required): Specifies the model that was used for generating the streaming chat completions.
+  
+- **system_fingerprint** (*str*, required): A unique identifier for the system generating the streaming completions.
+  
+- **object** (*Literal["chat.completion.chunk"]*, required, default="chat.completion.chunk"): A literal indicating that this object represents a chunk of a streaming chat completion.
 
 ------------------------------------------------
 
 
-**DeltaMessage**
+**Example**
 
-**role**: *str*
-   The role(author) of the message. It can be either ``user`` or ``assistant``.
-**content**: *str*
-   The content of the message.
-      
+Below is an example of using the API to interact with MLC-LLM in Python with Streaming.
+
+.. code:: bash
+   
+   import requests
+   import json
+
+   # Get a response using a prompt with streaming
+   payload = {
+    "model": "./dist/Llama-2-7b-chat-hf-q4f16_1-MLC/",
+    "messages": [{"role": "user", "content": "Write a haiku"}],
+    "stream": True,
+   }
+   with requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload, stream=True) as r:
+      for chunk in r.iter_content(chunk_size=None):
+         chunk = chunk.decode("utf-8")
+         if "[DONE]" in chunk[6:]:
+            break
+         response = json.loads(chunk[6:])
+         content = response["choices"][0]["delta"].get("content", "")
+         print(content, end="", flush=True)
+   print("\n")
+
 ------------------------------------------------
 
-
-Use REST API in your own program
---------------------------------
-
-Once you have launched the REST server, you can use the REST API in your own program. Below is an example of using REST API to interact with MLC-Chat in Python (suppose the server is running on ``http://127.0.0.1:8000/``):
+There is also support for function calling similar to OpenAI (https://platform.openai.com/docs/guides/function-calling). Below is an example on how to use function calling in Python.
 
 .. code:: bash
 
    import requests
    import json
 
-   # Get a response using a prompt without streaming
+   tools = [
+      {
+         "type": "function",
+         "function": {
+               "name": "get_current_weather",
+               "description": "Get the current weather in a given location",
+               "parameters": {
+                  "type": "object",
+                  "properties": {
+                     "location": {
+                           "type": "string",
+                           "description": "The city and state, e.g. San Francisco, CA",
+                     },
+                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                  },
+                  "required": ["location"],
+               },
+         },
+      }
+   ]
+
    payload = {
-      "model": "vicuna-v1-7b",
-      "messages": [{"role": "user", "content": "Write a haiku"}],
-      "stream": False
+      "model": "./dist/gorilla-openfunctions-v1-q4f16_1-MLC/",
+      "messages": [
+         {
+               "role": "user",
+               "content": "What is the current weather in Pittsburgh, PA in fahrenheit?",
+         }
+      ],
+      "stream": False,
+      "tools": tools,
    }
-   r = requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload)
-   print(f"Without streaming:\n{r.json()['choices'][0]['message']['content']}\n")
 
-   # Reset the chat
-   r = requests.post("http://127.0.0.1:8000/chat/reset", json=payload)
-   print(f"Reset chat: {str(r)}\n")
+   r = requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload)
+   print(f"{r.json()['choices'][0]['message']['tool_calls'][0]['function']}\n")
 
-   # Get a response using a prompt with streaming
+   # Output: {'name': 'get_current_weather', 'arguments': {'location': 'Pittsburgh, PA', 'unit': 'fahrenheit'}}
+
+------------------------------------------------
+
+Function Calling with streaming is also supported. Below is an example on how to use function calling with streaming in Python.
+
+.. code:: bash
+
+   import requests
+   import json
+
+   tools = [
+      {
+         "type": "function",
+         "function": {
+               "name": "get_current_weather",
+               "description": "Get the current weather in a given location",
+               "parameters": {
+                  "type": "object",
+                  "properties": {
+                     "location": {
+                           "type": "string",
+                           "description": "The city and state, e.g. San Francisco, CA",
+                     },
+                     "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                  },
+                  "required": ["location"],
+               },
+         },
+      }
+   ]
+
    payload = {
-      "model": "vicuna-v1-7b",
-      "messages": [{"role": "user", "content": "Write a haiku"}],
-      "stream": True
+      "model": "./dist/gorilla-openfunctions-v1-q4f16_1-MLC/",
+      "messages": [
+         {
+               "role": "user",
+               "content": "What is the current weather in Pittsburgh, PA and Tokyo, JP in fahrenheit?",
+         }
+      ],
+      "stream": True,
+      "tools": tools,
    }
-   with requests.post("http://127.0.0.1:8000/v1/chat/completions", json=payload, stream=True) as r:
-      print(f"With streaming:")
-      for chunk in r:
-         content = json.loads(chunk[6:-2])["choices"][0]["delta"].get("content", "")
-         print(f"{content}", end="", flush=True)
-      print("\n")
 
-   # Get the latest runtime stats
-   r = requests.get("http://127.0.0.1:8000/stats")
-   print(f"Runtime stats: {r.json()}\n")
+   with requests.post("http://127.0.0.1:8080/v1/chat/completions", json=payload, stream=True) as r:
+    for chunk in r.iter_content(chunk_size=None):
+        chunk = chunk.decode("utf-8")
+        if "[DONE]" in chunk[6:]:
+            break
+        response = json.loads(chunk[6:])
+        content = response["choices"][0]["delta"].get("content", "")
+        print(f"{content}", end="", flush=True)
+   print("\n")
 
-Please check `example folder <https://github.com/mlc-ai/mlc-llm/tree/main/examples/rest>`__ for more examples using REST API.
+   # Output: ["get_current_weather(location='Pittsburgh,PA',unit='fahrenheit')", "get_current_weather(location='Tokyo,JP',unit='fahrenheit')"]
+
 
 .. note::
-   The REST API is a uniform interface that supports multiple languages. You can also utilize the REST API in languages other than Python.
+   The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.
+
+
+

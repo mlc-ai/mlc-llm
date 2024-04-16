@@ -1,0 +1,15 @@
+name: mlc-llm-build
+
+channels:
+  - conda-forge
+
+dependencies:
+  - conda-build
+  - anaconda-client
+  - libvulkan-headers
+  - libvulkan-loader
+  - spirv-tools
+  - spirv-headers
+  - git
+  - cmake
+  - bzip2

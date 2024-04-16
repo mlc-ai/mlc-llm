@@ -1,5 +1,5 @@
-from mlc_chat import ChatModule
-from mlc_chat.callback import StreamToStdout, StreamIterator
+from mlc_llm import ChatModule
+from mlc_llm.callback import StreamToStdout, StreamIterator
 
 # From the mlc-llm directory, run
 # $ python examples/python/sample_chat_stream.py

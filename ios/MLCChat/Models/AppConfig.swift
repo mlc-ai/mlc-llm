@@ -5,22 +5,24 @@
 
 struct AppConfig: Codable {
     struct ModelRecord: Codable {
-        let modelURL: String
-        let localID: String
+        let modelPath: String?
+        let modelURL: String?
+        let modelLib: String
+        let estimatedVRAMReq: Int
+        let modelID: String
 
         enum CodingKeys: String, CodingKey {
+            case modelPath = "model_path"
             case modelURL = "model_url"
-            case localID = "local_id"
+            case modelLib = "model_lib"
+            case estimatedVRAMReq = "estimated_vram_bytes"
+            case modelID = "model_id"
         }
     }
 
-    let modelLibs: [String]
     var modelList: [ModelRecord]
-    let exampleModels: [ModelRecord]
 
     enum CodingKeys: String, CodingKey {
-        case modelLibs = "model_libs"
         case modelList = "model_list"
-        case exampleModels = "add_model_samples"
     }
 }

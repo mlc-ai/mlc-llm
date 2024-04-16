@@ -24,22 +24,20 @@ The MLC-LLM project consists of three distinct submodules: model definition, mod
 Terminologies
 -------------
 
-It is helpful for us to familiarize the basic terminologies used in the MLC chat applications.
-
-- **model weights**: The model weight is a folder that contains the quantized neural network weights
-  of the language models as well as the tokenizer configurations.
+It is helpful for us to familiarize the basic terminologies used in the MLC chat applications. Below are the
+three things you need to run a model with MLC.
 
 - **model lib**: The model library refers to the executable libraries that enable
-  the execution of a specific model architecture.   On Linux, these libraries have the suffix
-  ``.so``, on macOS, the suffix is ``.dylib``, and on Windows, the library file ends with ``.dll``.
-  On web browser, the library suffix is ``.wasm``
+  the execution of a specific model architecture. On Linux and M-chip macOS, these libraries have the suffix
+  ``.so``; on intel macOS, the suffix is ``.dylib``; on Windows, the library file ends with ``.dll``;
+  on web browser, the library suffix is ``.wasm``. (see `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
+
+- **model weights**: The model weight is a folder that contains the quantized neural network weights
+  of the language models as well as the tokenizer configurations. (e.g. `Llama-2-7b-chat-hf-q4f16_1-MLC <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`__)
 
 - **chat config**: The chat configuration includes settings that allow customization of parameters such as temperature and system prompt.
-  The default chat config usually resides in the same directory as model weights.
-  A chat config also contains the following two meta-data fields that are used in multi-model support settings.
-
-  - ``local_id``, which uniquely identifies the model within an app, and
-  - ``model_lib``, which specifies which model library to use.
+  The default chat config usually resides in the same directory as model weights. (e.g. see ``Llama-2-7b-chat-hf-q4f16_1``'s
+  `mlc-chat-config.json <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC/blob/main/mlc-chat-config.json>`__)
 
 Model Preparation
 -----------------
@@ -49,7 +47,7 @@ There are several ways to prepare the model weights and model lib.
 
 - :ref:`Model Prebuilts` contains models that can be directly used.
 - You can also :doc:`run model compilation </compilation/compile_models>` for model weight variants for given supported architectures.
-- Finally, we can enhance the overall model definition flow to incorporate new model architectures.
+- Finally, you can incorporate a new model architecture/inference logic following :doc:`Define New Models </compilation/define_new_models>`.
 
 A default chat config usually comes with the model weight directory. You can further customize
 the system prompt, temperature, and other options by modifying the JSON file.
@@ -63,14 +61,13 @@ Runtime Flow Overview
 Once the model weights, model library, and chat configuration are prepared, an MLC chat runtime can consume them as an engine to drive a chat application.
 The diagram below shows a typical workflow for a MLC chat application.
 
-.. image:: https://raw.githubusercontent.com/mlc-ai/web-data/de9a5e5b424f36119bd464ddf5a3ddb4c58cc85e/images/mlc-llm/tutorials/mlc-llm-flow.svg
+.. image:: https://raw.githubusercontent.com/mlc-ai/web-data/a05d4598bae6eb5a3133652d5cc0323ced3b0e17/images/mlc-llm/tutorials/mlc-llm-flow-slm.svg
   :width: 90%
   :align: center
 
 On the right side of the figure, you can see pseudo-code illustrating the structure of an MLC chat API during the execution of a chat app.
-Typically, there is a ``ChatModule`` that manages the model. The chat app includes a reload function that takes a ``local_id``
-as well as an optional chat configuration override, which allows for overriding settings such as the system prompt and temperature.
-The runtime utilizes the ``local_id`` and ``model_lib`` to locate the model weights and libraries.
+Typically, there is a ``ChatModule`` that manages the model. We instantiate the chat app with two files: the model weights (which include an ``mlc-chat-config.json``)
+and the model library. We also have an optional chat configuration, which allows for overriding settings such as the system prompt and temperature.
 
 All MLC runtimes, including iOS, Web, CLI, and others, use these three elements.
 All the runtime can read the same model weight folder. The packaging of the model libraries may vary depending on the runtime.

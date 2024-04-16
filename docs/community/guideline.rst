@@ -55,7 +55,7 @@ Contribute New Models to MLC-LLM
 
 * If you have compiled a model using our :doc:`/compilation/compile_models` tutorial for an existing model architecture, please upload your models to the internet (e.g., Hugging Face) by following :ref:`distribute-compiled-models` tutorial. Once you have done that, you can create a pull request to add an entry in the :doc:`/prebuilt_models` page. Additionally, you have the option to `create a speed report issue <https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&labels=Work+Item&projects=&template=speed-report.md&title=>`__ to track the speed and memory consumption of your model. You don't need to test it on all devices; let the community collaborate on building it together!
 
-* If you add a new model variant to MLC-LLM by following our :doc:`/tutorials/customize/define_new_models` tutorial.
+* If you add a new model variant to MLC-LLM by following our :doc:`/compilation/define_new_models` tutorial.
   Please create a pull request to add your model architecture (currently model architectures are placed under
   `relax_models <https://github.com/mlc-ai/mlc-llm/tree/main/mlc_llm/relax_model>`__ folder).
 

@@ -1,4 +1,4 @@
-from mlc_chat import ChatModule
+from mlc_llm import ChatModule
 
 # From the mlc-llm directory, run
 # $ python examples/python/benchmark.py

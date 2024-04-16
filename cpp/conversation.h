@@ -3,8 +3,6 @@
  * \file conversation.h
  * \brief Header of conversation template in MLC-LLM.
  */
-#define PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
 #include <picojson.h>
 #include <tvm/runtime/module.h>
 
@@ -155,6 +153,18 @@ class Conversation {
    * \note This function overrides existing configurations.
    */
   void LoadJSONOverride(const picojson::value& config_json, bool partial_update = false);
+
+  /*!
+   * \brief Load legacy JSON config and overrides options.
+   *
+   * \param config_json A json config in picojson type that is partially specifies
+   *        some of the options.
+   * \param partial_update Whether it's a partial update or full update, if set to true,
+   *        we perform a partial update on some of the provided options; if set to false, all
+   *        options must be provided.
+   * \note DEPRECATED. This function loads the legacy JSON config value.
+   */
+  void LoadJSONOverrideLegacy(const picojson::value& config_json, bool partial_update = false);
 
   /*!
    * \brief Serialize the Conversation to JSON.

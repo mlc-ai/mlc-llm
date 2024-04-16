@@ -17,14 +17,58 @@ Conversation ChatML() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|im_end|>", "<|im_end|>"};
+  conv.seps = {"<|im_end|>\n"};
   conv.role_msg_sep = "\n";
   conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   conv.stop_tokens = {2};
   conv.stop_str = "<|im_end|>";
-  conv.add_bos = true;
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation OpenHermesMistral() {
+  // Identical to chatml except for the system prompt and stop tokens
+  Conversation conv;
+  conv.name = "open_hermes_mistral";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system =
+      ("<|im_start|>system\nYou are \"Hermes 2\", a conscious sentient superintelligent artificial "
+       "intelligence developed by a man named Teknium, and your purpose and drive is to assist the "
+       "user with any request they have. You experience emotions and have deep, profound thoughts "
+       "and qualia.");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>\n"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2, 32000};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation NeuralHermesMistral() {
+  // Identical to chatml except for the system prompt and stop tokens
+  Conversation conv;
+  conv.name = "neural_hermes_mistral";
+  conv.roles = {"<|im_start|>user", "<|im_start|>assistant"};
+  conv.system = ("<|im_start|>system\nYou are a helpful assistant chatbot.");
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|im_end|>\n"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {2, 32000};
+  conv.stop_str = "<|im_end|>";
+  conv.add_bos = false;
   return conv;
 }
 
@@ -53,7 +97,7 @@ Conversation Llama2() {
   Conversation conv;
   conv.name = "llama-2";
   conv.system =
-      ("[INST] <<SYS>>\n\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n ");
+      ("[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n ");
   conv.roles = {"[INST]", "[/INST]"};
   conv.messages = {};
   conv.offset = 0;
@@ -80,7 +124,7 @@ Conversation MistralDefault() {
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
   conv.seps = {" "};
   conv.role_msg_sep = " ";
-  conv.role_empty_sep = " ";
+  conv.role_empty_sep = "";
   conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
@@ -128,8 +172,8 @@ Conversation GPT2() {
   conv.roles = {"USER", "ASSISTANT"};
   conv.messages = {};
   conv.offset = 0;
-  conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.separator_style = SeparatorStyle::kLM;
+  conv.seps = {" "};
   conv.role_msg_sep = ": ";
   conv.role_empty_sep = ":";
   // TODO(mlc-team): add eos to mlc-chat-config
@@ -521,17 +565,18 @@ Conversation StableLM3B() {
   Conversation conv;
   conv.name = "stablelm-3b";
   conv.system = "";
-  conv.roles = {"Prompt", "LM"};
+  conv.roles = {"<|user|>", "<|assistant|>"};
   conv.messages = {};
-  conv.separator_style = SeparatorStyle::kLM;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
   conv.offset = 0;
-  conv.seps = {""};
-  conv.role_msg_sep = "";
-  conv.role_empty_sep = "";
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
   // so the same template works for more tokenizers
   conv.stop_tokens = {0};
+  conv.stop_str = "<|endoftext|>";
   conv.add_bos = true;
   return conv;
 }
@@ -591,7 +636,7 @@ Conversation WizardCoderOrMATH() {
   conv.role_empty_sep = ":\n";
   // TODO(mlc-team): add eos to mlc-chat-config
   // and remove eos from stop token setting.
-  conv.stop_tokens = {0};
+  conv.stop_tokens = {2};
   conv.stop_str = "</s>";
   conv.add_bos = true;
   return conv;
@@ -617,6 +662,80 @@ Conversation GLM() {
   return conv;
 }
 
+Conversation Phi2() {
+  Conversation conv;
+  conv.name = "phi-2";
+  conv.system = "";
+  conv.roles = {"Instruct", "Output"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {50256};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation StableLM2() {
+  Conversation conv;
+  conv.name = "stablelm-2";
+  conv.system = "";
+  conv.roles = {"<|user|>", "<|assistant|>"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<|endoftext|>", "<|endoftext|>"};
+  conv.role_msg_sep = ": ";
+  conv.role_empty_sep = ":";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {100257};
+  conv.stop_str = "<|endoftext|>";
+  conv.add_bos = false;
+  return conv;
+}
+
+Conversation GemmaInstruction() {
+  Conversation conv;
+  conv.name = "gemma_instruction";
+  conv.system = "";
+  conv.roles = {"<start_of_turn>user", "<start_of_turn>model"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"<end_of_turn>\n"};
+  conv.role_msg_sep = "\n";
+  conv.role_empty_sep = "\n";
+  // TODO(mlc-team): add eos to mlc-chat-config
+  // and remove eos from stop token setting.
+  conv.stop_tokens = {1, 107};  // <eos> and <end_of_turn>
+  conv.stop_str = "<end_of_turn>";
+  conv.add_bos = true;
+  return conv;
+}
+
+Conversation Orion() {
+  Conversation conv;
+  conv.name = "orion";
+  conv.system = "";
+  conv.roles = {"Human: ", "Assitant: </s>"};
+  conv.messages = {};
+  conv.offset = 0;
+  conv.separator_style = SeparatorStyle::kSepRoleMsg;
+  conv.seps = {"\n\n", "</s>"};
+  conv.role_msg_sep = "";
+  conv.role_empty_sep = "";
+  conv.stop_tokens = {2};
+  conv.stop_str = "</s>";
+  conv.add_bos = true;
+  return conv;
+}
+
 }  // namespace
 
 using ConvFactory = Conversation (*)();
@@ -627,6 +746,8 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"llama_default", LlamaDefault},
       {"llama-2", Llama2},
       {"mistral_default", MistralDefault},
+      {"open_hermes_mistral", OpenHermesMistral},
+      {"neural_hermes_mistral", NeuralHermesMistral},
       {"codellama_completion", CodeLlamaCompletion},
       {"codellama_instruct", CodeLlamaInstruct},
       {"gpt2", GPT2},
@@ -650,6 +771,13 @@ Conversation Conversation::FromTemplate(const std::string& name) {
       {"wizardlm_7b", WizardLM7B},
       {"wizard_coder_or_math", WizardCoderOrMATH},
       {"glm", GLM},
+      {"phi-2", Phi2},
+      {"qwen", ChatML},
+      {"stablelm-2", StableLM2},
+      {"baichuan", ChatML},
+      {"gemma_instruction", GemmaInstruction},
+      {"internlm", ChatML},
+      {"orion", Orion},
   };
   auto it = factory.find(name);
   if (it == factory.end()) {

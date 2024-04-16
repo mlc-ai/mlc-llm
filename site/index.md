@@ -20,9 +20,11 @@ Please visit [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html)
 ### iOS
 
 Our iOS app, MLCChat, is available on [App Store](https://apps.apple.com/us/app/mlc-chat/id6448482937) for iPhone and iPad.
+You can try out the [Testflight app](https://testflight.apple.com/join/57zd7oxa) that sometimes contains beta release of latest models.
 This app is tested on iPhone 15 Pro Max, iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
 Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/ios.html) is available for building iOS apps with MLC LLM.
+
 
 <p align="center">
 <img src="gif/ios-demo.gif" height="700">
@@ -32,8 +34,7 @@ Note: Llama-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. We recommen
 
 ### Android
 
-The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/raw/main/mlc-chat.apk).
-The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
+The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk). The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
 Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
 [documentation](https://llm.mlc.ai/docs/deploy/android.html) is available for building android apps with MLC LLM.
 

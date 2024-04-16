@@ -39,20 +39,6 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
               conda activate your-environment
               python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
-         .. tab:: CUDA 11.7
-
-            .. code-block:: bash
-
-              conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu117
-
-         .. tab:: CUDA 11.8
-
-            .. code-block:: bash
-
-              conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu118
-
          .. tab:: CUDA 12.1
 
             .. code-block:: bash
@@ -174,7 +160,8 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         conda create -n tvm-build-venv -c conda-forge \
             "llvmdev>=15" \
             "cmake>=3.24" \
-            git
+            git \
+            python=3.11
         # enter the build environment
         conda activate tvm-build-venv
 
@@ -208,6 +195,10 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         echo "set(USE_METAL  OFF)" >> config.cmake
         echo "set(USE_VULKAN OFF)" >> config.cmake
         echo "set(USE_OPENCL OFF)" >> config.cmake
+        # FlashInfer related, requires CUDA w/ compute capability 80;86;89;90
+        echo "set(USE_FLASHINFER OFF)" >> config.cmake
+        echo "set(FLASHINFER_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)" >> config.cmake
+        echo "set(CMAKE_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)" >> config.cmake
 
     .. note::
         ``HIDE_PRIVATE_SYMBOLS`` is a configuration option that enables the ``-fvisibility=hidden`` flag. This flag helps prevent potential symbol conflicts between TVM and PyTorch. These conflicts arise due to the frameworks shipping LLVMs of different versions.
@@ -217,6 +208,13 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         - ``Debug`` sets ``-O0 -g``
         - ``RelWithDebInfo`` sets ``-O2 -g -DNDEBUG`` (recommended)
         - ``Release`` sets ``-O3 -DNDEBUG``
+
+    .. note::
+        If you are using CUDA and your compute capability is above 80, then it is require to build with
+        ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find PackedFunc`` issue during
+        runtime.
+        
+        To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
 
     Once ``config.cmake`` is edited accordingly, kick off build with the commands below:
 
@@ -246,8 +244,10 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
 
 |
 
-Validate Installation
----------------------
+.. _tvm-unity-validate:
+
+Validate TVM Installation
+-------------------------
 
 Using a compiler infrastructure with multiple language bindings could be error-prone.
 Therefore, it is highly recommended to validate TVM Unity installation before use.

@@ -2,14 +2,10 @@ cmake_minimum_required(VERSION 3.18)
 project(mlc_llm C CXX)
 
 include(CheckCXXCompilerFlag)
-if(NOT MSVC)
-  check_cxx_compiler_flag("-std=c++17" SUPPORT_CXX17)
-  set(CMAKE_CXX_FLAGS "-std=c++17 ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 17)
+if(MSVC)
+  set(CMAKE_CXX_FLAGS "/fp:fast ${CMAKE_CXX_FLAGS}")
 else()
-  check_cxx_compiler_flag("/std:c++17" SUPPORT_CXX17)
-  set(CMAKE_CXX_FLAGS "/std:c++17 ${CMAKE_CXX_FLAGS}")
-  set(CMAKE_CUDA_STANDARD 17)
+  set(CMAKE_CXX_FLAGS "-ffast-math ${CMAKE_CXX_FLAGS}")
 endif()
 
 if(EXISTS ${CMAKE_BINARY_DIR}/config.cmake)
@@ -44,6 +40,8 @@ endif()
 
 option(BUILD_CPP_TEST "Build cpp unittests" OFF)
 
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # tvm runtime config: minimize runtime components
@@ -57,7 +55,11 @@ set(USE_GTEST OFF)
 set(USE_LIBBACKTRACE OFF)
 set(BUILD_DUMMY_LIBTVM ON)
 if (NOT DEFINED TVM_HOME)
-  set(TVM_HOME 3rdparty/tvm)
+  if(DEFINED ENV{TVM_HOME})
+    set(TVM_HOME "$ENV{TVM_HOME}")
+  else()
+    set(TVM_HOME 3rdparty/tvm)
+  endif(DEFINED ENV{TVM_HOME})
 endif (NOT DEFINED TVM_HOME)
 message(STATUS "TVM_HOME: ${TVM_HOME}")
 add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
@@ -68,11 +70,7 @@ add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 
 
 tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
-tvm_file_glob(GLOB_RECURSE MLC_CLI_SRCS cpp/cli_main.cc)
-list(REMOVE_ITEM MLC_LLM_SRCS ${MLC_CLI_SRCS})
-
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
-add_library(mlc_cli_objs OBJECT ${MLC_CLI_SRCS})
 
 set(
   MLC_LLM_INCLUDES
@@ -83,6 +81,8 @@ set(
 )
 
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} __STDC_FORMAT_MACROS=1)
+set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} PICOJSON_USE_INT64)
 
 target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
@@ -97,12 +97,21 @@ set_target_properties(mlc_llm_static PROPERTIES OUTPUT_NAME mlc_llm)
 target_link_libraries(mlc_llm PUBLIC tvm_runtime)
 target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
-find_library(FLASH_ATTN_LIBRARY flash_attn)
+find_library(
+  FLASH_ATTN_LIBRARY flash_attn
+  HINTS ${TVM_HOME}/*/3rdparty/libflash_attn/src
+)
 
 if (FLASH_ATTN_LIBRARY STREQUAL "FLASH_ATTN_LIBRARY-NOTFOUND")
   message(WARNING "Cannot find libflash_attn. The model must not have been built with --use-flash-attn-mqa option.")
 else ()
   target_link_libraries(mlc_llm PUBLIC -Wl,--no-as-needed ${FLASH_ATTN_LIBRARY})
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_definitions(mlc_llm PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_objs PRIVATE "TVM_LOG_DEBUG")
+    target_compile_definitions(mlc_llm_static PRIVATE "TVM_LOG_DEBUG")
 endif()
 
 if (BUILD_CPP_TEST)
@@ -116,24 +125,9 @@ if (BUILD_CPP_TEST)
   target_link_libraries(mlc_llm_cpp_tests PUBLIC mlc_llm gtest gtest_main)
 endif(BUILD_CPP_TEST)
 
-# Example app that may depends on mlc_llm
-add_executable(mlc_chat_cli $<TARGET_OBJECTS:mlc_cli_objs>)
-target_include_directories(mlc_cli_objs PRIVATE ${MLC_LLM_INCLUDES})
-target_include_directories(mlc_cli_objs PRIVATE 3rdparty/argparse/include)
-target_compile_definitions(mlc_cli_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
-
 if (CMAKE_SYSTEM_NAME STREQUAL "Android")
   target_link_libraries(mlc_llm PRIVATE log)
-  target_link_libraries(mlc_chat_cli PRIVATE log)
-endif()
-
-if (MLC_LLM_INSTALL_STATIC_LIB)
-  target_link_libraries(
-    mlc_chat_cli PRIVATE mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c)
-  target_link_libraries(
-    mlc_chat_cli PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,tvm_runtime>")
-else()
-  target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
+  target_link_libraries(tokenizers_cpp PRIVATE log)
 endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
@@ -171,7 +165,7 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
       )
   endif()
 else()
-  install(TARGETS mlc_chat_cli tvm_runtime mlc_llm mlc_llm_module
+  install(TARGETS tvm_runtime mlc_llm mlc_llm_module
     mlc_llm_static
     tokenizers_cpp
     sentencepiece-static
