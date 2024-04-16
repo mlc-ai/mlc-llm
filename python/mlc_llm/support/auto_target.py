@@ -193,6 +193,24 @@ def _build_android():
     return build
 
 
+def _build_android_so():
+    def build(mod: IRModule, args: "CompileArgs", pipeline=None):
+        output = args.output
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
+        assert output.suffix == ".so"
+        relax.build(
+            mod,
+            target=args.target,
+            pipeline=pipeline,
+            system_lib=False,
+        ).export_library(
+            str(output),
+            fcompile=ndk.create_shared,
+        )
+
+    return build
+
+
 def _build_webgpu():
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
@@ -330,7 +348,9 @@ def detect_system_lib_prefix(
     prefix_hint : str
         The hint for the system lib prefix.
     """
-    if prefix_hint == "auto" and target_hint in ["iphone", "android"]:
+    if prefix_hint == "auto" and (
+        target_hint.startswith("iphone") or target_hint.startswith("android")
+    ):
         prefix = f"{model_name}_{quantization}_".replace("-", "_")
         logger.warning(
             "%s is automatically picked from the filename, %s, this allows us to use the filename "
@@ -369,6 +389,28 @@ PRESET = {
             },
         },
         "build": _build_android,
+    },
+    "android:adreno": {
+        "target": {
+            "kind": "opencl",
+            "device": "adreno",
+            "host": {
+                "kind": "llvm",
+                "mtriple": "aarch64-linux-android",
+            },
+        },
+        "build": _build_android,
+    },
+    "android:adreno-so": {
+        "target": {
+            "kind": "opencl",
+            "device": "adreno",
+            "host": {
+                "kind": "llvm",
+                "mtriple": "aarch64-linux-android",
+            },
+        },
+        "build": _build_android_so,
     },
     "metal:x86-64": {
         "target": {
@@ -419,6 +461,7 @@ PRESET = {
             "max_shared_memory_per_block": 32768,
             "thread_warp_size": 1,
             "supports_float16": 1,
+            "supports_int64": 1,
             "supports_int16": 1,
             "supports_int8": 1,
             "supports_8bit_buffer": 1,
