@@ -132,7 +132,7 @@ class DefaultDebugInstrument:
 class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public-methods
     """A chat interface used only for debugging purpose.
 
-    It debugs autoregressive decoding fully in Python via the prefill and
+    It debugs auto-regressive decoding fully in Python via the prefill and
     decode interface. It supports debugging instrument (either default or
     customized) to dump intermediate values for each VM function call.
 
