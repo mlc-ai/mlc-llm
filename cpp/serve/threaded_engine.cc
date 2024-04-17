@@ -23,6 +23,15 @@ namespace serve {
 using tvm::Device;
 using namespace tvm::runtime;
 
+/*! \brief The threaded engine instruction kind. */
+enum class InstructionKind : int {
+  kAddRequest = 0,
+  kAbortRequest = 1,
+  kUnloadEngine = 2,
+  kReloadEngine = 3,
+  kDebugCallFuncOnAllAllWorker = 4,
+};
+
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
@@ -65,7 +74,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
-      requests_to_add_.push_back(request);
+      instruction_queue_.emplace_back(InstructionKind::kAddRequest, request);
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }
@@ -78,7 +87,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
-      requests_to_abort_.push_back(request_id);
+      instruction_queue_.emplace_back(InstructionKind::kAbortRequest, request_id);
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }
@@ -89,8 +98,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
   void RunBackgroundLoop() final {
     // The local vectors that load the requests from critical regions.
-    std::vector<Request> local_requests_to_add;
-    std::vector<String> local_requests_to_abort;
+    std::vector<std::pair<InstructionKind, ObjectRef>> local_instruction_queue;
 
     while (!exit_now_.load(std::memory_order_relaxed)) {
       {
@@ -102,17 +110,26 @@ class ThreadedEngineImpl : public ThreadedEngine {
         });
         engine_waiting_ = false;
 
-        local_requests_to_add = requests_to_add_;
-        local_requests_to_abort = requests_to_abort_;
-        requests_to_add_.clear();
-        requests_to_abort_.clear();
+        local_instruction_queue = instruction_queue_;
+        instruction_queue_.clear();
         pending_request_operation_cnt_ = 0;
       }
-      for (Request request : local_requests_to_add) {
-        background_engine_->AddRequest(request);
-      }
-      for (String request_id : local_requests_to_abort) {
-        background_engine_->AbortRequest(request_id);
+      for (const auto& [kind, arg] : local_instruction_queue) {
+        if (kind == InstructionKind::kAddRequest) {
+          background_engine_->AddRequest(Downcast<Request>(arg));
+        } else if (kind == InstructionKind::kAbortRequest) {
+          background_engine_->AbortRequest(Downcast<String>(arg));
+        } else if (kind == InstructionKind::kUnloadEngine) {
+          // Todo(mlc-team): implement engine unload
+          LOG(FATAL) << "Not implemented yet.";
+        } else if (kind == InstructionKind::kReloadEngine) {
+          // Todo(mlc-team): implement engine reload
+          LOG(FATAL) << "Not implemented yet.";
+        } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
+          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(arg));
+        } else {
+          LOG(FATAL) << "Cannot reach here";
+        }
       }
       background_engine_->Step();
     }
@@ -159,6 +176,21 @@ class ThreadedEngineImpl : public ThreadedEngine {
     request_stream_callback_cv_.notify_one();
   }
 
+  /************** Debug/Profile **************/
+
+  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+    bool need_notify = false;
+    {
+      std::lock_guard<std::mutex> lock(background_loop_mutex_);
+      instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker, func_name);
+      ++pending_request_operation_cnt_;
+      need_notify = engine_waiting_;
+    }
+    if (need_notify) {
+      background_loop_cv_.notify_one();
+    }
+  }
+
  private:
   /*! \brief The background normal engine for request processing. */
   std::unique_ptr<Engine> background_engine_;
@@ -176,17 +208,16 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
   /************** Critical Regions **************/
   /*!
-   * \brief The requests to add into the background engine.
+   * \brief The instruction queue for the threaded engine.
+   * The instructions include:
+   *  - requests to add into the background engine,
+   *  - requests to abort from the background engine,
+   *  - engine unload/reload,
+   *  - and other debugging instructions.
    * Elements are sended from other threads and consumed by
    * the threaded engine in the background loop.
    */
-  std::vector<Request> requests_to_add_;
-  /*!
-   * \brief The requests to abort from the background engine.
-   * Elements are sended from other threads and consumed by
-   * the threaded engine in the background loop.
-   */
-  std::vector<String> requests_to_abort_;
+  std::vector<std::pair<InstructionKind, ObjectRef>> instruction_queue_;
   /*!
    * \brief The delta outputs to pass through callback.
    * Elements are sended from the background loop thread and
@@ -219,6 +250,8 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &ThreadedEngineImpl::RunBackgroundStreamBackLoop);
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
+  TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
+                          &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
   if (_name == "init_background_engine") {
     return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
       SelfPtr self = static_cast<SelfPtr>(_self.get());

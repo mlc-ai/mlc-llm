@@ -57,6 +57,11 @@ class ThreadedEngine {
 
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
+
+  /************** Debug/Profile **************/
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
 };
 
 }  // namespace serve

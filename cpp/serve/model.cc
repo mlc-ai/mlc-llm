@@ -714,24 +714,6 @@ class ModelImpl : public ModelObj {
 
   /*********************** KV Cache Management  ***********************/
 
-  LogitProcessor CreateLogitProcessor(int max_num_token,
-                                      Optional<EventTraceRecorder> trace_recorder) {
-    return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
-                          std::move(trace_recorder));
-  }
-
-  Sampler CreateSampler(int max_num_sample, int num_models,
-                        Optional<EventTraceRecorder> trace_recorder) {
-    if (num_models > 1) {  // speculative decoding uses cpu sampler
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
-    } else if (Sampler::SupportGPUSampler(device_)) {
-      return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
-                                       std::move(trace_recorder));
-    } else {
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
-    }
-  }
-
   void CreateKVCache(KVCacheConfig kv_cache_config) final {
     IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
     IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
@@ -775,6 +757,24 @@ class ModelImpl : public ModelObj {
   }
 
   /*********************** Utilities  ***********************/
+
+  LogitProcessor CreateLogitProcessor(int max_num_token,
+                                      Optional<EventTraceRecorder> trace_recorder) {
+    return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
+                          std::move(trace_recorder));
+  }
+
+  Sampler CreateSampler(int max_num_sample, int num_models,
+                        Optional<EventTraceRecorder> trace_recorder) {
+    if (num_models > 1) {  // speculative decoding uses cpu sampler
+      return Sampler::CreateCPUSampler(std::move(trace_recorder));
+    } else if (Sampler::SupportGPUSampler(device_)) {
+      return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
+                                       std::move(trace_recorder));
+    } else {
+      return Sampler::CreateCPUSampler(std::move(trace_recorder));
+    }
+  }
 
   int EstimateHostCPURequirement() const final {
     CHECK_NE(num_shards_, -1) << "The model has not been initialized";
@@ -830,6 +830,12 @@ class ModelImpl : public ModelObj {
     if (kv_cache_.defined()) {
       ft_.reset_kv_cache_func_(kv_cache_);
     }
+  }
+
+  /************** Debug/Profile **************/
+
+  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+    ft_.DebugCallFuncOnAllAllWorker(func_name);
   }
 
  private:

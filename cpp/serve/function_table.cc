@@ -315,6 +315,16 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
   }
 }
 
+void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name) const {
+  if (this->use_disco) {
+    sess->CallPacked(sess->GetGlobalFunc(func_name));
+  } else {
+    const PackedFunc* func = Registry::Get(func_name);
+    CHECK(func != nullptr) << "Global function name \"" << func_name << "\" is not found";
+    (*func)();
+  }
+}
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

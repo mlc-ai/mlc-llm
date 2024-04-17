@@ -107,6 +107,11 @@ class Engine {
    * generation results for those finished requests.
    */
   virtual void Step() = 0;
+
+  /************** Debug/Profile **************/
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
 };
 
 /*!
