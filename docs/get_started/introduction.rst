@@ -7,13 +7,11 @@ Introduction to MLC LLM
     :local:
     :depth: 2
 
-Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal
-deployment solution that allows native deployment of any large language models with native APIs
-with compiler acceleration.
-The mission of this project is to enable everyone to develop, optimize and deploy AI models
-natively on everyone's devices with ML compilation techniques.
+Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance
+universal LLM deployment engine. The mission of this project is to enable everyone to develop,
+optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
-This page is a quick tutorial to introduce how to try out MLC LLM, and the core steps to
+This page is a quick tutorial to introduce how to try out MLC LLM, and the steps to
 deploy your own models with MLC LLM.
 
 Installation
@@ -35,7 +33,7 @@ Chat CLI
 --------
 
 As the first example, we try out the chat CLI in MLC LLM with 4-bit quantized 7B Llama-2 model.
-The simplest command to run MLC chat is a one-liner command:
+You can run MLC chat through a one-liner command:
 
 .. code:: bash
 
@@ -115,8 +113,9 @@ You can save the code below into a Python file and run it.
   MLC LLM Python API
 
 This code example first creates an :class:`mlc_llm.Engine` instance with the the 4-bit quantized Llama-2 model.
-**The Python API of** :class:`mlc_llm.Engine` **if fully compatible with OpenAI API**,
-which means you can use :class:`mlc_llm.Engine` in the same way of using `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
+**We design the Python API ** :class:`mlc_llm.Engine` **to align with OpenAI API**,
+which means you can use :class:`mlc_llm.Engine` in the same way of using
+`OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 for both synchronous and asynchronous generation.
 
 In this code example, we use the synchronous chat completion interface and iterate over
@@ -133,14 +132,13 @@ If you want to run without streaming, you can run
   print(response)
 
 You can also try different arguments supported in `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_.
-
+If you would like to do concurrent asynchronous generation, you can use :class:`mlc_llm.AsyncEngine` instead.
 
 REST Server
 -----------
 
 For the third example, we launch a REST server to serve the 4-bit quantized Llama-2 model
-for OpenAI chat completion requests.
-The server can be launched in command line with
+for OpenAI chat completion requests. The server can be launched in command line with
 
 .. code:: bash
 
@@ -222,19 +220,19 @@ Now, we can try to run your own model with chat CLI:
 
 For the first run, model compilation will be triggered automatically to optimize the
 model for GPU accelerate and generate the binary model library.
-The chat interface will be displayed after model compilation finishes.
-By simply replacing the model string ``HF://xxx`` with ``$MLC_MODEL_PATH``,
-you can also use this model in Python API, MLC serve and other use scenarios.
+The chat interface will be displayed after model JIT compilation finishes.
+You can also use this model in Python API, MLC serve and other use scenarios.
 
-(Optional) Compile Model Manually
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(Optional) Compile Model Library
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In previous sections, model libraries are compiled automatically when the runtime
-chat module or :class:`mlc_llm.Engine` launches,
+In previous sections, model libraries are compiled when the :class:`mlc_llm.Engine` launches,
 which is what we call "JIT (Just-in-Time) model compilation".
-In some cases (e.g., web / mobile deployment), it is beneficial to manually compile the model libraries,
-so that we can deploy LLMs on platforms that come with no compiler environment,
-with only the compiled model libraries being shipped.
+In some cases, it is beneficial to explicitly compile the model libraries.
+We can deploy LLMs with reduced dependencies by shipping the library for deployment without going through compilation.
+It will also enable advanced options such as cross-compiling the libraries for web and mobile deployments.
+
+
 Below is an example command of compiling model libraries in MLC LLM:
 
 .. code:: bash
@@ -270,30 +268,40 @@ hardware backends, such as WebGPU, iOS and Android.
 Universal Deployment
 --------------------
 
-MLC LLM is high-performance universal deployment solution for large language models.
-The examples we ran above use your native local GPU environment (CUDA, ROCm or Metal).
+MLC LLM is a high-performance universal deployment solution for large language models,
+to enable native deployment of any large language models with native APIs with compiler acceleration
+So far, we have gone through several examples running on a local GPU environment.
+The project supports multiple kinds of GPU backends.
 
-If your local environment is CUDA or ROCm, we can quickly try out the command below
-to experience the universal deployment.
-This command launches chat CLI with Vulkan runtime rather than CUDA/ROCm runtime.
+You can use `--device` option in compilation and runtime to pick a specific GPU backend.
+For example, if you have an NVIDIA or AMD GPU, you can try to use the option below
+to run chat through the vulkan backend. Vulkan-based LLM applications run in less typical
+environments (e.g. SteamDeck).
 
 .. code:: bash
 
     mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC --device vulkan
 
-Summary
--------
+The same core LLM runtime engine powers all the backends, enabling the same model to be deployed across backends as
+long as they fit within the memory and computing budget of the corresponding hardware backend.
+We also leverage machine learning compilation to build backend-specialized optimizations to
+get out the best performance on the targetted backend when possible, and reuse key insights and optimizations
+across backends we support.
+
+Please checkout the what to do next sections below to find out more about different deployment scenarios,
+such as WebGPU-based browser deployment, mobile and other settings.
+
+Summary and What to Do Next
+---------------------------
 
 To briefly summarize this page,
 
-- we went through three examples (chat CLI, Python API, and REST server) of running language models with MLC LLM,
-- we introduced how to generate MLC config file and convert model weights for your own models to run with MLC LLM, and (optionally) how to compile your models manually.
-- we showcased the universal deployment of MLC LLM.
+- We went through three examples (chat CLI, Python API, and REST server) of MLC LLM,
+- we introduced how to convert model weights for your own models to run with MLC LLM, and (optionally) how to compile your models.
+- We also discussed the the universal deployment capability of MLC LLM.
 
-What to Do Next
----------------
-
-Next, you can check out the pages below for quick start examples and more detailed information.
+Next, please feel free to check out the pages below for quick start examples and more detailed information
+on specific platforms
 
 - :ref:`Quick start examples <quick-start>` for Python API, chat CLI, REST server, web browser, iOS and Android.
 - Depending on your use case, check out our API documentation and tutorial pages:
