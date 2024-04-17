@@ -175,7 +175,7 @@ class SpeculativeMode(enum.IntEnum):
 
 @dataclass
 class EngineConfig:
-    """The class of Engine execution configuration.
+    """The class of LLMEngine execution configuration.
 
     Parameters
     ----------

@@ -7,9 +7,9 @@ from typing import List
 import pytest
 from pydantic import BaseModel
 
-from mlc_llm.serve import AsyncEngine, GenerationConfig
+from mlc_llm.serve import AsyncLLMEngine, GenerationConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.sync_engine import SyncEngine
+from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
@@ -22,7 +22,7 @@ model_lib_path = "dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
 
 def test_batch_generation_with_grammar():
     # Create engine
-    engine = SyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    engine = SyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt_len = len(prompts_list)
     prompts = prompts_list * 3
@@ -69,7 +69,7 @@ def test_batch_generation_with_grammar():
 
 def test_batch_generation_with_schema():
     # Create engine
-    engine = SyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    engine = SyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -121,7 +121,7 @@ def test_batch_generation_with_schema():
 
 async def run_async_engine():
     # Create engine
-    async_engine = AsyncEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    async_engine = AsyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompts = prompts_list * 20
 
@@ -142,7 +142,7 @@ async def run_async_engine():
     ]
 
     async def generate_task(
-        async_engine: AsyncEngine,
+        async_engine: AsyncLLMEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,

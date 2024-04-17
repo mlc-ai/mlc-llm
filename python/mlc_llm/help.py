@@ -193,7 +193,7 @@ Under mode "local" or "interactive", the actual memory usage may be significantl
 this number. Under mode "server", the actual memory usage may be slightly larger than this number.
 """,
     "engine_config_serve": """
-The Engine execution configuration.
+The LLMEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.
 For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'" to
 specify the eagle-style speculative decoding.

@@ -4,7 +4,7 @@
 from .. import base
 from .config import EngineConfig, GenerationConfig, KVCacheConfig, SpeculativeMode
 from .data import Data, ImageData, RequestStreamOutput, TextData, TokenData
-from .engine import AsyncEngine, Engine
+from .engine import AsyncLLMEngine, LLMEngine
 from .grammar import BNFGrammar, GrammarStateMatcher
 from .request import Request
 from .server import PopenServer

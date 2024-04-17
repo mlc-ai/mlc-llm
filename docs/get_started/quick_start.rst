@@ -20,11 +20,11 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: python
 
-      from mlc_llm import Engine
+      from mlc_llm import LLMEngine
 
       # Create engine
       model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
-      engine = Engine(model)
+      engine = LLMEngine(model)
 
       # Run chat completion in OpenAI API.
       for response in engine.chat.completions.create(
