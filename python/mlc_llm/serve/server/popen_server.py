@@ -80,9 +80,9 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]
         process_path = str(Path(__file__).resolve().parents[4])
-        self._proc = subprocess.Popen(
+        self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
             cmd, cwd=process_path, env=os.environ
-        )  # pylint: disable=consider-using-with
+        )
         # NOTE: DO NOT USE `stdout=subprocess.PIPE, stderr=subprocess.PIPE`
         # in subprocess.Popen here. PIPE has a fixed-size buffer with may block
         # and hang forever.
