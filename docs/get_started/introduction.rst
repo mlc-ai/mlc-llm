@@ -113,7 +113,7 @@ You can save the code below into a Python file and run it.
   MLC LLM Python API
 
 This code example first creates an :class:`mlc_llm.Engine` instance with the the 4-bit quantized Llama-2 model.
-**We design the Python API ** :class:`mlc_llm.Engine` **to align with OpenAI API**,
+**We design the Python API** :class:`mlc_llm.Engine` **to align with OpenAI API**,
 which means you can use :class:`mlc_llm.Engine` in the same way of using
 `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 for both synchronous and asynchronous generation.
