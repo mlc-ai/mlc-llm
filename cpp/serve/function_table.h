@@ -52,6 +52,8 @@ struct FunctionTable {
   ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                           ShapeTuple max_reserved_shape);
 
+  void DebugCallFuncOnAllAllWorker(const String& func_name) const;
+
   bool use_disco = false;
   Device local_gpu_device;
   Session sess{nullptr};

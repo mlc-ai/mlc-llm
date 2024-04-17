@@ -1,4 +1,5 @@
 """Load MLC LLM library and _ffi_api functions."""
+
 import ctypes
 import os
 import sys
@@ -21,6 +22,24 @@ def _load_mlc_llm_lib():
     # pylint: enable=protected-access
     lib_path = libinfo.find_lib_path(lib_name, optional=False)
     return ctypes.CDLL(lib_path[0]), lib_path[0]
+
+
+@tvm.register_func("mlc.debug_cuda_profiler_start")
+def _debug_cuda_profiler_start() -> None:
+    """Start cuda profiler."""
+    import cuda  # pylint: disable=import-outside-toplevel
+    import cuda.cudart  # pylint: disable=import-outside-toplevel
+
+    cuda.cudart.cudaProfilerStart()  # pylint: disable=c-extension-no-member
+
+
+@tvm.register_func("mlc.debug_cuda_profiler_stop")
+def _debug_cuda_profiler_stop() -> None:
+    """Stop cuda profiler."""
+    import cuda  # pylint: disable=import-outside-toplevel
+    import cuda.cudart  # pylint: disable=import-outside-toplevel
+
+    cuda.cudart.cudaProfilerStop()  # pylint: disable=c-extension-no-member
 
 
 # only load once here

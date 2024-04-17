@@ -50,3 +50,32 @@ async def debug_dump_event_trace(request: fastapi.Request):
         )
 
     return json.loads(async_engine.state.trace_recorder.dump_json())
+
+
+################ /debug/cuda_profiler_start/end ################
+
+
+@app.post("/debug/cuda_profiler_start")
+async def debug_cuda_profiler_start(_request: fastapi.Request):
+    """Start the cuda profiler for the engine. Only for debug purpose."""
+    server_context: ServerContext = ServerContext.current()
+    # Since the CUDA profiler is process-wise, call the function for one model is sufficient.
+    for model in server_context.get_model_list():
+        async_engine = server_context.get_engine(model)
+        async_engine._debug_call_func_on_all_worker(  # pylint: disable=protected-access
+            "mlc.debug_cuda_profiler_start"
+        )
+        break
+
+
+@app.post("/debug/cuda_profiler_stop")
+async def debug_cuda_profiler_stop(_request: fastapi.Request):
+    """Stop the cuda profiler for the engine. Only for debug purpose."""
+    server_context: ServerContext = ServerContext.current()
+    # Since the CUDA profiler is process-wise, call the function for one model is sufficient.
+    for model in server_context.get_model_list():
+        async_engine = server_context.get_engine(model)
+        async_engine._debug_call_func_on_all_worker(  # pylint: disable=protected-access
+            "mlc.debug_cuda_profiler_stop"
+        )
+        break

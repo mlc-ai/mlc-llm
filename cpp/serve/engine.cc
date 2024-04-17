@@ -259,6 +259,13 @@ class EngineImpl : public Engine {
            "action (e.g. prefill, decode, etc.) but it does not.";
   }
 
+  /************** Debug/Profile **************/
+
+  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+    CHECK(!models_.empty()) << "There is no model running in Engine.";
+    models_[0]->DebugCallFuncOnAllAllWorker(func_name);
+  }
+
  private:
   /*! \brief Set the maximum threading backend concurrency. */
   void SetThreadMaxConcurrency() {

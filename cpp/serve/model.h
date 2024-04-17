@@ -291,6 +291,11 @@ class ModelObj : public Object {
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;
 
+  /************** Debug/Profile **************/
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+
   static constexpr const char* _type_key = "mlc.serve.Model";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
