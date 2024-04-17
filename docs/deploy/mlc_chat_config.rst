@@ -1,7 +1,7 @@
 .. _configure-mlc-chat-json:
 
-Configure MLCChat in JSON
-=========================
+Customize MLC Config File in JSON
+=================================
 
 ``mlc-chat-config.json`` is required for both compile-time and runtime, hence serving two purposes:
 
@@ -81,6 +81,7 @@ can be customized to change the behavior of the model.**
     Legacy ``mlc-chat-config.json`` may specify a string for this field to look up a registered conversation
     template. It will be deprecated in the future. Re-generate config using the latest version of mlc_llm
     to make sure this field is a complete JSON object.
+
   The conversation template that this chat uses. For more information, please refer to :ref:`conversation structure <struct-conv>`.
 
 ``temperature``
