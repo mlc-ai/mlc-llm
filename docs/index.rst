@@ -22,7 +22,7 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
    :hidden:
 
    get_started/quick_start.rst
-   get_started/intro.rst
+   get_started/introduction.rst
 
 .. toctree::
    :maxdepth: 1
