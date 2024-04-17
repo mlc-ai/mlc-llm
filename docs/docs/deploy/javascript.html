@@ -47,7 +47,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="REST API" href="rest.html" />
-    <link rel="prev" title="Configure MLCChat in JSON" href="../get_started/mlc_chat_config.html" /> 
+    <link rel="prev" title="Introduction to MLC LLM" href="../get_started/intro.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -166,8 +166,8 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/project_overview.html">Project Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/intro.html">Introduction to MLC LLM</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul class="current">
@@ -185,6 +185,7 @@
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="android.html">Android App</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -427,7 +428,7 @@ contains a full list of conversation templates that MLC provides.</p>
 <p>If the model you are adding requires a new conversation template, you would need to add your own.
 Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1402">this PR</a> as an example. Besides, you also need to add the new template to <code class="docutils literal notranslate"><span class="pre">/path/to/web-llm/src/conversation.ts</span></code>.
 We look up the template to use with the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
-<p>For more details, please see <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a>.</p>
+<p>For more details, please see <a class="reference internal" href="mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a>.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If you added your conversation template in <code class="docutils literal notranslate"><span class="pre">src/conversation.ts</span></code>, you need to build WebLLM
@@ -613,7 +614,7 @@ on how to run it.</p>
         <a href="rest.html" class="btn btn-neutral float-right" title="REST API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../get_started/mlc_chat_config.html" class="btn btn-neutral float-left" title="Configure MLCChat in JSON" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../get_started/intro.html" class="btn btn-neutral float-left" title="Introduction to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

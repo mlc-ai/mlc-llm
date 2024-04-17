@@ -1,0 +1,643 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Introduction to MLC LLM &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="WebLLM and JavaScript API" href="../deploy/javascript.html" />
+    <link rel="prev" title="Quick Start" href="quick_start.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://llm.mlc.ai/>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Introduction to MLC LLM</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#chat-cli">Chat CLI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#python-api">Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#rest-server">REST Server</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-your-own-model">Deploy Your Own Model</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#optional-compile-model-manually">(Optional) Compile Model Manually</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#universal-deployment">Universal Deployment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#summary">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-to-do-next">What to Do Next</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and JavaScript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/emcc.html">Install Wasm Build Environment</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Privacy</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../privacy.html">MLC Chat App Privacy</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Introduction to MLC LLM</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/get_started/intro.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="introduction-to-mlc-llm">
+<span id="id1"></span><h1>Introduction to MLC LLM<a class="headerlink" href="#introduction-to-mlc-llm" title="Permalink to this heading">¶</a></h1>
+<nav class="contents local" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#installation" id="id4">Installation</a></p></li>
+<li><p><a class="reference internal" href="#chat-cli" id="id5">Chat CLI</a></p></li>
+<li><p><a class="reference internal" href="#python-api" id="id6">Python API</a></p></li>
+<li><p><a class="reference internal" href="#rest-server" id="id7">REST Server</a></p></li>
+<li><p><a class="reference internal" href="#deploy-your-own-model" id="id8">Deploy Your Own Model</a></p>
+<ul>
+<li><p><a class="reference internal" href="#optional-compile-model-manually" id="id9">(Optional) Compile Model Manually</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#universal-deployment" id="id10">Universal Deployment</a></p></li>
+<li><p><a class="reference internal" href="#summary" id="id11">Summary</a></p></li>
+<li><p><a class="reference internal" href="#what-to-do-next" id="id12">What to Do Next</a></p></li>
+</ul>
+</nav>
+<p>Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal
+deployment solution that allows native deployment of any large language models with native APIs
+with compiler acceleration.
+The mission of this project is to enable everyone to develop, optimize and deploy AI models
+natively on everyone’s devices with ML compilation techniques.</p>
+<p>This page is a quick tutorial to introduce how to try out MLC LLM, and the core steps to
+deploy your own models with MLC LLM.</p>
+<section id="installation">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Installation</a><a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h2>
+<p><a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">MLC LLM</span></a> is available via pip.
+It is always recommended to install it in an isolated conda virtual environment.</p>
+<p>To verify the installation, activate your virtual environment, run</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import mlc_llm; print(mlc_llm.__path__)&quot;</span>
+</pre></div>
+</div>
+<p>You are expected to see the installation path of MLC LLM Python package.</p>
+</section>
+<section id="chat-cli">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Chat CLI</a><a class="headerlink" href="#chat-cli" title="Permalink to this heading">¶</a></h2>
+<p>As the first example, we try out the chat CLI in MLC LLM with 4-bit quantized 7B Llama-2 model.
+The simplest command to run MLC chat is a one-liner command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+</pre></div>
+</div>
+<p>It may take 1-2 minutes for the first time running this command.
+After waiting, this command launch a chat interface where you can enter your prompt and chat with the model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>You can use the following special commands:
+/help               print the special commands
+/exit               quit the cli
+/stats              print out the latest stats (token/sec)
+/reset              restart a fresh chat
+/set [overrides]    override settings in the generation config. For example,
+                      `/set temperature=0.5;max_gen_len=100;stop=end,stop`
+                      Note: Separate stop words in the `stop` option with commas (,).
+Multi-line input: Use escape+enter to start a new line.
+
+[INST]: What&#39;s the meaning of life?
+[/INST]:
+Ah, a question that has puzzled philosophers and theologians for centuries! ...
+</pre></div>
+</div>
+<p>The figure below shows what run under the hood of this chat CLI command.
+For the first time running the command, there are three major phases.</p>
+<ul class="simple">
+<li><p><strong>Phase 1. Pre-quantized weight download.</strong> This phase automatically downloads pre-quantized Llama-2 model from <a class="reference external" href="https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC">Hugging Face</a> and saves it to your local cache directory.</p></li>
+<li><p><strong>Phase 2. Model compilation.</strong> This phase automatically optimizes the Llama-2 model to accelerate model inference on GPU with techniques of machine learning compilation in <a class="reference external" href="https://llm.mlc.ai/docs/install/tvm.html">Apache TVM</a> compiler, and generate the binary model library that enables the execution language models on your local GPU.</p></li>
+<li><p><strong>Phase 3. Chat runtime.</strong> This phase consumes the model library built in phase 2 and the model weights downloaded in phase 1, launches a platform-native chat runtime to drive the execution of Llama-2 model.</p></li>
+</ul>
+<p>We cache the pre-quantized model weights and compiled model library locally.
+Therefore, phase 1 and 2 will only execute <strong>once</strong> over multiple runs.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="../_images/project-workflow.svg"><img alt="Project Workflow" src="../_images/project-workflow.svg" width="700" /></a>
+<figcaption>
+<p><span class="caption-text">Workflow in MLC LLM</span><a class="headerlink" href="#id2" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<div class="line-block">
+<div class="line"><br /></div>
+</div>
+</section>
+<section id="python-api">
+<span id="introduction-to-mlc-llm-python-api"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Python API</a><a class="headerlink" href="#python-api" title="Permalink to this heading">¶</a></h2>
+<p>In the second example, we run the Llama-2 model with the chat completion Python API of MLC LLM.
+You can save the code below into a Python file and run it.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">Engine</span>
+
+<span class="c1"># Create engine</span>
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">Engine</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+<span class="c1"># Run chat completion in OpenAI API.</span>
+<span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">choice</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">content</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">engine</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+</pre></div>
+</div>
+<figure class="align-center" id="id3">
+<a class="reference internal image-reference" href="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg"><img alt="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg" src="https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-engine-api.jpg" style="width: 500px;" /></a>
+<figcaption>
+<p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
+</figcaption>
+</figure>
+<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.Engine</span></code> instance with the the 4-bit quantized Llama-2 model.
+<strong>The Python API of</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.Engine</span></code> <strong>if fully compatible with OpenAI API</strong>,
+which means you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.Engine</span></code> in the same way of using <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
+for both synchronous and asynchronous generation.</p>
+<p>In this code example, we use the synchronous chat completion interface and iterate over
+all the stream responses.
+If you want to run without streaming, you can run</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">response</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You can also try different arguments supported in <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>.</p>
+</section>
+<section id="rest-server">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">REST Server</a><a class="headerlink" href="#rest-server" title="Permalink to this heading">¶</a></h2>
+<p>For the third example, we launch a REST server to serve the 4-bit quantized Llama-2 model
+for OpenAI chat completion requests.
+The server can be launched in command line with</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+</pre></div>
+</div>
+<p>The server is hooked at <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8000</span></code> by default, and you can use <code class="docutils literal notranslate"><span class="pre">--host</span></code> and <code class="docutils literal notranslate"><span class="pre">--port</span></code>
+to set a different host and port.
+When the server is ready (showing <code class="docutils literal notranslate"><span class="pre">INFO:</span> <span class="pre">Uvicorn</span> <span class="pre">running</span> <span class="pre">on</span> <span class="pre">http://127.0.0.1:8000</span> <span class="pre">(Press</span> <span class="pre">CTRL+C</span> <span class="pre">to</span> <span class="pre">quit)</span></code>),
+we can open a new shell and send a cURL request via the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
+<span class="s1">        &quot;model&quot;: &quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;,</span>
+<span class="s1">        &quot;messages&quot;: [</span>
+<span class="s1">            {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello! Our project is MLC LLM. What is the name of our project?&quot;}</span>
+<span class="s1">        ]</span>
+<span class="s1">  }&#39;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>http://127.0.0.1:8000/v1/chat/completions
+</pre></div>
+</div>
+<p>The server will process this request and send back the response.
+Similar to <a class="reference internal" href="#introduction-to-mlc-llm-python-api"><span class="std std-ref">Python API</span></a>, you can pass argument <code class="docutils literal notranslate"><span class="pre">&quot;stream&quot;:</span> <span class="pre">true</span></code>
+to request for stream responses.</p>
+</section>
+<section id="deploy-your-own-model">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Your Own Model</a><a class="headerlink" href="#deploy-your-own-model" title="Permalink to this heading">¶</a></h2>
+<p>So far we have been using pre-converted models weights from Hugging Face.
+This section introduces the core workflow regarding how you can <em>run your own models with MLC LLM</em>.</p>
+<p>We use the <a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi-2</a> as the example model.
+Assuming the Phi-2 model is downloaded and placed under <code class="docutils literal notranslate"><span class="pre">models/phi-2</span></code>,
+there are two major steps to prepare your own models.</p>
+<ul>
+<li><p><strong>Step 1. Generate MLC config.</strong> The first step is to generate the configuration file of MLC LLM.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LOCAL_MODEL_PATH</span><span class="o">=</span>models/phi-2<span class="w">   </span><span class="c1"># The path where the model resides locally.</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MLC_MODEL_PATH</span><span class="o">=</span>dist/phi-2-MLC/<span class="w">  </span><span class="c1"># The path where to place the model processed by MLC.</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">QUANTIZATION</span><span class="o">=</span>q0f16<span class="w">              </span><span class="c1"># The choice of quantization.</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">CONV_TEMPLATE</span><span class="o">=</span>phi-2<span class="w">             </span><span class="c1"># The choice of conversation template.</span>
+mlc_llm<span class="w"> </span>gen_config<span class="w"> </span><span class="nv">$LOCAL_MODEL_PATH</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--conv-template<span class="w"> </span><span class="nv">$CONV_TEMPLATE</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>-o<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span>
+</pre></div>
+</div>
+<p>The config generation command takes in the local model path, the target path of MLC output,
+the conversation template name in MLC and the quantization name in MLC.
+Here the quantization <code class="docutils literal notranslate"><span class="pre">q0f16</span></code> means float16 without quantization,
+and the conversation template <code class="docutils literal notranslate"><span class="pre">phi-2</span></code> is the Phi-2 model’s template in MLC.</p>
+<p>If you want to enable tensor parallelism on multiple GPUs, add argument
+<code class="docutils literal notranslate"><span class="pre">--tensor-parallel-shards</span> <span class="pre">$NGPU</span></code> to the config generation command.</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/quantization/quantization.py#L29">The full list of supported quantization in MLC</a>. You can try different quantization methods with MLC LLM. Typical quantization methods are <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> for 4-bit group quantization, <code class="docutils literal notranslate"><span class="pre">q4f16_ft</span></code> for 4-bit FasterTransformer format quantization.</p></li>
+<li><p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/interface/gen_config.py#L276">The full list of conversation template in MLC</a>.</p></li>
+</ul>
+</li>
+<li><p><strong>Step 2. Convert model weights.</strong> In this step, we convert the model weights to MLC format.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span><span class="nv">$LOCAL_MODEL_PATH</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-o<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span>
+</pre></div>
+</div>
+<p>This step consumes the raw model weights and converts them to for MLC format.
+The converted weights will be stored under <code class="docutils literal notranslate"><span class="pre">$MLC_MODEL_PATH</span></code>,
+which is the same directory where the config file generated in Step 1 resides.</p>
+</li>
+</ul>
+<p>Now, we can try to run your own model with chat CLI:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span>
+</pre></div>
+</div>
+<p>For the first run, model compilation will be triggered automatically to optimize the
+model for GPU accelerate and generate the binary model library.
+The chat interface will be displayed after model compilation finishes.
+By simply replacing the model string <code class="docutils literal notranslate"><span class="pre">HF://xxx</span></code> with <code class="docutils literal notranslate"><span class="pre">$MLC_MODEL_PATH</span></code>,
+you can also use this model in Python API, MLC serve and other use scenarios.</p>
+<section id="optional-compile-model-manually">
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">(Optional) Compile Model Manually</a><a class="headerlink" href="#optional-compile-model-manually" title="Permalink to this heading">¶</a></h3>
+<p>In previous sections, model libraries are compiled automatically when the runtime
+chat module or <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.Engine</span></code> launches,
+which is what we call “JIT (Just-in-Time) model compilation”.
+In some cases (e.g., web / mobile deployment), it is beneficial to manually compile the model libraries,
+so that we can deploy LLMs on platforms that come with no compiler environment,
+with only the compiled model libraries being shipped.
+Below is an example command of compiling model libraries in MLC LLM:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span><span class="o">=</span><span class="nv">$MLC_MODEL_PATH</span>/lib.so<span class="w">  </span><span class="c1"># &quot;.dylib&quot; for Intel Macs.</span>
+<span class="w">                                               </span><span class="c1"># &quot;.dll&quot; for Windows.</span>
+<span class="w">                                               </span><span class="c1"># &quot;.wasm&quot; for web.</span>
+<span class="w">                                               </span><span class="c1"># &quot;.tar&quot; for iPhone/Android.</span>
+mlc_llm<span class="w"> </span>compile<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>-o<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+</pre></div>
+</div>
+<p>At runtime, we need to specify this model library path to use it. For example,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For chat CLI</span>
+mlc_llm<span class="w"> </span>chat<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib-path<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+<span class="c1"># For REST server</span>
+mlc_llm<span class="w"> </span>serve<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib-path<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+</pre></div>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">Engine</span>
+
+<span class="c1"># For Python API</span>
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>
+<span class="n">model_lib_path</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2/lib.so&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">Engine</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model_lib_path</span><span class="o">=</span><span class="n">model_lib_path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> introduces the model compilation command in detail,
+where you can find instructions and example commands to compile model to different
+hardware backends, such as WebGPU, iOS and Android.</p>
+</section>
+</section>
+<section id="universal-deployment">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Universal Deployment</a><a class="headerlink" href="#universal-deployment" title="Permalink to this heading">¶</a></h2>
+<p>MLC LLM is high-performance universal deployment solution for large language models.
+The examples we ran above use your native local GPU environment (CUDA, ROCm or Metal).</p>
+<p>If your local environment is CUDA or ROCm, we can quickly try out the command below
+to experience the universal deployment.
+This command launches chat CLI with Vulkan runtime rather than CUDA/ROCm runtime.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span>--device<span class="w"> </span>vulkan
+</pre></div>
+</div>
+</section>
+<section id="summary">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Summary</a><a class="headerlink" href="#summary" title="Permalink to this heading">¶</a></h2>
+<p>To briefly summarize this page,</p>
+<ul class="simple">
+<li><p>we went through three examples (chat CLI, Python API, and REST server) of running language models with MLC LLM,</p></li>
+<li><p>we introduced how to generate MLC config file and convert model weights for your own models to run with MLC LLM, and (optionally) how to compile your models manually.</p></li>
+<li><p>we showcased the universal deployment of MLC LLM.</p></li>
+</ul>
+</section>
+<section id="what-to-do-next">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">What to Do Next</a><a class="headerlink" href="#what-to-do-next" title="Permalink to this heading">¶</a></h2>
+<p>Next, you can check out the pages below for quick start examples and more detailed information.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="quick_start.html#quick-start"><span class="std std-ref">Quick start examples</span></a> for Python API, chat CLI, REST server, web browser, iOS and Android.</p></li>
+<li><p>Depending on your use case, check out our API documentation and tutorial pages:</p>
+<ul>
+<li><p><a class="reference internal" href="../deploy/javascript.html#webllm-runtime"><span class="std std-ref">WebLLM and JavaScript API</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/rest.html#deploy-rest-api"><span class="std std-ref">REST API</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS App and Swift API</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android App</span></a></p></li>
+<li><p><a class="reference internal" href="../deploy/ide_integration.html#deploy-ide-integration"><span class="std std-ref">Code Completion IDE Integration</span></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert model weight to MLC format</span></a>, if you want to run your own models.</p></li>
+<li><p><a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile model libraries</span></a>, if you want to deploy to web/iOS/Android or control the model optimizations.</p></li>
+<li><p>Report any problem or ask any question: open new issues in our <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues">GitHub repo</a>.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../deploy/javascript.html" class="btn btn-neutral float-right" title="WebLLM and JavaScript API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="quick_start.html" class="btn btn-neutral float-left" title="Quick Start" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2023 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

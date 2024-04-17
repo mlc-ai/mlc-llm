@@ -47,7 +47,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Compile Model Libraries" href="compile_models.html" />
-    <link rel="prev" title="Code Completion IDE Integration" href="../deploy/ide_integration.html" /> 
+    <link rel="prev" title="Customize MLC Config File in JSON" href="../deploy/mlc_chat_config.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -166,8 +166,8 @@
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/project_overview.html">Project Overview</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../get_started/mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/intro.html">Introduction to MLC LLM</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
@@ -178,6 +178,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
@@ -385,7 +386,7 @@ See <a class="reference internal" href="compile_models.html#compile-command-spec
 <p>The file <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> is crucial in both model compilation
 and runtime chatting. Here we only care about the latter case.</p>
 <p>You can <strong>optionally</strong> customize
-<code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../get_started/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Configure MLCChat in JSON</span></a> for more detailed instructions).
+<code class="docutils literal notranslate"><span class="pre">dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/mlc-chat-config.json</span></code> (checkout <a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a> for more detailed instructions).
 You can also simply use the default configuration.</p>
 <p><a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc">conv_template.cc</a>
 contains a full list of conversation templates that MLC provides. If the model you are adding
@@ -466,7 +467,7 @@ python
         <a href="compile_models.html" class="btn btn-neutral float-right" title="Compile Model Libraries" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="../deploy/ide_integration.html" class="btn btn-neutral float-left" title="Code Completion IDE Integration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="../deploy/mlc_chat_config.html" class="btn btn-neutral float-left" title="Customize MLC Config File in JSON" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

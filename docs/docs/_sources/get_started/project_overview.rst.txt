@@ -52,7 +52,7 @@ There are several ways to prepare the model weights and model lib.
 A default chat config usually comes with the model weight directory. You can further customize
 the system prompt, temperature, and other options by modifying the JSON file.
 MLC chat runtimes also provide API to override these options during model reload.
-Please refer to :doc:`/get_started/mlc_chat_config` for more details.
+Please refer to :ref:`configure-mlc-chat-json` for more details.
 
 
 Runtime Flow Overview
@@ -82,7 +82,7 @@ Thank you for reading and learning the high-level concepts.
 Moving next, feel free to check out documents on the left navigation panel and
 learn about topics you are interested in.
 
-- :doc:`/get_started/mlc_chat_config` shows how to configure specific chat behavior.
+- :ref:`configure-mlc-chat-json` shows how to configure specific chat behavior.
 - Build and Deploy App section contains guides to build apps
   and platform-specific MLC chat runtimes.
 - Compile models section provides guidelines to convert model weights and produce model libs.

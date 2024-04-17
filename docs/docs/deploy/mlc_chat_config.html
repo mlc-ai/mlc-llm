@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Configure MLCChat in JSON &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Customize MLC Config File in JSON &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -46,8 +46,8 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="WebLLM and JavaScript API" href="../deploy/javascript.html" />
-    <link rel="prev" title="Project Overview" href="project_overview.html" /> 
+    <link rel="next" title="Convert Weights via MLC" href="../compilation/convert_weights.html" />
+    <link rel="prev" title="Code Completion IDE Integration" href="ide_integration.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,25 +165,26 @@
             
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/intro.html">Introduction to MLC LLM</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="project_overview.html">Project Overview</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Configure MLCChat in JSON</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM and JavaScript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rest.html">REST API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_engine.html">Python API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="android.html">Android App</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Customize MLC Config File in JSON</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#structure-of-mlcchat-configuration">Structure of MLCChat Configuration</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#conversation-structure">Conversation Structure</a></li>
 </ul>
 </li>
 </ul>
 </li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and JavaScript API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -268,7 +269,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Configure MLCChat in JSON</li>
+      <li>Customize MLC Config File in JSON</li>
     
     
       
@@ -279,7 +280,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/get_started/mlc_chat_config.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/deploy/mlc_chat_config.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -293,8 +294,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="configure-mlcchat-in-json">
-<span id="configure-mlc-chat-json"></span><h1>Configure MLCChat in JSON<a class="headerlink" href="#configure-mlcchat-in-json" title="Permalink to this heading">¶</a></h1>
+  <section id="customize-mlc-config-file-in-json">
+<span id="configure-mlc-chat-json"></span><h1>Customize MLC Config File in JSON<a class="headerlink" href="#customize-mlc-config-file-in-json" title="Permalink to this heading">¶</a></h1>
 <p><code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> is required for both compile-time and runtime, hence serving two purposes:</p>
 <ol class="arabic simple">
 <li><p>Specify how we compile a model (shown in <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>), and</p></li>
@@ -493,10 +494,10 @@ from it is in the following format:</p>
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="../deploy/javascript.html" class="btn btn-neutral float-right" title="WebLLM and JavaScript API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="../compilation/convert_weights.html" class="btn btn-neutral float-right" title="Convert Weights via MLC" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="project_overview.html" class="btn btn-neutral float-left" title="Project Overview" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="ide_integration.html" class="btn btn-neutral float-left" title="Code Completion IDE Integration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

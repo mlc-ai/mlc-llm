@@ -45,9 +45,7 @@
     
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Configure MLCChat in JSON" href="mlc_chat_config.html" />
-    <link rel="prev" title="👋 Welcome to MLC LLM" href="../index.html" /> 
+    <link rel="search" title="Search" href="../search.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -165,15 +163,9 @@
             
             
               <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
-<ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Project Overview</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#terminologies">Terminologies</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#model-preparation">Model Preparation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#runtime-flow-overview">Runtime Flow Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#what-to-do-next">What to Do Next</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Configure MLCChat in JSON</a></li>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction to MLC LLM</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
 <ul>
@@ -184,6 +176,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
@@ -333,7 +326,7 @@ The default chat config usually resides in the same directory as model weights. 
 <p>A default chat config usually comes with the model weight directory. You can further customize
 the system prompt, temperature, and other options by modifying the JSON file.
 MLC chat runtimes also provide API to override these options during model reload.
-Please refer to <a class="reference internal" href="mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> for more details.</p>
+Please refer to <a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a> for more details.</p>
 </section>
 <section id="runtime-flow-overview">
 <h2>Runtime Flow Overview<a class="headerlink" href="#runtime-flow-overview" title="Permalink to this heading">¶</a></h2>
@@ -355,7 +348,7 @@ WebLLM utilizes URLs of local or Internet-hosted WebAssembly (Wasm) files.</p>
 Moving next, feel free to check out documents on the left navigation panel and
 learn about topics you are interested in.</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="mlc_chat_config.html"><span class="doc">Configure MLCChat in JSON</span></a> shows how to configure specific chat behavior.</p></li>
+<li><p><a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a> shows how to configure specific chat behavior.</p></li>
 <li><p>Build and Deploy App section contains guides to build apps
 and platform-specific MLC chat runtimes.</p></li>
 <li><p>Compile models section provides guidelines to convert model weights and produce model libs.</p></li>
@@ -370,15 +363,6 @@ and platform-specific MLC chat runtimes.</p></li>
           
 
 <footer>
-
-    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
-      
-        <a href="mlc_chat_config.html" class="btn btn-neutral float-right" title="Configure MLCChat in JSON" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
-      
-      
-        <a href="../index.html" class="btn btn-neutral float-left" title="👋 Welcome to MLC LLM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
-      
-    </div>
 
 <div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
 <section class="footerSec">
