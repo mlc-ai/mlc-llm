@@ -1,5 +1,6 @@
 """The MLC LLM server launched in a subprocess."""
 
+import os
 import subprocess
 import sys
 import time
@@ -79,13 +80,15 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]
         process_path = str(Path(__file__).resolve().parents[4])
-        self._proc = subprocess.Popen(cmd, cwd=process_path)  # pylint: disable=consider-using-with
+        self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
+            cmd, cwd=process_path, env=os.environ
+        )
         # NOTE: DO NOT USE `stdout=subprocess.PIPE, stderr=subprocess.PIPE`
         # in subprocess.Popen here. PIPE has a fixed-size buffer with may block
         # and hang forever.
 
         # Try to query the server until it is ready.
-        openai_v1_models_url = "http://127.0.0.1:8000/v1/models"
+        openai_v1_models_url = f"http://{self.host}:{str(self.port)}/v1/models"
         query_result = None
         timeout = 60
         attempts = 0.0
