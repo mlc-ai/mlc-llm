@@ -1,7 +1,7 @@
 """The MLC LLM server launched in a subprocess."""
 
-import subprocess
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
