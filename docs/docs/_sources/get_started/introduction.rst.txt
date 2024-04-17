@@ -88,11 +88,11 @@ You can save the code below into a Python file and run it.
 
 .. code:: python
 
-  from mlc_llm import Engine
+  from mlc_llm import LLMEngine
 
   # Create engine
   model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
-  engine = Engine(model)
+  engine = LLMEngine(model)
 
   # Run chat completion in OpenAI API.
   for response in engine.chat.completions.create(
@@ -112,9 +112,9 @@ You can save the code below into a Python file and run it.
 
   MLC LLM Python API
 
-This code example first creates an :class:`mlc_llm.Engine` instance with the the 4-bit quantized Llama-2 model.
-**We design the Python API** :class:`mlc_llm.Engine` **to align with OpenAI API**,
-which means you can use :class:`mlc_llm.Engine` in the same way of using
+This code example first creates an :class:`mlc_llm.LLMEngine` instance with the the 4-bit quantized Llama-2 model.
+**We design the Python API** :class:`mlc_llm.LLMEngine` **to align with OpenAI API**,
+which means you can use :class:`mlc_llm.LLMEngine` in the same way of using
 `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 for both synchronous and asynchronous generation.
 
@@ -132,7 +132,7 @@ If you want to run without streaming, you can run
   print(response)
 
 You can also try different arguments supported in `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_.
-If you would like to do concurrent asynchronous generation, you can use :class:`mlc_llm.AsyncEngine` instead.
+If you would like to do concurrent asynchronous generation, you can use :class:`mlc_llm.AsyncLLMEngine` instead.
 
 REST Server
 -----------
@@ -226,7 +226,7 @@ You can also use this model in Python API, MLC serve and other use scenarios.
 (Optional) Compile Model Library
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In previous sections, model libraries are compiled when the :class:`mlc_llm.Engine` launches,
+In previous sections, model libraries are compiled when the :class:`mlc_llm.LLMEngine` launches,
 which is what we call "JIT (Just-in-Time) model compilation".
 In some cases, it is beneficial to explicitly compile the model libraries.
 We can deploy LLMs with reduced dependencies by shipping the library for deployment without going through compilation.
@@ -254,12 +254,12 @@ At runtime, we need to specify this model library path to use it. For example,
 
 .. code:: python
 
-  from mlc_llm import Engine
+  from mlc_llm import LLMEngine
 
   # For Python API
   model = "models/phi-2"
   model_lib_path = "models/phi-2/lib.so"
-  engine = Engine(model, model_lib_path=model_lib_path)
+  engine = LLMEngine(model, model_lib_path=model_lib_path)
 
 :ref:`compile-model-libraries` introduces the model compilation command in detail,
 where you can find instructions and example commands to compile model to different
