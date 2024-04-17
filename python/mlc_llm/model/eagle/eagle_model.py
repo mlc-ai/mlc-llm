@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 @dataclasses.dataclass
 class EagleConfig(LlamaConfig):
     """Configuration of the Eagle model."""
-    bias: bool = True # Whether to use bias in the fc layers
+
+    bias: bool = True  # Whether to use bias in the fc layers
+
 
 # pylint: disable=invalid-name,missing-docstring
 
