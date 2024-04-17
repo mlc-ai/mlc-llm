@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
-from mlc_llm.serve.sync_engine import SyncEngine
+from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -80,7 +80,7 @@ def test_engine_basic():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -156,7 +156,7 @@ def test_engine_continuous_batching_1():
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -237,7 +237,7 @@ def test_engine_continuous_batching_2():
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -323,7 +323,7 @@ def test_engine_continuous_batching_3():
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -365,7 +365,7 @@ def test_engine_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",

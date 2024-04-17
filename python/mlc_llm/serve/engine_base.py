@@ -464,7 +464,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
 
 @dataclass
 class CallbackStreamOutput:
-    """The output of Engine._generate and AsyncEngine._generate
+    """The output of LLMEngine._generate and AsyncLLMEngine._generate
 
     Attributes
     ----------
@@ -489,7 +489,7 @@ class CallbackStreamOutput:
 
 
 class AsyncRequestStream:
-    """The asynchronous stream for requests in AsyncEngine.
+    """The asynchronous stream for requests in AsyncLLMEngine.
 
     Each request has its own unique stream.
     The stream exposes the method `push` for engine to push new generated
@@ -548,29 +548,29 @@ class AsyncRequestStream:
 class EngineState:
     """The engine states that the request stream callback function may use.
 
-    This class is used for both AsyncEngine and Engine.
-    AsyncEngine uses the fields and methods starting with "async",
-    and Engine uses the ones starting with "sync".
+    This class is used for both AsyncLLMEngine and LLMEngine.
+    AsyncLLMEngine uses the fields and methods starting with "async",
+    and LLMEngine uses the ones starting with "sync".
 
-    - For AsyncEngine, the state contains an asynchronous event loop,
+    - For AsyncLLMEngine, the state contains an asynchronous event loop,
     the streamers and the number of unfinished generations for each request
     being processed.
-    - For Engine, the state contains a callback output blocking queue,
+    - For LLMEngine, the state contains a callback output blocking queue,
     the text streamers and the number of unfinished requests.
 
     We use this state class to avoid the callback function from capturing
-    the AsyncEngine.
+    the AsyncLLMEngine.
 
     The state also optionally maintains an event trace recorder, which can
     provide Chrome tracing when enabled.
     """
 
     trace_recorder = None
-    # States used for AsyncEngine
+    # States used for AsyncLLMEngine
     async_event_loop: Optional[asyncio.AbstractEventLoop] = None
     async_streamers: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
     async_num_unfinished_generations: Dict[str, int] = {}
-    # States used for Engine
+    # States used for LLMEngine
     sync_output_queue: queue.Queue = queue.Queue()
     sync_text_streamers: List[TextStreamer] = []
     sync_num_unfinished_generations: int = 0
@@ -632,7 +632,7 @@ class EngineState:
             self.async_event_loop = asyncio.get_event_loop()
 
     def _async_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The request stream callback function for AsyncEngine to stream back
+        """The request stream callback function for AsyncLLMEngine to stream back
         the request generation results.
 
         Note
@@ -652,7 +652,7 @@ class EngineState:
     def _async_request_stream_callback_impl(
         self, delta_outputs: List[data.RequestStreamOutput]
     ) -> None:
-        """The underlying implementation of request stream callback for AsyncEngine."""
+        """The underlying implementation of request stream callback for AsyncLLMEngine."""
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             streamers = self.async_streamers.get(request_id, None)
@@ -693,28 +693,28 @@ class EngineState:
             self.record_event(request_id, event="finish callback")
 
     def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The request stream callback function for Engine to stream back
+        """The request stream callback function for LLMEngine to stream back
         the request generation results.
         """
         # Put the delta outputs to the queue in the unblocking way.
         self.sync_output_queue.put_nowait(delta_outputs)
 
 
-class EngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
     """The base engine class, which implements common functions that
-    are shared by Engine and AsyncEngine.
+    are shared by LLMEngine and AsyncLLMEngine.
 
     This class wraps a threaded engine that runs on a standalone
     thread inside and streams back the delta generated results via
     callback functions. The internal threaded engine keeps running an
     loop that drives the engine.
 
-    Engine and AsyncEngine inherits this EngineBase class, and implements
+    LLMEngine and AsyncLLMEngine inherits this LLMEngineBase class, and implements
     their own methods to process the delta generated results received
     from callback functions and yield the processed delta results in
     the forms of standard API protocols.
 
-    Checkout subclasses AsyncEngine/Engine for the docstring of constructor parameters.
+    Checkout subclasses AsyncLLMEngine/LLMEngine for the docstring of constructor parameters.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals

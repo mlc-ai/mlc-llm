@@ -14,7 +14,7 @@ from mlc_llm.serve import (
     data,
 )
 from mlc_llm.serve.engine_base import ModelInfo
-from mlc_llm.serve.sync_engine import SyncEngine
+from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -93,7 +93,7 @@ def test_engine_basic():
     small_model_lib_path = (
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -161,7 +161,7 @@ def test_engine_eagle_basic():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     )
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -244,7 +244,7 @@ def test_engine_continuous_batching_1():
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
     timer = CallbackTimer()
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -330,7 +330,7 @@ def test_engine_eagle_continuous_batching_1():
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
     timer = CallbackTimer()
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -374,7 +374,7 @@ def test_engine_generate():
     small_model_lib_path = (
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -407,7 +407,7 @@ def test_engine_eagle_generate():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -455,7 +455,7 @@ def test_engine_efficiency():
     # Create engine
     model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
     model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
-    engine = SyncEngine(
+    engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -527,7 +527,7 @@ def test_engine_spec_efficiency():
     # small_model_lib_path = (
     #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so"
     # )
-    spec_engine = SyncEngine(
+    spec_engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -598,7 +598,7 @@ def test_engine_eagle_spec_efficiency():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     )
-    spec_engine = SyncEngine(
+    spec_engine = SyncLLMEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",

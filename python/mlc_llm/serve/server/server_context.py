@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 
-from ..engine import AsyncEngine
+from ..engine import AsyncLLMEngine
 
 
 class ServerContext:
@@ -13,7 +13,7 @@ class ServerContext:
     server_context: Optional["ServerContext"] = None
 
     def __init__(self):
-        self._models: Dict[str, AsyncEngine] = {}
+        self._models: Dict[str, AsyncLLMEngine] = {}
 
     def __enter__(self):
         if ServerContext.server_context is not None:
@@ -31,13 +31,13 @@ class ServerContext:
         """Returns the current ServerContext."""
         return ServerContext.server_context
 
-    def add_model(self, hosted_model: str, engine: AsyncEngine) -> None:
+    def add_model(self, hosted_model: str, engine: AsyncLLMEngine) -> None:
         """Add a new model to the server context together with the engine."""
         if hosted_model in self._models:
             raise RuntimeError(f"Model {hosted_model} already running.")
         self._models[hosted_model] = engine
 
-    def get_engine(self, model: str) -> Optional[AsyncEngine]:
+    def get_engine(self, model: str) -> Optional[AsyncLLMEngine]:
         """Get the async engine of the requested model."""
         return self._models.get(model, None)
 

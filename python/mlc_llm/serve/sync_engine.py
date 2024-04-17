@@ -41,7 +41,7 @@ def _create_tvm_module(
     return {key: module[key] for key in ffi_funcs}
 
 
-class SyncEngine:
+class SyncLLMEngine:
     """The Python interface of synchronize request serving engine for MLC LLM.
 
     The engine receives requests from the "add_request" method. For

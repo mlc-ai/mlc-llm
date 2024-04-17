@@ -37,10 +37,10 @@ class Chat:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to chat completions."""
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
-        assert isinstance(engine(), (AsyncEngine, Engine))
+        assert isinstance(engine(), (AsyncLLMEngine, LLMEngine))
         self.completions = (
             AsyncChatCompletion(engine)  # type: ignore
-            if isinstance(engine(), AsyncEngine)
+            if isinstance(engine(), AsyncLLMEngine)
             else ChatCompletion(engine)  # type: ignore
         )
 
@@ -49,7 +49,7 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to async chat completions."""
 
     if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["AsyncEngine"]
+        engine: weakref.ReferenceType["AsyncLLMEngine"]
     else:
         engine: weakref.ReferenceType
 
@@ -226,7 +226,7 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to chat completions."""
 
     if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["Engine"]
+        engine: weakref.ReferenceType["LLMEngine"]
     else:
         engine: weakref.ReferenceType
 
@@ -401,7 +401,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to async completions."""
 
     if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["AsyncEngine"]
+        engine: weakref.ReferenceType["AsyncLLMEngine"]
     else:
         engine: weakref.ReferenceType
 
@@ -580,7 +580,7 @@ class Completion:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to completions."""
 
     if sys.version_info >= (3, 9):
-        engine: weakref.ReferenceType["Engine"]
+        engine: weakref.ReferenceType["LLMEngine"]
     else:
         engine: weakref.ReferenceType
 
@@ -752,8 +752,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         )
 
 
-class AsyncEngine(engine_base.EngineBase):
-    """The AsyncEngine in MLC LLM that provides the asynchronous
+class AsyncLLMEngine(engine_base.LLMEngineBase):
+    """The AsyncLLMEngine in MLC LLM that provides the asynchronous
     interfaces with regard to OpenAI API.
 
     Parameters
@@ -825,7 +825,7 @@ class AsyncEngine(engine_base.EngineBase):
         memory usage may be slightly larger than this number.
 
     engine_config : Optional[EngineConfig]
-        The Engine execution configuration.
+        The LLMEngine execution configuration.
         Currently speculative decoding mode is specified via engine config.
         For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
         to specify the eagle-style speculative decoding.
@@ -1225,7 +1225,7 @@ class AsyncEngine(engine_base.EngineBase):
         generation_config: GenerationConfig,
         request_id: str,
     ) -> AsyncGenerator[List[engine_base.CallbackStreamOutput], Any]:
-        """Internal asynchronous text generation interface of AsyncEngine.
+        """Internal asynchronous text generation interface of AsyncLLMEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
         at a time via yield. The returned list length is the number of
         parallel generations specified by `generation_config.n`.
@@ -1295,8 +1295,8 @@ class AsyncEngine(engine_base.EngineBase):
         self._ffi["abort_request"](request_id)
 
 
-class Engine(engine_base.EngineBase):
-    """The Engine in MLC LLM that provides the synchronous
+class LLMEngine(engine_base.LLMEngineBase):
+    """The LLMEngine in MLC LLM that provides the synchronous
     interfaces with regard to OpenAI API.
 
     Parameters
@@ -1368,7 +1368,7 @@ class Engine(engine_base.EngineBase):
         memory usage may be slightly larger than this number.
 
     engine_config : Optional[EngineConfig]
-        The Engine execution configuration.
+        The LLMEngine execution configuration.
         Currently speculative decoding mode is specified via engine config.
         For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
         to specify the eagle-style speculative decoding.
@@ -1761,7 +1761,7 @@ class Engine(engine_base.EngineBase):
         generation_config: GenerationConfig,
         request_id: str,
     ) -> Iterator[List[engine_base.CallbackStreamOutput]]:
-        """Internal synchronous text generation interface of AsyncEngine.
+        """Internal synchronous text generation interface of AsyncLLMEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
         at a time via yield. The returned list length is the number of
         parallel generations specified by `generation_config.n`.
@@ -1815,7 +1815,7 @@ class Engine(engine_base.EngineBase):
     def _request_stream_callback_impl(
         self, delta_outputs: List[data.RequestStreamOutput]
     ) -> List[List[engine_base.CallbackStreamOutput]]:
-        """The underlying implementation of request stream callback of Engine."""
+        """The underlying implementation of request stream callback of LLMEngine."""
         batch_outputs: List[List[engine_base.CallbackStreamOutput]] = []
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
