@@ -127,6 +127,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         quantize_final_fc=False,
         quantize_embedding=False,
+        quantize_linear=True,
         use_scale=False,
     ),
     "e4m3_e4m3_f16": PerTensorQuantize(
@@ -138,6 +139,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         model_dtype="float16",
         quantize_final_fc=False,
         quantize_embedding=False,
+        quantize_linear=True,
         use_scale=False,
     ),
 }
