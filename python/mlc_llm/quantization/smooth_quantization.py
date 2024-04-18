@@ -1,7 +1,7 @@
 """The SmoothQuant config"""
 
 from dataclasses import dataclass
-from typing import List, Literal, Union, Dict, Any
+from typing import List, Literal, Union, Dict, Any, Iterator, Tuple
 from collections import OrderedDict
 import numpy as np
 import os
@@ -75,7 +75,7 @@ def load_file(path):
     return loaded_dict
 
 
-def shard_smoothquant_params(tensor_parallel_shards, args):
+def shard_smoothquant_params(tensor_parallel_shards, args) -> Iterator[Tuple[str, NDArray]]:
     model_config = args.model.config.from_file(args.config)
     model_config.tensor_parallel_shards = tensor_parallel_shards
     model = args.model.model(model_config)
@@ -89,7 +89,6 @@ def shard_smoothquant_params(tensor_parallel_shards, args):
     smoothing_factors_dict, _ = tvmjs.load_ndarray_cache(f"{pth}/smooth/", tvm.cpu())
     scales_dict, _ = tvmjs.load_ndarray_cache(f"{pth}/quantize/", tvm.cpu())
 
-    out = OrderedDict()
     smooth_0_quants = ["smq_q8i8f16_0", "smq_e4m3_float8_0", "smq_e5m2_float8_0"]
     for name, param in model.state_dict().items():
         smooth_factor_names = param_to_smooth_factor["prefill"].pop(name, None)
@@ -115,18 +114,17 @@ def shard_smoothquant_params(tensor_parallel_shards, args):
                     a_zps =     _split_array(scales_dict[a_zp], tensor_parallel_shards)
                     w_zps =     _duplicate_array(scales_dict[w_zp], tensor_parallel_shards)
                 for shard_idx in range(tensor_parallel_shards):
-                    out[_sharded_param_name(a_factor, shard_idx)] = a_factors[shard_idx]
-                    out[_sharded_param_name(w_factor, shard_idx)] = w_factors[shard_idx]
+                    yield _sharded_param_name(a_factor, shard_idx), a_factors[shard_idx]
+                    yield _sharded_param_name(w_factor, shard_idx), w_factors[shard_idx]
                     if not args.quantization.name in smooth_0_quants:
-                        out[_sharded_param_name(w_scale, shard_idx)] = w_scales[shard_idx]
-                        out[_sharded_param_name(w_zp, shard_idx)] = w_zps[shard_idx]
+                        yield _sharded_param_name(w_scale, shard_idx), w_scales[shard_idx]
+                        yield _sharded_param_name(w_zp, shard_idx), w_zps[shard_idx]
             else:
-                out[a_factor] = smoothing_factors_dict[a_factor]
-                out[w_factor] = smoothing_factors_dict[w_factor]
+                yield a_factor, smoothing_factors_dict[a_factor]
+                yield w_factor, smoothing_factors_dict[w_factor]
                 if not args.quantization.name in smooth_0_quants:
-                    out[w_scale]  = scales_dict[w_scale]
-                    out[w_zp]  = scales_dict[w_zp]
-    return out
+                    yield w_scale, scales_dict[w_scale]
+                    yield w_zp, scales_dict[w_zp]
 
 
 def _create_smoothquant_func(
