@@ -21,12 +21,13 @@ class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
+        mod = mod.clone()
 
         def _emit_metadata(metadata):
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-            with bb.function("main", params=[]):
+            with bb.function("_metadata", params=[]):
                 bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
-            return bb.finalize()["main"]
+            return bb.finalize()["_metadata"]
 
         self.metadata["memory_usage"] = _MemoryEstimator().run(mod)
         mod["_metadata"] = _emit_metadata(self.metadata)
