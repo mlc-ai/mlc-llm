@@ -6,7 +6,7 @@ from tvm import IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
-from tvm.runtime import DataType, DataTypeCode
+from tvm.runtime import DataType
 from tvm.target import Target
 
 from mlc_llm.support import tensor_parallel as tp
@@ -105,7 +105,6 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
 ) -> te.Tensor:
     """Unpack a fp8 value from the storage dtype and convert to float."""
     assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
-    assert DataType(storage_dtype).type_code == DataTypeCode.UINT
     bits = DataType(quant_dtype).bits
     elem_storage_dtype = DataType(f"uint{bits}")
     tir_bin_mask = tir.const((1 << bits) - 1, "uint8")

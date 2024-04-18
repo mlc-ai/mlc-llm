@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from tvm import DataType, DataTypeCode, tir
+from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 
@@ -218,7 +218,6 @@ def dequantize_float8_gemv(
         if num_elem_per_storage == 1:
             w = tir.reinterpret(quantize_dtype, w[e, i, j])
         else:
-            assert DataType(storage_dtype).type_code == DataTypeCode.UINT
             tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
             w = w[e, i, j // num_elem_per_storage]
             shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
