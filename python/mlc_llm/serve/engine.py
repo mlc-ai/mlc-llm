@@ -22,7 +22,7 @@ from tvm.runtime import Device
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, GenerationConfig
+from mlc_llm.serve.config import GenerationConfig, SpeculativeMode
 from mlc_llm.serve.request import Request
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -847,7 +847,8 @@ class AsyncLLMEngine(engine_base.LLMEngineBase):
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        engine_config: Optional[EngineConfig] = None,
+        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        spec_draft_length: int = 4,
         enable_tracing: bool = False,
     ) -> None:
         super().__init__(
@@ -861,7 +862,8 @@ class AsyncLLMEngine(engine_base.LLMEngineBase):
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
             gpu_memory_utilization=gpu_memory_utilization,
-            engine_config=engine_config,
+            speculative_mode=speculative_mode,
+            spec_draft_length=spec_draft_length,
             enable_tracing=enable_tracing,
         )
         self.chat = Chat(weakref.ref(self))
@@ -1390,7 +1392,8 @@ class LLMEngine(engine_base.LLMEngineBase):
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        engine_config: Optional[EngineConfig] = None,
+        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        spec_draft_length: int = 4,
         enable_tracing: bool = False,
     ) -> None:
         super().__init__(
@@ -1404,7 +1407,8 @@ class LLMEngine(engine_base.LLMEngineBase):
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
             gpu_memory_utilization=gpu_memory_utilization,
-            engine_config=engine_config,
+            speculative_mode=speculative_mode,
+            spec_draft_length=spec_draft_length,
             enable_tracing=enable_tracing,
         )
         self.chat = Chat(weakref.ref(self))

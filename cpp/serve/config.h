@@ -68,50 +68,62 @@ class GenerationConfig : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
 
-/****************** KV Cache config ******************/
-
-/*! \brief The configuration of paged KV cache. */
-class KVCacheConfigNode : public Object {
- public:
-  int page_size;
-  int max_num_sequence;
-  int max_total_sequence_length;
-  int prefill_chunk_size;
-
-  String AsJSONString() const;
-
-  static constexpr const char* _type_key = "mlc.serve.KVCacheConfig";
-  static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(KVCacheConfigNode, Object);
-};
-
-class KVCacheConfig : public ObjectRef {
- public:
-  explicit KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
-                         int prefill_chunk_size);
-
-  explicit KVCacheConfig(const std::string& config_str, int max_single_sequence_length);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(KVCacheConfig, ObjectRef, KVCacheConfigNode);
-};
-
-/****************** Engine Mode ******************/
+/****************** Engine config ******************/
 
 /*! \brief The speculative mode. */
 enum class SpeculativeMode : int {
+  /*! \brief Disable speculative decoding. */
   kDisable = 0,
+  /*! \brief The normal speculative decoding (small draft) mode. */
   kSmallDraft = 1,
+  /*! \brief The eagle-style speculative decoding. */
   kEagle = 2,
 };
 
 /*! \brief The configuration of engine execution config. */
 class EngineConfigNode : public Object {
  public:
-  /* The number of tokens to generate in speculative proposal (draft) */
-  int spec_draft_length;
-  /* The speculative mode. */
+  /*************** Models ***************/
+
+  /*! \brief The path to the model directory. */
+  String model;
+  /*! \brief The path to the model library. */
+  String model_lib_path;
+  /*! \brief The path to the additional models' directories. */
+  Array<String> additional_models;
+  /*! \brief The path to the additional models' libraries. */
+  Array<String> additional_model_lib_paths;
+
+  /*************** Device ***************/
+
+  /*! \brief The device where the models run. */
+  DLDevice device;
+
+  /*************** KV cache config and engine capacities ***************/
+
+  /*! \brief The number of consecutive tokens handled in each page in paged KV cache. */
+  int kv_cache_page_size;
+  /*!
+   * \brief The maximum number of sequences that are allowed to be
+   * processed by the KV cache at any time.
+   */
+  int max_num_sequence;
+  /*! \brief The maximum length allowed for a single sequence in the engine. */
+  int max_total_sequence_length;
+  /*!
+   * \brief The maximum total number of tokens whose KV data are allowed
+   * to exist in the KV cache at any time.
+   */
+  int max_single_sequence_length;
+  /*! \brief The maximum total sequence length in a prefill. */
+  int prefill_chunk_size;
+
+  /*************** Speculative decoding ***************/
+
+  /*! \brief The speculative mode. */
   SpeculativeMode speculative_mode;
+  /*! \brief The number of tokens to generate in speculative proposal (draft). */
+  int spec_draft_length = 4;
 
   String AsJSONString() const;
 
@@ -123,11 +135,13 @@ class EngineConfigNode : public Object {
 
 class EngineConfig : public ObjectRef {
  public:
-  explicit EngineConfig(int spec_draft_length, int speculative_mode);
+  explicit EngineConfig(String model, String model_lib_path, Array<String> additional_models,
+                        Array<String> additional_model_lib_paths, DLDevice device,
+                        int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                        int max_single_sequence_length, int prefill_chunk_size,
+                        SpeculativeMode speculative_mode, int spec_draft_length);
 
-  explicit EngineConfig(const std::string& config_str);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
 };
 
 }  // namespace serve

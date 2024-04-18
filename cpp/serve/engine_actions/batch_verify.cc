@@ -27,12 +27,12 @@ namespace serve {
 class BatchVerifyActionObj : public EngineActionObj {
  public:
   explicit BatchVerifyActionObj(Array<Model> models, LogitProcessor logit_processor,
-                                Sampler sampler, KVCacheConfig kv_cache_config,
+                                Sampler sampler, EngineConfig engine_config,
                                 Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
-        kv_cache_config_(std::move(kv_cache_config)),
+        engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
         rng_(RandomGenerator::GetInstance()) {}
 
@@ -182,8 +182,8 @@ class BatchVerifyActionObj : public EngineActionObj {
     num_page_requirement.reserve(running_rsentries.size());
     for (const RequestStateEntry& rsentry : running_rsentries) {
       int draft_length = rsentry->mstates[draft_model_id_]->draft_output_tokens.size();
-      int num_require_pages =
-          (draft_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+      int num_require_pages = (draft_length + engine_config_->kv_cache_page_size - 1) /
+                              engine_config_->kv_cache_page_size;
       draft_lengths.push_back(draft_length);
       num_page_requirement.push_back(num_require_pages);
       total_draft_length += draft_length;
@@ -218,8 +218,8 @@ class BatchVerifyActionObj : public EngineActionObj {
   LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
-  /*! \brief The kv cache config. */
-  KVCacheConfig kv_cache_config_;
+  /*! \brief The engine config. */
+  EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Random number generator. */
@@ -231,10 +231,10 @@ class BatchVerifyActionObj : public EngineActionObj {
 };
 
 EngineAction EngineAction::BatchVerify(Array<Model> models, LogitProcessor logit_processor,
-                                       Sampler sampler, KVCacheConfig kv_cache_config,
+                                       Sampler sampler, EngineConfig engine_config,
                                        Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<BatchVerifyActionObj>(
-      std::move(models), std::move(logit_processor), std::move(sampler), std::move(kv_cache_config),
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(engine_config),
       std::move(trace_recorder)));
 }
 

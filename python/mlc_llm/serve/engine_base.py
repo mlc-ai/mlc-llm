@@ -20,7 +20,7 @@ from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_mod
 from mlc_llm.protocol import openai_api_protocol, protocol_utils
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, GenerationConfig, KVCacheConfig
+from mlc_llm.serve.config import EngineConfig, GenerationConfig, SpeculativeMode
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -75,20 +75,17 @@ def _parse_models(
 
 def _process_model_args(
     models: List[ModelInfo], device: tvm.runtime.Device
-) -> Tuple[List[Any], List[str], str, Conversation]:
+) -> Tuple[List[Tuple[str, str]], List[str], Conversation]:
     """Process the input ModelInfo to get the engine initialization arguments."""
-    tokenizer_path: Optional[str] = None
     conversation: Optional[Conversation] = None
     config_file_paths: List[str] = []
 
-    def _convert_model_info(model: ModelInfo) -> List[Any]:
-        nonlocal tokenizer_path, conversation
+    def _convert_model_info(model: ModelInfo) -> Tuple[str, str]:
+        nonlocal conversation
 
         model_path, config_file_path = _get_model_path(model.model)
         config_file_paths.append(config_file_path)
         chat_config = _get_chat_config(config_file_path, user_chat_config=None)
-        if tokenizer_path is None:
-            tokenizer_path = model_path
         if conversation is None:
             assert isinstance(chat_config.conv_template, Conversation)
             conversation = chat_config.conv_template
@@ -112,15 +109,12 @@ def _process_model_args(
                     device=device,
                 )
             )
-        return [model_lib_path, model_path, device.device_type, device.device_id]
+        return model_path, model_lib_path
 
-    model_args: List[Any] = sum(
-        (_convert_model_info(model) for model in models),
-        start=[],
-    )
+    model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]
 
     assert conversation is not None
-    return model_args, config_file_paths, tokenizer_path, conversation
+    return model_args, config_file_paths, conversation
 
 
 def _estimate_mem_usage_and_max_total_sequence_length(  # pylint: disable=too-many-locals,too-many-arguments
@@ -306,8 +300,14 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
     device: tvm.runtime.Device,
     model_config_dicts: List[Dict[str, Any]],
     model_config_paths: List[str],
-) -> Tuple[KVCacheConfig, int]:
-    """Initialize the KV cache config with user input and GPU memory usage estimation."""
+) -> Tuple[int, int, int, int]:
+    """Initialize the KV cache config with user input and GPU memory usage estimation.
+    The returned four integers are:
+    - max_batch_size
+    - max_total_sequence_length
+    - prefill_chunk_size
+    - model_max_single_sequence_length
+    """
     (
         model_max_single_sequence_length,
         model_max_prefill_chunk_size,
@@ -319,7 +319,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
         max_batch_size: Optional[int],
         max_total_sequence_length: Optional[int],
         prefill_chunk_size: Optional[int],
-    ) -> Tuple[KVCacheConfig, List[float]]:
+    ) -> Tuple[Tuple[int, int, int], List[float]]:
         logging_msg = ""
         # - max_batch_size
         if max_batch_size is None:
@@ -396,11 +396,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
 
         # - Construct the KV cache config
         # - Estimate total GPU memory usage on single GPU.
-        return KVCacheConfig(
-            max_num_sequence=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-        ), [
+        return (max_batch_size, max_total_sequence_length, prefill_chunk_size), [
             total_mem_usage_except_kv_cache + max_total_sequence_length * kv_bytes_per_token,
             model_params_bytes,
             kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes,
@@ -433,9 +429,9 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
         'The actual engine mode is "%s". So max batch size is %s, '
         "max KV cache token capacity is %s, prefill chunk size is %s.",
         green(mode),
-        green(str(kv_cache_config.max_num_sequence)),
-        green(str(kv_cache_config.max_total_sequence_length)),
-        green(str(kv_cache_config.prefill_chunk_size)),
+        green(str(kv_cache_config[0])),
+        green(str(kv_cache_config[1])),
+        green(str(kv_cache_config[2])),
     )
 
     logger.info(
@@ -459,7 +455,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
             override_msg,
         )
 
-    return kv_cache_config, model_max_single_sequence_length
+    return *kv_cache_config, model_max_single_sequence_length
 
 
 @dataclass
@@ -729,7 +725,8 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         max_total_sequence_length: Optional[int],
         prefill_chunk_size: Optional[int],
         gpu_memory_utilization: Optional[float],
-        engine_config: Optional[EngineConfig],
+        speculative_mode: SpeculativeMode,
+        spec_draft_length: int,
         enable_tracing: bool,
     ) -> None:
         # - Initialize model loading info.
@@ -740,21 +737,23 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         (
             model_args,
             model_config_paths,
-            tokenizer_path,
             self.conv_template,
         ) = _process_model_args(models, device)
 
         # - Load the raw model config into dict
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            # model_args:
-            # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            model_info.model_lib_path = model_args[i * (len(model_args) // len(models))]
+            model_info.model_lib_path = model_args[i][1]
             with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
         # - Decide the KV cache config based on mode and user input.
-        kv_cache_config, max_single_sequence_length = _infer_kv_cache_config(
+        (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            max_single_sequence_length,
+        ) = _infer_kv_cache_config(
             mode,
             max_batch_size,
             max_total_sequence_length,
@@ -765,9 +764,7 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
             self.model_config_dicts,
             model_config_paths,
         )
-        self.max_input_sequence_length = min(
-            max_single_sequence_length, kv_cache_config.max_total_sequence_length
-        )
+        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
 
         # - Initialize engine state and engine.
         self.state = EngineState(enable_tracing)
@@ -784,20 +781,26 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "debug_call_func_on_all_worker",
             ]
         }
-        self.tokenizer = Tokenizer(tokenizer_path)
-        if engine_config is None:
-            # The default engine mode: non-speculative
-            engine_config = EngineConfig()
+        self.tokenizer = Tokenizer(model_args[0][0])
 
         def _background_loop():
             self._ffi["init_background_engine"](
-                max_single_sequence_length,
-                tokenizer_path,
-                kv_cache_config.asjson(),
-                engine_config.asjson(),
+                EngineConfig(
+                    model=model_args[0][0],
+                    model_lib_path=model_args[0][1],
+                    additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                    additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+                    device=device,
+                    kv_cache_page_size=16,
+                    max_num_sequence=max_batch_size,
+                    max_total_sequence_length=max_total_sequence_length,
+                    max_single_sequence_length=max_single_sequence_length,
+                    prefill_chunk_size=prefill_chunk_size,
+                    speculative_mode=speculative_mode,
+                    spec_draft_length=spec_draft_length,
+                ),
                 self.state.get_request_stream_callback(kind),
                 self.state.trace_recorder,
-                *model_args,
             )
             self._ffi["run_background_loop"]()
 

@@ -192,6 +192,16 @@ When it is unspecified, it defaults to 0.90.
 Under mode "local" or "interactive", the actual memory usage may be significantly smaller than
 this number. Under mode "server", the actual memory usage may be slightly larger than this number.
 """,
+    "speculative_mode_serve": """
+The speculative decoding mode. Right now three options are supported:
+ - DISABLE, where speculative decoding is not enabled,
+ - SMALL_DRAFT, denoting the normal speculative decoding (small draft) style,
+ - EAGLE, denoting the eagle-style speculative decoding.
+The default mode is "DISABLE".
+""",
+    "spec_draft_length_serve": """
+The number of draft tokens to generate in speculative proposal. The default values is 4.
+""",
     "engine_config_serve": """
 The LLMEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.

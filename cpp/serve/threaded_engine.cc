@@ -35,14 +35,9 @@ enum class InstructionKind : int {
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitBackgroundEngine(TVMArgs args) final {
-    Optional<PackedFunc> request_stream_callback;
-    try {
-      request_stream_callback = args.At<Optional<PackedFunc>>(4);
-    } catch (const dmlc::Error& e) {
-      LOG(FATAL) << "ValueError: " << e.what() << kEngineCreationErrorMessage;
-    }
-
+  void InitBackgroundEngine(EngineConfig engine_config,
+                            Optional<PackedFunc> request_stream_callback,
+                            Optional<EventTraceRecorder> trace_recorder) final {
     CHECK(request_stream_callback.defined())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
@@ -62,12 +57,9 @@ class ThreadedEngineImpl : public ThreadedEngine {
       }
     };
 
-    std::vector<TVMValue> values{args.values, args.values + args.size()};
-    std::vector<int> type_codes{args.type_codes, args.type_codes + args.size()};
-    TVMArgsSetter setter(values.data(), type_codes.data());
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    setter(4, request_stream_callback);
-    background_engine_ = CreateEnginePacked(TVMArgs(values.data(), type_codes.data(), args.size()));
+    background_engine_ = Engine::Create(
+        std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
   }
 
   void AddRequest(Request request) final {
@@ -244,6 +236,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
+  TVM_MODULE_VTABLE_ENTRY("init_background_engine", &ThreadedEngineImpl::InitBackgroundEngine);
   TVM_MODULE_VTABLE_ENTRY("add_request", &ThreadedEngineImpl::AddRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &ThreadedEngineImpl::AbortRequest);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &ThreadedEngineImpl::RunBackgroundLoop);
@@ -252,12 +245,6 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
-  if (_name == "init_background_engine") {
-    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
-      SelfPtr self = static_cast<SelfPtr>(_self.get());
-      self->InitBackgroundEngine(args);
-    });
-  }
   TVM_MODULE_VTABLE_END();
 };
 

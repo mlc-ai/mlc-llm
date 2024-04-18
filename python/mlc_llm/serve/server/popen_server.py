@@ -11,7 +11,7 @@ import psutil
 import requests
 from tvm.runtime import Device
 
-from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.config import SpeculativeMode
 
 
 class PopenServer:  # pylint: disable=too-many-instance-attributes
@@ -30,7 +30,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        engine_config: Optional[EngineConfig] = None,
+        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        spec_draft_length: int = 4,
         enable_tracing: bool = False,
         host: str = "127.0.0.1",
         port: int = 8000,
@@ -45,7 +46,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.max_total_sequence_length = max_total_sequence_length
         self.prefill_chunk_size = prefill_chunk_size
         self.gpu_memory_utilization = gpu_memory_utilization
-        self.engine_config = engine_config
+        self.speculative_mode = speculative_mode
+        self.spec_draft_length = spec_draft_length
         self.enable_tracing = enable_tracing
         self.host = host
         self.port = port
@@ -70,8 +72,13 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
             cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
         if self.prefill_chunk_size is not None:
             cmd += ["--prefill-chunk-size", str(self.prefill_chunk_size)]
-        if self.engine_config is not None:
-            cmd += ["--engine-config", str(self.engine_config)]
+        if self.speculative_mode != SpeculativeMode.DISABLE:
+            cmd += [
+                "--speculative-mode",
+                self.speculative_mode.name,
+                "--spec-draft-length",
+                str(self.spec_draft_length),
+            ]
         if self.gpu_memory_utilization is not None:
             cmd += ["--gpu-memory-utilization", str(self.gpu_memory_utilization)]
         if self.enable_tracing:

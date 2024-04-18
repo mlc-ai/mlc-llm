@@ -227,9 +227,16 @@ class ModelObj : public Object {
 
   /*!
    * \brief Create the KV cache inside the model with regard to the input config.
-   * \param kv_cache_config The configuration of KV cache.
+   * \param page_size The number of consecutive tokens handled in each page in paged KV cache.
+   * \param max_num_sequence The maximum number of sequences that are allowed to be
+   * processed by the KV cache at any time.
+   * \param max_total_sequence_length The maximum length allowed for a single sequence
+   * in the engine.
+   * \param prefill_chunk_size The maximum total number of tokens whose KV data
+   * are allowed to exist in the KV cache at any time.
    */
-  virtual void CreateKVCache(KVCacheConfig kv_cache_config) = 0;
+  virtual void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
+                             int prefill_chunk_size) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
@@ -306,15 +313,14 @@ class Model : public ObjectRef {
  public:
   /*!
    * \brief Create the runtime module for LLM functions.
-   * \param reload_lib The model library. It might be a path to the binary
-   * file or an executable module that is pre-loaded.
+   * \param reload_lib_path The model library path.
    * \param model_path The path to the model weight parameters.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
-  TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device,
+  TVM_DLL static Model Create(String reload_lib_path, String model_path, DLDevice device,
                               int max_num_sequence, bool trace_enabled);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);

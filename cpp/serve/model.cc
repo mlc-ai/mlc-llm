@@ -25,10 +25,10 @@ class ModelImpl;
 
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
-Model Model::Create(TVMArgValue reload_lib, String model_path, DLDevice device,
+Model Model::Create(String reload_lib_path, String model_path, DLDevice device,
                     int max_num_sequence, bool trace_enabled) {
   return Model(
-      make_object<ModelImpl>(reload_lib, model_path, device, max_num_sequence, trace_enabled));
+      make_object<ModelImpl>(reload_lib_path, model_path, device, max_num_sequence, trace_enabled));
 }
 
 class ModelImpl : public ModelObj {
@@ -37,7 +37,7 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(TVMArgValue reload_lib, String model_path, DLDevice device,
+  explicit ModelImpl(String reload_lib_path, String model_path, DLDevice device,
                      int max_num_sequence, bool trace_enabled)
       : device_(device) {
     // Step 1. Process model config json string.
@@ -53,7 +53,7 @@ class ModelImpl : public ModelObj {
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, model_config);
+    this->ft_.Init(reload_lib_path, device_, model_config);
     // Step 3. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 4. Set max_num_sequence
@@ -714,14 +714,16 @@ class ModelImpl : public ModelObj {
 
   /*********************** KV Cache Management  ***********************/
 
-  void CreateKVCache(KVCacheConfig kv_cache_config) final {
-    IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
-    IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
-    IntTuple prefill_chunk_size{kv_cache_config->prefill_chunk_size};
-    IntTuple page_size{kv_cache_config->page_size};
+  void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
+                     int prefill_chunk_size) final {
+    IntTuple max_num_sequence_tuple{max_num_sequence};
+    IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
+    IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
+    IntTuple page_size_tuple{page_size};
     IntTuple support_sliding_window{sliding_window_size_ != -1};
-    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
-                                          prefill_chunk_size, page_size, support_sliding_window);
+    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
+                                          prefill_chunk_size_tuple, page_size_tuple,
+                                          support_sliding_window);
     local_kv_cache_ = ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
   }
 

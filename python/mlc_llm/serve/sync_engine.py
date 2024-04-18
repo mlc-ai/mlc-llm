@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 import tvm
 
 from mlc_llm.serve import data
-from mlc_llm.serve.config import EngineConfig, GenerationConfig
+from mlc_llm.serve.config import EngineConfig, GenerationConfig, SpeculativeMode
 from mlc_llm.serve.engine_base import (
     _infer_kv_cache_config,
     _parse_models,
@@ -100,7 +100,8 @@ class SyncLLMEngine:
         prefill_chunk_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         enable_tracing: bool = False,
-        engine_config: Optional[EngineConfig] = None,
+        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        spec_draft_length: int = 4,
         request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
         # - Initialize model loading info.
@@ -111,21 +112,23 @@ class SyncLLMEngine:
         (
             model_args,
             model_config_paths,
-            tokenizer_path,
             self.conv_template,
         ) = _process_model_args(models, device)
 
         # - Load the raw model config into dict
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            # model_args:
-            # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            model_info.model_lib_path = model_args[i * (len(model_args) // len(models))]
+            model_info.model_lib_path = model_args[i][1]
             with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
         # - Decide the KV cache config based on mode and user input.
-        kv_cache_config, max_single_sequence_length = _infer_kv_cache_config(
+        (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            max_single_sequence_length,
+        ) = _infer_kv_cache_config(
             mode,
             max_batch_size,
             max_total_sequence_length,
@@ -136,9 +139,7 @@ class SyncLLMEngine:
             self.model_config_dicts,
             model_config_paths,
         )
-        self.max_input_sequence_length = min(
-            max_single_sequence_length, kv_cache_config.max_total_sequence_length
-        )
+        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
 
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
@@ -155,20 +156,25 @@ class SyncLLMEngine:
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
 
-        if engine_config is None:
-            # The default engine mode: non-speculative
-            engine_config = EngineConfig()
-
         self._ffi["init"](
-            max_single_sequence_length,
-            tokenizer_path,
-            kv_cache_config.asjson(),
-            engine_config.asjson(),
+            EngineConfig(
+                model=model_args[0][0],
+                model_lib_path=model_args[0][1],
+                additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+                device=device,
+                kv_cache_page_size=16,
+                max_num_sequence=max_batch_size,
+                max_total_sequence_length=max_total_sequence_length,
+                max_single_sequence_length=max_single_sequence_length,
+                prefill_chunk_size=prefill_chunk_size,
+                speculative_mode=speculative_mode,
+                spec_draft_length=spec_draft_length,
+            ),
             request_stream_callback,
             self.trace_recorder,
-            *model_args,
         )
-        self.tokenizer = Tokenizer(tokenizer_path)
+        self.tokenizer = Tokenizer(model_args[0][0])
 
     def generate(  # pylint: disable=too-many-locals
         self,

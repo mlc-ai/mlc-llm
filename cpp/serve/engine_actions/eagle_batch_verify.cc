@@ -29,13 +29,13 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
  public:
   explicit EagleBatchVerifyActionObj(Array<Model> models, LogitProcessor logit_processor,
                                      Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
-                                     KVCacheConfig kv_cache_config,
+                                     EngineConfig engine_config,
                                      Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
-        kv_cache_config_(std::move(kv_cache_config)),
+        engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
         rng_(RandomGenerator::GetInstance()) {}
 
@@ -279,8 +279,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     num_page_requirement.reserve(running_rsentries.size());
     for (const RequestStateEntry& rsentry : running_rsentries) {
       int draft_length = rsentry->mstates[draft_model_id_]->draft_output_tokens.size();
-      int num_require_pages =
-          (draft_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+      int num_require_pages = (draft_length + engine_config_->kv_cache_page_size - 1) /
+                              engine_config_->kv_cache_page_size;
       draft_lengths.push_back(draft_length);
       num_page_requirement.push_back(num_require_pages);
       total_draft_length += draft_length;
@@ -337,8 +337,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief Workspace of each model. */
   std::vector<ModelWorkspace> model_workspaces_;
-  /*! \brief The kv cache config. */
-  KVCacheConfig kv_cache_config_;
+  /*! \brief The engine config. */
+  EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Random number generator. */
@@ -352,11 +352,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 EngineAction EngineAction::EagleBatchVerify(Array<Model> models, LogitProcessor logit_processor,
                                             Sampler sampler,
                                             std::vector<ModelWorkspace> model_workspaces,
-                                            KVCacheConfig kv_cache_config,
+                                            EngineConfig engine_config,
                                             Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleBatchVerifyActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
-      std::move(model_workspaces), std::move(kv_cache_config), std::move(trace_recorder)));
+      std::move(model_workspaces), std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

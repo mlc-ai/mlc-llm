@@ -1,19 +1,16 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
+# pylint: disable=too-many-arguments,too-many-locals
 from typing import Callable, List, Optional
 
 import numpy as np
 
 from mlc_llm.serve import (
-    EngineConfig,
     GenerationConfig,
-    KVCacheConfig,
     Request,
     RequestStreamOutput,
     SpeculativeMode,
     data,
 )
-from mlc_llm.serve.engine_base import ModelInfo
 from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 prompts = [
@@ -99,7 +96,7 @@ def test_engine_basic():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
         request_stream_callback=fcallback,
     )
 
@@ -167,7 +164,8 @@ def test_engine_eagle_basic():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(spec_draft_length=2, speculative_mode=SpeculativeMode.EAGLE),
+        speculative_mode=SpeculativeMode.EAGLE,
+        spec_draft_length=2,
         request_stream_callback=fcallback,
     )
 
@@ -250,7 +248,7 @@ def test_engine_continuous_batching_1():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -336,7 +334,7 @@ def test_engine_eagle_continuous_batching_1():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.EAGLE),
+        speculative_mode=SpeculativeMode.EAGLE,
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -380,7 +378,7 @@ def test_engine_generate():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
     )
 
     num_requests = 10
@@ -413,7 +411,7 @@ def test_engine_eagle_generate():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.EAGLE),
+        speculative_mode=SpeculativeMode.EAGLE,
     )
 
     num_requests = 10
@@ -533,9 +531,8 @@ def test_engine_spec_efficiency():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(
-            spec_draft_length=6, speculative_mode=SpeculativeMode.SMALL_DRAFT
-        ),
+        spec_draft_length=6,
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
         request_stream_callback=fcallback,
     )
 
@@ -604,7 +601,8 @@ def test_engine_eagle_spec_efficiency():
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(spec_draft_length=6, speculative_mode=SpeculativeMode.EAGLE),
+        spec_draft_length=6,
+        speculative_mode=SpeculativeMode.EAGLE,
         request_stream_callback=fcallback,
     )
 

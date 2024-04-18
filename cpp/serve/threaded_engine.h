@@ -35,9 +35,13 @@ class ThreadedEngine {
 
   /*!
    * \brief Initialize the threaded engine from packed arguments in TVMArgs.
-   * \param args The arguments of engine construction.
+   * \param engine_config The engine config.
+   * \param request_stream_callback The request stream callback function to.
+   * \param trace_recorder Event trace recorder for requests.
    */
-  virtual void InitBackgroundEngine(TVMArgs args) = 0;
+  virtual void InitBackgroundEngine(EngineConfig engine_config,
+                                    Optional<PackedFunc> request_stream_callback,
+                                    Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;

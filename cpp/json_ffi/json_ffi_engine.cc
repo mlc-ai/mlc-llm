@@ -102,6 +102,7 @@ JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
+  TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
@@ -109,41 +110,28 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
-  if (_name == "init_background_engine") {
-    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {
-      SelfPtr self = static_cast<SelfPtr>(_self.get());
-
-      std::string tokenizer_path = args.At<std::string>(1);
-      self->streamer_ = TextStreamer(Tokenizer::FromPath(tokenizer_path));
-
-      // Callback wrapper
-      Optional<PackedFunc> request_stream_callback;
-      try {
-        request_stream_callback = args.At<Optional<PackedFunc>>(4);
-      } catch (const dmlc::Error& e) {
-        LOG(FATAL) << "ValueError: " << e.what() << kEngineCreationErrorMessage;
-      }
-
-      CHECK(request_stream_callback.defined())
-          << "JSONFFIEngine requires request stream callback function, but it is not given.";
-      self->request_stream_callback_ = request_stream_callback.value();
-
-      auto frequest_stream_callback_wrapper = [self](TVMArgs args, TVMRetValue* ret) {
-        ICHECK_EQ(args.size(), 1);
-        Array<RequestStreamOutput> delta_outputs = args[0];
-        Array<String> responses = self->GetResponseFromStreamOutput(delta_outputs);
-        self->request_stream_callback_(responses);
-      };
-
-      std::vector<TVMValue> values{args.values, args.values + args.size()};
-      std::vector<int> type_codes{args.type_codes, args.type_codes + args.size()};
-      TVMArgsSetter setter(values.data(), type_codes.data());
-      request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-      setter(4, request_stream_callback);
-      self->engine_->InitBackgroundEngine(TVMArgs(values.data(), type_codes.data(), args.size()));
-    });
-  }
   TVM_MODULE_VTABLE_END();
+
+  void InitBackgroundEngine(EngineConfig engine_config,
+                            Optional<PackedFunc> request_stream_callback,
+                            Optional<EventTraceRecorder> trace_recorder) {
+    this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
+
+    CHECK(request_stream_callback.defined())
+        << "JSONFFIEngine requires request stream callback function, but it is not given.";
+    this->request_stream_callback_ = request_stream_callback.value();
+
+    auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
+      ICHECK_EQ(args.size(), 1);
+      Array<RequestStreamOutput> delta_outputs = args[0];
+      Array<String> responses = this->GetResponseFromStreamOutput(delta_outputs);
+      this->request_stream_callback_(responses);
+    };
+
+    request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
+    this->engine_->InitBackgroundEngine(
+        std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
+  }
 
   void RunBackgroundLoop() { this->engine_->RunBackgroundLoop(); }
 

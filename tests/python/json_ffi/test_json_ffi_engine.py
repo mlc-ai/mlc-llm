@@ -11,6 +11,7 @@ from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
     EngineConfig,
+    SpeculativeMode,
     _infer_kv_cache_config,
     _parse_models,
     _process_model_args,
@@ -62,7 +63,8 @@ class JSONFFIEngine:
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
-        engine_config: Optional[EngineConfig] = None,
+        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        spec_draft_length: int = 4,
         gpu_memory_utilization: Optional[float] = None,
     ) -> None:
         # - Initialize model loading info.
@@ -73,21 +75,23 @@ class JSONFFIEngine:
         (
             model_args,
             model_config_paths,
-            tokenizer_path,
             self.conv_template,
         ) = _process_model_args(models, device)
 
         # - Load the raw model config into dict
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            # model_args:
-            # [model_lib_path, model_path, device.device_type, device.device_id] * N
-            model_info.model_lib_path = model_args[i * (len(model_args) // len(models))]
+            model_info.model_lib_path = model_args[i][1]
             with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
         # - Decide the KV cache config based on mode and user input.
-        kv_cache_config, max_single_sequence_length = _infer_kv_cache_config(
+        (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            max_single_sequence_length,
+        ) = _infer_kv_cache_config(
             mode,
             max_batch_size,
             max_total_sequence_length,
@@ -98,9 +102,7 @@ class JSONFFIEngine:
             self.model_config_dicts,
             model_config_paths,
         )
-        self.max_input_sequence_length = min(
-            max_single_sequence_length, kv_cache_config.max_total_sequence_length
-        )
+        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
 
         # - Initialize engine state and engine.
         self.state = EngineState()
@@ -117,20 +119,26 @@ class JSONFFIEngine:
                 "exit_background_loop",
             ]
         }
-        self.tokenizer = Tokenizer(tokenizer_path)
-        if engine_config is None:
-            # The default engine mode: non-speculative
-            engine_config = EngineConfig()
+        self.tokenizer = Tokenizer(model_args[0][0])
 
         def _background_loop():
             self._ffi["init_background_engine"](
-                max_single_sequence_length,
-                tokenizer_path,
-                kv_cache_config.asjson(),
-                engine_config.asjson(),
+                EngineConfig(
+                    model=model_args[0][0],
+                    model_lib_path=model_args[0][1],
+                    additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                    additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+                    device=device,
+                    kv_cache_page_size=16,
+                    max_num_sequence=max_batch_size,
+                    max_total_sequence_length=max_total_sequence_length,
+                    max_single_sequence_length=max_single_sequence_length,
+                    prefill_chunk_size=prefill_chunk_size,
+                    speculative_mode=speculative_mode,
+                    spec_draft_length=spec_draft_length,
+                ),
                 self.state.get_request_stream_callback(),
                 None,
-                *model_args,
             )
             self._ffi["run_background_loop"]()
 
