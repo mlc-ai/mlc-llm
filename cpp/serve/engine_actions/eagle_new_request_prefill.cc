@@ -24,14 +24,12 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   explicit EagleNewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
                                            Sampler sampler,
                                            std::vector<ModelWorkspace> model_workspaces,
-                                           KVCacheConfig kv_cache_config,
                                            EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
-        kv_cache_config_(std::move(kv_cache_config)),
         engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)) {}
 
@@ -393,8 +391,8 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
         }
 
         int input_length = rsentry->mstates[0]->GetInputLength();
-        int num_require_pages =
-            (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+        int num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
+                                engine_config_->kv_cache_page_size;
         total_input_length += input_length;
         total_required_pages += num_require_pages;
         // - Attempt 1. Check if the entire request state entry can fit for prefill.
@@ -417,9 +415,9 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
         total_required_pages -= num_require_pages;
 
         // - Attempt 2. Check if the request state entry can partially fit by input chunking.
-        ICHECK_LE(total_input_length, kv_cache_config_->prefill_chunk_size);
-        if (kv_cache_config_->prefill_chunk_size - total_input_length >= input_length ||
-            kv_cache_config_->prefill_chunk_size == total_input_length) {
+        ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
+        if (engine_config_->prefill_chunk_size - total_input_length >= input_length ||
+            engine_config_->prefill_chunk_size == total_input_length) {
           // 1. If the input length can fit the remaining prefill chunk size,
           // it means the failure of attempt 1 is not because of the input
           // length being too long, and thus chunking does not help.
@@ -429,9 +427,9 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
           prefill_stops = true;
           break;
         }
-        input_length = kv_cache_config_->prefill_chunk_size - total_input_length;
-        num_require_pages =
-            (input_length + kv_cache_config_->page_size - 1) / kv_cache_config_->page_size;
+        input_length = engine_config_->prefill_chunk_size - total_input_length;
+        num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
+                            engine_config_->kv_cache_page_size;
         total_input_length += input_length;
         total_required_pages += num_require_pages;
         if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length, total_required_pages,
@@ -456,7 +454,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   bool CanPrefill(EngineState estate, int num_prefill_rsentries, int total_input_length,
                   int num_required_pages, int num_available_pages, int current_total_seq_len,
                   int num_running_rsentries) {
-    ICHECK_LE(num_running_rsentries, kv_cache_config_->max_num_sequence);
+    ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
@@ -464,7 +462,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
                           ? engine_config_->spec_draft_length
                           : 1;
     if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
-        std::min(kv_cache_config_->max_num_sequence, kv_cache_config_->prefill_chunk_size)) {
+        std::min(engine_config_->max_num_sequence, engine_config_->prefill_chunk_size)) {
       return false;
     }
 
@@ -475,10 +473,10 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
     // exceed the limit, where 8 is a watermark number can
     // be configured and adjusted in the future.
     int new_batch_size = num_running_rsentries + num_prefill_rsentries;
-    return total_input_length <= kv_cache_config_->prefill_chunk_size &&
+    return total_input_length <= engine_config_->prefill_chunk_size &&
            num_required_pages + new_batch_size <= num_available_pages &&
            current_total_seq_len + total_input_length + 8 * new_batch_size <=
-               kv_cache_config_->max_total_sequence_length;
+               engine_config_->max_total_sequence_length;
   }
 
   /*!
@@ -582,9 +580,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief Workspace of each model. */
   std::vector<ModelWorkspace> model_workspaces_;
-  /*! \brief The KV cache config to help decide prefill is doable. */
-  KVCacheConfig kv_cache_config_;
-  /*! \brief The engine operation mode. */
+  /*! \brief The engine config. */
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
@@ -593,13 +589,11 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
 EngineAction EngineAction::EagleNewRequestPrefill(Array<Model> models,
                                                   LogitProcessor logit_processor, Sampler sampler,
                                                   std::vector<ModelWorkspace> model_workspaces,
-                                                  KVCacheConfig kv_cache_config,
                                                   EngineConfig engine_config,
                                                   Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
-      std::move(model_workspaces), std::move(kv_cache_config), std::move(engine_config),
-      std::move(trace_recorder)));
+      std::move(model_workspaces), std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

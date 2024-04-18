@@ -69,7 +69,7 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
   });
 }
 
-void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object model_config) {
+void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
@@ -85,15 +85,6 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
   this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
-    String lib_path{nullptr};
-    try {
-      lib_path = reload_lib.operator String();
-    } catch (...) {
-      LOG(FATAL)
-          << "ValueError: In multi-GPU inference, we expect the first argument to Reload to be a "
-             "string path to the model library (.so on Linux or .dll on Windows), but got: "
-          << ArgTypeCode2Str(reload_lib.type_code());
-    }
     constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
     if (Registry::Get(f_create_process_pool) == nullptr) {
       LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
@@ -116,7 +107,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       lib_path, null_device);
+                                       std::move(reload_lib_path), null_device);
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
@@ -139,11 +130,10 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->_InitFunctions();
   } else {
     Module executable{nullptr};
-    if (reload_lib.type_code() == kTVMModuleHandle) {
-      executable = reload_lib.operator Module();
+    if (false) {
+      // Todo(mlc-team): system lib reload // reload_lib_path starts with "system://"
     } else {
-      String lib_path = reload_lib.operator String();
-      executable = tvm::runtime::Module::LoadFromFile(lib_path);
+      executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
     }
     this->use_disco = false;
     auto fload_exec = executable->GetFunction("vm_load_executable");

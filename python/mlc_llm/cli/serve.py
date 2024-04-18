@@ -4,7 +4,7 @@ import json
 
 from mlc_llm.help import HELP
 from mlc_llm.interface.serve import serve
-from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.config import SpeculativeMode
 from mlc_llm.support.argparse import ArgumentParser
 
 
@@ -48,9 +48,14 @@ def main(argv):
         "--gpu-memory-utilization", type=float, help=HELP["gpu_memory_utilization_serve"]
     )
     parser.add_argument(
-        "--engine-config",
-        type=EngineConfig.from_str,
-        help=HELP["engine_config_serve"] + ' (default: "%(default)s")',
+        "--speculative-mode",
+        type=str,
+        choices=["DISABLE", "SMALL_DRAFT", "EAGLE"],
+        default="DISABLE",
+        help=HELP["speculative_mode_serve"],
+    )
+    parser.add_argument(
+        "--spec-draft-length", type=int, default=4, help=HELP["spec_draft_length_serve"]
     )
     parser.add_argument("--enable-tracing", action="store_true", help=HELP["enable_tracing_serve"])
     parser.add_argument(
@@ -96,7 +101,8 @@ def main(argv):
         max_total_sequence_length=parsed.max_total_seq_length,
         prefill_chunk_size=parsed.prefill_chunk_size,
         gpu_memory_utilization=parsed.gpu_memory_utilization,
-        engine_config=parsed.engine_config,
+        speculative_mode=SpeculativeMode[parsed.speculative_mode],
+        spec_draft_length=parsed.spec_draft_length,
         enable_tracing=parsed.enable_tracing,
         host=parsed.host,
         port=parsed.port,

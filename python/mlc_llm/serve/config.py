@@ -1,11 +1,13 @@
 """Configuration dataclasses used in MLC LLM serving"""
 
-import argparse
 import enum
 import json
 from dataclasses import asdict, dataclass, field
-from io import StringIO
 from typing import Dict, List, Literal, Optional
+
+import tvm
+
+from . import _ffi_api
 
 
 @dataclass
@@ -126,100 +128,89 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         return GenerationConfig(**json.loads(json_str))
 
 
-@dataclass
-class KVCacheConfig:
-    """The KV cache initialization configuration.
-
-    Parameters
-    ----------
-    page_size : int
-        The number of consecutive tokens handled in each page in paged KV cache.
-
-    max_num_sequence : int
-        The maximum number of sequences that are allowed to processed by the KV
-        cache at any time.
-
-    max_total_sequence_length : Optional[int]
-        The maximum total number of tokens whose KV data are allowed to exist
-        in the KV cache at any time.
-        Set it to None to enable automatic computation of the max total
-        sequence length.
-
-    prefill_chunk_size : Optional[int]
-        The maximum total sequence length in a prefill.
-        If not specified, it will be automatically inferred from model config.
-    """
-
-    page_size: int = 16
-    max_num_sequence: int = 32
-    max_total_sequence_length: Optional[int] = None
-    prefill_chunk_size: Optional[int] = None
-
-    def asjson(self) -> str:
-        """Return the config in string of JSON format."""
-        return json.dumps(asdict(self))
-
-    @staticmethod
-    def from_json(json_str: str) -> "KVCacheConfig":
-        """Construct a config from JSON string."""
-        return KVCacheConfig(**json.loads(json_str))
-
-
 class SpeculativeMode(enum.IntEnum):
     """The speculative mode."""
 
+    # Disable speculative decoding.
     DISABLE = 0
+    # The normal speculative decoding (small draft) mode.
     SMALL_DRAFT = 1
+    # The eagle-style speculative decoding.
     EAGLE = 2
 
 
-@dataclass
-class EngineConfig:
+@tvm._ffi.register_object("mlc.serve.EngineConfig")  # pylint: disable=protected-access
+class EngineConfig(tvm.runtime.Object):
     """The class of LLMEngine execution configuration.
 
     Parameters
     ----------
-    spec_draft_length : int
-        The number of tokens to generate in speculative proposal (draft), default 4.
+    model : str
+        The path to the model directory.
 
-    speculative_mode: SpeculativeMode
+    model_lib_path : str
+        The path to the model library.
+
+    additional_models : List[str]
+        The path to the additional models' directories.
+
+    additional_model_lib_paths : List[str]
+        The path to the additional models' libraries.
+
+    device : tvm.runtime.Device
+        The device where the models run.
+
+    kv_cache_page_size : int
+        The number of consecutive tokens handled in each page in paged KV cache.
+
+    max_num_sequence : int
+        The maximum number of sequences that are allowed to be
+        processed by the KV cache at any time.
+
+    max_total_sequence_length : int
+        The maximum length allowed for a single sequence in the engine.
+
+    max_single_sequence_length : int
+        The maximum total number of tokens whose KV data are allowed
+        to exist in the KV cache at any time.
+
+    prefill_chunk_size : int
+        The maximum total sequence length in a prefill.
+
+    speculative_mode : SpeculativeMode
         The speculative mode.
+
+    spec_draft_length : int
+        The number of tokens to generate in speculative proposal (draft).
     """
 
-    spec_draft_length: int = 4
-    speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE
-
-    def __repr__(self) -> str:
-        out = StringIO()
-        print(f"spec_draft_length={self.spec_draft_length}", file=out, end="")
-        print(f";speculative_mode={self.speculative_mode.name}", file=out, end="")
-        return out.getvalue().rstrip()
-
-    def asjson(self) -> str:
-        """Return the config in string of JSON format."""
-        dt = asdict(self)
-        dt["speculative_mode"] = int(self.speculative_mode)
-        return json.dumps(dt)
-
-    @staticmethod
-    def from_json(json_str: str) -> "EngineConfig":
-        """Construct a config from JSON string."""
-        return EngineConfig(**json.loads(json_str))
-
-    @staticmethod
-    def from_str(source: str) -> "EngineConfig":
-        """Parse engine config from a string."""
-
-        parser = argparse.ArgumentParser(description="optimization flags")
-        parser.add_argument("--spec_draft_length", type=int, default=4)
-        parser.add_argument(
-            "--speculative_mode",
-            type=str,
-            choices=["DISABLE", "SMALL_DRAFT", "EAGLE"],
-            default="DISABLE",
-        )
-        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
-        return EngineConfig(
-            spec_draft_length=results.spec_draft_length,
-            speculative_mode=SpeculativeMode[results.speculative_mode],
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        model: str,
+        model_lib_path: str,
+        additional_models: List[str],
+        additional_model_lib_paths: List[str],
+        device: tvm.runtime.Device,
+        kv_cache_page_size: int,
+        max_num_sequence: int,
+        max_total_sequence_length: int,
+        max_single_sequence_length: int,
+        prefill_chunk_size: int,
+        speculative_mode: SpeculativeMode,
+        spec_draft_length: int,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.EngineConfig,  # type: ignore  # pylint: disable=no-member
+            model,
+            model_lib_path,
+            additional_models,
+            additional_model_lib_paths,
+            device,
+            kv_cache_page_size,
+            max_num_sequence,
+            max_total_sequence_length,
+            max_single_sequence_length,
+            prefill_chunk_size,
+            speculative_mode,
+            spec_draft_length,
         )

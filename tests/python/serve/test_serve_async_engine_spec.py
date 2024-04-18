@@ -1,14 +1,9 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
+# pylint: disable=too-many-arguments,too-many-locals
 import asyncio
 from typing import List
 
-from mlc_llm.serve import (
-    AsyncLLMEngine,
-    EngineConfig,
-    GenerationConfig,
-    SpeculativeMode,
-)
+from mlc_llm.serve import AsyncLLMEngine, GenerationConfig, SpeculativeMode
 
 prompts = [
     "What is the meaning of life?",
@@ -37,7 +32,7 @@ async def test_engine_generate():
         model_lib_path=model_lib_path,
         mode="server",
         additional_models=[small_model + ":" + small_model_lib_path],
-        engine_config=EngineConfig(speculative_mode=SpeculativeMode.SMALL_DRAFT),
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
     )
 
     num_requests = 10

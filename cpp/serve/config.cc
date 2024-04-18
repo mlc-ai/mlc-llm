@@ -5,6 +5,7 @@
 #include "config.h"
 
 #include <picojson.h>
+#include <tvm/runtime/registry.h>
 
 #include <random>
 
@@ -222,123 +223,43 @@ String GenerationConfigNode::AsJSONString() const {
   return picojson::value(config).serialize(true);
 }
 
-/****************** KVCacheConfig ******************/
-
-TVM_REGISTER_OBJECT_TYPE(KVCacheConfigNode);
-
-KVCacheConfig::KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
-                             int prefill_chunk_size) {
-  ObjectPtr<KVCacheConfigNode> n = make_object<KVCacheConfigNode>();
-  n->page_size = page_size;
-  n->max_num_sequence = max_num_sequence;
-  n->max_total_sequence_length = max_total_sequence_length;
-  n->prefill_chunk_size = prefill_chunk_size;
-  data_ = std::move(n);
-}
-
-KVCacheConfig::KVCacheConfig(const std::string& config_str, int max_single_sequence_length) {
-  int page_size;
-  int max_total_sequence_length;
-  int max_num_sequence = -1;
-  int prefill_chunk_size;
-
-  picojson::value config_json;
-  std::string err = picojson::parse(config_json, config_str);
-  if (!err.empty()) {
-    LOG(FATAL) << err;
-  }
-
-  // Get json fields.
-  picojson::object config = config_json.get<picojson::object>();
-  if (config.count("page_size")) {
-    CHECK(config["page_size"].is<int64_t>());
-    page_size = config["page_size"].get<int64_t>();
-    CHECK_EQ(page_size, 16) << "KV cache page size other than 16 is not supported.";
-  } else {
-    LOG(FATAL) << "Key \"page_size\" not found.";
-  }
-  if (config.count("max_total_sequence_length")) {
-    CHECK(config["max_total_sequence_length"].is<int64_t>());
-    max_total_sequence_length = config["max_total_sequence_length"].get<int64_t>();
-  } else {
-    LOG(FATAL) << "Key \"max_total_sequence_length\" not found.";
-  }
-  if (config.count("prefill_chunk_size")) {
-    CHECK(config["prefill_chunk_size"].is<int64_t>());
-    prefill_chunk_size = config["prefill_chunk_size"].get<int64_t>();
-  } else {
-    LOG(FATAL) << "Key \"prefill_chunk_size\" not found.";
-  }
-  if (config.count("max_num_sequence")) {
-    CHECK(config["max_num_sequence"].is<int64_t>());
-    max_num_sequence = config["max_num_sequence"].get<int64_t>();
-    CHECK_GT(max_num_sequence, 0) << "Max number of sequence should be positive.";
-  } else {
-    LOG(FATAL) << "Key \"max_num_sequence\" not found.";
-  }
-
-  ObjectPtr<KVCacheConfigNode> n = make_object<KVCacheConfigNode>();
-  n->page_size = page_size;
-  n->max_num_sequence = max_num_sequence;
-  n->max_total_sequence_length = max_total_sequence_length;
-  n->prefill_chunk_size = prefill_chunk_size;
-  data_ = std::move(n);
-}
-
-String KVCacheConfigNode::AsJSONString() const {
-  picojson::object config;
-  config["page_size"] = picojson::value(static_cast<int64_t>(this->page_size));
-  config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
-  config["max_total_sequence_length"] =
-      picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
-  config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
-  return picojson::value(config).serialize(true);
-}
-
 /****************** EngineConfig ******************/
 
 TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
 
-EngineConfig::EngineConfig(int spec_draft_length, int speculative_mode) {
+EngineConfig::EngineConfig(String model, String model_lib_path, Array<String> additional_models,
+                           Array<String> additional_model_lib_paths, DLDevice device,
+                           int kv_cache_page_size, int max_num_sequence,
+                           int max_total_sequence_length, int max_single_sequence_length,
+                           int prefill_chunk_size, SpeculativeMode speculative_mode,
+                           int spec_draft_length) {
   ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+  n->model = std::move(model);
+  n->model_lib_path = std::move(model_lib_path);
+  n->additional_models = std::move(additional_models);
+  n->additional_model_lib_paths = std::move(additional_model_lib_paths);
+  n->device = device;
+  n->kv_cache_page_size = kv_cache_page_size;
+  n->max_num_sequence = max_num_sequence;
+  n->max_total_sequence_length = max_total_sequence_length;
+  n->max_single_sequence_length = max_single_sequence_length;
+  n->prefill_chunk_size = prefill_chunk_size;
   n->spec_draft_length = spec_draft_length;
-  n->speculative_mode = SpeculativeMode(speculative_mode);
+  n->speculative_mode = speculative_mode;
   data_ = std::move(n);
 }
 
-EngineConfig::EngineConfig(const std::string& config_str) {
-  int spec_draft_length = 4;
-  int speculative_mode = 0;
-
-  picojson::value config_json;
-  std::string err = picojson::parse(config_json, config_str);
-  if (!err.empty()) {
-    LOG(FATAL) << err;
-  }
-
-  // Get json fields.
-  picojson::object config = config_json.get<picojson::object>();
-  if (config.count("spec_draft_length")) {
-    CHECK(config["spec_draft_length"].is<int64_t>());
-    spec_draft_length = config["spec_draft_length"].get<int64_t>();
-  }
-  if (config.count("speculative_mode")) {
-    CHECK(config["speculative_mode"].is<int64_t>());
-    speculative_mode = config["speculative_mode"].get<int64_t>();
-  }
-
-  ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
-  n->spec_draft_length = spec_draft_length;
-  n->speculative_mode = SpeculativeMode(speculative_mode);
-  data_ = std::move(n);
-}
-
-String EngineConfigNode::AsJSONString() const {
-  picojson::object config;
-  config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
-  config["speculative_mode"] = picojson::value(static_cast<int64_t>(this->speculative_mode));
-  return picojson::value(config).serialize(true);
-}
+TVM_REGISTER_GLOBAL("mlc.serve.EngineConfig")
+    .set_body_typed([](String model, String model_lib_path, Array<String> additional_models,
+                       Array<String> additional_model_lib_paths, DLDevice device,
+                       int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                       int max_single_sequence_length, int prefill_chunk_size, int speculative_mode,
+                       int spec_draft_length) {
+      return EngineConfig(std::move(model), std::move(model_lib_path), std::move(additional_models),
+                          std::move(additional_model_lib_paths), device, kv_cache_page_size,
+                          max_num_sequence, max_total_sequence_length, max_single_sequence_length,
+                          prefill_chunk_size, SpeculativeMode(speculative_mode), spec_draft_length);
+    });
 
 }  // namespace serve
 }  // namespace llm
