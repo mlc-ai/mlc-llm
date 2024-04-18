@@ -274,6 +274,7 @@ TOKENIZER_FILES = [
 # FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
 
 CONV_TEMPLATES = {
+    "llama-3",
     "chatml",
     "open_hermes_mistral",
     "neural_hermes_mistral",
