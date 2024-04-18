@@ -39,7 +39,6 @@ class ConvTemplateRegistry:
 # Llama3
 # See https://github.com/meta-llama/llama3?tab=readme-ov-file#instruction-tuned-models
 # and https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py
-# Llama3
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-3",
