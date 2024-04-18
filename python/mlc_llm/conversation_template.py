@@ -39,25 +39,23 @@ class ConvTemplateRegistry:
 # Llama3
 # See https://github.com/meta-llama/llama3?tab=readme-ov-file#instruction-tuned-models
 # and https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py
+# Llama3
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-3",
         system_template=(
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n",
-            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>",
+            "<|start_header_id|>system<|end_header_id|>\n\n",
+            f"{MessagePlaceholders.SYSTEM.value}",
         ),
         system_message="You are a helpful, respectful and honest assistant.",
-        roles={
-            "user": "<|start_header_id|>user",
-            "assistant": "<|start_header_id|>assistant",
-            "tool": "<|start_header_id|>user",
-        },
-        seps=["<|eot_id|>"],
+        roles={"user": "user", "assistant": "assistant"},
+        seps=["<|eot_id|><|start_header_id|>"],
         role_content_sep="<|end_header_id|>\n\n",
         role_empty_sep="<|end_header_id|>\n\n",
         stop_str=["<|end_of_text|>", "<|eot_id|>"],
         stop_token_ids=[128001, 128009],  # "<|end_of_text|>", "<|eot_id|>"
         system_prefix_token_ids=[128000],  # "<|begin_of_text|>"
+        add_role_after_system_message=True,
     )
 )
 
