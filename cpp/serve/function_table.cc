@@ -107,7 +107,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       std::move(reload_lib_path), null_device);
+                                       reload_lib_path, null_device);
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
