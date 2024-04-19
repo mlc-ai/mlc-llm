@@ -1040,7 +1040,7 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     return response, num_completion_tokens
 
 
-def process_completion_request(
+def process_completion_request(  # pylint: disable=too-many-arguments
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
