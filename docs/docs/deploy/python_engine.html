@@ -174,7 +174,15 @@
 <li class="toctree-l1"><a class="reference internal" href="javascript.html">WebLLM and JavaScript API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Python API</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Python API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#verify-installation">Verify Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-llmengine">Run LLMEngine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-asyncllmengine">Run AsyncLLMEngine</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#engine-mode">Engine Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deploy-your-own-model-with-python-api">Deploy Your Own Model with Python API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="android.html">Android App</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ide_integration.html">Code Completion IDE Integration</a></li>
@@ -296,7 +304,202 @@
 If you want to check out the old Python API which uses <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code>,
 please go to <a class="reference internal" href="python_chat_module.html#deploy-python-chat-module"><span class="std std-ref">Python API (Chat Module)</span></a></p>
 </div>
-<p>🚧 Under construction…</p>
+<nav class="contents local" id="table-of-contents">
+<p class="topic-title">Table of Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#verify-installation" id="id6">Verify Installation</a></p></li>
+<li><p><a class="reference internal" href="#run-llmengine" id="id7">Run LLMEngine</a></p></li>
+<li><p><a class="reference internal" href="#run-asyncllmengine" id="id8">Run AsyncLLMEngine</a></p></li>
+<li><p><a class="reference internal" href="#engine-mode" id="id9">Engine Mode</a></p></li>
+<li><p><a class="reference internal" href="#deploy-your-own-model-with-python-api" id="id10">Deploy Your Own Model with Python API</a></p></li>
+<li><p><a class="reference internal" href="#api-reference" id="id11">API Reference</a></p></li>
+</ul>
+</nav>
+<p>MLC LLM provides Python API through classes <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code>
+which <strong>support full OpenAI API completeness</strong> for easy integration into other Python projects.</p>
+<p>This page introduces how to use the LLM engines in MLC LLM.
+The Python API is a part of the MLC-LLM package, which we have prepared pre-built pip wheels via
+the <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">installation page</span></a>.</p>
+<section id="verify-installation">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from mlc_llm import LLMEngine; print(LLMEngine)&quot;</span>
+</pre></div>
+</div>
+<p>You are expected to see the output of <code class="docutils literal notranslate"><span class="pre">&lt;class</span> <span class="pre">'mlc_llm.serve.engine.LLMEngine'&gt;</span></code>.</p>
+<p>If the command above results in error, follow <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a> to install prebuilt pip
+packages or build MLC LLM from source.</p>
+</section>
+<section id="run-llmengine">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Run LLMEngine</a><a class="headerlink" href="#run-llmengine" title="Permalink to this heading">¶</a></h2>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> provides the interface of OpenAI chat completion synchronously.</p>
+<p><strong>Stream Response.</strong> In <a class="reference internal" href="../get_started/quick_start.html#quick-start"><span class="std std-ref">Quick Start</span></a> and <a class="reference internal" href="../get_started/introduction.html#introduction-to-mlc-llm"><span class="std std-ref">Introduction to MLC LLM</span></a>,
+we introduced the basic use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">LLMEngine</span>
+
+<span class="c1"># Create engine</span>
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">LLMEngine</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+<span class="c1"># Run chat completion in OpenAI API.</span>
+<span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">choice</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">content</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">engine</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> instance with the 8B Llama-3 model.
+<strong>We design the Python API</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> <strong>to align with OpenAI API</strong>,
+which means you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> in the same way of using
+<a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
+for both synchronous and asynchronous generation.</p>
+<p><strong>Non-stream Response.</strong> The code example above uses the synchronous chat completion
+interface and iterate over all the stream responses.
+If you want to run without streaming, you can run</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">response</span> <span class="o">=</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Please refer to <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
+and <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>
+for the complete chat completion interface.</p>
+</section>
+<section id="run-asyncllmengine">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Run AsyncLLMEngine</a><a class="headerlink" href="#run-asyncllmengine" title="Permalink to this heading">¶</a></h2>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> provides the interface of OpenAI chat completion with
+asynchronous features.</p>
+<p><strong>Stream Response.</strong> The core use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> for stream responses is as follows.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+  <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+  <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+  <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">):</span>
+  <span class="k">for</span> <span class="n">choice</span> <span class="ow">in</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">:</span>
+      <span class="nb">print</span><span class="p">(</span><span class="n">choice</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">content</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<details class="summary-the-collapsed-is-a-complete-runnable-example-of-asyncllmengine-in-python">
+<summary>The collapsed is a complete runnable example of AsyncLLMEngine in Python.</summary><div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">asyncio</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Dict</span>
+
+<span class="kn">from</span> <span class="nn">mlc_llm.serve</span> <span class="kn">import</span> <span class="n">AsyncLLMEngine</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC&quot;</span>
+<span class="n">prompts</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;Write a three-day travel plan to Pittsburgh.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="k">async</span> <span class="k">def</span> <span class="nf">test_completion</span><span class="p">():</span>
+    <span class="c1"># Create engine</span>
+    <span class="n">async_engine</span> <span class="o">=</span> <span class="n">AsyncLLMEngine</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">)</span>
+
+    <span class="n">num_requests</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">prompts</span><span class="p">)</span>
+    <span class="n">output_texts</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">generate_task</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">async_engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="n">prompt</span><span class="p">}],</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">):</span>
+            <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">output_texts</span><span class="p">:</span>
+                <span class="n">output_texts</span><span class="p">[</span><span class="n">response</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="n">output_texts</span><span class="p">[</span><span class="n">response</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">+=</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">delta</span><span class="o">.</span><span class="n">content</span>
+
+    <span class="n">tasks</span> <span class="o">=</span> <span class="p">[</span><span class="n">asyncio</span><span class="o">.</span><span class="n">create_task</span><span class="p">(</span><span class="n">generate_task</span><span class="p">(</span><span class="n">prompts</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_requests</span><span class="p">)]</span>
+    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">tasks</span><span class="p">)</span>
+
+    <span class="c1"># Print output.</span>
+    <span class="k">for</span> <span class="n">request_id</span><span class="p">,</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">output_texts</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output of request </span><span class="si">{</span><span class="n">request_id</span><span class="si">}</span><span class="s2">:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="n">async_engine</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+
+
+<span class="n">asyncio</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">test_completion</span><span class="p">())</span>
+</pre></div>
+</div>
+</details><div class="line-block">
+<div class="line"><br /></div>
+</div>
+<p><strong>Non-stream Response.</strong> Similarly, <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncEngine</span></code> provides the non-stream response
+interface.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">response</span> <span class="o">=</span> <span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+  <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
+  <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+  <span class="n">stream</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">response</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Please refer to <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
+and <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>
+for the complete chat completion interface.</p>
+</section>
+<section id="engine-mode">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Engine Mode</a><a class="headerlink" href="#engine-mode" title="Permalink to this heading">¶</a></h2>
+<p>To ease the engine configuration, the constructors of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> and
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> have an optional argument <code class="docutils literal notranslate"><span class="pre">mode</span></code>,
+which falls into one of the three options <code class="docutils literal notranslate"><span class="pre">&quot;local&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;interactive&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;server&quot;</span></code>.
+The default mode is <code class="docutils literal notranslate"><span class="pre">&quot;local&quot;</span></code>.</p>
+<p>Each mode denotes a pre-defined configuration of the engine to satisfy different use cases.
+The choice of the mode controls the request concurrency of the engine,
+as well as engine’s KV cache token capacity (or in other words, the maximum
+number of tokens that the engine’s KV cache can hold),
+and further affects the GPU memory usage of the engine.</p>
+<p>In short,</p>
+<ul class="simple">
+<li><p>mode <code class="docutils literal notranslate"><span class="pre">&quot;local&quot;</span></code> uses low request concurrency and low KV cache capacity, which is suitable for cases where <strong>concurrent requests are not too many, and the user wants to save GPU memory usage</strong>.</p></li>
+<li><p>mode <code class="docutils literal notranslate"><span class="pre">&quot;interactive&quot;</span></code> uses 1 as the request concurrency and low KV cache capacity, which is designed for <strong>interactive use cases</strong> such as chats and conversations.</p></li>
+<li><p>mode <code class="docutils literal notranslate"><span class="pre">&quot;server&quot;</span></code> uses as much request concurrency and KV cache capacity as possible. This mode aims to <strong>fully utilize the GPU memory for large server scenarios</strong> where concurrent requests may be many.</p></li>
+</ul>
+<p>Please refer to <a class="reference internal" href="#python-engine-api-reference"><span class="std std-ref">API Reference</span></a> for detailed documentation of the engine mode.</p>
+</section>
+<section id="deploy-your-own-model-with-python-api">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Deploy Your Own Model with Python API</a><a class="headerlink" href="#deploy-your-own-model-with-python-api" title="Permalink to this heading">¶</a></h2>
+<p>The <a class="reference internal" href="../get_started/introduction.html#introduction-deploy-your-own-model"><span class="std std-ref">introduction page</span></a> introduces how we can deploy our
+own models with MLC LLM.
+This section introduces how you can use the model weights you convert and the model library you build
+in <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code>.</p>
+<p>We use the <a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi-2</a> as the example model.</p>
+<p><strong>Specify Model Weight Path.</strong> Assume you have converted the model weights for your own model,
+you can construct a <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> as follows:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">LLMEngine</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>  <span class="c1"># Assuming the converted phi-2 model weights are under &quot;models/phi-2&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">LLMEngine</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Specify Model Library Path.</strong> Further, if you build the model library on your own,
+you can use it in <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> by passing the library path through argument <code class="docutils literal notranslate"><span class="pre">model_lib_path</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">LLMEngine</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>
+<span class="n">model_lib_path</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2/lib.so&quot;</span>  <span class="c1"># Assuming the phi-2 model library is built at &quot;models/phi-2/lib.so&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">LLMEngine</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model_lib_path</span><span class="o">=</span><span class="n">model_lib_path</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The same applies to <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code>.</p>
+</section>
+<section id="api-reference">
+<span id="python-engine-api-reference"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
+<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> classes provide the following constructors.</p>
+<p>The LLMEngine and AsyncLLMEngine have full OpenAI API completeness.
+Please refer to <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
+and <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>
+for the complete chat completion interface.</p>
+</section>
 </section>
 
 

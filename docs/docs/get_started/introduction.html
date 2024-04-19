@@ -407,7 +407,7 @@ You can save the code below into a Python file and run it.</p>
 <p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> instance with the the 4-bit quantized Llama-3 model.
+<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> instance with the 4-bit quantized Llama-3 model.
 <strong>We design the Python API</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> <strong>to align with OpenAI API</strong>,
 which means you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> in the same way of using
 <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
@@ -453,7 +453,7 @@ Similar to <a class="reference internal" href="#introduction-to-mlc-llm-python-a
 to request for stream responses.</p>
 </section>
 <section id="deploy-your-own-model">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Your Own Model</a><a class="headerlink" href="#deploy-your-own-model" title="Permalink to this heading">¶</a></h2>
+<span id="introduction-deploy-your-own-model"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Deploy Your Own Model</a><a class="headerlink" href="#deploy-your-own-model" title="Permalink to this heading">¶</a></h2>
 <p>So far we have been using pre-converted models weights from Hugging Face.
 This section introduces the core workflow regarding how you can <em>run your own models with MLC LLM</em>.</p>
 <p>We use the <a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi-2</a> as the example model.
@@ -563,7 +563,7 @@ such as WebGPU-based browser deployment, mobile and other settings.</p>
 <ul class="simple">
 <li><p>We went through three examples (chat CLI, Python API, and REST server) of MLC LLM,</p></li>
 <li><p>we introduced how to convert model weights for your own models to run with MLC LLM, and (optionally) how to compile your models.</p></li>
-<li><p>We also discussed the the universal deployment capability of MLC LLM.</p></li>
+<li><p>We also discussed the universal deployment capability of MLC LLM.</p></li>
 </ul>
 <p>Next, please feel free to check out the pages below for quick start examples and more detailed information
 on specific platforms</p>

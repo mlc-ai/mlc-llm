@@ -114,7 +114,7 @@ You can save the code below into a Python file and run it.
 
   MLC LLM Python API
 
-This code example first creates an :class:`mlc_llm.LLMEngine` instance with the the 4-bit quantized Llama-3 model.
+This code example first creates an :class:`mlc_llm.LLMEngine` instance with the 4-bit quantized Llama-3 model.
 **We design the Python API** :class:`mlc_llm.LLMEngine` **to align with OpenAI API**,
 which means you can use :class:`mlc_llm.LLMEngine` in the same way of using
 `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
@@ -167,6 +167,7 @@ The server will process this request and send back the response.
 Similar to :ref:`introduction-to-mlc-llm-python-api`, you can pass argument ``"stream": true``
 to request for stream responses.
 
+.. _introduction-deploy-your-own-model:
 
 Deploy Your Own Model
 ---------------------
@@ -300,7 +301,7 @@ To briefly summarize this page,
 
 - We went through three examples (chat CLI, Python API, and REST server) of MLC LLM,
 - we introduced how to convert model weights for your own models to run with MLC LLM, and (optionally) how to compile your models.
-- We also discussed the the universal deployment capability of MLC LLM.
+- We also discussed the universal deployment capability of MLC LLM.
 
 Next, please feel free to check out the pages below for quick start examples and more detailed information
 on specific platforms
