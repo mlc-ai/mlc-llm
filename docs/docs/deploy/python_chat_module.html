@@ -289,7 +289,7 @@
 <span id="deploy-python-chat-module"></span><h1>Python API (Chat Module)<a class="headerlink" href="#python-api-chat-module" title="Permalink to this heading">¶</a></h1>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>❗ The Python API with <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code> introduced in this page will be
+<p>❗ The Python API with <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> introduced in this page will be
 deprecated in the near future.
 Please go to <a class="reference internal" href="python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a> for the latest Python API with complete
 OpenAI API support.</p>
@@ -321,7 +321,7 @@ how to perform raw text generation with MLC-LLM in Python</p></li>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from mlc_llm import ChatModule; print(ChatModule)&quot;</span>
 </pre></div>
 </div>
-<p>You are expected to see the information about the <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code> class.</p>
+<p>You are expected to see the information about the <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> class.</p>
 <p>If the command above results in error, follow <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a> (either install the prebuilt pip wheels
 or <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a>).</p>
 </section>
@@ -441,7 +441,7 @@ that you could configure MLCChat through various fields such as <code class="doc
 option of overriding any field you’d like in Python, so that you do not need to manually edit
 <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
 <p>Since there are two concepts – <cite>MLCChat Configuration</cite> and <cite>Conversation Configuration</cite> – we correspondingly
-provide two dataclasses <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatConfig</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ConvConfig</span></code>.</p>
+provide two dataclasses <a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.ChatConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatConfig</span></code></a> and <a class="reference internal" href="#mlc_llm.ConvConfig" title="mlc_llm.ConvConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ConvConfig</span></code></a>.</p>
 <p>We provide an example below.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">ChatModule</span><span class="p">,</span> <span class="n">ChatConfig</span><span class="p">,</span> <span class="n">ConvConfig</span>
 <span class="kn">from</span> <span class="nn">mlc_llm.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
@@ -499,7 +499,7 @@ Oh, wow, *excitedly* one plus one? *grinning* Well, let me see... *counting on f
 <p class="admonition-title">Note</p>
 <p>You do not need to specify the entire <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> or <code class="docutils literal notranslate"><span class="pre">ConvConfig</span></code>. Instead, we will first
 load all the fields defined in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, a file required when instantiating
-a <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code>. Then, we will load in the optional <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> you provide, overriding the
+a <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a>. Then, we will load in the optional <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> you provide, overriding the
 fields specified.</p>
 <p>It is also worth noting that <code class="docutils literal notranslate"><span class="pre">ConvConfig</span></code> itself is overriding the original conversation template
 specified by the field <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> in the chat configuration. Learn more about it in
@@ -597,8 +597,385 @@ instead of streaming to stdout, which could be a necessity when building service
 </section>
 <section id="api-reference">
 <h2><a class="toc-backref" href="#id6" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
-<p>User can initiate a chat module by creating <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code> class, which is a wrapper of the MLC-LLM model.
-The <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code> class provides the following methods:</p>
+<p>User can initiate a chat module by creating <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> class, which is a wrapper of the MLC-LLM model.
+The <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> class provides the following methods:</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">ChatModule</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.chat_module.ChatConfig"><span class="pre">ChatConfig</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ChatModule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>The ChatModule for MLC LLM.</p>
+<p class="rubric">Examples</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">ChatModule</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.callback</span> <span class="kn">import</span> <span class="n">StreamToStdout</span>
+
+<span class="c1"># Create a ChatModule instance</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
+
+<span class="c1"># Generate a response for a given prompt</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># Print prefill and decode performance statistics</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+    <span class="n">prompt</span><span class="o">=</span><span class="s2">&quot;How many points did you list out?&quot;</span><span class="p">,</span>
+    <span class="n">progress_callback</span><span class="o">=</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<em>str</em>) – The model folder after compiling with MLC-LLM build process. The parameter
+can either be the model name with its quantization scheme
+(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
+folder. In the former case, we will use the provided name to search
+for the model folder over possible paths.</p></li>
+<li><p><strong>device</strong> (<em>str</em>) – The description of the device to run on. User should provide a string in the
+form of ‘device_name:device_id’ or ‘device_name’, where ‘device_name’ is one of
+‘cuda’, ‘metal’, ‘vulkan’, ‘rocm’, ‘opencl’, ‘auto’ (automatically detect the
+local device), and ‘device_id’ is the device id to run on. If no ‘device_id’
+is provided, it will be set to 0 by default.</p></li>
+<li><p><strong>chat_config</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.ChatConfig"><em>ChatConfig</em></a><em>]</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. Will be used to override the
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p></li>
+<li><p><strong>model_lib_path</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).
+If unspecified, we will use the provided <code class="docutils literal notranslate"><span class="pre">model</span></code> to search over
+possible paths.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.chat_module.ChatConfig"><span class="pre">ChatConfig</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ChatModule.__init__" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.benchmark_generate">
+<span class="sig-name descname"><span class="pre">benchmark_generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generate_length</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_llm.ChatModule.benchmark_generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>Controlled generation with input prompt and fixed number of
+generated tokens, ignoring system prompt. For example,</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">ChatModule</span>
+
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">&quot;Llama-2-7b-chat-hf-q4f16_1&quot;</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">benchmark_generate</span><span class="p">(</span><span class="s2">&quot;What&#39;s the meaning of life?&quot;</span><span class="p">,</span> <span class="n">generate_length</span><span class="o">=</span><span class="mi">256</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Generated text:</span><span class="se">\n</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Statistics: </span><span class="si">{</span><span class="n">cm</span><span class="o">.</span><span class="n">stats</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>will generate 256 tokens in total based on prompt “What’s the meaning
+of life?”. After generation, you can use <cite>cm.stats()</cite> to print the
+generation speed.</p>
+<p class="rubric">Notes</p>
+<p>1. This function is typically used in controlled benchmarks. It generates
+text without system prompt (i.e., it is pure text generation with no chat
+style) and ignores the token stop model(s).
+2. To make the benchmark as accurate as possible, we first do a round of
+warmup prefill and decode before text generation.
+3. This function resets the previous performance statistics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prompt</strong> (<em>str</em>) – The prompt of the text generation.</p></li>
+<li><p><strong>generate_length</strong> (<em>int</em>) – The target length of generation.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>output</strong> – The generated text output.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.embed_text">
+<span class="sig-name descname"><span class="pre">embed_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ChatModule.embed_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given a text input, returns its embedding in the LLM.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>input</strong> (<em>str</em>) – The user input string.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>embedding</strong> – The embedding of the text.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>tvm.runtime.NDArray</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This is a high-level method and is only used for retrieving text embeddings. Users are
+not supposed to call <a class="reference internal" href="#mlc_llm.ChatModule.generate" title="mlc_llm.ChatModule.generate"><code class="xref py py-func docutils literal notranslate"><span class="pre">generate()</span></code></a> after calling this method in the same chat session,
+since the input to this method is not prefilled and will cause error. If user needs to
+call <a class="reference internal" href="#mlc_llm.ChatModule.generate" title="mlc_llm.ChatModule.generate"><code class="xref py py-func docutils literal notranslate"><span class="pre">generate()</span></code></a> later, please call <a class="reference internal" href="#mlc_llm.ChatModule.reset_chat" title="mlc_llm.ChatModule.reset_chat"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_chat()</span></code></a> first.
+For a more fine-grained embedding API, see <code class="xref py py-func docutils literal notranslate"><span class="pre">_embed()</span></code>.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.generate">
+<span class="sig-name descname"><span class="pre">generate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ChatCompletionMessage</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generation_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlc_llm.GenerationConfig" title="mlc_llm.chat_module.GenerationConfig"><span class="pre">GenerationConfig</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">progress_callback</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stateless</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#mlc_llm.ChatModule.generate" title="Permalink to this definition">¶</a></dt>
+<dd><p>A high-level method that returns the full response from the chat module given a user
+prompt. User can optionally specify which callback method to use upon receiving the
+response. By default, no callback will be applied.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>prompt</strong> (<em>Union</em><em>[</em><em>str</em><em>, </em><em>List</em><em>[</em><em>ChatCompletionMessage</em><em>]</em><em>]</em>) – <p>The user input prompt, i.e. a question to ask the chat module.
+It can also be the whole conversation history (list of messages with role and content)
+eg:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="p">[</span>
+    <span class="n">ChatCompletionMessage</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;Hello, how are you?&quot;</span><span class="p">),</span>
+    <span class="n">ChatCompletionMessage</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;assistant&quot;</span><span class="p">,</span> \
+        <span class="n">content</span><span class="o">=</span><span class="s2">&quot;I&#39;m fine, thank you. How about you?&quot;</span><span class="p">),</span>
+    <span class="n">ChatCompletionMessage</span><span class="p">(</span><span class="n">role</span><span class="o">=</span><span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="s2">&quot;I&#39;m good too.&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+</pre></div>
+</div>
+</p></li>
+<li><p><strong>generation_config</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="#mlc_llm.GenerationConfig" title="mlc_llm.GenerationConfig"><em>GenerationConfig</em></a><em>]</em>) – The generation config object to override the ChatConfig generation settings.</p></li>
+<li><p><strong>progress_callback</strong> (<em>object</em>) – The optional callback method used upon receiving a newly generated message from the
+chat module. See <cite>mlc_llm/callback.py</cite> for a full list of available callback classes.
+Currently, only streaming to stdout callback method is supported, see <cite>Examples</cite> for
+more detailed usage.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>output</strong> – The generated full output from the chat module.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>string</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Suppose we would like to stream the response of the chat module to stdout</span>
+<span class="c1"># with a refresh interval of 2. Upon calling generate(), We will see the response of</span>
+<span class="c1"># the chat module streaming to stdout piece by piece, and in the end we receive the</span>
+<span class="c1"># full response as a single string `output`.</span>
+
+<span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">ChatModule</span><span class="p">,</span> <span class="n">GenerationConfig</span><span class="p">,</span> <span class="n">callback</span>
+<span class="n">cm</span> <span class="o">=</span> <span class="n">ChatModule</span><span class="p">(</span><span class="n">xxx</span><span class="p">)</span>
+<span class="n">prompt</span> <span class="o">=</span> <span class="s2">&quot;what&#39;s the color of banana?&quot;</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">cm</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span>
+  <span class="n">prompt</span><span class="p">,</span> <span class="n">GenerationConfig</span><span class="p">(</span><span class="n">temperature</span><span class="o">=</span><span class="mf">0.8</span><span class="p">),</span> <span class="n">callback</span><span class="o">.</span><span class="n">StreamToStdout</span><span class="p">(</span><span class="n">callback_interval</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.reset_chat">
+<span class="sig-name descname"><span class="pre">reset_chat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">chat_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.chat_module.ChatConfig"><span class="pre">ChatConfig</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ChatModule.reset_chat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Reset the chat session, clear all chat history, and potentially
+override the original <cite>mlc-chat-config.json</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>chat_config</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.ChatConfig"><em>ChatConfig</em></a><em>]</em>) – A <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> instance partially filled. If specified, the chat
+module will reload the <cite>mlc-chat-config.json</cite>, and override it with
+<code class="docutils literal notranslate"><span class="pre">chat_config</span></code>, just like in initialization.</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The model remains the same after <a class="reference internal" href="#mlc_llm.ChatModule.reset_chat" title="mlc_llm.ChatModule.reset_chat"><code class="xref py py-func docutils literal notranslate"><span class="pre">reset_chat()</span></code></a>.
+To reload module, please either re-initialize a <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">ChatModule</span></code></a> instance
+or use <code class="xref py py-func docutils literal notranslate"><span class="pre">_reload()</span></code> instead.</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.ChatModule.stats">
+<span class="sig-name descname"><span class="pre">stats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#mlc_llm.ChatModule.stats" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the runtime stats of the encoding step, decoding step (and embedding step if exists)
+of the chat module in text form.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>stats</strong> – The runtime stats text.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlc_llm.ChatConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">ChatConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_lib:</span> <span class="pre">~typing.Optional[str]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">local_id:</span> <span class="pre">~typing.Optional[str]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conv_template:</span> <span class="pre">~typing.Optional[~typing.Union[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~mlc_llm.protocol.conversation_protocol.Conversation]]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">temperature:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">presence_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">repetition_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_p:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_gen_len:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gen_len:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shift_fill_factor:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tokenizer_files:</span> <span class="pre">~typing.Optional[~typing.List[str]]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conv_config:</span> <span class="pre">~typing.Optional[~mlc_llm.chat_module.ConvConfig]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_category:</span> <span class="pre">~typing.Optional[str]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name:</span> <span class="pre">~typing.Optional[str]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tensor_parallel_shards:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_presharded_weights:</span> <span class="pre">~typing.Optional[bool]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">context_window_size:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sliding_window_size:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prefill_chunk_size:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attention_sink_size:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_batch_size:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opt:</span> <span class="pre">~typing.Optional[str]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ChatConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>A dataclass that represents user-defined partial configuration for the
+chat config file.</p>
+<p>An instance of <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> can be passed in to the instantiation of a
+<a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> instance to override the default setting in
+<code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> under the model folder.</p>
+<p>Since the configuration is partial, everything will be <code class="docutils literal notranslate"><span class="pre">Optional</span></code>.</p>
+<p>Note that we will exploit this class to also represent <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>
+during intermediate processing.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_lib</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The necessary model library to launch this model architecture. We recommend
+reuse model library when possible. For example, all LLaMA-7B models can
+use <code class="docutils literal notranslate"><span class="pre">vicuna-v1-7b-{matching</span> <span class="pre">quantization</span> <span class="pre">scheme}</span></code>. So you can distribute
+LLaMA-7B weight variants and still use them in prebuilt MLC chat apps.</p></li>
+<li><p><strong>local_id</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Uniquely identifying the model in application. This is also used by
+command line interface app to specify which model to run.</p></li>
+<li><p><strong>conv_template</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The name of the conversation template that this chat uses.</p></li>
+<li><p><strong>temperature</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – The temperature applied to logits before sampling. The default value is
+<code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a
+lower temperature produces more deterministic outputs.</p></li>
+<li><p><strong>repetition_penalty</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – <p>The repetition penalty controls the likelihood of the model generating
+repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no
+repetition penalty is applied. Increasing the value reduces the
+likelihood of repeat text generation. However, setting a high
+<code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless
+texts. The ideal choice of repetition penalty may vary among models.</p>
+<p>For more details on how repetition penalty controls text generation, please
+check out the CTRL paper (<a class="reference external" href="https://arxiv.org/pdf/1909.05858.pdf">https://arxiv.org/pdf/1909.05858.pdf</a>).</p>
+</p></li>
+<li><p><strong>top_p</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – <p>This parameter determines the set of tokens from which we sample during
+decoding. The default value is set to <code class="docutils literal notranslate"><span class="pre">0.95</span></code>. At each step, we select
+tokens from the minimal set that has a cumulative probability exceeding
+the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
+<p>For additional information on top-p sampling, please refer to this blog
+post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
+</p></li>
+<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The approximated average number of generated tokens in each round. Used
+to determine whether the maximum window size would be exceeded.</p></li>
+<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The maximum number of tokens to be generated in each round. Would simply
+stop generating after this number is exceeded.</p></li>
+<li><p><strong>shift_fill_factor</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – The fraction of maximum window size to shift when it is exceeded.</p></li>
+<li><p><strong>tokenizer_files</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em>) – List of tokenizer files of the model.</p></li>
+<li><p><strong>conv_config</strong> (<em>Optional</em><em>[</em><a class="reference internal" href="#mlc_llm.ConvConfig" title="mlc_llm.ConvConfig"><em>ConvConfig</em></a><em>]</em>) – The partial overriding configuration for conversation template. Will first
+load the predefined template with the name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code>
+and then override some of the configurations specified in <code class="docutils literal notranslate"><span class="pre">conv_config</span></code>.</p></li>
+<li><p><strong>model_category</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The category of the model’s architecture (e.g. <code class="docutils literal notranslate"><span class="pre">llama</span></code>, <code class="docutils literal notranslate"><span class="pre">gpt_neox</span></code>, <code class="docutils literal notranslate"><span class="pre">rwkv</span></code>).</p></li>
+<li><p><strong>model_name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Name of the model (e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf</span></code>).</p></li>
+<li><p><strong>tensor_parallel_shards</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Tensor parallel degree.</p></li>
+<li><p><strong>use_presharded_weights</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – If True, the weights were saved with sharding already applied.</p></li>
+<li><p><strong>context_window_size</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – Maximum kv cache window size.</p></li>
+<li><p><strong>prefill_chunk_size</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – (Experimental) The chunk size during prefilling. By default,
+the chunk size is the same as sliding window or max sequence length.
+This flag subjects to future refactoring.</p></li>
+<li><p><strong>attention_sink_size</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – (Experimental) The number of stored sinks. Only supported on Mistral yet. By default,
+the number of sinks is 4. This flag subjects to future refactoring.</p></li>
+<li><p><strong>sliding_window_size</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – (Experimental) The sliding window size in sliding window attention (SWA).
+This optional field overrides the <cite>sliding_window_size</cite> in config.json for
+those models that use SWA. Currently only useful when compiling Mistral.
+This flag subjects to future refactoring.</p></li>
+<li><p><strong>opt</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Optimization flags. MLC LLM maintains a predefined set of optimization flags,
+denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
+and O3 represents extreme optimization that could potentially break the system.
+Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+–opt=”cublas_gemm=1;cudagraph=0”.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlc_llm.ConvConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">ConvConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_template</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_message</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">system_prefix_token_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roles</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_templates</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">messages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_content_sep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_empty_sep</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_str</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_token_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_string</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_function_calling</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">bool</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.ConvConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>A dataclass that represents user-defined partial configuration for conversation template.</p>
+<p>This is an attribute of <a class="reference internal" href="#mlc_llm.ChatConfig" title="mlc_llm.ChatConfig"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatConfig</span></code></a>, which can then be passed in to the
+instantiation of a <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> instance to override the default
+setting in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> under the model folder. Note that we will
+first load the predefined template with the name specified in <code class="docutils literal notranslate"><span class="pre">conv_template</span></code>.</p>
+<p>Since the configuration is partial, everything will be <code class="docutils literal notranslate"><span class="pre">Optional</span></code>.</p>
+<p>The parameters are the same as <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.protocol.conversation_protocol.Conversation</span></code></p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – Name of the conversation.</p></li>
+<li><p><strong>system_template</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The system prompt template, it optionally contains the system
+message placeholder, and the placeholder will be replaced with
+the system message below.</p></li>
+<li><p><strong>system_message</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The content of the system prompt (without the template format).</p></li>
+<li><p><strong>system_prefix_token_ids</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>int</em><em>]</em><em>]</em>) – The system token ids to be prepended at the beginning of tokenized
+generated prompt.</p></li>
+<li><p><strong>roles</strong> (<em>Optional</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>]</em>) – The conversation roles</p></li>
+<li><p><strong>role_templates</strong> (<em>Optional</em><em>[</em><em>Dict</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>]</em>) – The roles prompt template, it optionally contains the defaults
+message placeholders and will be replaced by actual content</p></li>
+<li><p><strong>messages</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>Tuple</em><em>[</em><em>str</em><em>, </em><em>Optional</em><em>[</em><em>str</em><em>]</em><em>]</em><em>]</em><em>]</em>) – The conversation history messages.
+Each message is a pair of strings, denoting “(role, content)”.
+The content can be None.</p></li>
+<li><p><strong>seps</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em>) – An array of strings indicating the separators to be used after a user
+message and a model message respectively.</p></li>
+<li><p><strong>role_content_sep</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The separator between the role and the content in a message.</p></li>
+<li><p><strong>role_empty_sep</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The separator between the role and empty contents.</p></li>
+<li><p><strong>stop_str</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em>) – When the <code class="docutils literal notranslate"><span class="pre">stop_str</span></code> is encountered, the model will stop generating output.</p></li>
+<li><p><strong>stop_token_ids</strong> (<em>Optional</em><em>[</em><em>List</em><em>[</em><em>int</em><em>]</em><em>]</em>) – A list of token IDs that act as stop tokens.</p></li>
+<li><p><strong>function_string</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The function calling string.</p></li>
+<li><p><strong>use_function_calling</strong> (<em>Optional</em><em>[</em><em>bool</em><em>]</em>) – Whether using function calling or not, helps check for output message format in API call.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="mlc_llm.GenerationConfig">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">GenerationConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">temperature:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">repetition_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_p:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_gen_len:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_gen_len:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">presence_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frequency_penalty:</span> <span class="pre">~typing.Optional[float]</span> <span class="pre">=</span> <span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n:</span> <span class="pre">~typing.Optional[int]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop:</span> <span class="pre">~typing.Optional[~typing.Union[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.List[str]]]</span> <span class="pre">=</span> <span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs:</span> <span class="pre">~typing.Dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.GenerationConfig" title="Permalink to this definition">¶</a></dt>
+<dd><p>A dataclass that represents user-defined generation configuration.</p>
+<p>An instance of <code class="docutils literal notranslate"><span class="pre">GenerationConfig</span></code> can be passed in to the generate function
+of a <a class="reference internal" href="#mlc_llm.ChatModule" title="mlc_llm.ChatModule"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.ChatModule</span></code></a> instance to override the default generation
+setting in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> under the model folder.</p>
+<p>Once the generation ends, <code class="docutils literal notranslate"><span class="pre">GenerationConfig</span></code> is discarded, since the values
+will only override the <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> generation settings during one generation,
+unless it is recurrently passed to generate function. This allows changing generation
+settings over time, without overriding <code class="docutils literal notranslate"><span class="pre">ChatConfig</span></code> permanently.</p>
+<p>Since the configuraiton is partial, everything will be <code class="docutils literal notranslate"><span class="pre">Optional</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>temperature</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – The temperature applied to logits before sampling. The default value is
+<code class="docutils literal notranslate"><span class="pre">0.7</span></code>. A higher temperature encourages more diverse outputs, while a
+lower temperature produces more deterministic outputs.</p></li>
+<li><p><strong>presence_penalty</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – Number between -2.0 and 2.0. Positive values penalize new tokens based on
+whether they appear in the text so far, increasing the model’s likelihood
+to talk about new topics. Negative values can increase the likelihood of
+repetition.</p></li>
+<li><p><strong>frequency_penalty</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – Number between -2.0 and 2.0. Positive values penalize new tokens based on their
+existing frequency in the text so far, decreasing the model’s likelihood to
+repeat the same line verbatim. Negative values can increase the likelihood of
+repetition.</p></li>
+<li><p><strong>repetition_penalty</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – <p>The repetition penalty controls the likelihood of the model generating
+repeated texts. The default value is set to <code class="docutils literal notranslate"><span class="pre">1.0</span></code>, indicating that no
+repetition penalty is applied. Increasing the value reduces the
+likelihood of repeat text generation. However, setting a high
+<code class="docutils literal notranslate"><span class="pre">repetition_penalty</span></code> may result in the model generating meaningless
+texts. The ideal choice of repetition penalty may vary among models. Only
+Active when presence_penalty and frequency_penalty are both 0.0.</p>
+<p>For more details on how repetition penalty controls text generation, please
+check out the CTRL paper (<a class="reference external" href="https://arxiv.org/pdf/1909.05858.pdf">https://arxiv.org/pdf/1909.05858.pdf</a>).</p>
+</p></li>
+<li><p><strong>top_p</strong> (<em>Optional</em><em>[</em><em>float</em><em>]</em>) – <p>This parameter determines the set of tokens from which we sample during
+decoding. The default value is set to <code class="docutils literal notranslate"><span class="pre">0.95</span></code>. At each step, we select
+tokens from the minimal set that has a cumulative probability exceeding
+the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
+<p>For additional information on top-p sampling, please refer to this blog
+post: <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling</a>.</p>
+</p></li>
+<li><p><strong>mean_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – The approximated average number of generated tokens in each round. Used
+to determine whether the maximum window size would be exceeded.</p></li>
+<li><p><strong>max_gen_len</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – This parameter determines the maximum length of the generated text. If it is
+not set, the model will generate text until it encounters a stop token.</p></li>
+<li><p><strong>n</strong> (<em>Optional</em><em>[</em><em>int</em><em>]</em>) – This parameter determines the number of text samples to generate. The default
+value is <code class="docutils literal notranslate"><span class="pre">1</span></code>. Note that this parameter is only used when <code class="docutils literal notranslate"><span class="pre">stream</span></code> is set to
+<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+<li><p><strong>stop</strong> (<em>Optional</em><em>[</em><em>Union</em><em>[</em><em>str</em><em>, </em><em>List</em><em>[</em><em>str</em><em>]</em><em>]</em><em>]</em>) – When <code class="docutils literal notranslate"><span class="pre">stop</span></code> is encountered, the model will stop generating output.
+It can be a string or a list of strings. If it is a list of strings, the model
+will stop generating output when any of the strings in the list is encountered.
+Note that this parameter does not override the default stop string of the model.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 </section>
 
