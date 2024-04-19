@@ -32,7 +32,7 @@ You are expected to see the installation path of MLC LLM Python package.
 Chat CLI
 --------
 
-As the first example, we try out the chat CLI in MLC LLM with 4-bit quantized 7B Llama-2 model.
+As the first example, we try out the chat CLI in MLC LLM with 4-bit quantized 8B Llama-3 model.
 You can run MLC chat through a one-liner command:
 
 .. code:: bash
@@ -54,17 +54,19 @@ After waiting, this command launch a chat interface where you can enter your pro
                         Note: Separate stop words in the `stop` option with commas (,).
   Multi-line input: Use escape+enter to start a new line.
 
-  [INST]: What's the meaning of life?
-  [/INST]:
-  Ah, a question that has puzzled philosophers and theologians for centuries! ...
+  user: What's the meaning of life
+  assistant:
+  What a profound and intriguing question! While there's no one definitive answer, I'd be happy to help you explore some perspectives on the meaning of life.
+
+  The concept of the meaning of life has been debated and...
 
 
 The figure below shows what run under the hood of this chat CLI command.
 For the first time running the command, there are three major phases.
 
-- **Phase 1. Pre-quantized weight download.** This phase automatically downloads pre-quantized Llama-2 model from `Hugging Face <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`_ and saves it to your local cache directory.
-- **Phase 2. Model compilation.** This phase automatically optimizes the Llama-2 model to accelerate model inference on GPU with techniques of machine learning compilation in `Apache TVM <https://llm.mlc.ai/docs/install/tvm.html>`_ compiler, and generate the binary model library that enables the execution language models on your local GPU.
-- **Phase 3. Chat runtime.** This phase consumes the model library built in phase 2 and the model weights downloaded in phase 1, launches a platform-native chat runtime to drive the execution of Llama-2 model.
+- **Phase 1. Pre-quantized weight download.** This phase automatically downloads pre-quantized Llama-3 model from `Hugging Face <https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC>`_ and saves it to your local cache directory.
+- **Phase 2. Model compilation.** This phase automatically optimizes the Llama-3 model to accelerate model inference on GPU with techniques of machine learning compilation in `Apache TVM <https://llm.mlc.ai/docs/install/tvm.html>`_ compiler, and generate the binary model library that enables the execution language models on your local GPU.
+- **Phase 3. Chat runtime.** This phase consumes the model library built in phase 2 and the model weights downloaded in phase 1, launches a platform-native chat runtime to drive the execution of Llama-3 model.
 
 We cache the pre-quantized model weights and compiled model library locally.
 Therefore, phase 1 and 2 will only execute **once** over multiple runs.
@@ -83,7 +85,7 @@ Therefore, phase 1 and 2 will only execute **once** over multiple runs.
 Python API
 ----------
 
-In the second example, we run the Llama-2 model with the chat completion Python API of MLC LLM.
+In the second example, we run the Llama-3 model with the chat completion Python API of MLC LLM.
 You can save the code below into a Python file and run it.
 
 .. code:: python
@@ -112,7 +114,7 @@ You can save the code below into a Python file and run it.
 
   MLC LLM Python API
 
-This code example first creates an :class:`mlc_llm.LLMEngine` instance with the the 4-bit quantized Llama-2 model.
+This code example first creates an :class:`mlc_llm.LLMEngine` instance with the the 4-bit quantized Llama-3 model.
 **We design the Python API** :class:`mlc_llm.LLMEngine` **to align with OpenAI API**,
 which means you can use :class:`mlc_llm.LLMEngine` in the same way of using
 `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
@@ -137,7 +139,7 @@ If you would like to do concurrent asynchronous generation, you can use :class:`
 REST Server
 -----------
 
-For the third example, we launch a REST server to serve the 4-bit quantized Llama-2 model
+For the third example, we launch a REST server to serve the 4-bit quantized Llama-3 model
 for OpenAI chat completion requests. The server can be launched in command line with
 
 .. code:: bash
