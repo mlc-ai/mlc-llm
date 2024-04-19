@@ -54,13 +54,13 @@ To run a model with MLC LLM in any platform, you can either:
 **Option 1: Use model prebuilts**
 
 To run ``mlc_llm``, you can specify the Huggingface MLC prebuilt model repo path with the prefix ``HF://``.
-For example, to run the MLC Llama 2 7B Q4F16_1 model (`Repo link <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC>`_),
-simply use ``HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC``. The model weights and library will be downloaded
+For example, to run the MLC Llama 3 8B Q4F16_1 model (`Repo link <https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC>`_),
+simply use ``HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC``. The model weights and library will be downloaded
 automatically from Huggingface.
 
 .. code:: shell
 
-  mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC --device "cuda:0" --overrides context_window_size=1024
+  mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --device "cuda:0" --overrides context_window_size=1024
 
 .. code:: shell
 
@@ -74,13 +74,11 @@ automatically from Huggingface.
                         Note: Separate stop words in the `stop` option with commas (,).
     Multi-line input: Use escape+enter to start a new line.
 
-  [INST]: What's the meaning of life
-  [/INST]:
-  Ah, a question that has puzzled philosophers and theologians for centuries! The meaning
-  of life is a deeply personal and subjective topic, and there are many different
-  perspectives on what it might be. However, here are some possible answers that have been
-  proposed by various thinkers and cultures:
-  ...
+  user: What's the meaning of life
+  assistant:
+  What a profound and intriguing question! While there's no one definitive answer, I'd be happy to help you explore some perspectives on the meaning of life.
+
+  The concept of the meaning of life has been debated and...
 
 
 **Option 2: Use locally compiled model weights and libraries**

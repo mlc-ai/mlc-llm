@@ -37,7 +37,7 @@ You can run MLC chat through a one-liner command:
 
 .. code:: bash
 
-    mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+    mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
 It may take 1-2 minutes for the first time running this command.
 After waiting, this command launch a chat interface where you can enter your prompt and chat with the model.
@@ -91,7 +91,7 @@ You can save the code below into a Python file and run it.
   from mlc_llm import LLMEngine
 
   # Create engine
-  model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
+  model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
   engine = LLMEngine(model)
 
   # Run chat completion in OpenAI API.
@@ -142,7 +142,7 @@ for OpenAI chat completion requests. The server can be launched in command line 
 
 .. code:: bash
 
-  mlc_llm serve HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+  mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
 The server is hooked at ``http://127.0.0.1:8000`` by default, and you can use ``--host`` and ``--port``
 to set a different host and port.
@@ -154,7 +154,7 @@ we can open a new shell and send a cURL request via the following command:
   curl -X POST \
     -H "Content-Type: application/json" \
     -d '{
-          "model": "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC",
+          "model": "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC",
           "messages": [
               {"role": "user", "content": "Hello! Our project is MLC LLM. What is the name of our project?"}
           ]
@@ -280,7 +280,7 @@ environments (e.g. SteamDeck).
 
 .. code:: bash
 
-    mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC --device vulkan
+    mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --device vulkan
 
 The same core LLM runtime engine powers all the backends, enabling the same model to be deployed across backends as
 long as they fit within the memory and computing budget of the corresponding hardware backend.

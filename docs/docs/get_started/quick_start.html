@@ -306,7 +306,7 @@ It is always recommended to install it in an isolated conda virtual environment.
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">LLMEngine</span>
 
 <span class="c1"># Create engine</span>
-<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;</span>
+<span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC&quot;</span>
 <span class="n">engine</span> <span class="o">=</span> <span class="n">LLMEngine</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
 
 <span class="c1"># Run chat completion in OpenAI API.</span>
@@ -332,7 +332,7 @@ It is always recommended to install it in an isolated conda virtual environment.
 </div><div aria-labelledby="tab-0-0-1" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-1" name="0-1" role="tabpanel" tabindex="0"><p><strong>Install MLC LLM</strong>. <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">MLC LLM</span></a> is available via pip.
 It is always recommended to install it in an isolated conda virtual environment.</p>
 <p><strong>Launch a REST server.</strong> Run the following command from command line to launch a REST server at <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8000</span></code>.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 </pre></div>
 </div>
 <p><strong>Send requests to server.</strong> When the server is ready (showing <code class="docutils literal notranslate"><span class="pre">INFO:</span> <span class="pre">Uvicorn</span> <span class="pre">running</span> <span class="pre">on</span> <span class="pre">http://127.0.0.1:8000</span> <span class="pre">(Press</span> <span class="pre">CTRL+C</span> <span class="pre">to</span> <span class="pre">quit)</span></code>),
@@ -340,7 +340,7 @@ open a new shell and send a request via the following command:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{</span>
-<span class="s1">        &quot;model&quot;: &quot;HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC&quot;,</span>
+<span class="s1">        &quot;model&quot;: &quot;HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC&quot;,</span>
 <span class="s1">        &quot;messages&quot;: [</span>
 <span class="s1">            {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;Hello! Our project is MLC LLM. What is the name of our project?&quot;}</span>
 <span class="s1">        ]</span>
@@ -360,7 +360,7 @@ Our REST API has complete OpenAI API support.</p>
 It is always recommended to install it in an isolated conda virtual environment.</p>
 <p>For Windows/Linux users, make sure to have latest <a class="reference internal" href="../install/gpu.html#vulkan-driver"><span class="std std-ref">Vulkan driver</span></a> installed.</p>
 <p><strong>Run in command line</strong>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 </pre></div>
 </div>
 <p>If you are using windows/linux/steamdeck and would like to use vulkan,
