@@ -64,23 +64,131 @@ Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-
   <img src="site/img/multi-gpu/figure-2.svg" width="100%"/>
 </p>
 
-## News
-
-* [10/18/2023] [[Post]](https://blog.mlc.ai/2023/10/19/Scalable-Language-Model-Inference-on-Multiple-NVDIA-AMD-GPUs) Scalable multi-GPU support for CUDA and ROCm are official.
-* [09/02/2023] Prebuilt ROCm 5.7 and CUDA 12.2 package is [available](https://llm.mlc.ai/docs/install/tvm.html#option-1-prebuilt-package).
-* [08/25/2023] CodeLlama support is up.
-* [08/14/2023] [[Post]](https://blog.mlc.ai/2023/08/09/GPU-Accelerated-LLM-on-Orange-Pi) Mali GPU support is up on Orange Pi.
-* [08/09/2023] [[Post]](https://blog.mlc.ai/2023/08/09/Making-AMD-GPUs-competitive-for-LLM-inference) ROCm backend is mature to use.
-* [08/02/2023] [Dockerfile](https://github.com/mlc-ai/llm-perf-bench/) is released for CUDA performance benchmarking.
-* [07/19/2023] Support for Llama2-7B/13B/70B is up.
-* [05/22/2023] [[Post]](https://blog.mlc.ai/2023/05/22/bringing-open-large-language-models-to-consumer-devices) RedPajama support is up.
-* [05/08/2023] [[Post]](https://blog.mlc.ai/2023/05/08/bringing-hardware-accelerated-language-models-to-android-devices) MLC LLM is now available on Android.
-* [05/01/2023] [[Post]](https://blog.mlc.ai/2023/05/01/bringing-accelerated-llm-to-consumer-hardware) MLC LLM is released with Metal, Vulkan and CUDA backends.
-* [04/14/2023] [WebLLM](https://github.com/mlc-ai/web-llm) is released prior to MLC LLM with WebGPU and WebAssembly backend.
 
 ## Getting Started
 
-Please visit our [documentation](https://llm.mlc.ai/docs/index.html#getting-started) for detailed instructions.
+We introduce the quick start examples of chat CLI, Python API and REST server here to use MLC LLM.
+We use 4-bit quantized 8B Llama-3 model for demonstration purpose.
+The pre-quantized Llama-3 weights is available at https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC.
+You can also try out unquantized Llama-3 model by replacing `q4f16_1` to `q0f16` in the examples below.
+Please visit our [documentation](https://llm.mlc.ai/docs/index.html) for detailed quick start and introduction.
+
+### Installation
+
+MLC LLM is available via [pip](https://llm.mlc.ai/docs/install/mlc_llm.html#install-mlc-packages).
+It is always recommended to install it in an isolated conda virtual environment.
+
+To verify the installation, activate your virtual environment, run
+
+```bash
+python -c "import mlc_llm; print(mlc_llm.__path__)"
+```
+
+You are expected to see the installation path of MLC LLM Python package.
+
+### Chat CLI
+
+We can try out the chat CLI in MLC LLM with 4-bit quantized 8B Llama-3 model.
+
+```bash
+mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
+```
+
+It may take 1-2 minutes for the first time running this command.
+After waiting, this command launch a chat interface where you can enter your prompt and chat with the model.
+
+```
+You can use the following special commands:
+/help               print the special commands
+/exit               quit the cli
+/stats              print out the latest stats (token/sec)
+/reset              restart a fresh chat
+/set [overrides]    override settings in the generation config. For example,
+                      `/set temperature=0.5;max_gen_len=100;stop=end,stop`
+                      Note: Separate stop words in the `stop` option with commas (,).
+Multi-line input: Use escape+enter to start a new line.
+
+user: What's the meaning of life
+assistant:
+What a profound and intriguing question! While there's no one definitive answer, I'd be happy to help you explore some perspectives on the meaning of life.
+
+The concept of the meaning of life has been debated and...
+```
+
+### Python API
+
+We can run the Llama-3 model with the chat completion Python API of MLC LLM.
+You can save the code below into a Python file and run it.
+
+```python
+from mlc_llm import LLMEngine
+
+# Create engine
+model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+engine = LLMEngine(model)
+
+# Run chat completion in OpenAI API.
+for response in engine.chat.completions.create(
+    messages=[{"role": "user", "content": "What is the meaning of life?"}],
+    model=model,
+    stream=True,
+):
+    for choice in response.choices:
+        print(choice.delta.content, end="", flush=True)
+print("\n")
+
+engine.terminate()
+```
+
+**We design the Python API `mlc_llm.LLMEngine` to align with OpenAI API**,
+which means you can use LLMEngine in the same way of using
+[OpenAI's Python package](https://github.com/openai/openai-python?tab=readme-ov-file#usage)
+for both synchronous and asynchronous generation.
+
+In this code example, we use the synchronous chat completion interface and iterate over
+all the stream responses.
+If you want to run without streaming, you can run
+
+```python
+response = engine.chat.completions.create(
+    messages=[{"role": "user", "content": "What is the meaning of life?"}],
+    model=model,
+    stream=False,
+)
+print(response)
+```
+
+You can also try different arguments supported in [OpenAI chat completion API](https://platform.openai.com/docs/api-reference/chat/create).
+If you would like to do concurrent asynchronous generation, you can use `mlc_llm.AsyncLLMEngine` instead.
+
+### REST Server
+
+We can launch a REST server to serve the 4-bit quantized Llama-3 model for OpenAI chat completion requests.
+
+```bash
+mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
+```
+
+The server is hooked at `http://127.0.0.1:8000` by default, and you can use `--host` and `--port`
+to set a different host and port.
+When the server is ready (showing `INFO: Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)`),
+we can open a new shell and send a cURL request via the following command:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC",
+        "messages": [
+            {"role": "user", "content": "Hello! Our project is MLC LLM. What is the name of our project?"}
+        ]
+  }' \
+  http://127.0.0.1:8000/v1/chat/completions
+```
+
+The server will process this request and send back the response.
+Similar to [Python API](#python-api), you can pass argument ``"stream": true``
+to request for stream responses.
 
 ## Model Support
 
@@ -97,7 +205,7 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
   <tbody>
     <tr>
       <td>Llama</td>
-      <td>Llama-2, Code Llama, Vicuna, WizardLM, WizardMath, OpenOrca Platypus2, FlagAlpha Llama-2 Chinese, georgesung Llama-2 Uncensored</td>
+      <td>Llama-3, Code Llama, Vicuna, WizardLM, WizardMath, OpenOrca Platypus2, FlagAlpha Llama-2 Chinese, georgesung Llama-2 Uncensored</td>
     </tr>
     <tr>
       <td>GPT-NeoX</td>

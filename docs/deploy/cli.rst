@@ -62,7 +62,7 @@ automatically from Huggingface.
 
   mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --device "cuda:0" --overrides context_window_size=1024
 
-.. code:: shell
+.. code::
 
   You can use the following special commands:
     /help               print the special commands
