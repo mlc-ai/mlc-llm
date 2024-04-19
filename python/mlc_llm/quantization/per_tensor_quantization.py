@@ -16,6 +16,7 @@ from .utils import (
     compile_quantize_func,
     convert_uint_packed_fp8_to_float,
     is_final_fc,
+    is_moe_gate,
     pack_weight,
 )
 
@@ -30,10 +31,11 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
     kind: str
     activation_dtype: Literal["e4m3_float8", "e5m2_float8"]
     weight_dtype: Literal["e4m3_float8", "e5m2_float8"]
-    storage_dtype: Literal["uint32"]
+    storage_dtype: Literal["uint32", "e4m3_float8", "e5m2_float8"]
     model_dtype: Literal["float16"]
     quantize_embedding: bool = True
     quantize_final_fc: bool = True
+    quantize_linear: bool = True
 
     num_elem_per_storage: int = 0
     max_int_value: int = 0
@@ -101,8 +103,11 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                         f"{name}.q_weight",
                     ]
                 )
-                if isinstance(node, nn.Linear) and (
-                    not is_final_fc(name) or self.config.quantize_final_fc
+                if (
+                    isinstance(node, nn.Linear)
+                    and self.config.quantize_linear
+                    and (not is_final_fc(name) or self.config.quantize_final_fc)
+                    and not is_moe_gate(name, node)
                 ):
                     self.quant_map.param_map[weight_name] = param_names
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
@@ -192,7 +197,11 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
             scale = None
 
         def _compute_quantized_weight(weight: te.Tensor, scale: Optional[te.Tensor]) -> te.Tensor:
-            elem_storage_dtype = f"uint{quantize_dtype.bits}"
+            elem_storage_dtype = (
+                f"uint{quantize_dtype.bits}"
+                if DataType(self.storage_dtype).type_code == DataTypeCode.UINT
+                else quantize_dtype
+            )
             scaled_weight = te.compute(
                 shape=weight.shape,
                 fcompute=lambda *idx: tir.Cast(
@@ -206,6 +215,9 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                     ),
                 ),
             )
+
+            if self.weight_dtype == self.storage_dtype:
+                return scaled_weight
 
             packed_weight = pack_weight(
                 scaled_weight,
@@ -248,15 +260,18 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         out_shape: Optional[Sequence[tir.PrimExpr]] = None,
     ) -> te.Tensor:
         """Dequantize a fp8 tensor to higher-precision float."""
-        weight = convert_uint_packed_fp8_to_float(
-            q_weight,
-            self.num_elem_per_storage,
-            self.storage_dtype,
-            self.model_dtype,
-            quantize_dtype,
-            axis=-1,
-            out_shape=out_shape,
-        )
+        if quantize_dtype != self.storage_dtype:
+            weight = convert_uint_packed_fp8_to_float(
+                q_weight,
+                self.num_elem_per_storage,
+                self.storage_dtype,
+                self.model_dtype,
+                quantize_dtype,
+                axis=-1,
+                out_shape=out_shape,
+            )
+        else:
+            weight = q_weight.astype(self.model_dtype)
         if scale is not None:
             weight = weight * scale
         return weight
@@ -276,7 +291,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.out_dtype = out_dtype
+        self.out_dtype = out_dtype or config.model_dtype
         self.config = config
         self.q_weight = nn.Parameter(
             (out_features, tir.ceildiv(in_features, config.num_elem_per_storage)),
@@ -341,22 +356,27 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
         ret : nn.Tensor
             The output tensor for the per-tensor quantized linear layer.
         """
-        w = nn.op.tensor_expr_op(
-            lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
-                weight,
-                scale,
-                out_shape=[
-                    (
-                        tir.IntImm("int64", self.out_features)
-                        if isinstance(self.out_features, int)
-                        else weight.shape[0]
-                    ),
-                    tir.IntImm("int64", self.in_features),
-                ],
-            ),
-            "dequantize",
-            args=[self.q_weight, self.q_scale],
-        )
+        # Note: Use calibration scale when calibration is enabled
+        x = x.astype(self.config.activation_dtype)
+        if self.config.weight_dtype == self.config.storage_dtype:
+            w = self.q_weight
+        else:
+            w = nn.op.tensor_expr_op(
+                lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
+                    weight,
+                    scale,
+                    out_shape=[
+                        (
+                            tir.IntImm("int64", self.out_features)
+                            if isinstance(self.out_features, int)
+                            else weight.shape[0]
+                        ),
+                        tir.IntImm("int64", self.in_features),
+                    ],
+                ),
+                "dequantize",
+                args=[self.q_weight, self.q_scale],
+            )
         w = nn.op.permute_dims(w)
         x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
