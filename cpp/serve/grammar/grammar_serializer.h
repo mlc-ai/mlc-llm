@@ -77,7 +77,7 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
 };
 
 /*!
- * \brief Serialize the the raw representation of the BNF AST to a string with JSON format.
+ * \brief Serialize the raw representation of the BNF AST to a string with JSON format.
  * \sa BNFJSONParser::Parse for parsing the JSON string.
  * \details JSON format:
  *  {

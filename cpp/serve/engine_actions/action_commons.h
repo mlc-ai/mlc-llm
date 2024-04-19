@@ -47,7 +47,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
 
 /*!
  * \brief Preempt the last running request state entry from `running_queue`.
- * If all entries of the the selected request have been preempted,
+ * If all entries of the selected request have been preempted,
  * remove it from running request.
  * If it is not in the waiting request queue, add it to the waiting queue.
  * \param estate The engine state to update due to preemption.
