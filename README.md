@@ -141,7 +141,7 @@ use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_mode
 ## Universal Deployment APIs
 
 MLC LLM provides multiple sets of APIs across platforms and environments. These include
-* [Python API](https://llm.mlc.ai/docs/deploy/python.html)
+* [Python API](https://llm.mlc.ai/docs/deploy/python_engine.html)
 * [OpenAI-compatible Rest-API](https://llm.mlc.ai/docs/deploy/rest.html)
 * [C++ API](https://llm.mlc.ai/docs/deploy/cli.html)
 * [JavaScript API](https://llm.mlc.ai/docs/deploy/javascript.html) and [Web LLM](https://github.com/mlc-ai/web-llm)
