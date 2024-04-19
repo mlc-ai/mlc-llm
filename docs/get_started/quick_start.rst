@@ -23,7 +23,7 @@ It is recommended to have at least 6GB free VRAM to run it.
       from mlc_llm import LLMEngine
 
       # Create engine
-      model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
+      model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
       engine = LLMEngine(model)
 
       # Run chat completion in OpenAI API.
@@ -57,7 +57,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: shell
 
-      mlc_llm serve HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+      mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
     **Send requests to server.** When the server is ready (showing ``INFO: Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)``),
     open a new shell and send a request via the following command:
@@ -67,7 +67,7 @@ It is recommended to have at least 6GB free VRAM to run it.
       curl -X POST \
         -H "Content-Type: application/json" \
         -d '{
-              "model": "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC",
+              "model": "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC",
               "messages": [
                   {"role": "user", "content": "Hello! Our project is MLC LLM. What is the name of our project?"}
               ]
@@ -94,7 +94,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: bash
 
-      mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+      mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
 
     If you are using windows/linux/steamdeck and would like to use vulkan,
