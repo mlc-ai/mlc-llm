@@ -93,7 +93,7 @@ def jit(model_path: Path, chat_config: Dict[str, Any], device: Device) -> Path:
             ]
             logger.info("Compiling using commands below:")
             logger.info("%s", blue(shlex.join(cmd)))
-            subprocess.run(cmd, check=True)
+            subprocess.run(cmd, check=True, env=os.environ)
             shutil.move(dso_path, dst)
             logger.info("Using compiled model lib: %s", bold(dst))
 
