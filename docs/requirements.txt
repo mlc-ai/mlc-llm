@@ -6,5 +6,9 @@ tlcpack-sphinx-addon==0.2.2
 sphinxcontrib_httpdomain==1.8.1
 sphinxcontrib-napoleon==0.7
 sphinx-reredirects==0.1.2
+shortuuid
+pydantic
+uvicorn
+fastapi
 --find-links https://mlc.ai/wheels
 mlc-ai-nightly
