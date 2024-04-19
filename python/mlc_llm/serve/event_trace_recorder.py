@@ -17,7 +17,7 @@ class EventTraceRecorder(Object):
         )
 
     def add_event(self, request_id: str, event: str) -> None:
-        """Record a event for the the input request in the trace recorder.
+        """Record a event for the input request in the trace recorder.
 
         Parameters
         ----------

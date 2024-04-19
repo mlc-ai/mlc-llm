@@ -577,7 +577,7 @@ class EngineState:
             self.trace_recorder = EventTraceRecorder()
 
     def record_event(self, request_id: str, event: str) -> None:
-        """Record a event for the the input request in the trace
+        """Record a event for the input request in the trace
         recorder when the recorder exists.
 
         Parameters

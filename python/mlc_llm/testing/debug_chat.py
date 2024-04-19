@@ -118,7 +118,7 @@ class DefaultDebugInstrument:
             print(f"{red(f'{func_name} has INF')}: {num_infs}")
             self.first_inf_occurred = True
 
-        # Save the the arguments to npz
+        # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
             if isinstance(arg, tvm.nd.NDArray):

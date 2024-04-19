@@ -22,7 +22,7 @@ using namespace tvm::runtime;
 class EventTraceRecorderObj : public Object {
  public:
   /*!
-   * \brief Record a event for the the input request in the trace recorder.
+   * \brief Record a event for the input request in the trace recorder.
    * \param request_id The subject request of the event.
    * \param event The event in a string name.
    * It can have one of the following patterns:
