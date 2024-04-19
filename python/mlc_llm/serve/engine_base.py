@@ -919,6 +919,7 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(
         request,
+        model_config,
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
     )
@@ -1043,6 +1044,7 @@ def process_completion_request(
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
+    model_config: Dict[str, Any],
     tokenizer: Tokenizer,
     max_input_sequence_length: int,
 ) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:
@@ -1094,7 +1096,7 @@ def process_completion_request(
     assert isinstance(prompt, list)
 
     # Process generation config. Create request id.
-    generation_cfg = protocol_utils.get_generation_config(request)
+    generation_cfg = protocol_utils.get_generation_config(request, model_config)
 
     # - Echo back the prompt.
     echo_response = None

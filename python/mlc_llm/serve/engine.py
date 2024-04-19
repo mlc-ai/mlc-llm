@@ -1189,6 +1189,7 @@ class AsyncLLMEngine(engine_base.LLMEngineBase):
             request,
             request_id,
             self.state,
+            self.model_config_dicts[0],
             self.tokenizer,
             self.max_input_sequence_length,
         )
@@ -1729,6 +1730,7 @@ class LLMEngine(engine_base.LLMEngineBase):
             request,
             request_id,
             self.state,
+            self.model_config_dicts[0],
             self.tokenizer,
             self.max_input_sequence_length,
         )
