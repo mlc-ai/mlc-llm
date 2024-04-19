@@ -193,7 +193,6 @@
 <li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">🚧 Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
 <ul>
@@ -331,7 +330,9 @@ packages or build MLC LLM from source.</p>
 </section>
 <section id="run-llmengine">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Run LLMEngine</a><a class="headerlink" href="#run-llmengine" title="Permalink to this heading">¶</a></h2>
-<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> provides the interface of OpenAI chat completion synchronously.</p>
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> provides the interface of OpenAI chat completion synchronously.
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code> does not batch concurrent request due to the synchronous design,
+and please use <a class="reference internal" href="#python-engine-async-llm-engine"><span class="std std-ref">AsyncLLMEngine</span></a> for request batching process.</p>
 <p><strong>Stream Response.</strong> In <a class="reference internal" href="../get_started/quick_start.html#quick-start"><span class="std std-ref">Quick Start</span></a> and <a class="reference internal" href="../get_started/introduction.html#introduction-to-mlc-llm"><span class="std std-ref">Introduction to MLC LLM</span></a>,
 we introduced the basic use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.LLMEngine</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">LLMEngine</span>
@@ -374,9 +375,10 @@ and <a class="reference external" href="https://platform.openai.com/docs/api-ref
 for the complete chat completion interface.</p>
 </section>
 <section id="run-asyncllmengine">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Run AsyncLLMEngine</a><a class="headerlink" href="#run-asyncllmengine" title="Permalink to this heading">¶</a></h2>
+<span id="python-engine-async-llm-engine"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Run AsyncLLMEngine</a><a class="headerlink" href="#run-asyncllmengine" title="Permalink to this heading">¶</a></h2>
 <p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> provides the interface of OpenAI chat completion with
-asynchronous features.</p>
+asynchronous features.
+<strong>We recommend using</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> <strong>to batch concurrent request for better throughput.</strong></p>
 <p><strong>Stream Response.</strong> The core use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncLLMEngine</span></code> for stream responses is as follows.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
   <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
@@ -464,7 +466,8 @@ and further affects the GPU memory usage of the engine.</p>
 <li><p>mode <code class="docutils literal notranslate"><span class="pre">&quot;interactive&quot;</span></code> uses 1 as the request concurrency and low KV cache capacity, which is designed for <strong>interactive use cases</strong> such as chats and conversations.</p></li>
 <li><p>mode <code class="docutils literal notranslate"><span class="pre">&quot;server&quot;</span></code> uses as much request concurrency and KV cache capacity as possible. This mode aims to <strong>fully utilize the GPU memory for large server scenarios</strong> where concurrent requests may be many.</p></li>
 </ul>
-<p>Please refer to <a class="reference internal" href="#python-engine-api-reference"><span class="std std-ref">API Reference</span></a> for detailed documentation of the engine mode.</p>
+<p><strong>For system benchmark, please select mode</strong> <code class="docutils literal notranslate"><span class="pre">&quot;server&quot;</span></code>.
+Please refer to <a class="reference internal" href="#python-engine-api-reference"><span class="std std-ref">API Reference</span></a> for detailed documentation of the engine mode.</p>
 </section>
 <section id="deploy-your-own-model-with-python-api">
 <h2><a class="toc-backref" href="#id10" role="doc-backlink">Deploy Your Own Model with Python API</a><a class="headerlink" href="#deploy-your-own-model-with-python-api" title="Permalink to this heading">¶</a></h2>
