@@ -46,7 +46,6 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
    compilation/convert_weights.rst
    compilation/compile_models.rst
    compilation/define_new_models.rst
-   compilation/configure_quantization.rst
 
 .. toctree::
    :maxdepth: 1

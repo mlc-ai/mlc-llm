@@ -38,6 +38,8 @@ Run LLMEngine
 -------------
 
 :class:`mlc_llm.LLMEngine` provides the interface of OpenAI chat completion synchronously.
+:class:`mlc_llm.LLMEngine` does not batch concurrent request due to the synchronous design,
+and please use :ref:`AsyncLLMEngine <python-engine-async-llm-engine>` for request batching process.
 
 **Stream Response.** In :ref:`quick-start` and :ref:`introduction-to-mlc-llm`,
 we introduced the basic use of :class:`mlc_llm.LLMEngine`.
@@ -86,11 +88,14 @@ and `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/
 for the complete chat completion interface.
 
 
+.. _python-engine-async-llm-engine:
+
 Run AsyncLLMEngine
 ------------------
 
 :class:`mlc_llm.AsyncLLMEngine` provides the interface of OpenAI chat completion with
 asynchronous features.
+**We recommend using** :class:`mlc_llm.AsyncLLMEngine` **to batch concurrent request for better throughput.**
 
 **Stream Response.** The core use of :class:`mlc_llm.AsyncLLMEngine` for stream responses is as follows.
 
@@ -188,6 +193,7 @@ In short,
 - mode ``"interactive"`` uses 1 as the request concurrency and low KV cache capacity, which is designed for **interactive use cases** such as chats and conversations.
 - mode ``"server"`` uses as much request concurrency and KV cache capacity as possible. This mode aims to **fully utilize the GPU memory for large server scenarios** where concurrent requests may be many.
 
+**For system benchmark, please select mode** ``"server"``.
 Please refer to :ref:`python-engine-api-reference` for detailed documentation of the engine mode.
 
 

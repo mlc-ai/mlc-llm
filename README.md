@@ -50,22 +50,7 @@
 </table>
 
 
-**Scalable.** MLC LLM scales universally on NVIDIA and AMD GPUs, cloud and gaming GPUs. Below
-showcases our single batch decoding performance with prefilling = 1 and decoding = 256.
-
-Performance of 4-bit CodeLlama-34B and Llama2-70B on two NVIDIA RTX 4090 and two AMD Radeon 7900 XTX:
-<p float="left">
-  <img src="site/img/multi-gpu/figure-1.svg" width="40%"/>
-  <img src="site/img/multi-gpu/figure-3.svg" width="30%"/>
-</p>
-
-Scaling of fp16 and 4-bit CodeLlama-34 and Llama2-70B on A100-80G-PCIe and A10G-24G-PCIe, up to 8 GPUs:
-<p float="center">
-  <img src="site/img/multi-gpu/figure-2.svg" width="100%"/>
-</p>
-
-
-## Getting Started
+## Quick Start
 
 We introduce the quick start examples of chat CLI, Python API and REST server here to use MLC LLM.
 We use 4-bit quantized 8B Llama-3 model for demonstration purpose.
@@ -140,30 +125,17 @@ print("\n")
 engine.terminate()
 ```
 
-**We design the Python API `mlc_llm.LLMEngine` to align with OpenAI API**,
-which means you can use LLMEngine in the same way of using
+**The Python API of `mlc_llm.LLMEngine` fully aligns with OpenAI API**.
+You can use LLMEngine in the same way of using
 [OpenAI's Python package](https://github.com/openai/openai-python?tab=readme-ov-file#usage)
 for both synchronous and asynchronous generation.
 
-In this code example, we use the synchronous chat completion interface and iterate over
-all the stream responses.
-If you want to run without streaming, you can run
-
-```python
-response = engine.chat.completions.create(
-    messages=[{"role": "user", "content": "What is the meaning of life?"}],
-    model=model,
-    stream=False,
-)
-print(response)
-```
-
-You can also try different arguments supported in [OpenAI chat completion API](https://platform.openai.com/docs/api-reference/chat/create).
 If you would like to do concurrent asynchronous generation, you can use `mlc_llm.AsyncLLMEngine` instead.
 
 ### REST Server
 
 We can launch a REST server to serve the 4-bit quantized Llama-3 model for OpenAI chat completion requests.
+The server has fully OpenAI API completeness.
 
 ```bash
 mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
@@ -185,66 +157,6 @@ curl -X POST \
   }' \
   http://127.0.0.1:8000/v1/chat/completions
 ```
-
-The server will process this request and send back the response.
-Similar to [Python API](#python-api), you can pass argument ``"stream": true``
-to request for stream responses.
-
-## Model Support
-
-MLC LLM supports a wide range of model architectures and variants. We have the following prebuilts which you can
-use off-the-shelf. Visit [Prebuilt Models](https://llm.mlc.ai/docs/prebuilt_models.html) to see the full list, and [Compile Models via MLC](https://llm.mlc.ai/docs/compilation/compile_models.html) to see how to use models not on this list.
-
-<table style="width:100%">
-  <thead>
-    <tr>
-      <th style="width:40%">Architecture</th>
-      <th style="width:60%">Prebuilt Model Variants</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Llama</td>
-      <td>Llama-3, Code Llama, Vicuna, WizardLM, WizardMath, OpenOrca Platypus2, FlagAlpha Llama-2 Chinese, georgesung Llama-2 Uncensored</td>
-    </tr>
-    <tr>
-      <td>GPT-NeoX</td>
-      <td>RedPajama</td>
-    </tr>
-    <tr>
-      <td>GPT-J</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>RWKV</td>
-      <td>RWKV-raven</td>
-    </tr>
-    <tr>
-      <td>MiniGPT</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>GPTBigCode</td>
-      <td>WizardCoder</td>
-    </tr>
-    <tr>
-      <td>ChatGLM</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>StableLM</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>Mistral</td>
-      <td></td>
-    </tr>
-    <tr>
-      <td>Phi</td>
-      <td></td>
-    </tr>
-  </tbody>
-</table>
 
 ## Universal Deployment APIs
 
@@ -273,7 +185,7 @@ The underlying techniques of MLC LLM include:
 
 <details>
   <summary>References (Click to expand)</summary>
-  
+
   ```bibtex
   @inproceedings{tensorir,
       author = {Feng, Siyuan and Hou, Bohan and Jin, Hongyi and Lin, Wuwei and Shao, Junru and Lai, Ruihang and Ye, Zihao and Zheng, Lianmin and Yu, Cody Hao and Yu, Yong and Chen, Tianqi},
