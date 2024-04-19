@@ -664,7 +664,7 @@ def _inspect_model_lib_metadata_memory_usage(model_lib_path, config_file_path):
         "--mlc-chat-config",
         config_file_path,
     ]
-    subprocess.run(cmd, check=False)
+    subprocess.run(cmd, check=False, env=os.environ)
 
 
 class ChatModule:  # pylint: disable=too-many-instance-attributes

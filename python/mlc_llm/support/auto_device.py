@@ -1,4 +1,6 @@
 """Automatic detection of the device available on the local machine."""
+
+import os
 import subprocess
 import sys
 from typing import Dict, Optional
@@ -65,6 +67,7 @@ def _device_exists(device: Device) -> bool:
             capture_output=True,
             text=True,
             check=False,
+            env=os.environ,
         )
         .stdout.strip()
         .splitlines()

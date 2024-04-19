@@ -36,11 +36,13 @@ def git_clone(url: str, destination: Path, ignore_lfs: bool) -> None:
     command = ["git", "clone", url, repo_name]
     _ensure_directory_not_exist(destination, force_redo=False)
     try:
+        env = os.environ.copy()
+        env["GIT_LFS_SKIP_SMUDGE"] = "1"
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
             logger.info("[Git] Cloning %s to %s", bold(url), destination)
             subprocess.run(
                 command,
-                env={"GIT_LFS_SKIP_SMUDGE": "1"},
+                env=env,
                 cwd=tmp_dir,
                 check=True,
                 stdout=subprocess.DEVNULL,
