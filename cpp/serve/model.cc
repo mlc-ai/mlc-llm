@@ -312,7 +312,7 @@ class ModelImpl : public ModelObj {
         return embeddings_nd.CreateView({batch_size, seq_len, hidden_size_}, embeddings_nd->dtype);
       }
     } else {
-      ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
+      ShapeTuple embedding_shape{batch_size * seq_len, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
 
       if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
