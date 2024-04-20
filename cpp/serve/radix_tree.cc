@@ -270,7 +270,7 @@ void PagedRadixTreeObj::ExtendSequence(int64_t seq_id, IntTuple tokens) {
   }
 }
 
-void PagedRadixTreeObj::RemoveSequence(int32_t seq_id) {
+void PagedRadixTreeObj::RemoveSequence(int64_t seq_id) {
   RedixPage* page = seq2page[seq_id];
   page->PopSequence(seq_id_node_pool, seq_id);
   seq2page.erase(seq_id);
@@ -392,7 +392,10 @@ TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_MatchPrefix")
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_ExtendSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::ExtendSequence);
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_ForkSequence")
-    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::ForkSequence);
+    .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t parent_seq_id,
+                       uint64_t forked_offset) {
+      paged_radix_tree->ForkSequence(seq_id, parent_seq_id, forked_offset);
+    });
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_AddSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::AddSequence);
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_RemoveSequence")

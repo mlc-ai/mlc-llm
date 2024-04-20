@@ -352,7 +352,7 @@ class PagedRadixTreeObj : public Object {
    * \param seq_id The sequence ID to remove.
    * \throw Error if sequence ID is not valid.
    */
-  void RemoveSequence(int32_t seq_id);
+  void RemoveSequence(int64_t seq_id);
 
   /*!
    * \brief Get the remaining token capacity of the paged radix tree.
