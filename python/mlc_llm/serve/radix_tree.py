@@ -1,8 +1,10 @@
+"""The Paged Radix Tree class."""
+
+from typing import List, Tuple, Union
+
 import tvm
 import tvm._ffi
-from typing import Union, List, Tuple
 from tvm.runtime import Object, ShapeTuple
-from tvm.runtime.ndarray import NDArray
 
 from . import _ffi_api
 
