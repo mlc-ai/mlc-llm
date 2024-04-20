@@ -136,16 +136,23 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
+    hidden_states =
         hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
 
+    // Note(wuwei): previous layer (prefill_to_last / select_last) returns NDArray, but get_logits has to run on disco
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states, "hidden_states",
+                                                 {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
 
-    NDArray logits;
-    logits = Downcast<NDArray>(ret);
+    NDArray logits{nullptr};
+    if (ret->IsInstance<DRefObj>()) {
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+    } else {
+      logits = Downcast<NDArray>(ret);
+    }
     CHECK(logits.defined());
     // logits: (b * s, v)
     ICHECK_EQ(logits->ndim, 2);
@@ -185,8 +192,13 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
+    hidden_states =
         hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+
+    // Note(wuwei): previous layer (prefill_to_last / select_last) returns NDArray, but get_logits has to run on disco
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states,
+                                                 "hidden_states",
+                                                 {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
 
     ObjectRef ret =
         ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
