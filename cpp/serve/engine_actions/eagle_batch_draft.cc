@@ -69,7 +69,6 @@ class EagleBatchDraftActionObj : public EngineActionObj {
 
     // The first model doesn't get involved in draft proposal.
     for (int model_id = 1; model_id < static_cast<int>(models_.size()); ++model_id) {
-      LOG(INFO) << "EagleBatchDraft: model_id = " << model_id;
       // Collect
       // - the last committed token,
       // - the request model state
@@ -99,7 +98,6 @@ class EagleBatchDraftActionObj : public EngineActionObj {
       last_hidden_states = hidden_states_nd;
       // The first draft token has been generated in prefill/verify stage
       for (int draft_id = 1; draft_id < draft_length_; ++draft_id) {
-        LOG(INFO) << "EagleBatchDraft: model_id = " << model_id << " draft_id = " << draft_id;
         // prepare new input tokens
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
