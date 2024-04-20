@@ -88,8 +88,8 @@ class CompletionRequest(BaseModel):
     prompt: Union[str, List[int]]
     best_of: int = 1
     echo: bool = False
-    frequency_penalty: float = 0.0
-    presence_penalty: float = 0.0
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
     logprobs: bool = False
     top_logprobs: int = 0
     logit_bias: Optional[Dict[int, float]] = None
@@ -99,8 +99,8 @@ class CompletionRequest(BaseModel):
     stop: Optional[Union[str, List[str]]] = None
     stream: bool = False
     suffix: Optional[str] = None
-    temperature: float = 1.0
-    top_p: float = 1.0
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
     user: Optional[str] = None
     ignore_eos: bool = False
     response_format: Optional[RequestResponseFormat] = None
@@ -201,8 +201,8 @@ class ChatCompletionRequest(BaseModel):
 
     messages: List[ChatCompletionMessage]
     model: str
-    frequency_penalty: float = 0.0
-    presence_penalty: float = 0.0
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
     logprobs: bool = False
     top_logprobs: int = 0
     logit_bias: Optional[Dict[int, float]] = None
@@ -211,8 +211,8 @@ class ChatCompletionRequest(BaseModel):
     seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
     stream: bool = False
-    temperature: float = 1.0
-    top_p: float = 1.0
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
     tools: Optional[List[ChatTool]] = None
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
@@ -386,7 +386,7 @@ def openai_api_get_unsupported_fields(
 
 
 def openai_api_get_generation_config(
-    request: Union[CompletionRequest, ChatCompletionRequest]
+    request: Union[CompletionRequest, ChatCompletionRequest], model_config: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     from ..serve.config import ResponseFormat  # pylint: disable=import-outside-toplevel
@@ -407,6 +407,17 @@ def openai_api_get_generation_config(
     ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
+
+    # If per-request generation config values are missing, try loading from model config.
+    # If still not found, then use the default OpenAI API value
+    if kwargs["temperature"] is None:
+        kwargs["temperature"] = model_config.get("temperature", 1.0)
+    if kwargs["top_p"] is None:
+        kwargs["top_p"] = model_config.get("top_p", 1.0)
+    if kwargs["frequency_penalty"] is None:
+        kwargs["frequency_penalty"] = model_config.get("frequency_penalty", 0.0)
+    if kwargs["presence_penalty"] is None:
+        kwargs["presence_penalty"] = model_config.get("presence_penalty", 0.0)
     if kwargs["max_tokens"] is None:
         # Setting to -1 means the generation will not stop until
         # exceeding model capability or hit any stop criteria.
