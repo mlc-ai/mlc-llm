@@ -103,6 +103,9 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
+  TVM_MODULE_VTABLE_ENTRY("reload", &JSONFFIEngineImpl::Reload);
+  TVM_MODULE_VTABLE_ENTRY("unload", &JSONFFIEngineImpl::Unload);
+  TVM_MODULE_VTABLE_ENTRY("reset", &JSONFFIEngineImpl::Reset);
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
@@ -132,6 +135,12 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     this->engine_->InitBackgroundEngine(
         std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
   }
+
+  void Reload(EngineConfig engine_config) { this->engine_->Reload(std::move(engine_config)); }
+
+  void Unload() { this->engine_->Unload(); }
+
+  void Reset() { this->engine_->Reset(); }
 
   void RunBackgroundLoop() { this->engine_->RunBackgroundLoop(); }
 
