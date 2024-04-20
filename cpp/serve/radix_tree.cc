@@ -380,7 +380,7 @@ PagedRadixTree::PagedRadixTree(size_t num_pages, size_t page_size, size_t num_se
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree")
-    .set_body_typed([](size_t num_pages, size_t page_size, size_t num_seqs) {
+    .set_body_typed([](uint64_t num_pages, uint64_t page_size, uint64_t num_seqs) {
       return PagedRadixTree(num_pages, page_size, num_seqs);
     });
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_MatchPrefix")
