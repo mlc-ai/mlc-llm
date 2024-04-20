@@ -282,10 +282,16 @@ class ModelImpl : public ModelObj {
       // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
       hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
       // Reuse the copy embedding function
-      ft_.nd_copy_embedding_to_offset_func_(hidden, *dst, cum_length);
+      ObjectRef hidden_dref_or_nd = ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
+      ft_.nd_copy_embedding_to_offset_func_(hidden_dref_or_nd, *dst, cum_length);
       cum_length += 1;
     }
-    NDArray ret = Downcast<NDArray>(*dst);
+    NDArray ret{nullptr};
+    if ((*dst)->IsInstance<DRefObj>()) {
+      ret = Downcast<DRef>(*dst)->DebugGetFromRemote(0);
+    } else {
+     ret = Downcast<NDArray>(*dst);
+    }
     ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
     return ret;
   }
