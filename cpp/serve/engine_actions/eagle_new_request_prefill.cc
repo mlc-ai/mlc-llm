@@ -89,6 +89,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
     // fork sequences according to this map.
     std::unordered_map<int, std::unordered_set<int>> fork_rsentry_child_map;
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
+      LOG(INFO) << "EagleNewRequestPrefill: model_id = " << model_id;
       std::vector<int64_t> request_internal_ids;
       request_internal_ids.reserve(num_rsentries);
       ObjectRef embeddings = model_workspaces_[model_id].embeddings;

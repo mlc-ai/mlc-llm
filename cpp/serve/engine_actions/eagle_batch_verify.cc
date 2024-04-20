@@ -51,6 +51,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       return {};
     }
 
+    LOG(INFO) << "EagleBatchVerify";
+
     int num_rsentries = rsentries.size();
     Array<String> request_ids =
         rsentries.Map([](const RequestStateEntry& rstate) { return rstate->request->id; });
