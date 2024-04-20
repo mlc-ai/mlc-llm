@@ -257,8 +257,9 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
     def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
         op_ext.configure()
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
+        # Note(wuwei): not needed if only running on the controller
+        # if self.tensor_parallel_shards > 1:
+        #     logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         hidden_states = op.take(hidden_states, logit_positions, axis=0)
         return hidden_states
 
@@ -382,7 +383,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "$": {
-                    "param_mode": "packed",
+                    "param_mode": "none",
                     "effect_mode": "none",
                 },
             },

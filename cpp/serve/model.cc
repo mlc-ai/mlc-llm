@@ -218,8 +218,13 @@ class ModelImpl : public ModelObj {
       p_logit_pos[i] = total_length - 1;
     }
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+
+    // Note(wuwei): no need to copy to worker0 and this runs on the controller
+    bool use_disco = ft_.use_disco;
+    ft_.use_disco = false;
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+    ft_.use_disco = use_disco;
 
     CHECK(ft_.batch_select_last_hidden_func_.defined())
         << "`batch_select_last_hidden_states` function is not found in the model.";
@@ -240,7 +245,7 @@ class ModelImpl : public ModelObj {
         hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
 
     ObjectRef ret =
-        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
+        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
