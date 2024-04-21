@@ -11,12 +11,15 @@
 
 #include <optional>
 
+#include "../json_ffi/conv_template.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
 
 using namespace tvm;
 using namespace tvm::runtime;
+using namespace mlc::llm::json_ffi;
 
 /****************** GenerationConfig ******************/
 
@@ -63,7 +66,8 @@ class GenerationConfig : public ObjectRef {
    * \brief Parse the generation config from the given JSON string.
    * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
    */
-  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err);
+  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err,
+   const Conversation& conv_template);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
