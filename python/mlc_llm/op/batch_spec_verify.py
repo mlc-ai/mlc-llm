@@ -3,7 +3,8 @@
 from tvm.script import tir as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
-# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements,line-too-long,too-many-nested-blocks
+# pylint: disable=too-many-locals,invalid-name,too-many-arguments,
+# pylint: too-many-statements,line-too-long,too-many-nested-blocks,too-many-branches
 
 
 def batch_spec_verify():
