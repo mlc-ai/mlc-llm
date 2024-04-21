@@ -121,7 +121,7 @@ class ChatCompletionRequest {
   static std::optional<ChatCompletionRequest> FromJSON(const std::string& json_str,
                                                        std::string* err);
 
-  bool check_function_calling(Conversation& conv_template, std::string* err);
+  bool checkFunctionCalling(Conversation& conv_template, std::string* err);
   // TODO: check_penalty_range, check_logit_bias, check_logprobs
 };
 

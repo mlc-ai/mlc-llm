@@ -73,7 +73,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   conv_template.messages = messages;
 
   // check function calling
-  bool success_check = request.check_function_calling(conv_template, &err_);
+  bool success_check = request.checkFunctionCalling(conv_template, &err_);
   if (!success_check) {
     return false;
   }

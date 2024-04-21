@@ -360,7 +360,7 @@ picojson::object ChatCompletionMessage::ToJSON() const {
   return obj;
 }
 
-bool ChatCompletionRequest::check_function_calling(Conversation& conv_template, std::string* err) {
+bool ChatCompletionRequest::checkFunctionCalling(Conversation& conv_template, std::string* err) {
   if (!tools.has_value() || (tool_choice.has_value() && tool_choice.value() == "none")) {
     conv_template.use_function_calling = false;
     return true;

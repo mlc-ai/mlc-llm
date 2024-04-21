@@ -2,8 +2,11 @@
 
 #include "../metadata/json_parser.h"
 
+namespace mlc {
+namespace llm {
+namespace json_ffi {
+
 using namespace mlc::llm;
-using namespace mlc::llm::json_ffi;
 
 std::map<MessagePlaceholders, std::string> PLACEHOLDERS = {
     {MessagePlaceholders::SYSTEM, "{system_message}"},
@@ -309,3 +312,6 @@ std::optional<Conversation> Conversation::FromJSON(const std::string& json_str, 
   }
   return Conversation::FromJSON(json_obj.value(), err);
 }
+}  // namespace json_ffi
+}  // namespace llm
+}  // namespace mlc
