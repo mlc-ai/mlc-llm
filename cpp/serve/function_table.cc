@@ -130,14 +130,23 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->_InitFunctions();
   } else {
     Module executable{nullptr};
-    if (false) {
-      // Todo(mlc-team): system lib reload // reload_lib_path starts with "system://"
+    PackedFunc fload_exec{nullptr};
+    if (StartsWith(reload_lib_path, "system://")) {
+      const PackedFunc* f_load_system_lib = Registry::Get("runtime.SystemLib");
+      ICHECK_NOTNULL(f_load_system_lib);
+      std::string system_lib_prefix = std::string(reload_lib_path).substr(9);
+      std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
+      executable = (*f_load_system_lib)(system_lib_prefix + "_");
+      fload_exec = executable->GetFunction("vm_load_executable");
+      ICHECK(fload_exec.defined())
+          << "Cannot find system lib with " << system_lib_prefix
+          << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
       executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
+      fload_exec = executable->GetFunction("vm_load_executable");
+      ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
-    auto fload_exec = executable->GetFunction("vm_load_executable");
-    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     this->local_vm = fload_exec();
     this->local_vm->GetFunction("vm_initialization")(
         static_cast<int>(device.device_type), device.device_id,
