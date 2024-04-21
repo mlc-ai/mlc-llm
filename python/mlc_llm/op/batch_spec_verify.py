@@ -4,11 +4,58 @@ from tvm.script import tir as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 # pylint: disable=too-many-locals,invalid-name,too-many-arguments,
-# pylint: too-many-statements,line-too-long,too-many-nested-blocks,too-many-branches
+# pylint: disable=too-many-statements,line-too-long,too-many-nested-blocks,too-many-branches
 
 
 def batch_spec_verify():
-    """Return the TIR function for batch verify in speculative decoding."""
+    """Batch draft verify function. This function verifies the token tree.
+
+    Before calling the function
+
+    - token_tree_parent_ptr[b] should store the root of the tree
+    - token_tree_child_ptr[b] should point to the first child of the root
+
+    - draft_probs[node_id, :] stores the prob that samples the correspond tree node
+    - model_probs[node_id, :] stores the prob that should be used to sample its children
+    - Please note that the storage convention difference between model_probs and draft_probs
+        draft_probs was stored on the token node, while model_probs stores on the parent.
+        This is an intentional design since we can sample different child token with different
+        proposal draft probabilities, but the ground truth model_prob is unique per parent.
+
+    After calling the function
+    - token_tree_child_ptr[b] should always be -1
+    - token_tree_parent_ptr[b] points to the last token accepted
+    - There should be a followup sample step that samples from model_probs[token_tree_parent_ptr[b], :]
+        This token will be appended to the token generated.
+
+    This function will inplace update model_probs if a token was rejected and renormalization is needed.
+
+    Parameters
+    ----------
+    draft_probs:
+        The draft probability attached to each tree node
+
+    draft_tokens:
+        The draft token in each node
+
+    model_probs:
+        The model proability attached to each parent
+
+    token_tree_first_child:
+        The first child of each tree node, if there is no child, it should be -1
+
+    token_tree_next_sibling
+        The next sibling of each tree node, if there is no next sibling, it should be -1
+
+    uniform_samples
+        Per node uniform sample used to check rejection
+
+    token_tree_parent_ptr:
+        Current parent ptr state
+
+    token_tree_child_ptr
+        Current child ptr state
+    """
     TX = 128
     VEC = 4
 
