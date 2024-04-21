@@ -18,12 +18,11 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         token_tree_next_sibling,
         uniform_samples,
         token_tree_parent_ptr,
-        token_tree_child_ptr,
     ):
         nbatch = token_tree_parent_ptr.shape[0]
         for b in range(nbatch):
             parent_ptr = token_tree_parent_ptr[b]
-            child_ptr = token_tree_child_ptr[b]
+            child_ptr = token_tree_first_child[parent_ptr]
             while child_ptr != -1:
                 child_token = draft_tokens[child_ptr]
                 p_child = model_probs[parent_ptr, child_token]
@@ -40,7 +39,6 @@ def test_batch_spec_verify(nbatch, vocab, plist):
                     model_probs[parent_ptr, :] /= psum
                     child_ptr = token_tree_next_sibling[child_ptr]
             token_tree_parent_ptr[b] = parent_ptr
-            token_tree_child_ptr[b] = child_ptr
 
     np.random.seed(0)
 
@@ -66,7 +64,6 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     token_tree_first_child = list()
     token_tree_next_sibling = list()
     token_tree_parent_ptr = list()
-    token_tree_child_ptr = list()
 
     for _ in range(nbatch):
         choice = np.random.choice(2, 1, p=plist)
@@ -81,12 +78,10 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         token_tree_first_child.extend(res[0])
         token_tree_next_sibling.extend(res[1])
         token_tree_parent_ptr.append(res[2])
-        token_tree_child_ptr.append(res[3])
 
     token_tree_first_child = np.array(token_tree_first_child).astype("int32")
     token_tree_next_sibling = np.array(token_tree_next_sibling).astype("int32")
     token_tree_parent_ptr = np.array(token_tree_parent_ptr).astype("int32")
-    token_tree_child_ptr = np.array(token_tree_child_ptr).astype("int32")
 
     draft_probs = np.random.rand(num_nodes, vocab).astype("float32")
     draft_probs /= np.sum(draft_probs, axis=1, keepdims=True)
@@ -104,7 +99,6 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     token_tree_next_sibling_tvm = tvm.nd.array(token_tree_next_sibling, dev)
     uniform_samples_tvm = tvm.nd.array(uniform_samples, dev)
     token_tree_parent_ptr_tvm = tvm.nd.array(token_tree_parent_ptr, dev)
-    token_tree_child_ptr_tvm = tvm.nd.array(token_tree_child_ptr, dev)
 
     # print("draft_probs", draft_probs)
     # print("draft_tokens", draft_tokens)
@@ -113,7 +107,6 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     # print("token_tree_next_sibling", token_tree_next_sibling)
     # print("uniform_samples", uniform_samples)
     # print("token_tree_parent_ptr", token_tree_parent_ptr)
-    # print("token_tree_child_ptr", token_tree_child_ptr)
 
     ### Numpy reference
     numpy_reference(
@@ -124,14 +117,12 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         token_tree_next_sibling,
         uniform_samples,
         token_tree_parent_ptr,
-        token_tree_child_ptr,
     )
     # print("model_probs", model_probs)
     # print("token_tree_parent_ptr", token_tree_parent_ptr)
-    # print("token_tree_child_ptr", token_tree_child_ptr)
 
     ### TVM
-    kernel = batch_spec_verify()
+    kernel = batch_spec_verify(vocab)
     mod = tvm.build(kernel, target="cuda")
     mod(
         draft_probs_tvm,
@@ -141,18 +132,13 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         token_tree_next_sibling_tvm,
         uniform_samples_tvm,
         token_tree_parent_ptr_tvm,
-        token_tree_child_ptr_tvm,
     )
     # print("model_probs", model_probs_tvm.asnumpy())
     # print("token_tree_parent_ptr", token_tree_parent_ptr_tvm.asnumpy())
-    # print("token_tree_child_ptr", token_tree_child_ptr_tvm.asnumpy())
 
     tvm.testing.assert_allclose(model_probs, model_probs_tvm.asnumpy())
     tvm.testing.assert_allclose(
         token_tree_parent_ptr, token_tree_parent_ptr_tvm.asnumpy(), rtol=0, atol=0
-    )
-    tvm.testing.assert_allclose(
-        token_tree_child_ptr, token_tree_child_ptr_tvm.asnumpy(), rtol=0, atol=0
     )
 
 
