@@ -53,7 +53,9 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   // inputs
   // TODO: Apply conv template
   Conversation conv_template = this->conv_template_;
-  std::vector<std::pair<std::string, std::optional<std::vector<std::unordered_map<std::string, std::string>>>>> messages;
+  std::vector<std::pair<std::string,
+                        std::optional<std::vector<std::unordered_map<std::string, std::string>>>>>
+      messages;
   for (const auto& message : request.messages) {
     std::string role;
     if (message.role == Role::user) {
@@ -72,19 +74,20 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
 
   // check function calling
   bool success_check = request.check_function_calling(conv_template, &err_);
-  if (!success_check){
+  if (!success_check) {
     return false;
   }
 
   // get prompt
-  std::optional<Array<Data>> inputs_obj = conv_template.as_prompt(&err_);
+  std::optional<Array<Data>> inputs_obj = conv_template.asPrompt(&err_);
   if (!inputs_obj.has_value()) {
     return false;
   }
   Array<Data> inputs = inputs_obj.value();
 
   // generation_cfg
-  Optional<GenerationConfig> generation_cfg = GenerationConfig::FromJSON(request_json_str, &err_, conv_template);
+  Optional<GenerationConfig> generation_cfg =
+      GenerationConfig::FromJSON(request_json_str, &err_, conv_template);
   if (!generation_cfg.defined()) {
     return false;
   }
@@ -122,11 +125,9 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundEngine(std::string conv_template_str,
-                            EngineConfig engine_config,
+  void InitBackgroundEngine(std::string conv_template_str, EngineConfig engine_config,
                             Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
-    
     std::optional<Conversation> conv_template = Conversation::FromJSON(conv_template_str, &err_);
     if (!conv_template.has_value()) {
       LOG(FATAL) << "Invalid conversation template JSON: " << err_;

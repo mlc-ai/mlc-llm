@@ -8,13 +8,13 @@
 
 #include <ctime>
 #include <optional>
+#include <random>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <random>
 
-#include "picojson.h"
 #include "conv_template.h"
+#include "picojson.h"
 
 namespace mlc {
 namespace llm {
@@ -47,23 +47,23 @@ class ChatTool {
 };
 
 class ChatFunctionCall {
- public:  
+ public:
   std::string name;
   std::optional<std::unordered_map<std::string, std::string>> arguments =
       std::nullopt;  // Assuming arguments are string key-value pairs
-  
+
   static std::optional<ChatFunctionCall> FromJSON(const picojson::object& json, std::string* err);
   picojson::object ToJSON() const;
 };
 
 class ChatToolCall {
  public:
-  std::string id = "call_" + generate_uuid_string(8); 
+  std::string id = "call_" + generate_uuid_string(8);
   Type type = Type::function;
   ChatFunctionCall function;
 
   static std::optional<ChatToolCall> FromJSON(const picojson::object& json, std::string* err);
-  picojson::object ToJSON() const;                                            
+  picojson::object ToJSON() const;
 };
 
 class ChatCompletionMessage {
@@ -121,7 +121,7 @@ class ChatCompletionRequest {
   static std::optional<ChatCompletionRequest> FromJSON(const std::string& json_str,
                                                        std::string* err);
 
-  bool check_function_calling(Conversation& conv_template, std::string* err);                                                     
+  bool check_function_calling(Conversation& conv_template, std::string* err);
   // TODO: check_penalty_range, check_logit_bias, check_logprobs
 };
 

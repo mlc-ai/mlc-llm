@@ -12,8 +12,8 @@
 
 #include "../serve/threaded_engine.h"
 #include "../streamer.h"
-#include "openai_api_protocol.h"
 #include "conv_template.h"
+#include "openai_api_protocol.h"
 
 namespace mlc {
 namespace llm {

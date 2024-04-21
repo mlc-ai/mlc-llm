@@ -12,20 +12,21 @@ namespace llm {
 namespace json_ffi {
 
 std::string generate_uuid_string(size_t length) {
-    auto randchar = []() -> char {
-        const char charset[] =
+  auto randchar = []() -> char {
+    const char charset[] =
         "0123456789"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz";
-        const size_t max_index = (sizeof(charset) - 1);
-        return charset[ rand() % max_index ];
-    };
-    std::string str(length, 0);
-    std::generate_n(str.begin(), length, randchar);
-    return str;
+    const size_t max_index = (sizeof(charset) - 1);
+    return charset[rand() % max_index];
+  };
+  std::string str(length, 0);
+  std::generate_n(str.begin(), length, randchar);
+  return str;
 }
 
-std::optional<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_obj, std::string* err) {
+std::optional<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_obj,
+                                                   std::string* err) {
   ChatFunction chatFunc;
 
   // description (optional)
@@ -33,7 +34,7 @@ std::optional<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_
   if (json::ParseJSONField(json_obj, "description", description, err, false)) {
     chatFunc.description = description;
   }
-  
+
   // name
   std::string name;
   if (!json::ParseJSONField(json_obj, "name", name, err, true)) {
@@ -47,14 +48,14 @@ std::optional<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_
     return std::nullopt;
   }
   std::unordered_map<std::string, std::string> parameters;
-  for (picojson::value::object::const_iterator i = parameters_obj.begin(); i != parameters_obj.end(); ++i) {
+  for (picojson::value::object::const_iterator i = parameters_obj.begin();
+       i != parameters_obj.end(); ++i) {
     parameters[i->first] = i->second.to_str();
   }
   chatFunc.parameters = parameters;
 
   return chatFunc;
 }
-
 
 picojson::object ChatFunction::ToJSON() const {
   picojson::object obj;
@@ -70,7 +71,6 @@ picojson::object ChatFunction::ToJSON() const {
   return obj;
 }
 
-
 std::optional<ChatTool> ChatTool::FromJSON(const picojson::object& json_obj, std::string* err) {
   ChatTool chatTool;
 
@@ -81,7 +81,7 @@ std::optional<ChatTool> ChatTool::FromJSON(const picojson::object& json_obj, std
   }
 
   std::optional<ChatFunction> function = ChatFunction::FromJSON(function_obj, err);
-  if (!function.has_value()){
+  if (!function.has_value()) {
     return std::nullopt;
   }
   chatTool.function = function.value();
@@ -96,9 +96,10 @@ picojson::object ChatTool::ToJSON() const {
   return obj;
 }
 
-std::optional<ChatFunctionCall> ChatFunctionCall::FromJSON(const picojson::object& json_obj, std::string* err) {
+std::optional<ChatFunctionCall> ChatFunctionCall::FromJSON(const picojson::object& json_obj,
+                                                           std::string* err) {
   ChatFunctionCall chatFuncCall;
-  
+
   // name
   std::string name;
   if (!json::ParseJSONField(json_obj, "name", name, err, true)) {
@@ -110,7 +111,8 @@ std::optional<ChatFunctionCall> ChatFunctionCall::FromJSON(const picojson::objec
   picojson::object arguments_obj;
   if (json::ParseJSONField(json_obj, "arguments", arguments_obj, err, false)) {
     std::unordered_map<std::string, std::string> arguments;
-    for (picojson::value::object::const_iterator i = arguments_obj.begin(); i != arguments_obj.end(); ++i) {
+    for (picojson::value::object::const_iterator i = arguments_obj.begin();
+         i != arguments_obj.end(); ++i) {
       arguments[i->first] = i->second.to_str();
     }
     chatFuncCall.arguments = arguments;
@@ -128,12 +130,13 @@ picojson::object ChatFunctionCall::ToJSON() const {
     }
     obj["arguments"] = picojson::value(arguments_obj);
   }
-  
+
   obj["name"] = picojson::value(this->name);
   return obj;
 }
 
-std::optional<ChatToolCall> ChatToolCall::FromJSON(const picojson::object& json_obj, std::string* err) {
+std::optional<ChatToolCall> ChatToolCall::FromJSON(const picojson::object& json_obj,
+                                                   std::string* err) {
   ChatToolCall chatToolCall;
 
   // function
@@ -143,7 +146,7 @@ std::optional<ChatToolCall> ChatToolCall::FromJSON(const picojson::object& json_
   }
 
   std::optional<ChatFunctionCall> function = ChatFunctionCall::FromJSON(function_obj, err);
-  if (!function.has_value()){
+  if (!function.has_value()) {
     return std::nullopt;
   };
   chatToolCall.function = function.value();
@@ -166,8 +169,8 @@ picojson::object ChatToolCall::ToJSON() const {
   return obj;
 }
 
-std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picojson::object& json_obj,
-                                                                     std::string* err) {
+std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(
+    const picojson::object& json_obj, std::string* err) {
   ChatCompletionMessage message;
 
   // content
@@ -225,12 +228,12 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picoj
       }
       picojson::object item_obj = item.get<picojson::object>();
       std::optional<ChatToolCall> tool_call = ChatToolCall::FromJSON(item_obj, err);
-      if (!tool_call.has_value()){
+      if (!tool_call.has_value()) {
         return std::nullopt;
       };
       tool_calls.push_back(tool_call.value());
     }
-    message.tool_calls = tool_calls; 
+    message.tool_calls = tool_calls;
   }
 
   // tool call id
@@ -299,7 +302,7 @@ std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(
       }
       picojson::object item_obj = item.get<picojson::object>();
       std::optional<ChatTool> tool = ChatTool::FromJSON(item_obj, err);
-      if (!tool.has_value()){
+      if (!tool.has_value()) {
         return std::nullopt;
       };
       tools.push_back(tool.value());
@@ -357,11 +360,10 @@ picojson::object ChatCompletionMessage::ToJSON() const {
   return obj;
 }
 
-
 bool ChatCompletionRequest::check_function_calling(Conversation& conv_template, std::string* err) {
   if (!tools.has_value() || (tool_choice.has_value() && tool_choice.value() == "none")) {
-      conv_template.use_function_calling = false;
-      return true;
+    conv_template.use_function_calling = false;
+    return true;
   }
   std::vector<ChatTool> tools_ = tools.value();
   std::string tool_choice_ = tool_choice.value();
@@ -369,10 +371,10 @@ bool ChatCompletionRequest::check_function_calling(Conversation& conv_template, 
   // TODO: support with tool choice as dict
   for (const auto& tool : tools_) {
     if (tool.function.name == tool_choice_) {
-        conv_template.use_function_calling = true;
-        picojson::value function_str(tool.function.ToJSON());
-        conv_template.function_string = function_str.serialize();
-        return true;
+      conv_template.use_function_calling = true;
+      picojson::value function_str(tool.function.ToJSON());
+      conv_template.function_string = function_str.serialize();
+      return true;
     }
   }
 
@@ -391,7 +393,6 @@ bool ChatCompletionRequest::check_function_calling(Conversation& conv_template, 
   conv_template.function_string = function_list_json.serialize();
   return true;
 };
-
 
 picojson::object ChatCompletionResponseChoice::ToJSON() const {
   picojson::object obj;
