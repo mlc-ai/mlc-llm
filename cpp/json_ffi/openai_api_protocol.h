@@ -11,8 +11,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <random>
 
 #include "picojson.h"
+#include "conv_template.h"
 
 namespace mlc {
 namespace llm {
@@ -22,7 +24,8 @@ enum class Role { system, user, assistant, tool };
 enum class Type { text, json_object, function };
 enum class FinishReason { stop, length, tool_calls, error };
 
-// TODO: Implement the following class
+std::string generate_uuid_string(size_t length);
+
 class ChatFunction {
  public:
   std::optional<std::string> description = std::nullopt;
@@ -30,32 +33,37 @@ class ChatFunction {
   std::unordered_map<std::string, std::string>
       parameters;  // Assuming parameters are string key-value pairs
 
-  static std::optional<ChatFunction> FromJSON(const picojson::value& json, std::string* err);
+  static std::optional<ChatFunction> FromJSON(const picojson::object& json, std::string* err);
+  picojson::object ToJSON() const;
 };
 
-// TODO: Implement the following class
 class ChatTool {
  public:
   Type type = Type::function;
   ChatFunction function;
 
-  static std::optional<ChatTool> FromJSON(const picojson::value& json, std::string* err);
+  static std::optional<ChatTool> FromJSON(const picojson::object& json, std::string* err);
+  picojson::object ToJSON() const;
 };
 
-// TODO: Implement the following class
 class ChatFunctionCall {
- public:
+ public:  
   std::string name;
   std::optional<std::unordered_map<std::string, std::string>> arguments =
       std::nullopt;  // Assuming arguments are string key-value pairs
+  
+  static std::optional<ChatFunctionCall> FromJSON(const picojson::object& json, std::string* err);
+  picojson::object ToJSON() const;
 };
 
-// TODO: Implement the following class
 class ChatToolCall {
  public:
-  std::string id;  // TODO: python code initializes this to an random string
+  std::string id = "call_" + generate_uuid_string(8); 
   Type type = Type::function;
   ChatFunctionCall function;
+
+  static std::optional<ChatToolCall> FromJSON(const picojson::object& json, std::string* err);
+  picojson::object ToJSON() const;                                            
 };
 
 class ChatCompletionMessage {
@@ -64,12 +72,12 @@ class ChatCompletionMessage {
       std::nullopt;  // Assuming content is a list of string key-value pairs
   Role role;
   std::optional<std::string> name = std::nullopt;
-  std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;  // TODO: Implement this
-  std::optional<std::string> tool_call_id = std::nullopt;              // TODO: Implement this
+  std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;
+  std::optional<std::string> tool_call_id = std::nullopt;
 
-  static std::optional<ChatCompletionMessage> FromJSON(const picojson::value& json,
+  static std::optional<ChatCompletionMessage> FromJSON(const picojson::object& json,
                                                        std::string* err);
-  picojson::object ToJSON();
+  picojson::object ToJSON() const;
 };
 
 class RequestResponseFormat {
@@ -113,6 +121,7 @@ class ChatCompletionRequest {
   static std::optional<ChatCompletionRequest> FromJSON(const std::string& json_str,
                                                        std::string* err);
 
+  bool check_function_calling(Conversation& conv_template, std::string* err);                                                     
   // TODO: check_penalty_range, check_logit_bias, check_logprobs
 };
 
@@ -123,7 +132,7 @@ class ChatCompletionResponseChoice {
   ChatCompletionMessage message;
   // TODO: logprobs
 
-  picojson::object ToJSON();
+  picojson::object ToJSON() const;
 };
 
 class ChatCompletionStreamResponseChoice {
@@ -133,7 +142,7 @@ class ChatCompletionStreamResponseChoice {
   ChatCompletionMessage delta;
   // TODO: logprobs
 
-  picojson::object ToJSON();
+  picojson::object ToJSON() const;
 };
 
 class ChatCompletionResponse {
@@ -146,7 +155,7 @@ class ChatCompletionResponse {
   std::string object = "chat.completion";
   // TODO: usage_info
 
-  picojson::object ToJSON();
+  picojson::object ToJSON() const;
 };
 
 class ChatCompletionStreamResponse {
@@ -158,7 +167,7 @@ class ChatCompletionStreamResponse {
   std::string system_fingerprint;
   std::string object = "chat.completion.chunk";
 
-  picojson::object ToJSON();
+  picojson::object ToJSON() const;
 };
 
 }  // namespace json_ffi
