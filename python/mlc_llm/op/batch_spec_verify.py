@@ -1,14 +1,12 @@
 """Operators for batch verify in speculative decoding."""
 
-import tvm
-from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
-# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements
+# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements,line-too-long
 
 
-def batch_spec_verify(num_nodes, vocab, nbatch):
+def batch_spec_verify():
     """Return the TIR function for batch verify in speculative decoding."""
     TX = 128
     VEC = 4
@@ -19,14 +17,14 @@ def batch_spec_verify(num_nodes, vocab, nbatch):
     # fmt: off
     @T.prim_func(check_well_formed=False, private=True)
     def _func(
-        draft_probs: T.Buffer((num_nodes, vocab), "float32"),
-        draft_tokens: T.Buffer((num_nodes,), "int32"),
-        model_probs: T.Buffer((num_nodes, vocab), "float32"),
-        token_tree_first_child: T.Buffer((num_nodes,), "int32"),
-        token_tree_next_sibling: T.Buffer((num_nodes,), "int32"),
-        uniform_samples: T.Buffer((num_nodes,), "float32"),
-        token_tree_parent_ptr: T.Buffer((nbatch,), "int32"),
-        token_tree_child_ptr: T.Buffer((nbatch,), "int32"),
+        var_draft_probs: T.handle,
+        var_draft_tokens: T.handle,
+        var_model_probs: T.handle,
+        var_token_tree_first_child: T.handle,
+        var_token_tree_next_sibling: T.handle,
+        var_uniform_samples: T.handle,
+        var_token_tree_parent_ptr: T.handle,
+        var_token_tree_child_ptr: T.handle,
     ):
         """
         [
@@ -35,6 +33,20 @@ def batch_spec_verify(num_nodes, vocab, nbatch):
             for loop over excessive amounts
         ]
         """
+        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        num_nodes = T.int32(is_size_var=True)
+        vocab = T.int32(is_size_var=True)
+        nbatch = T.int32(is_size_var=True)
+    
+        draft_probs = T.match_buffer(var_draft_probs, (num_nodes, vocab), "float32")
+        draft_tokens = T.match_buffer(var_draft_tokens, (num_nodes,), "int32")
+        model_probs = T.match_buffer(var_model_probs, (num_nodes, vocab), "float32")
+        token_tree_first_child = T.match_buffer(var_token_tree_first_child, (num_nodes,), "int32")
+        token_tree_next_sibling = T.match_buffer(var_token_tree_next_sibling, (num_nodes,), "int32")
+        uniform_samples = T.match_buffer(var_uniform_samples, (num_nodes,), "float32")
+        token_tree_parent_ptr = T.match_buffer(var_token_tree_parent_ptr, (nbatch,), "int32")
+        token_tree_child_ptr = T.match_buffer(var_token_tree_child_ptr, (nbatch,), "int32")
+
         for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
             for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
                 with T.block("CTA"):
@@ -86,7 +98,7 @@ def batch_spec_verify(num_nodes, vocab, nbatch):
                                             model_probs[parent_ptr[0], k] = model_prob_local[vec]
                                     for vec in T.serial(VEC):
                                         psum[0] += model_prob_local[vec]
-                                        
+
                                 with T.block("block_cross_thread"):
                                     T.reads(psum[0])
                                     T.writes(t0[0])
@@ -96,7 +108,7 @@ def batch_spec_verify(num_nodes, vocab, nbatch):
                                         T.reinterpret("handle", T.uint64(0)),
                                     )
                                     T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="handle")
-                                
+
                                 # renormalize
                                 for i in T.serial(T.ceildiv(vocab, TX * VEC)):
                                     for vec in T.vectorized(VEC):
