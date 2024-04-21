@@ -120,7 +120,7 @@ def batch_spec_verify(vocab_size):
                                 T.tvm_storage_sync("shared") # sync before exit
                             else:
                                 # decide to validate current ptr
-                                if _tx == 0:
+                                if tx == 0:
                                     child_token[0] = draft_tokens[child_ptr[0]]
                                     p_child[0] = model_probs[parent_ptr[0], child_token[0]]
                                     q_child[0] = draft_probs[child_ptr[0], child_token[0]]
