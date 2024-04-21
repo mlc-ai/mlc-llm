@@ -112,6 +112,13 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
               python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
       .. note::
+        Make sure you also install vulkan loader and clang to avoid vulkan
+        not found error or clang not found(needed for jit compile)
+
+        .. code-block:: bash
+
+            conda install -c conda-forge clang libvulkan-loader
+
         If encountering the error below:
 
         .. code-block:: bash
@@ -213,7 +220,7 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         If you are using CUDA and your compute capability is above 80, then it is require to build with
         ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find PackedFunc`` issue during
         runtime.
-        
+
         To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
 
     Once ``config.cmake`` is edited accordingly, kick off build with the commands below:
