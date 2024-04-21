@@ -66,6 +66,8 @@ std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
 
     std::string separator = separators[role == "assistant"];  // check assistant role
 
+    // If content is empty, add the role and separator
+    // assistant's turn to generate text
     if (!content.has_value()) {
       message_list.push_back(TextData(roles[role] + role_empty_sep));
       continue;
@@ -73,6 +75,8 @@ std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
 
     std::string message = "";
     std::string role_prefix = "";
+    // Do not append role prefix if this is the first message and there
+    // is already a system message
     if (add_role_after_system_message || system_msg.empty() || i != 0) {
       role_prefix = roles[role] + role_content_sep;
     }
@@ -89,6 +93,7 @@ std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
           *err += "Content item should have a text field";
           return std::nullopt;
         }
+        // replace placeholder[ROLE] with input message from role
         std::string role_text = role_templates[role];
         std::string placeholder = PLACEHOLDERS[messagePlaceholderFromString(role)];
         size_t pos = role_text.find(placeholder);
