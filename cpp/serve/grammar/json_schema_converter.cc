@@ -23,6 +23,14 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+// EMCC somehow cannot pickup operator overload from picojson.h, so we copy here.
+#ifdef COMPILE_MLC_WASM_RUNTIME
+inline std::ostream& operator<<(std::ostream& os, const picojson::value& x) {
+  x.serialize(std::ostream_iterator<char>(os));
+  return os;
+}
+#endif
+
 /*!
  * \brief Manage the indent and separator for the generation of EBNF grammar.
  * \param indent The number of spaces for each indent. If it is std::nullopt, there will be no

@@ -469,9 +469,10 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenTable")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
       BNFGrammar grammar = args[0];
+      Array<String> token_table_arr = args[1];
       std::vector<std::string> token_table;
-      for (int i = 1; i < args.size() - 1; ++i) {
-        token_table.push_back(args[i]);
+      for (int i = 0; i < token_table_arr.size(); ++i) {
+        token_table.push_back(token_table_arr[i]);
       }
       int max_rollback_steps = args[args.size() - 1];
       auto init_ctx = GrammarStateMatcher::CreateInitContext(grammar, token_table);
