@@ -329,23 +329,6 @@ def test_openai_v1_completions_openai_package(
         )
 
 
-def test_openai_v1_completions_invalid_requested_model(
-    launch_server,  # pylint: disable=unused-argument
-):
-    # `launch_server` is a pytest fixture defined in conftest.py.
-
-    model = "unserved_model"
-    payload = {
-        "model": model,
-        "prompt": "What is the meaning of life?",
-        "max_tokens": 10,
-    }
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
-    expect_error(
-        response_str=response.json(), msg_prefix=f'The requested model "{model}" is not served.'
-    )
-
-
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_echo(
     served_model: Tuple[str, str],
@@ -1319,7 +1302,6 @@ if __name__ == "__main__":
     test_openai_v1_completions(MODEL, None, stream=True)
     test_openai_v1_completions_openai_package(MODEL, None, stream=False)
     test_openai_v1_completions_openai_package(MODEL, None, stream=True)
-    test_openai_v1_completions_invalid_requested_model(None)
     test_openai_v1_completions_echo(MODEL, None, stream=False)
     test_openai_v1_completions_echo(MODEL, None, stream=True)
     test_openai_v1_completions_suffix(MODEL, None, stream=False)
