@@ -143,6 +143,7 @@ class EngineImpl : public Engine {
   }
 
   void Reset() final {
+    AbortAllRequests();
     estate_->Reset();
     for (Model model : models_) {
       model->Reset();
@@ -167,7 +168,8 @@ class EngineImpl : public Engine {
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->input_total_length, -1);
 
-    if (request->input_total_length >= engine_config_->max_single_sequence_length) {
+    if (request->input_total_length >= engine_config_->max_single_sequence_length &&
+        request_stream_callback_.defined()) {
       // If the request input length exceeds the maximum allowed single sequence length,
       // invoke callback and do not process the request.
       Array<RequestStreamOutput> output{RequestStreamOutput(
@@ -239,6 +241,28 @@ class EngineImpl : public Engine {
     if (it_waiting != estate_->waiting_queue.end()) {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);
+    }
+
+    // Send a callback to notice the abortion.
+    if (request_stream_callback_.defined()) {
+      Array<RequestStreamOutput> output{RequestStreamOutput(
+          request_id, std::vector<IntTuple>(request->generation_cfg->n),
+          Optional<Array<Array<String>>>(),
+          std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
+      request_stream_callback_.value()(std::move(output));
+    }
+  }
+
+  void AbortAllRequests() final {
+    // - Collect all the request ids.
+    std::vector<String> request_ids;
+    request_ids.reserve(estate_->request_states.size());
+    for (const auto& kv : estate_->request_states) {
+      request_ids.push_back(kv.first);
+    }
+    // - Abort all the requests.
+    for (const String& request_id : request_ids) {
+      AbortRequest(request_id);
     }
   }
 

@@ -43,6 +43,15 @@ class ThreadedEngine {
                                     Optional<PackedFunc> request_stream_callback,
                                     Optional<EventTraceRecorder> trace_recorder) = 0;
 
+  /*! \brief Reload the engine with the new engine config. */
+  virtual void Reload(EngineConfig engine_config) = 0;
+
+  /*! \brief Unload the background engine. */
+  virtual void Unload() = 0;
+
+  /*! \brief Reset the engine to the initial state. */
+  virtual void Reset() = 0;
+
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;
 

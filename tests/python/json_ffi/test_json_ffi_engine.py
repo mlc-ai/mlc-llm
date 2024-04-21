@@ -111,6 +111,9 @@ class JSONFFIEngine:
             key: module[key]
             for key in [
                 "init_background_engine",
+                "reload",
+                "unload",
+                "reset",
                 "chat_completion",
                 "abort",
                 "get_last_error",
@@ -121,22 +124,24 @@ class JSONFFIEngine:
         }
         self.tokenizer = Tokenizer(model_args[0][0])
 
+        self.engine_config = EngineConfig(
+            model=model_args[0][0],
+            model_lib_path=model_args[0][1],
+            additional_models=[model_arg[0] for model_arg in model_args[1:]],
+            additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+            device=device,
+            kv_cache_page_size=16,
+            max_num_sequence=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            max_single_sequence_length=max_single_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            speculative_mode=speculative_mode,
+            spec_draft_length=spec_draft_length,
+        )
+
         def _background_loop():
             self._ffi["init_background_engine"](
-                EngineConfig(
-                    model=model_args[0][0],
-                    model_lib_path=model_args[0][1],
-                    additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                    additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                    device=device,
-                    kv_cache_page_size=16,
-                    max_num_sequence=max_batch_size,
-                    max_total_sequence_length=max_total_sequence_length,
-                    max_single_sequence_length=max_single_sequence_length,
-                    prefill_chunk_size=prefill_chunk_size,
-                    speculative_mode=speculative_mode,
-                    spec_draft_length=spec_draft_length,
-                ),
+                self.engine_config,
                 self.state.get_request_stream_callback(),
                 None,
             )
@@ -251,8 +256,17 @@ class JSONFFIEngine:
             self._ffi["abort"](request_id)
             raise exception
 
+    def _test_reload(self):
+        self._ffi["reload"](self.engine_config)
 
-def test_chat_completion(engine: JSONFFIEngine):
+    def _test_reset(self):
+        self._ffi["reset"]()
+
+    def _test_unload(self):
+        self._ffi["unload"]()
+
+
+def run_chat_completion(engine: JSONFFIEngine, model: str):
     num_requests = 2
     max_tokens = 64
     n = 1
@@ -284,13 +298,7 @@ def test_chat_completion(engine: JSONFFIEngine):
                 print(f"Output {req_id}({i}):{output}\n")
 
 
-def test_malformed_request(engine: JSONFFIEngine):
-    for response in engine._handle_chat_completion("malformed_string", n=1, request_id="123"):
-        assert len(response.choices) == 1
-        assert response.choices[0].finish_reason == "error"
-
-
-if __name__ == "__main__":
+def test_chat_completion():
     # Create engine.
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
@@ -300,8 +308,37 @@ if __name__ == "__main__":
         max_total_sequence_length=1024,
     )
 
-    test_chat_completion(engine)
-    test_malformed_request(engine)
+    run_chat_completion(engine, model)
+
+    # Test malformed requests.
+    for response in engine._handle_chat_completion("malformed_string", n=1, request_id="123"):
+        assert len(response.choices) == 1
+        assert response.choices[0].finish_reason == "error"
 
     engine.terminate()
-    del engine
+
+
+def test_reload_reset_unload():
+    # Create engine.
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    engine = JSONFFIEngine(
+        model,
+        model_lib_path=model_lib_path,
+        max_total_sequence_length=1024,
+    )
+
+    # Run chat completion before and after reload/reset.
+    run_chat_completion(engine, model)
+    engine._test_reload()
+    run_chat_completion(engine, model)
+    engine._test_reset()
+    run_chat_completion(engine, model)
+    engine._test_unload()
+
+    engine.terminate()
+
+
+if __name__ == "__main__":
+    test_chat_completion()
+    test_reload_reset_unload()

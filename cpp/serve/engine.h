@@ -82,6 +82,9 @@ class Engine {
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
 
+  /*! \brief Abort all requests from the engine. */
+  virtual void AbortAllRequests() = 0;
+
   /*********************** Engine Action ***********************/
 
   /*!
