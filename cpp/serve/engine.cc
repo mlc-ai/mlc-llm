@@ -102,18 +102,18 @@ class EngineImpl : public Engine {
       ICHECK_GT(this->models_.size(), 1U);
       switch (engine_config->speculative_mode) {
         case SpeculativeMode::kEagle:
-          this->actions_ = {
-              EngineAction::EagleNewRequestPrefill(this->models_,            //
-                                                   logit_processor,          //
-                                                   sampler,                  //
-                                                   this->model_workspaces_,  //
-                                                   engine_config,            //
-                                                   this->trace_recorder_),
-              EngineAction::EagleBatchDraft(this->models_, logit_processor, sampler,
-                                            this->model_workspaces_, this->trace_recorder_),
-              EngineAction::EagleBatchVerify(this->models_, logit_processor, sampler,
-                                             this->model_workspaces_, engine_config,
-                                             this->trace_recorder_)};
+          this->actions_ = {EngineAction::EagleNewRequestPrefill(this->models_,            //
+                                                                 logit_processor,          //
+                                                                 sampler,                  //
+                                                                 this->model_workspaces_,  //
+                                                                 engine_config,            //
+                                                                 this->trace_recorder_),
+                            EngineAction::EagleBatchDraft(
+                                this->models_, logit_processor, sampler, this->model_workspaces_,
+                                this->trace_recorder_, engine_config->spec_draft_length),
+                            EngineAction::EagleBatchVerify(this->models_, logit_processor, sampler,
+                                                           this->model_workspaces_, engine_config,
+                                                           this->trace_recorder_)};
           break;
         default:
           this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
