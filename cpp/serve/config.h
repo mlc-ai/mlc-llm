@@ -67,7 +67,7 @@ class GenerationConfig : public ObjectRef {
    * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
    */
   static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err,
-   const Conversation& conv_template);
+                                             const Conversation& conv_template);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
