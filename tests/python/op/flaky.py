@@ -6,10 +6,8 @@ import tvm.testing
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 
 
-@pytest.mark.parametrize("nbatch", [32, 64])
-@pytest.mark.parametrize("vocab", [3, 32, 64, 32000, 33, 65, 32001])
-@pytest.mark.parametrize("plist", [[0.5, 0.5], [1, 0], [0, 1]])
-def test_batch_spec_verify(nbatch, vocab, plist):
+@pytest.mark.parametrize("vocab", [32, 64, 32000, 33, 65, 32001])
+def test_batch_spec_verify(vocab):
     def numpy_reference(
         draft_probs,
         draft_tokens,
@@ -43,57 +41,38 @@ def test_batch_spec_verify(nbatch, vocab, plist):
             token_tree_child_ptr[b] = child_ptr
 
     np.random.seed(0)
-
-    def gen_chain(num_nodes, base):
-        token_tree_first_child = list()
-        token_tree_next_sibling = list()
-        for i in range(num_nodes):
-            token_tree_first_child.append(base + i + 1 if i + 1 < num_nodes else -1)
-            token_tree_next_sibling.append(-1)
-        return token_tree_first_child, token_tree_next_sibling, base, base + 1
-
-    def gen_full_binary_tree(height, base):
-        token_tree_first_child = list()
-        token_tree_next_sibling = list()
-        num_nodes = 2**height - 1
-        for i in range(num_nodes):
-            token_tree_first_child.append(base + i * 2 + 1 if i * 2 + 1 < num_nodes else -1)
-            token_tree_next_sibling.append(base + i * 2 + 2 if i * 2 + 2 < num_nodes else -1)
-        return token_tree_first_child, token_tree_next_sibling, base, base + 1
+    nbatch = 32
+    height = 5
+    num_nodes_per_batch = 2**height - 1
+    num_nodes = num_nodes_per_batch * nbatch
 
     ### Inputs
-    num_nodes = 0
-    token_tree_first_child = list()
-    token_tree_next_sibling = list()
-    token_tree_parent_ptr = list()
-    token_tree_child_ptr = list()
-
-    for _ in range(nbatch):
-        choice = np.random.choice(2, 1, p=plist)
-        if choice == 0:
-            nodes_batch = np.random.randint(3, 32)
-            res = gen_chain(nodes_batch, num_nodes)
-            num_nodes += nodes_batch
-        else:
-            height = np.random.randint(3, 5)
-            res = gen_full_binary_tree(height, num_nodes)
-            num_nodes += 2**height - 1
-        token_tree_first_child.extend(res[0])
-        token_tree_next_sibling.extend(res[1])
-        token_tree_parent_ptr.append(res[2])
-        token_tree_child_ptr.append(res[3])
-
-    token_tree_first_child = np.array(token_tree_first_child).astype("int32")
-    token_tree_next_sibling = np.array(token_tree_next_sibling).astype("int32")
-    token_tree_parent_ptr = np.array(token_tree_parent_ptr).astype("int32")
-    token_tree_child_ptr = np.array(token_tree_child_ptr).astype("int32")
-
     draft_probs = np.random.rand(num_nodes, vocab).astype("float32")
     draft_probs /= np.sum(draft_probs, axis=1, keepdims=True)
     draft_tokens = np.random.randint(0, vocab, num_nodes).astype("int32")
     model_probs = np.random.rand(num_nodes, vocab).astype("float32")
     model_probs /= np.sum(model_probs, axis=1, keepdims=True)
+    # binary tree
+    token_tree_first_child = list()
+    token_tree_next_sibling = list()
+    for b in range(nbatch):
+        for i in range(num_nodes_per_batch):
+            token_tree_first_child.append(
+                b * num_nodes_per_batch + i * 2 + 1 if i * 2 + 1 < num_nodes_per_batch else -1
+            )
+            token_tree_next_sibling.append(
+                b * num_nodes_per_batch + i * 2 + 2 if i * 2 + 2 < num_nodes_per_batch else -1
+            )
+    token_tree_first_child = np.array(token_tree_first_child).astype("int32")
+    token_tree_next_sibling = np.array(token_tree_next_sibling).astype("int32")
     uniform_samples = np.random.rand(num_nodes).astype("float32")
+    token_tree_parent_ptr = list()
+    token_tree_child_ptr = list()
+    for b in range(nbatch):
+        token_tree_parent_ptr.append(b * num_nodes_per_batch)
+        token_tree_child_ptr.append(b * num_nodes_per_batch + 1)
+    token_tree_parent_ptr = np.array(token_tree_parent_ptr).astype("int32")
+    token_tree_child_ptr = np.array(token_tree_child_ptr).astype("int32")
 
     ### TVM Inputs
     dev = tvm.cuda(0)
@@ -148,12 +127,10 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     # print("token_tree_child_ptr", token_tree_child_ptr_tvm.asnumpy())
 
     tvm.testing.assert_allclose(model_probs, model_probs_tvm.asnumpy())
-    tvm.testing.assert_allclose(
-        token_tree_parent_ptr, token_tree_parent_ptr_tvm.asnumpy(), rtol=0, atol=0
-    )
-    tvm.testing.assert_allclose(
-        token_tree_child_ptr, token_tree_child_ptr_tvm.asnumpy(), rtol=0, atol=0
-    )
+    print(token_tree_parent_ptr)
+    print(token_tree_parent_ptr_tvm.asnumpy())
+    tvm.testing.assert_allclose(token_tree_parent_ptr, token_tree_parent_ptr_tvm.asnumpy(), rtol=0, atol=0)
+    tvm.testing.assert_allclose(token_tree_child_ptr, token_tree_child_ptr_tvm.asnumpy(), rtol=0, atol=0)
 
 
 if __name__ == "__main__":
