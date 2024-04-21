@@ -148,7 +148,7 @@ def batch_spec_verify():
                                             model_probs[parent_ptr[0], k] = model_prob_local[0]
                                             psum[0] += model_prob_local[0]
 
-                                    with T.block("block_cross_thread"): 
+                                    with T.block("block_cross_thread"):
                                         T.reads(psum[0])
                                         T.writes(t0[0])
                                         T.attr(
