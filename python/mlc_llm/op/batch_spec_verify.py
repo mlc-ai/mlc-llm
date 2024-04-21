@@ -3,7 +3,7 @@
 from tvm.script import tir as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
-# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements,line-too-long
+# pylint: disable=too-many-locals,invalid-name,too-many-arguments,too-many-statements,line-too-long,too-many-nested-blocks
 
 
 def batch_spec_verify():
@@ -37,7 +37,7 @@ def batch_spec_verify():
         num_nodes = T.int32(is_size_var=True)
         vocab = T.int32(is_size_var=True)
         nbatch = T.int32(is_size_var=True)
-    
+
         draft_probs = T.match_buffer(var_draft_probs, (num_nodes, vocab), "float32")
         draft_tokens = T.match_buffer(var_draft_tokens, (num_nodes,), "int32")
         model_probs = T.match_buffer(var_model_probs, (num_nodes, vocab), "float32")
