@@ -89,8 +89,10 @@ def _process_model_args(
         if conversation is None:
             assert isinstance(chat_config.conv_template, Conversation)
             conversation = chat_config.conv_template
-        # Try look up model library, and do JIT compile if model library not found.
-        try:
+
+        if model.model_lib_path is not None:
+            # do model lib search if the model lib path is provided
+            # error out if file not found
             model_lib_path = _get_lib_module_path(
                 model=model.model,
                 model_path=model_path,
@@ -99,7 +101,9 @@ def _process_model_args(
                 device_name=device.MASK2STR[device.device_type],
                 config_file_path=config_file_path,
             )
-        except FileNotFoundError:
+        else:
+            # TODO(mlc-team) add logging information
+            # Run jit if model_lib_path is not provided
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
             model_lib_path = str(

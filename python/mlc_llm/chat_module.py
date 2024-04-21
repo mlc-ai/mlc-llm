@@ -768,7 +768,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 4. Look up model library
-        try:
+        if model_lib_path is not None:
             self.model_lib_path = _get_lib_module_path(
                 model,
                 self.model_path,
@@ -777,8 +777,8 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
                 self.device.MASK2STR[self.device.device_type],
                 self.config_file_path,
             )
-        except FileNotFoundError:
-            logger.info("Model lib not found. Now compiling model lib on device...")
+        else:
+            logger.info("Now compiling model lib on device...")
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
             self.model_lib_path = str(
