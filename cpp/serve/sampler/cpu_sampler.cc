@@ -272,7 +272,27 @@ class CPUSampler : public SamplerObj {
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
                                               std::vector<NDArray>* output_prob_dist) final {
+    if (generation_cfg.size()) {
+      LOG(INFO) << generation_cfg[0]->AsJSONString();
+    }
     // probs_on_device: (n, v)
+    if (sub_sampler_.defined()) {
+      TVMSynchronize(probs_on_device->device.device_type, probs_on_device->device.device_id,
+                     nullptr);
+      auto res = Downcast<Sampler>(sub_sampler_)
+                     ->BatchSampleTokens(probs_on_device, sample_indices, request_ids,
+                                         generation_cfg, rngs, output_prob_dist);
+      TVMSynchronize(probs_on_device->device.device_type, probs_on_device->device.device_id,
+                     nullptr);
+      if (output_prob_dist) {
+        for (size_t i = 0; i < output_prob_dist->size(); ++i) {
+          output_prob_dist->operator[](i) =
+              output_prob_dist->operator[](i).CopyTo(Device{kDLCPU, 0});
+        }
+      }
+      return res;
+    }
+    LOG(INFO) << "CpuSample";
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
@@ -320,12 +340,12 @@ class CPUSampler : public SamplerObj {
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    // LOG(INFO) << "CpuVeirfy";
     if (sub_sampler_.defined()) {
       return Downcast<Sampler>(sub_sampler_)
           ->BatchVerifyDraftTokens(probs_on_device, request_ids, cum_verify_lengths, generation_cfg,
                                    rngs, draft_output_tokens, draft_output_prob_dist);
     }
+    LOG(INFO) << "CpuVeirfy";
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_device->ndim, 2);

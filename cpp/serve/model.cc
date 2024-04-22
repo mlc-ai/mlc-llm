@@ -772,7 +772,7 @@ class ModelImpl : public ModelObj {
       auto gpu_sampler = Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
                                                    std::move(trace_recorder));
       auto cpu_sampler = Sampler::CreateCPUSampler(trace_recorder);
-      // gpu_sampler->sub_sampler_ = cpu_sampler;
+      gpu_sampler->sub_sampler_ = cpu_sampler;
       cpu_sampler->sub_sampler_ = gpu_sampler;
       // return gpu_sampler;
       return cpu_sampler;

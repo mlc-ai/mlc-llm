@@ -91,7 +91,9 @@ class GPUSampler : public SamplerObj {
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
                                               std::vector<NDArray>* output_prob_dist) final {
+
     NVTXScopedRange nvtx_scope("BatchSampleTokens");
+    LOG(INFO) << "GpuSampler";
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     // CHECK(output_prob_dist == nullptr) << "GPU sampler does not support collecting output
@@ -107,6 +109,23 @@ class GPUSampler : public SamplerObj {
         NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
         float* p_prob = static_cast<float*>(prob_dist->data) + i * vocab_size;
         prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
+        NDArray prob_dist_host = prob_dist.CopyTo(DLDevice{DLDeviceType::kDLCPU, 0});
+        int argmax_pos = -1;
+        float max_prob = -1.0;
+        for (int i = 0; i < vocab_size; ++i) {
+          if (static_cast<float*>(prob_dist_host->data)[i] > max_prob) {
+            max_prob = static_cast<float*>(prob_dist_host->data)[i];
+            argmax_pos = i;
+          }
+        }
+        for (int i = 0; i < vocab_size; ++i) {
+          if (i == argmax_pos) {
+            static_cast<float*>(prob_dist_host->data)[i] = 1.0;
+          } else {
+            static_cast<float*>(prob_dist_host->data)[i] = 0.0;
+          }
+        }
+        prob_dist.CopyFrom(prob_dist_host);
         output_prob_dist->push_back(std::move(prob_dist));
       }
     }
@@ -182,7 +201,12 @@ class GPUSampler : public SamplerObj {
             (j + start + 1) *
                 vocab_size_;  // shift by one, q of the last committed token is undefined
         // Copy sampled token id
-        draft_output_prob_dist_i[j].CopyToBytes(p_draft_probs, vocab_size_ * sizeof(float));
+        if (draft_output_prob_dist_i[j]->device.device_type != device_.device_type) {
+          draft_output_prob_dist_i[j].CopyTo(device_).CopyToBytes(p_draft_probs,
+                                                                  vocab_size_ * sizeof(float));
+        } else {
+          draft_output_prob_dist_i[j].CopyToBytes(p_draft_probs, vocab_size_ * sizeof(float));
+        }
         *(reinterpret_cast<int*>(draft_tokens_host->data) + j + start + 1) =
             draft_output_tokens_i[j].sampled_token_id.first;
       }
@@ -235,15 +259,14 @@ class GPUSampler : public SamplerObj {
     CopyArray(token_tree_next_sibling_host, token_tree_next_sibling_device, copy_stream_);
     CopyArray(token_tree_parent_ptr_host, token_tree_parent_ptr_device, copy_stream_);
 
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    SyncCopyStream(device_, compute_stream_, copy_stream_);
+
     gpu_verify_draft_tokens_func_(draft_probs_device, draft_tokens_device, probs_on_device,
                                   token_tree_first_child_device, token_tree_next_sibling_device,
                                   uniform_samples_device, token_tree_parent_ptr_device);
 
-    // TODO: check synchronization is correct
-    SyncCopyStream(device_, compute_stream_, copy_stream_);
-    CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, copy_stream_);
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, compute_stream_);
+    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
 
     std::vector<int> sample_indices;
 
@@ -259,14 +282,17 @@ class GPUSampler : public SamplerObj {
       }
       std::reverse(sample_results[i].rbegin(), sample_results[i].rbegin() + num_accepted);
       sample_indices.push_back(last_accepted);
+      LOG(INFO) << "accepted tokens: " << num_accepted;
     }
     std::vector<SampleResult> additional_sample_result;
     if (sub_sampler_.defined()) {
+      LOG(INFO) << "CPU Resample";
       additional_sample_result =
           Downcast<Sampler>(sub_sampler_)
               ->BatchSampleTokens(probs_on_device, sample_indices, request_ids, generation_cfg,
                                   rngs, nullptr);
     } else {
+      LOG(INFO) << "GPU Resample";
       additional_sample_result = this->BatchSampleTokens(
           probs_on_device, sample_indices, request_ids, generation_cfg, rngs, nullptr);
     }
