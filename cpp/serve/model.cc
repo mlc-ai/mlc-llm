@@ -139,7 +139,7 @@ class ModelImpl : public ModelObj {
     hidden_states =
         hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
 
-    // Note(wuwei): previous layer (prefill_to_last / select_last) returns NDArray, but get_logits has to run on disco
+    // This copy can be avoided by not copying the hidden states to engine.
     hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states, "hidden_states",
                                                  {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
@@ -195,7 +195,7 @@ class ModelImpl : public ModelObj {
     hidden_states =
         hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
 
-    // Note(wuwei): previous layer (prefill_to_last / select_last) returns NDArray, but get_logits has to run on disco
+    // This copy can be avoided by not copying the hidden states to engine.
     hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states,
                                                  "hidden_states",
                                                  {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
@@ -231,7 +231,9 @@ class ModelImpl : public ModelObj {
     }
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
-    // Note(wuwei): no need to copy to worker0 and this runs on the controller
+    // This step runs on the engine thread.
+    // By temporarily turning off the disco flag, this copies the logit_pos_nd to the cached device
+    // tensor without actually copying to the worker.
     bool use_disco = ft_.use_disco;
     ft_.use_disco = false;
     ObjectRef logit_pos_dref_or_nd =

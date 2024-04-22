@@ -234,11 +234,8 @@ void FunctionTable::_InitFunctions() {
   this->verify_to_last_hidden_func_ = mod_get_func("batch_verify_to_last_hidden_states");
   this->fuse_embed_hidden_func_ = mod_get_func("fuse_embed_hidden_states");
   Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
-  // Note(wuwei): get_logits funcs have to be on disco if the params are on disco
   this->get_logits_func_ = mod_get_func("get_logits");
   this->batch_get_logits_func_ = mod_get_func("batch_get_logits");
-  // this->get_logits_func_ = mod->GetFunction("get_logits", true);
-  // this->batch_get_logits_func_ = mod->GetFunction("batch_get_logits", true);
   this->batch_select_last_hidden_func_ = mod->GetFunction("batch_select_last_hidden_states", true);
   this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
