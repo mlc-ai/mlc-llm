@@ -35,7 +35,7 @@ inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
 class GPUSampler : public SamplerObj {
  public:
   explicit GPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft, DLDevice device,
-                      Optional<EventTraceRecorder> trace_recorder)
+                      Optional<EventTraceRecorder> trace_recorder, int max_draft_length = -1)
       : max_num_sample_(max_num_sample),
         vocab_size_(vocab_size),
         device_(device),
@@ -43,7 +43,9 @@ class GPUSampler : public SamplerObj {
         gpu_argsort_probs_func_(ft->gpu_argsort_probs_func_),
         gpu_sample_with_top_p_func_(ft->gpu_sample_with_top_p_func_),
         gpu_sampler_take_probs_func_(ft->gpu_sampler_take_probs_func_),
-        trace_recorder_(std::move(trace_recorder)) {
+        gpu_verify_draft_tokens_func_(ft->gpu_verify_draft_tokens_func_),
+        trace_recorder_(std::move(trace_recorder)),
+        max_draft_length_(max_draft_length) {
     ICHECK(gpu_multinomial_from_uniform_func_.defined());
     ICHECK(gpu_argsort_probs_func_.defined());
     ICHECK(gpu_sample_with_top_p_func_.defined());
@@ -92,11 +94,22 @@ class GPUSampler : public SamplerObj {
     NVTXScopedRange nvtx_scope("BatchSampleTokens");
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    CHECK(output_prob_dist == nullptr) << "GPU sampler does not support collecting output probs.";
+    // CHECK(output_prob_dist == nullptr) << "GPU sampler does not support collecting output
+    // probs.";
     CHECK_EQ(probs_on_device->ndim, 2);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
+    if (output_prob_dist != nullptr) {
+      ICHECK(output_prob_dist->empty());
+      output_prob_dist->reserve(num_probs);
+      for (int i = 0; i < num_probs; ++i) {
+        NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
+        float* p_prob = static_cast<float*>(prob_dist->data) + i * vocab_size;
+        prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
+        output_prob_dist->push_back(std::move(prob_dist));
+      }
+    }
     ICHECK_EQ(request_ids.size(), num_samples);
     ICHECK_EQ(generation_cfg.size(), num_samples);
     ICHECK_EQ(rngs.size(), num_samples);
@@ -132,7 +145,136 @@ class GPUSampler : public SamplerObj {
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    LOG(FATAL) << "GPU sampler does not support batch verification for now.";
+    LOG(INFO) << "GpuVerifier";
+    std::vector<std::vector<SampleResult>> sample_results;
+    // TODO: check <= max_num_verify_tokens
+    // probs_on_device: (n, v)
+    RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
+    CHECK_EQ(probs_on_device->ndim, 2);
+
+    int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
+    CHECK_EQ(rngs.size(), num_sequence);
+    CHECK_EQ(draft_output_tokens.size(), num_sequence);
+    CHECK_EQ(draft_output_prob_dist.size(), num_sequence);
+    sample_results.resize(num_sequence);
+
+    int num_nodes = cum_verify_lengths.back();
+    NDArray uniform_samples_host = uniform_samples_host_.CreateView({num_nodes}, dtype_f32_);
+    NDArray uniform_samples_device = uniform_samples_device_.CreateView({num_nodes}, dtype_f32_);
+    NDArray draft_probs_device = NDArray::Empty({num_nodes, vocab_size_}, dtype_f32_, device_);
+    NDArray draft_tokens_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
+    NDArray draft_tokens_host =
+        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+
+    // Concat draft prob distributions to a ragged tensor (num_nodes, vocab_size)
+    for (int i = 0; i < num_sequence; i++) {
+      const std::vector<SampleResult>& draft_output_tokens_i = draft_output_tokens[i];
+      const std::vector<NDArray>& draft_output_prob_dist_i = draft_output_prob_dist[i];
+      int start = cum_verify_lengths[i];
+      int end = cum_verify_lengths[i + 1];
+      ICHECK_EQ(draft_output_tokens_i.size() + 1, end - start);
+      ICHECK_EQ(draft_output_prob_dist_i.size() + 1, end - start);
+      for (int j = 0; j < end - start - 1; j++) {
+        // Copy prob dist
+        ICHECK_EQ(draft_probs_device->dtype.bits, 32);
+        float* p_draft_probs =
+            static_cast<float*>(draft_probs_device->data) +
+            (j + start + 1) *
+                vocab_size_;  // shift by one, q of the last committed token is undefined
+        // Copy sampled token id
+        draft_output_prob_dist_i[j].CopyToBytes(p_draft_probs, vocab_size_ * sizeof(float));
+        *(reinterpret_cast<int*>(draft_tokens_host->data) + j + start + 1) =
+            draft_output_tokens_i[j].sampled_token_id.first;
+      }
+    }
+    CopyArray(draft_tokens_host, draft_tokens_device, copy_stream_);
+
+    float* p_uniform_samples = static_cast<float*>(uniform_samples_host->data);
+    // int* p_sample_indices = static_cast<int*>(sample_indices_host_->data);
+    for (int i = 0; i < num_sequence; ++i) {
+      int start = cum_verify_lengths[i];
+      int end = cum_verify_lengths[i + 1];
+      for (int j = start; j < end; j++) {
+        p_uniform_samples[j] = rngs[i]->GetRandomNumber();
+      }
+    }
+    CopyArray(uniform_samples_host, uniform_samples_device, copy_stream_);
+
+    NDArray token_tree_first_child_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
+    NDArray token_tree_next_sibling_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
+    NDArray token_tree_parent_ptr_device = NDArray::Empty({num_sequence}, dtype_i32_, device_);
+    NDArray token_tree_first_child_host =
+        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+    NDArray token_tree_next_sibling_host =
+        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+    NDArray token_tree_parent_ptr_host =
+        NDArray::Empty({num_sequence}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+    NDArray token_tree_child_to_parent_host =
+        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+
+    // Build the tree structure on CPU
+    for (int i = 0; i < num_sequence; i++) {
+      // Assuming no tree structure for now
+      int start = cum_verify_lengths[i];
+      int end = cum_verify_lengths[i + 1];
+      ICHECK_EQ(end - start, 2);  // one committed token and assuming only one draft token
+      static_cast<int*>(token_tree_child_to_parent_host->data)[start] = -1;  // root has no parent
+      for (int j = 0; j < end - start; j++) {
+        int cur_node = j + start;
+        int child_node = j + 1 >= end - start ? -1 : cur_node + 1;
+        static_cast<int*>(token_tree_first_child_host->data)[cur_node] = child_node;
+        if (child_node != -1) {
+          static_cast<int*>(token_tree_child_to_parent_host->data)[child_node] = cur_node;
+        }
+        static_cast<int*>(token_tree_next_sibling_host->data)[cur_node] = -1;
+      }
+      static_cast<int*>(token_tree_parent_ptr_host->data)[i] = start;  // point to the root
+    }
+    // Copy token tree structure to GPU
+    CopyArray(token_tree_first_child_host, token_tree_first_child_device, copy_stream_);
+    CopyArray(token_tree_next_sibling_host, token_tree_next_sibling_device, copy_stream_);
+    CopyArray(token_tree_parent_ptr_host, token_tree_parent_ptr_device, copy_stream_);
+
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    gpu_verify_draft_tokens_func_(draft_probs_device, draft_tokens_device, probs_on_device,
+                                  token_tree_first_child_device, token_tree_next_sibling_device,
+                                  uniform_samples_device, token_tree_parent_ptr_device);
+
+    // TODO: check synchronization is correct
+    SyncCopyStream(device_, compute_stream_, copy_stream_);
+    CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, copy_stream_);
+    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+
+    std::vector<int> sample_indices;
+
+    for (int i = 0; i < num_sequence; i++) {
+      int start = cum_verify_lengths[i];
+      int end = cum_verify_lengths[i + 1];
+      int last_accepted = static_cast<int*>(token_tree_parent_ptr_host->data)[i];
+      int num_accepted = 0;
+      for (int cur_node = last_accepted; cur_node != start;
+           cur_node = static_cast<int*>(token_tree_child_to_parent_host->data)[cur_node]) {
+        sample_results[i].push_back(draft_output_tokens[i][cur_node - start - 1]);
+        num_accepted++;
+      }
+      std::reverse(sample_results[i].rbegin(), sample_results[i].rbegin() + num_accepted);
+      sample_indices.push_back(last_accepted);
+    }
+    std::vector<SampleResult> additional_sample_result;
+    if (sub_sampler_.defined()) {
+      additional_sample_result =
+          Downcast<Sampler>(sub_sampler_)
+              ->BatchSampleTokens(probs_on_device, sample_indices, request_ids, generation_cfg,
+                                  rngs, nullptr);
+    } else {
+      additional_sample_result = this->BatchSampleTokens(
+          probs_on_device, sample_indices, request_ids, generation_cfg, rngs, nullptr);
+    }
+    ICHECK_EQ(additional_sample_result.size(), num_sequence);
+    for (int i = 0; i < num_sequence; i++) {
+      sample_results[i].push_back(additional_sample_result[i]);
+    }
+    return sample_results;
   }
 
  private:
@@ -370,6 +512,7 @@ class GPUSampler : public SamplerObj {
   PackedFunc gpu_argsort_probs_func_;
   PackedFunc gpu_sample_with_top_p_func_;
   PackedFunc gpu_sampler_take_probs_func_;
+  PackedFunc gpu_verify_draft_tokens_func_;
   // Auxiliary NDArrays on CPU
   NDArray uniform_samples_host_;
   NDArray sample_indices_host_;
@@ -391,6 +534,7 @@ class GPUSampler : public SamplerObj {
   // The device stream for copying auxiliary data structure to GPU.
   TVMStreamHandle copy_stream_ = nullptr;
   const float eps_ = 1e-5;
+  int max_draft_length_ = -1;
 };
 
 Sampler Sampler::CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,

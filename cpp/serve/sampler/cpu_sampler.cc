@@ -320,6 +320,12 @@ class CPUSampler : public SamplerObj {
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
+    // LOG(INFO) << "CpuVeirfy";
+    if (sub_sampler_.defined()) {
+      return Downcast<Sampler>(sub_sampler_)
+          ->BatchVerifyDraftTokens(probs_on_device, request_ids, cum_verify_lengths, generation_cfg,
+                                   rngs, draft_output_tokens, draft_output_prob_dist);
+    }
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_device->ndim, 2);
