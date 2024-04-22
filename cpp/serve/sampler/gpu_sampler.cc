@@ -91,13 +91,9 @@ class GPUSampler : public SamplerObj {
                                               const Array<GenerationConfig>& generation_cfg,  //
                                               const std::vector<RandomGenerator*>& rngs,      //
                                               std::vector<NDArray>* output_prob_dist) final {
-
     NVTXScopedRange nvtx_scope("BatchSampleTokens");
-    LOG(INFO) << "GpuSampler";
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    // CHECK(output_prob_dist == nullptr) << "GPU sampler does not support collecting output
-    // probs.";
     CHECK_EQ(probs_on_device->ndim, 2);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
@@ -107,25 +103,8 @@ class GPUSampler : public SamplerObj {
       output_prob_dist->reserve(num_probs);
       for (int i = 0; i < num_probs; ++i) {
         NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
-        float* p_prob = static_cast<float*>(prob_dist->data) + i * vocab_size;
+        float* p_prob = static_cast<float*>(probs_on_device->data) + i * vocab_size;
         prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
-        NDArray prob_dist_host = prob_dist.CopyTo(DLDevice{DLDeviceType::kDLCPU, 0});
-        int argmax_pos = -1;
-        float max_prob = -1.0;
-        for (int i = 0; i < vocab_size; ++i) {
-          if (static_cast<float*>(prob_dist_host->data)[i] > max_prob) {
-            max_prob = static_cast<float*>(prob_dist_host->data)[i];
-            argmax_pos = i;
-          }
-        }
-        for (int i = 0; i < vocab_size; ++i) {
-          if (i == argmax_pos) {
-            static_cast<float*>(prob_dist_host->data)[i] = 1.0;
-          } else {
-            static_cast<float*>(prob_dist_host->data)[i] = 0.0;
-          }
-        }
-        prob_dist.CopyFrom(prob_dist_host);
         output_prob_dist->push_back(std::move(prob_dist));
       }
     }
@@ -164,7 +143,6 @@ class GPUSampler : public SamplerObj {
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    LOG(INFO) << "GpuVerifier";
     std::vector<std::vector<SampleResult>> sample_results;
     // TODO: check <= max_num_verify_tokens
     // probs_on_device: (n, v)
@@ -282,20 +260,10 @@ class GPUSampler : public SamplerObj {
       }
       std::reverse(sample_results[i].rbegin(), sample_results[i].rbegin() + num_accepted);
       sample_indices.push_back(last_accepted);
-      LOG(INFO) << "accepted tokens: " << num_accepted;
     }
     std::vector<SampleResult> additional_sample_result;
-    if (sub_sampler_.defined()) {
-      LOG(INFO) << "CPU Resample";
-      additional_sample_result =
-          Downcast<Sampler>(sub_sampler_)
-              ->BatchSampleTokens(probs_on_device, sample_indices, request_ids, generation_cfg,
-                                  rngs, nullptr);
-    } else {
-      LOG(INFO) << "GPU Resample";
-      additional_sample_result = this->BatchSampleTokens(
-          probs_on_device, sample_indices, request_ids, generation_cfg, rngs, nullptr);
-    }
+    additional_sample_result = this->BatchSampleTokens(probs_on_device, sample_indices, request_ids,
+                                                       generation_cfg, rngs, nullptr);
     ICHECK_EQ(additional_sample_result.size(), num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       sample_results[i].push_back(additional_sample_result[i]);

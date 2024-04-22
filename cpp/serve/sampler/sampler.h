@@ -80,9 +80,6 @@ class SamplerObj : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(SamplerObj, Object);
-
- public:
-  ObjectRef sub_sampler_{nullptr};
 };
 
 class Sampler : public ObjectRef {
