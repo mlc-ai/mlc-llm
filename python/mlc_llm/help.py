@@ -159,4 +159,54 @@ After enabling, you can send POST request to the "debug/dump_event_trace" entryp
 to get the Chrome Trace. For example,
 "curl -X POST http://127.0.0.1:8000/debug/dump_event_trace -H "Content-Type: application/json" -d '{"model": "dist/llama"}'"
 """.strip(),
+    "mode_serve": """
+The engine mode in MLC LLM. We provide three preset modes: "local", "interactive" and "server".
+The default mode is "local".
+The choice of mode decides the values of "--max-batch-size", "--max-total-seq-length" and
+"--prefill-chunk-size" when they are not explicitly specified.
+1. Mode "local" refers to the local server deployment which has low request concurrency.
+   So the max batch size will be set to 4, and max total sequence length and prefill chunk size
+   are set to the context window size (or sliding window size) of the model.
+2. Mode "interactive" refers to the interactive use of server, which has at most 1 concurrent
+   request. So the max batch size will be set to 1, and max total sequence length and prefill
+   chunk size are set to the context window size (or sliding window size) of the model.
+3. Mode "server" refers to the large server use case which may handle many concurrent request
+   and want to use GPU memory as much as possible. In this mode, we will automatically infer
+   the largest possible max batch size and max total sequence length.
+You can manually specify arguments "--max-batch-size", "--max-total-seq-length" and
+"--prefill-chunk-size" to override the automatic inferred values.
+""".strip(),
+    "additional_models_serve": """
+The model paths and (optional) model library paths of additional models (other than the main model).
+When engine is enabled with speculative decoding, additional models are needed.
+The way of specifying additional models is:
+"--additional-models model_path_1 model_path_2 ..." or
+"--additional-models model_path_1:model_lib_path_1 model_path_2 ...".
+When the model lib path of a model is not given, JIT model compilation will be activated
+to compile the model automatically.
+""",
+    "gpu_memory_utilization_serve": """
+A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
+It is used to infer to maximum possible KV cache capacity.
+When it is unspecified, it defaults to 0.90.
+Under mode "local" or "interactive", the actual memory usage may be significantly smaller than
+this number. Under mode "server", the actual memory usage may be slightly larger than this number.
+""",
+    "speculative_mode_serve": """
+The speculative decoding mode. Right now three options are supported:
+ - DISABLE, where speculative decoding is not enabled,
+ - SMALL_DRAFT, denoting the normal speculative decoding (small draft) style,
+ - EAGLE, denoting the eagle-style speculative decoding.
+The default mode is "DISABLE".
+""",
+    "spec_draft_length_serve": """
+The number of draft tokens to generate in speculative proposal. The default values is 4.
+""",
+    "engine_config_serve": """
+The LLMEngine execution configuration.
+Currently speculative decoding mode is specified via engine config.
+For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'" to
+specify the eagle-style speculative decoding.
+Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
+""",
 }

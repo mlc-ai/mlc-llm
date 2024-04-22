@@ -21,7 +21,7 @@ from mlc_llm.chat_module import (
 )
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.help import HELP
-from mlc_llm.serve.entrypoints import entrypoint_utils
+from mlc_llm.serve import engine_utils
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green, red
@@ -132,7 +132,7 @@ class DefaultDebugInstrument:
 class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public-methods
     """A chat interface used only for debugging purpose.
 
-    It debugs autoregressive decoding fully in Python via the prefill and
+    It debugs auto-regressive decoding fully in Python via the prefill and
     decode interface. It supports debugging instrument (either default or
     customized) to dump intermediate values for each VM function call.
 
@@ -261,7 +261,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             "Parsed prompt using conversation template "
             f"{green(self.conversation.name)}: {parsed_prompt}"
         )
-        tokens = entrypoint_utils.process_prompts(parsed_prompt, self.tokenizer.encode)
+        tokens = engine_utils.process_prompts(parsed_prompt, self.tokenizer.encode)  # type: ignore
 
         # TODO: Handle ImageData in DebugChat # pylint: disable=fixme
         assert len(tokens) == 1, "DebugChat will only handle TextData for now"

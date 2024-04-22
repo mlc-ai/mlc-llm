@@ -9,6 +9,8 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
+#include <optional>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -57,62 +59,89 @@ class GenerationConfig : public ObjectRef {
  public:
   explicit GenerationConfig(String config_json_str);
 
+  /*!
+   * \brief Parse the generation config from the given JSON string.
+   * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
+   */
+  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err);
+
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
 
-/****************** KV Cache config ******************/
+/****************** Engine config ******************/
 
-/*! \brief The configuration of paged KV cache. */
-class KVCacheConfigNode : public Object {
+/*! \brief The speculative mode. */
+enum class SpeculativeMode : int {
+  /*! \brief Disable speculative decoding. */
+  kDisable = 0,
+  /*! \brief The normal speculative decoding (small draft) mode. */
+  kSmallDraft = 1,
+  /*! \brief The eagle-style speculative decoding. */
+  kEagle = 2,
+};
+
+/*! \brief The configuration of engine execution config. */
+class EngineConfigNode : public Object {
  public:
-  int page_size;
+  /*************** Models ***************/
+
+  /*! \brief The path to the model directory. */
+  String model;
+  /*! \brief The path to the model library. */
+  String model_lib_path;
+  /*! \brief The path to the additional models' directories. */
+  Array<String> additional_models;
+  /*! \brief The path to the additional models' libraries. */
+  Array<String> additional_model_lib_paths;
+
+  /*************** Device ***************/
+
+  /*! \brief The device where the models run. */
+  DLDevice device;
+
+  /*************** KV cache config and engine capacities ***************/
+
+  /*! \brief The number of consecutive tokens handled in each page in paged KV cache. */
+  int kv_cache_page_size;
+  /*!
+   * \brief The maximum number of sequences that are allowed to be
+   * processed by the KV cache at any time.
+   */
   int max_num_sequence;
+  /*! \brief The maximum length allowed for a single sequence in the engine. */
   int max_total_sequence_length;
+  /*!
+   * \brief The maximum total number of tokens whose KV data are allowed
+   * to exist in the KV cache at any time.
+   */
+  int max_single_sequence_length;
+  /*! \brief The maximum total sequence length in a prefill. */
   int prefill_chunk_size;
 
-  String AsJSONString() const;
+  /*************** Speculative decoding ***************/
 
-  static constexpr const char* _type_key = "mlc.serve.KVCacheConfig";
-  static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(KVCacheConfigNode, Object);
-};
-
-class KVCacheConfig : public ObjectRef {
- public:
-  explicit KVCacheConfig(int page_size, int max_num_sequence, int max_total_sequence_length,
-                         int prefill_chunk_size);
-
-  explicit KVCacheConfig(const std::string& config_str, int max_single_sequence_length);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(KVCacheConfig, ObjectRef, KVCacheConfigNode);
-};
-
-/****************** Engine Mode ******************/
-
-/*! \brief The configuration of engine execution mode. */
-class EngineModeNode : public Object {
- public:
-  /* Whether the speculative decoding mode is enabled */
-  bool enable_speculative;
-  /* The number of tokens to generate in speculative proposal (draft) */
-  int spec_draft_length;
+  /*! \brief The speculative mode. */
+  SpeculativeMode speculative_mode;
+  /*! \brief The number of tokens to generate in speculative proposal (draft). */
+  int spec_draft_length = 4;
 
   String AsJSONString() const;
 
-  static constexpr const char* _type_key = "mlc.serve.EngineMode";
+  static constexpr const char* _type_key = "mlc.serve.EngineConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(EngineModeNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(EngineConfigNode, Object);
 };
 
-class EngineMode : public ObjectRef {
+class EngineConfig : public ObjectRef {
  public:
-  explicit EngineMode(bool enable_speculative, int spec_draft_length);
+  explicit EngineConfig(String model, String model_lib_path, Array<String> additional_models,
+                        Array<String> additional_model_lib_paths, DLDevice device,
+                        int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                        int max_single_sequence_length, int prefill_chunk_size,
+                        SpeculativeMode speculative_mode, int spec_draft_length);
 
-  explicit EngineMode(const std::string& config_str);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(EngineMode, ObjectRef, EngineModeNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
 };
 
 }  // namespace serve

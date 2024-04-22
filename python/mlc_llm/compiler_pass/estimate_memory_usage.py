@@ -23,14 +23,16 @@ class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
         """Entrypoint"""
         mod = mod.clone()
 
+        func_name = "_metadata"
+
         def _emit_metadata(metadata):
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
-            with bb.function("_metadata", params=[]):
+            with bb.function(func_name, params=[]):
                 bb.emit_func_output(relax.StringImm(json.dumps(metadata)))
-            return bb.finalize()["_metadata"]
+            return bb.finalize()[func_name]
 
         self.metadata["memory_usage"] = _MemoryEstimator().run(mod)
-        mod["_metadata"] = _emit_metadata(self.metadata)
+        mod[func_name] = _emit_metadata(self.metadata)
         return mod
 
 

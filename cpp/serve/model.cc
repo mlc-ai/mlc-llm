@@ -25,10 +25,10 @@ class ModelImpl;
 
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
-Model Model::Create(TVMArgValue reload_lib, String model_path, DLDevice device,
+Model Model::Create(String reload_lib_path, String model_path, DLDevice device,
                     int max_num_sequence, bool trace_enabled) {
   return Model(
-      make_object<ModelImpl>(reload_lib, model_path, device, max_num_sequence, trace_enabled));
+      make_object<ModelImpl>(reload_lib_path, model_path, device, max_num_sequence, trace_enabled));
 }
 
 class ModelImpl : public ModelObj {
@@ -37,7 +37,7 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(TVMArgValue reload_lib, String model_path, DLDevice device,
+  explicit ModelImpl(String reload_lib_path, String model_path, DLDevice device,
                      int max_num_sequence, bool trace_enabled)
       : device_(device) {
     // Step 1. Process model config json string.
@@ -53,7 +53,7 @@ class ModelImpl : public ModelObj {
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib, device_, model_config);
+    this->ft_.Init(reload_lib_path, device_, model_config);
     // Step 3. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 4. Set max_num_sequence
@@ -113,6 +113,223 @@ class ModelImpl : public ModelObj {
     } else {
       CHECK_EQ(offset, 0);
       return embeddings;
+    }
+  }
+
+  bool CanGetLogits() final {
+    return ft_.get_logits_func_.defined() && ft_.batch_get_logits_func_.defined();
+  }
+
+  NDArray GetLogits(const ObjectRef& last_hidden_states, int batch_size, int seq_len) final {
+    NVTXScopedRange nvtx_scope("GetLogits");
+    CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
+
+    ObjectRef hidden_states_dref_or_nd;
+    CHECK(!last_hidden_states->IsInstance<DRefObj>());
+    // hidden_states: (b, s, h)
+    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
+    ICHECK_NE(hidden_size_, -1);
+    ICHECK_EQ(hidden_states->ndim, 3);
+    ICHECK_EQ(hidden_states->shape[0], batch_size);
+    ICHECK_EQ(hidden_states->shape[1], seq_len);
+    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
+    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
+    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
+
+    hidden_states_dref_or_nd =
+        hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
+
+    ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+
+    NDArray logits;
+    logits = Downcast<NDArray>(ret);
+    CHECK(logits.defined());
+    // logits: (b * s, v)
+    ICHECK_EQ(logits->ndim, 2);
+    ICHECK_EQ(logits->shape[0], batch_size * seq_len);
+    return logits.CreateView({batch_size, seq_len, logits->shape[1]}, logits->dtype);
+  }
+
+  NDArray BatchGetLogits(const ObjectRef& last_hidden_states, const std::vector<int64_t>& seq_ids,
+                         const std::vector<int>& lengths) {
+    NVTXScopedRange nvtx_scope("BatchGetLogits");
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+
+    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+      p_logit_pos[i] = total_length - 1;
+    }
+    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+    ObjectRef logit_pos_dref_or_nd =
+        ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+
+    CHECK(ft_.batch_get_logits_func_.defined())
+        << "`batch_get_logits` function is not found in the model.";
+
+    ObjectRef hidden_states_dref_or_nd;
+    CHECK(!last_hidden_states->IsInstance<DRefObj>());
+    // hidden_states: (b, s, h)
+    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
+    ICHECK_NE(hidden_size_, -1);
+    ICHECK_EQ(hidden_states->ndim, 3);
+    ICHECK_EQ(hidden_states->shape[0], 1);
+    ICHECK_EQ(hidden_states->shape[1], total_length);
+    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
+    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
+    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
+
+    hidden_states_dref_or_nd =
+        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+
+    ObjectRef ret =
+        ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+
+    NDArray logits;
+    logits = Downcast<NDArray>(ret);
+    CHECK(logits.defined());
+    // logits: (b * s, v)
+    ICHECK_EQ(logits->ndim, 2);
+    ICHECK_EQ(logits->shape[0], num_sequences);
+    return logits.CreateView({1, num_sequences, logits->shape[1]}, logits->dtype);
+  }
+
+  NDArray BatchSelectLastHidden(const ObjectRef& last_hidden_states,
+                                const std::vector<int64_t>& seq_ids,
+                                const std::vector<int>& lengths) {
+    NVTXScopedRange nvtx_scope("BatchSelectLastHidden");
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+
+    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+      p_logit_pos[i] = total_length - 1;
+    }
+    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+    ObjectRef logit_pos_dref_or_nd =
+        ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+
+    CHECK(ft_.batch_select_last_hidden_func_.defined())
+        << "`batch_select_last_hidden_states` function is not found in the model.";
+
+    ObjectRef hidden_states_dref_or_nd;
+    CHECK(!last_hidden_states->IsInstance<DRefObj>());
+    // hidden_states: (b, s, h)
+    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
+    ICHECK_NE(hidden_size_, -1);
+    ICHECK_EQ(hidden_states->ndim, 3);
+    ICHECK_EQ(hidden_states->shape[0], 1);
+    ICHECK_EQ(hidden_states->shape[1], total_length);
+    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
+    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
+    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
+
+    hidden_states_dref_or_nd =
+        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+
+    ObjectRef ret =
+        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+
+    NDArray hidden;
+    hidden = Downcast<NDArray>(ret);
+    // hidden: (b * s, v)
+    ICHECK_EQ(hidden->ndim, 2);
+    ICHECK_EQ(hidden->shape[0], num_sequences);
+    return hidden.CreateView({1, num_sequences, hidden->shape[1]}, hidden->dtype);
+  }
+
+  NDArray ConcatLastHidden(std::vector<NDArray>& hidden_states, ObjectRef* dst) final {
+    NVTXScopedRange nvtx_scope("ConcatLastHidden");
+
+    CHECK(dst->defined());
+
+    int cum_length = 0;
+    ICHECK_GE(hidden_states.size(), 1);
+    for (auto hidden : hidden_states) {
+      ICHECK_EQ(hidden->ndim, 1);
+      // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
+      hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
+      // Reuse the copy embedding function
+      ft_.nd_copy_embedding_to_offset_func_(hidden, *dst, cum_length);
+      cum_length += 1;
+    }
+    NDArray ret = Downcast<NDArray>(*dst);
+    ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
+    return ret;
+  }
+
+  ObjectRef FuseEmbedHidden(const ObjectRef& embeddings, const ObjectRef& previous_hidden_states,
+                            int batch_size, int seq_len) final {
+    NVTXScopedRange nvtx_scope("FuseEmbedHidden");
+
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (n, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({batch_size * seq_len, hidden_size_}, embeddings_nd->dtype);
+
+      if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
+        // Model has no support for fuse_embed_hidden_states or this is the first model (base model)
+        return embeddings_nd.CreateView({batch_size, seq_len, hidden_size_}, embeddings_nd->dtype);
+      }
+    } else {
+      ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+
+      if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
+        // Model has no support for fuse_embed_hidden_states or this is the first model (base model)
+        ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
+        return ft_.nd_view_func_(embeddings, embedding_shape);
+      }
+    }
+
+    NDArray hidden_states = Downcast<NDArray>(previous_hidden_states);
+    CHECK(hidden_states.defined());
+    ICHECK_EQ(hidden_states->ndim, 3);
+    ICHECK_EQ(hidden_states->shape[0], batch_size);
+    ICHECK_EQ(hidden_states->shape[1], seq_len);
+    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
+    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
+    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
+    NDArray hidden_states_2d =
+        hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
+    auto hidden_states_dref_or_nd =
+        ft_.CopyToWorker0(hidden_states_2d, "hidden_states_2d",
+                          {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
+
+    ObjectRef ret =
+        ft_.fuse_embed_hidden_func_(embeddings_dref_or_nd, hidden_states_dref_or_nd, params_);
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+    if (!ret->IsInstance<DRefObj>()) {
+      NDArray fused = Downcast<NDArray>(ret);
+      return fused.CreateView({batch_size, seq_len, hidden_size_}, fused->dtype);
+    } else {
+      ShapeTuple fused_shape{batch_size, seq_len, hidden_size_};
+      return ft_.nd_view_func_(ret, fused_shape);
     }
   }
 
@@ -187,6 +404,74 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
+  NDArray BatchPrefillToLastHidden(const ObjectRef& hidden_states,
+                                   const std::vector<int64_t>& seq_ids,
+                                   const std::vector<int>& lengths) final {
+    NVTXScopedRange nvtx_scope("BatchPrefillToLastHidden");
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+    }
+
+    ObjectRef hidden_states_dref_or_nd;
+    if (!hidden_states->IsInstance<DRefObj>()) {
+      // hidden_states: (1, n, h)
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      hidden_states_dref_or_nd =
+          hidden_states_nd.CreateView({1, total_length, hidden_size_}, hidden_states_nd->dtype);
+    } else {
+      ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
+      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
+    }
+
+    CHECK(ft_.prefill_to_last_hidden_func_.defined())
+        << "`prefill_to_last_hidden_states` function is not found in the model.";
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
+    // args: embeddings, logit_pos, kv_cache, params
+    ObjectRef ret;
+    if (seq_ids.size() == 1) {
+      CHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
+          << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
+      ret = ft_.single_batch_prefill_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                          params_);
+    } else {
+      ret = ft_.prefill_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+    }
+    NDArray last_hidden_states;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      last_hidden_states = Downcast<NDArray>(result[0]);
+    } else {
+      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
+    }
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // hidden_states: (1, total_length, v)
+    ICHECK_EQ(last_hidden_states->ndim, 3);
+    ICHECK_EQ(last_hidden_states->shape[0], 1);
+    ICHECK_EQ(last_hidden_states->shape[1], total_length);
+    return last_hidden_states;
+  }
+
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecode");
     int num_sequence = seq_ids.size();
@@ -245,6 +530,67 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(logits->shape[0], num_sequence);
     ICHECK_EQ(logits->shape[1], 1);
     return logits;
+  }
+
+  NDArray BatchDecodeToLastHidden(const ObjectRef& hidden_states,
+                                  const std::vector<int64_t>& seq_ids) final {
+    NVTXScopedRange nvtx_scope("BatchDecodeToLastHidden");
+    int num_sequence = seq_ids.size();
+
+    CHECK(ft_.decode_to_last_hidden_func_.defined())
+        << "`batch_decode_to_last_hidden_states` function is not found in the model.";
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    ObjectRef hidden_states_dref_or_nd;
+    if (!hidden_states->IsInstance<DRefObj>()) {
+      // hidden_states: (1, n, h)
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
+      ICHECK_EQ(hidden_states_nd->shape[1], 1);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      hidden_states_dref_or_nd =
+          hidden_states_nd.CreateView({num_sequence, 1, hidden_size_}, hidden_states_nd->dtype);
+    } else {
+      ShapeTuple hidden_states_shape{num_sequence, 1, hidden_size_};
+      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
+    }
+
+    // Reserve in KV cache for the lengths of the input.
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
+    // args: embeddings, kv_cache, params
+    ObjectRef ret;
+    if (seq_ids.size() == 1) {
+      CHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
+          << "`decode_to_last_hidden_states` function is not found in the model.";
+      ret = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                         params_);
+    } else {
+      ret = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+    }
+    NDArray last_hidden_states;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      last_hidden_states = Downcast<NDArray>(result[0]);
+    } else {
+      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
+    }
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // hidden_states: (b, 1, v)
+    ICHECK_EQ(last_hidden_states->ndim, 3);
+    ICHECK_EQ(last_hidden_states->shape[0], num_sequence);
+    ICHECK_EQ(last_hidden_states->shape[1], 1);
+    return last_hidden_states;
   }
 
   NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
@@ -307,34 +653,77 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
+  NDArray BatchVerifyToLastHidden(const ObjectRef& hidden_states,
+                                  const std::vector<int64_t>& seq_ids,
+                                  const std::vector<int>& lengths) final {
+    NVTXScopedRange nvtx_scope("BatchVerifyToLastHidden");
+    CHECK(!seq_ids.empty());
+    CHECK_EQ(seq_ids.size(), lengths.size());
+    int num_sequences = seq_ids.size();
+    int total_length = 0;
+    for (int i = 0; i < num_sequences; ++i) {
+      total_length += lengths[i];
+    }
+
+    CHECK(ft_.verify_to_last_hidden_func_.defined())
+        << "`batch_verify_to_last_hidden_states` function is not found in the model.";
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    ObjectRef hidden_states_dref_or_nd;
+    if (!hidden_states->IsInstance<DRefObj>()) {
+      // hidden_states: (1, n, h)
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      hidden_states_dref_or_nd =
+          hidden_states_nd.CreateView({1, total_length, hidden_size_}, hidden_states_nd->dtype);
+    } else {
+      ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
+      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
+    }
+
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
+    // args: embeddings, logit_pos, kv_cache, params
+    ObjectRef ret = ft_.verify_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+    NDArray last_hidden_states;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      last_hidden_states = Downcast<NDArray>(result[0]);
+    } else {
+      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
+    }
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // hidden_states: (1, total_length, v)
+    ICHECK_EQ(last_hidden_states->ndim, 3);
+    ICHECK_EQ(last_hidden_states->shape[0], 1);
+    ICHECK_EQ(last_hidden_states->shape[1], total_length);
+    return last_hidden_states;
+  }
+
   /*********************** KV Cache Management  ***********************/
 
-  LogitProcessor CreateLogitProcessor(int max_num_token,
-                                      Optional<EventTraceRecorder> trace_recorder) {
-    return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
-                          std::move(trace_recorder));
-  }
-
-  Sampler CreateSampler(int max_num_sample, int num_models,
-                        Optional<EventTraceRecorder> trace_recorder) {
-    if (num_models > 1) {  // speculative decoding uses cpu sampler
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
-    } else if (Sampler::SupportGPUSampler(device_)) {
-      return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
-                                       std::move(trace_recorder));
-    } else {
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
-    }
-  }
-
-  void CreateKVCache(KVCacheConfig kv_cache_config) final {
-    IntTuple max_num_sequence{kv_cache_config->max_num_sequence};
-    IntTuple max_total_sequence_length{kv_cache_config->max_total_sequence_length};
-    IntTuple prefill_chunk_size{kv_cache_config->prefill_chunk_size};
-    IntTuple page_size{kv_cache_config->page_size};
+  void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
+                     int prefill_chunk_size) final {
+    IntTuple max_num_sequence_tuple{max_num_sequence};
+    IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
+    IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
+    IntTuple page_size_tuple{page_size};
     IntTuple support_sliding_window{sliding_window_size_ != -1};
-    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence, max_total_sequence_length,
-                                          prefill_chunk_size, page_size, support_sliding_window);
+    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
+                                          prefill_chunk_size_tuple, page_size_tuple,
+                                          support_sliding_window);
     local_kv_cache_ = ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
   }
 
@@ -371,6 +760,24 @@ class ModelImpl : public ModelObj {
 
   /*********************** Utilities  ***********************/
 
+  LogitProcessor CreateLogitProcessor(int max_num_token,
+                                      Optional<EventTraceRecorder> trace_recorder) {
+    return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
+                          std::move(trace_recorder));
+  }
+
+  Sampler CreateSampler(int max_num_sample, int num_models,
+                        Optional<EventTraceRecorder> trace_recorder) {
+    if (num_models > 1) {  // speculative decoding uses cpu sampler
+      return Sampler::CreateCPUSampler(std::move(trace_recorder));
+    } else if (Sampler::SupportGPUSampler(device_)) {
+      return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
+                                       std::move(trace_recorder));
+    } else {
+      return Sampler::CreateCPUSampler(std::move(trace_recorder));
+    }
+  }
+
   int EstimateHostCPURequirement() const final {
     CHECK_NE(num_shards_, -1) << "The model has not been initialized";
     return num_shards_ > 1 ? num_shards_ : 0;
@@ -400,11 +807,37 @@ class ModelImpl : public ModelObj {
     return embedding;
   }
 
+  ObjectRef AllocHiddenStatesTensor() final {
+    // Allocate the hidden_states tensor.
+    // Use the same function as embeddings.
+    ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_();
+    // Get the shape of the hidden_states tensor for hidden size.
+    ShapeTuple hidden_states_shape;
+    if (ft_.use_disco) {
+      ICHECK(hidden_states->IsInstance<DRefObj>());
+      ObjectRef shape_ref = ft_.nd_get_shape_func_(hidden_states);
+      hidden_states_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0);
+    } else {
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      hidden_states_shape = hidden_states_nd.Shape();
+    }
+    ICHECK_EQ(hidden_states_shape.size(), 2);
+    ICHECK_EQ(hidden_states_shape[0], prefill_chunk_size_);
+    this->hidden_size_ = hidden_states_shape[1];
+    return hidden_states;
+  }
+
   void Reset() final {
     // Reset the KV cache.
     if (kv_cache_.defined()) {
       ft_.reset_kv_cache_func_(kv_cache_);
     }
+  }
+
+  /************** Debug/Profile **************/
+
+  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+    ft_.DebugCallFuncOnAllAllWorker(func_name);
   }
 
  private:

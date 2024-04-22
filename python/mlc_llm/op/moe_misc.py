@@ -5,9 +5,6 @@ from typing import Tuple, Union
 from tvm import te, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
-from tvm.target import Target
-from tvm.topi.cuda.scan import inclusive_scan
-from tvm.topi.cuda.sort import topk as topi_topk
 
 # mypy: disable-error-code="attr-defined,name-defined"
 # pylint: disable=line-too-long,too-many-locals,invalid-name
@@ -120,7 +117,9 @@ def gating_softmax_topk(x: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                 Tensor.placeholder([batch_size, 2], index_dtype),
             ),
         )
-    expert_score, expert_indices = op.tensor_expr_op(topi_topk, "topk", args=[x, k, -1, "both", False, index_dtype])  # type: ignore[list-item]
+    expert_score, expert_indices = op.topk(
+        x, k, axis=-1, ret_type="both", largest=True, dtype=index_dtype
+    )
     expert_score = op.softmax(expert_score.astype("float32"), axis=-1).astype(dtype)
     return expert_score, expert_indices
 
@@ -203,14 +202,8 @@ def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:
         .permute_dims(1, 0)
         .reshape(batch_size * num_local_experts)
     )
-    with Target.current(allow_none=True) or Target(
-        {
-            "kind": "cuda",
-            "max_num_threads": 1024,
-            "arch": "sm_50",
-        }
-    ):
-        return op.tensor_expr_op(inclusive_scan, "cumsum", args=[expert_mask, 0, "int32"])  # type: ignore[list-item]
+
+    return op.cumsum(expert_mask, axis=0, exclusive=False, dtype="int32")
 
 
 def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]:

@@ -13,16 +13,43 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "../support/load_bytes_from_file.h"
+#include "../support/utils.h"
 #include "sampler/sampler.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
+
+Optional<IntTuple> GetDiscoWorkerCPUBinding(int num_workers) {
+  const char* raw_cpu_binding = std::getenv("MLC_DISCO_WORKER_CPU_BINDING");
+  if (raw_cpu_binding == nullptr) {
+    return NullOpt;
+  }
+
+  std::string cpu_binding_str(raw_cpu_binding);
+  std::vector<std::string> cpu_ids_str = Split(cpu_binding_str, ',');
+  std::vector<int64_t> cpu_ids;
+  for (const std::string& cpu_id_str : cpu_ids_str) {
+    try {
+      cpu_ids.push_back(std::stol(cpu_id_str));
+    } catch (std::invalid_argument const& ex) {
+      LOG(FATAL) << "Invalid MLC_DISCO_WORKER_CPU_BINDING \"" << cpu_binding_str << "\"";
+    }
+  }
+  if (static_cast<int>(cpu_ids.size()) < num_workers) {
+    LOG(FATAL) << "Insufficient number of specified CPU workers in MLC_DISCO_WORKER_CPU_BINDING, "
+                  "expecting at least "
+               << num_workers << "CPU ids but only " << cpu_ids.size() << " are given.";
+  }
+
+  return IntTuple{cpu_ids};
+}
 
 PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name) {
   return PackedFunc([sess, func = std::move(sess_func), name = std::move(name)](
@@ -42,7 +69,7 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
   });
 }
 
-void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object model_config) {
+void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
@@ -58,15 +85,6 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
   this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
-    String lib_path{nullptr};
-    try {
-      lib_path = reload_lib.operator String();
-    } catch (...) {
-      LOG(FATAL)
-          << "ValueError: In multi-GPU inference, we expect the first argument to Reload to be a "
-             "string path to the model library (.so on Linux or .dll on Windows), but got: "
-          << ArgTypeCode2Str(reload_lib.type_code());
-    }
     constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
     if (Registry::Get(f_create_process_pool) == nullptr) {
       LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
@@ -89,7 +107,7 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
     this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       lib_path, null_device);
+                                       std::move(reload_lib_path), null_device);
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
@@ -100,6 +118,10 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
       }
       return SessionFuncAsPackedFunc(sess, func, name);
     };
+    if (Optional<IntTuple> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
+      IntTuple cpu_ids_value = cpu_ids.value();
+      sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"), cpu_ids_value);
+    }
     this->get_global_func = [this](const std::string& name) -> PackedFunc {
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
     };
@@ -108,11 +130,10 @@ void FunctionTable::Init(TVMArgValue reload_lib, Device device, picojson::object
     this->_InitFunctions();
   } else {
     Module executable{nullptr};
-    if (reload_lib.type_code() == kTVMModuleHandle) {
-      executable = reload_lib.operator Module();
+    if (false) {
+      // Todo(mlc-team): system lib reload // reload_lib_path starts with "system://"
     } else {
-      String lib_path = reload_lib.operator String();
-      executable = tvm::runtime::Module::LoadFromFile(lib_path);
+      executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
     }
     this->use_disco = false;
     auto fload_exec = executable->GetFunction("vm_load_executable");
@@ -197,7 +218,16 @@ void FunctionTable::_InitFunctions() {
   this->prefill_func_ = mod_get_func("batch_prefill");
   this->decode_func_ = mod_get_func("batch_decode");
   this->verify_func_ = mod_get_func("batch_verify");
+  this->single_batch_prefill_to_last_hidden_func_ = mod_get_func("prefill_to_last_hidden_states");
+  this->single_batch_decode_to_last_hidden_func_ = mod_get_func("decode_to_last_hidden_states");
+  this->prefill_to_last_hidden_func_ = mod_get_func("batch_prefill_to_last_hidden_states");
+  this->decode_to_last_hidden_func_ = mod_get_func("batch_decode_to_last_hidden_states");
+  this->verify_to_last_hidden_func_ = mod_get_func("batch_verify_to_last_hidden_states");
+  this->fuse_embed_hidden_func_ = mod_get_func("fuse_embed_hidden_states");
   Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
+  this->get_logits_func_ = mod->GetFunction("get_logits", true);
+  this->batch_get_logits_func_ = mod->GetFunction("batch_get_logits", true);
+  this->batch_select_last_hidden_func_ = mod->GetFunction("batch_select_last_hidden_states", true);
   this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
   this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
@@ -245,7 +275,6 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
 
 ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                                        ShapeTuple max_reserved_shape) {
-  ICHECK(host_array->device.device_type == DLDeviceType::kDLCPU);
   if (this->use_disco) {
     Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);
@@ -273,6 +302,16 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
     DLTensor copy_dst = *(buffer.operator->());
     NDArray::CopyFromTo(host_array.operator->(), &copy_dst);
     return buffer;
+  }
+}
+
+void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name) const {
+  if (this->use_disco) {
+    sess->CallPacked(sess->GetGlobalFunc(func_name));
+  } else {
+    const PackedFunc* func = Registry::Get(func_name);
+    CHECK(func != nullptr) << "Global function name \"" << func_name << "\" is not found";
+    (*func)();
   }
 }
 

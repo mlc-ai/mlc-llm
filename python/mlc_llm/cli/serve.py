@@ -4,6 +4,7 @@ import json
 
 from mlc_llm.help import HELP
 from mlc_llm.interface.serve import serve
+from mlc_llm.serve.config import SpeculativeMode
 from mlc_llm.support.argparse import ArgumentParser
 
 
@@ -29,15 +30,33 @@ def main(argv):
         help=HELP["model_lib_path"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--max-batch-size",
-        type=int,
-        default=80,
-        help=HELP["max_batch_size"] + ' (default: "%(default)s")',
+        "--mode",
+        type=str,
+        choices=["local", "interactive", "server"],
+        default="local",
+        help=HELP["mode_serve"] + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--additional-models", type=str, nargs="*", help=HELP["additional_models_serve"]
+    )
+    parser.add_argument("--max-batch-size", type=int, help=HELP["max_batch_size"])
     parser.add_argument(
         "--max-total-seq-length", type=int, help=HELP["max_total_sequence_length_serve"]
     )
     parser.add_argument("--prefill-chunk-size", type=int, help=HELP["prefill_chunk_size_serve"])
+    parser.add_argument(
+        "--gpu-memory-utilization", type=float, help=HELP["gpu_memory_utilization_serve"]
+    )
+    parser.add_argument(
+        "--speculative-mode",
+        type=str,
+        choices=["DISABLE", "SMALL_DRAFT", "EAGLE"],
+        default="DISABLE",
+        help=HELP["speculative_mode_serve"],
+    )
+    parser.add_argument(
+        "--spec-draft-length", type=int, default=4, help=HELP["spec_draft_length_serve"]
+    )
     parser.add_argument("--enable-tracing", action="store_true", help=HELP["enable_tracing_serve"])
     parser.add_argument(
         "--host",
@@ -76,9 +95,14 @@ def main(argv):
         model=parsed.model,
         device=parsed.device,
         model_lib_path=parsed.model_lib_path,
+        mode=parsed.mode,
+        additional_models=parsed.additional_models,
         max_batch_size=parsed.max_batch_size,
         max_total_sequence_length=parsed.max_total_seq_length,
         prefill_chunk_size=parsed.prefill_chunk_size,
+        gpu_memory_utilization=parsed.gpu_memory_utilization,
+        speculative_mode=SpeculativeMode[parsed.speculative_mode],
+        spec_draft_length=parsed.spec_draft_length,
         enable_tracing=parsed.enable_tracing,
         host=parsed.host,
         port=parsed.port,

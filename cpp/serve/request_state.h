@@ -70,6 +70,12 @@ class RequestModelStateNode : public Object {
    * and draft outputs in speculative inference settings.
    */
   std::vector<NDArray> draft_output_prob_dist;
+  /*!
+   * \brief The last hidden_states used to get probs in drafting.
+   * \note We only need this value when we have multiple parallel small models
+   * and draft outputs in speculative inference settings.
+   */
+  std::vector<NDArray> draft_last_hidden_on_device;
   /*! \brief The appeared committed and draft tokens and their occurrence times. */
   std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
@@ -95,7 +101,8 @@ class RequestModelStateNode : public Object {
   /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
   void CommitToken(SampleResult sampled_token);
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
-  void AddDraftToken(SampleResult sampled_token, NDArray prob_dist);
+  void AddDraftToken(SampleResult sampled_token, NDArray prob_dist,
+                     NDArray draft_last_hidden_on_device = NDArray());
   /*! \brief Remove the last token from draft_output_tokens. Update appeared_token_ids. */
   void RemoveLastDraftToken();
   /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */

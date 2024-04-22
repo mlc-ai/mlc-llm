@@ -41,7 +41,7 @@ using namespace tvm::runtime;
 struct FunctionTable {
   static PackedFunc SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name);
 
-  void Init(TVMArgValue reload_lib, Device device, picojson::object model_config);
+  void Init(String reload_lib_path, Device device, picojson::object model_config);
 
   ObjectRef LoadParams(const std::string& model_path, Device device);
 
@@ -51,6 +51,8 @@ struct FunctionTable {
 
   ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                           ShapeTuple max_reserved_shape);
+
+  void DebugCallFuncOnAllAllWorker(const String& func_name) const;
 
   bool use_disco = false;
   Device local_gpu_device;
@@ -72,6 +74,15 @@ struct FunctionTable {
   PackedFunc prefill_func_;
   PackedFunc decode_func_;
   PackedFunc verify_func_;
+  PackedFunc single_batch_prefill_to_last_hidden_func_;
+  PackedFunc single_batch_decode_to_last_hidden_func_;
+  PackedFunc prefill_to_last_hidden_func_;
+  PackedFunc decode_to_last_hidden_func_;
+  PackedFunc verify_to_last_hidden_func_;
+  PackedFunc fuse_embed_hidden_func_;
+  PackedFunc get_logits_func_;
+  PackedFunc batch_get_logits_func_;
+  PackedFunc batch_select_last_hidden_func_;
   PackedFunc softmax_func_;
   PackedFunc apply_logit_bias_func_;
   PackedFunc apply_penalty_func_;

@@ -1,8 +1,9 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
+# pylint: disable=too-many-arguments,too-many-locals
 import asyncio
 from typing import List
 
+<<<<<<< HEAD
 from mlc_llm.serve import (
     AsyncThreadedEngine,
     EngineMode,
@@ -10,6 +11,9 @@ from mlc_llm.serve import (
     KVCacheConfig,
 )
 from mlc_llm.serve.engine import ModelInfo
+=======
+from mlc_llm.serve import AsyncLLMEngine, GenerationConfig, SpeculativeMode
+>>>>>>> upstream/main
 
 prompts = [
     "What is the meaning of life?",
@@ -26,19 +30,20 @@ prompts = [
 
 
 async def test_engine_generate():
-    # Initialize model loading info and KV cache config
-    ssm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so",
-    )
-    llm = ModelInfo(
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        model_lib_path="dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
-    )
-    kv_cache_config = KVCacheConfig(page_size=16)
-    engine_mode = EngineMode(enable_speculative=True)
     # Create engine
-    async_engine = AsyncThreadedEngine([llm, ssm], kv_cache_config, engine_mode)
+    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    small_model_lib_path = (
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    )
+    async_engine = AsyncLLMEngine(
+        model=model,
+        model_lib_path=model_lib_path,
+        mode="server",
+        additional_models=[small_model + ":" + small_model_lib_path],
+        speculative_mode=SpeculativeMode.SMALL_DRAFT,
+    )
 
     num_requests = 10
     max_tokens = 256
@@ -49,14 +54,18 @@ async def test_engine_generate():
     ]
 
     async def generate_task(
-        async_engine: AsyncThreadedEngine,
+        async_engine: AsyncLLMEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
     ):
         print(f"generate task for request {request_id}")
         rid = int(request_id)
+<<<<<<< HEAD
         async for delta_outputs in async_engine.generate(
+=======
+        async for delta_outputs in async_engine._generate(
+>>>>>>> upstream/main
             prompt, generation_cfg, request_id=request_id
         ):
             assert len(delta_outputs) == generation_cfg.n

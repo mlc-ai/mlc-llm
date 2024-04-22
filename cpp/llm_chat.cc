@@ -1618,8 +1618,6 @@ class LLMChat {
   NDArray logits_on_cpu_{nullptr};
   // pre-allocated ndarray for decode function's input tokens
   DRef input_tokens_decode_{nullptr};
-  // KV cache config
-  serve::KVCacheConfig kv_cache_config_{nullptr};
 };
 
 /*!

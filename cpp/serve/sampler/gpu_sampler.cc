@@ -92,6 +92,7 @@ class GPUSampler : public SamplerObj {
     NVTXScopedRange nvtx_scope("BatchSampleTokens");
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
+    CHECK(output_prob_dist == nullptr) << "GPU sampler does not support collecting output probs.";
     CHECK_EQ(probs_on_device->ndim, 2);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
@@ -99,6 +100,50 @@ class GPUSampler : public SamplerObj {
     ICHECK_EQ(request_ids.size(), num_samples);
     ICHECK_EQ(generation_cfg.size(), num_samples);
     ICHECK_EQ(rngs.size(), num_samples);
+
+    // Since `num_samples` may be larger than `max_num_sample_` in some cases,
+    // we apply chunking to support large `num_samples`.
+    std::vector<SampleResult> sample_results;
+    if (num_samples <= max_num_sample_) {
+      sample_results = ChunkSampleTokensImpl(probs_on_device, sample_indices, generation_cfg, rngs);
+    } else {
+      for (int chunk_start = 0; chunk_start < num_samples; chunk_start += max_num_sample_) {
+        int chunk_end = std::min(chunk_start + max_num_sample_, num_samples);
+        std::vector<int> sample_indices_chunk(sample_indices.begin() + chunk_start,
+                                              sample_indices.begin() + chunk_end);
+        Array<GenerationConfig> generation_cfg_chunk(generation_cfg.begin() + chunk_start,
+                                                     generation_cfg.begin() + chunk_end);
+        std::vector<RandomGenerator*> rngs_chunk(rngs.begin() + chunk_start,
+                                                 rngs.begin() + chunk_end);
+        std::vector<SampleResult> sample_results_chunk = ChunkSampleTokensImpl(
+            probs_on_device, sample_indices_chunk, generation_cfg_chunk, rngs_chunk);
+        sample_results.insert(sample_results.end(), sample_results_chunk.begin(),
+                              sample_results_chunk.end());
+      }
+    }
+
+    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
+    return sample_results;
+  }
+
+  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
+      NDArray probs_on_device, const Array<String>& request_ids,
+      const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
+      const std::vector<RandomGenerator*>& rngs,
+      const std::vector<std::vector<SampleResult>>& draft_output_tokens,
+      const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
+    LOG(FATAL) << "GPU sampler does not support batch verification for now.";
+  }
+
+ private:
+  std::vector<SampleResult> ChunkSampleTokensImpl(NDArray probs_on_device,                        //
+                                                  const std::vector<int>& sample_indices,         //
+                                                  const Array<GenerationConfig>& generation_cfg,  //
+                                                  const std::vector<RandomGenerator*>& rngs) {
+    // probs_on_device: (n, v)
+    int num_samples = sample_indices.size();
+    int num_probs = probs_on_device->shape[0];
+    int vocab_size = probs_on_device->shape[1];
 
     // - Generate random numbers.
     //   Copy the random numbers and sample indices.
@@ -148,20 +193,9 @@ class GPUSampler : public SamplerObj {
           SampleResult{{p_sampled_token_ids[i], sampled_prob}, top_prob_tokens});
     }
 
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
     return sample_results;
   }
 
-  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
-      NDArray probs_on_device, const Array<String>& request_ids,
-      const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
-      const std::vector<RandomGenerator*>& rngs,
-      const std::vector<std::vector<SampleResult>>& draft_output_tokens,
-      const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    LOG(FATAL) << "GPU sampler does not support batch verification for now.";
-  }
-
- private:
   /*! \brief Generate uniform random numbers, and copy the numbers and sample indices to GPU. */
   std::pair<NDArray, NDArray> CopySamplesAndIndicesToGPU(const std::vector<int>& sample_indices,
                                                          const std::vector<RandomGenerator*>& rngs,

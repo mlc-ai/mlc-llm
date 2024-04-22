@@ -12,7 +12,7 @@ import tvm
 import tvm.testing
 from pydantic import BaseModel
 
-from mlc_llm.serve import BNFGrammar, GrammarStateMatcher, json_schema_to_ebnf
+from mlc_llm.serve import BNFGrammar, GrammarStateMatcher
 from mlc_llm.tokenizer import Tokenizer
 
 

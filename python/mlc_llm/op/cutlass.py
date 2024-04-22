@@ -45,23 +45,22 @@ def group_gemm(
     assert x.ndim == 2
     assert weight.ndim == 3
     assert indptr.ndim == 1
-    assert weight.shape[2] == x.shape[1]
     assert weight.shape[0] == indptr.shape[0]
     assert indptr.dtype == "int64"
     out_dtype = out_dtype if out_dtype else x.dtype
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
-    if x.dtype == "e5m2_float8" and weight.dtype == "e5m2_float8" and out_dtype == "float16":
+    if x.dtype == "e5m2_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e5m2_e5m2_fp16"
-    elif x.dtype == "e4m3_float8" and weight.dtype == "e5m2_float8" and out_dtype == "float16":
+    elif x.dtype == "e4m3_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e5m2_fp16"
-    elif x.dtype == "e4m3_float8" and weight.dtype == "e4m3_float8" and out_dtype == "float16":
+    elif x.dtype == "e4m3_float8" and weight_dtype == "e4m3_float8" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e4m3_fp16"
-    elif x.dtype == "float16" and weight.dtype == "float16" and out_dtype == "float16":
+    elif x.dtype == "float16" and weight_dtype == "float16" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_fp16_sm90"
     else:
         raise NotImplementedError(
-            f"Unsupported data type: x={x.dtype}, weight={weight.dtype}, out={out_dtype}"
+            f"Unsupported data type: x={x.dtype}, weight={weight_dtype}, out={out_dtype}"
         )
 
     if "float8" in x.dtype:

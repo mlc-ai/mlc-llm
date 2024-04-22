@@ -59,6 +59,8 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // NOTE: Right now we only support decode all the running request states at a time.
     int num_rsentries = running_rsentries.size();
+    ICHECK_GT(num_rsentries, 0)
+        << "There should be at least one request state entry that can run decode";
     // Collect
     // - the last committed token,
     // - the request id,

@@ -44,7 +44,7 @@ We quickly go over how to use prebuilt models for each platform. You can find de
 
 **Prebuilt Models on CLI / Python**
 
-For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python page </deploy/python>`.
+For more, please see :ref:`the CLI page <deploy-cli>`, and the :ref:`the Python page <deploy-python-chat-module>`.
 
 .. collapse:: Click to show details
 
@@ -71,7 +71,7 @@ For more, please see :doc:`the CLI page </deploy/cli>`, and the :doc:`the Python
       mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
 
 
-  To run the model with Python API, see :doc:`the Python page </deploy/python>` (all other downloading steps are the same as CLI).
+  To run the model with Python API, see :ref:`the Python page <deploy-python-chat-module>` (all other downloading steps are the same as CLI).
 
 
 .. for a blank line

@@ -1,5 +1,8 @@
 """Mixture of Experts operators"""
-from tvm import DataType, tir, DataTypeCode
+
+from typing import Literal, Optional
+
+from tvm import DataType, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 
@@ -123,7 +126,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     num_elem_per_storage = DataType(storage_dtype).bits // quantize_dtype_bits
     num_group = (in_features + group_size - 1) // group_size
     num_storage = group_size // num_elem_per_storage * num_group
-    
+
     def _dequantize(w, s, e, i, j):
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         tir_max_int = tir.const((2 ** (quantize_dtype_bits - 1)) - 1, model_dtype)
@@ -138,9 +141,11 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
-        w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
+        w = tir.reinterpret(
+            DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)
+        ).astype(model_dtype)
         return w * s
-    
+
     if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
         dequantize_func = _dequantize_e4m3
     elif DataType(quantize_dtype).type_code == DataTypeCode.E5M2Float:
@@ -157,7 +162,6 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    
     @T.prim_func(private=True)
     def _func(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
@@ -188,6 +192,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         args=[x, w, scale, indptr],
         out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
     )
+
 
 def dequantize_gemv_no_scale(  # pylint: disable=too-many-arguments
     x: Tensor,
@@ -240,9 +245,11 @@ def dequantize_gemv_no_scale(  # pylint: disable=too-many-arguments
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         w = w[e, i, j // num_elem_per_storage]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
-        w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
+        w = tir.reinterpret(
+            DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)
+        ).astype(model_dtype)
         return w
-    
+
     if DataType(quantize_dtype).type_code == DataTypeCode.E5M2Float:
         dequantize_func = _dequantize_e5m2
     else:
@@ -256,7 +263,6 @@ def dequantize_gemv_no_scale(  # pylint: disable=too-many-arguments
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
-    
     @T.prim_func(private=True)
     def _func(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
@@ -282,6 +288,124 @@ def dequantize_gemv_no_scale(  # pylint: disable=too-many-arguments
 
     return op.tensor_ir_op(
         _func,
+        "moe_dequantize_gemv",
+        args=[x, w, indptr],
+        out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+    )
+
+
+def dequantize_float8_gemv(
+    x: Tensor,
+    w: Tensor,
+    scale: Optional[Tensor],
+    indptr: Tensor,
+    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"],
+) -> Tensor:
+    """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
+    fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
+
+    Parameters
+    ----------
+    x : Tensor
+        For project-in, the input tensor of shape (1, in_features); and for project-out, the input
+        shape is (experts_per_tok, in_features), where `experts_per_tok` is the number of activated
+        experts per token.
+
+    w : Tensor
+        The quantized weight tensor of shape (local_experts, out_features, in_features)
+
+    scale : Optional[Tensor]
+        The optional scale tensor of shape (1,)
+
+    indptr : Tensor
+        The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
+        number of activated experts per token.
+
+    quantize_dtype : Literal["e5m2_float8", "e4m3_float8"]
+        The quantize dtype of the weight tensor, which is either e5m2_float8 or e4m3_float8.
+    """
+    (x_leading_dim, in_features), model_dtype = x.shape, x.dtype
+    (local_experts, out_features, _), storage_dtype = w.shape, w.dtype
+    _, experts_per_tok = indptr.shape
+    quantize_dtype_bits = DataType(quantize_dtype).bits
+    num_elem_per_storage = DataType(storage_dtype).bits // quantize_dtype_bits
+    num_storage = tir.ceildiv(in_features, num_elem_per_storage)
+
+    def _dequantize(w, s, e, i, j):
+        if num_elem_per_storage == 1:
+            w = tir.reinterpret(quantize_dtype, w[e, i, j])
+        else:
+            tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
+            w = w[e, i, j // num_elem_per_storage]
+            shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
+            w = tir.reinterpret(
+                quantize_dtype,
+                tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype("uint8"),
+            )
+        w = w.astype(model_dtype)
+        if s is not None:
+            w = w * s[0]
+        return w
+
+    def access_x(x, e, j):
+        return x[0, j] if x_leading_dim == 1 else x[e, j]
+
+    @T.prim_func(private=True)
+    def _func_with_scale(
+        x: T.Buffer((x_leading_dim, in_features), model_dtype),
+        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
+        scale: T.Buffer((1,), model_dtype),
+        indptr: T.Buffer((1, experts_per_tok), "int32"),
+        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            with T.block("gemv_o"):
+                e = T.axis.spatial(experts_per_tok, expert_id)
+                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("dequantize"):
+                        i, j = T.axis.remap("SS", [i1, i2])
+                        y[i, j] = _dequantize(w, scale, indptr[0, e], i, j)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("gemv"):
+                        i, j = T.axis.remap("SR", [i1, i2])
+                        with T.init():
+                            o[e, i] = T.cast(T.float16(0), model_dtype)
+                        o[e, i] += access_x(x, e, j) * y[i, j]
+
+    @T.prim_func(private=True)
+    def _func_without_scale(
+        x: T.Buffer((x_leading_dim, in_features), model_dtype),
+        w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
+        indptr: T.Buffer((1, experts_per_tok), "int32"),
+        o: T.Buffer((experts_per_tok, out_features), model_dtype),
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            with T.block("gemv_o"):
+                e = T.axis.spatial(experts_per_tok, expert_id)
+                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("dequantize"):
+                        i, j = T.axis.remap("SS", [i1, i2])
+                        y[i, j] = _dequantize(w, None, indptr[0, e], i, j)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("gemv"):
+                        i, j = T.axis.remap("SR", [i1, i2])
+                        with T.init():
+                            o[e, i] = T.cast(T.float16(0), model_dtype)
+                        o[e, i] += access_x(x, e, j) * y[i, j]
+
+    if scale is not None:
+        return op.tensor_ir_op(
+            _func_with_scale,
+            "moe_dequantize_gemv",
+            args=[x, w, scale, indptr],
+            out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+        )
+    return op.tensor_ir_op(
+        _func_without_scale,
         "moe_dequantize_gemv",
         args=[x, w, indptr],
         out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
@@ -525,14 +649,18 @@ def dequantize_group_gemm(
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
-        w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
+        w = tir.reinterpret(
+            DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)
+        ).astype(model_dtype)
         return w * s
 
-    def _dequantize_e5m2(w, s, e, i, j):    # TODO(jmcmahan): scale argument?
+    def _dequantize_e5m2(w, s, e, i, j):  # TODO(jmcmahan): scale argument?
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         w = w[e, i, j // num_elem_per_storage]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
-        w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
+        w = tir.reinterpret(
+            DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)
+        ).astype(model_dtype)
         return w
 
     if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
@@ -541,7 +669,7 @@ def dequantize_group_gemm(
         dequantize_func = _dequantize_e5m2
     else:
         dequantize_func = _dequantize
-        
+
     Ne, N, K = num_local_experts, out_features, in_features
     BLK_M, BLK_N, BLK_K = 8, 128, 32
     TX, TY, CTA_COUNT = 8, 32, 1024
@@ -689,6 +817,7 @@ def dequantize_group_gemm(
         out=Tensor.placeholder([x.shape[0], out_features], model_dtype),
     )
 
+
 def dequantize_group_gemm_no_scale(
     x: Tensor,
     w: Tensor,
@@ -738,14 +867,16 @@ def dequantize_group_gemm_no_scale(
         tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         w = w[e, i, j // num_elem_per_storage]
         shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
-        w = tir.reinterpret(DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)).astype(model_dtype)
+        w = tir.reinterpret(
+            DataType(quantize_dtype), tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask)
+        ).astype(model_dtype)
         return w
 
     if DataType(quantize_dtype).type_code == DataTypeCode.E5M2Float:
         dequantize_func = _dequantize_e5m2
     else:
         assert False, "Only FP8 E5M2 is supported for no-scale dequantization"
-        
+
     Ne, N, K = num_local_experts, out_features, in_features
     BLK_M, BLK_N, BLK_K = 8, 128, 32
     TX, TY, CTA_COUNT = 8, 32, 1024

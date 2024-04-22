@@ -24,7 +24,7 @@ This can be extended to, e.g.:
     Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
     backend to compile models with MLC LLM.
 
-    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python` to obtain
+    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-chat-module` to obtain
     the CLI app / Python API that can be used to chat with the compiled model.
     Finally, we strongly recommend you to read :ref:`project-overview` first to get
     familiarized with the high-level terminologies.

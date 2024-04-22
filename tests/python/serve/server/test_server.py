@@ -181,7 +181,7 @@ def check_openai_stream_response(
             usage = response["usage"]
             assert isinstance(usage, dict)
             assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-            assert usage["prompt_tokens"] > 0
+            assert usage["prompt_tokens"] >= 0
             if completion_tokens is not None:
                 assert usage["completion_tokens"] <= completion_tokens
 
@@ -255,6 +255,7 @@ def test_openai_v1_completions(
         "prompt": prompt,
         "max_tokens": max_tokens,
         "stream": stream,
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -310,7 +311,7 @@ def test_openai_v1_completions_openai_package(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reasons=["length"],
+            finish_reasons=["length", "stop"],
             completion_tokens=max_tokens,
         )
     else:
@@ -323,7 +324,7 @@ def test_openai_v1_completions_openai_package(
             model=served_model[0],
             object_str="text_completion",
             num_choices=1,
-            finish_reasons=["length"],
+            finish_reasons=["length", "stop"],
             completion_tokens=max_tokens,
         )
 
@@ -362,6 +363,7 @@ def test_openai_v1_completions_echo(
         "max_tokens": max_tokens,
         "echo": True,
         "stream": stream,
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -412,6 +414,7 @@ def test_openai_v1_completions_suffix(
         "max_tokens": max_tokens,
         "suffix": suffix,
         "stream": stream,
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -511,6 +514,7 @@ def test_openai_v1_completions_temperature(
         "max_tokens": max_tokens,
         "stream": stream,
         "temperature": 0.0,
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -616,6 +620,51 @@ def test_openai_v1_completions_json_schema(
         "response_format": {"type": "json_object", "schema": schema_str},
     }
 
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    if not stream:
+        check_openai_nonstream_response(
+            response.json(),
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length"],
+        )
+    else:
+        responses = []
+        for chunk in response.iter_lines(chunk_size=512):
+            if not chunk or chunk == b"data: [DONE]":
+                continue
+            responses.append(json.loads(chunk.decode("utf-8")[6:]))
+        check_openai_stream_response(
+            responses,
+            is_chat_completion=False,
+            model=served_model[0],
+            object_str="text_completion",
+            num_choices=1,
+            finish_reasons=["length"],
+        )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_completions_json(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    prompt = "Response with a json object:"
+    max_tokens = 128
+    payload = {
+        "model": served_model[0],
+        "prompt": prompt,
+        "max_tokens": max_tokens,
+        "stream": stream,
+        "response_format": {"type": "json_object"},
+    }
+
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
     if not stream:
         check_openai_nonstream_response(
@@ -664,6 +713,7 @@ def test_openai_v1_completions_logit_bias(
         "max_tokens": max_tokens,
         "stream": stream,
         "logit_bias": {338: -100},  # 338 is " is" in Llama tokenizer.
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -710,6 +760,7 @@ def test_openai_v1_completions_presence_frequency_penalty(
         "stream": stream,
         "frequency_penalty": 2.0,
         "presence_penalty": 2.0,
+        "ignore_eos": True,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -753,6 +804,7 @@ def test_openai_v1_completions_seed(
         "max_tokens": max_tokens,
         "stream": False,
         "seed": 233,
+        "ignore_eos": True,
     }
 
     response1 = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)

@@ -5,138 +5,15 @@
 
 Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
-.. _get_started:
+Quick Start
+-----------
 
-Getting Started
----------------
+Check out :ref:`quick-start` for quick start examples of using MLC LLM.
 
-To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
-It is recommended to have at least 6GB free VRAM to run it.
+Introduction to MLC LLM
+-----------------------
 
-.. tabs::
-
-  .. tab:: Python
-
-    **Install MLC LLM Python**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
-    It is always recommended to install it in an isolated conda virtual environment.
-
-    **Download pre-quantized weights**. The commands below download the int4-quantized Llama2-7B from HuggingFace:
-
-    .. code:: bash
-
-      git lfs install && mkdir dist/
-      git clone https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC \
-                                        dist/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-    **Download pre-compiled model library**. The pre-compiled model library is available as below:
-
-    .. code:: bash
-
-      git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
-
-    **Run in Python.** The following Python script showcases the Python API of MLC LLM and its stream capability:
-
-    .. code:: python
-
-      from mlc_llm import ChatModule
-      from mlc_llm.callback import StreamToStdout
-
-      cm = ChatModule(
-          model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-          model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
-          # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-          # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
-          # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
-      )
-      cm.generate(prompt="What is the meaning of life?", progress_callback=StreamToStdout(callback_interval=2))
-
-    **Colab walkthrough.**  A Jupyter notebook on `Colab <https://colab.research.google.com/github/mlc-ai/notebooks/blob/main/mlc-llm/tutorial_chat_module_getting_started.ipynb>`_
-    is provided with detailed walkthrough of the Python API.
-
-    **Documentation and tutorial.** Python API reference and its tutorials are `available online <https://llm.mlc.ai/docs/deploy/python.html#api-reference>`_.
-
-    .. figure:: https://raw.githubusercontent.com/mlc-ai/web-data/main/images/mlc-llm/tutorials/python-api.jpg
-      :width: 600
-      :align: center
-
-      MLC LLM Python API
-
-  .. tab:: Command Line
-
-    **Install MLC LLM**. :doc:`MLC LLM <install/mlc_llm>` is available via pip.
-    It is always recommended to install it in an isolated conda virtual environment.
-
-    For Windows/Linux users, make sure to have latest :ref:`Vulkan driver <vulkan_driver>` installed.
-
-    **Run in command line**.
-
-    .. code:: bash
-
-      mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
-
-  .. tab:: Web Browser
-
-    `WebLLM <https://webllm.mlc.ai/#chat-demo>`__. MLC LLM generates performant code for WebGPU and WebAssembly,
-    so that LLMs can be run locally in a web browser without server resources.
-
-    **Download pre-quantized weights**. This step is self-contained in WebLLM.
-
-    **Download pre-compiled model library**. WebLLM automatically downloads WebGPU code to execute.
-
-    **Check browser compatibility**. The latest Google Chrome provides WebGPU runtime and `WebGPU Report <https://webgpureport.org/>`__ as a useful tool to verify WebGPU capabilities of your browser.
-
-    .. figure:: https://blog.mlc.ai/img/redpajama/web.gif
-      :width: 300
-      :align: center
-
-      MLC LLM on Web
-
-  .. tab:: iOS
-
-    **Install MLC Chat iOS**. It is available on AppStore:
-
-    .. image:: https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg
-      :width: 135
-      :target: https://apps.apple.com/us/app/mlc-chat/id6448482937
-
-    |
-
-    **Requirement**. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
-
-    **Tutorial and source code**. The source code of the iOS app is fully `open source <https://github.com/mlc-ai/mlc-llm/tree/main/ios>`__,
-    and a :doc:`tutorial <deploy/ios>` is included in documentation.
-
-    .. figure:: https://blog.mlc.ai/img/redpajama/ios.gif
-      :width: 300
-      :align: center
-
-      MLC Chat on iOS
-
-  .. tab:: Android
-
-    **Install MLC Chat Android**. A prebuilt is available as an APK:
-
-    .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
-      :width: 135
-      :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk
-
-    |
-
-    **Requirement**. Llama2-7B model needs a device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
-    The demo is tested on
-
-    - Samsung S23 with Snapdragon 8 Gen 2 chip
-    - Redmi Note 12 Pro with Snapdragon 685
-    - Google Pixel phones
-
-    **Tutorial and source code**. The source code of the android app is fully `open source <https://github.com/mlc-ai/mlc-llm/tree/main/android>`__,
-    and a :doc:`tutorial <deploy/android>` is included in documentation.
-
-    .. figure:: https://blog.mlc.ai/img/android/android-recording.gif
-      :width: 300
-      :align: center
-
-      MLC LLM on Android
+Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a complete workflow in MLC LLM.
 
 
 .. toctree::
@@ -144,8 +21,8 @@ It is recommended to have at least 6GB free VRAM to run it.
    :caption: Get Started
    :hidden:
 
-   get_started/project_overview.rst
-   get_started/mlc_chat_config.rst
+   get_started/quick_start.rst
+   get_started/introduction.rst
 
 .. toctree::
    :maxdepth: 1
@@ -155,10 +32,11 @@ It is recommended to have at least 6GB free VRAM to run it.
    deploy/javascript.rst
    deploy/rest.rst
    deploy/cli.rst
-   deploy/python.rst
+   deploy/python_engine.rst
    deploy/ios.rst
    deploy/android.rst
    deploy/ide_integration.rst
+   deploy/mlc_chat_config.rst
 
 .. toctree::
    :maxdepth: 1
@@ -176,7 +54,6 @@ It is recommended to have at least 6GB free VRAM to run it.
    :hidden:
 
    prebuilt_models.rst
-   prebuilt_models_deprecated.rst
 
 .. toctree::
    :maxdepth: 1

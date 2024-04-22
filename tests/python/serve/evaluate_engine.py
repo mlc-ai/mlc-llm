@@ -4,8 +4,8 @@ import os
 import random
 from typing import List, Tuple
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve import GenerationConfig
+from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 
 def _parse_args():
@@ -13,15 +13,12 @@ def _parse_args():
     args.add_argument("--model-lib-path", type=str)
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--batch-size", type=int, default=80)
-    args.add_argument("--page-size", type=int, default=16)
     args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
 
     parsed = args.parse_args()
     parsed.model = os.path.dirname(parsed.model_lib_path)
     assert parsed.batch_size % 16 == 0
-    assert parsed.page_size == 16
-    assert parsed.max_total_seq_length >= 2048
     return parsed
 
 
@@ -43,16 +40,15 @@ def generate_requests(
 def benchmark(args: argparse.Namespace):
     random.seed(args.seed)
 
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(args.model, args.model_lib_path, args.device)
-    kv_cache_config = KVCacheConfig(
-        page_size=args.page_size,
-        max_num_sequence=args.batch_size,
+    # Create engine
+    engine = SyncLLMEngine(
+        model=args.model,
+        device=args.device,
+        model_lib_path=args.model_lib_path,
+        mode="server",
+        max_batch_size=args.batch_size,
         max_total_sequence_length=args.max_total_seq_length,
     )
-
-    # Create engine
-    engine = Engine(model, kv_cache_config)
 
     print(args)
     for num_requests in [1, 2, 4, 8, 16, 32, 64]:

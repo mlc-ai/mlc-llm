@@ -1,6 +1,6 @@
 .. _webllm-runtime:
 
-WebLLM and Javascript API
+WebLLM and JavaScript API
 =========================
 
 .. contents:: Table of Contents

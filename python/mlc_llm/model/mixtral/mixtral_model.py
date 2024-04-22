@@ -49,11 +49,13 @@ class MixtralMoE(nn.Module):
             self.num_local_experts,
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
+            tensor_parallel_shards=config.tensor_parallel_shards,
         )
         self.e2 = MixtralExperts(
             self.num_local_experts,
             in_features=self.intermediate_size,
             out_features=config.hidden_size,
+            tensor_parallel_shards=config.tensor_parallel_shards,
         )
         self.dtype = "float32"
 

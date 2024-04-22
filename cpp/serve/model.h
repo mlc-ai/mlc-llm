@@ -39,6 +39,11 @@ struct ModelWorkspace {
    * model parallelism is not enabled, or a DRef when using tensor model parallelism.
    */
   ObjectRef embeddings{nullptr};
+  /*!
+   * \brief The hidden_states tensor. It can be either an NDArray when tensor
+   * model parallelism is not enabled, or a DRef when using tensor model parallelism.
+   */
+  ObjectRef hidden_states{nullptr};
 };
 
 /*!
@@ -92,6 +97,61 @@ class ModelObj : public Object {
   virtual ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
 
   /*!
+   * \brief Fuse the embeddings and hidden_states.
+   * \param embeddings The embedding of the input to be prefilled.
+   * \param previous_hidden_states The hidden_states from previous base model.
+   * \param batch_size Batch size.
+   * \param seq_len Sequence length.
+   * \return The fused hidden_states.
+   */
+  virtual ObjectRef FuseEmbedHidden(const ObjectRef& embeddings,
+                                    const ObjectRef& previous_hidden_states, int batch_size,
+                                    int seq_len) = 0;
+
+  /*!
+   * \brief Return if the model has lm_head so that we can get logits.
+   */
+  virtual bool CanGetLogits() = 0;
+
+  /*!
+   * \brief Compute logits for last hidden_states.
+   * \param last_hidden_states The last hidden_states to compute logits for.
+   * \param batch_size The batch size of last_hidden_states
+   * \param seq_len The length of tokens in last_hidden_states
+   * \return The computed logits.
+   */
+  virtual NDArray GetLogits(const ObjectRef& last_hidden_states, int batch_size, int seq_len) = 0;
+
+  /*!
+   * \brief Compute logits for last hidden_states in a batch.
+   * \param last_hidden_states The last hidden_states to compute logits for.
+   * \param seq_ids The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to prefill.
+   * \return The computed logits.
+   */
+  virtual NDArray BatchGetLogits(const ObjectRef& last_hidden_states,
+                                 const std::vector<int64_t>& seq_ids,
+                                 const std::vector<int>& lengths) = 0;
+
+  /*!
+   * \brief Select desired hidden_states for last hidden_states in a batch.
+   * \param last_hidden_states The last hidden_states to select from.
+   * \param seq_ids The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to prefill.
+   * \return The last hidden_states for the batch.
+   */
+  virtual NDArray BatchSelectLastHidden(const ObjectRef& last_hidden_states,
+                                        const std::vector<int64_t>& seq_ids,
+                                        const std::vector<int>& lengths) = 0;
+
+  /*!
+   * \brief Concat a list of 1D hidden_states to 2D tensor.
+   * \param hidden_states The hidden_states to concat.
+   * \param dst The copy destination.
+   */
+  virtual NDArray ConcatLastHidden(std::vector<NDArray>& hidden_states, ObjectRef* dst) = 0;
+
+  /*!
    * \brief Batch prefill function. Embedding in, logits out.
    * The embedding order of sequences in `embedding_arr` follows
    * the order of `seq_ids`.
@@ -104,6 +164,18 @@ class ModelObj : public Object {
                                const std::vector<int>& lengths) = 0;
 
   /*!
+   * \brief Batch prefill function. Input hidden_states are computed from
+   * input embeddings and previous hidden_states, output last hidden_states.
+   * \param hidden_states The hidden_states of the input to be prefilled.
+   * \param seq_id The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to prefill.
+   * \return The hidden_states for the next token.
+   */
+  virtual NDArray BatchPrefillToLastHidden(const ObjectRef& hidden_states,
+                                           const std::vector<int64_t>& seq_ids,
+                                           const std::vector<int>& lengths) = 0;
+
+  /*!
    * \brief Batch decode function. Embedding in, logits out.
    * The embedding order of sequences in `embeddings` follows
    * the order of `seq_ids`.
@@ -112,6 +184,16 @@ class ModelObj : public Object {
    * \return The logits for the next token for each sequence in the batch.
    */
   virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+
+  /*!
+   * \brief Batch decode function. Input hidden_states are computed from
+   * input embeddings and previous hidden_states, output last hidden_states.
+   * \param hidden_states The hidden_states of last generated token in the entire batch.
+   * \param seq_id The id of the sequence in the KV cache.
+   * \return The hidden_states for the next token for each sequence in the batch.
+   */
+  virtual NDArray BatchDecodeToLastHidden(const ObjectRef& hidden_states,
+                                          const std::vector<int64_t>& seq_ids) = 0;
 
   /*!
    * \brief Batch verify function. Embedding in, logits out.
@@ -126,13 +208,35 @@ class ModelObj : public Object {
   virtual NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                               const std::vector<int>& lengths) = 0;
 
+  /*!
+   * \brief Batch verify function. Input hidden_states are computed from
+   * input embeddings and previous hidden_states, output last hidden_states.
+   * \param hidden_states The hidden_states of the input to be verified.
+   * \param seq_id The id of the sequence in the KV cache.
+   * \param lengths The length of each sequence to verify.
+   * \return The hidden_states for the draft token for each sequence in the batch.
+   * \note The function runs for **every** sequence in the batch.
+   * That is to say, it does not accept "running a verify step for a subset
+   * of the full batch".
+   */
+  virtual NDArray BatchVerifyToLastHidden(const ObjectRef& hidden_states,
+                                          const std::vector<int64_t>& seq_ids,
+                                          const std::vector<int>& lengths) = 0;
+
   /*********************** KV Cache Management  ***********************/
 
   /*!
    * \brief Create the KV cache inside the model with regard to the input config.
-   * \param kv_cache_config The configuration of KV cache.
+   * \param page_size The number of consecutive tokens handled in each page in paged KV cache.
+   * \param max_num_sequence The maximum number of sequences that are allowed to be
+   * processed by the KV cache at any time.
+   * \param max_total_sequence_length The maximum length allowed for a single sequence
+   * in the engine.
+   * \param prefill_chunk_size The maximum total number of tokens whose KV data
+   * are allowed to exist in the KV cache at any time.
    */
-  virtual void CreateKVCache(KVCacheConfig kv_cache_config) = 0;
+  virtual void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
+                             int prefill_chunk_size) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
@@ -188,8 +292,16 @@ class ModelObj : public Object {
   /*! \brief Allocate an embedding tensor with the prefill chunk size. */
   virtual ObjectRef AllocEmbeddingTensor() = 0;
 
+  /*! \brief Allocate an hidden_states tensor with the prefill chunk size. */
+  virtual ObjectRef AllocHiddenStatesTensor() = 0;
+
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;
+
+  /************** Debug/Profile **************/
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
 
   static constexpr const char* _type_key = "mlc.serve.Model";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -201,15 +313,14 @@ class Model : public ObjectRef {
  public:
   /*!
    * \brief Create the runtime module for LLM functions.
-   * \param reload_lib The model library. It might be a path to the binary
-   * file or an executable module that is pre-loaded.
+   * \param reload_lib_path The model library path.
    * \param model_path The path to the model weight parameters.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
-  TVM_DLL static Model Create(TVMArgValue reload_lib, String model_path, DLDevice device,
+  TVM_DLL static Model Create(String reload_lib_path, String model_path, DLDevice device,
                               int max_num_sequence, bool trace_enabled);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);

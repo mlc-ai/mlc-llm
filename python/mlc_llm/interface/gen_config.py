@@ -289,6 +289,7 @@ CONV_TEMPLATES = {
     "rwkv_world",
     "rwkv",
     "gorilla",
+    "gorilla-openfunctions-v2",
     "guanaco",
     "dolly",
     "oasst",

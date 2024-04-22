@@ -7,10 +7,9 @@ from typing import List
 import pytest
 from pydantic import BaseModel
 
-from mlc_llm.serve import Engine, GenerationConfig, KVCacheConfig
-from mlc_llm.serve.async_engine import AsyncThreadedEngine
+from mlc_llm.serve import AsyncLLMEngine, GenerationConfig
 from mlc_llm.serve.config import ResponseFormat
-from mlc_llm.serve.engine import ModelInfo
+from mlc_llm.serve.sync_engine import SyncLLMEngine
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
@@ -22,11 +21,8 @@ model_lib_path = "dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
 
 
 def test_batch_generation_with_grammar():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt_len = len(prompts_list)
     prompts = prompts_list * 3
@@ -72,11 +68,8 @@ def test_batch_generation_with_grammar():
 
 
 def test_batch_generation_with_schema():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    engine = Engine(model, kv_cache_config)
+    engine = SyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -127,11 +120,8 @@ def test_batch_generation_with_schema():
 
 
 async def run_async_engine():
-    # Initialize model loading info and KV cache config
-    model = ModelInfo(model_path, model_lib_path=model_lib_path)
-    kv_cache_config = KVCacheConfig(page_size=16)
     # Create engine
-    async_engine = AsyncThreadedEngine(model, kv_cache_config, enable_tracing=True)
+    async_engine = AsyncLLMEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
 
     prompts = prompts_list * 20
 
@@ -152,14 +142,14 @@ async def run_async_engine():
     ]
 
     async def generate_task(
-        async_engine: AsyncThreadedEngine,
+        async_engine: AsyncLLMEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
     ):
         print(f"Start generation task for request {request_id}")
         rid = int(request_id)
-        async for delta_outputs in async_engine.generate(
+        async for delta_outputs in async_engine._generate(
             prompt, generation_cfg, request_id=request_id
         ):
             assert len(delta_outputs) == generation_cfg.n
@@ -184,8 +174,6 @@ async def run_async_engine():
         else:
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
-
-    print(async_engine.state.trace_recorder.dump_json(), file=open("tmpfiles/tmp.json", "w"))
 
     async_engine.terminate()
 

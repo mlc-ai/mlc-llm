@@ -1,11 +1,18 @@
 """This file specifies how MLC's Mistral parameters are quantized using group quantization
 or other formats."""
+
 from typing import Tuple
 
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import QuantizeMapping
-from mlc_llm.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize
+from mlc_llm.quantization import (
+    AWQQuantize,
+    FTQuantize,
+    GroupQuantize,
+    NoQuantize,
+    PerTensorQuantize,
+)
 
 from .mixtral_model import MixtralConfig, MixtralForCasualLM
 
@@ -58,4 +65,20 @@ def no_quant(
     model: nn.Module = MixtralForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
+    return model, quant_map
+
+
+def per_tensor_quant(
+    model_config: MixtralConfig,
+    quantization: PerTensorQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a Mixtral model using per-tensor quantization."""
+    model: nn.Module = MixtralForCasualLM(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
+    model = quantization.quantize_model(
+        model,
+        quant_map,
+        "",
+    )
     return model, quant_map

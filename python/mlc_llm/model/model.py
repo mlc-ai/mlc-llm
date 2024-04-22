@@ -9,6 +9,8 @@ from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
+from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
+from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
@@ -141,6 +143,7 @@ MODELS: Dict[str, Model] = {
             "no-quant": mixtral_quantization.no_quant,
             "group-quant": mixtral_quantization.group_quant,
             "ft-quant": mixtral_quantization.ft_quant,
+            "per-tensor-quant": mixtral_quantization.per_tensor_quant,
         },
     ),
     "gpt_neox": Model(
@@ -322,6 +325,35 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": rwkv6_quantization.no_quant,
             "group-quant": rwkv6_quantization.group_quant,
+        },
+    ),
+    "chatglm": Model(
+        name="chatglm",
+        model=chatglm3_model.ChatGLMForCausalLM,
+        config=chatglm3_model.GLMConfig,
+        source={
+            "huggingface-torch": chatglm3_loader.huggingface,
+            "huggingface-safetensor": chatglm3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": chatglm3_quantization.no_quant,
+            "group-quant": chatglm3_quantization.group_quant,
+        },
+    ),
+    "eagle": Model(
+        name="eagle",
+        model=eagle_model.EagleForCasualLM,
+        config=eagle_model.EagleConfig,
+        source={
+            "huggingface-torch": eagle_loader.huggingface,
+            "huggingface-safetensor": eagle_loader.huggingface,
+            "awq": eagle_loader.awq,
+        },
+        quantize={
+            "no-quant": eagle_quantization.no_quant,
+            "group-quant": eagle_quantization.group_quant,
+            "ft-quant": eagle_quantization.ft_quant,
+            "awq": eagle_quantization.awq_quant,
         },
     ),
 }
