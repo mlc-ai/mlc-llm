@@ -21,9 +21,9 @@ using namespace tvm::runtime;
  */
 struct SequenceIDNode {
   /*! \brief The stored sequence ID. */
-  int64_t id;
+  int64_t id = 0;
   /*! \brief The pointer to the next sequence ID. */
-  SequenceIDNode* next;
+  SequenceIDNode* next = nullptr;
 };
 
 /*!
@@ -33,16 +33,6 @@ struct SequenceIDNode {
  * destruction, to avoid frequent memory operation.
  */
 class SequenceIDNodePool {
- private:
-  /*! \brief The number of nodes in sequence ID node pool. */
-  size_t num_nodes;
-  /*! \brief The sequence ID node pool. */
-  std::vector<SequenceIDNode*> nodes;
-  /*! \brief The indices of free sequence ID node in node pool. */
-  std::vector<size_t> free_node_indicess;
-  /*! \brief The map from used paged sequence ID node to its index in node pool. */
-  std::unordered_map<SequenceIDNode*, size_t> used_nodes;
-
  public:
   /*! \brief The constructor of sequence Id node pool, allocating memory for each node. */
   SequenceIDNodePool(size_t num_nodes);
@@ -64,6 +54,18 @@ class SequenceIDNodePool {
 
   /*! \brief The destructor of sequence Id node pool, freeing memory for each node. */
   ~SequenceIDNodePool();
+
+ private:
+  /*! \brief The number of nodes in sequence ID node pool. */
+  size_t num_nodes_;
+  /*! \brief The raw sequence ID node pool. */
+  SequenceIDNode* raw_pool_;
+  /*! \brief The sequence ID node pool. */
+  std::vector<SequenceIDNode*> nodes_;
+  /*! \brief The indices of free sequence ID node in node pool. */
+  std::vector<size_t> free_node_indicess_;
+  /*! \brief The map from used paged sequence ID node to its index in node pool. */
+  std::unordered_map<SequenceIDNode*, size_t> used_nodes_;
 };
 
 /*!
@@ -76,7 +78,7 @@ class SequenceIDNodePool {
  * stored prefix tokens.
  *
  * And since the vocabulary size may be very large, the paged Radix tree is represented
- * as eft-child, right-sibling binary tree.
+ * as left-child, right-sibling binary tree.
  *
  * Also, due to possible pop/push front/back tokens in page, the page is designed as circular
  * buffer, to make full use of each page.
@@ -140,13 +142,7 @@ struct RedixPage {
    * \brief Get all sequence ID in page.
    * \return The std::vector of sequence ID in page.
    */
-  std::vector<int64_t> GetLocalSequence() {
-    std::vector<int64_t> output;
-    for (SequenceIDNode* node = seq_ids; node; node = node->next) {
-      output.push_back(node->id);
-    }
-    return output;
-  }
+  std::vector<int64_t> GetLocalSequence();
 
   /*!
    * \brief Get any sequence ID in current page or child pages.
@@ -154,38 +150,21 @@ struct RedixPage {
    * current page.
    * \return The any sequence ID in current page or child pages.
    */
-  int32_t FindAnyChildSequence() {
-    if (seq_ids) return seq_ids->id;
-    return first_child->FindAnyChildSequence();
-  }
+  int32_t FindAnyChildSequence();
 
   /*!
    * \brief Get all sequence ID in current page and child pages, using Iterate method with lambda
    * expression as callback to avoid frequently memory allocation of std::vector.
    * \return The std::vector of all sequence ID in current page and child pages.
    */
-  std::vector<int64_t> FindAllChildSequence() {
-    std::vector<int64_t> output = GetLocalSequence();
-    if (first_child) {
-      first_child->Iterate([&output](const RedixPage* page) {
-        for (SequenceIDNode* node = page->seq_ids; node; node = node->next) {
-          output.push_back(node->id);
-        }
-      });
-    }
-    return output;
-  }
+  std::vector<int64_t> FindAllChildSequence();
 
   /*!
    * \brief The iteration method for tree or sub-tree traverse.
    * \param f The callback function to invoke at each radix page visited.
    */
   template <class CallbackFunc>
-  void Iterate(CallbackFunc f) {
-    f(this);
-    if (next_sibiling) next_sibiling->Iterate(f);
-    if (first_child) first_child->Iterate(f);
-  }
+  void Iterate(CallbackFunc f);
 
   /*!
    * \brief Get the last sibling of current page.
@@ -238,18 +217,6 @@ struct RedixPage {
  * destruction, to avoid frequent memory operation.
  */
 class RadixPagePool {
- private:
-  /*! \brief The page size of each paged radix tree page. */
-  size_t page_size;
-  /*! \brief The number of pages in paged radix tree page pool. */
-  size_t num_pages;
-  /*! \brief The paged radix tree page pool. */
-  std::vector<RedixPage*> pages;
-  /*! \brief The indices of free paged radix page in page pool. */
-  std::vector<size_t> free_page_indices;
-  /*! \brief The map from used paged radix tree page to its index in page pool. */
-  std::unordered_map<RedixPage*, size_t> used_pages;
-
  public:
   /*! \brief The constructor of paged radix tree page pool, allocating memory for each page. */
   RadixPagePool(size_t page_size, size_t num_pages);
@@ -275,6 +242,20 @@ class RadixPagePool {
 
   /*! \brief The destructor of paged radix tree page pool, freeing memory for each page. */
   ~RadixPagePool();
+
+ private:
+  /*! \brief The page size of each paged radix tree page. */
+  size_t page_size_;
+  /*! \brief The number of pages in paged radix tree page pool. */
+  size_t num_pages_;
+  /*! \brief The raw paged radix tree page pool. */
+  int32_t* raw_pool_;
+  /*! \brief The paged radix tree page pool. */
+  std::vector<RedixPage*> pages_;
+  /*! \brief The indices of free paged radix page in page pool. */
+  std::vector<size_t> free_page_indices_;
+  /*! \brief The map from used paged radix tree page to its index in page pool. */
+  std::unordered_map<RedixPage*, size_t> used_pages_;
 };
 
 /*!

@@ -13,40 +13,35 @@ namespace serve {
 using namespace tvm::runtime;
 
 // SequenceIDNodePool
-SequenceIDNodePool::SequenceIDNodePool(size_t num_nodes) : num_nodes(num_nodes) {
-  nodes.reserve(num_nodes);
-  free_node_indicess.reserve(num_nodes);
-  used_nodes.clear();
+SequenceIDNodePool::SequenceIDNodePool(size_t num_nodes) : num_nodes_(num_nodes) {
+  nodes_.reserve(num_nodes);
+  free_node_indicess_.reserve(num_nodes);
+  used_nodes_.clear();
+  raw_pool_ = new SequenceIDNode[num_nodes_];
   for (size_t i = 0; i < num_nodes; ++i) {
-    // New sequence ID node
-    nodes.push_back(new SequenceIDNode{0, nullptr});
-    free_node_indicess.push_back(i);
+    nodes_.push_back(&raw_pool_[i]);
+    free_node_indicess_.push_back(i);
   }
 }
 
 SequenceIDNode* SequenceIDNodePool::Allocate(int64_t seq_id, SequenceIDNode* next) {
-  CHECK(!free_node_indicess.empty()) << "Sequence ID node pool has no free sequence ID nodes.";
-  size_t id = free_node_indicess.back();
-  free_node_indicess.pop_back();
-  SequenceIDNode* node = nodes[id];
-  used_nodes[node] = id;
+  CHECK(!free_node_indicess_.empty()) << "Sequence ID node pool has no free sequence ID nodes.";
+  size_t id = free_node_indicess_.back();
+  free_node_indicess_.pop_back();
+  SequenceIDNode* node = nodes_[id];
+  used_nodes_[node] = id;
   node->id = seq_id;
   node->next = next;
   return node;
 }
 
 void SequenceIDNodePool::Free(SequenceIDNode* node) {
-  size_t id = used_nodes[node];
-  used_nodes.erase(node);
-  free_node_indicess.push_back(id);
+  CHECK(used_nodes_.find(node) != used_nodes_.end());
+  free_node_indicess_.push_back(used_nodes_[node]);
+  used_nodes_.erase(node);
 }
 
-SequenceIDNodePool::~SequenceIDNodePool() {
-  for (SequenceIDNode* node : nodes) {
-    // Delete sequence ID node
-    delete node;
-  }
-}
+SequenceIDNodePool::~SequenceIDNodePool() { delete[] raw_pool_; }
 
 // RedixPage
 void RedixPage::Extend(const int64_t* suffix, size_t suffix_length) {
@@ -82,6 +77,38 @@ void RedixPage::PopSequence(SequenceIDNodePool* pool, int64_t id) {
     }
     LOG_FATAL << "Sequence ID = " << id << " not found.";
   }
+}
+
+std::vector<int64_t> RedixPage::GetLocalSequence() {
+  std::vector<int64_t> output;
+  for (SequenceIDNode* node = seq_ids; node; node = node->next) {
+    output.push_back(node->id);
+  }
+  return output;
+}
+
+int32_t RedixPage::FindAnyChildSequence() {
+  if (seq_ids) return seq_ids->id;
+  return first_child->FindAnyChildSequence();
+}
+
+std::vector<int64_t> RedixPage::FindAllChildSequence() {
+  std::vector<int64_t> output = GetLocalSequence();
+  if (first_child) {
+    first_child->Iterate([&output](const RedixPage* page) {
+      for (SequenceIDNode* node = page->seq_ids; node; node = node->next) {
+        output.push_back(node->id);
+      }
+    });
+  }
+  return output;
+}
+
+template <class CallbackFunc>
+void RedixPage::Iterate(CallbackFunc f) {
+  f(this);
+  if (next_sibiling) next_sibiling->Iterate(f);
+  if (first_child) first_child->Iterate(f);
 }
 
 RedixPage* RedixPage::GetLastSibling() {
@@ -136,25 +163,25 @@ size_t RedixPage::MatchPrefix(const int64_t* prefix, size_t prefix_length) {
 // RadixPagePool
 
 RadixPagePool::RadixPagePool(size_t page_size, size_t num_pages)
-    : page_size(page_size), num_pages(num_pages) {
-  pages.reserve(num_pages);
-  free_page_indices.reserve(num_pages);
+    : page_size_(page_size), num_pages_(num_pages) {
+  pages_.reserve(num_pages);
+  free_page_indices_.reserve(num_pages);
+  raw_pool_ = new int32_t[num_pages * page_size / sizeof(int32_t)];
+  int32_t num_int = page_size / sizeof(int32_t);
   for (size_t i = 0; i < num_pages; ++i) {
-    int32_t num_int = page_size / sizeof(int32_t);
-    // New radix page
-    pages.push_back(reinterpret_cast<RedixPage*>(new int32_t[num_int]));
-    free_page_indices.push_back(i);
+    pages_.push_back(reinterpret_cast<RedixPage*>(raw_pool_ + i * num_int));
+    free_page_indices_.push_back(i);
   }
 }
 
 RedixPage* RadixPagePool::Allocate() {
-  CHECK(!free_page_indices.empty()) << "Radix page pool has no free radix tree pages.";
-  int id = free_page_indices.back();
-  free_page_indices.pop_back();
-  RedixPage* page = pages[id];
-  used_pages[page] = id;
+  CHECK(!free_page_indices_.empty()) << "Radix page pool has no free radix tree pages.";
+  int id = free_page_indices_.back();
+  free_page_indices_.pop_back();
+  RedixPage* page = pages_[id];
+  used_pages_[page] = id;
   page->parent = page->first_child = page->next_sibiling = nullptr;
-  page->capacity = page_size / sizeof(int32_t) - RedixPage::DATA_OFFSET;
+  page->capacity = page_size_ / sizeof(int32_t) - RedixPage::DATA_OFFSET;
   page->offset = page->length = 0;
   page->seq_ids = nullptr;
   return page;
@@ -162,20 +189,16 @@ RedixPage* RadixPagePool::Allocate() {
 
 void RadixPagePool::Free(RedixPage* page) {
   CHECK_EQ(page->seq_ids, nullptr);
-  free_page_indices.push_back(used_pages[page]);
-  used_pages.erase(page);
+  CHECK(used_pages_.find(page) != used_pages_.end());
+  free_page_indices_.push_back(used_pages_[page]);
+  CHECK(used_pages_.erase(page));
 }
 
 size_t RadixPagePool::FreeCapacity() {
-  return free_page_indices.size() * (page_size / sizeof(int32_t) - RedixPage::DATA_OFFSET);
+  return free_page_indices_.size() * (page_size_ / sizeof(int32_t) - RedixPage::DATA_OFFSET);
 }
 
-RadixPagePool::~RadixPagePool() {
-  for (size_t i = 0; i < num_pages; ++i) {
-    // Delete radix page
-    delete[] reinterpret_cast<int32_t*>(pages[i]);
-  }
-}
+RadixPagePool::~RadixPagePool() { delete[] raw_pool_; }
 
 // PagedRadixTreeObj
 

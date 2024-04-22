@@ -30,7 +30,7 @@ class PagedRadixTree(Object):
 
     def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:
         """
-        Get all sequences with longest common prefix with give prefix tokens.
+        Get all sequences with longest common prefix with given prefix tokens.
 
         Parameters
         ----------
@@ -51,7 +51,7 @@ class PagedRadixTree(Object):
             return output[0], []
         return output[0], output[1:]
 
-    def add(self, seq_id: int):
+    def add(self, seq_id: int) -> None:
         """
         Get all sequences with longest common prefix with give prefix tokens.
 
@@ -62,7 +62,7 @@ class PagedRadixTree(Object):
         """
         return _ffi_api.PagedRadixTree_AddSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
-    def remove(self, seq_id: int):
+    def remove(self, seq_id: int) -> None:
         """
         Remove a sequence.
 
@@ -73,7 +73,7 @@ class PagedRadixTree(Object):
         """
         return _ffi_api.PagedRadixTree_RemoveSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
-    def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]):
+    def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:
         """
         Get all sequences with longest common prefix with give prefix tokens.
 
@@ -88,7 +88,7 @@ class PagedRadixTree(Object):
             tokens = ShapeTuple(tokens)
         return _ffi_api.PagedRadixTree_ExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
 
-    def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int):
+    def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int) -> None:
         """
         Fork a sequence from parent sequence at given position.
 
