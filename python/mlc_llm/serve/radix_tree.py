@@ -46,7 +46,7 @@ class PagedRadixTree(Object):
         """
         if isinstance(tokens, (list, tuple)):
             tokens = ShapeTuple(tokens)
-        output = _ffi_api.PagedRadixTree_MatchPrefix(self, tokens)  # type: ignore  # pylint: disable=no-member
+        output = _ffi_api.PagedRadixTreeMatchPrefix(self, tokens)  # type: ignore  # pylint: disable=no-member
         if len(output) == 1:
             return output[0], []
         return output[0], output[1:]
@@ -57,10 +57,10 @@ class PagedRadixTree(Object):
 
         Parameters
         ----------
-        tokens : Union[ShapeTuple, List, Tuple]
-            The prefix tokens for reference.
+        seq_id : int
+            The sequence ID for index.
         """
-        return _ffi_api.PagedRadixTree_AddSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeAddSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
     def remove(self, seq_id: int) -> None:
         """
@@ -71,7 +71,7 @@ class PagedRadixTree(Object):
         seq_id : int
             The sequence ID to remove.
         """
-        return _ffi_api.PagedRadixTree_RemoveSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeRemoveSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
     def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:
         """
@@ -86,7 +86,7 @@ class PagedRadixTree(Object):
         """
         if isinstance(tokens, (list, tuple)):
             tokens = ShapeTuple(tokens)
-        return _ffi_api.PagedRadixTree_ExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
 
     def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int) -> None:
         """
@@ -104,7 +104,7 @@ class PagedRadixTree(Object):
             If the position equals the length of forked sequence,
             the new sequence will copy the entire forked sequence.
         """
-        return _ffi_api.PagedRadixTree_ForkSequence(self, seq_id, parent_seq_id, forked_offset)  # type: ignore  # pylint: disable=no-member
+        _ffi_api.PagedRadixTreeForkSequence(self, seq_id, parent_seq_id, forked_offset)  # type: ignore  # pylint: disable=no-member
 
     def get(self, seq_id: int) -> ShapeTuple:
         """
@@ -120,7 +120,7 @@ class PagedRadixTree(Object):
         tokens : ShapeTuple
             The sequence tokens.
         """
-        return _ffi_api.PagedRadixTree_GetSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeGetSequence(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
     def get_length(self, seq_id: int) -> int:
         """
@@ -136,7 +136,7 @@ class PagedRadixTree(Object):
         length : int
             The sequence length.
         """
-        return _ffi_api.PagedRadixTree_GetSequenceLength(self, seq_id)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeGetSequenceLength(self, seq_id)  # type: ignore  # pylint: disable=no-member
 
     def free_capacity(self) -> int:
         """
@@ -147,4 +147,4 @@ class PagedRadixTree(Object):
         capacity : int
             The remaining token capacity of the paged radix tree.
         """
-        return _ffi_api.PagedRadixTree_FreeCapacity(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.PagedRadixTreeFreeCapacity(self)  # type: ignore  # pylint: disable=no-member

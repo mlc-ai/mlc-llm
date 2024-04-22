@@ -75,7 +75,7 @@ void RedixPage::PopSequence(SequenceIDNodePool* pool, int64_t id) {
         return;
       }
     }
-    LOG_FATAL << "Sequence ID = " << id << " not found.";
+    LOG(FATAL) << "Sequence ID = " << id << " not found.";
   }
 }
 
@@ -406,30 +406,30 @@ TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree")
     .set_body_typed([](uint64_t num_pages, uint64_t page_size, uint64_t num_seqs) {
       return PagedRadixTree(num_pages, page_size, num_seqs);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_MatchPrefix")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeMatchPrefix")
     .set_body_typed([](PagedRadixTree paged_radix_tree, IntTuple tokens) {
       auto [offset, seq_ids] = paged_radix_tree->MatchPrefix(tokens);
       seq_ids.insert(seq_ids.begin(), offset);
       return IntTuple(seq_ids);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_ExtendSequence")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeExtendSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::ExtendSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_ForkSequence")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeForkSequence")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t parent_seq_id,
                        uint64_t forked_offset) {
       paged_radix_tree->ForkSequence(seq_id, parent_seq_id, forked_offset);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_AddSequence")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeAddSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::AddSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_RemoveSequence")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRemoveSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::RemoveSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_GetSequence")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::GetSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_GetSequenceLength")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequenceLength")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id) {
       return (int64_t)paged_radix_tree->GetSequenceLength(seq_id);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree_FreeCapacity")
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeFreeCapacity")
     .set_body_typed([](PagedRadixTree paged_radix_tree) {
       return (int64_t)paged_radix_tree->FreeCapacity();
     });
