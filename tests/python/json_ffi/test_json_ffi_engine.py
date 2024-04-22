@@ -165,14 +165,14 @@ class JSONFFIEngine:
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
         )
+        self._ffi["init_background_engine"](
+            self.conv_template.model_dump_json(),
+            self.engine_config,
+            self.state.get_request_stream_callback(),
+            None,
+        )
 
         def _background_loop():
-            self._ffi["init_background_engine"](
-                self.conv_template.model_dump_json(),
-                self.engine_config,
-                self.state.get_request_stream_callback(),
-                None,
-            )
             self._ffi["run_background_loop"]()
 
         def _background_stream_back_loop():

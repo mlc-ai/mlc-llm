@@ -89,8 +89,10 @@ def _process_model_args(
         if conversation is None:
             assert isinstance(chat_config.conv_template, Conversation)
             conversation = chat_config.conv_template
-        # Try look up model library, and do JIT compile if model library not found.
-        try:
+
+        if model.model_lib_path is not None:
+            # do model lib search if the model lib path is provided
+            # error out if file not found
             model_lib_path = _get_lib_module_path(
                 model=model.model,
                 model_path=model_path,
@@ -99,7 +101,9 @@ def _process_model_args(
                 device_name=device.MASK2STR[device.device_type],
                 config_file_path=config_file_path,
             )
-        except FileNotFoundError:
+        else:
+            # TODO(mlc-team) add logging information
+            # Run jit if model_lib_path is not provided
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
             model_lib_path = str(
@@ -776,32 +780,35 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "abort_request",
                 "run_background_loop",
                 "run_background_stream_back_loop",
+                "reload",
                 "init_background_engine",
                 "exit_background_loop",
                 "debug_call_func_on_all_worker",
             ]
         }
         self.tokenizer = Tokenizer(model_args[0][0])
+        self._ffi["init_background_engine"](
+            self.state.get_request_stream_callback(kind),
+            self.state.trace_recorder,
+        )
+        self._ffi["reload"](
+            EngineConfig(
+                model=model_args[0][0],
+                model_lib_path=model_args[0][1],
+                additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+                device=device,
+                kv_cache_page_size=16,
+                max_num_sequence=max_batch_size,
+                max_total_sequence_length=max_total_sequence_length,
+                max_single_sequence_length=max_single_sequence_length,
+                prefill_chunk_size=prefill_chunk_size,
+                speculative_mode=speculative_mode,
+                spec_draft_length=spec_draft_length,
+            )
+        )
 
         def _background_loop():
-            self._ffi["init_background_engine"](
-                EngineConfig(
-                    model=model_args[0][0],
-                    model_lib_path=model_args[0][1],
-                    additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                    additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                    device=device,
-                    kv_cache_page_size=16,
-                    max_num_sequence=max_batch_size,
-                    max_total_sequence_length=max_total_sequence_length,
-                    max_single_sequence_length=max_single_sequence_length,
-                    prefill_chunk_size=prefill_chunk_size,
-                    speculative_mode=speculative_mode,
-                    spec_draft_length=spec_draft_length,
-                ),
-                self.state.get_request_stream_callback(kind),
-                self.state.trace_recorder,
-            )
             self._ffi["run_background_loop"]()
 
         def _background_stream_back_loop():

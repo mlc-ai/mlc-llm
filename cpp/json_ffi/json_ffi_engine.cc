@@ -128,12 +128,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   void InitBackgroundEngine(std::string conv_template_str, EngineConfig engine_config,
                             Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
+
     std::optional<Conversation> conv_template = Conversation::FromJSON(conv_template_str, &err_);
     if (!conv_template.has_value()) {
       LOG(FATAL) << "Invalid conversation template JSON: " << err_;
     }
     this->conv_template_ = conv_template.value();
-
+    
+    // Todo(mlc-team): decouple InitBackgroundEngine into two functions
+    // by removing `engine_config` from arguments, after properly handling
+    // streamers.
     this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
 
     CHECK(request_stream_callback.defined())
@@ -148,8 +152,9 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    this->engine_->InitBackgroundEngine(
-        std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
+    this->engine_->InitBackgroundEngine(std::move(request_stream_callback),
+                                        std::move(trace_recorder));
+    this->engine_->Reload(std::move(engine_config));
   }
 
   void Reload(EngineConfig engine_config) { this->engine_->Reload(std::move(engine_config)); }

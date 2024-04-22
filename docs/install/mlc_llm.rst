@@ -118,6 +118,13 @@ Select your operating system/compute platform and run the command in your termin
                     python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
 
         .. note::
+            Make sure you also install vulkan loader and clang to avoid vulkan
+            not found error or clang not found(needed for jit compile)
+
+            .. code-block:: bash
+
+                conda install -c conda-forge clang libvulkan-loader
+
             If encountering the error below:
 
             .. code-block:: bash
