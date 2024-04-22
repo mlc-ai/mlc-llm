@@ -59,9 +59,9 @@ std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
   }
 
   for (int i = 0; i < messages.size(); i++) {
-    std::string role = messages[i].first;
+    std::string role = messages[i].role;
     std::optional<std::vector<std::unordered_map<std::string, std::string>>> content =
-        messages[i].second;
+        messages[i].content;
     if (roles.find(role) == roles.end()) {
       *err += "\nRole " + role + " is not supported. ";
       return std::nullopt;
@@ -201,9 +201,7 @@ std::optional<Conversation> Conversation::FromJSON(const picojson::object& json,
   if (!json::ParseJSONField(json, "messages", messages_arr, err, true)) {
     return std::nullopt;
   }
-  std::vector<std::pair<std::string,
-                        std::optional<std::vector<std::unordered_map<std::string, std::string>>>>>
-      messages;
+  std::vector<Message> messages;
   for (const auto& message : messages_arr) {
     if (!message.is<picojson::object>()) {
       *err += "messages should be an array of objects.";

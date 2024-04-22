@@ -51,11 +51,8 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   // TODO: Check if request_id is present already
 
   // inputs
-  // TODO: Apply conv template
   Conversation conv_template = this->conv_template_;
-  std::vector<std::pair<std::string,
-                        std::optional<std::vector<std::unordered_map<std::string, std::string>>>>>
-      messages;
+  std::vector<Message> messages;
   for (const auto& message : request.messages) {
     std::string role;
     if (message.role == Role::user) {
@@ -67,7 +64,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
     } else {
       role = "system";
     }
-    messages.push_back(std::make_pair(role, message.content));
+    messages.push_back({role, message.content});
   }
   messages.push_back({"assistant", std::nullopt});
   conv_template.messages = messages;

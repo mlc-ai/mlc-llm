@@ -22,6 +22,12 @@ enum class MessagePlaceholders { SYSTEM, USER, ASSISTANT, TOOL, FUNCTION };
 
 MessagePlaceholders messagePlaceholderFromString(const std::string& role);
 
+class Message {
+ public:
+  std::string role;
+  std::optional<std::vector<std::unordered_map<std::string, std::string>>> content = std::nullopt;
+};
+
 /**
  * @brief A struct that specifies the convention template of conversation
  * and contains the conversation history.
@@ -56,9 +62,7 @@ struct Conversation {
   // The conversation history messages.
   // Each message is a pair of strings, denoting "(role, content)".
   // The content can be None.
-  std::vector<std::pair<std::string,
-                        std::optional<std::vector<std::unordered_map<std::string, std::string>>>>>
-      messages;
+  std::vector<Message> messages;
 
   // The separators between messages when concatenating into a single prompt.
   // List size should be either 1 or 2.
