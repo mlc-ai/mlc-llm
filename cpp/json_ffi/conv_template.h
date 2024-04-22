@@ -89,13 +89,13 @@ struct Conversation {
    * This function checks if the size of the separators vector is either 1 or 2.
    * If the size is not 1 or 2, it throws an invalid_argument exception.
    */
-  static std::vector<std::string> checkMessageSeps(std::vector<std::string>& seps);
+  static std::vector<std::string> CheckMessageSeps(std::vector<std::string>& seps);
 
   /*!
    * \brief Create the list of prompts from the messages based on the conversation template.
    * When creation fails, errors are dumped to the input error string, and nullopt is returned.
    */
-  std::optional<std::vector<Data>> asPrompt(std::string* err);
+  std::optional<std::vector<Data>> AsPrompt(std::string* err);
 
   /*!
    * \brief Create a Conversation instance from the given JSON object.
@@ -108,7 +108,7 @@ struct Conversation {
    * When creation fails, errors are dumped to the input error string, and nullopt is returned.
    */
   static std::optional<Conversation> FromJSON(const std::string& json_str, std::string* err);
-};  // namespace json_ffi
+};
 
 }  // namespace json_ffi
 }  // namespace llm

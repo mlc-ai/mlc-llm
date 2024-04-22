@@ -73,13 +73,13 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   conv_template.messages = messages;
 
   // check function calling
-  bool success_check = request.checkFunctionCalling(conv_template, &err_);
+  bool success_check = request.CheckFunctionCalling(conv_template, &err_);
   if (!success_check) {
     return false;
   }
 
   // get prompt
-  std::optional<Array<Data>> inputs_obj = conv_template.asPrompt(&err_);
+  std::optional<Array<Data>> inputs_obj = conv_template.AsPrompt(&err_);
   if (!inputs_obj.has_value()) {
     return false;
   }
@@ -128,13 +128,12 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   void InitBackgroundEngine(std::string conv_template_str, EngineConfig engine_config,
                             Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
-
     std::optional<Conversation> conv_template = Conversation::FromJSON(conv_template_str, &err_);
     if (!conv_template.has_value()) {
       LOG(FATAL) << "Invalid conversation template JSON: " << err_;
     }
     this->conv_template_ = conv_template.value();
-    
+
     // Todo(mlc-team): decouple InitBackgroundEngine into two functions
     // by removing `engine_config` from arguments, after properly handling
     // streamers.

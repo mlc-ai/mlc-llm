@@ -15,7 +15,7 @@ std::map<MessagePlaceholders, std::string> PLACEHOLDERS = {
     {MessagePlaceholders::TOOL, "{tool_message}"},
     {MessagePlaceholders::FUNCTION, "{function_string}"}};
 
-MessagePlaceholders messagePlaceholderFromString(const std::string& role) {
+MessagePlaceholders MessagePlaceholderFromString(const std::string& role) {
   static const std::unordered_map<std::string, MessagePlaceholders> enum_map = {
       {"system", MessagePlaceholders::SYSTEM},       {"user", MessagePlaceholders::USER},
       {"assistant", MessagePlaceholders::ASSISTANT}, {"tool", MessagePlaceholders::TOOL},
@@ -30,14 +30,14 @@ Conversation::Conversation()
                       {"assistant", PLACEHOLDERS[MessagePlaceholders::ASSISTANT]},
                       {"tool", PLACEHOLDERS[MessagePlaceholders::TOOL]}}) {}
 
-std::vector<std::string> Conversation::checkMessageSeps(std::vector<std::string>& seps) {
+std::vector<std::string> Conversation::CheckMessageSeps(std::vector<std::string>& seps) {
   if (seps.size() == 0 || seps.size() > 2) {
     throw std::invalid_argument("seps should have size 1 or 2.");
   }
   return seps;
 }
 
-std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
+std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
   // Get the system message
   std::string system_msg = system_template;
   size_t pos = system_msg.find(PLACEHOLDERS[MessagePlaceholders::SYSTEM]);
@@ -98,7 +98,7 @@ std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
         }
         // replace placeholder[ROLE] with input message from role
         std::string role_text = role_templates[role];
-        std::string placeholder = PLACEHOLDERS[messagePlaceholderFromString(role)];
+        std::string placeholder = PLACEHOLDERS[MessagePlaceholderFromString(role)];
         size_t pos = role_text.find(placeholder);
         if (pos != std::string::npos) {
           role_text.replace(pos, placeholder.length(), item["text"]);
@@ -127,9 +127,7 @@ std::optional<std::vector<Data>> Conversation::asPrompt(std::string* err) {
     message_list.push_back(TextData(message));
   }
 
-  std::vector<Data> prompt = message_list;
-
-  return prompt;
+  return message_list;
 }
 
 std::optional<Conversation> Conversation::FromJSON(const picojson::object& json, std::string* err) {
