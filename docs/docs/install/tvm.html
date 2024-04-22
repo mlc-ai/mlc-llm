@@ -373,6 +373,11 @@ python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </s
 </div></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
+<p>Make sure you also install vulkan loader and clang to avoid vulkan
+not found error or clang not found(needed for jit compile)</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>clang<span class="w"> </span>libvulkan-loader
+</pre></div>
+</div>
 <p>If encountering the error below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>FileNotFoundError:<span class="w"> </span>Could<span class="w"> </span>not<span class="w"> </span>find<span class="w"> </span>module<span class="w"> </span><span class="s1">&#39;path\to\site-packages\tvm\tvm.dll&#39;</span><span class="w"> </span><span class="o">(</span>or<span class="w"> </span>one<span class="w"> </span>of<span class="w"> </span>its<span class="w"> </span>dependencies<span class="o">)</span>.<span class="w"> </span>Try<span class="w"> </span>using<span class="w"> </span>the<span class="w"> </span>full<span class="w"> </span>path<span class="w"> </span>with<span class="w"> </span>constructor<span class="w"> </span>syntax.
 </pre></div>
