@@ -51,33 +51,40 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   // TODO: Check if request_id is present already
 
   // inputs
-  // TODO: Apply conv template
-  Array<Data> inputs;
+  Conversation conv_template = this->conv_template_;
+  std::vector<Message> messages;
   for (const auto& message : request.messages) {
-    if (message.content.has_value()) {
-      for (const auto& content : message.content.value()) {
-        if (content.find("type") == content.end()) {
-          err_ += "Content should have a type field";
-          return false;
-        }
-        std::string type = content.at("type");
-        if (type == "text") {
-          if (content.find("text") == content.end()) {
-            err_ += "Content should have a text field";
-            return false;
-          }
-          std::string text = content.at("text");
-          inputs.push_back(TextData(text));
-        } else {
-          err_ += "Content type not supported";
-          return false;
-        }
-      }
+    std::string role;
+    if (message.role == Role::user) {
+      role = "user";
+    } else if (message.role == Role::assistant) {
+      role = "assistant";
+    } else if (message.role == Role::tool) {
+      role = "tool";
+    } else {
+      role = "system";
     }
+    messages.push_back({role, message.content});
+  }
+  messages.push_back({"assistant", std::nullopt});
+  conv_template.messages = messages;
+
+  // check function calling
+  bool success_check = request.CheckFunctionCalling(conv_template, &err_);
+  if (!success_check) {
+    return false;
   }
 
+  // get prompt
+  std::optional<Array<Data>> inputs_obj = conv_template.AsPrompt(&err_);
+  if (!inputs_obj.has_value()) {
+    return false;
+  }
+  Array<Data> inputs = inputs_obj.value();
+
   // generation_cfg
-  Optional<GenerationConfig> generation_cfg = GenerationConfig::FromJSON(request_json_str, &err_);
+  Optional<GenerationConfig> generation_cfg =
+      GenerationConfig::FromJSON(request_json_str, &err_, conv_template);
   if (!generation_cfg.defined()) {
     return false;
   }
@@ -115,9 +122,15 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundEngine(EngineConfig engine_config,
+  void InitBackgroundEngine(std::string conv_template_str, EngineConfig engine_config,
                             Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
+    std::optional<Conversation> conv_template = Conversation::FromJSON(conv_template_str, &err_);
+    if (!conv_template.has_value()) {
+      LOG(FATAL) << "Invalid conversation template JSON: " << err_;
+    }
+    this->conv_template_ = conv_template.value();
+
     // Todo(mlc-team): decouple InitBackgroundEngine into two functions
     // by removing `engine_config` from arguments, after properly handling
     // streamers.

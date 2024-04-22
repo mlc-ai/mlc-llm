@@ -161,8 +161,8 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   data_ = std::move(n);
 }
 
-Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str,
-                                                      std::string* err) {
+Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str, std::string* err,
+                                                      const Conversation& conv_template) {
   std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
   if (!err->empty() || !json_obj.has_value()) {
     return NullOpt;
@@ -170,6 +170,14 @@ Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_st
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
 
   // TODO(mlc-team): Pass the parameters from `json_obj` to `n`.
+
+  // Copy stop str from conversation template to generation config
+  for (auto& stop_str : conv_template.stop_str) {
+    n->stop_strs.push_back(stop_str);
+  }
+  for (auto& stop_token_id : conv_template.stop_token_ids) {
+    n->stop_token_ids.push_back(stop_token_id);
+  }
 
   if (!err->empty()) {
     return NullOpt;

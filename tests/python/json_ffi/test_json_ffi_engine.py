@@ -19,7 +19,7 @@ from mlc_llm.serve.engine_base import (
 )
 from mlc_llm.tokenizer import Tokenizer
 
-prompts = [
+chat_completion_prompts = [
     "What is the meaning of life?",
     "Introduce the history of Pittsburgh to me. Please elaborate in detail.",
     "Write a three-day Seattle travel plan. Please elaborate in detail.",
@@ -30,6 +30,33 @@ prompts = [
     "Where is milk tea originated from? Please elaborate in detail.",
     "Where is the southernmost place in United States? Please elaborate in detail.",
     "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
+]
+
+function_calling_prompts = [
+    "What is the temperature in Pittsburgh, PA?",
+    "What is the temperature in Tokyo, JP?",
+    "What is the temperature in Pittsburgh, PA and Tokyo, JP?",
+]
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_weather",
+            "description": "Get the current weather in a given location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA",
+                    },
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                },
+                "required": ["location"],
+            },
+        },
+    }
 ]
 
 
@@ -139,6 +166,7 @@ class JSONFFIEngine:
             spec_draft_length=spec_draft_length,
         )
         self._ffi["init_background_engine"](
+            self.conv_template.model_dump_json(),
             self.engine_config,
             self.state.get_request_stream_callback(),
             None,
@@ -266,7 +294,12 @@ class JSONFFIEngine:
         self._ffi["unload"]()
 
 
-def run_chat_completion(engine: JSONFFIEngine, model: str):
+def run_chat_completion(
+    engine: JSONFFIEngine,
+    model: str,
+    prompts: List[str] = chat_completion_prompts,
+    tools: Optional[List[Dict]] = None,
+):
     num_requests = 2
     max_tokens = 64
     n = 1
@@ -280,6 +313,7 @@ def run_chat_completion(engine: JSONFFIEngine, model: str):
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
+            tools=tools,
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
@@ -300,8 +334,8 @@ def run_chat_completion(engine: JSONFFIEngine, model: str):
 
 def test_chat_completion():
     # Create engine.
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
     engine = JSONFFIEngine(
         model,
         model_lib_path=model_lib_path,
@@ -320,8 +354,8 @@ def test_chat_completion():
 
 def test_reload_reset_unload():
     # Create engine.
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
     engine = JSONFFIEngine(
         model,
         model_lib_path=model_lib_path,
@@ -339,6 +373,24 @@ def test_reload_reset_unload():
     engine.terminate()
 
 
+def test_function_calling():
+    model = "dist/gorilla-openfunctions-v1-q4f16_1-MLC"
+    model_lib_path = (
+        "dist/gorilla-openfunctions-v1-q4f16_1-MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so"
+    )
+    engine = JSONFFIEngine(
+        model,
+        model_lib_path=model_lib_path,
+        max_total_sequence_length=1024,
+    )
+
+    # run function calling
+    run_chat_completion(engine, model, function_calling_prompts, tools)
+
+    engine.terminate()
+
+
 if __name__ == "__main__":
     test_chat_completion()
     test_reload_reset_unload()
+    test_function_calling()
