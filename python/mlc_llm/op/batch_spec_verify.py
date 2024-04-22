@@ -125,9 +125,7 @@ def batch_spec_verify(vocab_size):
                                     p_child[0] = model_probs[parent_ptr[0], child_token[0]]
                                     q_child[0] = draft_probs[child_ptr[0], child_token[0]]
                                     uniform_sample[0] = uniform_samples[child_ptr[0]]
-
-                                    pred_shared[0] = T.Or(p_child[0] >= q_child[0], uniform_sample[0] < p_child[0] / (q_child[0] + 1e-5))
-                                    # pred_shared[0] = p_child[0] >= uniform_sample[0] * q_child[0]  # use multiplication to avoid division by zero
+                                    pred_shared[0] = p_child[0] >= uniform_sample[0] * q_child[0]  # use multiplication to avoid division by zero
                                 T.tvm_storage_sync("shared") # make sure all read of model_probs are done
                                 pred_local[0] = pred_shared[0]
 

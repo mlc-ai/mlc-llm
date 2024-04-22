@@ -35,7 +35,7 @@ inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
 class GPUSampler : public SamplerObj {
  public:
   explicit GPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft, DLDevice device,
-                      Optional<EventTraceRecorder> trace_recorder, int max_draft_length = -1)
+                      Optional<EventTraceRecorder> trace_recorder)
       : max_num_sample_(max_num_sample),
         vocab_size_(vocab_size),
         device_(device),
@@ -44,8 +44,7 @@ class GPUSampler : public SamplerObj {
         gpu_sample_with_top_p_func_(ft->gpu_sample_with_top_p_func_),
         gpu_sampler_take_probs_func_(ft->gpu_sampler_take_probs_func_),
         gpu_verify_draft_tokens_func_(ft->gpu_verify_draft_tokens_func_),
-        trace_recorder_(std::move(trace_recorder)),
-        max_draft_length_(max_draft_length) {
+        trace_recorder_(std::move(trace_recorder)) {
     ICHECK(gpu_multinomial_from_uniform_func_.defined());
     ICHECK(gpu_argsort_probs_func_.defined());
     ICHECK(gpu_sample_with_top_p_func_.defined());
@@ -144,7 +143,6 @@ class GPUSampler : public SamplerObj {
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
     std::vector<std::vector<SampleResult>> sample_results;
-    // TODO: check <= max_num_verify_tokens
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_device->ndim, 2);
@@ -169,6 +167,8 @@ class GPUSampler : public SamplerObj {
       const std::vector<NDArray>& draft_output_prob_dist_i = draft_output_prob_dist[i];
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
+      // start/end is the range of the sequence i in probs_on_device, which includes the prob dist
+      // of the draft tokens and the last committed token
       ICHECK_EQ(draft_output_tokens_i.size() + 1, end - start);
       ICHECK_EQ(draft_output_prob_dist_i.size() + 1, end - start);
       for (int j = 0; j < end - start - 1; j++) {
@@ -179,20 +179,14 @@ class GPUSampler : public SamplerObj {
             (j + start + 1) *
                 vocab_size_;  // shift by one, q of the last committed token is undefined
         // Copy sampled token id
-        if (draft_output_prob_dist_i[j]->device.device_type != device_.device_type) {
-          draft_output_prob_dist_i[j].CopyTo(device_).CopyToBytes(p_draft_probs,
-                                                                  vocab_size_ * sizeof(float));
-        } else {
-          draft_output_prob_dist_i[j].CopyToBytes(p_draft_probs, vocab_size_ * sizeof(float));
-        }
-        *(reinterpret_cast<int*>(draft_tokens_host->data) + j + start + 1) =
+        draft_output_prob_dist_i[j].CopyToBytes(p_draft_probs, vocab_size_ * sizeof(float));
+        *(static_cast<int*>(draft_tokens_host->data) + j + start + 1) =
             draft_output_tokens_i[j].sampled_token_id.first;
       }
     }
     CopyArray(draft_tokens_host, draft_tokens_device, copy_stream_);
 
     float* p_uniform_samples = static_cast<float*>(uniform_samples_host->data);
-    // int* p_sample_indices = static_cast<int*>(sample_indices_host_->data);
     for (int i = 0; i < num_sequence; ++i) {
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
@@ -202,6 +196,7 @@ class GPUSampler : public SamplerObj {
     }
     CopyArray(uniform_samples_host, uniform_samples_device, copy_stream_);
 
+    // This should be refactored to use the cached tensors
     NDArray token_tree_first_child_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
     NDArray token_tree_next_sibling_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
     NDArray token_tree_parent_ptr_device = NDArray::Empty({num_sequence}, dtype_i32_, device_);
@@ -262,12 +257,16 @@ class GPUSampler : public SamplerObj {
       sample_indices.push_back(last_accepted);
     }
     std::vector<SampleResult> additional_sample_result;
+    // This only works for top-p = 1. To enable top-p, we need to normalize the probs before
+    // verifying.
     additional_sample_result = this->BatchSampleTokens(probs_on_device, sample_indices, request_ids,
                                                        generation_cfg, rngs, nullptr);
     ICHECK_EQ(additional_sample_result.size(), num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       sample_results[i].push_back(additional_sample_result[i]);
     }
+
+    RECORD_EVENT(trace_recorder_, request_ids, "finish draft verification");
     return sample_results;
   }
 
@@ -528,7 +527,6 @@ class GPUSampler : public SamplerObj {
   // The device stream for copying auxiliary data structure to GPU.
   TVMStreamHandle copy_stream_ = nullptr;
   const float eps_ = 1e-5;
-  int max_draft_length_ = -1;
 };
 
 Sampler Sampler::CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
