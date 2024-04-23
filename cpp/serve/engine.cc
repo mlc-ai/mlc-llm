@@ -90,7 +90,7 @@ class EngineImpl : public Engine {
 
     int max_num_tokens = engine_config->max_num_sequence;
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-      max_num_tokens *= engine_config->spec_draft_length;
+      max_num_tokens *= engine_config->spec_draft_length + 1;
     }
     LogitProcessor logit_processor =
         this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);

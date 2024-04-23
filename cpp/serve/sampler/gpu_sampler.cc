@@ -142,6 +142,7 @@ class GPUSampler : public SamplerObj {
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
+    NVTXScopedRange nvtx_scope("BatchVerifyDraftTokensWithProbAfterTopP");
     std::vector<std::vector<SampleResult>> sample_results;
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
