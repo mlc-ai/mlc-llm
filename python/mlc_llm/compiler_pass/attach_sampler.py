@@ -49,6 +49,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
                 _attach_sample_with_top_p(bb, vocab_size),
                 _attach_take_probs_func(bb, vocab_size),
                 _attach_batch_verifier(bb, vocab_size),
+                _attach_renormalize_by_top_p(bb, vocab_size),
             ]
         ]
 
@@ -129,6 +130,17 @@ def _attach_argsort_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
     return gv
 
 
+@T.prim_func
+def full(var_result: T.handle, value: T.int32):
+    """The filling function for top k."""
+    batch_size = T.int32(is_size_var=True)
+    result = T.match_buffer(var_result, (batch_size, 1), "int32")
+    for i in T.serial(batch_size):
+        with T.block("block"):
+            vi = T.axis.spatial(batch_size, i)
+            result[vi, 0] = value
+
+
 def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
     bb: relax.BlockBuilder, vocab_size: tir.PrimExpr
 ):
@@ -145,15 +157,6 @@ def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
     )
     sample_indices = relax.Var("sample_indices", relax.TensorStructInfo((num_samples,), "int32"))
     top_p = relax.Var("top_p", relax.TensorStructInfo((batch_size,), "float32"))
-
-    @T.prim_func
-    def full(var_result: T.handle, value: T.int32):
-        batch_size = T.int32(is_size_var=True)
-        result = T.match_buffer(var_result, (batch_size, 1), "int32")
-        for i in T.serial(batch_size):
-            with T.block("block"):
-                vi = T.axis.spatial(batch_size, i)
-                result[vi, 0] = value
 
     with bb.function(
         "sample_with_top_p",
@@ -221,6 +224,44 @@ def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
             )
             bb.emit_output(result)
         gv = bb.emit_func_output(result)
+    return gv
+
+
+def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
+    batch_size = tir.Var("batch_size", "int64")
+    probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
+    sorted_probs = relax.Var(
+        "sorted_probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
+    )
+    top_p = relax.Var("top_p", relax.TensorStructInfo((batch_size,), "float32"))
+    with bb.function("renormalize_by_top_p", [probs, sorted_probs, top_p]):
+        with bb.dataflow():
+            probs_tensor = nn.wrap_nested(probs, name="probs")
+            sorted_probs_tensor = nn.wrap_nested(sorted_probs, name="sorted_probs")
+            top_p_shape = relax.ShapeExpr([batch_size, 1])
+            top_p_tensor = nn.wrap_nested(
+                relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    top_p,
+                    top_p_shape,
+                    sinfo_args=relax.TensorStructInfo(top_p_shape, "float32"),
+                ),
+                name="sample_indices",
+            )
+            top_k_tensor = nn.tensor_ir_op(
+                full,
+                name_hint="full",
+                args=[vocab_size],
+                out=nn.Tensor.placeholder(
+                    [batch_size, 1],
+                    "int32",
+                ),
+            )
+            renormalized_probs = nn.renormalize_top_p_top_k_prob(
+                probs_tensor, sorted_probs_tensor, top_p_tensor, top_k_tensor
+            )
+            bb.emit_output(renormalized_probs._expr)  # pylint: disable=protected-access
+        gv = bb.emit_func_output(renormalized_probs._expr)  # pylint: disable=protected-access
     return gv
 
 

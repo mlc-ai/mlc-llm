@@ -819,7 +819,7 @@ class AsyncLLMEngine(engine_base.LLMEngineBase):
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
-        When it is unspecified, it defaults to 0.90.
+        When it is unspecified, it defaults to 0.85.
         Under mode "local" or "interactive", the actual memory usage may be
         significantly smaller than this number. Under mode "server", the actual
         memory usage may be slightly larger than this number.
@@ -1365,7 +1365,7 @@ class LLMEngine(engine_base.LLMEngineBase):
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
-        When it is unspecified, it defaults to 0.90.
+        When it is unspecified, it defaults to 0.85.
         Under mode "local" or "interactive", the actual memory usage may be
         significantly smaller than this number. Under mode "server", the actual
         memory usage may be slightly larger than this number.

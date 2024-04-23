@@ -44,6 +44,7 @@ class GPUSampler : public SamplerObj {
         gpu_sample_with_top_p_func_(ft->gpu_sample_with_top_p_func_),
         gpu_sampler_take_probs_func_(ft->gpu_sampler_take_probs_func_),
         gpu_verify_draft_tokens_func_(ft->gpu_verify_draft_tokens_func_),
+        gpu_renormalize_by_top_p_func_(ft->gpu_renormalize_by_top_p_func_),
         trace_recorder_(std::move(trace_recorder)) {
     ICHECK(gpu_multinomial_from_uniform_func_.defined());
     ICHECK(gpu_argsort_probs_func_.defined());
@@ -57,6 +58,10 @@ class GPUSampler : public SamplerObj {
     sample_indices_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
     top_p_host_ = NDArray::Empty({max_num_sample}, dtype_f32_, device_cpu);
     top_prob_offsets_host_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device_cpu);
+    draft_tokens_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
+    token_tree_first_child_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
+    token_tree_next_sibling_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
+    token_tree_parent_ptr_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
     sampled_token_ids_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
     sampled_probs_host_ = NDArray::Empty({max_num_sample}, dtype_f32_, device_cpu);
     top_prob_probs_host_ = NDArray::Empty({max_num_sample * 5}, dtype_f32_, device_cpu);
@@ -66,6 +71,11 @@ class GPUSampler : public SamplerObj {
     sample_indices_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     top_p_device_ = NDArray::Empty({max_num_sample}, dtype_f32_, device);
     top_prob_offsets_device_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device);
+    draft_probs_device_ = NDArray::Empty({max_num_sample, vocab_size}, dtype_f32_, device);
+    draft_tokens_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_first_child_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_next_sibling_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
+    token_tree_parent_ptr_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
 
     // If the device is CUDA/ROCm, we create a standalone copy stream, in
     // purpose to hide the latency of auxiliary stream copy.
@@ -84,59 +94,71 @@ class GPUSampler : public SamplerObj {
     }
   }
 
-  std::vector<SampleResult> BatchSampleTokens(NDArray probs_on_device,                        //
-                                              const std::vector<int>& sample_indices,         //
-                                              const Array<String>& request_ids,               //
-                                              const Array<GenerationConfig>& generation_cfg,  //
-                                              const std::vector<RandomGenerator*>& rngs,      //
-                                              std::vector<NDArray>* output_prob_dist) final {
-    NVTXScopedRange nvtx_scope("BatchSampleTokens");
+  NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
+                                      const std::vector<int>& sample_indices,  //
+                                      const Array<String>& request_ids,        //
+                                      const Array<GenerationConfig>& generation_cfg) final {
+    NVTXScopedRange nvtx_scope("BatchRenormalizeProbsByTopP");
     // probs_on_device: (n, v)
-    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
+    RECORD_EVENT(trace_recorder_, request_ids, "start renormalization by top p");
     CHECK_EQ(probs_on_device->ndim, 2);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
-    if (output_prob_dist != nullptr) {
-      ICHECK(output_prob_dist->empty());
-      output_prob_dist->reserve(num_probs);
-      for (int i = 0; i < num_probs; ++i) {
-        NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
-        float* p_prob = static_cast<float*>(probs_on_device->data) + i * vocab_size;
-        prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
-        output_prob_dist->push_back(std::move(prob_dist));
-      }
-    }
+    ICHECK_LE(num_probs, max_num_sample_);
     ICHECK_EQ(request_ids.size(), num_samples);
     ICHECK_EQ(generation_cfg.size(), num_samples);
-    ICHECK_EQ(rngs.size(), num_samples);
 
-    // Since `num_samples` may be larger than `max_num_sample_` in some cases,
-    // we apply chunking to support large `num_samples`.
-    std::vector<SampleResult> sample_results;
-    if (num_samples <= max_num_sample_) {
-      sample_results = ChunkSampleTokensImpl(probs_on_device, sample_indices, generation_cfg, rngs);
-    } else {
-      for (int chunk_start = 0; chunk_start < num_samples; chunk_start += max_num_sample_) {
-        int chunk_end = std::min(chunk_start + max_num_sample_, num_samples);
-        std::vector<int> sample_indices_chunk(sample_indices.begin() + chunk_start,
-                                              sample_indices.begin() + chunk_end);
-        Array<GenerationConfig> generation_cfg_chunk(generation_cfg.begin() + chunk_start,
-                                                     generation_cfg.begin() + chunk_end);
-        std::vector<RandomGenerator*> rngs_chunk(rngs.begin() + chunk_start,
-                                                 rngs.begin() + chunk_end);
-        std::vector<SampleResult> sample_results_chunk = ChunkSampleTokensImpl(
-            probs_on_device, sample_indices_chunk, generation_cfg_chunk, rngs_chunk);
-        sample_results.insert(sample_results.end(), sample_results_chunk.begin(),
-                              sample_results_chunk.end());
-      }
+    // - Check if there is need for applying top p.
+    bool need_top_p = CheckTopP(generation_cfg, sample_indices, num_probs, num_samples, vocab_size);
+    if (!need_top_p) {
+      return probs_on_device;
     }
 
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    return sample_results;
+    // - Argsort the probability.
+    Array<NDArray> argsort_results = gpu_argsort_probs_func_(probs_on_device);
+    ICHECK_EQ(argsort_results.size(), 2);
+    NDArray sorted_probs_on_device = argsort_results[0];
+    NDArray sorted_indices_on_device = argsort_results[1];
+
+    // - Copy auxiliary array for top-p.
+    NDArray top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
+    NDArray top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
+    CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device, copy_stream_);
+    SyncCopyStream(device_, compute_stream_, copy_stream_);
+
+    // - Renormalize the prob with top p.
+    NDArray renormed_probs_on_device =
+        gpu_renormalize_by_top_p_func_(probs_on_device, sorted_probs_on_device, top_p_device);
+
+    RECORD_EVENT(trace_recorder_, request_ids, "finish renormalization by top p");
+    return renormed_probs_on_device;
   }
 
-  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
+  std::vector<SampleResult> BatchSampleTokensWithProbBeforeTopP(
+      NDArray probs_on_device,                        //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs) final {
+    NVTXScopedRange nvtx_scope("BatchSampleTokensWithProbBeforeTopP");
+    return BatchSampleTokensImpl(std::move(probs_on_device), sample_indices, request_ids,
+                                 generation_cfg, rngs, /*top_p_applied=*/false);
+  }
+
+  std::vector<SampleResult> BatchSampleTokensWithProbAfterTopP(
+      NDArray probs_on_device,                        //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs,      //
+      std::vector<NDArray>* output_prob_dist = nullptr) final {
+    NVTXScopedRange nvtx_scope("BatchSampleTokensWithProbAfterTopP");
+    return BatchSampleTokensImpl(std::move(probs_on_device), sample_indices, request_ids,
+                                 generation_cfg, rngs, /*top_p_applied=*/true, output_prob_dist);
+  }
+
+  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
       NDArray probs_on_device, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
@@ -157,10 +179,10 @@ class GPUSampler : public SamplerObj {
     int num_nodes = cum_verify_lengths.back();
     NDArray uniform_samples_host = uniform_samples_host_.CreateView({num_nodes}, dtype_f32_);
     NDArray uniform_samples_device = uniform_samples_device_.CreateView({num_nodes}, dtype_f32_);
-    NDArray draft_probs_device = NDArray::Empty({num_nodes, vocab_size_}, dtype_f32_, device_);
-    NDArray draft_tokens_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
-    NDArray draft_tokens_host =
-        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+    NDArray draft_probs_device =
+        draft_probs_device_.CreateView({num_nodes, vocab_size_}, dtype_f32_);
+    NDArray draft_tokens_host = draft_tokens_host_.CreateView({num_nodes}, dtype_i32_);
+    NDArray draft_tokens_device = draft_tokens_device_.CreateView({num_nodes}, dtype_i32_);
 
     // Concat draft prob distributions to a ragged tensor (num_nodes, vocab_size)
     for (int i = 0; i < num_sequence; i++) {
@@ -197,32 +219,33 @@ class GPUSampler : public SamplerObj {
     }
     CopyArray(uniform_samples_host, uniform_samples_device, copy_stream_);
 
-    // This should be refactored to use the cached tensors
-    NDArray token_tree_first_child_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
-    NDArray token_tree_next_sibling_device = NDArray::Empty({num_nodes}, dtype_i32_, device_);
-    NDArray token_tree_parent_ptr_device = NDArray::Empty({num_sequence}, dtype_i32_, device_);
     NDArray token_tree_first_child_host =
-        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+        token_tree_first_child_host_.CreateView({num_nodes}, dtype_i32_);
+    NDArray token_tree_first_child_device =
+        token_tree_first_child_device_.CreateView({num_nodes}, dtype_i32_);
     NDArray token_tree_next_sibling_host =
-        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+        token_tree_next_sibling_host_.CreateView({num_nodes}, dtype_i32_);
+    NDArray token_tree_next_sibling_device =
+        token_tree_next_sibling_device_.CreateView({num_nodes}, dtype_i32_);
     NDArray token_tree_parent_ptr_host =
-        NDArray::Empty({num_sequence}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
-    NDArray token_tree_child_to_parent_host =
-        NDArray::Empty({num_nodes}, dtype_i32_, DLDevice{DLDeviceType::kDLCPU, 0});
+        token_tree_parent_ptr_host_.CreateView({num_sequence}, dtype_i32_);
+    NDArray token_tree_parent_ptr_device =
+        token_tree_parent_ptr_device_.CreateView({num_sequence}, dtype_i32_);
+    std::vector<int> token_tree_child_to_parent(/*n=*/num_nodes);
 
     // Build the tree structure on CPU
     for (int i = 0; i < num_sequence; i++) {
       // Assuming no tree structure for now
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
-      ICHECK_EQ(end - start, 2);  // one committed token and assuming only one draft token
-      static_cast<int*>(token_tree_child_to_parent_host->data)[start] = -1;  // root has no parent
+      ICHECK_GE(end - start, 2);
+      token_tree_child_to_parent[start] = -1;  // root has no parent
       for (int j = 0; j < end - start; j++) {
         int cur_node = j + start;
         int child_node = j + 1 >= end - start ? -1 : cur_node + 1;
         static_cast<int*>(token_tree_first_child_host->data)[cur_node] = child_node;
         if (child_node != -1) {
-          static_cast<int*>(token_tree_child_to_parent_host->data)[child_node] = cur_node;
+          token_tree_child_to_parent[child_node] = cur_node;
         }
         static_cast<int*>(token_tree_next_sibling_host->data)[cur_node] = -1;
       }
@@ -250,7 +273,7 @@ class GPUSampler : public SamplerObj {
       int last_accepted = static_cast<int*>(token_tree_parent_ptr_host->data)[i];
       int num_accepted = 0;
       for (int cur_node = last_accepted; cur_node != start;
-           cur_node = static_cast<int*>(token_tree_child_to_parent_host->data)[cur_node]) {
+           cur_node = token_tree_child_to_parent[cur_node]) {
         sample_results[i].push_back(draft_output_tokens[i][cur_node - start - 1]);
         num_accepted++;
       }
@@ -258,10 +281,8 @@ class GPUSampler : public SamplerObj {
       sample_indices.push_back(last_accepted);
     }
     std::vector<SampleResult> additional_sample_result;
-    // This only works for top-p = 1. To enable top-p, we need to normalize the probs before
-    // verifying.
-    additional_sample_result = this->BatchSampleTokens(probs_on_device, sample_indices, request_ids,
-                                                       generation_cfg, rngs, nullptr);
+    additional_sample_result = this->BatchSampleTokensWithProbAfterTopP(
+        probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
     ICHECK_EQ(additional_sample_result.size(), num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       sample_results[i].push_back(additional_sample_result[i]);
@@ -272,10 +293,67 @@ class GPUSampler : public SamplerObj {
   }
 
  private:
+  std::vector<SampleResult> BatchSampleTokensImpl(
+      NDArray probs_on_device,                        //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs,      //
+      bool top_p_applied,                             //
+      std::vector<NDArray>* output_prob_dist = nullptr) {
+    // probs_on_device: (n, v)
+    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
+    CHECK_EQ(probs_on_device->ndim, 2);
+    CHECK_EQ(probs_on_device->device.device_id, device_.device_id);
+    CHECK_EQ(probs_on_device->device.device_type, device_.device_type);
+    int num_samples = sample_indices.size();
+    int num_probs = probs_on_device->shape[0];
+    int vocab_size = probs_on_device->shape[1];
+    if (output_prob_dist != nullptr) {
+      ICHECK(output_prob_dist->empty());
+      output_prob_dist->reserve(num_probs);
+      for (int i = 0; i < num_probs; ++i) {
+        NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
+        float* p_prob = static_cast<float*>(probs_on_device->data) + i * vocab_size;
+        prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
+        output_prob_dist->push_back(std::move(prob_dist));
+      }
+    }
+    ICHECK_EQ(request_ids.size(), num_samples);
+    ICHECK_EQ(generation_cfg.size(), num_samples);
+    ICHECK_EQ(rngs.size(), num_samples);
+
+    // Since `num_samples` may be larger than `max_num_sample_` in some cases,
+    // we apply chunking to support large `num_samples`.
+    std::vector<SampleResult> sample_results;
+    if (num_samples <= max_num_sample_) {
+      sample_results = ChunkSampleTokensImpl(probs_on_device, sample_indices, generation_cfg, rngs,
+                                             top_p_applied);
+    } else {
+      for (int chunk_start = 0; chunk_start < num_samples; chunk_start += max_num_sample_) {
+        int chunk_end = std::min(chunk_start + max_num_sample_, num_samples);
+        std::vector<int> sample_indices_chunk(sample_indices.begin() + chunk_start,
+                                              sample_indices.begin() + chunk_end);
+        Array<GenerationConfig> generation_cfg_chunk(generation_cfg.begin() + chunk_start,
+                                                     generation_cfg.begin() + chunk_end);
+        std::vector<RandomGenerator*> rngs_chunk(rngs.begin() + chunk_start,
+                                                 rngs.begin() + chunk_end);
+        std::vector<SampleResult> sample_results_chunk = ChunkSampleTokensImpl(
+            probs_on_device, sample_indices_chunk, generation_cfg_chunk, rngs_chunk, top_p_applied);
+        sample_results.insert(sample_results.end(), sample_results_chunk.begin(),
+                              sample_results_chunk.end());
+      }
+    }
+
+    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
+    return sample_results;
+  }
+
   std::vector<SampleResult> ChunkSampleTokensImpl(NDArray probs_on_device,                        //
                                                   const std::vector<int>& sample_indices,         //
                                                   const Array<GenerationConfig>& generation_cfg,  //
-                                                  const std::vector<RandomGenerator*>& rngs) {
+                                                  const std::vector<RandomGenerator*>& rngs,      //
+                                                  bool top_p_applied) {
     // probs_on_device: (n, v)
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
@@ -289,11 +367,13 @@ class GPUSampler : public SamplerObj {
     // - Check if there is need for applying top p or prob values,
     //   so that argsort is needed.
     bool need_top_p = false;
-    bool need_prob_values = false;
+    if (!top_p_applied) {
+      need_top_p = CheckTopP(generation_cfg, sample_indices, num_probs, num_samples, vocab_size);
+    }
     // The indptr array of the number of top probs for each sample.
     std::vector<int> top_prob_offset_indptr;
-    CheckTopPAndProbValues(generation_cfg, sample_indices, num_probs, num_samples, vocab_size,
-                           &need_top_p, &need_prob_values, &top_prob_offset_indptr);
+    bool need_prob_values = CheckProbValues(generation_cfg, sample_indices, num_probs, num_samples,
+                                            vocab_size, &top_prob_offset_indptr);
 
     // - Sample tokens on GPU, and take out the probability values if needed.
     std::vector<NDArray> device_arrays =
@@ -353,30 +433,39 @@ class GPUSampler : public SamplerObj {
     return {uniform_samples_device, sample_indices_device};
   }
 
-  /*! \brief Check if top p and prob values are needed, and collect info when necessary. */
-  void CheckTopPAndProbValues(const Array<GenerationConfig>& generation_cfg,
-                              const std::vector<int>& sample_indices, int num_probs,
-                              int num_samples, int vocab_size, bool* need_top_p,
-                              bool* need_prob_values, std::vector<int>* top_prob_offset_indptr) {
-    top_prob_offset_indptr->reserve(num_samples + 1);
-    top_prob_offset_indptr->push_back(0);
+  /*! \brief Check if top p is needed. Update host top p array in place. */
+  bool CheckTopP(const Array<GenerationConfig>& generation_cfg,
+                 const std::vector<int>& sample_indices, int num_probs, int num_samples,
+                 int vocab_size) {
     // Initialize top p values with -1.
     float* p_top_p = static_cast<float*>(top_p_host_->data);
     for (int i = 0; i < num_probs; ++i) {
       p_top_p[i] = -1.0;
     }
-    int* p_top_prob_offsets = static_cast<int*>(top_prob_offsets_host_->data);
-    int num_top_probs = 0;
+    bool need_top_p = false;
     for (int i = 0; i < num_samples; ++i) {
       if (p_top_p[sample_indices[i]] == -1.0) {
         p_top_p[sample_indices[i]] = generation_cfg[i]->top_p;
-        *need_top_p |= generation_cfg[i]->top_p != 1.0;
+        need_top_p |= generation_cfg[i]->top_p != 1.0;
       } else {
         CHECK(fabs(p_top_p[sample_indices[i]] - generation_cfg[i]->top_p) < eps_)
             << "GPU sampler requires the top_p values for each prob distribution are the same.";
       }
+    }
+    return need_top_p;
+  }
 
-      *need_prob_values |= generation_cfg[i]->logprobs;
+  /*! \brief Check whether prob values are needed, and collect info when necessary. */
+  bool CheckProbValues(const Array<GenerationConfig>& generation_cfg,
+                       const std::vector<int>& sample_indices, int num_probs, int num_samples,
+                       int vocab_size, std::vector<int>* top_prob_offset_indptr) {
+    top_prob_offset_indptr->reserve(num_samples + 1);
+    top_prob_offset_indptr->push_back(0);
+    int* p_top_prob_offsets = static_cast<int*>(top_prob_offsets_host_->data);
+    int num_top_probs = 0;
+    bool need_prob_values = false;
+    for (int i = 0; i < num_samples; ++i) {
+      need_prob_values |= generation_cfg[i]->logprobs;
       for (int j = 0; j < generation_cfg[i]->top_logprobs; ++j) {
         p_top_prob_offsets[num_top_probs++] = sample_indices[i] * vocab_size + j;
       }
@@ -384,6 +473,7 @@ class GPUSampler : public SamplerObj {
                                         generation_cfg[i]->top_logprobs);
     }
     ICHECK_EQ(num_top_probs, top_prob_offset_indptr->back());
+    return need_prob_values;
   }
 
   /*! \brief Sample tokens on GPU. Take out the probability values when needed. */
@@ -507,11 +597,16 @@ class GPUSampler : public SamplerObj {
   PackedFunc gpu_sample_with_top_p_func_;
   PackedFunc gpu_sampler_take_probs_func_;
   PackedFunc gpu_verify_draft_tokens_func_;
+  PackedFunc gpu_renormalize_by_top_p_func_;
   // Auxiliary NDArrays on CPU
   NDArray uniform_samples_host_;
   NDArray sample_indices_host_;
   NDArray top_p_host_;
   NDArray top_prob_offsets_host_;
+  NDArray draft_tokens_host_;
+  NDArray token_tree_first_child_host_;
+  NDArray token_tree_next_sibling_host_;
+  NDArray token_tree_parent_ptr_host_;
   NDArray sampled_token_ids_host_;
   NDArray sampled_probs_host_;
   NDArray top_prob_probs_host_;
@@ -521,6 +616,11 @@ class GPUSampler : public SamplerObj {
   NDArray sample_indices_device_;
   NDArray top_p_device_;
   NDArray top_prob_offsets_device_;
+  NDArray draft_probs_device_;
+  NDArray draft_tokens_device_;
+  NDArray token_tree_first_child_device_;
+  NDArray token_tree_next_sibling_device_;
+  NDArray token_tree_parent_ptr_device_;
   // The event trace recorder for requests. */
   Optional<EventTraceRecorder> trace_recorder_;
   // The device stream for the default computation operations.
