@@ -136,16 +136,23 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
+    hidden_states =
         hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
 
+    // This copy can be avoided by not copying the hidden states to engine.
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
 
-    NDArray logits;
-    logits = Downcast<NDArray>(ret);
+    NDArray logits{nullptr};
+    if (ret->IsInstance<DRefObj>()) {
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+    } else {
+      logits = Downcast<NDArray>(ret);
+    }
     CHECK(logits.defined());
     // logits: (b * s, v)
     ICHECK_EQ(logits->ndim, 2);
@@ -185,8 +192,11 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
-        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+    hidden_states = hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+
+    // This copy can be avoided by not copying the hidden states to engine.
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
 
     ObjectRef ret =
         ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
@@ -218,8 +228,15 @@ class ModelImpl : public ModelObj {
       p_logit_pos[i] = total_length - 1;
     }
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+
+    // This step runs on the engine thread.
+    // By temporarily turning off the disco flag, this copies the logit_pos_nd to the cached device
+    // tensor without actually copying to the worker.
+    bool use_disco = ft_.use_disco;
+    ft_.use_disco = false;
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+    ft_.use_disco = use_disco;
 
     CHECK(ft_.batch_select_last_hidden_func_.defined())
         << "`batch_select_last_hidden_states` function is not found in the model.";
@@ -240,7 +257,7 @@ class ModelImpl : public ModelObj {
         hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
 
     ObjectRef ret =
-        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
+        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
@@ -265,10 +282,17 @@ class ModelImpl : public ModelObj {
       // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
       hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
       // Reuse the copy embedding function
-      ft_.nd_copy_embedding_to_offset_func_(hidden, *dst, cum_length);
+      ObjectRef hidden_dref_or_nd =
+          ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
+      ft_.nd_copy_embedding_to_offset_func_(hidden_dref_or_nd, *dst, cum_length);
       cum_length += 1;
     }
-    NDArray ret = Downcast<NDArray>(*dst);
+    NDArray ret{nullptr};
+    if ((*dst)->IsInstance<DRefObj>()) {
+      ret = Downcast<DRef>(*dst)->DebugGetFromRemote(0);
+    } else {
+      ret = Downcast<NDArray>(*dst);
+    }
     ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
     return ret;
   }
@@ -295,7 +319,7 @@ class ModelImpl : public ModelObj {
         return embeddings_nd.CreateView({batch_size, seq_len, hidden_size_}, embeddings_nd->dtype);
       }
     } else {
-      ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
+      ShapeTuple embedding_shape{batch_size * seq_len, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
 
       if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
