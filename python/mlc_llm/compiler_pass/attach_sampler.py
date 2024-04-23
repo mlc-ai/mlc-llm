@@ -7,6 +7,8 @@ from tvm import IRModule, relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.script import tir as T
 
+from ..op.batch_spec_verify import batch_spec_verify
+
 
 @tvm.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
 class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
@@ -46,6 +48,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
                 _attach_argsort_func(bb, vocab_size),
                 _attach_sample_with_top_p(bb, vocab_size),
                 _attach_take_probs_func(bb, vocab_size),
+                _attach_batch_verifier(bb, vocab_size),
             ]
         ]
 
@@ -288,4 +291,51 @@ def _attach_take_probs_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
             )
             bb.emit_output(taken_probs_indices)
         gv = bb.emit_func_output(taken_probs_indices)
+    return gv
+
+
+def _attach_batch_verifier(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
+    num_nodes = tir.Var("num_nodes", "int64")
+    nbatch = tir.Var("nbatch", "int64")
+    draft_probs = relax.Var(
+        "draft_probs", relax.TensorStructInfo((num_nodes, vocab_size), "float32")
+    )
+    draft_tokens = relax.Var("draft_tokens", relax.TensorStructInfo((num_nodes,), "int32"))
+    model_probs = relax.Var(
+        "model_probs", relax.TensorStructInfo((num_nodes, vocab_size), "float32")
+    )
+    token_tree_first_child = relax.Var(
+        "token_tree_first_child", relax.TensorStructInfo((num_nodes,), "int32")
+    )
+    token_tree_next_sibling = relax.Var(
+        "token_tree_next_sibling", relax.TensorStructInfo((num_nodes,), "int32")
+    )
+    uniform_samples = relax.Var("uniform_samples", relax.TensorStructInfo((num_nodes,), "float32"))
+    token_tree_parent_ptr = relax.Var(
+        "token_tree_parent_ptr", relax.TensorStructInfo((nbatch,), "int32")
+    )
+    args = [
+        draft_probs,
+        draft_tokens,
+        model_probs,
+        token_tree_first_child,
+        token_tree_next_sibling,
+        uniform_samples,
+        token_tree_parent_ptr,
+    ]
+    with bb.function("sampler_verify_draft_tokens", args):
+        with bb.dataflow():
+            res = bb.emit(
+                relax.call_tir_inplace(
+                    bb.add_func(batch_spec_verify(vocab_size), "batch_verify_on_gpu_single_kernel"),
+                    args,
+                    inplace_indices=[args.index(model_probs), args.index(token_tree_parent_ptr)],
+                    out_sinfo=[
+                        model_probs.struct_info,  # pylint: disable=no-member
+                        token_tree_parent_ptr.struct_info,  # pylint: disable=no-member
+                    ],
+                )
+            )
+            bb.emit_output(res)
+        gv = bb.emit_func_output(res)
     return gv

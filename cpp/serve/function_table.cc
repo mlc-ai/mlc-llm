@@ -265,6 +265,7 @@ void FunctionTable::_InitFunctions() {
     gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
     gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
     gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
+    gpu_verify_draft_tokens_func_ = mod->GetFunction("sampler_verify_draft_tokens", true);
   }
   this->nd_view_func_ = get_global_func("vm.builtin.reshape");
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");

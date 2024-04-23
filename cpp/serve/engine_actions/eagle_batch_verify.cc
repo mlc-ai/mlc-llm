@@ -88,7 +88,6 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       generation_cfg.push_back(rsentries[i]->request->generation_cfg);
       rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
-      CHECK(draft_mstate->draft_output_prob_dist[0]->device.device_type == kDLCPU);
       draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
     }
 
