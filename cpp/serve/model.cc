@@ -140,8 +140,8 @@ class ModelImpl : public ModelObj {
         hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
 
     // This copy can be avoided by not copying the hidden states to engine.
-    hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states, "hidden_states",
-                                                 {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
@@ -192,13 +192,11 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states =
-        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+    hidden_states = hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
 
     // This copy can be avoided by not copying the hidden states to engine.
-    hidden_states_dref_or_nd = ft_.CopyToWorker0(hidden_states,
-                                                 "hidden_states",
-                                                 {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
 
     ObjectRef ret =
         ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
@@ -284,7 +282,8 @@ class ModelImpl : public ModelObj {
       // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
       hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
       // Reuse the copy embedding function
-      ObjectRef hidden_dref_or_nd = ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
+      ObjectRef hidden_dref_or_nd =
+          ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
       ft_.nd_copy_embedding_to_offset_func_(hidden_dref_or_nd, *dst, cum_length);
       cum_length += 1;
     }
@@ -292,7 +291,7 @@ class ModelImpl : public ModelObj {
     if ((*dst)->IsInstance<DRefObj>()) {
       ret = Downcast<DRef>(*dst)->DebugGetFromRemote(0);
     } else {
-     ret = Downcast<NDArray>(*dst);
+      ret = Downcast<NDArray>(*dst);
     }
     ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
     return ret;
