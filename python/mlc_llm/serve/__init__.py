@@ -6,5 +6,6 @@ from .config import EngineConfig, GenerationConfig, SpeculativeMode
 from .data import Data, ImageData, RequestStreamOutput, TextData, TokenData
 from .engine import AsyncLLMEngine, LLMEngine
 from .grammar import BNFGrammar, GrammarStateMatcher
+from .radix_tree import PagedRadixTree
 from .request import Request
 from .server import PopenServer
