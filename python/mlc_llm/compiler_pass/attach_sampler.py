@@ -331,9 +331,9 @@ def _attach_batch_verifier(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                     args,
                     inplace_indices=[args.index(model_probs), args.index(token_tree_parent_ptr)],
                     out_sinfo=[
-                        model_probs.struct_info,
-                        token_tree_parent_ptr.struct_info,
-                    ],  # pylint: disable=no-member
+                        model_probs.struct_info,  # pylint: disable=no-member
+                        token_tree_parent_ptr.struct_info,  # pylint: disable=no-member
+                    ],
                 )
             )
             bb.emit_output(res)
