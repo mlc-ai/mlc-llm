@@ -141,7 +141,7 @@ class SpeculativeMode(enum.IntEnum):
 
 @tvm._ffi.register_object("mlc.serve.EngineConfig")  # pylint: disable=protected-access
 class EngineConfig(tvm.runtime.Object):
-    """The class of LLMEngine execution configuration.
+    """The class of MLCEngine execution configuration.
 
     Parameters
     ----------

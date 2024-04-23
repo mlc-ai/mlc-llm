@@ -3,7 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncLLMEngine, GenerationConfig
+from mlc_llm.serve import AsyncMLCEngine, GenerationConfig
 
 prompts = [
     "What is the meaning of life?",
@@ -23,7 +23,7 @@ async def test_engine_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -39,7 +39,7 @@ async def test_engine_generate():
     ]
 
     async def generate_task(
-        async_engine: AsyncLLMEngine,
+        async_engine: AsyncMLCEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,
@@ -80,7 +80,7 @@ async def test_chat_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -132,7 +132,7 @@ async def test_chat_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -183,7 +183,7 @@ async def test_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -235,7 +235,7 @@ async def test_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",

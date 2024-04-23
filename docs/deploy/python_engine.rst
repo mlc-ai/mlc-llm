@@ -4,7 +4,7 @@ Python API
 ==========
 
 .. note::
-  This page introduces the Python API with LLMEngine in MLC LLM.
+  This page introduces the Python API with MLCEngine in MLC LLM.
   If you want to check out the old Python API which uses :class:`mlc_llm.ChatModule`,
   please go to :ref:`deploy-python-chat-module`
 
@@ -13,10 +13,10 @@ Python API
   :depth: 2
 
 
-MLC LLM provides Python API through classes :class:`mlc_llm.LLMEngine` and :class:`mlc_llm.AsyncLLMEngine`
+MLC LLM provides Python API through classes :class:`mlc_llm.MLCEngine` and :class:`mlc_llm.AsyncMLCEngine`
 which **support full OpenAI API completeness** for easy integration into other Python projects.
 
-This page introduces how to use the LLM engines in MLC LLM.
+This page introduces how to use the engines in MLC LLM.
 The Python API is a part of the MLC-LLM package, which we have prepared pre-built pip wheels via
 the :ref:`installation page <install-mlc-packages>`.
 
@@ -26,31 +26,31 @@ Verify Installation
 
 .. code:: bash
 
-  python -c "from mlc_llm import LLMEngine; print(LLMEngine)"
+  python -c "from mlc_llm import MLCEngine; print(MLCEngine)"
 
-You are expected to see the output of ``<class 'mlc_llm.serve.engine.LLMEngine'>``.
+You are expected to see the output of ``<class 'mlc_llm.serve.engine.MLCEngine'>``.
 
 If the command above results in error, follow :ref:`install-mlc-packages` to install prebuilt pip
 packages or build MLC LLM from source.
 
 
-Run LLMEngine
+Run MLCEngine
 -------------
 
-:class:`mlc_llm.LLMEngine` provides the interface of OpenAI chat completion synchronously.
-:class:`mlc_llm.LLMEngine` does not batch concurrent request due to the synchronous design,
-and please use :ref:`AsyncLLMEngine <python-engine-async-llm-engine>` for request batching process.
+:class:`mlc_llm.MLCEngine` provides the interface of OpenAI chat completion synchronously.
+:class:`mlc_llm.MLCEngine` does not batch concurrent request due to the synchronous design,
+and please use :ref:`AsyncMLCEngine <python-engine-async-llm-engine>` for request batching process.
 
 **Stream Response.** In :ref:`quick-start` and :ref:`introduction-to-mlc-llm`,
-we introduced the basic use of :class:`mlc_llm.LLMEngine`.
+we introduced the basic use of :class:`mlc_llm.MLCEngine`.
 
 .. code:: python
 
-  from mlc_llm import LLMEngine
+  from mlc_llm import MLCEngine
 
   # Create engine
   model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
-  engine = LLMEngine(model)
+  engine = MLCEngine(model)
 
   # Run chat completion in OpenAI API.
   for response in engine.chat.completions.create(
@@ -64,9 +64,9 @@ we introduced the basic use of :class:`mlc_llm.LLMEngine`.
 
   engine.terminate()
 
-This code example first creates an :class:`mlc_llm.LLMEngine` instance with the 8B Llama-3 model.
-**We design the Python API** :class:`mlc_llm.LLMEngine` **to align with OpenAI API**,
-which means you can use :class:`mlc_llm.LLMEngine` in the same way of using
+This code example first creates an :class:`mlc_llm.MLCEngine` instance with the 8B Llama-3 model.
+**We design the Python API** :class:`mlc_llm.MLCEngine` **to align with OpenAI API**,
+which means you can use :class:`mlc_llm.MLCEngine` in the same way of using
 `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 for both synchronous and asynchronous generation.
 
@@ -90,14 +90,14 @@ for the complete chat completion interface.
 
 .. _python-engine-async-llm-engine:
 
-Run AsyncLLMEngine
+Run AsyncMLCEngine
 ------------------
 
-:class:`mlc_llm.AsyncLLMEngine` provides the interface of OpenAI chat completion with
+:class:`mlc_llm.AsyncMLCEngine` provides the interface of OpenAI chat completion with
 asynchronous features.
-**We recommend using** :class:`mlc_llm.AsyncLLMEngine` **to batch concurrent request for better throughput.**
+**We recommend using** :class:`mlc_llm.AsyncMLCEngine` **to batch concurrent request for better throughput.**
 
-**Stream Response.** The core use of :class:`mlc_llm.AsyncLLMEngine` for stream responses is as follows.
+**Stream Response.** The core use of :class:`mlc_llm.AsyncMLCEngine` for stream responses is as follows.
 
 .. code:: python
 
@@ -109,14 +109,14 @@ asynchronous features.
     for choice in response.choices:
         print(choice.delta.content, end="", flush=True)
 
-.. collapse:: The collapsed is a complete runnable example of AsyncLLMEngine in Python.
+.. collapse:: The collapsed is a complete runnable example of AsyncMLCEngine in Python.
 
   .. code:: python
 
     import asyncio
     from typing import Dict
 
-    from mlc_llm.serve import AsyncLLMEngine
+    from mlc_llm.serve import AsyncMLCEngine
 
     model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
     prompts = [
@@ -127,7 +127,7 @@ asynchronous features.
 
     async def test_completion():
         # Create engine
-        async_engine = AsyncLLMEngine(model=model)
+        async_engine = AsyncMLCEngine(model=model)
 
         num_requests = len(prompts)
         output_texts: Dict[str, str] = {}
@@ -176,8 +176,8 @@ for the complete chat completion interface.
 Engine Mode
 -----------
 
-To ease the engine configuration, the constructors of :class:`mlc_llm.LLMEngine` and
-:class:`mlc_llm.AsyncLLMEngine` have an optional argument ``mode``,
+To ease the engine configuration, the constructors of :class:`mlc_llm.MLCEngine` and
+:class:`mlc_llm.AsyncMLCEngine` have an optional argument ``mode``,
 which falls into one of the three options ``"local"``, ``"interactive"`` or ``"server"``.
 The default mode is ``"local"``.
 
@@ -203,34 +203,34 @@ Deploy Your Own Model with Python API
 The :ref:`introduction page <introduction-deploy-your-own-model>` introduces how we can deploy our
 own models with MLC LLM.
 This section introduces how you can use the model weights you convert and the model library you build
-in :class:`mlc_llm.LLMEngine` and :class:`mlc_llm.AsyncLLMEngine`.
+in :class:`mlc_llm.MLCEngine` and :class:`mlc_llm.AsyncMLCEngine`.
 
 We use the `Phi-2 <https://huggingface.co/microsoft/phi-2>`_ as the example model.
 
 **Specify Model Weight Path.** Assume you have converted the model weights for your own model,
-you can construct a :class:`mlc_llm.LLMEngine` as follows:
+you can construct a :class:`mlc_llm.MLCEngine` as follows:
 
 .. code:: python
 
-  from mlc_llm import LLMEngine
+  from mlc_llm import MLCEngine
 
   model = "models/phi-2"  # Assuming the converted phi-2 model weights are under "models/phi-2"
-  engine = LLMEngine(model)
+  engine = MLCEngine(model)
 
 
 **Specify Model Library Path.** Further, if you build the model library on your own,
-you can use it in :class:`mlc_llm.LLMEngine` by passing the library path through argument ``model_lib_path``.
+you can use it in :class:`mlc_llm.MLCEngine` by passing the library path through argument ``model_lib_path``.
 
 .. code:: python
 
-  from mlc_llm import LLMEngine
+  from mlc_llm import MLCEngine
 
   model = "models/phi-2"
   model_lib_path = "models/phi-2/lib.so"  # Assuming the phi-2 model library is built at "models/phi-2/lib.so"
-  engine = LLMEngine(model, model_lib_path=model_lib_path)
+  engine = MLCEngine(model, model_lib_path=model_lib_path)
 
 
-The same applies to :class:`mlc_llm.AsyncLLMEngine`.
+The same applies to :class:`mlc_llm.AsyncMLCEngine`.
 
 
 .. _python-engine-api-reference:
@@ -238,16 +238,16 @@ The same applies to :class:`mlc_llm.AsyncLLMEngine`.
 API Reference
 -------------
 
-The :class:`mlc_llm.LLMEngine` and :class:`mlc_llm.AsyncLLMEngine` classes provide the following constructors.
+The :class:`mlc_llm.MLCEngine` and :class:`mlc_llm.AsyncMLCEngine` classes provide the following constructors.
 
-The LLMEngine and AsyncLLMEngine have full OpenAI API completeness.
+The MLCEngine and AsyncMLCEngine have full OpenAI API completeness.
 Please refer to `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 and `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_
 for the complete chat completion interface.
 
 .. currentmodule:: mlc_llm
 
-.. autoclass:: LLMEngine
+.. autoclass:: MLCEngine
   :members:
   :exclude-members: evaluate
   :undoc-members:
@@ -255,7 +255,7 @@ for the complete chat completion interface.
 
   .. automethod:: __init__
 
-.. autoclass:: AsyncLLMEngine
+.. autoclass:: AsyncMLCEngine
   :members:
   :exclude-members: evaluate
   :undoc-members:
