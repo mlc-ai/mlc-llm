@@ -6,6 +6,7 @@ import tvm
 from tvm import IRModule, relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.script import tir as T
+
 from ..op.batch_spec_verify import batch_spec_verify
 
 
@@ -329,7 +330,10 @@ def _attach_batch_verifier(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                     bb.add_func(batch_spec_verify(vocab_size), "batch_verify_on_gpu_single_kernel"),
                     args,
                     inplace_indices=[args.index(model_probs), args.index(token_tree_parent_ptr)],
-                    out_sinfo=[model_probs.struct_info, token_tree_parent_ptr.struct_info],
+                    out_sinfo=[
+                        model_probs.struct_info,
+                        token_tree_parent_ptr.struct_info,
+                    ],  # pylint: disable=no-member
                 )
             )
             bb.emit_output(res)
