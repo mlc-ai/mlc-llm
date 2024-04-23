@@ -37,8 +37,11 @@ class ServerContext:
             raise RuntimeError(f"Model {hosted_model} already running.")
         self._models[hosted_model] = engine
 
-    def get_engine(self, model: str) -> Optional[AsyncLLMEngine]:
-        """Get the async engine of the requested model."""
+    def get_engine(self, model: Optional[str]) -> Optional[AsyncLLMEngine]:
+        """Get the async engine of the requested model, or the unique async engine
+        if only one engine is served."""
+        if len(self._models) == 1:
+            return next(iter(self._models.values()))
         return self._models.get(model, None)
 
     def get_model_list(self) -> List[str]:

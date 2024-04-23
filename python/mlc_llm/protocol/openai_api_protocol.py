@@ -84,7 +84,7 @@ class CompletionRequest(BaseModel):
     API reference: https://platform.openai.com/docs/api-reference/completions/create
     """
 
-    model: str
+    model: Optional[str] = None
     prompt: Union[str, List[int]]
     best_of: int = 1
     echo: bool = False
@@ -154,7 +154,7 @@ class CompletionResponse(BaseModel):
     id: str
     choices: List[CompletionResponseChoice]
     created: int = Field(default_factory=lambda: int(time.time()))
-    model: str
+    model: Optional[str] = None
     object: str = "text_completion"
     usage: UsageInfo = Field(
         default_factory=lambda: UsageInfo()  # pylint: disable=unnecessary-lambda
@@ -200,7 +200,7 @@ class ChatCompletionRequest(BaseModel):
     """
 
     messages: List[ChatCompletionMessage]
-    model: str
+    model: Optional[str] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
     logprobs: bool = False
@@ -343,7 +343,7 @@ class ChatCompletionResponse(BaseModel):
     id: str
     choices: List[ChatCompletionResponseChoice]
     created: int = Field(default_factory=lambda: int(time.time()))
-    model: str
+    model: Optional[str] = None
     system_fingerprint: str
     object: Literal["chat.completion"] = "chat.completion"
     usage: UsageInfo = Field(
@@ -359,7 +359,7 @@ class ChatCompletionStreamResponse(BaseModel):
     id: str
     choices: List[ChatCompletionStreamResponseChoice]
     created: int = Field(default_factory=lambda: int(time.time()))
-    model: str
+    model: Optional[str] = None
     system_fingerprint: str
     object: Literal["chat.completion.chunk"] = "chat.completion.chunk"
     usage: UsageInfo = Field(
