@@ -128,10 +128,14 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     // - Compute probability distributions.
     NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
-
-    std::vector<std::vector<SampleResult>> sample_results_arr = sampler_->BatchVerifyDraftTokens(
-        probs_on_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
-        draft_output_prob_dist);
+    std::vector<int> sample_indices(num_rsentries);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+        probs_on_device, sample_indices, request_ids, generation_cfg);
+    std::vector<std::vector<SampleResult>> sample_results_arr =
+        sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
+            renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
+            draft_output_tokens, draft_output_prob_dist);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     std::vector<NDArray> last_hidden_states;
@@ -229,8 +233,10 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       std::vector<int> sample_indices(num_rsentries);
       std::iota(sample_indices.begin(), sample_indices.end(), 0);
       std::vector<NDArray> prob_dist;
-      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
-          probs_on_device, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+      NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+          probs_on_device, sample_indices, request_ids, generation_cfg);
+      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
+          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
       ICHECK_EQ(sample_results.size(), num_rsentries);
 
       // - Add draft token to the state.

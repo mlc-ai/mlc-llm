@@ -199,7 +199,7 @@ def _estimate_mem_usage_and_max_total_sequence_length(  # pylint: disable=too-ma
     if gpu_size_bytes is None:
         raise ValueError("Cannot read total GPU global memory from device.")
     if gpu_memory_utilization is None:
-        gpu_memory_utilization = 0.90
+        gpu_memory_utilization = 0.85
 
     model_max_total_sequence_length = int(
         (

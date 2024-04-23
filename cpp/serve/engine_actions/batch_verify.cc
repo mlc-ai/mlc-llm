@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <exception>
+#include <numeric>
 
 #include "../../random.h"
 #include "../config.h"
@@ -115,9 +116,14 @@ class BatchVerifyActionObj : public EngineActionObj {
     NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
 
-    std::vector<std::vector<SampleResult>> sample_results_arr = sampler_->BatchVerifyDraftTokens(
-        probs_on_device, request_ids, cum_verify_lengths, generation_cfg, rngs, draft_output_tokens,
-        draft_output_prob_dist);
+    std::vector<int> sample_indices(num_rsentries);
+    std::iota(sample_indices.begin(), sample_indices.end(), 0);
+    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+        probs_on_device, sample_indices, request_ids, generation_cfg);
+    std::vector<std::vector<SampleResult>> sample_results_arr =
+        sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
+            renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
+            draft_output_tokens, draft_output_prob_dist);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     for (int i = 0; i < num_rsentries; ++i) {

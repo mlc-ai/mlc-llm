@@ -105,6 +105,7 @@ struct FunctionTable {
   PackedFunc gpu_sample_with_top_p_func_;
   PackedFunc gpu_sampler_take_probs_func_;
   PackedFunc gpu_verify_draft_tokens_func_;
+  PackedFunc gpu_renormalize_by_top_p_func_;
   PackedFunc nd_view_func_;
   PackedFunc nd_get_shape_func_;
   PackedFunc nd_copy_embedding_to_offset_func_;
