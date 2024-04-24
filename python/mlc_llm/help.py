@@ -203,7 +203,7 @@ The default mode is "DISABLE".
 The number of draft tokens to generate in speculative proposal. The default values is 4.
 """,
     "engine_config_serve": """
-The LLMEngine execution configuration.
+The MLCEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.
 For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'" to
 specify the eagle-style speculative decoding.

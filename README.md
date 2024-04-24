@@ -106,11 +106,11 @@ We can run the Llama-3 model with the chat completion Python API of MLC LLM.
 You can save the code below into a Python file and run it.
 
 ```python
-from mlc_llm import LLMEngine
+from mlc_llm import MLCEngine
 
 # Create engine
 model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
-engine = LLMEngine(model)
+engine = MLCEngine(model)
 
 # Run chat completion in OpenAI API.
 for response in engine.chat.completions.create(
@@ -125,12 +125,12 @@ print("\n")
 engine.terminate()
 ```
 
-**The Python API of `mlc_llm.LLMEngine` fully aligns with OpenAI API**.
-You can use LLMEngine in the same way of using
+**The Python API of `mlc_llm.MLCEngine` fully aligns with OpenAI API**.
+You can use MLCEngine in the same way of using
 [OpenAI's Python package](https://github.com/openai/openai-python?tab=readme-ov-file#usage)
 for both synchronous and asynchronous generation.
 
-If you would like to do concurrent asynchronous generation, you can use `mlc_llm.AsyncLLMEngine` instead.
+If you would like to do concurrent asynchronous generation, you can use `mlc_llm.AsyncMLCEngine` instead.
 
 ### REST Server
 

@@ -3,7 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncLLMEngine, GenerationConfig, SpeculativeMode
+from mlc_llm.serve import AsyncMLCEngine, GenerationConfig, SpeculativeMode
 
 prompts = [
     "What is the meaning of life?",
@@ -27,7 +27,7 @@ async def test_engine_generate():
     small_model_lib_path = (
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
-    async_engine = AsyncLLMEngine(
+    async_engine = AsyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -44,7 +44,7 @@ async def test_engine_generate():
     ]
 
     async def generate_task(
-        async_engine: AsyncLLMEngine,
+        async_engine: AsyncMLCEngine,
         prompt: str,
         generation_cfg: GenerationConfig,
         request_id: str,

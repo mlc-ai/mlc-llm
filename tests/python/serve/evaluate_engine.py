@@ -5,7 +5,7 @@ import random
 from typing import List, Tuple
 
 from mlc_llm.serve import GenerationConfig
-from mlc_llm.serve.sync_engine import SyncLLMEngine
+from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 
 def _parse_args():
@@ -41,7 +41,7 @@ def benchmark(args: argparse.Namespace):
     random.seed(args.seed)
 
     # Create engine
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=args.model,
         device=args.device,
         model_lib_path=args.model_lib_path,

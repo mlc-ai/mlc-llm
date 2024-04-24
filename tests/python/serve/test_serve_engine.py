@@ -2,7 +2,7 @@
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 from typing import List
 
-from mlc_llm.serve import GenerationConfig, LLMEngine
+from mlc_llm.serve import GenerationConfig, MLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -22,7 +22,7 @@ def test_engine_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = LLMEngine(
+    engine = MLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -61,7 +61,7 @@ def test_chat_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = LLMEngine(
+    engine = MLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -105,7 +105,7 @@ def test_chat_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = LLMEngine(
+    engine = MLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -148,7 +148,7 @@ def test_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = LLMEngine(
+    engine = MLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -192,7 +192,7 @@ def test_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = LLMEngine(
+    engine = MLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",

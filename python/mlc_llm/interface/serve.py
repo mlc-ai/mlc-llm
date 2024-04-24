@@ -35,7 +35,7 @@ def serve(
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
     # Create engine and start the background loop
-    async_engine = engine.AsyncLLMEngine(
+    async_engine = engine.AsyncMLCEngine(
         model=model,
         device=device,
         model_lib_path=model_lib_path,
