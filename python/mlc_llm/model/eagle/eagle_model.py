@@ -190,8 +190,8 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "fuse_embed_hidden_states": {
-                "input_embed": nn.spec.Tensor(["length", self.hidden_size], self.dtype),
-                "hidden_states": nn.spec.Tensor(["length", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

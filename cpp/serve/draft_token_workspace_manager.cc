@@ -45,7 +45,7 @@ void DraftTokenWorkspaceManagerObj::AllocWorkspace(ModelWorkspace* workspace,
       NDArray::Empty({max_num_tokens_, vocab_size_}, DataType::Float(32), device_);
   if (require_hidden_states) {
     workspace->draft_hidden_states_storage =
-        NDArray::Empty({max_num_tokens_, hidden_size_}, hidden_states_dtype_, device_);
+        ft_.Empty({max_num_tokens_, hidden_size_}, hidden_states_dtype_, device_);
   }
 }
 

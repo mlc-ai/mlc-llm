@@ -65,7 +65,6 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
-    std::vector<std::vector<NDArray>> draft_output_prob_dist;
     request_internal_ids.reserve(num_rsentries);
     all_tokens_to_verify.reserve(total_draft_length);
     verify_request_mstates.reserve(num_rsentries);
@@ -113,12 +112,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
-    ObjectRef fused_hidden_states = models_[verify_model_id_]->FuseEmbedHidden(
-        embeddings, NDArray(), 1, cum_verify_lengths[num_rsentries]);
-    NDArray hidden_states = models_[verify_model_id_]->BatchVerifyToLastHidden(
-        fused_hidden_states, request_internal_ids, verify_lengths);
-    ICHECK_EQ(hidden_states->ndim, 3);
-    ICHECK_EQ(hidden_states->shape[0], 1);
+    ObjectRef hidden_states = models_[verify_model_id_]->BatchVerifyToLastHidden(
+        embeddings, request_internal_ids, verify_lengths);
     NDArray logits =
         models_[verify_model_id_]->GetLogits(hidden_states, 1, cum_verify_lengths[num_rsentries]);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
@@ -179,16 +174,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
     {
       // One step draft for the following steps
-      NDArray last_hidden_states_nd = hidden_states.CreateView(
-          {hidden_states->shape[0] * hidden_states->shape[1], hidden_states->shape[2]},
-          hidden_states->dtype);
 
-      hidden_states = Downcast<NDArray>(models_[draft_model_id_]->GatherHiddenStates(
-          last_hidden_states_nd, last_accepted_hidden_positions,
-          &model_workspaces_[draft_model_id_].hidden_states));
-      ICHECK(hidden_states->ndim == 2);
-      hidden_states = hidden_states.CreateView(
-          {hidden_states->shape[0], 1, hidden_states->shape[1]}, hidden_states->dtype);
+      // Gather hidden states for the last accepted tokens.
+      hidden_states = models_[draft_model_id_]->GatherHiddenStates(
+          hidden_states, last_accepted_hidden_positions,
+          &model_workspaces_[draft_model_id_].hidden_states);
 
       std::vector<int> input_tokens;
       Array<RequestModelState> mstates;
@@ -210,10 +200,10 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
       // - Invoke model decode.
       RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
-      ObjectRef fused_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
+      ObjectRef fused_embedding_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
           embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
-      hidden_states = models_[draft_model_id_]->BatchDecodeToLastHidden(fused_hidden_states,
-                                                                        request_internal_ids);
+      hidden_states = models_[draft_model_id_]->BatchDecodeToLastHidden(
+          fused_embedding_hidden_states, request_internal_ids);
 
       if (models_[draft_model_id_]->CanGetLogits()) {
         logits = models_[draft_model_id_]->GetLogits(hidden_states, /*batch_size*/ num_rsentries,
@@ -239,11 +229,10 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // Fill range [0, num_rsentries) into `sample_indices`.
       std::vector<int> sample_indices(num_rsentries);
       std::iota(sample_indices.begin(), sample_indices.end(), 0);
-      std::vector<NDArray> prob_dist;
       NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
           probs_on_device, sample_indices, request_ids, generation_cfg);
       std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
-          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
       ICHECK_EQ(sample_results.size(), num_rsentries);
 
       // - Slice and save hidden_states_for_sample
@@ -251,10 +240,6 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       models_[draft_model_id_]->ScatterDraftProbs(
           renormalized_probs, draft_token_slots_,
           &model_workspaces_[verify_model_id_].draft_probs_storage);
-      ICHECK(hidden_states->ndim == 3);
-      hidden_states = hidden_states.CreateView(
-          {hidden_states->shape[0] * hidden_states->shape[1], hidden_states->shape[2]},
-          hidden_states->dtype);
       models_[draft_model_id_]->ScatterHiddenStates(
           hidden_states, draft_token_slots_,
           &model_workspaces_[verify_model_id_].draft_hidden_states_storage);
@@ -324,26 +309,6 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
   bool CanVerify(int num_required_pages) {
     int num_available_pages = models_[0]->GetNumAvailablePages();
     return num_required_pages <= num_available_pages;
-  }
-
-  /*!
-   * \brief Get one item from a hidden_states array, which corresponds to the last token.
-   * \param hidden_states The hidden_states of all the tokens.
-   * \param token_pos The desired token position in the sequence.
-   * \return The desired token's hidden_states
-   */
-  NDArray GetTokenHidden(NDArray hidden_states, int token_pos) {
-    ICHECK_EQ(hidden_states->ndim, 3);
-    NDArray last_hidden_on_device =
-        NDArray::Empty({hidden_states->shape[2]}, hidden_states->dtype, hidden_states->device);
-
-    int64_t ndata = hidden_states->shape[2];
-    const int16_t* __restrict p_hidden =
-        static_cast<int16_t*>(__builtin_assume_aligned(hidden_states->data, 2)) +
-        (token_pos * ndata);
-
-    last_hidden_on_device.CopyFromBytes(p_hidden, ndata * sizeof(int16_t));
-    return last_hidden_on_device;
   }
 
   /*!

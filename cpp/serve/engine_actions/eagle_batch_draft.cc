@@ -83,19 +83,15 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         mstates.push_back(rsentry->mstates[model_id]);
       }
       // draft_length_ rounds of draft proposal.
-      ObjectRef last_hidden_states{nullptr};
-      NDArray hidden_states = Downcast<NDArray>(model_workspaces_[model_id].hidden_states);
+      ObjectRef hidden_states = model_workspaces_[model_id].hidden_states;
       // Concat last hidden_states
       draft_token_slots_.clear();
       if (draft_length_ > 1) {
         for (int i = 0; i < num_rsentries; ++i) {
           draft_token_slots_.push_back(mstates[i]->draft_token_slots.back());
         }
-        hidden_states = Downcast<NDArray>(models_[model_id]->GatherHiddenStates(
-            model_workspaces_[0].draft_hidden_states_storage, draft_token_slots_, &hidden_states));
-        ICHECK(hidden_states->ndim == 2);
-        last_hidden_states = hidden_states.CreateView(
-            {hidden_states->shape[0], 1, hidden_states->shape[1]}, hidden_states->dtype);
+        hidden_states = models_[model_id]->GatherHiddenStates(
+            model_workspaces_[0].draft_hidden_states_storage, draft_token_slots_, &hidden_states);
       }
       // The first draft token has been generated in prefill/verify stage
       for (int draft_id = 1; draft_id < draft_length_; ++draft_id) {
@@ -114,11 +110,10 @@ class EagleBatchDraftActionObj : public EngineActionObj {
 
         // - Invoke model decode.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
-        ObjectRef fused_hidden_states = models_[model_id]->FuseEmbedHidden(
-            embeddings, last_hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
-        hidden_states =
-            models_[model_id]->BatchDecodeToLastHidden(fused_hidden_states, request_internal_ids);
-        last_hidden_states = hidden_states;
+        ObjectRef fused_embedding_hidden_states = models_[model_id]->FuseEmbedHidden(
+            embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+        hidden_states = models_[model_id]->BatchDecodeToLastHidden(fused_embedding_hidden_states,
+                                                                   request_internal_ids);
         NDArray logits;
         if (models_[model_id]->CanGetLogits()) {
           logits = models_[model_id]->GetLogits(hidden_states, /*batch_size*/ num_rsentries,
@@ -145,11 +140,10 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         // Fill range [0, num_rsentries) into `sample_indices`.
         std::vector<int> sample_indices(num_rsentries);
         std::iota(sample_indices.begin(), sample_indices.end(), 0);
-        std::vector<NDArray> prob_dist;
         NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
             probs_on_device, sample_indices, request_ids, generation_cfg);
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
-            renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+            renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
         ICHECK_EQ(sample_results.size(), num_rsentries);
 
         // - Add draft token to the state.

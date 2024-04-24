@@ -74,7 +74,6 @@ class GPUSampler : public SamplerObj {
     sample_indices_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     top_p_device_ = NDArray::Empty({max_num_sample}, dtype_f32_, device);
     top_prob_offsets_device_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device);
-    draft_probs_device_ = NDArray::Empty({max_num_sample, vocab_size}, dtype_f32_, device);
     draft_tokens_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     token_tree_first_child_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     token_tree_next_sibling_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
@@ -630,7 +629,6 @@ class GPUSampler : public SamplerObj {
   NDArray sample_indices_device_;
   NDArray top_p_device_;
   NDArray top_prob_offsets_device_;
-  NDArray draft_probs_device_;
   NDArray draft_tokens_device_;
   NDArray token_tree_first_child_device_;
   NDArray token_tree_next_sibling_device_;
