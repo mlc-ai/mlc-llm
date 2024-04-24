@@ -693,6 +693,7 @@ class LLMChat {
       this->input_tokens_decode_ =
           Downcast<DRef>(ft_.Empty(ShapeTuple({1, 1}), DataType::Int(32), null_device));
     }
+    this->ignore_first_decode = true;
     // Step 8. Reset chat
     this->ResetChat();
   }
@@ -1032,9 +1033,15 @@ class LLMChat {
 
     auto tend = std::chrono::high_resolution_clock::now();
 
-    this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
-    this->decode_total_tokens += 1;
-    this->ProcessNextToken(next_token, generation_config);
+    if (this->ignore_first_decode) {
+      // Dont account first decode after reload.
+      // OpenCL kernel compilation accounts significantly here
+      this->ignore_first_decode = false;
+    } else {
+      this->decode_total_time += static_cast<double>((tend - tstart).count()) / 1e9;
+      this->decode_total_tokens += 1;
+      this->ProcessNextToken(next_token, generation_config);
+    }
   }
 
   bool Stopped() { return stop_triggered_; }
@@ -1549,6 +1556,7 @@ class LLMChat {
   double prefill_total_time = 0;
   int64_t decode_total_tokens = 0;
   int64_t prefill_total_tokens = 0;
+  bool  ignore_first_decode = true;
   //----------------------------
   // Conversation
   //----------------------------

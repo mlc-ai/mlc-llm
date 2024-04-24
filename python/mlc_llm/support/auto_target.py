@@ -178,17 +178,33 @@ def _build_iphone():
 def _build_android():
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
         output = args.output
-        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
-        assert output.suffix == ".tar"
-        relax.build(
-            mod,
-            target=args.target,
-            pipeline=pipeline,
-            system_lib=True,
-        ).export_library(
-            str(output),
-            fcompile=tar.tar,
-        )
+        assert output.suffix == ".tar" or output.suffix == ".so"
+        if output.suffix == ".so":
+            mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
+            lib = relax.build(
+                mod,
+                target=args.target,
+                pipeline=pipeline,
+            )
+            lib.export_library(
+                str(output),
+                fcompile=ndk.create_shared,
+            )
+            if args.debug_dump is not None:
+                source = lib.mod.imported_modules[0].imported_modules[0].get_source()
+                with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
+                    f.write(source)
+        else:
+            mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
+            relax.build(
+                mod,
+                target=args.target,
+                pipeline=pipeline,
+                system_lib=True,
+            ).export_library(
+                str(output),
+                fcompile=tar.tar,
+            )
 
     return build
 

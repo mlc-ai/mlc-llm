@@ -70,7 +70,11 @@ add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 
 
 tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
+tvm_file_glob(GLOB_RECURSE MLC_CLI_SRCS cpp/cli_main.cc)
+list(REMOVE_ITEM MLC_LLM_SRCS ${MLC_CLI_SRCS})
+
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
+add_library(mlc_cli_objs OBJECT ${MLC_CLI_SRCS})
 
 set(
   MLC_LLM_INCLUDES
@@ -125,9 +129,25 @@ if (BUILD_CPP_TEST)
   target_link_libraries(mlc_llm_cpp_tests PUBLIC mlc_llm gtest gtest_main)
 endif(BUILD_CPP_TEST)
 
+# Example app that may depends on mlc_llm
+add_executable(mlc_chat_cli $<TARGET_OBJECTS:mlc_cli_objs>)
+target_include_directories(mlc_cli_objs PRIVATE ${MLC_LLM_INCLUDES})
+target_include_directories(mlc_cli_objs PRIVATE 3rdparty/argparse/include)
+target_compile_definitions(mlc_cli_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
+
 if (CMAKE_SYSTEM_NAME STREQUAL "Android")
   target_link_libraries(mlc_llm PRIVATE log)
+  target_link_libraries(mlc_chat_cli PRIVATE log)
   target_link_libraries(tokenizers_cpp PRIVATE log)
+endif()
+
+if (MLC_LLM_INSTALL_STATIC_LIB)
+  target_link_libraries(
+    mlc_chat_cli PRIVATE mlc_llm_static tokenizers_cpp sentencepiece-static tokenizers_c)
+  target_link_libraries(
+    mlc_chat_cli PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,tvm_runtime>")
+else()
+  target_link_libraries(mlc_chat_cli PUBLIC mlc_llm)
 endif()
 
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
@@ -165,7 +185,7 @@ if (MLC_LLM_INSTALL_STATIC_LIB)
       )
   endif()
 else()
-  install(TARGETS tvm_runtime mlc_llm mlc_llm_module
+  install(TARGETS mlc_chat_cli tvm_runtime mlc_llm mlc_llm_module
     mlc_llm_static
     tokenizers_cpp
     sentencepiece-static
