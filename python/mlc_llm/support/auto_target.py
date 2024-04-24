@@ -293,14 +293,20 @@ def _build_default():
     return build
 
 
-def detect_cuda_arch_list(target: Target) -> List[str]:
+def detect_cuda_arch_list(target: Target) -> List[int]:
     """Detect the CUDA architecture list from the target."""
+
+    def convert_to_num(arch_str):
+        arch_num_str = "".join(filter(str.isdigit, arch_str))
+        assert arch_num_str, f"'{arch_str}' does not contain any digits"
+        return int(arch_num_str)
+
     assert target.kind.name == "cuda", f"Expect target to be CUDA, but got {target}"
     if MLC_MULTI_ARCH is not None:
-        multi_arch = [x.strip() for x in MLC_MULTI_ARCH.split(",")]
+        multi_arch = [convert_to_num(x) for x in MLC_MULTI_ARCH.split(",")]
     else:
         assert target.arch.startswith("sm_")
-        multi_arch = [target.arch[3:]]
+        multi_arch = [convert_to_num(target.arch[3:])]
     multi_arch = list(set(multi_arch))
     return multi_arch
 
