@@ -816,6 +816,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         It should not exceed the prefill chunk size in model config.
         If not specified, this defaults to the prefill chunk size in model config.
 
+    max_history_size : Optional[int]
+        The maximum history for RNN state.
+
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
@@ -846,6 +849,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
+        max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
         spec_draft_length: int = 4,
@@ -861,6 +865,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             max_batch_size=max_batch_size,
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
+            max_history_size=max_history_size,
             gpu_memory_utilization=gpu_memory_utilization,
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
@@ -1392,6 +1397,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
+        max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
         spec_draft_length: int = 4,
@@ -1407,6 +1413,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             max_batch_size=max_batch_size,
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
+            max_history_size=max_history_size,
             gpu_memory_utilization=gpu_memory_utilization,
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,

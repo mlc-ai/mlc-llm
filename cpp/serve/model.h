@@ -234,9 +234,13 @@ class ModelObj : public Object {
    * in the engine.
    * \param prefill_chunk_size The maximum total number of tokens whose KV data
    * are allowed to exist in the KV cache at any time.
+   * \param max_history_size The maximum history size for RNN state to roll back.
+   * The KV cache does not need this.
+   * \param kv_state_kind The kind of cache. It can be KV cache or RNN state.
    */
   virtual void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                             int prefill_chunk_size) = 0;
+                             int prefill_chunk_size, int max_history_size,
+                             KVStateKind kv_state_kind) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;

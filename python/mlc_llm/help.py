@@ -153,6 +153,11 @@ The maximum number of tokens the model passes for prefill each time.
 It should not exceed the prefill chunk size in model config.
 If not specified, this defaults to the prefill chunk size in model config.
 """.strip(),
+    "max_history_size_serve": """
+The maximum history length for rolling back the RNN state. 
+If unspecified, the default value is 1.
+KV cache does not need this. 
+""".strip(),
     "enable_tracing_serve": """
 Enable Chrome Tracing for the server.
 After enabling, you can send POST request to the "debug/dump_event_trace" entrypoint

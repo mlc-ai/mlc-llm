@@ -239,8 +239,8 @@ EngineConfig::EngineConfig(String model, String model_lib_path, Array<String> ad
                            Array<String> additional_model_lib_paths, DLDevice device,
                            int kv_cache_page_size, int max_num_sequence,
                            int max_total_sequence_length, int max_single_sequence_length,
-                           int prefill_chunk_size, SpeculativeMode speculative_mode,
-                           int spec_draft_length) {
+                           int prefill_chunk_size, int max_history_size, KVStateKind kv_state_kind,
+                           SpeculativeMode speculative_mode, int spec_draft_length) {
   ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
   n->model = std::move(model);
   n->model_lib_path = std::move(model_lib_path);
@@ -252,6 +252,8 @@ EngineConfig::EngineConfig(String model, String model_lib_path, Array<String> ad
   n->max_total_sequence_length = max_total_sequence_length;
   n->max_single_sequence_length = max_single_sequence_length;
   n->prefill_chunk_size = prefill_chunk_size;
+  n->max_history_size = max_history_size;
+  n->kv_state_kind = kv_state_kind;
   n->spec_draft_length = spec_draft_length;
   n->speculative_mode = speculative_mode;
   data_ = std::move(n);
@@ -261,12 +263,13 @@ TVM_REGISTER_GLOBAL("mlc.serve.EngineConfig")
     .set_body_typed([](String model, String model_lib_path, Array<String> additional_models,
                        Array<String> additional_model_lib_paths, DLDevice device,
                        int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
-                       int max_single_sequence_length, int prefill_chunk_size, int speculative_mode,
-                       int spec_draft_length) {
+                       int max_single_sequence_length, int prefill_chunk_size, int max_history_size,
+                       int kv_state_kind, int speculative_mode, int spec_draft_length) {
       return EngineConfig(std::move(model), std::move(model_lib_path), std::move(additional_models),
                           std::move(additional_model_lib_paths), device, kv_cache_page_size,
                           max_num_sequence, max_total_sequence_length, max_single_sequence_length,
-                          prefill_chunk_size, SpeculativeMode(speculative_mode), spec_draft_length);
+                          prefill_chunk_size, max_history_size, KVStateKind(kv_state_kind),
+                          SpeculativeMode(speculative_mode), spec_draft_length);
     });
 
 }  // namespace serve

@@ -69,7 +69,8 @@ class EngineImpl : public Engine {
                                   /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
                            engine_config->max_total_sequence_length,
-                           engine_config->prefill_chunk_size);
+                           engine_config->prefill_chunk_size, engine_config->max_history_size,
+                           engine_config->kv_state_kind);
       CHECK_GE(model->GetMaxWindowSize(), engine_config->max_single_sequence_length)
           << "The window size of the model, " << model->GetMaxWindowSize()
           << ", is smaller than the pre-defined max single sequence length, "

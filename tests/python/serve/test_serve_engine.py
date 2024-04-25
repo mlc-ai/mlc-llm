@@ -2,6 +2,8 @@
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 from typing import List
 
+import pytest
+
 from mlc_llm.serve import GenerationConfig, MLCEngine
 
 prompts = [
@@ -17,17 +19,39 @@ prompts = [
     "Do you know AlphaGo? What capabilities does it have, and what achievements has it got? Please elaborate in detail.",
 ]
 
+test_models = [
+    (
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
+        "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+    ),
+    (
+        "dist/rwkv-6-world-1b6-q0f16-MLC",
+        "dist/rwkv-6-world-1b6-q0f16-MLC/rwkv-6-world-1b6-q0f16-MLC-cuda.so",
+    ),
+]
 
-def test_engine_generate():
-    # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = MLCEngine(
-        model=model,
-        model_lib_path=model_lib_path,
-        mode="server",
-        max_total_sequence_length=4096,
-    )
+
+def create_engine(model: str, model_lib_path: str):
+    if "rwkv" in model:
+        return MLCEngine(
+            model=model,
+            model_lib_path=model_lib_path,
+            mode="server",
+            max_batch_size=8,
+            max_history_size=1,
+        )
+    else:
+        return MLCEngine(
+            model=model,
+            model_lib_path=model_lib_path,
+            mode="server",
+            max_total_sequence_length=4096,
+        )
+
+
+@pytest.mark.parametrize("model,model_lib_path", test_models)
+def test_engine_generate(model: str, model_lib_path: str):
+    engine = create_engine(model, model_lib_path)
 
     num_requests = 10
     max_tokens = 256
@@ -57,16 +81,10 @@ def test_engine_generate():
     del engine
 
 
-def test_chat_completion():
+@pytest.mark.parametrize("model,model_lib_path", test_models)
+def test_chat_completion(model: str, model_lib_path: str):
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = MLCEngine(
-        model=model,
-        model_lib_path=model_lib_path,
-        mode="server",
-        max_total_sequence_length=4096,
-    )
+    engine = create_engine(model, model_lib_path)
 
     num_requests = 2
     max_tokens = 64
@@ -101,16 +119,9 @@ def test_chat_completion():
     del engine
 
 
-def test_chat_completion_non_stream():
-    # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = MLCEngine(
-        model=model,
-        model_lib_path=model_lib_path,
-        mode="server",
-        max_total_sequence_length=4096,
-    )
+@pytest.mark.parametrize("model,model_lib_path", test_models)
+def test_chat_completion_non_stream(model: str, model_lib_path: str):
+    engine = create_engine(model, model_lib_path)
 
     num_requests = 2
     max_tokens = 64
@@ -144,16 +155,9 @@ def test_chat_completion_non_stream():
     del engine
 
 
-def test_completion():
-    # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = MLCEngine(
-        model=model,
-        model_lib_path=model_lib_path,
-        mode="server",
-        max_total_sequence_length=4096,
-    )
+@pytest.mark.parametrize("model,model_lib_path", test_models)
+def test_completion(model: str, model_lib_path: str):
+    engine = create_engine(model, model_lib_path)
 
     num_requests = 2
     max_tokens = 128
@@ -188,16 +192,9 @@ def test_completion():
     del engine
 
 
-def test_completion_non_stream():
-    # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    engine = MLCEngine(
-        model=model,
-        model_lib_path=model_lib_path,
-        mode="server",
-        max_total_sequence_length=4096,
-    )
+@pytest.mark.parametrize("model,model_lib_path", test_models)
+def test_completion_non_stream(model: str, model_lib_path: str):
+    engine = create_engine(model, model_lib_path)
 
     num_requests = 2
     max_tokens = 128
@@ -232,8 +229,9 @@ def test_completion_non_stream():
 
 
 if __name__ == "__main__":
-    test_engine_generate()
-    test_chat_completion()
-    test_chat_completion_non_stream()
-    test_completion()
-    test_completion_non_stream()
+    for model, model_lib_path in test_models:
+        test_engine_generate(model, model_lib_path)
+        test_chat_completion(model, model_lib_path)
+        test_chat_completion_non_stream(model, model_lib_path)
+        test_completion(model, model_lib_path)
+        test_completion_non_stream(model, model_lib_path)
