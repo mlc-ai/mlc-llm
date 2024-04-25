@@ -887,7 +887,7 @@ def _attention_decode(
     THREAD_LIMIT = 512
     TILE_SIZE_PER_BDX = 2
     if target.kind.name == "opencl" and "android" in str(target.host):
-        THREAD_LIMIT = 64
+        THREAD_LIMIT = 256
         TILE_SIZE_PER_BDX = 1
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     thread_limit = min(max_num_threads_per_block, THREAD_LIMIT)
