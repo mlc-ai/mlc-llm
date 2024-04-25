@@ -365,7 +365,7 @@ ConvTemplateRegistry.register_conv_template(
 # RWKV World
 ConvTemplateRegistry.register_conv_template(
     Conversation(
-        name="rwkv-world",
+        name="rwkv_world",
         system_template=f"User: hi\n\nAssistant: {MessagePlaceholders.SYSTEM.value}",
         system_message=(
             "Hi. I am your assistant and I will provide expert full response "

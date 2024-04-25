@@ -40,6 +40,7 @@ class RWKV6Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = -1  # RWKV does not have context window limitation.
     prefill_chunk_size: int = 4096
     num_heads: int = 0
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -126,20 +127,17 @@ def create_wkv6_func(
 
 
 def token_shift(state: Tensor, x: Tensor):
-    seq_len = x.shape[1]
-
     def _te_token_shift(state: te.Tensor, x: te.Tensor):
         return te.compute(
             x.shape,
             lambda b, i, j: tir.if_then_else(i == 0, state[b, j], x[b, i - 1, j]),
         )
 
-    return state if seq_len == 1 else op.tensor_expr_op(_te_token_shift, "token_shift", [state, x])
+    return op.tensor_expr_op(_te_token_shift, "token_shift", [state, x])
 
 
 def last_token(x: Tensor):
     batch, seq_len, hidden_size = x.shape
-    assert batch == 1
 
     def _te_last_token(x: te.Tensor):
         return te.compute((batch, 1, hidden_size), lambda b, _, j: x[b, x.shape[1] - 1, j])
@@ -390,10 +388,14 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
     def embed(self, input_ids: Tensor):
         return self.model.embeddings(input_ids)
 
-    def forward(self, input_embed: Tensor, state: RNNState):
+    def forward(
+        self, input_embed: Tensor, state: RNNState, logit_positions: Optional[Tensor] = None
+    ):
         """Forward pass."""
         hidden_states, state = self.model(input_embed, state)
         hidden_states = last_token(hidden_states)
+        if logit_positions is not None:
+            hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -407,11 +409,27 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         """Decoding step."""
         return self.forward(input_embed, state)
 
+    def batch_prefill(self, input_embeds: Tensor, logit_positions: Tensor, state: RNNState):
+        """Prefilling the prompt."""
+        return self.forward(input_embeds, state, logit_positions=logit_positions)
+
+    def batch_decode(self, input_embeds: Tensor, state: RNNState):
+        """Decoding step."""
+        return self.forward(input_embeds, state)
+
+    def batch_verify(self, input_embeds: Tensor, state: RNNState):
+        """Verify step."""
+        return self.forward(input_embeds, state)
+
     def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
         """Softmax."""
-        return op.softmax(logits / temperature, axis=-1)
+        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
 
-    def create_rnn_state(self, max_batch_size: tir.Var, max_history: tir.Var) -> Object:
+    def create_rnn_state(
+        self,
+        max_batch_size: tir.Var,
+        max_history: tir.Var,
+    ) -> Object:
         """Create RNN state."""
         init_values = [
             op.zeros((self.hidden_size,), dtype=self.dtype),  # ATT_X
@@ -426,7 +444,6 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         )
 
     def get_default_spec(self):
-        batch_size = 1
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
@@ -436,9 +453,7 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [batch_size, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",
@@ -446,7 +461,32 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "decode": {
-                "input_embed": nn.spec.Tensor([batch_size, 1, self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",
@@ -454,8 +494,8 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "softmax_with_temperature": {
-                "logits": nn.spec.Tensor([batch_size, 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor([], "float32"),
+                "logits": nn.spec.Tensor(["batch_size", 1, "vocab_size"], "float32"),
+                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
                 "$": {
                     "param_mode": "none",
                     "effect_mode": "none",

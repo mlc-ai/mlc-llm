@@ -13,6 +13,7 @@
 
 #include <fstream>
 
+#include "config.h"
 #include "logit_processor.h"
 
 namespace mlc {
@@ -68,6 +69,12 @@ class ModelImpl : public ModelObj {
     token_ids_storage_ = memory::Storage(
         allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
     this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
+    // Step 7. Set model type
+    if (model_config["model_type"].get<std::string>().find("rwkv") != std::string::npos) {
+      this->kind = KVStateKind::kRNNState;
+    } else {
+      this->kind = KVStateKind::kAttention;
+    }
   }
 
   /*********************** Model Computation  ***********************/
@@ -739,16 +746,26 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                     int prefill_chunk_size) final {
-    IntTuple max_num_sequence_tuple{max_num_sequence};
-    IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
-    IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
-    IntTuple page_size_tuple{page_size};
-    IntTuple support_sliding_window{sliding_window_size_ != -1};
-    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
-                                          prefill_chunk_size_tuple, page_size_tuple,
-                                          support_sliding_window);
-    local_kv_cache_ = ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+                     int prefill_chunk_size, int max_history_size,
+                     KVStateKind kv_state_kind) final {
+    if (kv_state_kind == KVStateKind::kAttention) {
+      IntTuple max_num_sequence_tuple{max_num_sequence};
+      IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
+      IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
+      IntTuple page_size_tuple{page_size};
+      IntTuple support_sliding_window{sliding_window_size_ != -1};
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
+                                            prefill_chunk_size_tuple, page_size_tuple,
+                                            support_sliding_window);
+      local_kv_cache_ =
+          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+    } else {
+      IntTuple max_num_sequence_tuple{max_num_sequence};
+      IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple);
+      local_kv_cache_ =
+          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+    }
   }
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
@@ -775,11 +792,21 @@ class ModelImpl : public ModelObj {
   /************** Raw Info Query **************/
 
   int GetNumAvailablePages() const final {
-    return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+    if (this->kind == KVStateKind::kRNNState) {
+      // RNNState does not introduce new page at runtime
+      return std::numeric_limits<int>::max();
+    } else {
+      return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+    }
   }
 
   int GetCurrentTotalSequenceLength() const final {
-    return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
+    if (this->kind == KVStateKind::kRNNState) {
+      // RNNState does not have a total sequence length limit
+      return 0;
+    } else {
+      return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
+    }
   }
 
   /*********************** Utilities  ***********************/
@@ -946,6 +973,8 @@ class ModelImpl : public ModelObj {
   NDArray logit_pos_arr_{nullptr};
   // A boolean indicating if tracing is enabled.
   bool trace_enabled_;
+  // An enum indicating whether it's RNN-based.
+  KVStateKind kind;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")

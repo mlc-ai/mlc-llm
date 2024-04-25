@@ -128,6 +128,13 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         return GenerationConfig(**json.loads(json_str))
 
 
+class KVStateKind(enum.IntEnum):  # pylint: disable=too-few-public-methods
+    """Possible kinds of KV state."""
+
+    ATTENTION = 0
+    RNNSTATE = 1
+
+
 class SpeculativeMode(enum.IntEnum):
     """The speculative mode."""
 
@@ -177,6 +184,12 @@ class EngineConfig(tvm.runtime.Object):
     prefill_chunk_size : int
         The maximum total sequence length in a prefill.
 
+    max_history_size: int
+        The maximum history size for RNN state to rool back.
+
+    kv_state_kind: KVStateKind
+        The kind of cache.
+
     speculative_mode : SpeculativeMode
         The speculative mode.
 
@@ -196,6 +209,8 @@ class EngineConfig(tvm.runtime.Object):
         max_total_sequence_length: int,
         max_single_sequence_length: int,
         prefill_chunk_size: int,
+        max_history_size: int,
+        kv_state_kind: KVStateKind,
         speculative_mode: SpeculativeMode,
         spec_draft_length: int,
     ) -> None:
@@ -211,6 +226,8 @@ class EngineConfig(tvm.runtime.Object):
             max_total_sequence_length,
             max_single_sequence_length,
             prefill_chunk_size,
+            max_history_size,
+            kv_state_kind,
             speculative_mode,
             spec_draft_length,
         )
