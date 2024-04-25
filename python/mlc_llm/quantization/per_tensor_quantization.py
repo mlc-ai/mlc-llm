@@ -112,7 +112,10 @@ class PerTensorQuantize:
                 ):
                     self.quant_map.param_map[weight_name] = param_names
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
-                    return PerTensorQuantizeLinear.from_linear(node, self.config)
+                    op = PerTensorQuantizeLinear.from_linear(node, self.config)
+                    if hasattr(op, "add_calibration_params"):
+                        self.quant_map = op.add_calibration_params(self.quant_map, name)
+                    return op
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     self.quant_map.param_map[weight_name] = param_names
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
@@ -201,7 +204,9 @@ class PerTensorQuantize:
                 max_int_value=self.max_int_value,
             )
 
-        if self.num_elem_per_storage == 1:
+        if self.weight_dtype == self.storage_dtype:
+            quantized_weight = scaled_weight
+        elif self.num_elem_per_storage == 1:
             quantized_weight = nn.tensor_expr_op(
                 lambda scaled_weight: te.compute(
                     shape=scaled_weight.shape,
@@ -276,7 +281,9 @@ class PerTensorQuantize:
         if out_shape is None:
             out_shape = (*q_weight.shape[:-1], q_weight.shape[-1] * self.num_elem_per_storage)
 
-        if self.num_elem_per_storage == 1:
+        if self.weight_dtype == self.storage_dtype:
+            weight = q_weight.astype(self.model_dtype)
+        elif self.num_elem_per_storage == 1:
             weight = te.compute(
                 shape=out_shape,
                 fcompute=lambda *idx: tir.reinterpret(self.weight_dtype, q_weight(*idx)).astype(
@@ -348,6 +355,24 @@ class PerTensorQuantizeLinear(nn.Module):
 
     @classmethod
     def from_linear(cls, src: nn.Linear, config: PerTensorQuantize) -> "PerTensorQuantizeLinear":
+
+        if (
+            DataType(config.weight_dtype).type_code
+            in [
+                DataTypeCode.E4M3Float,
+                DataTypeCode.E5M2Float,
+            ]
+            # Activation calibration
+            and any(q_kind in config.name for q_kind in ["max", "cast"])
+        ):
+            from .fp8_quantization import PTQLinearFP8
+
+            quantized_linear = PTQLinearFP8.from_linear(
+                src,
+                config,
+            )
+            return quantized_linear
+
         # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tir.Var("name")`
         out_features, in_features = src.weight.shape
         quantized_linear = cls(
@@ -573,15 +598,12 @@ class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-in
         ]:
             from .fp8_quantization import MixtralExpertsFP8
 
-            # TODO(wuwei): refactor this interface to only pass the conifg
             quantized_mixtral_experts = MixtralExpertsFP8.from_mixtral_experts(
                 src,
                 config,
-                config.activation_dtype,
-                config.weight_dtype,
-                runtime="max" if "calibration" not in config.name else "max-calibration",
             )
-            quantized_mixtral_experts.no_scale = config.no_scale
+            # TODO(csullivan): Confirm with @vinx13 and delete this before merge
+            # quantized_mixtral_experts.no_scale = config.no_scale
         else:
             raise NotImplementedError()
         return quantized_mixtral_experts

@@ -139,6 +139,30 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_embedding=False,
         quantize_linear=False,
     ),
+    "ptq_e4m3_e4m3_max_calibration": PerTensorQuantize(
+        name="ptq_e4m3_e4m3_max_calibration",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
+        storage_dtype="e4m3_float8",
+        model_dtype="float16",
+        quantize_embedding=False,
+        quantize_linear=True,
+        # TODO(csullivan): Refactor sharding of calibration scale
+        # to enable lm_head quantization for TP > 1
+        quantize_final_fc=False,
+    ),
+    "ptq_e4m3_e4m3_max": PerTensorQuantize(
+        name="ptq_e4m3_e4m3_max",
+        kind="per-tensor-quant",
+        activation_dtype="e4m3_float8",
+        weight_dtype="e4m3_float8",
+        storage_dtype="e4m3_float8",
+        model_dtype="float16",
+        quantize_embedding=False,
+        quantize_linear=True,
+        quantize_final_fc=False,
+    ),
     "smq_q8i8f16_0": SmoothQuantize(
         name="smq_q8i8f16_0",
         kind="smoothquant",
