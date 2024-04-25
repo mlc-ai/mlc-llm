@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "conv_template.h"
+#include "config.h"
 #include "picojson.h"
 
 namespace mlc {

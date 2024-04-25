@@ -706,6 +706,28 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
     )
 
 
+def _infer_generation_config(
+    model_config_dicts: List[Dict[str, Any]]
+) -> List[Tuple[float, float, float, float]]:
+    """Infer the generation config from the model config dictionaries.
+    The returned four floats are:
+    - temperature
+    - top_p
+    - frequency_penalty
+    - presence_penalty
+    """
+    generation_configs = []
+
+    for model_config in model_config_dicts:
+        temperature = model_config.get("temperature", 1.0)
+        top_p = model_config.get("top_p", 1.0)
+        frequency_penalty = model_config.get("frequency_penalty", 0.0)
+        presence_penalty = model_config.get("presence_penalty", 0.0)
+        generation_configs.append((temperature, top_p, frequency_penalty, presence_penalty))
+
+    return generation_configs
+
+
 @dataclass
 class CallbackStreamOutput:
     """The output of MLCEngine._generate and AsyncMLCEngine._generate
