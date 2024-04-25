@@ -90,8 +90,8 @@ class ChatCompletionRequest {
  public:
   std::vector<ChatCompletionMessage> messages;
   std::string model;
-  double frequency_penalty = 0.0;
-  double presence_penalty = 0.0;
+  std::optional<double> frequency_penalty = std::nullopt;
+  std::optional<double> presence_penalty = std::nullopt;
   bool logprobs = false;
   int top_logprobs = 0;
   std::optional<std::unordered_map<int, double>> logit_bias = std::nullopt;
@@ -100,8 +100,8 @@ class ChatCompletionRequest {
   std::optional<int> seed = std::nullopt;
   std::optional<std::vector<std::string>> stop = std::nullopt;
   bool stream = false;
-  double temperature = 1.0;
-  double top_p = 1.0;
+  std::optional<double> temperature = std::nullopt;
+  std::optional<double> top_p = std::nullopt;
   std::optional<std::vector<ChatTool>> tools = std::nullopt;
   std::optional<std::string> tool_choice = std::nullopt;
   std::optional<std::string> user = std::nullopt;
