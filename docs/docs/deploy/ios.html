@@ -590,9 +590,21 @@ mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/mode
 mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/phi-2/<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>phi-2<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>-o<span class="w"> </span>dist/phi-2-q4f16_1-MLC/
-<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
+<span class="c1"># 2. mkdir: create a directory to store the compiled model library</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>dist/libs
+<span class="c1"># 3. compile: compile model library with specification in mlc-chat-config.json</span>
 mlc_llm<span class="w"> </span>compile<span class="w"> </span>./dist/phi-2-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/libs/phi-2-q4f16_1-iphone.tar
+</pre></div>
+</div>
+<p>Given the compiled library, it is possible to calculate an upper bound for the VRAM
+usage during runtime. This useful to better understand if a model is able to fit particular
+hardware.
+That information will be displayed at the end of the console log when the <code class="docutils literal notranslate"><span class="pre">compile</span></code> is executed.
+It might look something like this:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>model_metadata.py:96:<span class="w"> </span>Total<span class="w"> </span>memory<span class="w"> </span>usage:<span class="w"> </span><span class="m">1625</span>.73<span class="w"> </span>MB<span class="w"> </span><span class="o">(</span>Parameters:<span class="w"> </span><span class="m">1492</span>.45<span class="w"> </span>MB.<span class="w"> </span>KVCache:<span class="w"> </span><span class="m">0</span>.00<span class="w"> </span>MB.<span class="w"> </span>Temporary<span class="w"> </span>buffer:<span class="w"> </span><span class="m">133</span>.28<span class="w"> </span>MB<span class="o">)</span>
+<span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>model_metadata.py:105:<span class="w"> </span>To<span class="w"> </span>reduce<span class="w"> </span>memory<span class="w"> </span>usage,<span class="w"> </span>tweak<span class="w"> </span><span class="sb">`</span>prefill_chunk_size<span class="sb">`</span>,<span class="w"> </span><span class="sb">`</span>context_window_size<span class="sb">`</span><span class="w"> </span>and<span class="w"> </span><span class="sb">`</span>sliding_window_size<span class="sb">`</span>
+<span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>compile.py:198:<span class="w"> </span>Generated:<span class="w"> </span>dist/libs/phi-2-q4f16_1-iphone.tar
 </pre></div>
 </div>
 <div class="admonition note">
@@ -629,17 +641,7 @@ git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </
 </pre></div>
 </div>
 <p>This would result in something like <a class="reference external" href="https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC/tree/main">phi-2-q4f16_1-MLC</a>.</p>
-<p><strong>Step 4. Calculate estimated VRAM usage</strong></p>
-<p>Given the compiled library, it is possible to calculate an upper bound for the VRAM
-usage during runtime. This useful to better understand if a model is able to fit particular
-hardware. We can calculate this estimate using the following command:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>mlc_llm.cli.model_metadata<span class="w"> </span>./dist/libs/phi-2-q4f16_1-iphone.tar<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>&gt;<span class="w"> </span>--memory-only<span class="w"> </span>--mlc-chat-config<span class="w"> </span>./dist/phi-2-q4f16_1-MLC/mlc-chat-config.json
-<span class="w">  </span>INFO<span class="w"> </span>model_metadata.py:90:<span class="w"> </span>Total<span class="w"> </span>memory<span class="w"> </span>usage:<span class="w"> </span><span class="m">3042</span>.96<span class="w"> </span>MB<span class="w"> </span><span class="o">(</span>Parameters:<span class="w"> </span><span class="m">1492</span>.45<span class="w"> </span>MB.<span class="w"> </span>KVCache:<span class="w"> </span><span class="m">640</span>.00<span class="w"> </span>MB.<span class="w"> </span>Temporary<span class="w"> </span>buffer:<span class="w"> </span><span class="m">910</span>.51<span class="w"> </span>MB<span class="o">)</span>
-<span class="w">  </span>INFO<span class="w"> </span>model_metadata.py:99:<span class="w"> </span>To<span class="w"> </span>reduce<span class="w"> </span>memory<span class="w"> </span>usage,<span class="w"> </span>tweak<span class="w"> </span><span class="sb">`</span>prefill_chunk_size<span class="sb">`</span>,<span class="w"> </span><span class="sb">`</span>context_window_size<span class="sb">`</span><span class="w"> </span>and<span class="w"> </span><span class="sb">`</span>sliding_window_size<span class="sb">`</span>
-</pre></div>
-</div>
-<p><strong>Step 5. Register as a ModelRecord</strong></p>
+<p><strong>Step 4. Register as a ModelRecord</strong></p>
 <p>Finally, we update the code snippet for
 <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json">app-config.json</a>
 pasted above.</p>
