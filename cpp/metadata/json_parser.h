@@ -150,6 +150,22 @@ inline ValueType Lookup(const picojson::object& json, const std::string& key) {
 }
 
 template <typename ValueType>
+inline ValueType LookupOrDefault(const picojson::object& json, const std::string& key,
+                                 const ValueType& default_value) {
+  auto it = json.find(key);
+  if (it == json.end()) {
+    return default_value;
+  }
+
+  if (it->second.is<picojson::null>()) {
+    return default_value;
+  }
+
+  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
+  return it->second.get<ValueType>();
+}
+
+template <typename ValueType>
 inline ValueType Lookup(const picojson::array& json, int index) {
   CHECK(index < json.size()) << "IndexError: json::array index out of range";
   auto value = json.at(index);

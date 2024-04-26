@@ -62,7 +62,7 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
         # search mlc-chat-config.json under path
         mlc_chat_config_json_path = mlc_chat_config_path / "mlc-chat-config.json"
         if not mlc_chat_config_json_path.exists():
-            raise ValueError(f"Fail to find mlc_chat_config.json under {mlc_chat_config_path}.")
+            raise ValueError(f"Fail to find mlc-chat-config.json under {mlc_chat_config_path}.")
     else:
         mlc_chat_config_json_path = mlc_chat_config_path
 

@@ -12,7 +12,7 @@
 
 #include "../serve/threaded_engine.h"
 #include "../streamer.h"
-#include "conv_template.h"
+#include "config.h"
 #include "openai_api_protocol.h"
 
 namespace mlc {
@@ -49,6 +49,7 @@ class JSONFFIEngine {
   PackedFunc request_stream_callback_;
   TextStreamer streamer_;  // TODO: Support "n", and support different streamers for each request
   Conversation conv_template_;
+  Map<String, ModelDefinedGenerationConfig> model_generation_cfgs;
 };
 
 }  // namespace json_ffi

@@ -11,7 +11,7 @@
 
 #include <optional>
 
-#include "../json_ffi/conv_template.h"
+#include "../json_ffi/config.h"
 
 namespace mlc {
 namespace llm {
@@ -63,11 +63,13 @@ class GenerationConfig : public ObjectRef {
   explicit GenerationConfig(String config_json_str);
 
   /*!
-   * \brief Parse the generation config from the given JSON string.
-   * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
+   * \brief Create a generation config from a ChatCompletionRequest.
+   * If the request does not contain a generation config, the model-defined
+   * generation config will be used.
    */
-  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err,
-                                             const Conversation& conv_template);
+  static Optional<GenerationConfig> Create(
+      const std::string& json_str, std::string* err, const Conversation& conv_template,
+      const ModelDefinedGenerationConfig& model_defined_gen_config);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };

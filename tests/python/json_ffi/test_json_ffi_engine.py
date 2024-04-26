@@ -6,6 +6,7 @@ import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 import tvm
+from tests.python.json_ffi import _ffi_api
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
@@ -58,6 +59,32 @@ tools = [
         },
     }
 ]
+
+
+@tvm._ffi.register_object(
+    "mlc.json_ffi.ModelDefinedGenerationConfig"
+)  # pylint: disable=protected-access
+class ModelDefinedGenerationConfig(tvm.runtime.Object):
+    def __init__(  # pylint: disable=too-many-arguments
+        self, temperature: float, top_p: float, frequency_penalty: float, presence_penalty: float
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.ModelDefinedGenerationConfig,
+            temperature,
+            top_p,
+            frequency_penalty,
+            presence_penalty,
+        )
+
+
+@tvm._ffi.register_object("mlc.json_ffi.JSONFFIEngineConfig")  # pylint: disable=protected-access
+class JSONFFIEngineConfig(tvm.runtime.Object):
+    def __init__(  # pylint: disable=too-many-arguments
+        self, conv_template: str, model_generation_cfgs: Dict[str, ModelDefinedGenerationConfig]
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.JSONFFIEngineConfig, conv_template, model_generation_cfgs
+        )
 
 
 class EngineState:
@@ -171,8 +198,22 @@ class JSONFFIEngine:
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
         )
+
+        self.json_ffi_engine_config = JSONFFIEngineConfig(
+            conv_template=self.conv_template.model_dump_json(),
+            model_generation_cfgs={
+                model.model: ModelDefinedGenerationConfig(
+                    temperature=model_config["temperature"],
+                    top_p=model_config["top_p"],
+                    frequency_penalty=model_config["frequency_penalty"],
+                    presence_penalty=model_config["presence_penalty"],
+                )
+                for model, model_config in zip(models, self.model_config_dicts)
+            },
+        )
+
         self._ffi["init_background_engine"](
-            self.conv_template.model_dump_json(),
+            self.json_ffi_engine_config,
             self.engine_config,
             self.state.get_request_stream_callback(),
             None,
@@ -204,8 +245,8 @@ class JSONFFIEngine:
         *,
         messages: List[Dict[str, Any]],
         model: str,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -214,8 +255,8 @@ class JSONFFIEngine:
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,

@@ -83,8 +83,8 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   Array<Data> inputs = inputs_obj.value();
 
   // generation_cfg
-  Optional<GenerationConfig> generation_cfg =
-      GenerationConfig::FromJSON(request_json_str, &err_, conv_template);
+  Optional<GenerationConfig> generation_cfg = GenerationConfig::Create(
+      request_json_str, &err_, conv_template, this->model_generation_cfgs[request.model]);
   if (!generation_cfg.defined()) {
     return false;
   }
@@ -122,14 +122,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundEngine(std::string conv_template_str, EngineConfig engine_config,
+  void InitBackgroundEngine(JSONFFIEngineConfig json_ffi_engine_config, EngineConfig engine_config,
                             Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
-    std::optional<Conversation> conv_template = Conversation::FromJSON(conv_template_str, &err_);
+    std::optional<Conversation> conv_template =
+        Conversation::FromJSON(json_ffi_engine_config->conv_template, &err_);
     if (!conv_template.has_value()) {
       LOG(FATAL) << "Invalid conversation template JSON: " << err_;
     }
     this->conv_template_ = conv_template.value();
+    this->model_generation_cfgs = json_ffi_engine_config->model_generation_cfgs;
 
     // Todo(mlc-team): decouple InitBackgroundEngine into two functions
     // by removing `engine_config` from arguments, after properly handling

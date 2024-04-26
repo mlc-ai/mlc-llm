@@ -223,7 +223,7 @@ class ChatCompletionRequest(BaseModel):
     @classmethod
     def check_penalty_range(cls, penalty_value: float) -> float:
         """Check if the penalty value is in range [-2, 2]."""
-        if penalty_value < -2 or penalty_value > 2:
+        if penalty_value and (penalty_value < -2 or penalty_value > 2):
             raise ValueError("Penalty value should be in range [-2, 2].")
         return penalty_value
 

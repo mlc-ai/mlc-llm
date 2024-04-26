@@ -161,15 +161,26 @@ GenerationConfig::GenerationConfig(String config_json_str) {
   data_ = std::move(n);
 }
 
-Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_str, std::string* err,
-                                                      const Conversation& conv_template) {
-  std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
-  if (!err->empty() || !json_obj.has_value()) {
+Optional<GenerationConfig> GenerationConfig::Create(
+    const std::string& json_str, std::string* err, const Conversation& conv_template,
+    const ModelDefinedGenerationConfig& model_defined_gen_config) {
+  std::optional<picojson::object> optional_json_obj = json::LoadJSONFromString(json_str, err);
+  if (!err->empty() || !optional_json_obj.has_value()) {
     return NullOpt;
   }
+  picojson::object& json_obj = optional_json_obj.value();
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
 
-  // TODO(mlc-team): Pass the parameters from `json_obj` to `n`.
+  n->temperature =
+      json::LookupOrDefault<double>(json_obj, "temperature", model_defined_gen_config->temperature);
+  n->top_p = json::LookupOrDefault<double>(json_obj, "top_p", model_defined_gen_config->top_p);
+  n->frequency_penalty = json::LookupOrDefault<double>(json_obj, "frequency_penalty",
+                                                       model_defined_gen_config->frequency_penalty);
+  n->presence_penalty = json::LookupOrDefault<double>(json_obj, "presence_penalty",
+                                                      model_defined_gen_config->presence_penalty);
+  n->logprobs = json::LookupOrDefault<bool>(json_obj, "logprobs", false);
+  n->top_logprobs = static_cast<int>(json::LookupOrDefault<double>(json_obj, "top_logprobs", 0));
+  n->ignore_eos = json::LookupOrDefault<bool>(json_obj, "ignore_eos", false);
 
   // Copy stop str from conversation template to generation config
   for (auto& stop_str : conv_template.stop_str) {
@@ -179,9 +190,6 @@ Optional<GenerationConfig> GenerationConfig::FromJSON(const std::string& json_st
     n->stop_token_ids.push_back(stop_token_id);
   }
 
-  if (!err->empty()) {
-    return NullOpt;
-  }
   GenerationConfig gen_config;
   gen_config.data_ = std::move(n);
   return gen_config;

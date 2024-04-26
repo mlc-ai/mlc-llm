@@ -1,5 +1,9 @@
-#ifndef MLC_LLM_JSON_FFI_CONV_TEMPLATE_H
-#define MLC_LLM_JSON_FFI_CONV_TEMPLATE_H
+#ifndef MLC_LLM_JSON_FFI_CONFIG_H
+#define MLC_LLM_JSON_FFI_CONFIG_H
+
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/object.h>
 
 #include <iostream>
 #include <map>
@@ -17,6 +21,32 @@ using namespace mlc::llm::serve;
 namespace mlc {
 namespace llm {
 namespace json_ffi {
+
+/****************** Model-defined generation config ******************/
+
+class ModelDefinedGenerationConfigNode : public Object {
+ public:
+  double temperature;
+  double top_p;
+  double frequency_penalty;
+  double presence_penalty;
+
+  static constexpr const char* _type_key = "mlc.json_ffi.ModelDefinedGenerationConfig";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_BASE_OBJECT_INFO(ModelDefinedGenerationConfigNode, Object);
+};
+
+class ModelDefinedGenerationConfig : public ObjectRef {
+ public:
+  explicit ModelDefinedGenerationConfig(double temperature, double top_p, double frequency_penalty,
+                                        double presence_penalty);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(ModelDefinedGenerationConfig, ObjectRef,
+                                ModelDefinedGenerationConfigNode);
+};
+
+/****************** Conversation template ******************/
 
 enum class MessagePlaceholders { SYSTEM, USER, ASSISTANT, TOOL, FUNCTION };
 
@@ -112,6 +142,27 @@ struct Conversation {
    * When creation fails, errors are dumped to the input error string, and nullopt is returned.
    */
   static std::optional<Conversation> FromJSON(const std::string& json_str, std::string* err);
+};
+
+/****************** JSON FFI engine config ******************/
+
+class JSONFFIEngineConfigNode : public Object {
+ public:
+  String conv_template;
+  Map<String, ModelDefinedGenerationConfig> model_generation_cfgs;
+
+  static constexpr const char* _type_key = "mlc.json_ffi.JSONFFIEngineConfig";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  TVM_DECLARE_BASE_OBJECT_INFO(JSONFFIEngineConfigNode, Object);
+};
+
+class JSONFFIEngineConfig : public ObjectRef {
+ public:
+  explicit JSONFFIEngineConfig(String conv_template,
+                               Map<String, ModelDefinedGenerationConfig> model_generation_cfgs);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(JSONFFIEngineConfig, ObjectRef, JSONFFIEngineConfigNode);
 };
 
 }  // namespace json_ffi
