@@ -3,7 +3,7 @@
 from tvm.target import Target
 
 
-def get_max_num_threads_per_block(target: Target):
+def get_max_num_threads_per_block(target: Target) -> int:
     """
     max(max_num_threads, max_threads_per_block); if latter does not exist, return max_num_threads.
     We add this method since some targets have both fields and `max_threads_per_block` is larger.
