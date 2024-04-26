@@ -18,6 +18,7 @@ from mlc_llm.support import tensor_parallel as tp
 
 from .utils import (
     is_final_fc,
+    is_moe_gate,
     convert_uint_packed_fp8_to_float,
     compile_quantize_func,
     apply_sharding,
@@ -108,6 +109,7 @@ class PerTensorQuantize:
                 if (
                     isinstance(node, nn.Linear)
                     and self.config.quantize_linear
+                    and not is_moe_gate(name)
                     and (not is_final_fc(name) or self.config.quantize_final_fc)
                 ):
                     self.quant_map.param_map[weight_name] = param_names
