@@ -159,9 +159,8 @@ class JSONFFIEngineConfigNode : public Object {
 
 class JSONFFIEngineConfig : public ObjectRef {
  public:
-  explicit JSONFFIEngineConfig(
-      String conv_template,
-      Map<String, ModelDefinedGenerationConfig> model_generation_cfgs);
+  explicit JSONFFIEngineConfig(String conv_template,
+                               Map<String, ModelDefinedGenerationConfig> model_generation_cfgs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(JSONFFIEngineConfig, ObjectRef, JSONFFIEngineConfigNode);
 };

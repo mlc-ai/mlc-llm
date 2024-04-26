@@ -6,6 +6,7 @@ import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 import tvm
+from tests.python.json_ffi import _ffi_api
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
@@ -18,8 +19,6 @@ from mlc_llm.serve.engine_base import (
     detect_device,
 )
 from mlc_llm.tokenizer import Tokenizer
-
-from tests.python.json_ffi import _ffi_api
 
 chat_completion_prompts = [
     "What is the meaning of life?",
