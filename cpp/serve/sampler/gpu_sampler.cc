@@ -311,13 +311,19 @@ class GPUSampler : public SamplerObj {
     int vocab_size = probs_on_device->shape[1];
     if (output_prob_dist != nullptr) {
       ICHECK(output_prob_dist->empty());
-      output_prob_dist->reserve(num_probs);
-      for (int i = 0; i < num_probs; ++i) {
+      output_prob_dist->reserve(num_samples);
+      for (int i = 0; i < num_samples; ++i) {
         NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
-        float* p_prob = static_cast<float*>(probs_on_device->data) + i * vocab_size;
+        float* p_prob = static_cast<float*>(probs_on_device->data) + sample_indices[i] * vocab_size;
         prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
         output_prob_dist->push_back(std::move(prob_dist));
       }
+    }
+    if (num_samples == 0) {
+      // This synchronization is necessary for making sure that this round
+      // of model forward is finished.
+      TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+      return {};
     }
     ICHECK_EQ(request_ids.size(), num_samples);
     ICHECK_EQ(generation_cfg.size(), num_samples);
@@ -580,7 +586,7 @@ class GPUSampler : public SamplerObj {
     }
 
     // Synchronize for CPU to get the correct array results.
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
 
     return {sampled_token_ids_host, sampled_probs_host, top_prob_probs_host, top_prob_indices_host};
   }
