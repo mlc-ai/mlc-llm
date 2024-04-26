@@ -17,7 +17,6 @@ import tvm
 from tvm.runtime import Device
 
 from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
-from mlc_llm.cli.model_metadata import _compute_memory_usage, _extract_metadata
 from mlc_llm.protocol import openai_api_protocol, protocol_utils
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data, engine_utils
@@ -263,9 +262,27 @@ def _estimate_mem_usage_and_max_history_size_for_rnn_state(  # pylint: disable=t
 
     rnn_state_base_bytes = 0.0  # the memory usage for rnn state when history = 1
     param_bytes = 0.0
+    temp_func_bytes = 0.0
     model_workspace_bytes = 0.0
     logit_processor_workspace_bytes = 0.0
-    for model, model_config_dict in zip(models, model_config_dicts):
+    for model, model_config_path, model_config_dict in zip(
+        models, model_config_paths, model_config_dicts
+    ):
+        # Read metadata for the parameter size and the temporary memory size.
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlc_llm.cli.model_metadata",
+            model.model_lib_path,
+            "--print-memory-usage-in-json",
+            "--mlc-chat-config",
+            model_config_path,
+        ]
+        usage_str = subprocess.check_output(cmd, universal_newlines=True)
+        usage_json = json.loads(usage_str)
+        param_bytes += usage_json["params_bytes"]
+        temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
+
         model_config = model_config_dict["model_config"]
         vocab_size = model_config_dict["vocab_size"]
         head_size = model_config["head_size"]
@@ -288,18 +305,13 @@ def _estimate_mem_usage_and_max_history_size_for_rnn_state(  # pylint: disable=t
             + max_num_sequence * num_heads * head_size * head_size * num_layers * 2
         )
 
-        metadata = _extract_metadata(Path(model.model_lib_path))
-        metadata["memory_usage"] = {}
-        metadata["kv_cache_bytes"] = 0
-        current_param_bytes, _, _ = _compute_memory_usage(metadata, model_config_dict)
-        param_bytes += current_param_bytes
-
     max_history_size = int(
         (
             gpu_size_bytes * gpu_memory_utilization
             - logit_processor_workspace_bytes
             - model_workspace_bytes
             - param_bytes
+            - temp_func_bytes
         )
         / rnn_state_base_bytes
     )
@@ -311,7 +323,7 @@ def _estimate_mem_usage_and_max_history_size_for_rnn_state(  # pylint: disable=t
 
     return (
         param_bytes,
-        model_workspace_bytes + logit_processor_workspace_bytes,
+        model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes,
         rnn_state_base_bytes,
         max_history_size,
     )
