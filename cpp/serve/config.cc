@@ -244,17 +244,16 @@ String GenerationConfigNode::AsJSONString() const {
 TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
 
 EngineConfig::EngineConfig(String model, String model_lib_path, Array<String> additional_models,
-                           Array<String> additional_model_lib_paths, DLDevice device,
-                           int kv_cache_page_size, int max_num_sequence,
-                           int max_total_sequence_length, int max_single_sequence_length,
-                           int prefill_chunk_size, int max_history_size, KVStateKind kv_state_kind,
+                           Array<String> additional_model_lib_paths, int kv_cache_page_size,
+                           int max_num_sequence, int max_total_sequence_length,
+                           int max_single_sequence_length, int prefill_chunk_size,
+                           int max_history_size, KVStateKind kv_state_kind,
                            SpeculativeMode speculative_mode, int spec_draft_length) {
   ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
   n->model = std::move(model);
   n->model_lib_path = std::move(model_lib_path);
   n->additional_models = std::move(additional_models);
   n->additional_model_lib_paths = std::move(additional_model_lib_paths);
-  n->device = device;
   n->kv_cache_page_size = kv_cache_page_size;
   n->max_num_sequence = max_num_sequence;
   n->max_total_sequence_length = max_total_sequence_length;
@@ -267,14 +266,60 @@ EngineConfig::EngineConfig(String model, String model_lib_path, Array<String> ad
   data_ = std::move(n);
 }
 
+EngineConfig EngineConfig::FromJSONString(const std::string& json_str) {
+  picojson::value config_json;
+  std::string err = picojson::parse(config_json, json_str);
+  if (!err.empty()) {
+    LOG(FATAL) << err;
+  }
+
+  // Get json fields.
+  picojson::object config = config_json.get<picojson::object>();
+  String model = json::Lookup<std::string>(config, "model");
+  String model_lib_path = json::Lookup<std::string>(config, "model_lib_path");
+  std::vector<String> additional_models;
+  std::vector<String> additional_model_lib_paths;
+  int kv_cache_page_size = json::Lookup<int64_t>(config, "kv_cache_page_size");
+  int max_num_sequence = json::Lookup<int64_t>(config, "max_num_sequence");
+  int max_total_sequence_length = json::Lookup<int64_t>(config, "max_total_sequence_length");
+  int max_single_sequence_length = json::Lookup<int64_t>(config, "max_single_sequence_length");
+  int prefill_chunk_size = json::Lookup<int64_t>(config, "prefill_chunk_size");
+  int max_history_size = json::Lookup<int64_t>(config, "max_history_size");
+  KVStateKind kv_state_kind =
+      static_cast<KVStateKind>(json::Lookup<int64_t>(config, "kv_state_kind"));
+  SpeculativeMode speculative_mode =
+      static_cast<SpeculativeMode>(json::Lookup<int64_t>(config, "speculative_mode"));
+  int spec_draft_length = json::Lookup<int64_t>(config, "spec_draft_length");
+
+  picojson::array additional_models_arr =
+      json::Lookup<picojson::array>(config, "additional_models");
+  picojson::array additional_model_lib_paths_arr =
+      json::Lookup<picojson::array>(config, "additional_model_lib_paths");
+  CHECK_EQ(additional_models_arr.size(), additional_model_lib_paths_arr.size())
+      << "The number of additional model lib paths does not match the number of additional models";
+  int num_additional_models = additional_models_arr.size();
+  additional_models.reserve(num_additional_models);
+  additional_model_lib_paths.reserve(num_additional_models);
+  for (int i = 0; i < num_additional_models; ++i) {
+    additional_models.push_back(json::Lookup<std::string>(additional_models_arr, i));
+    additional_model_lib_paths.push_back(
+        json::Lookup<std::string>(additional_model_lib_paths_arr, i));
+  }
+
+  return EngineConfig(std::move(model), std::move(model_lib_path), additional_models,
+                      additional_model_lib_paths, kv_cache_page_size, max_num_sequence,
+                      max_total_sequence_length, max_single_sequence_length, prefill_chunk_size,
+                      max_history_size, kv_state_kind, speculative_mode, spec_draft_length);
+}
+
 TVM_REGISTER_GLOBAL("mlc.serve.EngineConfig")
     .set_body_typed([](String model, String model_lib_path, Array<String> additional_models,
-                       Array<String> additional_model_lib_paths, DLDevice device,
-                       int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                       Array<String> additional_model_lib_paths, int kv_cache_page_size,
+                       int max_num_sequence, int max_total_sequence_length,
                        int max_single_sequence_length, int prefill_chunk_size, int max_history_size,
                        int kv_state_kind, int speculative_mode, int spec_draft_length) {
       return EngineConfig(std::move(model), std::move(model_lib_path), std::move(additional_models),
-                          std::move(additional_model_lib_paths), device, kv_cache_page_size,
+                          std::move(additional_model_lib_paths), kv_cache_page_size,
                           max_num_sequence, max_total_sequence_length, max_single_sequence_length,
                           prefill_chunk_size, max_history_size, KVStateKind(kv_state_kind),
                           SpeculativeMode(speculative_mode), spec_draft_length);

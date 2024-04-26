@@ -6,7 +6,6 @@ import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 import tvm
-from tests.python.json_ffi import _ffi_api
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
@@ -61,30 +60,23 @@ tools = [
 ]
 
 
-@tvm._ffi.register_object(
-    "mlc.json_ffi.ModelDefinedGenerationConfig"
-)  # pylint: disable=protected-access
-class ModelDefinedGenerationConfig(tvm.runtime.Object):
-    def __init__(  # pylint: disable=too-many-arguments
-        self, temperature: float, top_p: float, frequency_penalty: float, presence_penalty: float
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ModelDefinedGenerationConfig,
-            temperature,
-            top_p,
-            frequency_penalty,
-            presence_penalty,
-        )
+def create_model_defined_generation_config(
+    temperature: float, top_p: float, frequency_penalty: float, presence_penalty: float
+) -> tvm.runtime.Object:
+    return tvm.get_global_func("mlc.json_ffi.ModelDefinedGenerationConfig")(
+        temperature,
+        top_p,
+        frequency_penalty,
+        presence_penalty,
+    )
 
 
-@tvm._ffi.register_object("mlc.json_ffi.JSONFFIEngineConfig")  # pylint: disable=protected-access
-class JSONFFIEngineConfig(tvm.runtime.Object):
-    def __init__(  # pylint: disable=too-many-arguments
-        self, conv_template: str, model_generation_cfgs: Dict[str, ModelDefinedGenerationConfig]
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.JSONFFIEngineConfig, conv_template, model_generation_cfgs
-        )
+def create_json_ffi_engine_config(
+    conv_template: str, model_generation_cfgs: Dict[str, tvm.runtime.Object]
+) -> tvm.runtime.Object:
+    return tvm.get_global_func("mlc.json_ffi.JSONFFIEngineConfig")(
+        conv_template, model_generation_cfgs
+    )
 
 
 class EngineState:
@@ -187,7 +179,6 @@ class JSONFFIEngine:
             model_lib_path=model_args[0][1],
             additional_models=[model_arg[0] for model_arg in model_args[1:]],
             additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-            device=device,
             kv_cache_page_size=16,
             max_num_sequence=max_batch_size,
             max_total_sequence_length=max_total_sequence_length,
@@ -199,10 +190,10 @@ class JSONFFIEngine:
             spec_draft_length=spec_draft_length,
         )
 
-        self.json_ffi_engine_config = JSONFFIEngineConfig(
+        self.json_ffi_engine_config = create_json_ffi_engine_config(
             conv_template=self.conv_template.model_dump_json(),
             model_generation_cfgs={
-                model.model: ModelDefinedGenerationConfig(
+                model.model: create_model_defined_generation_config(
                     temperature=model_config["temperature"],
                     top_p=model_config["top_p"],
                     frequency_penalty=model_config["frequency_penalty"],
@@ -215,6 +206,7 @@ class JSONFFIEngine:
         self._ffi["init_background_engine"](
             self.json_ffi_engine_config,
             self.engine_config,
+            device,
             self.state.get_request_stream_callback(),
             None,
         )

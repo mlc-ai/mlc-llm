@@ -166,7 +166,6 @@ class SyncMLCEngine:
                 model_lib_path=model_args[0][1],
                 additional_models=[model_arg[0] for model_arg in model_args[1:]],
                 additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                device=device,
                 kv_cache_page_size=16,
                 max_num_sequence=max_batch_size,
                 max_total_sequence_length=max_total_sequence_length,
@@ -177,6 +176,7 @@ class SyncMLCEngine:
                 speculative_mode=speculative_mode,
                 spec_draft_length=spec_draft_length,
             ),
+            device,
             request_stream_callback,
             self.trace_recorder,
         )

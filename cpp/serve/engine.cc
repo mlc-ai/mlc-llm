@@ -44,7 +44,8 @@ class EngineImpl : public Engine {
  public:
   /********************** Engine Management **********************/
 
-  explicit EngineImpl(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
+  explicit EngineImpl(EngineConfig engine_config, DLDevice device,
+                      Optional<PackedFunc> request_stream_callback,
                       Optional<EventTraceRecorder> trace_recorder) {
     // Step 1. Initialize metadata and singleton states inside the engine
     this->estate_->Reset();
@@ -62,9 +63,9 @@ class EngineImpl : public Engine {
     this->models_.clear();
     this->model_workspaces_.clear();
 
-    auto f_create_model = [this, &engine_config, &trace_recorder](const String& model_path,
-                                                                  const String& model_lib_path) {
-      Model model = Model::Create(model_lib_path, std::move(model_path), engine_config->device,
+    auto f_create_model = [this, &engine_config, &device, &trace_recorder](
+                              const String& model_path, const String& model_lib_path) {
+      Model model = Model::Create(model_lib_path, std::move(model_path), device,
                                   engine_config->max_num_sequence,
                                   /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
@@ -339,10 +340,11 @@ class EngineImpl : public Engine {
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-std::unique_ptr<Engine> Engine::Create(EngineConfig engine_config,
+std::unique_ptr<Engine> Engine::Create(EngineConfig engine_config, Device device,
                                        Optional<PackedFunc> request_stream_callback,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return std::make_unique<EngineImpl>(std::move(engine_config), std::move(request_stream_callback),
+  return std::make_unique<EngineImpl>(std::move(engine_config), device,
+                                      std::move(request_stream_callback),
                                       std::move(trace_recorder));
 }
 
@@ -368,10 +370,10 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_END();
 
   /*! \brief Initialize the engine with config and other fields. */
-  void Init(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
+  void Init(EngineConfig engine_config, Device device, Optional<PackedFunc> request_stream_callback,
             Optional<EventTraceRecorder> trace_recorder) {
-    this->engine_ = Engine::Create(std::move(engine_config), std::move(request_stream_callback),
-                                   std::move(trace_recorder));
+    this->engine_ = Engine::Create(std::move(engine_config), device,
+                                   std::move(request_stream_callback), std::move(trace_recorder));
   }
   /*! \brief Construct an EngineModule. */
   static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
