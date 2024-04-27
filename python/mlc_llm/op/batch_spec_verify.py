@@ -51,7 +51,7 @@ def batch_spec_verify(vocab_size):
     token_tree_parent_ptr:
         Current parent ptr state
     """
-    TX = 128
+    TX = 1024
 
     def _var(dtype="int32"):
         return T.alloc_buffer((1,), dtype, scope="local")
@@ -142,7 +142,6 @@ def batch_spec_verify(vocab_size):
                                             model_prob_local[0] = model_probs[parent_ptr[0], k]
                                             draft_prob_local[0] = draft_probs[child_ptr[0], k]
                                             model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)
-                                            model_probs[parent_ptr[0], k] = model_prob_local[0]
                                             psum[0] += model_prob_local[0]
 
                                     with T.block("block_cross_thread"):
@@ -155,13 +154,21 @@ def batch_spec_verify(vocab_size):
                                         )
                                         T.tvm_thread_allreduce(T.uint32(1), psum[0], True, t0[0], tx, dtype="handle")
 
-                                    # renormalize
-                                    for i in T.serial(T.ceildiv(vocab_size, TX)):
-                                        k = T.meta_var(i * TX + tx)
-                                        if k < vocab_size:
-                                            model_probs[parent_ptr[0], k] = model_probs[parent_ptr[0], k] / t0[0]
+                                    if t0[0] < 1e-7:
+                                        # accept the proposal, we move to child
+                                        parent_ptr[0] = child_ptr[0]
+                                        child_ptr[0] = token_tree_first_child[child_ptr[0]]
+                                    else:
+                                        # renormalize
+                                        for i in T.serial(T.ceildiv(vocab_size, TX)):
+                                            k = T.meta_var(i * TX + tx)
+                                            if k < vocab_size:
+                                                model_prob_local[0] = model_probs[parent_ptr[0], k]
+                                                draft_prob_local[0] = draft_probs[child_ptr[0], k]
+                                                model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)
+                                                model_probs[parent_ptr[0], k] = model_prob_local[0] / t0[0]
 
-                                    child_ptr[0] = token_tree_next_sibling[child_ptr[0]]
+                                        child_ptr[0] = token_tree_next_sibling[child_ptr[0]]
 
                         if tx == 0:
                             token_tree_parent_ptr[b] = parent_ptr[0]

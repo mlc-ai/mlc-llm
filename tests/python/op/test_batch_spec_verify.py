@@ -7,7 +7,7 @@ from mlc_llm.op.batch_spec_verify import batch_spec_verify
 
 
 @pytest.mark.parametrize("nbatch", [32, 64])
-@pytest.mark.parametrize("vocab", [3, 32, 64, 32000, 33, 65, 32001])
+@pytest.mark.parametrize("vocab", [3, 32, 64, 32000, 33, 65, 32001, 128000])
 @pytest.mark.parametrize("plist", [[0.5, 0.5], [1, 0], [0, 1]])
 def test_batch_spec_verify(nbatch, vocab, plist):
     def numpy_reference(
@@ -139,6 +139,20 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     tvm.testing.assert_allclose(model_probs, model_probs_tvm.asnumpy())
     tvm.testing.assert_allclose(
         token_tree_parent_ptr, token_tree_parent_ptr_tvm.asnumpy(), rtol=0, atol=0
+    )
+
+    time_evaluator = mod.time_evaluator(mod.entry_name, dev, number=10, repeat=3)
+    print(f"batch_size: {nbatch}, vocab_size: {vocab}, tree_structure: {plist}")
+    print(
+        time_evaluator(
+            draft_probs_tvm,
+            draft_tokens_tvm,
+            model_probs_tvm,
+            token_tree_first_child_tvm,
+            token_tree_next_sibling_tvm,
+            uniform_samples_tvm,
+            token_tree_parent_ptr_tvm,
+        )
     )
 
 
