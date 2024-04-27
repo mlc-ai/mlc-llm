@@ -164,9 +164,6 @@ class EngineConfig(tvm.runtime.Object):
     additional_model_lib_paths : List[str]
         The path to the additional models' libraries.
 
-    device : tvm.runtime.Device
-        The device where the models run.
-
     kv_cache_page_size : int
         The number of consecutive tokens handled in each page in paged KV cache.
 
@@ -203,7 +200,6 @@ class EngineConfig(tvm.runtime.Object):
         model_lib_path: str,
         additional_models: List[str],
         additional_model_lib_paths: List[str],
-        device: tvm.runtime.Device,
         kv_cache_page_size: int,
         max_num_sequence: int,
         max_total_sequence_length: int,
@@ -220,7 +216,6 @@ class EngineConfig(tvm.runtime.Object):
             model_lib_path,
             additional_models,
             additional_model_lib_paths,
-            device,
             kv_cache_page_size,
             max_num_sequence,
             max_total_sequence_length,

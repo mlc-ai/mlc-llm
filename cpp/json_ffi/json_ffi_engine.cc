@@ -123,7 +123,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 
   void InitBackgroundEngine(JSONFFIEngineConfig json_ffi_engine_config, EngineConfig engine_config,
-                            Optional<PackedFunc> request_stream_callback,
+                            Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
     std::optional<Conversation> conv_template =
         Conversation::FromJSON(json_ffi_engine_config->conv_template, &err_);
@@ -150,7 +150,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    this->engine_->InitBackgroundEngine(std::move(request_stream_callback),
+    this->engine_->InitBackgroundEngine(device, std::move(request_stream_callback),
                                         std::move(trace_recorder));
     this->engine_->Reload(std::move(engine_config));
   }

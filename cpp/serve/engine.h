@@ -51,11 +51,12 @@ class Engine {
   /*!
    * \brief Create an engine in unique pointer.
    * \param engine_config The engine config.
+   * \param device The device where the run models.
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
    * \return The created Engine in pointer.
    */
-  static std::unique_ptr<Engine> Create(EngineConfig engine_config,
+  static std::unique_ptr<Engine> Create(EngineConfig engine_config, Device device,
                                         Optional<PackedFunc> request_stream_callback,
                                         Optional<EventTraceRecorder> trace_recorder);
 

@@ -106,11 +106,6 @@ class EngineConfigNode : public Object {
   /*! \brief The path to the additional models' libraries. */
   Array<String> additional_model_lib_paths;
 
-  /*************** Device ***************/
-
-  /*! \brief The device where the models run. */
-  DLDevice device;
-
   /*************** KV cache config and engine capacities ***************/
 
   /*! \brief The number of consecutive tokens handled in each page in paged KV cache. */
@@ -152,11 +147,14 @@ class EngineConfigNode : public Object {
 class EngineConfig : public ObjectRef {
  public:
   explicit EngineConfig(String model, String model_lib_path, Array<String> additional_models,
-                        Array<String> additional_model_lib_paths, DLDevice device,
-                        int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                        Array<String> additional_model_lib_paths, int kv_cache_page_size,
+                        int max_num_sequence, int max_total_sequence_length,
                         int max_single_sequence_length, int prefill_chunk_size,
                         int max_history_size, KVStateKind kv_state_kind,
                         SpeculativeMode speculative_mode, int spec_draft_length);
+
+  /*! \brief Create EngineConfig from JSON string. */
+  static EngineConfig FromJSONString(const std::string& json_str);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
 };

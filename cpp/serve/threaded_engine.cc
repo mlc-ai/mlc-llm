@@ -36,8 +36,9 @@ enum class InstructionKind : int {
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitBackgroundEngine(Optional<PackedFunc> request_stream_callback,
+  void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) final {
+    device_ = device;
     CHECK(request_stream_callback.defined())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
@@ -231,7 +232,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
     };
 
     Optional<PackedFunc> request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    background_engine_ = Engine::Create(std::move(engine_config),
+    background_engine_ = Engine::Create(std::move(engine_config), device_,
                                         std::move(request_stream_callback), trace_recorder_);
   }
 
@@ -247,6 +248,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
   }
 
+  /*! \brief The device to run models on. */
+  Device device_;
   /*! \brief The background normal engine for request processing. */
   std::unique_ptr<Engine> background_engine_;
   /*! \brief The request stream callback. */

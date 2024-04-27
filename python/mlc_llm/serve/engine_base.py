@@ -1070,6 +1070,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         }
         self.tokenizer = Tokenizer(model_args[0][0])
         self._ffi["init_background_engine"](
+            device,
             self.state.get_request_stream_callback(kind),
             self.state.trace_recorder,
         )
@@ -1079,7 +1080,6 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 model_lib_path=model_args[0][1],
                 additional_models=[model_arg[0] for model_arg in model_args[1:]],
                 additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                device=device,
                 kv_cache_page_size=16,
                 max_num_sequence=max_batch_size,
                 max_total_sequence_length=max_total_sequence_length,
