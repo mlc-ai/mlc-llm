@@ -69,7 +69,8 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
   });
 }
 
-void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config) {
+void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
+                         Optional<Session> session) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
@@ -85,27 +86,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
-    constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
-    if (Registry::Get(f_create_process_pool) == nullptr) {
-      LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
-                 << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
-    }
-    std::string ccl;
-    if (device.device_type == kDLCUDA) {
-      ccl = "nccl";
-    } else if (device.device_type == kDLROCM) {
-      ccl = "rccl";
-    } else {
-      LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
-                 << " is not supported. Currently, only NCCL and RCCL are integrated.";
-    }
-    std::vector<int64_t> device_ids(num_shards);
-    for (int i = 0; i < num_shards; ++i) {
-      device_ids[i] = i;
-    }
+    this->sess = session.value();
     this->use_disco = true;
-    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
-    this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        reload_lib_path, null_device);
     this->mod_get_func = [this,

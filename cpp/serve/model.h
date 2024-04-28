@@ -319,13 +319,24 @@ class Model : public ObjectRef {
    * \brief Create the runtime module for LLM functions.
    * \param reload_lib_path The model library path.
    * \param model_path The path to the model weight parameters.
+   * \param model_config The model config json object.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
+   * \param session The session to run the model on.
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
-  TVM_DLL static Model Create(String reload_lib_path, String model_path, DLDevice device,
-                              int max_num_sequence, bool trace_enabled);
+  TVM_DLL static Model Create(String reload_lib_path, String model_path,
+                              const picojson::object& model_config, DLDevice device,
+                              int max_num_sequence, const Optional<Session>& session,
+                              bool trace_enabled);
+
+  /*!
+   * Load the model config from the given model path.
+   * \param model_path The path to the model weight parameters.
+   * \return The model config json object.
+   */
+  static picojson::object LoadModelConfig(const String& model_path);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };

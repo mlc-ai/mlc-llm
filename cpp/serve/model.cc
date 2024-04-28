@@ -26,10 +26,27 @@ class ModelImpl;
 
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
-Model Model::Create(String reload_lib_path, String model_path, DLDevice device,
-                    int max_num_sequence, bool trace_enabled) {
-  return Model(
-      make_object<ModelImpl>(reload_lib_path, model_path, device, max_num_sequence, trace_enabled));
+Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
+                    DLDevice device, int max_num_sequence, const Optional<Session>& session,
+                    bool trace_enabled) {
+  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
+                                      max_num_sequence, session, trace_enabled));
+}
+
+picojson::object Model::LoadModelConfig(const String& model_path) {
+  picojson::object model_config;
+  std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
+  std::ostringstream config_ostream;
+  ICHECK(config_istream);
+  config_ostream << config_istream.rdbuf();
+  std::string config_str = config_ostream.str();
+  picojson::value config_json;
+  std::string err = picojson::parse(config_json, config_str);
+  if (!err.empty()) {
+    LOG(FATAL) << err;
+  }
+  picojson::object config = config_json.get<picojson::object>();
+  return config;
 }
 
 class ModelImpl : public ModelObj {
@@ -38,23 +55,16 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(String reload_lib_path, String model_path, DLDevice device,
-                     int max_num_sequence, bool trace_enabled)
+  explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
+                     DLDevice device, int max_num_sequence, const Optional<Session>& session,
+                     bool trace_enabled)
       : device_(device) {
     // Step 1. Process model config json string.
-    picojson::object model_config;
-    {
-      std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
-      std::ostringstream config_ostream;
-      ICHECK(config_istream);
-      config_ostream << config_istream.rdbuf();
-      std::string config_str = config_ostream.str();
-      model_config = LoadModelConfigJSON(config_str);
-    }
+    LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib_path, device_, model_config);
+    this->ft_.Init(reload_lib_path, device_, model_config, session);
     // Step 3. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 4. Set max_num_sequence
@@ -891,15 +901,7 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  picojson::object LoadModelConfigJSON(const std::string& config_str) {
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, config_str);
-    if (!err.empty()) {
-      LOG(FATAL) << err;
-    }
-
-    // Get json fields.
-    picojson::object config = config_json.get<picojson::object>();
+  picojson::object LoadModelConfigJSON(picojson::object config) {
     if (config.count("context_window_size")) {
       CHECK(config["context_window_size"].is<int64_t>());
       this->max_window_size_ = config["context_window_size"].get<int64_t>();
