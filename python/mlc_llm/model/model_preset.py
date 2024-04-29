@@ -728,6 +728,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "position_embedding_type": "absolute",
         "transformers_version": "4.6.0.dev0",
         "type_vocab_size": 2,
-        "vocab_size": 30522
-    }
+        "vocab_size": 30522,
+    },
 }

@@ -9,6 +9,7 @@ from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
+from .bert import bert_loader, bert_model, bert_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
@@ -27,7 +28,6 @@ from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
-from .bert import bert_loader, bert_model, bert_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -369,5 +369,5 @@ MODELS: Dict[str, Model] = {
             "group-quant": bert_quantization.group_quant,
             "ft-quant": bert_quantization.ft_quant,
         },
-    )
+    ),
 }

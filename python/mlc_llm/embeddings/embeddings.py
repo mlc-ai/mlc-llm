@@ -138,7 +138,6 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         device: Optional[str] = "auto",
         debug_dir: Optional[str] = None,
     ):
-
         self.device = detect_device(device)
         instrument = DefaultDebugInstrument(Path(debug_dir)) if debug_dir else None
         self.mod, self.params, self.metadata = _get_tvm_module(
@@ -169,7 +168,7 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         return output
 
     def _tokenize_queries(self, queries: List[str]) -> Tuple[np.ndarray, np.ndarray]:
-        tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)
+        tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)  # type: ignore
         max_query_length = max(len(token_seq) for token_seq in tokens)
 
         token_inputs = np.zeros((len(tokens), max_query_length), dtype=np.int32)
