@@ -35,13 +35,24 @@ class ThreadedEngine {
 
   /*!
    * \brief Initialize the threaded engine from packed arguments in TVMArgs.
-   * \param engine_config The engine config.
+   * \param device The device where to run models.
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
    */
-  virtual void InitBackgroundEngine(EngineConfig engine_config,
-                                    Optional<PackedFunc> request_stream_callback,
+  virtual void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
                                     Optional<EventTraceRecorder> trace_recorder) = 0;
+
+  /*!
+   * \brief Reload the engine with the new engine config.
+   * \param engine_config The engine config.
+   */
+  virtual void Reload(EngineConfig engine_config) = 0;
+
+  /*! \brief Unload the background engine. */
+  virtual void Unload() = 0;
+
+  /*! \brief Reset the engine to the initial state. */
+  virtual void Reset() = 0;
 
   /*! \brief Starts the background request processing loop. */
   virtual void RunBackgroundLoop() = 0;

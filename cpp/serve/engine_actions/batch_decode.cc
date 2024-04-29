@@ -114,7 +114,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // Fill range [0, num_rsentries) into `sample_indices`.
     std::vector<int> sample_indices(num_rsentries);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
+    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbBeforeTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
     ICHECK_EQ(sample_results.size(), num_rsentries);
 

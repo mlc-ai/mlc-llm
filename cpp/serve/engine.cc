@@ -12,6 +12,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <numeric>
 #include <optional>
 #include <tuple>
 #include <unordered_set>
@@ -44,7 +45,8 @@ class EngineImpl : public Engine {
  public:
   /********************** Engine Management **********************/
 
-  explicit EngineImpl(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
+  explicit EngineImpl(EngineConfig engine_config, DLDevice device,
+                      Optional<PackedFunc> request_stream_callback,
                       Optional<EventTraceRecorder> trace_recorder) {
     // Step 1. Initialize metadata and singleton states inside the engine
     this->estate_->Reset();
@@ -62,14 +64,24 @@ class EngineImpl : public Engine {
     this->models_.clear();
     this->model_workspaces_.clear();
 
-    auto f_create_model = [this, &engine_config, &trace_recorder](const String& model_path,
-                                                                  const String& model_lib_path) {
-      Model model = Model::Create(model_lib_path, std::move(model_path), engine_config->device,
-                                  engine_config->max_num_sequence,
+    std::vector<picojson::object> model_configs;
+    model_configs.push_back(Model::LoadModelConfig(engine_config->model));
+    for (const auto& model_path : engine_config->additional_models) {
+      model_configs.push_back(Model::LoadModelConfig(model_path));
+    }
+
+    Optional<Session> session = CreateDiscoSession(model_configs, device);
+
+    auto f_create_model = [this, &engine_config, &device, &trace_recorder, &model_configs,
+                           &session](const String& model_path, const String& model_lib_path,
+                                     int model_index) {
+      Model model = Model::Create(model_lib_path, std::move(model_path), model_configs[model_index],
+                                  device, engine_config->max_num_sequence, session,
                                   /*trace_enabled=*/trace_recorder.defined());
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
                            engine_config->max_total_sequence_length,
-                           engine_config->prefill_chunk_size);
+                           engine_config->prefill_chunk_size, engine_config->max_history_size,
+                           engine_config->kv_state_kind);
       CHECK_GE(model->GetMaxWindowSize(), engine_config->max_single_sequence_length)
           << "The window size of the model, " << model->GetMaxWindowSize()
           << ", is smaller than the pre-defined max single sequence length, "
@@ -79,18 +91,18 @@ class EngineImpl : public Engine {
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     };
 
-    f_create_model(engine_config->model, engine_config->model_lib_path);
+    f_create_model(engine_config->model, engine_config->model_lib_path, /*model_index=*/0);
     CHECK_EQ(engine_config->additional_models.size(),
              engine_config->additional_model_lib_paths.size())
         << "The additional model and lib path list has mismatched size.";
     for (int i = 0; i < static_cast<int>(engine_config->additional_models.size()); ++i) {
       f_create_model(engine_config->additional_models[i],
-                     engine_config->additional_model_lib_paths[i]);
+                     engine_config->additional_model_lib_paths[i], /*model_index=*/i + 1);
     }
 
     int max_num_tokens = engine_config->max_num_sequence;
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-      max_num_tokens *= engine_config->spec_draft_length;
+      max_num_tokens *= engine_config->spec_draft_length + 1;
     }
     LogitProcessor logit_processor =
         this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
@@ -102,18 +114,18 @@ class EngineImpl : public Engine {
       ICHECK_GT(this->models_.size(), 1U);
       switch (engine_config->speculative_mode) {
         case SpeculativeMode::kEagle:
-          this->actions_ = {
-              EngineAction::EagleNewRequestPrefill(this->models_,            //
-                                                   logit_processor,          //
-                                                   sampler,                  //
-                                                   this->model_workspaces_,  //
-                                                   engine_config,            //
-                                                   this->trace_recorder_),
-              EngineAction::EagleBatchDraft(this->models_, logit_processor, sampler,
-                                            this->model_workspaces_, this->trace_recorder_),
-              EngineAction::EagleBatchVerify(this->models_, logit_processor, sampler,
-                                             this->model_workspaces_, engine_config,
-                                             this->trace_recorder_)};
+          this->actions_ = {EngineAction::EagleNewRequestPrefill(this->models_,            //
+                                                                 logit_processor,          //
+                                                                 sampler,                  //
+                                                                 this->model_workspaces_,  //
+                                                                 engine_config,            //
+                                                                 this->trace_recorder_),
+                            EngineAction::EagleBatchDraft(
+                                this->models_, logit_processor, sampler, this->model_workspaces_,
+                                this->trace_recorder_, engine_config->spec_draft_length),
+                            EngineAction::EagleBatchVerify(this->models_, logit_processor, sampler,
+                                                           this->model_workspaces_, engine_config,
+                                                           this->trace_recorder_)};
           break;
         default:
           this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
@@ -143,6 +155,7 @@ class EngineImpl : public Engine {
   }
 
   void Reset() final {
+    AbortAllRequests();
     estate_->Reset();
     for (Model model : models_) {
       model->Reset();
@@ -167,7 +180,8 @@ class EngineImpl : public Engine {
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->input_total_length, -1);
 
-    if (request->input_total_length >= engine_config_->max_single_sequence_length) {
+    if (request->input_total_length >= engine_config_->max_single_sequence_length &&
+        request_stream_callback_.defined()) {
       // If the request input length exceeds the maximum allowed single sequence length,
       // invoke callback and do not process the request.
       Array<RequestStreamOutput> output{RequestStreamOutput(
@@ -240,6 +254,28 @@ class EngineImpl : public Engine {
       // The request to abort is in waiting queue
       estate_->waiting_queue.erase(it_waiting);
     }
+
+    // Send a callback to notice the abortion.
+    if (request_stream_callback_.defined()) {
+      Array<RequestStreamOutput> output{RequestStreamOutput(
+          request_id, std::vector<IntTuple>(request->generation_cfg->n),
+          Optional<Array<Array<String>>>(),
+          std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
+      request_stream_callback_.value()(std::move(output));
+    }
+  }
+
+  void AbortAllRequests() final {
+    // - Collect all the request ids.
+    std::vector<String> request_ids;
+    request_ids.reserve(estate_->request_states.size());
+    for (const auto& kv : estate_->request_states) {
+      request_ids.push_back(kv.first);
+    }
+    // - Abort all the requests.
+    for (const String& request_id : request_ids) {
+      AbortRequest(request_id);
+    }
   }
 
   /*********************** Engine Action ***********************/
@@ -259,6 +295,51 @@ class EngineImpl : public Engine {
     ICHECK(estate_->running_queue.empty())
         << "Internal assumption violated: It is expected that an engine step takes at least one "
            "action (e.g. prefill, decode, etc.) but it does not.";
+  }
+
+  /************** Utility Functions **************/
+  Optional<Session> CreateDiscoSession(std::vector<picojson::object> model_configs, Device device) {
+    const auto& base_model_config = model_configs[0];
+
+    auto f_get_num_shards = [](const picojson::object& model_config) -> int {
+      constexpr auto kNumShardsKey = "tensor_parallel_shards";
+      if (model_config.count(kNumShardsKey)) {
+        const auto& val = model_config.at(kNumShardsKey);
+        CHECK(val.is<int64_t>());
+        return static_cast<int>(val.get<int64_t>());
+      } else {
+        LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
+      }
+      throw;
+    };
+
+    int num_shards = std::transform_reduce(
+        model_configs.begin(), model_configs.end(), 1, [](int a, int b) { return std::max(a, b); },
+        f_get_num_shards);
+    Optional<Session> session = NullOpt;
+    if (num_shards > 1) {
+      constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
+      if (Registry::Get(f_create_process_pool) == nullptr) {
+        LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
+                   << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
+      }
+      std::string ccl;
+      if (device.device_type == kDLCUDA) {
+        ccl = "nccl";
+      } else if (device.device_type == kDLROCM) {
+        ccl = "rccl";
+      } else {
+        LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
+                   << " is not supported. Currently, only NCCL and RCCL are integrated.";
+      }
+      std::vector<int64_t> device_ids(num_shards);
+      for (int i = 0; i < num_shards; ++i) {
+        device_ids[i] = i;
+      }
+      session = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
+      session.value()->InitCCL(ccl, ShapeTuple(device_ids));
+    }
+    return session;
   }
 
   /************** Debug/Profile **************/
@@ -314,10 +395,11 @@ class EngineImpl : public Engine {
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-std::unique_ptr<Engine> Engine::Create(EngineConfig engine_config,
+std::unique_ptr<Engine> Engine::Create(EngineConfig engine_config, Device device,
                                        Optional<PackedFunc> request_stream_callback,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return std::make_unique<EngineImpl>(std::move(engine_config), std::move(request_stream_callback),
+  return std::make_unique<EngineImpl>(std::move(engine_config), device,
+                                      std::move(request_stream_callback),
                                       std::move(trace_recorder));
 }
 
@@ -343,10 +425,10 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_END();
 
   /*! \brief Initialize the engine with config and other fields. */
-  void Init(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
+  void Init(EngineConfig engine_config, Device device, Optional<PackedFunc> request_stream_callback,
             Optional<EventTraceRecorder> trace_recorder) {
-    this->engine_ = Engine::Create(std::move(engine_config), std::move(request_stream_callback),
-                                   std::move(trace_recorder));
+    this->engine_ = Engine::Create(std::move(engine_config), device,
+                                   std::move(request_stream_callback), std::move(trace_recorder));
   }
   /*! \brief Construct an EngineModule. */
   static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }

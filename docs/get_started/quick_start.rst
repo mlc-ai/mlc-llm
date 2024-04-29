@@ -6,7 +6,7 @@ Quick Start
 Examples
 --------
 
-To begin with, try out MLC LLM support for int4-quantized Llama2 7B.
+To begin with, try out MLC LLM support for int4-quantized Llama3 8B.
 It is recommended to have at least 6GB free VRAM to run it.
 
 .. tabs::
@@ -20,11 +20,11 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: python
 
-      from mlc_llm import LLMEngine
+      from mlc_llm import MLCEngine
 
       # Create engine
-      model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
-      engine = LLMEngine(model)
+      model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+      engine = MLCEngine(model)
 
       # Run chat completion in OpenAI API.
       for response in engine.chat.completions.create(
@@ -57,7 +57,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: shell
 
-      mlc_llm serve HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+      mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
     **Send requests to server.** When the server is ready (showing ``INFO: Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)``),
     open a new shell and send a request via the following command:
@@ -67,7 +67,7 @@ It is recommended to have at least 6GB free VRAM to run it.
       curl -X POST \
         -H "Content-Type: application/json" \
         -d '{
-              "model": "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC",
+              "model": "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC",
               "messages": [
                   {"role": "user", "content": "Hello! Our project is MLC LLM. What is the name of our project?"}
               ]
@@ -94,7 +94,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     .. code:: bash
 
-      mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+      mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
 
     If you are using windows/linux/steamdeck and would like to use vulkan,
@@ -133,7 +133,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     |
 
-    **Requirement**. Llama2-7B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
+    **Requirement**. Llama3-8B model needs an iOS device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
 
     **Tutorial and source code**. The source code of the iOS app is fully `open source <https://github.com/mlc-ai/mlc-llm/tree/main/ios>`__,
     and a :ref:`tutorial <deploy-ios>` is included in documentation.
@@ -154,7 +154,7 @@ It is recommended to have at least 6GB free VRAM to run it.
 
     |
 
-    **Requirement**. Llama2-7B model needs a device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
+    **Requirement**. Llama3-8B model needs a device with a minimum of 6GB RAM, whereas the RedPajama-3B model runs with at least 4GB RAM.
     The demo is tested on
 
     - Samsung S23 with Snapdragon 8 Gen 2 chip

@@ -11,7 +11,7 @@ from mlc_llm.serve import (
     SpeculativeMode,
     data,
 )
-from mlc_llm.serve.sync_engine import SyncLLMEngine
+from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -90,7 +90,7 @@ def test_engine_basic():
     small_model_lib_path = (
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -158,7 +158,7 @@ def test_engine_eagle_basic():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     )
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -242,7 +242,7 @@ def test_engine_continuous_batching_1():
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
     timer = CallbackTimer()
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -328,7 +328,7 @@ def test_engine_eagle_continuous_batching_1():
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
     timer = CallbackTimer()
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -364,7 +364,19 @@ def test_engine_eagle_continuous_batching_1():
         # assert fin_time == request.generation_config.max_tokens - 1
 
 
-def test_engine_generate():
+def compare_output_text(output_text1, output_text2):
+    if isinstance(output_text1, list) and isinstance(output_text2, list):
+        for item1, item2 in zip(output_text1, output_text2):
+            if not compare_output_text(item1, item2):
+                return False
+    elif output_text1 != output_text2:
+        print(output_text1)
+        print(output_text2)
+        return False
+    return True
+
+
+def test_engine_generate(compare_precision=False):
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
     model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
@@ -372,7 +384,8 @@ def test_engine_generate():
     small_model_lib_path = (
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncLLMEngine(
+
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -385,9 +398,31 @@ def test_engine_generate():
     max_tokens = 256
 
     # Generate output.
-    output_texts, _ = engine.generate(
-        prompts[:num_requests], GenerationConfig(max_tokens=max_tokens, n=3)
-    )
+    if compare_precision:
+        print("compare precision")
+        generation_config = GenerationConfig(
+            temperature=0.0, top_p=0, max_tokens=1024, stop_token_ids=[2], n=1
+        )
+        engine_single_model = SyncMLCEngine(
+            model=model,
+            model_lib_path=model_lib_path,
+            mode="server",
+            max_total_sequence_length=4096,
+        )
+        output_texts_single_model, _ = engine_single_model.generate(
+            prompts[:num_requests], generation_config
+        )
+        for req_id, outputs in enumerate(output_texts_single_model):
+            print(f"Prompt {req_id}: {prompts[req_id]}")
+            if len(outputs) == 1:
+                print(f"Output {req_id}:{outputs[0]}\n")
+            else:
+                for i, output in enumerate(outputs):
+                    print(f"Output {req_id}({i}):{output}\n")
+        # TODO: Add pytorch precision
+    else:
+        generation_config = GenerationConfig(max_tokens=max_tokens, n=3)
+    output_texts, _ = engine.generate(prompts[:num_requests], generation_config)
     for req_id, outputs in enumerate(output_texts):
         print(f"Prompt {req_id}: {prompts[req_id]}")
         if len(outputs) == 1:
@@ -395,6 +430,12 @@ def test_engine_generate():
         else:
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
+    if compare_precision:
+        precision_flag = compare_output_text(output_texts, output_texts_single_model)
+        if precision_flag:
+            print(f"Accuracy verification succeed\n")
+        else:
+            print(f"Accuracy verification failed\n")
 
 
 def test_engine_eagle_generate():
@@ -405,7 +446,7 @@ def test_engine_eagle_generate():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -453,7 +494,7 @@ def test_engine_efficiency():
     # Create engine
     model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
     model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -525,7 +566,7 @@ def test_engine_spec_efficiency():
     # small_model_lib_path = (
     #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so"
     # )
-    spec_engine = SyncLLMEngine(
+    spec_engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -595,7 +636,7 @@ def test_engine_eagle_spec_efficiency():
     small_model_lib_path = (
         "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     )
-    spec_engine = SyncLLMEngine(
+    spec_engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",
@@ -643,7 +684,7 @@ if __name__ == "__main__":
     test_engine_eagle_basic()
     test_engine_continuous_batching_1()
     test_engine_eagle_continuous_batching_1()
-    test_engine_generate()
+    test_engine_generate(compare_precision=True)
     test_engine_eagle_generate()
     test_engine_efficiency()
     test_engine_spec_efficiency()

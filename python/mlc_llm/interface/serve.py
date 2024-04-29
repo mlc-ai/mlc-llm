@@ -22,6 +22,7 @@ def serve(
     max_batch_size: Optional[int],
     max_total_sequence_length: Optional[int],
     prefill_chunk_size: Optional[int],
+    max_history_size: Optional[int],
     gpu_memory_utilization: Optional[float],
     speculative_mode: SpeculativeMode,
     spec_draft_length: int,
@@ -35,7 +36,7 @@ def serve(
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
     # Create engine and start the background loop
-    async_engine = engine.AsyncLLMEngine(
+    async_engine = engine.AsyncMLCEngine(
         model=model,
         device=device,
         model_lib_path=model_lib_path,
@@ -44,6 +45,7 @@ def serve(
         max_batch_size=max_batch_size,
         max_total_sequence_length=max_total_sequence_length,
         prefill_chunk_size=prefill_chunk_size,
+        max_history_size=max_history_size,
         gpu_memory_utilization=gpu_memory_utilization,
         speculative_mode=speculative_mode,
         spec_draft_length=spec_draft_length,

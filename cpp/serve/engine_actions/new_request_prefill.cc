@@ -229,7 +229,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         rsentry_activated.push_back(true);
       }
     }
-    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
+    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbBeforeTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
     ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
 
@@ -396,10 +396,15 @@ class NewRequestPrefillActionObj : public EngineActionObj {
                   int num_running_rsentries) {
     ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
+    // For RNN State, it can prefill as long as it can be instantiated.
+    if (engine_config_->kv_state_kind == KVStateKind::kRNNState) {
+      return true;
+    }
+
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
     int spec_factor = engine_config_->speculative_mode != SpeculativeMode::kDisable
-                          ? engine_config_->spec_draft_length
+                          ? (engine_config_->spec_draft_length + 1)
                           : 1;
     if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
         std::min(engine_config_->max_num_sequence, engine_config_->prefill_chunk_size)) {

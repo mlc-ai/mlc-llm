@@ -51,11 +51,12 @@ class Engine {
   /*!
    * \brief Create an engine in unique pointer.
    * \param engine_config The engine config.
+   * \param device The device where the run models.
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
    * \return The created Engine in pointer.
    */
-  static std::unique_ptr<Engine> Create(EngineConfig engine_config,
+  static std::unique_ptr<Engine> Create(EngineConfig engine_config, Device device,
                                         Optional<PackedFunc> request_stream_callback,
                                         Optional<EventTraceRecorder> trace_recorder);
 
@@ -81,6 +82,9 @@ class Engine {
 
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
+
+  /*! \brief Abort all requests from the engine. */
+  virtual void AbortAllRequests() = 0;
 
   /*********************** Engine Action ***********************/
 

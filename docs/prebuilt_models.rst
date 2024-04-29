@@ -68,7 +68,7 @@ For more, please see :ref:`the CLI page <deploy-cli>`, and the :ref:`the Python 
 
     .. code:: shell
 
-      mlc_llm chat HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC
+      mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC
 
 
   To run the model with Python API, see :ref:`the Python page <deploy-python-chat-module>` (all other downloading steps are the same as CLI).

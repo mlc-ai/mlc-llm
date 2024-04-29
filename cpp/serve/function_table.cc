@@ -69,7 +69,8 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
   });
 }
 
-void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config) {
+void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
+                         Optional<Session> session) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
@@ -85,29 +86,10 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
-    constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
-    if (Registry::Get(f_create_process_pool) == nullptr) {
-      LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
-                 << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
-    }
-    std::string ccl;
-    if (device.device_type == kDLCUDA) {
-      ccl = "nccl";
-    } else if (device.device_type == kDLROCM) {
-      ccl = "rccl";
-    } else {
-      LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
-                 << " is not supported. Currently, only NCCL and RCCL are integrated.";
-    }
-    std::vector<int64_t> device_ids(num_shards);
-    for (int i = 0; i < num_shards; ++i) {
-      device_ids[i] = i;
-    }
+    this->sess = session.value();
     this->use_disco = true;
-    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
-    this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       std::move(reload_lib_path), null_device);
+                                       reload_lib_path, null_device);
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
@@ -130,14 +112,23 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->_InitFunctions();
   } else {
     Module executable{nullptr};
-    if (false) {
-      // Todo(mlc-team): system lib reload // reload_lib_path starts with "system://"
+    PackedFunc fload_exec{nullptr};
+    if (StartsWith(reload_lib_path, "system://")) {
+      const PackedFunc* f_load_system_lib = Registry::Get("runtime.SystemLib");
+      ICHECK_NOTNULL(f_load_system_lib);
+      std::string system_lib_prefix = std::string(reload_lib_path).substr(9);
+      std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
+      executable = (*f_load_system_lib)(system_lib_prefix + "_");
+      fload_exec = executable->GetFunction("vm_load_executable");
+      ICHECK(fload_exec.defined())
+          << "Cannot find system lib with " << system_lib_prefix
+          << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
       executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
+      fload_exec = executable->GetFunction("vm_load_executable");
+      ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
-    auto fload_exec = executable->GetFunction("vm_load_executable");
-    ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     this->local_vm = fload_exec();
     this->local_vm->GetFunction("vm_initialization")(
         static_cast<int>(device.device_type), device.device_id,
@@ -225,8 +216,8 @@ void FunctionTable::_InitFunctions() {
   this->verify_to_last_hidden_func_ = mod_get_func("batch_verify_to_last_hidden_states");
   this->fuse_embed_hidden_func_ = mod_get_func("fuse_embed_hidden_states");
   Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
-  this->get_logits_func_ = mod->GetFunction("get_logits", true);
-  this->batch_get_logits_func_ = mod->GetFunction("batch_get_logits", true);
+  this->get_logits_func_ = mod_get_func("get_logits");
+  this->batch_get_logits_func_ = mod_get_func("batch_get_logits");
   this->batch_select_last_hidden_func_ = mod->GetFunction("batch_select_last_hidden_states", true);
   this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
@@ -235,7 +226,12 @@ void FunctionTable::_InitFunctions() {
   this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (!this->create_kv_cache_func_.defined()) {
-    this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
+    PackedFunc f_create_rnn_state = mod_get_func("create_rnn_state");
+    if (f_create_rnn_state.defined()) {
+      this->create_kv_cache_func_ = f_create_rnn_state;
+    } else {
+      this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
+    }
     ICHECK(this->create_kv_cache_func_.defined());
   }
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.kv_state_clear");
@@ -256,6 +252,8 @@ void FunctionTable::_InitFunctions() {
     gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
     gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
     gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
+    gpu_verify_draft_tokens_func_ = mod->GetFunction("sampler_verify_draft_tokens", true);
+    gpu_renormalize_by_top_p_func_ = mod->GetFunction("renormalize_by_top_p", true);
   }
   this->nd_view_func_ = get_global_func("vm.builtin.reshape");
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");

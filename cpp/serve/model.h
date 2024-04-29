@@ -234,9 +234,13 @@ class ModelObj : public Object {
    * in the engine.
    * \param prefill_chunk_size The maximum total number of tokens whose KV data
    * are allowed to exist in the KV cache at any time.
+   * \param max_history_size The maximum history size for RNN state to roll back.
+   * The KV cache does not need this.
+   * \param kv_state_kind The kind of cache. It can be KV cache or RNN state.
    */
   virtual void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                             int prefill_chunk_size) = 0;
+                             int prefill_chunk_size, int max_history_size,
+                             KVStateKind kv_state_kind) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
@@ -315,13 +319,24 @@ class Model : public ObjectRef {
    * \brief Create the runtime module for LLM functions.
    * \param reload_lib_path The model library path.
    * \param model_path The path to the model weight parameters.
+   * \param model_config The model config json object.
    * \param device The device to run the model on.
    * \param max_num_sequence The maximum number of sequences to be processed
+   * \param session The session to run the model on.
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
-  TVM_DLL static Model Create(String reload_lib_path, String model_path, DLDevice device,
-                              int max_num_sequence, bool trace_enabled);
+  TVM_DLL static Model Create(String reload_lib_path, String model_path,
+                              const picojson::object& model_config, DLDevice device,
+                              int max_num_sequence, const Optional<Session>& session,
+                              bool trace_enabled);
+
+  /*!
+   * Load the model config from the given model path.
+   * \param model_path The path to the model weight parameters.
+   * \return The model config json object.
+   */
+  static picojson::object LoadModelConfig(const String& model_path);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };

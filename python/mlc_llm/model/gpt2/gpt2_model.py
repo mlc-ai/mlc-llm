@@ -28,7 +28,7 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     n_embd: int
     n_layer: int
     n_head: int
-    layer_norm_epsilon: int
+    layer_norm_epsilon: float
     n_inner: int = -1
     context_window_size: int = 0
     prefill_chunk_size: int = 0

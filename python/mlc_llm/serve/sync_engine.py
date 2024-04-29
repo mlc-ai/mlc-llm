@@ -41,7 +41,7 @@ def _create_tvm_module(
     return {key: module[key] for key in ffi_funcs}
 
 
-class SyncLLMEngine:
+class SyncMLCEngine:
     """The Python interface of synchronize request serving engine for MLC LLM.
 
     The engine receives requests from the "add_request" method. For
@@ -98,6 +98,7 @@ class SyncLLMEngine:
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
+        max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         enable_tracing: bool = False,
         speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
@@ -128,11 +129,14 @@ class SyncLLMEngine:
             max_total_sequence_length,
             prefill_chunk_size,
             max_single_sequence_length,
+            max_history_size,
+            kv_state_kind,
         ) = _infer_kv_cache_config(
             mode,
             max_batch_size,
             max_total_sequence_length,
             prefill_chunk_size,
+            max_history_size,
             gpu_memory_utilization,
             models,
             device,
@@ -162,15 +166,17 @@ class SyncLLMEngine:
                 model_lib_path=model_args[0][1],
                 additional_models=[model_arg[0] for model_arg in model_args[1:]],
                 additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                device=device,
                 kv_cache_page_size=16,
                 max_num_sequence=max_batch_size,
                 max_total_sequence_length=max_total_sequence_length,
                 max_single_sequence_length=max_single_sequence_length,
                 prefill_chunk_size=prefill_chunk_size,
+                max_history_size=max_history_size,
+                kv_state_kind=kv_state_kind,
                 speculative_mode=speculative_mode,
                 spec_draft_length=spec_draft_length,
             ),
+            device,
             request_stream_callback,
             self.trace_recorder,
         )

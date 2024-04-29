@@ -85,7 +85,7 @@ MODELS: Dict[str, Model] = {
             "group-quant": llama_quantization.group_quant,
             "ft-quant": llama_quantization.ft_quant,
             "awq": llama_quantization.awq_quant,
-            "smoothquant": llama_quantization.smooth_quant,
+            "smoothquant": llama_quantization.smooth_quant
         },
     ),
     "mistral": Model(

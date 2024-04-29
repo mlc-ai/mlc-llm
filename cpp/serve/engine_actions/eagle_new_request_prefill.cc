@@ -277,8 +277,10 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
         }
       }
       std::vector<NDArray> prob_dist;
-      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokens(
-          probs_on_device, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+      NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+          probs_on_device, sample_indices, request_ids, generation_cfg);
+      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
+          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
       ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
 
       // - Update the committed tokens of states.
@@ -459,7 +461,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
     int spec_factor = engine_config_->speculative_mode != SpeculativeMode::kDisable
-                          ? engine_config_->spec_draft_length
+                          ? (engine_config_->spec_draft_length + 1)
                           : 1;
     if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
         std::min(engine_config_->max_num_sequence, engine_config_->prefill_chunk_size)) {

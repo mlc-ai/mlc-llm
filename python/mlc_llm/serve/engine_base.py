@@ -20,7 +20,12 @@ from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_mod
 from mlc_llm.protocol import openai_api_protocol, protocol_utils
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, GenerationConfig, SpeculativeMode
+from mlc_llm.serve.config import (
+    EngineConfig,
+    GenerationConfig,
+    KVStateKind,
+    SpeculativeMode,
+)
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -89,8 +94,10 @@ def _process_model_args(
         if conversation is None:
             assert isinstance(chat_config.conv_template, Conversation)
             conversation = chat_config.conv_template
-        # Try look up model library, and do JIT compile if model library not found.
-        try:
+
+        if model.model_lib_path is not None:
+            # do model lib search if the model lib path is provided
+            # error out if file not found
             model_lib_path = _get_lib_module_path(
                 model=model.model,
                 model_path=model_path,
@@ -99,7 +106,9 @@ def _process_model_args(
                 device_name=device.MASK2STR[device.device_type],
                 config_file_path=config_file_path,
             )
-        except FileNotFoundError:
+        else:
+            # TODO(mlc-team) add logging information
+            # Run jit if model_lib_path is not provided
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
             model_lib_path = str(
@@ -117,7 +126,7 @@ def _process_model_args(
     return model_args, config_file_paths, conversation
 
 
-def _estimate_mem_usage_and_max_total_sequence_length(  # pylint: disable=too-many-locals,too-many-arguments
+def _estimate_mem_usage_and_max_total_sequence_length_for_kv_cache(  # pylint: disable=too-many-locals,too-many-arguments
     models: List[ModelInfo],
     device: tvm.runtime.Device,
     model_config_paths: List[str],
@@ -195,7 +204,7 @@ def _estimate_mem_usage_and_max_total_sequence_length(  # pylint: disable=too-ma
     if gpu_size_bytes is None:
         raise ValueError("Cannot read total GPU global memory from device.")
     if gpu_memory_utilization is None:
-        gpu_memory_utilization = 0.90
+        gpu_memory_utilization = 0.85
 
     model_max_total_sequence_length = int(
         (
@@ -233,6 +242,90 @@ def _estimate_mem_usage_and_max_total_sequence_length(  # pylint: disable=too-ma
         kv_aux_workspace_bytes,
         model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes,
         int(model_max_total_sequence_length),
+    )
+
+
+def _estimate_mem_usage_and_max_history_size_for_rnn_state(  # pylint: disable=too-many-arguments, too-many-locals, unused-argument
+    models: List[ModelInfo],
+    device: tvm.runtime.Device,
+    model_config_paths: List[str],
+    model_config_dicts: List[Dict[str, Any]],
+    max_num_sequence: int,
+    gpu_memory_utilization: Optional[float],
+) -> Tuple[float, float, float, int]:
+    # Get single-card GPU size.
+    gpu_size_bytes = device.total_global_memory
+    if gpu_size_bytes is None:
+        raise ValueError("Cannot read total GPU global memory from device.")
+    if gpu_memory_utilization is None:
+        gpu_memory_utilization = 0.90
+
+    rnn_state_base_bytes = 0.0  # the memory usage for rnn state when history = 1
+    param_bytes = 0.0
+    temp_func_bytes = 0.0
+    model_workspace_bytes = 0.0
+    logit_processor_workspace_bytes = 0.0
+    for model, model_config_path, model_config_dict in zip(
+        models, model_config_paths, model_config_dicts
+    ):
+        # Read metadata for the parameter size and the temporary memory size.
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlc_llm.cli.model_metadata",
+            model.model_lib_path,
+            "--print-memory-usage-in-json",
+            "--mlc-chat-config",
+            model_config_path,
+        ]
+        usage_str = subprocess.check_output(cmd, universal_newlines=True)
+        usage_json = json.loads(usage_str)
+        param_bytes += usage_json["params_bytes"]
+        temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
+
+        model_config = model_config_dict["model_config"]
+        vocab_size = model_config_dict["vocab_size"]
+        head_size = model_config["head_size"]
+        num_heads = model_config["num_heads"]
+        num_layers = model_config["num_hidden_layers"]
+        hidden_size = model_config["hidden_size"]
+        prefill_chunk_size = model_config["prefill_chunk_size"]
+        logit_processor_workspace_bytes += (
+            max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125
+        )
+
+        model_workspace_bytes += (
+            prefill_chunk_size * 4
+            + max_num_sequence * 4
+            + (prefill_chunk_size * 2 + max_num_sequence) * hidden_size * 2
+        )
+
+        rnn_state_base_bytes += (
+            max_num_sequence * hidden_size * num_layers * 2 * 2
+            + max_num_sequence * num_heads * head_size * head_size * num_layers * 2
+        )
+
+    max_history_size = int(
+        (
+            gpu_size_bytes * gpu_memory_utilization
+            - logit_processor_workspace_bytes
+            - model_workspace_bytes
+            - param_bytes
+            - temp_func_bytes
+        )
+        / rnn_state_base_bytes
+    )
+    if max_history_size < 1:
+        raise ValueError(
+            f"Memory required by models may be larger than available GPU memory "
+            f"size {gpu_size_bytes * gpu_memory_utilization} bytes."
+        )
+
+    return (
+        param_bytes,
+        model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes,
+        rnn_state_base_bytes,
+        max_history_size,
     )
 
 
@@ -290,7 +383,7 @@ def _get_model_config_limit(model_config_dicts: List[Dict[str, Any]]) -> Tuple[i
     return model_max_single_sequence_length, model_max_prefill_chunk_size, model_max_batch_size
 
 
-def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
+def _infer_kv_cache_config_for_kv_cache(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
     mode: Literal["local", "interactive", "server"],
     max_batch_size: Optional[int],
     max_total_sequence_length: Optional[int],
@@ -300,12 +393,13 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
     device: tvm.runtime.Device,
     model_config_dicts: List[Dict[str, Any]],
     model_config_paths: List[str],
-) -> Tuple[int, int, int, int]:
+) -> Tuple[int, int, int, KVStateKind, int]:
     """Initialize the KV cache config with user input and GPU memory usage estimation.
     The returned four integers are:
     - max_batch_size
     - max_total_sequence_length
     - prefill_chunk_size
+    - kv_state_kind
     - model_max_single_sequence_length
     """
     (
@@ -319,7 +413,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
         max_batch_size: Optional[int],
         max_total_sequence_length: Optional[int],
         prefill_chunk_size: Optional[int],
-    ) -> Tuple[Tuple[int, int, int], List[float]]:
+    ) -> Tuple[Tuple[int, int, int, KVStateKind], List[float]]:
         logging_msg = ""
         # - max_batch_size
         if max_batch_size is None:
@@ -339,7 +433,7 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
             kv_aux_workspace_bytes,
             temp_workspace_bytes,
             model_max_total_sequence_length,
-        ) = _estimate_mem_usage_and_max_total_sequence_length(
+        ) = _estimate_mem_usage_and_max_total_sequence_length_for_kv_cache(
             models,
             device,
             model_config_paths,
@@ -396,7 +490,12 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
 
         # - Construct the KV cache config
         # - Estimate total GPU memory usage on single GPU.
-        return (max_batch_size, max_total_sequence_length, prefill_chunk_size), [
+        return (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            KVStateKind.ATTENTION,
+        ), [
             total_mem_usage_except_kv_cache + max_total_sequence_length * kv_bytes_per_token,
             model_params_bytes,
             kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes,
@@ -458,9 +557,192 @@ def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-local
     return *kv_cache_config, model_max_single_sequence_length
 
 
+def _infer_kv_cache_config_for_rnn_state(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
+    mode: Literal["local", "interactive", "server"],
+    max_batch_size: Optional[int],
+    max_total_sequence_length: Optional[int],
+    prefill_chunk_size: Optional[int],
+    max_history_size: Optional[int],
+    gpu_memory_utilization: Optional[float],
+    models: List[ModelInfo],
+    device: tvm.runtime.Device,
+    model_config_dicts: List[Dict[str, Any]],
+    model_config_paths: List[str],
+) -> Tuple[int, int, int, KVStateKind, int]:
+    """Initialize the RNN state config with user input and GPU memory usage estimation.
+    The returned four integers are:
+    - max_batch_size
+    - max_total_sequence_length
+    - prefill_chunk_size
+    - kv_state_kind
+    - max_history_size
+    """
+    logging_msg = ""
+    prefill_chunk_size = 0
+
+    if prefill_chunk_size is None:
+        prefill_chunk_size = min(
+            config["prefill_chunk_size"] if "prefill_chunk_size" in config else 4096
+            for config in model_config_dicts
+        )
+        logging_msg += f"prefill chunk size is set to {prefill_chunk_size}. "
+    else:
+        logging_msg += f"prefill chunk size {prefill_chunk_size} is specified by user. "
+    if max_batch_size is None:
+        max_batch_size = 1 if mode == "interactive" else 4
+        logging_msg += f"max batch size is set to {max_batch_size}, "
+    else:
+        logging_msg += f"max batch size {max_batch_size} is specified by user, "
+
+    if mode == "local":
+        logging_msg += (
+            "We choose small max batch size and RNN state capacity to use less GPU memory."
+        )
+    elif mode == "interactive":
+        logging_msg += "We fix max batch size to 1 for interactive single sequence use."
+    else:
+        logging_msg += (
+            "We use as much GPU memory as possible (within the" " limit of gpu_memory_utilization)."
+        )
+    logger.info('Under mode "%s", %s', mode, logging_msg)
+
+    (
+        model_param_bytes,
+        model_temp_bytes,
+        model_rnn_state_base_bytes,
+        model_max_history_size,
+    ) = _estimate_mem_usage_and_max_history_size_for_rnn_state(
+        models,
+        device,
+        model_config_paths,
+        model_config_dicts,
+        max_batch_size,
+        gpu_memory_utilization,
+    )
+    if max_history_size is None:
+        max_history_size = model_max_history_size
+    else:
+        max_history_size = min(max_history_size, model_max_history_size)
+    max_total_sequence_length = 32768
+    prefill_chunk_size = 0
+    kind = KVStateKind.RNNSTATE
+
+    logger.info(
+        "%s: %.2f MB (Parameters: %.2f MB. RNNState: %.2f MB. Temporary buffer: %.2f MB). "
+        "The actual usage might be slightly larger than the estimated number.",
+        green("Estimated total single GPU memory usage"),
+        (model_param_bytes + model_temp_bytes + model_rnn_state_base_bytes) / 1024 / 1024,
+        model_param_bytes / 1024 / 1024,
+        max_history_size * model_rnn_state_base_bytes / 1024 / 1024,
+        model_temp_bytes / 1024 / 1024,
+    )
+
+    return (
+        max_batch_size,
+        max_total_sequence_length,
+        prefill_chunk_size,
+        kind,
+        max_history_size,
+    )
+
+
+def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
+    mode: Literal["local", "interactive", "server"],
+    max_batch_size: Optional[int],
+    max_total_sequence_length: Optional[int],
+    prefill_chunk_size: Optional[int],
+    max_history_size: Optional[int],
+    gpu_memory_utilization: Optional[float],
+    models: List[ModelInfo],
+    device: tvm.runtime.Device,
+    model_config_dicts: List[Dict[str, Any]],
+    model_config_paths: List[str],
+) -> Tuple[int, int, int, int, int, KVStateKind]:
+    """Initialize the cache config with user input and GPU memory usage estimation.
+    The returned four integers are:
+    - max_batch_size
+    - max_total_sequence_length
+    - prefill_chunk_size
+    - max_single_sequence_length
+    - max_history_size
+    - kv_state_kind
+    """
+    if all("rwkv" not in model.model for model in models):
+        (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            kv_state_kind,
+            max_single_sequence_length,
+        ) = _infer_kv_cache_config_for_kv_cache(
+            mode,
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            gpu_memory_utilization,
+            models,
+            device,
+            model_config_dicts,
+            model_config_paths,
+        )
+        max_history_size = 0  # KV cache doesn't need this
+    elif all("rwkv" in model.model for model in models):
+        (
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            kv_state_kind,
+            max_history_size,
+        ) = _infer_kv_cache_config_for_rnn_state(
+            mode,
+            max_batch_size,
+            max_total_sequence_length,
+            prefill_chunk_size,
+            max_history_size,
+            gpu_memory_utilization,
+            models,
+            device,
+            model_config_dicts,
+            model_config_paths,
+        )
+        max_single_sequence_length = max_total_sequence_length  # RNN state doesn't need this
+    else:
+        raise ValueError("The models should be either all KV cache models or all RNN state models.")
+    return (
+        max_batch_size,
+        max_total_sequence_length,
+        prefill_chunk_size,
+        max_single_sequence_length,
+        max_history_size,
+        kv_state_kind,
+    )
+
+
+def _infer_generation_config(
+    model_config_dicts: List[Dict[str, Any]]
+) -> List[Tuple[float, float, float, float]]:
+    """Infer the generation config from the model config dictionaries.
+    The returned four floats are:
+    - temperature
+    - top_p
+    - frequency_penalty
+    - presence_penalty
+    """
+    generation_configs = []
+
+    for model_config in model_config_dicts:
+        temperature = model_config.get("temperature", 1.0)
+        top_p = model_config.get("top_p", 1.0)
+        frequency_penalty = model_config.get("frequency_penalty", 0.0)
+        presence_penalty = model_config.get("presence_penalty", 0.0)
+        generation_configs.append((temperature, top_p, frequency_penalty, presence_penalty))
+
+    return generation_configs
+
+
 @dataclass
 class CallbackStreamOutput:
-    """The output of LLMEngine._generate and AsyncLLMEngine._generate
+    """The output of MLCEngine._generate and AsyncMLCEngine._generate
 
     Attributes
     ----------
@@ -485,7 +767,7 @@ class CallbackStreamOutput:
 
 
 class AsyncRequestStream:
-    """The asynchronous stream for requests in AsyncLLMEngine.
+    """The asynchronous stream for requests in AsyncMLCEngine.
 
     Each request has its own unique stream.
     The stream exposes the method `push` for engine to push new generated
@@ -544,29 +826,29 @@ class AsyncRequestStream:
 class EngineState:
     """The engine states that the request stream callback function may use.
 
-    This class is used for both AsyncLLMEngine and LLMEngine.
-    AsyncLLMEngine uses the fields and methods starting with "async",
-    and LLMEngine uses the ones starting with "sync".
+    This class is used for both AsyncMLCEngine and MLCEngine.
+    AsyncMLCEngine uses the fields and methods starting with "async",
+    and MLCEngine uses the ones starting with "sync".
 
-    - For AsyncLLMEngine, the state contains an asynchronous event loop,
+    - For AsyncMLCEngine, the state contains an asynchronous event loop,
     the streamers and the number of unfinished generations for each request
     being processed.
-    - For LLMEngine, the state contains a callback output blocking queue,
+    - For MLCEngine, the state contains a callback output blocking queue,
     the text streamers and the number of unfinished requests.
 
     We use this state class to avoid the callback function from capturing
-    the AsyncLLMEngine.
+    the AsyncMLCEngine.
 
     The state also optionally maintains an event trace recorder, which can
     provide Chrome tracing when enabled.
     """
 
     trace_recorder = None
-    # States used for AsyncLLMEngine
+    # States used for AsyncMLCEngine
     async_event_loop: Optional[asyncio.AbstractEventLoop] = None
     async_streamers: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
     async_num_unfinished_generations: Dict[str, int] = {}
-    # States used for LLMEngine
+    # States used for MLCEngine
     sync_output_queue: queue.Queue = queue.Queue()
     sync_text_streamers: List[TextStreamer] = []
     sync_num_unfinished_generations: int = 0
@@ -577,7 +859,7 @@ class EngineState:
             self.trace_recorder = EventTraceRecorder()
 
     def record_event(self, request_id: str, event: str) -> None:
-        """Record a event for the the input request in the trace
+        """Record a event for the input request in the trace
         recorder when the recorder exists.
 
         Parameters
@@ -628,7 +910,7 @@ class EngineState:
             self.async_event_loop = asyncio.get_event_loop()
 
     def _async_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The request stream callback function for AsyncLLMEngine to stream back
+        """The request stream callback function for AsyncMLCEngine to stream back
         the request generation results.
 
         Note
@@ -648,7 +930,7 @@ class EngineState:
     def _async_request_stream_callback_impl(
         self, delta_outputs: List[data.RequestStreamOutput]
     ) -> None:
-        """The underlying implementation of request stream callback for AsyncLLMEngine."""
+        """The underlying implementation of request stream callback for AsyncMLCEngine."""
         for delta_output in delta_outputs:
             request_id, stream_outputs = delta_output.unpack()
             streamers = self.async_streamers.get(request_id, None)
@@ -689,28 +971,28 @@ class EngineState:
             self.record_event(request_id, event="finish callback")
 
     def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
-        """The request stream callback function for LLMEngine to stream back
+        """The request stream callback function for MLCEngine to stream back
         the request generation results.
         """
         # Put the delta outputs to the queue in the unblocking way.
         self.sync_output_queue.put_nowait(delta_outputs)
 
 
-class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
+class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-public-methods
     """The base engine class, which implements common functions that
-    are shared by LLMEngine and AsyncLLMEngine.
+    are shared by MLCEngine and AsyncMLCEngine.
 
     This class wraps a threaded engine that runs on a standalone
     thread inside and streams back the delta generated results via
     callback functions. The internal threaded engine keeps running an
     loop that drives the engine.
 
-    LLMEngine and AsyncLLMEngine inherits this LLMEngineBase class, and implements
+    MLCEngine and AsyncMLCEngine inherits this MLCEngineBase class, and implements
     their own methods to process the delta generated results received
     from callback functions and yield the processed delta results in
     the forms of standard API protocols.
 
-    Checkout subclasses AsyncLLMEngine/LLMEngine for the docstring of constructor parameters.
+    Checkout subclasses AsyncMLCEngine/MLCEngine for the docstring of constructor parameters.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
@@ -724,6 +1006,7 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         max_batch_size: Optional[int],
         max_total_sequence_length: Optional[int],
         prefill_chunk_size: Optional[int],
+        max_history_size: Optional[int],
         gpu_memory_utilization: Optional[float],
         speculative_mode: SpeculativeMode,
         spec_draft_length: int,
@@ -753,11 +1036,14 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
             max_total_sequence_length,
             prefill_chunk_size,
             max_single_sequence_length,
+            max_history_size,
+            kv_state_kind,
         ) = _infer_kv_cache_config(
             mode,
             max_batch_size,
             max_total_sequence_length,
             prefill_chunk_size,
+            max_history_size,
             gpu_memory_utilization,
             models,
             device,
@@ -776,32 +1062,37 @@ class LLMEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "abort_request",
                 "run_background_loop",
                 "run_background_stream_back_loop",
+                "reload",
                 "init_background_engine",
                 "exit_background_loop",
                 "debug_call_func_on_all_worker",
             ]
         }
         self.tokenizer = Tokenizer(model_args[0][0])
+        self._ffi["init_background_engine"](
+            device,
+            self.state.get_request_stream_callback(kind),
+            self.state.trace_recorder,
+        )
+        self._ffi["reload"](
+            EngineConfig(
+                model=model_args[0][0],
+                model_lib_path=model_args[0][1],
+                additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
+                kv_cache_page_size=16,
+                max_num_sequence=max_batch_size,
+                max_total_sequence_length=max_total_sequence_length,
+                max_single_sequence_length=max_single_sequence_length,
+                prefill_chunk_size=prefill_chunk_size,
+                max_history_size=max_history_size,
+                kv_state_kind=kv_state_kind,
+                speculative_mode=speculative_mode,
+                spec_draft_length=spec_draft_length,
+            )
+        )
 
         def _background_loop():
-            self._ffi["init_background_engine"](
-                EngineConfig(
-                    model=model_args[0][0],
-                    model_lib_path=model_args[0][1],
-                    additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                    additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                    device=device,
-                    kv_cache_page_size=16,
-                    max_num_sequence=max_batch_size,
-                    max_total_sequence_length=max_total_sequence_length,
-                    max_single_sequence_length=max_single_sequence_length,
-                    prefill_chunk_size=prefill_chunk_size,
-                    speculative_mode=speculative_mode,
-                    spec_draft_length=spec_draft_length,
-                ),
-                self.state.get_request_stream_callback(kind),
-                self.state.trace_recorder,
-            )
             self._ffi["run_background_loop"]()
 
         def _background_stream_back_loop():
@@ -919,6 +1210,7 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(
         request,
+        model_config,
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
     )
@@ -1039,10 +1331,11 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     return response, num_completion_tokens
 
 
-def process_completion_request(
+def process_completion_request(  # pylint: disable=too-many-arguments
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
+    model_config: Dict[str, Any],
     tokenizer: Tokenizer,
     max_input_sequence_length: int,
 ) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:
@@ -1094,7 +1387,7 @@ def process_completion_request(
     assert isinstance(prompt, list)
 
     # Process generation config. Create request id.
-    generation_cfg = protocol_utils.get_generation_config(request)
+    generation_cfg = protocol_utils.get_generation_config(request, model_config)
 
     # - Echo back the prompt.
     echo_response = None

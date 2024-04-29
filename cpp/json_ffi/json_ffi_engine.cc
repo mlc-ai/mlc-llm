@@ -51,33 +51,40 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   // TODO: Check if request_id is present already
 
   // inputs
-  // TODO: Apply conv template
-  Array<Data> inputs;
+  Conversation conv_template = this->conv_template_;
+  std::vector<Message> messages;
   for (const auto& message : request.messages) {
-    if (message.content.has_value()) {
-      for (const auto& content : message.content.value()) {
-        if (content.find("type") == content.end()) {
-          err_ += "Content should have a type field";
-          return false;
-        }
-        std::string type = content.at("type");
-        if (type == "text") {
-          if (content.find("text") == content.end()) {
-            err_ += "Content should have a text field";
-            return false;
-          }
-          std::string text = content.at("text");
-          inputs.push_back(TextData(text));
-        } else {
-          err_ += "Content type not supported";
-          return false;
-        }
-      }
+    std::string role;
+    if (message.role == Role::user) {
+      role = "user";
+    } else if (message.role == Role::assistant) {
+      role = "assistant";
+    } else if (message.role == Role::tool) {
+      role = "tool";
+    } else {
+      role = "system";
     }
+    messages.push_back({role, message.content});
+  }
+  messages.push_back({"assistant", std::nullopt});
+  conv_template.messages = messages;
+
+  // check function calling
+  bool success_check = request.CheckFunctionCalling(conv_template, &err_);
+  if (!success_check) {
+    return false;
   }
 
+  // get prompt
+  std::optional<Array<Data>> inputs_obj = conv_template.AsPrompt(&err_);
+  if (!inputs_obj.has_value()) {
+    return false;
+  }
+  Array<Data> inputs = inputs_obj.value();
+
   // generation_cfg
-  Optional<GenerationConfig> generation_cfg = GenerationConfig::FromJSON(request_json_str, &err_);
+  Optional<GenerationConfig> generation_cfg = GenerationConfig::Create(
+      request_json_str, &err_, conv_template, this->model_generation_cfgs[request.model]);
   if (!generation_cfg.defined()) {
     return false;
   }
@@ -103,6 +110,9 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
+  TVM_MODULE_VTABLE_ENTRY("reload", &JSONFFIEngineImpl::Reload);
+  TVM_MODULE_VTABLE_ENTRY("unload", &JSONFFIEngineImpl::Unload);
+  TVM_MODULE_VTABLE_ENTRY("reset", &JSONFFIEngineImpl::Reset);
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
@@ -112,9 +122,20 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundEngine(EngineConfig engine_config,
-                            Optional<PackedFunc> request_stream_callback,
+  void InitBackgroundEngine(JSONFFIEngineConfig json_ffi_engine_config, EngineConfig engine_config,
+                            Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
+    std::optional<Conversation> conv_template =
+        Conversation::FromJSON(json_ffi_engine_config->conv_template, &err_);
+    if (!conv_template.has_value()) {
+      LOG(FATAL) << "Invalid conversation template JSON: " << err_;
+    }
+    this->conv_template_ = conv_template.value();
+    this->model_generation_cfgs = json_ffi_engine_config->model_generation_cfgs;
+
+    // Todo(mlc-team): decouple InitBackgroundEngine into two functions
+    // by removing `engine_config` from arguments, after properly handling
+    // streamers.
     this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
 
     CHECK(request_stream_callback.defined())
@@ -129,9 +150,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    this->engine_->InitBackgroundEngine(
-        std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
+    this->engine_->InitBackgroundEngine(device, std::move(request_stream_callback),
+                                        std::move(trace_recorder));
+    this->engine_->Reload(std::move(engine_config));
   }
+
+  void Reload(EngineConfig engine_config) { this->engine_->Reload(std::move(engine_config)); }
+
+  void Unload() { this->engine_->Unload(); }
+
+  void Reset() { this->engine_->Reset(); }
 
   void RunBackgroundLoop() { this->engine_->RunBackgroundLoop(); }
 

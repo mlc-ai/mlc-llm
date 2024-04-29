@@ -6,62 +6,41 @@ notitle: true
 
 # MLC LLM
 
-MLC LLM is a universal solution that allows any language model to be deployed natively on a diverse set of hardware backends and native applications.
+Documentation: [https://llm.mlc.ai/docs](https://llm.mlc.ai/docs)
 
-Please visit [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) for detailed instructions.
-
-## Demos
-
-- [iOS](#ios)
-- [Android](#android)
-- [Windows Linux Mac](#windows-linux-mac)
-- [Web browser](#web-browser)
-
-### iOS
-
-Our iOS app, MLCChat, is available on [App Store](https://apps.apple.com/us/app/mlc-chat/id6448482937) for iPhone and iPad.
-You can try out the [Testflight app](https://testflight.apple.com/join/57zd7oxa) that sometimes contains beta release of latest models.
-This app is tested on iPhone 15 Pro Max, iPhone 14 Pro Max, iPhone 14 Pro and iPhone 12 Pro.
-Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
-[documentation](https://llm.mlc.ai/docs/deploy/ios.html) is available for building iOS apps with MLC LLM.
-
+**M**achine **L**earning **C**ompilation for **L**arge **L**anguage **M**odels (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
 <p align="center">
-<img src="gif/ios-demo.gif" height="700">
+<img src="https://llm.mlc.ai/docs/_images/project-workflow.svg" height="300">
 </p>
 
-Note: Llama-7B takes 4GB of RAM and RedPajama-3B takes 2.2GB to run. We recommend a latest device with 6GB RAM for Llama-7B, or 4GB RAM for RedPajama-3B, to run the app. The text generation speed could vary from time to time, for example, slow in the beginning but recover to a normal speed then.
+## Installation
 
-### Android
+MLC LLM is available via [pip](https://llm.mlc.ai/docs/install/mlc_llm.html#install-mlc-packages).
+It is always recommended to install it in an isolated conda virtual environment.
 
-The demo APK is available to [download](https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk). The demo is tested on Samsung S23 with Snapdragon 8 Gen 2 chip, Redmi Note 12 Pro with Snapdragon 685 and Google Pixel phones.
-Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
-[documentation](https://llm.mlc.ai/docs/deploy/android.html) is available for building android apps with MLC LLM.
+To verify the installation, activate your virtual environment, run
 
-<p align="center">
-<img src="gif/android-demo.gif" height="700">
-</p>
+```bash
+python -c "import mlc_llm; print(mlc_llm.__path__)"
+```
 
-### Windows Linux Mac
+You are expected to see the installation path of MLC LLM Python package.
 
-Our cpp interface runs on AMD, Intel, Apple and NVIDIA GPUs.
-Besides the [Getting Started](https://llm.mlc.ai/docs/get_started/try_out.html) page,
-[documentation](https://llm.mlc.ai/docs/deploy/cli.html) is available for building C++ apps with MLC LLM.
+## Quick Start
 
-<p align="center">
-<img src="gif/linux-demo.gif" width="80%">
-</p>
+Please check out our documentation for the [quick start](https://llm.mlc.ai/docs/get_started/quick_start.html).
 
-### Web Browser
+## Introduction
 
-[WebLLM](https://webllm.mlc.ai/) is our companion project that deploys MLC LLM natively to browsers using WebGPU and WebAssembly. Still everything runs inside the browser without server resources, and accelerated by local GPUs (e.g. AMD, Intel, Apple or NVIDIA).
+Please check out our documentation for the [introduction](https://llm.mlc.ai/docs/get_started/introduction.html).
 
 ## Links
 
-* Our official [GitHub repo](https://github.com/mlc-ai/mlc-llm);
-* Our companion project [WebLLM](https://webllm.mlc.ai/) that enables running LLMs purely in browser.
-* [Web Stable Diffusion](https://websd.mlc.ai/) is another MLC-series that runs the diffusion models purely in the browser.
-* [Machine Learning Compilation course](https://mlc.ai) is available for a systematic walkthrough of our approach to universal deployment.
+- You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
+walkthrough of our approaches.
+- [WebLLM](https://webllm.mlc.ai/) is a companion project using MLC LLM's WebGPU and WebAssembly backend.
+- [WebStableDiffusion](https://websd.mlc.ai/) is a companion project for diffusion models with the WebGPU backend.
 
 ## Disclaimer
 

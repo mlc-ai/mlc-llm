@@ -2,7 +2,6 @@
 
 import dataclasses
 import enum
-import re
 from io import StringIO
 from typing import Optional
 

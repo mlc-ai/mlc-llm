@@ -153,6 +153,11 @@ The maximum number of tokens the model passes for prefill each time.
 It should not exceed the prefill chunk size in model config.
 If not specified, this defaults to the prefill chunk size in model config.
 """.strip(),
+    "max_history_size_serve": """
+The maximum history length for rolling back the RNN state. 
+If unspecified, the default value is 1.
+KV cache does not need this. 
+""".strip(),
     "enable_tracing_serve": """
 Enable Chrome Tracing for the server.
 After enabling, you can send POST request to the "debug/dump_event_trace" entrypoint
@@ -188,7 +193,7 @@ to compile the model automatically.
     "gpu_memory_utilization_serve": """
 A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
 It is used to infer to maximum possible KV cache capacity.
-When it is unspecified, it defaults to 0.90.
+When it is unspecified, it defaults to 0.85.
 Under mode "local" or "interactive", the actual memory usage may be significantly smaller than
 this number. Under mode "server", the actual memory usage may be slightly larger than this number.
 """,
@@ -203,7 +208,7 @@ The default mode is "DISABLE".
 The number of draft tokens to generate in speculative proposal. The default values is 4.
 """,
     "engine_config_serve": """
-The LLMEngine execution configuration.
+The MLCEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.
 For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'" to
 specify the eagle-style speculative decoding.

@@ -29,37 +29,59 @@ enum class InstructionKind : int {
   kAbortRequest = 1,
   kUnloadEngine = 2,
   kReloadEngine = 3,
-  kDebugCallFuncOnAllAllWorker = 4,
+  kResetEngine = 4,
+  kDebugCallFuncOnAllAllWorker = 5,
 };
 
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitBackgroundEngine(EngineConfig engine_config,
-                            Optional<PackedFunc> request_stream_callback,
+  void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) final {
+    device_ = device;
     CHECK(request_stream_callback.defined())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
+    trace_recorder_ = trace_recorder;
+  }
 
-    auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
-      ICHECK_EQ(args.size(), 1);
-      Array<RequestStreamOutput> delta_outputs = args[0];
-      bool need_notify = false;
-      {
-        std::lock_guard<std::mutex> lock(request_stream_callback_mutex_);
-        request_stream_callback_inputs_.push_back(std::move(delta_outputs));
-        ++pending_request_stream_callback_cnt_;
-        need_notify = stream_callback_waiting_;
-      }
-      if (need_notify) {
-        request_stream_callback_cv_.notify_one();
-      }
-    };
+  void Reload(EngineConfig engine_config) final {
+    bool need_notify = false;
+    {
+      std::lock_guard<std::mutex> lock(background_loop_mutex_);
+      instruction_queue_.emplace_back(InstructionKind::kReloadEngine, std::move(engine_config));
+      ++pending_request_operation_cnt_;
+      need_notify = engine_waiting_;
+    }
+    if (need_notify) {
+      background_loop_cv_.notify_one();
+    }
+  }
 
-    request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    background_engine_ = Engine::Create(
-        std::move(engine_config), std::move(request_stream_callback), std::move(trace_recorder));
+  void Unload() final {
+    bool need_notify = false;
+    {
+      std::lock_guard<std::mutex> lock(background_loop_mutex_);
+      instruction_queue_.emplace_back(InstructionKind::kUnloadEngine, ObjectRef(nullptr));
+      ++pending_request_operation_cnt_;
+      need_notify = engine_waiting_;
+    }
+    if (need_notify) {
+      background_loop_cv_.notify_one();
+    }
+  }
+
+  void Reset() final {
+    bool need_notify = false;
+    {
+      std::lock_guard<std::mutex> lock(background_loop_mutex_);
+      instruction_queue_.emplace_back(InstructionKind::kResetEngine, ObjectRef(nullptr));
+      ++pending_request_operation_cnt_;
+      need_notify = engine_waiting_;
+    }
+    if (need_notify) {
+      background_loop_cv_.notify_one();
+    }
   }
 
   void AddRequest(Request request) final {
@@ -97,7 +119,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
         std::unique_lock<std::mutex> lock(background_loop_mutex_);
         engine_waiting_ = true;
         background_loop_cv_.wait(lock, [this] {
-          return !background_engine_->Empty() || pending_request_operation_cnt_.load() > 0 ||
+          return (background_engine_ != nullptr && !background_engine_->Empty()) ||
+                 pending_request_operation_cnt_.load() > 0 ||
                  exit_now_.load(std::memory_order_relaxed);
         });
         engine_waiting_ = false;
@@ -108,22 +131,30 @@ class ThreadedEngineImpl : public ThreadedEngine {
       }
       for (const auto& [kind, arg] : local_instruction_queue) {
         if (kind == InstructionKind::kAddRequest) {
+          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           background_engine_->AddRequest(Downcast<Request>(arg));
         } else if (kind == InstructionKind::kAbortRequest) {
+          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           background_engine_->AbortRequest(Downcast<String>(arg));
         } else if (kind == InstructionKind::kUnloadEngine) {
-          // Todo(mlc-team): implement engine unload
-          LOG(FATAL) << "Not implemented yet.";
+          EngineUnloadImpl();
         } else if (kind == InstructionKind::kReloadEngine) {
-          // Todo(mlc-team): implement engine reload
-          LOG(FATAL) << "Not implemented yet.";
+          EngineUnloadImpl();
+          EngineReloadImpl(Downcast<EngineConfig>(arg));
+        } else if (kind == InstructionKind::kResetEngine) {
+          if (background_engine_ != nullptr) {
+            background_engine_->Reset();
+          }
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
+          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(arg));
         } else {
           LOG(FATAL) << "Cannot reach here";
         }
       }
-      background_engine_->Step();
+      if (background_engine_ != nullptr) {
+        background_engine_->Step();
+      }
     }
   }
 
@@ -184,10 +215,47 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
  private:
+  void EngineReloadImpl(EngineConfig engine_config) {
+    auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
+      ICHECK_EQ(args.size(), 1);
+      Array<RequestStreamOutput> delta_outputs = args[0];
+      bool need_notify = false;
+      {
+        std::lock_guard<std::mutex> lock(request_stream_callback_mutex_);
+        request_stream_callback_inputs_.push_back(std::move(delta_outputs));
+        ++pending_request_stream_callback_cnt_;
+        need_notify = stream_callback_waiting_;
+      }
+      if (need_notify) {
+        request_stream_callback_cv_.notify_one();
+      }
+    };
+
+    Optional<PackedFunc> request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
+    background_engine_ = Engine::Create(std::move(engine_config), device_,
+                                        std::move(request_stream_callback), trace_recorder_);
+  }
+
+  void EngineUnloadImpl() {
+    if (background_engine_ != nullptr) {
+      background_engine_->AbortAllRequests();
+      background_engine_ = nullptr;
+      // Clear the allocated memory in cached memory pool.
+      const PackedFunc* fclear_memory_manager =
+          tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
+      ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
+      (*fclear_memory_manager)();
+    }
+  }
+
+  /*! \brief The device to run models on. */
+  Device device_;
   /*! \brief The background normal engine for request processing. */
   std::unique_ptr<Engine> background_engine_;
   /*! \brief The request stream callback. */
   PackedFunc request_stream_callback_;
+  /*! \brief Event trace recorder. */
+  Optional<EventTraceRecorder> trace_recorder_;
 
   /*! \brief The mutex ensuring only one thread can access critical regions. */
   std::mutex background_loop_mutex_;
@@ -237,6 +305,7 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &ThreadedEngineImpl::InitBackgroundEngine);
+  TVM_MODULE_VTABLE_ENTRY("reload", &ThreadedEngineImpl::Reload);
   TVM_MODULE_VTABLE_ENTRY("add_request", &ThreadedEngineImpl::AddRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &ThreadedEngineImpl::AbortRequest);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &ThreadedEngineImpl::RunBackgroundLoop);

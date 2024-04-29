@@ -11,12 +11,15 @@
 
 #include <optional>
 
+#include "../json_ffi/config.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
 
 using namespace tvm;
 using namespace tvm::runtime;
+using namespace mlc::llm::json_ffi;
 
 /****************** GenerationConfig ******************/
 
@@ -60,10 +63,13 @@ class GenerationConfig : public ObjectRef {
   explicit GenerationConfig(String config_json_str);
 
   /*!
-   * \brief Parse the generation config from the given JSON string.
-   * When parsing fails, errors are dumped to the input error string, and NullOpt is returned.
+   * \brief Create a generation config from a ChatCompletionRequest.
+   * If the request does not contain a generation config, the model-defined
+   * generation config will be used.
    */
-  static Optional<GenerationConfig> FromJSON(const std::string& json_str, std::string* err);
+  static Optional<GenerationConfig> Create(
+      const std::string& json_str, std::string* err, const Conversation& conv_template,
+      const ModelDefinedGenerationConfig& model_defined_gen_config);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
@@ -80,6 +86,12 @@ enum class SpeculativeMode : int {
   kEagle = 2,
 };
 
+/*! \brief The kind of cache. */
+enum KVStateKind {
+  kAttention = 0,
+  kRNNState = 1,
+};
+
 /*! \brief The configuration of engine execution config. */
 class EngineConfigNode : public Object {
  public:
@@ -93,11 +105,6 @@ class EngineConfigNode : public Object {
   Array<String> additional_models;
   /*! \brief The path to the additional models' libraries. */
   Array<String> additional_model_lib_paths;
-
-  /*************** Device ***************/
-
-  /*! \brief The device where the models run. */
-  DLDevice device;
 
   /*************** KV cache config and engine capacities ***************/
 
@@ -117,6 +124,10 @@ class EngineConfigNode : public Object {
   int max_single_sequence_length;
   /*! \brief The maximum total sequence length in a prefill. */
   int prefill_chunk_size;
+  /*! \brief The maximum history size for RNN state. KV cache does not need this. */
+  int max_history_size;
+  /*! \brief The kind of cache. Whether it's KV cache or RNN state. */
+  KVStateKind kv_state_kind;
 
   /*************** Speculative decoding ***************/
 
@@ -136,10 +147,14 @@ class EngineConfigNode : public Object {
 class EngineConfig : public ObjectRef {
  public:
   explicit EngineConfig(String model, String model_lib_path, Array<String> additional_models,
-                        Array<String> additional_model_lib_paths, DLDevice device,
-                        int kv_cache_page_size, int max_num_sequence, int max_total_sequence_length,
+                        Array<String> additional_model_lib_paths, int kv_cache_page_size,
+                        int max_num_sequence, int max_total_sequence_length,
                         int max_single_sequence_length, int prefill_chunk_size,
+                        int max_history_size, KVStateKind kv_state_kind,
                         SpeculativeMode speculative_mode, int spec_draft_length);
+
+  /*! \brief Create EngineConfig from JSON string. */
+  static EngineConfig FromJSONString(const std::string& json_str);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
 };

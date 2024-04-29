@@ -25,6 +25,8 @@ class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
 
         func_name = "_metadata"
 
+        func_name = "_metadata"
+
         def _emit_metadata(metadata):
             bb = relax.BlockBuilder()  # pylint: disable=invalid-name
             with bb.function(func_name, params=[]):

@@ -23,13 +23,14 @@ def get_unsupported_fields(request: RequestProtocol) -> List[str]:
 
 def get_generation_config(
     request: RequestProtocol,
+    model_config: Dict[str, Any],
     extra_stop_token_ids: Optional[List[int]] = None,
     extra_stop_str: Optional[List[str]] = None,
 ) -> GenerationConfig:
     """Create the generation config in MLC LLM out from the input request protocol."""
     kwargs: Dict[str, Any]
     if isinstance(request, (OpenAICompletionRequest, OpenAIChatCompletionRequest)):
-        kwargs = openai_api_get_generation_config(request)
+        kwargs = openai_api_get_generation_config(request, model_config)
     else:
         raise RuntimeError("Cannot reach here")
 

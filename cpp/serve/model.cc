@@ -13,6 +13,7 @@
 
 #include <fstream>
 
+#include "config.h"
 #include "logit_processor.h"
 
 namespace mlc {
@@ -25,10 +26,27 @@ class ModelImpl;
 
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
-Model Model::Create(String reload_lib_path, String model_path, DLDevice device,
-                    int max_num_sequence, bool trace_enabled) {
-  return Model(
-      make_object<ModelImpl>(reload_lib_path, model_path, device, max_num_sequence, trace_enabled));
+Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
+                    DLDevice device, int max_num_sequence, const Optional<Session>& session,
+                    bool trace_enabled) {
+  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
+                                      max_num_sequence, session, trace_enabled));
+}
+
+picojson::object Model::LoadModelConfig(const String& model_path) {
+  picojson::object model_config;
+  std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
+  std::ostringstream config_ostream;
+  ICHECK(config_istream);
+  config_ostream << config_istream.rdbuf();
+  std::string config_str = config_ostream.str();
+  picojson::value config_json;
+  std::string err = picojson::parse(config_json, config_str);
+  if (!err.empty()) {
+    LOG(FATAL) << err;
+  }
+  picojson::object config = config_json.get<picojson::object>();
+  return config;
 }
 
 class ModelImpl : public ModelObj {
@@ -37,23 +55,16 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(String reload_lib_path, String model_path, DLDevice device,
-                     int max_num_sequence, bool trace_enabled)
+  explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
+                     DLDevice device, int max_num_sequence, const Optional<Session>& session,
+                     bool trace_enabled)
       : device_(device) {
     // Step 1. Process model config json string.
-    picojson::object model_config;
-    {
-      std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
-      std::ostringstream config_ostream;
-      ICHECK(config_istream);
-      config_ostream << config_istream.rdbuf();
-      std::string config_str = config_ostream.str();
-      model_config = LoadModelConfigJSON(config_str);
-    }
+    LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib_path, device_, model_config);
+    this->ft_.Init(reload_lib_path, device_, model_config, session);
     // Step 3. Load params in nd-array cache.
     this->params_ = ft_.LoadParams(model_path, device_);
     // Step 4. Set max_num_sequence
@@ -68,6 +79,12 @@ class ModelImpl : public ModelObj {
     token_ids_storage_ = memory::Storage(
         allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
     this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
+    // Step 7. Set model type
+    if (model_config["model_type"].get<std::string>().find("rwkv") != std::string::npos) {
+      this->kind = KVStateKind::kRNNState;
+    } else {
+      this->kind = KVStateKind::kAttention;
+    }
   }
 
   /*********************** Model Computation  ***********************/
@@ -136,16 +153,23 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
+    hidden_states =
         hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
 
+    // This copy can be avoided by not copying the hidden states to engine.
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
 
-    NDArray logits;
-    logits = Downcast<NDArray>(ret);
+    NDArray logits{nullptr};
+    if (ret->IsInstance<DRefObj>()) {
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+    } else {
+      logits = Downcast<NDArray>(ret);
+    }
     CHECK(logits.defined());
     // logits: (b * s, v)
     ICHECK_EQ(logits->ndim, 2);
@@ -185,8 +209,11 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
     ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
 
-    hidden_states_dref_or_nd =
-        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+    hidden_states = hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
+
+    // This copy can be avoided by not copying the hidden states to engine.
+    hidden_states_dref_or_nd = ft_.CopyToWorker0(
+        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
 
     ObjectRef ret =
         ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
@@ -218,8 +245,15 @@ class ModelImpl : public ModelObj {
       p_logit_pos[i] = total_length - 1;
     }
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+
+    // This step runs on the engine thread.
+    // By temporarily turning off the disco flag, this copies the logit_pos_nd to the cached device
+    // tensor without actually copying to the worker.
+    bool use_disco = ft_.use_disco;
+    ft_.use_disco = false;
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+    ft_.use_disco = use_disco;
 
     CHECK(ft_.batch_select_last_hidden_func_.defined())
         << "`batch_select_last_hidden_states` function is not found in the model.";
@@ -240,7 +274,7 @@ class ModelImpl : public ModelObj {
         hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
 
     ObjectRef ret =
-        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
+        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
@@ -265,10 +299,17 @@ class ModelImpl : public ModelObj {
       // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
       hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
       // Reuse the copy embedding function
-      ft_.nd_copy_embedding_to_offset_func_(hidden, *dst, cum_length);
+      ObjectRef hidden_dref_or_nd =
+          ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
+      ft_.nd_copy_embedding_to_offset_func_(hidden_dref_or_nd, *dst, cum_length);
       cum_length += 1;
     }
-    NDArray ret = Downcast<NDArray>(*dst);
+    NDArray ret{nullptr};
+    if ((*dst)->IsInstance<DRefObj>()) {
+      ret = Downcast<DRef>(*dst)->DebugGetFromRemote(0);
+    } else {
+      ret = Downcast<NDArray>(*dst);
+    }
     ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
     return ret;
   }
@@ -295,7 +336,7 @@ class ModelImpl : public ModelObj {
         return embeddings_nd.CreateView({batch_size, seq_len, hidden_size_}, embeddings_nd->dtype);
       }
     } else {
-      ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
+      ShapeTuple embedding_shape{batch_size * seq_len, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
 
       if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
@@ -715,16 +756,26 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                     int prefill_chunk_size) final {
-    IntTuple max_num_sequence_tuple{max_num_sequence};
-    IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
-    IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
-    IntTuple page_size_tuple{page_size};
-    IntTuple support_sliding_window{sliding_window_size_ != -1};
-    kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
-                                          prefill_chunk_size_tuple, page_size_tuple,
-                                          support_sliding_window);
-    local_kv_cache_ = ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+                     int prefill_chunk_size, int max_history_size,
+                     KVStateKind kv_state_kind) final {
+    if (kv_state_kind == KVStateKind::kAttention) {
+      IntTuple max_num_sequence_tuple{max_num_sequence};
+      IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
+      IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
+      IntTuple page_size_tuple{page_size};
+      IntTuple support_sliding_window{sliding_window_size_ != -1};
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
+                                            prefill_chunk_size_tuple, page_size_tuple,
+                                            support_sliding_window);
+      local_kv_cache_ =
+          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+    } else {
+      IntTuple max_num_sequence_tuple{max_num_sequence};
+      IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple);
+      local_kv_cache_ =
+          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+    }
   }
 
   void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
@@ -751,11 +802,21 @@ class ModelImpl : public ModelObj {
   /************** Raw Info Query **************/
 
   int GetNumAvailablePages() const final {
-    return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+    if (this->kind == KVStateKind::kRNNState) {
+      // RNNState does not introduce new page at runtime
+      return std::numeric_limits<int>::max();
+    } else {
+      return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+    }
   }
 
   int GetCurrentTotalSequenceLength() const final {
-    return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
+    if (this->kind == KVStateKind::kRNNState) {
+      // RNNState does not have a total sequence length limit
+      return 0;
+    } else {
+      return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
+    }
   }
 
   /*********************** Utilities  ***********************/
@@ -768,9 +829,7 @@ class ModelImpl : public ModelObj {
 
   Sampler CreateSampler(int max_num_sample, int num_models,
                         Optional<EventTraceRecorder> trace_recorder) {
-    if (num_models > 1) {  // speculative decoding uses cpu sampler
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
-    } else if (Sampler::SupportGPUSampler(device_)) {
+    if (Sampler::SupportGPUSampler(device_)) {
       return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
                                        std::move(trace_recorder));
     } else {
@@ -842,15 +901,7 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  picojson::object LoadModelConfigJSON(const std::string& config_str) {
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, config_str);
-    if (!err.empty()) {
-      LOG(FATAL) << err;
-    }
-
-    // Get json fields.
-    picojson::object config = config_json.get<picojson::object>();
+  picojson::object LoadModelConfigJSON(picojson::object config) {
     if (config.count("context_window_size")) {
       CHECK(config["context_window_size"].is<int64_t>());
       this->max_window_size_ = config["context_window_size"].get<int64_t>();
@@ -924,6 +975,8 @@ class ModelImpl : public ModelObj {
   NDArray logit_pos_arr_{nullptr};
   // A boolean indicating if tracing is enabled.
   bool trace_enabled_;
+  // An enum indicating whether it's RNN-based.
+  KVStateKind kind;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")

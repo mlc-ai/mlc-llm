@@ -8,6 +8,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <algorithm>
 #include <cmath>
 
 #include "../../random.h"
@@ -43,12 +44,7 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_o
 
   ICHECK(prob.IsContiguous());
   ICHECK(prob.DataType() == DataType::Float(32));
-
-  if (prob->device.device_type != kDLCPU) {
-    prob = prob.CopyTo(DLDevice{kDLCPU, 0});
-  }
-
-  ICHECK(prob->device.device_type == kDLCPU);
+  ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
   int64_t ndata = prob->shape[prob->ndim - 1];
   const float* __restrict p_prob =
@@ -186,6 +182,98 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_o
   return {sampled_index.second, sampled_index.first};
 }
 
+/*!
+ * \brief Renormalize the probability distribution by the top p value.
+ * \param prob The input batch of probability distributions.
+ * \param unit_offset The offset specifying which distribution to output
+ * \param top_p The top p value for renormalization.
+ * \param eps A small epsilon value for comparison stability.
+ */
+void RenormalizeProbByTopP(NDArray prob, int unit_offset, double top_p, double eps) {
+  // prob: (*, v)
+  // The prob array may have arbitrary ndim and shape.
+  // The last dimension corresponds to the prob distribution size.
+  // We use the `unit_offset` parameter to determine which slice
+  // of the prob array we will renormalize.
+  ICHECK(prob.IsContiguous());
+  ICHECK(prob.DataType() == DataType::Float(32));
+  ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
+
+  int vocab_size = prob->shape[prob->ndim - 1];
+  float* __restrict p_prob =
+      static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * vocab_size);
+
+  // We manually choice the cutoff values of "top_p / 256" and "top_p / 8192".
+  // In most of the cases, only one round is needed.
+  std::vector<double> cutoff_values{top_p / 256, top_p / 8192, 0.0f};
+
+  // Create the upper partition vector and the lower partition rolling vectors.
+  std::vector<float> upper_partition;
+  std::vector<float> lower_partitions[2];
+  upper_partition.reserve(vocab_size);
+  lower_partitions[0].reserve(vocab_size);
+  lower_partitions[1].reserve(vocab_size);
+  float upper_partition_sum = 0.0;
+  for (int round = 0; round < static_cast<int>(cutoff_values.size()); ++round) {
+    const float* lower_partition_begin;
+    const float* lower_partition_end;
+    if (round == 0) {
+      lower_partition_begin = p_prob;
+      lower_partition_end = p_prob + vocab_size;
+    } else {
+      int idx = (round - 1) & 1;
+      lower_partition_begin = lower_partitions[idx].data();
+      lower_partition_end = lower_partitions[idx].data() + lower_partitions[idx].size();
+    }
+
+    // - Partition the last round lower partition into upper and lower
+    // based on the new cutoff value.
+    std::vector<float>& lower_partition = lower_partitions[round & 1];
+    lower_partition.clear();
+    for (const float* ptr = lower_partition_begin; ptr != lower_partition_end; ++ptr) {
+      if (*ptr >= cutoff_values[round]) {
+        upper_partition.push_back(*ptr);
+        upper_partition_sum += *ptr;
+      } else {
+        lower_partition.push_back(*ptr);
+      }
+    }
+    // - If the upper partition sum is at least top p, exit the loop.
+    if (upper_partition_sum >= top_p - eps) {
+      break;
+    }
+  }
+
+  // - Sort the upper partition in descending order.
+  std::sort(upper_partition.begin(), upper_partition.end(), std::greater<>());
+  // - Find the top p boundary prob value.
+  float boundary_value = -1.0;
+  upper_partition_sum = 0.0;
+  for (float upper_value : upper_partition) {
+    upper_partition_sum += upper_value;
+    if (upper_partition_sum >= top_p - eps) {
+      boundary_value = upper_value;
+      break;
+    }
+  }
+  // - Mask all values smaller than the boundary to 0.
+  float renormalize_sum = 0.0;
+  std::vector<int> upper_partition_indices;
+  upper_partition_indices.reserve(vocab_size);
+  for (int i = 0; i < vocab_size; ++i) {
+    if (p_prob[i] >= boundary_value) {
+      upper_partition_indices.push_back(i);
+      renormalize_sum += p_prob[i];
+    } else {
+      p_prob[i] = 0.0;
+    }
+  }
+  // - Renormalize.
+  for (int idx : upper_partition_indices) {
+    p_prob[idx] /= renormalize_sum;
+  }
+}
+
 namespace detail {
 
 /*! \brief Implementation of getting top probs on CPU. */
@@ -266,67 +354,86 @@ class CPUSampler : public SamplerObj {
     }
   }
 
-  std::vector<SampleResult> BatchSampleTokens(NDArray probs_on_device,                        //
-                                              const std::vector<int>& sample_indices,         //
-                                              const Array<String>& request_ids,               //
-                                              const Array<GenerationConfig>& generation_cfg,  //
-                                              const std::vector<RandomGenerator*>& rngs,      //
-                                              std::vector<NDArray>* output_prob_dist) final {
+  NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
+                                      const std::vector<int>& sample_indices,  //
+                                      const Array<String>& request_ids,        //
+                                      const Array<GenerationConfig>& generation_cfg) final {
     // probs_on_device: (n, v)
-    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_host = CopyProbsToCPU(probs_on_device);
+    NDArray probs_on_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
+    int num_samples = sample_indices.size();
+    int num_probs = probs_on_device->shape[0];
+    int vocab_size = probs_on_device->shape[1];
+    ICHECK_EQ(request_ids.size(), num_samples);
+    ICHECK_EQ(generation_cfg.size(), num_samples);
 
-    // - Sample tokens from probabilities.
-    int n = request_ids.size();
-    ICHECK_EQ(generation_cfg.size(), n);
-    ICHECK_EQ(rngs.size(), n);
-
-    std::vector<SampleResult> sample_results;
-    sample_results.resize(n);
-    if (output_prob_dist) {
-      output_prob_dist->resize(n);
+    std::vector<int> top_p_indices;
+    std::vector<double> top_p_values;
+    for (int i = 0; i < num_samples; ++i) {
+      if (top_p_indices.empty() || top_p_indices.back() != sample_indices[i]) {
+        top_p_indices.push_back(sample_indices[i]);
+        top_p_values.push_back(generation_cfg[i]->top_p);
+      } else {
+        CHECK(fabs(top_p_values.back() - generation_cfg[i]->top_p) < eps_)
+            << "Sampler requires the top_p values for each prob distribution are the same.";
+      }
+    }
+    if (top_p_indices.empty()) {
+      // Return if no top p needs to apply.
+      return probs_on_host;
     }
 
     tvm::runtime::parallel_for_with_threading_backend(
-        [this, &sample_results, &probs_host, &generation_cfg, &rngs, &request_ids, sample_indices,
-         output_prob_dist](int i) {
-          RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
-          // Sample top p from probability.
-          sample_results[i].sampled_token_id = SampleTopPFromProb(
-              probs_host, i, sample_indices[i],
-              generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
-              rngs[i]->GetRandomNumber(), output_prob_dist);
-          if (output_prob_dist == nullptr) {
-            // When `output_prob_dist` is not nullptr, it means right now
-            // we are sampling for a small model in speculation, in which
-            // case we do not need to get the top probs.
-            sample_results[i].top_prob_tokens =
-                ComputeTopProbs(probs_host, i, generation_cfg[i]->top_logprobs);
-          }
-          RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
+        [this, &probs_on_host, &request_ids, &top_p_indices, &top_p_values](int i) {
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "start renormalize by top p");
+          RenormalizeProbByTopP(probs_on_host, top_p_indices[i], top_p_values[i], eps_);
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish renormalize by top p");
         },
-        0, n);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
-    return sample_results;
+        0, static_cast<int64_t>(top_p_indices.size()));
+
+    return probs_on_host;
   }
 
-  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokens(
-      NDArray probs_on_device, const Array<String>& request_ids,
+  std::vector<SampleResult> BatchSampleTokensWithProbBeforeTopP(
+      NDArray probs_on_device,                        //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs) final {
+    // probs_on_device: (n, v)
+    CHECK_EQ(probs_on_device->ndim, 2);
+    // - Copy probs to CPU
+    RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
+    NDArray probs_on_host = CopyProbsToCPU(probs_on_device);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
+
+    return BatchSampleTokensImpl(probs_on_host, sample_indices, request_ids, generation_cfg, rngs,
+                                 /*top_p_applied=*/false);
+  }
+
+  std::vector<SampleResult> BatchSampleTokensWithProbAfterTopP(
+      NDArray probs_on_host,                          //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs,      //
+      std::vector<NDArray>* output_prob_dist) final {
+    return BatchSampleTokensImpl(probs_on_host, sample_indices, request_ids, generation_cfg, rngs,
+                                 /*top_p_applied=*/true, output_prob_dist);
+  }
+
+  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
+      NDArray probs_on_host, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
-    // probs_on_device: (n, v)
+    // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    CHECK_EQ(probs_on_device->ndim, 2);
-    // - Copy probs to CPU
-    RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_host = CopyProbsToCPU(probs_on_device);
-    RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
+    CHECK_EQ(probs_on_host->ndim, 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
     CHECK_EQ(rngs.size(), num_sequence);
@@ -337,8 +444,8 @@ class CPUSampler : public SamplerObj {
     sample_results.resize(num_sequence);
 
     float* __restrict global_p_probs =
-        static_cast<float*>(__builtin_assume_aligned(probs_host->data, 4));
-    int vocab_size = probs_host->shape[1];
+        static_cast<float*>(__builtin_assume_aligned(probs_on_host->data, 4));
+    int vocab_size = probs_on_host->shape[1];
 
     tvm::runtime::parallel_for_with_threading_backend(
         [&](int i) {
@@ -355,7 +462,7 @@ class CPUSampler : public SamplerObj {
             if (p_value >= q_value) {
               sample_results[i].push_back(
                   SampleResult{{cur_token, p_value},
-                               ComputeTopProbs(probs_host, verify_start + cur_token_idx,
+                               ComputeTopProbs(probs_on_host, verify_start + cur_token_idx,
                                                generation_cfg[i]->top_logprobs)});
               continue;
             }
@@ -363,7 +470,7 @@ class CPUSampler : public SamplerObj {
             if (r < p_value / (q_value + eps_)) {
               sample_results[i].push_back(
                   SampleResult{{cur_token, p_value},
-                               ComputeTopProbs(probs_host, verify_start + cur_token_idx,
+                               ComputeTopProbs(probs_on_host, verify_start + cur_token_idx,
                                                generation_cfg[i]->top_logprobs)});
               continue;
             }
@@ -388,11 +495,10 @@ class CPUSampler : public SamplerObj {
             // sample a new token from the new distribution
             SampleResult sample_result;
             sample_result.sampled_token_id = SampleTopPFromProb(
-                probs_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
-                generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
-                rngs[i]->GetRandomNumber());
+                probs_on_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
+                /*top_p=*/1.0f, rngs[i]->GetRandomNumber());
             sample_result.top_prob_tokens = ComputeTopProbs(
-                probs_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
+                probs_on_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
             sample_results[i].push_back(sample_result);
             break;
           }
@@ -403,11 +509,10 @@ class CPUSampler : public SamplerObj {
             SampleResult sample_result;
             // sample a new token from the original distribution
             sample_result.sampled_token_id = SampleTopPFromProb(
-                probs_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
-                generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p,
-                rngs[i]->GetRandomNumber());
+                probs_on_host, verify_start + cur_token_idx, verify_start + cur_token_idx,
+                /*top_p=*/1.0f, rngs[i]->GetRandomNumber());
             sample_result.top_prob_tokens = ComputeTopProbs(
-                probs_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
+                probs_on_host, verify_start + cur_token_idx, generation_cfg[i]->top_logprobs);
             sample_results[i].push_back(sample_result);
           }
         },
@@ -417,6 +522,56 @@ class CPUSampler : public SamplerObj {
   }
 
  private:
+  std::vector<SampleResult> BatchSampleTokensImpl(
+      NDArray probs_on_host,                          //
+      const std::vector<int>& sample_indices,         //
+      const Array<String>& request_ids,               //
+      const Array<GenerationConfig>& generation_cfg,  //
+      const std::vector<RandomGenerator*>& rngs,      //
+      bool top_p_applied,                             //
+      std::vector<NDArray>* output_prob_dist = nullptr) {
+    // probs_on_host: (n, v)
+    RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
+    ICHECK_EQ(probs_on_host->ndim, 2);
+    ICHECK_EQ(probs_on_host->device.device_type, DLDeviceType::kDLCPU);
+
+    // - Sample tokens from probabilities.
+    int n = request_ids.size();
+    ICHECK_EQ(generation_cfg.size(), n);
+    ICHECK_EQ(rngs.size(), n);
+
+    std::vector<SampleResult> sample_results;
+    sample_results.resize(n);
+    if (output_prob_dist) {
+      output_prob_dist->resize(n);
+    }
+
+    tvm::runtime::parallel_for_with_threading_backend(
+        [this, &sample_results, &probs_on_host, &generation_cfg, &rngs, &request_ids, top_p_applied,
+         sample_indices, output_prob_dist](int i) {
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
+          // Sample top p from probability.
+          double top_p =
+              top_p_applied
+                  ? 1.0f
+                  : (generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p);
+          sample_results[i].sampled_token_id =
+              SampleTopPFromProb(probs_on_host, i, sample_indices[i], top_p,
+                                 rngs[i]->GetRandomNumber(), output_prob_dist);
+          if (output_prob_dist == nullptr) {
+            // When `output_prob_dist` is not nullptr, it means right now
+            // we are sampling for a small model in speculation, in which
+            // case we do not need to get the top probs.
+            sample_results[i].top_prob_tokens =
+                ComputeTopProbs(probs_on_host, i, generation_cfg[i]->top_logprobs);
+          }
+          RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
+        },
+        0, n);
+    RECORD_EVENT(trace_recorder_, request_ids, "finish sampling");
+    return sample_results;
+  }
+
   /*! \brief Copy prob distributions from device to CPU. */
   NDArray CopyProbsToCPU(NDArray probs_on_device) {
     // probs_on_device: (n, v)

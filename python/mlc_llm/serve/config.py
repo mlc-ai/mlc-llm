@@ -1,8 +1,13 @@
 """Configuration dataclasses used in MLC LLM serving"""
 
+import enum
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Literal, Optional
+
+import tvm
+
+from . import _ffi_api
 
 
 @dataclass
@@ -123,66 +128,101 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         return GenerationConfig(**json.loads(json_str))
 
 
-@dataclass
-class KVCacheConfig:
-    """The KV cache initialization configuration.
+class KVStateKind(enum.IntEnum):  # pylint: disable=too-few-public-methods
+    """Possible kinds of KV state."""
+
+    ATTENTION = 0
+    RNNSTATE = 1
+
+
+class SpeculativeMode(enum.IntEnum):
+    """The speculative mode."""
+
+    # Disable speculative decoding.
+    DISABLE = 0
+    # The normal speculative decoding (small draft) mode.
+    SMALL_DRAFT = 1
+    # The eagle-style speculative decoding.
+    EAGLE = 2
+
+
+@tvm._ffi.register_object("mlc.serve.EngineConfig")  # pylint: disable=protected-access
+class EngineConfig(tvm.runtime.Object):
+    """The class of MLCEngine execution configuration.
 
     Parameters
     ----------
-    page_size : int
+    model : str
+        The path to the model directory.
+
+    model_lib_path : str
+        The path to the model library.
+
+    additional_models : List[str]
+        The path to the additional models' directories.
+
+    additional_model_lib_paths : List[str]
+        The path to the additional models' libraries.
+
+    kv_cache_page_size : int
         The number of consecutive tokens handled in each page in paged KV cache.
 
     max_num_sequence : int
-        The maximum number of sequences that are allowed to processed by the KV
-        cache at any time.
+        The maximum number of sequences that are allowed to be
+        processed by the KV cache at any time.
 
-    max_total_sequence_length : Optional[int]
-        The maximum total number of tokens whose KV data are allowed to exist
-        in the KV cache at any time.
-        Set it to None to enable automatic computation of the max total
-        sequence length.
+    max_total_sequence_length : int
+        The maximum length allowed for a single sequence in the engine.
 
-    prefill_chunk_size : Optional[int]
+    max_single_sequence_length : int
+        The maximum total number of tokens whose KV data are allowed
+        to exist in the KV cache at any time.
+
+    prefill_chunk_size : int
         The maximum total sequence length in a prefill.
-        If not specified, it will be automatically inferred from model config.
-    """
 
-    page_size: int = 16
-    max_num_sequence: int = 32
-    max_total_sequence_length: Optional[int] = None
-    prefill_chunk_size: Optional[int] = None
+    max_history_size: int
+        The maximum history size for RNN state to rool back.
 
-    def asjson(self) -> str:
-        """Return the config in string of JSON format."""
-        return json.dumps(asdict(self))
+    kv_state_kind: KVStateKind
+        The kind of cache.
 
-    @staticmethod
-    def from_json(json_str: str) -> "KVCacheConfig":
-        """Construct a config from JSON string."""
-        return KVCacheConfig(**json.loads(json_str))
-
-
-@dataclass
-class EngineMode:
-    """The Engine execution mode.
-
-    Parameters
-    ----------
-    enable_speculative : bool
-        Whether the speculative decoding mode is enabled, default False.
+    speculative_mode : SpeculativeMode
+        The speculative mode.
 
     spec_draft_length : int
-        The number of tokens to generate in speculative proposal (draft), default 4.
+        The number of tokens to generate in speculative proposal (draft).
     """
 
-    enable_speculative: bool = False
-    spec_draft_length: int = 4
-
-    def asjson(self) -> str:
-        """Return the config in string of JSON format."""
-        return json.dumps(asdict(self))
-
-    @staticmethod
-    def from_json(json_str: str) -> "EngineMode":
-        """Construct a config from JSON string."""
-        return EngineMode(**json.loads(json_str))
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        model: str,
+        model_lib_path: str,
+        additional_models: List[str],
+        additional_model_lib_paths: List[str],
+        kv_cache_page_size: int,
+        max_num_sequence: int,
+        max_total_sequence_length: int,
+        max_single_sequence_length: int,
+        prefill_chunk_size: int,
+        max_history_size: int,
+        kv_state_kind: KVStateKind,
+        speculative_mode: SpeculativeMode,
+        spec_draft_length: int,
+    ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.EngineConfig,  # type: ignore  # pylint: disable=no-member
+            model,
+            model_lib_path,
+            additional_models,
+            additional_model_lib_paths,
+            kv_cache_page_size,
+            max_num_sequence,
+            max_total_sequence_length,
+            max_single_sequence_length,
+            prefill_chunk_size,
+            max_history_size,
+            kv_state_kind,
+            speculative_mode,
+            spec_draft_length,
+        )

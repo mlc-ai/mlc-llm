@@ -247,7 +247,7 @@ class GrammarStateMatcher(Object):
             self.__init_handle_by_constructor__(
                 _ffi_api.GrammarStateMatcherFromTokenTable,  # type: ignore  # pylint: disable=no-member
                 grammar,
-                *tokenizer,
+                tokenizer,
                 max_rollback_steps,
             )
         else:

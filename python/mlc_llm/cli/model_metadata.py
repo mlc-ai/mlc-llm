@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
-import numpy as np
+from tvm.runtime import DataType
 
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
@@ -81,7 +81,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
         else:
             # Contains dynamic shape; use config to look up concrete values
             param_shape = _read_dynamic_shape(param["shape"], config)
-        params_bytes += math.prod(param_shape) * np.dtype(param["dtype"]).itemsize
+        params_bytes += math.prod(param_shape) * DataType(param["dtype"]).itemsize()
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)

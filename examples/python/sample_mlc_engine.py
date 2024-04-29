@@ -1,8 +1,8 @@
-from mlc_llm import LLMEngine
+from mlc_llm import MLCEngine
 
 # Create engine
-model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
-engine = LLMEngine(model)
+model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+engine = MLCEngine(model)
 
 # Run chat completion in OpenAI API.
 for response in engine.chat.completions.create(

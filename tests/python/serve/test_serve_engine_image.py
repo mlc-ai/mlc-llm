@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from mlc_llm.serve import GenerationConfig, data
-from mlc_llm.serve.sync_engine import SyncLLMEngine
+from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 
 def get_test_image(config) -> data.ImageData:
@@ -13,7 +13,7 @@ def test_engine_generate():
     # Create engine
     model = "dist/llava-1.5-7b-hf-q4f16_1-MLC/params"
     model_lib_path = "dist/llava-1.5-7b-hf-q4f16_1-MLC/llava-1.5-7b-hf-q4f16_1-MLC.so"
-    engine = SyncLLMEngine(
+    engine = SyncMLCEngine(
         model=model,
         model_lib_path=model_lib_path,
         mode="server",

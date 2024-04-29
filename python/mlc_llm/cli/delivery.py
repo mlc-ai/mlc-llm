@@ -1,7 +1,9 @@
 """Continuous model delivery for MLC LLM models."""
+
 import argparse
 import dataclasses
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -131,7 +133,9 @@ def _run_quantization(
                     cmd += ["--" + optional_arg.replace("_", "-"), str(optional_arg_val)]
 
             print(" ".join(cmd), file=log_file, flush=True)
-            subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT)
+            subprocess.run(
+                cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
+            )
             cmd = [
                 sys.executable,
                 "-m",
@@ -146,7 +150,9 @@ def _run_quantization(
                 output_dir,
             ]
             print(" ".join(cmd), file=log_file, flush=True)
-            subprocess.run(cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT)
+            subprocess.run(
+                cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
+            )
             logger.info("[MLC] Complete!")
         if not (Path(output_dir) / "ndarray-cache.json").exists():
             logger.error(

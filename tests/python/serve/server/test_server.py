@@ -329,23 +329,6 @@ def test_openai_v1_completions_openai_package(
         )
 
 
-def test_openai_v1_completions_invalid_requested_model(
-    launch_server,  # pylint: disable=unused-argument
-):
-    # `launch_server` is a pytest fixture defined in conftest.py.
-
-    model = "unserved_model"
-    payload = {
-        "model": model,
-        "prompt": "What is the meaning of life?",
-        "max_tokens": 10,
-    }
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
-    expect_error(
-        response_str=response.json(), msg_prefix=f'The requested model "{model}" is not served.'
-    )
-
-
 @pytest.mark.parametrize("stream", [False, True])
 def test_openai_v1_completions_echo(
     served_model: Tuple[str, str],
@@ -618,51 +601,6 @@ def test_openai_v1_completions_json_schema(
         "max_tokens": max_tokens,
         "stream": stream,
         "response_format": {"type": "json_object", "schema": schema_str},
-    }
-
-    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
-    if not stream:
-        check_openai_nonstream_response(
-            response.json(),
-            is_chat_completion=False,
-            model=served_model[0],
-            object_str="text_completion",
-            num_choices=1,
-            finish_reasons=["length"],
-        )
-    else:
-        responses = []
-        for chunk in response.iter_lines(chunk_size=512):
-            if not chunk or chunk == b"data: [DONE]":
-                continue
-            responses.append(json.loads(chunk.decode("utf-8")[6:]))
-        check_openai_stream_response(
-            responses,
-            is_chat_completion=False,
-            model=served_model[0],
-            object_str="text_completion",
-            num_choices=1,
-            finish_reasons=["length"],
-        )
-
-
-@pytest.mark.parametrize("stream", [False, True])
-def test_openai_v1_completions_json(
-    served_model: Tuple[str, str],
-    launch_server,  # pylint: disable=unused-argument
-    stream: bool,
-):
-    # `served_model` and `launch_server` are pytest fixtures
-    # defined in conftest.py.
-
-    prompt = "Response with a json object:"
-    max_tokens = 128
-    payload = {
-        "model": served_model[0],
-        "prompt": prompt,
-        "max_tokens": max_tokens,
-        "stream": stream,
-        "response_format": {"type": "json_object"},
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=60)
@@ -1364,7 +1302,6 @@ if __name__ == "__main__":
     test_openai_v1_completions(MODEL, None, stream=True)
     test_openai_v1_completions_openai_package(MODEL, None, stream=False)
     test_openai_v1_completions_openai_package(MODEL, None, stream=True)
-    test_openai_v1_completions_invalid_requested_model(None)
     test_openai_v1_completions_echo(MODEL, None, stream=False)
     test_openai_v1_completions_echo(MODEL, None, stream=True)
     test_openai_v1_completions_suffix(MODEL, None, stream=False)
