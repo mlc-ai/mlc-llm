@@ -1,9 +1,9 @@
 """Continuous model delivery for MLC LLM models."""
 
-import os
 import argparse
 import dataclasses
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -59,26 +59,25 @@ class DeferredScope:
         return Path(temp_dir)
 
 
-def _run_compilation(model_info: ModelInfo, repo_dir: Path):
+def _run_compilation(model_info: ModelInfo, repo_dir: Path) -> bool:
     """Run the compilation of the model library."""
 
     def get_lib_ext(device: str) -> str:
-        # TODO: Add support for mali, intel mac
         if device in ["cuda", "vulkan", "metal"]:
             return ".so"
-        elif device in ["android", "ios"]:
+        if device in ["android", "ios"]:
             return ".tar"
-        elif device in ["webgpu"]:
+        if device in ["webgpu"]:
             return ".wasm"
-        else:
-            return None
+
+        return ""
 
     succeeded = True
     with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as temp_dir:
         log_path = Path(temp_dir) / "logs.txt"
         model_lib_name = f"{model_info.model_id}-{model_info.quantization}-{model_info.device}"
         lib_ext = get_lib_ext(model_info.device)
-        if lib_ext is None:
+        if lib_ext == "":
             raise ValueError(f"Unsupported device: {model_info.device}")
         model_lib_name += lib_ext
         with log_path.open("a", encoding="utf-8") as log_file:
@@ -109,7 +108,7 @@ def _run_compilation(model_info: ModelInfo, repo_dir: Path):
                 model_info.device,
             )
             succeeded = False
-            return
+            return succeeded
 
         # overwrite git repo file with the compiled library
         repo_filepath = repo_dir / model_info.model_id / model_lib_name
