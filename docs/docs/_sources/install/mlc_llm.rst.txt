@@ -214,7 +214,9 @@ There are two ways to do so:
 
        .. code-tab :: bash Install via environment variable
 
-          export PYTHONPATH=/path-to-mlc-llm/python:$PYTHONPATH
+          export MLC_LLM_HOME=/path-to-mlc-llm
+          export PYTHONPATH=$MLC_LLM_HOME/python:$PYTHONPATH
+          alias mlc_llm="python -m mlc_llm"
 
        .. code-tab :: bash Install via pip local project
 
