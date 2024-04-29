@@ -51,6 +51,9 @@ class GPUSampler : public SamplerObj {
     ICHECK(gpu_sample_with_top_p_func_.defined());
     ICHECK(gpu_sampler_take_probs_func_.defined());
 
+    flashinfer_multinomial_sample_func_ =
+        Registry::Get("flashinfer.sampling.parallel_sampling_from_prob");
+
     DLDevice device_cpu{DLDeviceType::kDLCPU, /*device_id=*/0};
     // We support at most 5 top prob results for each sequence.
     // Initialize auxiliary arrays on CPU.
@@ -76,6 +79,7 @@ class GPUSampler : public SamplerObj {
     token_tree_first_child_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     token_tree_next_sibling_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     token_tree_parent_ptr_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
+    sampled_token_ids_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
 
     // If the device is CUDA/ROCm, we create a standalone copy stream, in
     // purpose to hide the latency of auxiliary stream copy.
@@ -495,8 +499,15 @@ class GPUSampler : public SamplerObj {
     if (!need_top_p && !need_prob_values) {
       // - Short path: If top_p and prob values are not needed, we directly sample from multinomial.
       SyncCopyStream(device_, compute_stream_, copy_stream_);
-      sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
-          probs_on_device, uniform_samples_device, sample_indices_device);
+      if (flashinfer_multinomial_sample_func_ != nullptr) {
+        sampled_token_ids_device =
+            sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
+        (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
+                                               sample_indices_device, sampled_token_ids_device);
+      } else {
+        sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
+            probs_on_device, uniform_samples_device, sample_indices_device);
+      }
       return {sampled_token_ids_device, sampled_probs_device, top_prob_probs_device,
               top_prob_indices_device};
     }
@@ -531,8 +542,15 @@ class GPUSampler : public SamplerObj {
                                       uniform_samples_device, sample_indices_device, top_p_device);
     } else {
       // - Sample without top_p.
-      sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
-          probs_on_device, uniform_samples_device, sample_indices_device);
+      if (flashinfer_multinomial_sample_func_ != nullptr) {
+        sampled_token_ids_device =
+            sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
+        (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
+                                               sample_indices_device, sampled_token_ids_device);
+      } else {
+        sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
+            probs_on_device, uniform_samples_device, sample_indices_device);
+      }
     }
 
     if (need_prob_values) {
@@ -604,6 +622,7 @@ class GPUSampler : public SamplerObj {
   PackedFunc gpu_sampler_take_probs_func_;
   PackedFunc gpu_verify_draft_tokens_func_;
   PackedFunc gpu_renormalize_by_top_p_func_;
+  const PackedFunc* flashinfer_multinomial_sample_func_;
   // Auxiliary NDArrays on CPU
   NDArray uniform_samples_host_;
   NDArray sample_indices_host_;
@@ -627,6 +646,7 @@ class GPUSampler : public SamplerObj {
   NDArray token_tree_first_child_device_;
   NDArray token_tree_next_sibling_device_;
   NDArray token_tree_parent_ptr_device_;
+  NDArray sampled_token_ids_device_;
   // The event trace recorder for requests. */
   Optional<EventTraceRecorder> trace_recorder_;
   // The device stream for the default computation operations.
