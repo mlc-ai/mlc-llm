@@ -34,7 +34,10 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point"""
-        gv = self.mod.get_global_var("softmax_with_temperature")
+        func_name = "softmax_with_temperature"
+        if func_name not in self.mod:
+            return self.mod
+        gv = self.mod.get_global_var(func_name)
         updated_func = self.visit_expr(self.mod[gv])
         self.builder_.update_func(gv, updated_func)
         return self.builder_.get()

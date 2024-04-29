@@ -28,11 +28,15 @@ namespace serve {
 class BatchVerifyActionObj : public EngineActionObj {
  public:
   explicit BatchVerifyActionObj(Array<Model> models, LogitProcessor logit_processor,
-                                Sampler sampler, EngineConfig engine_config,
+                                Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
+                                DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                EngineConfig engine_config,
                                 Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
+        model_workspaces_(std::move(model_workspaces)),
+        draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
         rng_(RandomGenerator::GetInstance()) {}
@@ -61,14 +65,13 @@ class BatchVerifyActionObj : public EngineActionObj {
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
-    std::vector<std::vector<NDArray>> draft_output_prob_dist;
     request_internal_ids.reserve(num_rsentries);
     all_tokens_to_verify.reserve(total_verify_length);
     verify_request_mstates.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
     draft_output_tokens.reserve(num_rsentries);
-    draft_output_prob_dist.reserve(num_rsentries);
+    draft_token_slots_.clear();
 
     for (int i = 0; i < num_rsentries; ++i) {
       RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
@@ -76,18 +79,22 @@ class BatchVerifyActionObj : public EngineActionObj {
       request_internal_ids.push_back(verify_mstate->internal_id);
       ICHECK(!verify_lengths.empty());
       ICHECK_EQ(verify_lengths[i], draft_mstate->draft_output_tokens.size() + 1);
-      ICHECK_EQ(verify_lengths[i], draft_mstate->draft_output_prob_dist.size() + 1);
+      ICHECK_EQ(verify_lengths[i], draft_mstate->draft_token_slots.size() + 1);
       // the last committed token + all the draft tokens.
+      draft_token_slots_.push_back(0);  // placeholder for the last committed token
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().sampled_token_id.first);
       for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()); ++j) {
         all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
+        draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
       }
       verify_request_mstates.push_back(verify_mstate);
       generation_cfg.push_back(rsentries[i]->request->generation_cfg);
       rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
-      draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
     }
+    NDArray draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
+        model_workspaces_[verify_model_id_].draft_probs_storage, draft_token_slots_,
+        &model_workspaces_[verify_model_id_].draft_probs);
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify embedding");
     ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
@@ -123,7 +130,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::vector<std::vector<SampleResult>> sample_results_arr =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
-            draft_output_tokens, draft_output_prob_dist);
+            draft_output_tokens, draft_probs_on_device);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     for (int i = 0; i < num_rsentries; ++i) {
@@ -149,7 +156,8 @@ class BatchVerifyActionObj : public EngineActionObj {
 
     // clear the draft model state entries
     for (int i = 0; i < num_rsentries; ++i) {
-      rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens();
+      rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens(&draft_token_slots_);
+      draft_token_workspace_manager_->FreeSlots(draft_token_slots_);
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
@@ -194,8 +202,8 @@ class BatchVerifyActionObj : public EngineActionObj {
       total_required_pages += num_require_pages;
     }
     while (!CanVerify(total_required_pages)) {
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+      RequestStateEntry preempted = PreemptLastRunningRequestStateEntry(
+          estate, models_, draft_token_workspace_manager_, trace_recorder_);
       if (preempted.same_as(running_rsentries.back())) {
         total_verify_length -= verify_lengths.back();
         total_required_pages -= num_page_requirement.back();
@@ -222,6 +230,10 @@ class BatchVerifyActionObj : public EngineActionObj {
   LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
+  /*! \brief The model workspaces. */
+  std::vector<ModelWorkspace> model_workspaces_;
+  /*! \brief The draft token workspace manager. */
+  DraftTokenWorkspaceManager draft_token_workspace_manager_;
   /*! \brief The engine config. */
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
@@ -232,14 +244,20 @@ class BatchVerifyActionObj : public EngineActionObj {
   const int verify_model_id_ = 0;
   const int draft_model_id_ = 1;
   const float eps_ = 1e-5;
+  /*! \brief Temporary buffer to store the slots of the current draft tokens */
+  std::vector<int> draft_token_slots_;
 };
 
 EngineAction EngineAction::BatchVerify(Array<Model> models, LogitProcessor logit_processor,
-                                       Sampler sampler, EngineConfig engine_config,
+                                       Sampler sampler,
+                                       std::vector<ModelWorkspace> model_workspaces,
+                                       DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                       EngineConfig engine_config,
                                        Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<BatchVerifyActionObj>(
-      std::move(models), std::move(logit_processor), std::move(sampler), std::move(engine_config),
-      std::move(trace_recorder)));
+      std::move(models), std::move(logit_processor), std::move(sampler),
+      std::move(model_workspaces), std::move(draft_token_workspace_manager),
+      std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

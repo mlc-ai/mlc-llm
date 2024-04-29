@@ -29,12 +29,14 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
  public:
   explicit EagleBatchVerifyActionObj(Array<Model> models, LogitProcessor logit_processor,
                                      Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
+                                     DraftTokenWorkspaceManager draft_token_workspace_manager,
                                      EngineConfig engine_config,
                                      Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
+        draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
         rng_(RandomGenerator::GetInstance()) {}
@@ -70,7 +72,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     rngs.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
     draft_output_tokens.reserve(num_rsentries);
-    draft_output_prob_dist.reserve(num_rsentries);
+    draft_token_slots_.clear();
 
     for (int i = 0; i < num_rsentries; ++i) {
       RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
@@ -78,18 +80,23 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       request_internal_ids.push_back(verify_mstate->internal_id);
       ICHECK(!draft_lengths.empty());
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
-      ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_prob_dist.size());
+      ICHECK_EQ(draft_lengths[i], draft_mstate->draft_token_slots.size());
       // the last committed token + all the draft tokens but the last one.
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().sampled_token_id.first);
+      draft_token_slots_.push_back(0);  // placeholder for the last committed token
       for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()); ++j) {
         all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
+        draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
       }
       verify_request_mstates.push_back(verify_mstate);
       generation_cfg.push_back(rsentries[i]->request->generation_cfg);
       rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
-      draft_output_prob_dist.push_back(draft_mstate->draft_output_prob_dist);
     }
+
+    NDArray draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
+        model_workspaces_[verify_model_id_].draft_probs_storage, draft_token_slots_,
+        &model_workspaces_[verify_model_id_].draft_probs);
 
     std::vector<int> cum_verify_lengths = {0};
     cum_verify_lengths.reserve(num_rsentries + 1);
@@ -135,10 +142,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     std::vector<std::vector<SampleResult>> sample_results_arr =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
-            draft_output_tokens, draft_output_prob_dist);
+            draft_output_tokens, draft_probs_on_device);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
-    std::vector<NDArray> last_hidden_states;
+    std::vector<int> last_accepted_hidden_positions;
+    last_accepted_hidden_positions.reserve(num_rsentries);
     for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
       int accept_length = sample_results.size();
@@ -163,24 +171,24 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
             rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length - 1);
       }
       // clear the draft model state entries
-      rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens();
-      // - Slice hidden_states_for_sample
-      NDArray last_hidden_on_device =
-          GetTokenHidden(hidden_states, (cum_verify_lengths[i] + accept_length - 1));
-      last_hidden_states.push_back(last_hidden_on_device);
+      rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens(&draft_token_slots_);
+      draft_token_workspace_manager_->FreeSlots(draft_token_slots_);
+      // - Slice and save hidden_states_for_sample
+      last_accepted_hidden_positions.push_back(cum_verify_lengths[i] + accept_length - 1);
     }
 
     {
       // One step draft for the following steps
-      NDArray hidden_states_nd{nullptr};
-      ObjectRef next_hidden_states = model_workspaces_[draft_model_id_].hidden_states;
-      // Concat last hidden_states
-      hidden_states_nd =
-          models_[draft_model_id_]->ConcatLastHidden(last_hidden_states, &next_hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 2);
-      ICHECK_EQ(hidden_states_nd->shape[0], num_rsentries);
-      hidden_states_nd = hidden_states_nd.CreateView(
-          {hidden_states_nd->shape[0], 1, hidden_states_nd->shape[1]}, hidden_states_nd->dtype);
+      NDArray last_hidden_states_nd = hidden_states.CreateView(
+          {hidden_states->shape[0] * hidden_states->shape[1], hidden_states->shape[2]},
+          hidden_states->dtype);
+
+      hidden_states = Downcast<NDArray>(models_[draft_model_id_]->GatherHiddenStates(
+          last_hidden_states_nd, last_accepted_hidden_positions,
+          &model_workspaces_[draft_model_id_].hidden_states));
+      ICHECK(hidden_states->ndim == 2);
+      hidden_states = hidden_states.CreateView(
+          {hidden_states->shape[0], 1, hidden_states->shape[1]}, hidden_states->dtype);
 
       std::vector<int> input_tokens;
       Array<RequestModelState> mstates;
@@ -203,17 +211,16 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // - Invoke model decode.
       RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
       ObjectRef fused_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
-          embeddings, hidden_states_nd, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
-      hidden_states_nd = models_[draft_model_id_]->BatchDecodeToLastHidden(fused_hidden_states,
-                                                                           request_internal_ids);
+          embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+      hidden_states = models_[draft_model_id_]->BatchDecodeToLastHidden(fused_hidden_states,
+                                                                        request_internal_ids);
 
       if (models_[draft_model_id_]->CanGetLogits()) {
-        logits = models_[draft_model_id_]->GetLogits(hidden_states_nd, /*batch_size*/ num_rsentries,
+        logits = models_[draft_model_id_]->GetLogits(hidden_states, /*batch_size*/ num_rsentries,
                                                      /*seq_len*/ 1);
       } else {
         // - Use base model's head.
-        logits =
-            models_[0]->GetLogits(hidden_states_nd, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+        logits = models_[0]->GetLogits(hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
       }
       RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
       ICHECK_EQ(logits->ndim, 3);
@@ -239,13 +246,21 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
           renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
       ICHECK_EQ(sample_results.size(), num_rsentries);
 
+      // - Slice and save hidden_states_for_sample
+      draft_token_workspace_manager_->AllocSlots(num_rsentries, &draft_token_slots_);
+      models_[draft_model_id_]->ScatterDraftProbs(
+          renormalized_probs, draft_token_slots_,
+          &model_workspaces_[verify_model_id_].draft_probs_storage);
+      ICHECK(hidden_states->ndim == 3);
+      hidden_states = hidden_states.CreateView(
+          {hidden_states->shape[0] * hidden_states->shape[1], hidden_states->shape[2]},
+          hidden_states->dtype);
+      models_[draft_model_id_]->ScatterHiddenStates(
+          hidden_states, draft_token_slots_,
+          &model_workspaces_[verify_model_id_].draft_hidden_states_storage);
       // - Add draft token to the state.
       for (int i = 0; i < num_rsentries; ++i) {
-        // - Slice hidden_states_for_sample
-        NDArray last_hidden_on_device = GetTokenHidden(hidden_states_nd, i);
-        CHECK(i < static_cast<int>(prob_dist.size()));
-        CHECK(prob_dist[i].defined());
-        mstates[i]->AddDraftToken(sample_results[i], prob_dist[i], last_hidden_on_device);
+        mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
         estate->stats.total_draft_length += 1;
       }
     }
@@ -292,8 +307,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       total_required_pages += num_require_pages;
     }
     while (!CanVerify(total_required_pages)) {
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+      RequestStateEntry preempted = PreemptLastRunningRequestStateEntry(
+          estate, models_, draft_token_workspace_manager_, trace_recorder_);
       if (preempted.same_as(running_rsentries.back())) {
         total_draft_length -= draft_lengths.back();
         total_required_pages -= num_page_requirement.back();
@@ -342,6 +357,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief Workspace of each model. */
   std::vector<ModelWorkspace> model_workspaces_;
+  /*! \brief The draft token workspace manager. */
+  DraftTokenWorkspaceManager draft_token_workspace_manager_;
   /*! \brief The engine config. */
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
@@ -352,16 +369,19 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
   const int verify_model_id_ = 0;
   const int draft_model_id_ = 1;
   const float eps_ = 1e-5;
+  /*! \brief Temporary buffer to store the slots of the current draft tokens */
+  std::vector<int> draft_token_slots_;
 };
 
-EngineAction EngineAction::EagleBatchVerify(Array<Model> models, LogitProcessor logit_processor,
-                                            Sampler sampler,
-                                            std::vector<ModelWorkspace> model_workspaces,
-                                            EngineConfig engine_config,
-                                            Optional<EventTraceRecorder> trace_recorder) {
+EngineAction EngineAction::EagleBatchVerify(
+    Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
+    std::vector<ModelWorkspace> model_workspaces,
+    DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
+    Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleBatchVerifyActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
-      std::move(model_workspaces), std::move(engine_config), std::move(trace_recorder)));
+      std::move(model_workspaces), std::move(draft_token_workspace_manager),
+      std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

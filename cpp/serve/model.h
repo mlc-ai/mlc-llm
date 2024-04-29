@@ -12,6 +12,7 @@
 
 #include "../base.h"
 #include "config.h"
+#include "draft_token_workspace_manager.h"
 #include "event_trace_recorder.h"
 #include "function_table.h"
 #include "logit_processor.h"
@@ -40,10 +41,26 @@ struct ModelWorkspace {
    */
   ObjectRef embeddings{nullptr};
   /*!
-   * \brief The hidden_states tensor. It can be either an NDArray when tensor
+   * \brief The hidden_states tensor for the current batch. It can be either an NDArray when tensor
    * model parallelism is not enabled, or a DRef when using tensor model parallelism.
    */
   ObjectRef hidden_states{nullptr};
+
+  /*!
+   * \brief The draft token probabilities tensor for the current batch.
+   */
+  NDArray draft_probs{nullptr};
+
+  /*!
+   * \brief The hidden_states tensor storing the hidden_states of draft tokens of all requests.
+   */
+  ObjectRef draft_hidden_states_storage{nullptr};
+
+  /*!
+   * \brief The draft token probabilities tensor storing the probabilities of draft tokens of all
+   * requests.
+   */
+  NDArray draft_probs_storage{nullptr};
 };
 
 /*!
@@ -301,6 +318,27 @@ class ModelObj : public Object {
 
   /*! \brief Reset the model KV cache and other statistics. */
   virtual void Reset() = 0;
+
+  /*********************** Utilities for speculative decoding. ***********************/
+
+  virtual DraftTokenWorkspaceManager CreateDraftTokenWorkspaceManager(int max_num_token) = 0;
+
+  /*! \brief Gather the hidden_states of the given indices and in-place update the dst tensor. */
+  virtual ObjectRef GatherHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
+                                       ObjectRef* dst) = 0;
+
+  /*! \brief Scatter the hidden_states of the given indices to the dst tensor. */
+  virtual void ScatterHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
+                                   ObjectRef* dst) = 0;
+
+  /*! \brief Gather the draft token probabilities of the given indices and in-place update the dst
+   * tensor. */
+  virtual NDArray GatherDraftProbs(const NDArray& input, const std::vector<int>& indices,
+                                   NDArray* dst) = 0;
+
+  /*! \brief Scatter the draft token probabilities of the given indices to the dst tensor. */
+  virtual void ScatterDraftProbs(const NDArray& input, const std::vector<int>& indices,
+                                 NDArray* dst) = 0;
 
   /************** Debug/Profile **************/
 
