@@ -48,7 +48,7 @@ class BatchDecodeActionObj : public EngineActionObj {
       running_rsentries = GetRunningRequestStateEntries(estate);
       while (!CanDecode(running_rsentries.size())) {
         RequestStateEntry preempted =
-            PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+            PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
         if (preempted.same_as(running_rsentries.back())) {
           running_rsentries.pop_back();
         }

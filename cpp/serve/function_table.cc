@@ -93,7 +93,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
-      DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, false);
+      DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, true);
       bool exists = (func->DebugGetFromRemote(0).operator PackedFunc()) != nullptr;
       if (!exists) {
         return PackedFunc(nullptr);
@@ -259,6 +259,11 @@ void FunctionTable::_InitFunctions() {
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
   this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
+
+  this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
+  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
+  this->gather_hidden_states_func_ = mod->GetFunction("gather_hidden_states", true);
+  this->scatter_hidden_states_func_ = mod->GetFunction("scatter_hidden_states", true);
 }
 
 ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -272,8 +277,8 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
 }
 
 ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
-                                       ShapeTuple max_reserved_shape) {
-  if (this->use_disco) {
+                                       ShapeTuple max_reserved_shape, bool local_only) {
+  if (this->use_disco && !local_only) {
     Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);
     auto it = this->cached_buffers.find(buffer_cache_key);

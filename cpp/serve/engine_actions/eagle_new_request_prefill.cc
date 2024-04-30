@@ -24,12 +24,14 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   explicit EagleNewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
                                            Sampler sampler,
                                            std::vector<ModelWorkspace> model_workspaces,
+                                           DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
+        draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)) {}
 
@@ -107,7 +109,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
         }
 
         ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_output_prob_dist.empty());
+        ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending) {
           // Add the sequence to the model, or fork the sequence from its parent.
           if (rsentry->parent_idx == -1) {
@@ -286,8 +288,8 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
       // - Update the committed tokens of states.
       // - If a request is first-time prefilled, set the prefill finish time.
       auto tnow = std::chrono::high_resolution_clock::now();
-      for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-        if (model_id == 0) {
+      if (model_id == 0) {
+        for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
           for (int mid = 0; mid < static_cast<int>(models_.size()); ++mid) {
             rsentries_for_sample[i]->mstates[mid]->CommitToken(sample_results[i]);
             if (!rsentry_activated[i]) {
@@ -301,13 +303,24 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
           if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
             rsentries_for_sample[i]->tprefill_finish = tnow;
           }
-        } else {
-          // - Slice hidden_states_for_sample
-          NDArray last_hidden_on_device = GetTokenHidden(hidden_states_for_sample, i);
-          CHECK(i < static_cast<int>(prob_dist.size()));
-          CHECK(prob_dist[i].defined());
-          rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i], prob_dist[i],
-                                                                    last_hidden_on_device);
+        }
+      } else {
+        // - Slice and save hidden_states_for_sample
+        draft_token_workspace_manager_->AllocSlots(rsentries_for_sample.size(),
+                                                   &draft_token_slots_);
+        models_[model_id]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
+                                             &model_workspaces_[0].draft_probs_storage);
+        if (engine_config_->spec_draft_length > 1) {
+          hidden_states_for_sample = hidden_states_for_sample.CreateView(
+              {hidden_states_for_sample->shape[0] * hidden_states_for_sample->shape[1],
+               hidden_states_for_sample->shape[2]},
+              hidden_states_for_sample->dtype);
+          models_[model_id]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
+                                                 &model_workspaces_[0].draft_hidden_states_storage);
+        }
+        for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+          rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
+                                                                    draft_token_slots_[i]);
           estate->stats.total_draft_length += 1;
         }
       }
@@ -582,20 +595,25 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
   Sampler sampler_;
   /*! \brief Workspace of each model. */
   std::vector<ModelWorkspace> model_workspaces_;
+  /*! \brief The draft token workspace manager. */
+  DraftTokenWorkspaceManager draft_token_workspace_manager_;
   /*! \brief The engine config. */
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
+  /*! \brief Temporary buffer to store the slots of the current draft tokens */
+  std::vector<int> draft_token_slots_;
 };
 
-EngineAction EngineAction::EagleNewRequestPrefill(Array<Model> models,
-                                                  LogitProcessor logit_processor, Sampler sampler,
-                                                  std::vector<ModelWorkspace> model_workspaces,
-                                                  EngineConfig engine_config,
-                                                  Optional<EventTraceRecorder> trace_recorder) {
+EngineAction EngineAction::EagleNewRequestPrefill(
+    Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
+    std::vector<ModelWorkspace> model_workspaces,
+    DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
+    Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
-      std::move(model_workspaces), std::move(engine_config), std::move(trace_recorder)));
+      std::move(model_workspaces), std::move(draft_token_workspace_manager),
+      std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

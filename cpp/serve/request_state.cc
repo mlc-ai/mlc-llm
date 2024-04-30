@@ -59,11 +59,9 @@ void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   }
 }
 
-void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, NDArray prob_dist,
-                                          NDArray last_hidden_on_device) {
+void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_token_slot) {
   draft_output_tokens.push_back(std::move(sampled_token));
-  draft_output_prob_dist.push_back(std::move(prob_dist));
-  draft_last_hidden_on_device.push_back(std::move(last_hidden_on_device));
+  draft_token_slots.push_back(draft_token_slot);
   appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
 }
 
@@ -71,14 +69,17 @@ void RequestModelStateNode::RemoveLastDraftToken() {
   ICHECK(!draft_output_tokens.empty());
   auto it = appeared_token_ids.find(draft_output_tokens.back().sampled_token_id.first);
   draft_output_tokens.pop_back();
-  draft_output_prob_dist.pop_back();
   CHECK(it != appeared_token_ids.end());
   if (--it->second == 0) {
     appeared_token_ids.erase(it);
   }
 }
 
-void RequestModelStateNode::RemoveAllDraftTokens() {
+void RequestModelStateNode::RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots) {
+  if (removed_draft_token_slots != nullptr) {
+    removed_draft_token_slots->assign(draft_token_slots.begin(), draft_token_slots.end());
+  }
+  draft_token_slots.clear();
   while (!draft_output_tokens.empty()) {
     RemoveLastDraftToken();
   }

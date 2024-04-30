@@ -246,14 +246,8 @@ class ModelImpl : public ModelObj {
     }
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
-    // This step runs on the engine thread.
-    // By temporarily turning off the disco flag, this copies the logit_pos_nd to the cached device
-    // tensor without actually copying to the worker.
-    bool use_disco = ft_.use_disco;
-    ft_.use_disco = false;
-    ObjectRef logit_pos_dref_or_nd =
-        ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
-    ft_.use_disco = use_disco;
+    ObjectRef logit_pos_dref_or_nd = ft_.CopyToWorker0(logit_pos_nd, "logit_pos_local",
+                                                       {max_num_sequence_}, /*local_only=*/true);
 
     CHECK(ft_.batch_select_last_hidden_func_.defined())
         << "`batch_select_last_hidden_states` function is not found in the model.";
@@ -870,20 +864,21 @@ class ModelImpl : public ModelObj {
     // Allocate the hidden_states tensor.
     // Use the same function as embeddings.
     ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_();
+    NDArray hidden_states_nd{nullptr};
     // Get the shape of the hidden_states tensor for hidden size.
-    ShapeTuple hidden_states_shape;
     if (ft_.use_disco) {
       ICHECK(hidden_states->IsInstance<DRefObj>());
-      ObjectRef shape_ref = ft_.nd_get_shape_func_(hidden_states);
-      hidden_states_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0);
+      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0);
     } else {
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
-      hidden_states_shape = hidden_states_nd.Shape();
+      hidden_states_nd = Downcast<NDArray>(hidden_states);
     }
+    ShapeTuple hidden_states_shape = hidden_states_nd.Shape();
     ICHECK_EQ(hidden_states_shape.size(), 2);
     ICHECK_EQ(hidden_states_shape[0], prefill_chunk_size_);
     this->hidden_size_ = hidden_states_shape[1];
-    return hidden_states;
+    this->hidden_states_dtype_ = hidden_states_nd->dtype;
+    // TODO(wuwei): We can keep hidden_states on the worker after refactor
+    return hidden_states_nd;
   }
 
   void Reset() final {
@@ -891,6 +886,59 @@ class ModelImpl : public ModelObj {
     if (kv_cache_.defined()) {
       ft_.reset_kv_cache_func_(kv_cache_);
     }
+  }
+
+  /********************** Utilities for speculative decoding **********************/
+
+  DraftTokenWorkspaceManager CreateDraftTokenWorkspaceManager(int max_num_tokens) {
+    return DraftTokenWorkspaceManager(max_num_tokens, vocab_size_, hidden_size_,
+                                      hidden_states_dtype_, device_, ft_);
+  }
+
+  ObjectRef GatherHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
+                               ObjectRef* dst) final {
+    NDArray dst_view = Downcast<NDArray>(*dst).CreateView(
+        {static_cast<int64_t>(indices.size()), hidden_size_}, hidden_states_dtype_);
+    NDArray indices_nd =
+        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ObjectRef indices_device =
+        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ft_.gather_hidden_states_func_(input, indices_device, dst_view);
+    return dst_view;
+  }
+
+  void ScatterHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
+                           ObjectRef* dst) final {
+    NDArray indices_nd =
+        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ObjectRef indices_device =
+        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ft_.scatter_hidden_states_func_(input, indices_device, *dst);
+  }
+
+  NDArray GatherDraftProbs(const NDArray& input, const std::vector<int>& indices,
+                           NDArray* dst) final {
+    NDArray dst_view =
+        dst->CreateView({static_cast<int64_t>(indices.size()), vocab_size_}, DataType::Float(32));
+    NDArray indices_nd =
+        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ObjectRef indices_device =
+        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ft_.gather_probs_func_(input, indices_device, dst_view);
+    return dst_view;
+  }
+
+  void ScatterDraftProbs(const NDArray& input, const std::vector<int>& indices,
+                         NDArray* dst) final {
+    NDArray indices_nd =
+        logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
+    indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ObjectRef indices_device =
+        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ft_.scatter_probs_func_(input, indices_device, *dst);
   }
 
   /************** Debug/Profile **************/
@@ -951,6 +999,7 @@ class ModelImpl : public ModelObj {
   int max_num_sequence_ = -1;
   int prefill_chunk_size_ = -1;
   int hidden_size_ = -1;
+  DLDataType hidden_states_dtype_;
   int vocab_size_ = -1;
   int image_embed_size_ = -1;
   //----------------------------

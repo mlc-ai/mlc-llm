@@ -142,9 +142,10 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                                      std::move(models), max_single_sequence_length);
 }
 
-RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
-                                                      const Array<Model>& models,
-                                                      Optional<EventTraceRecorder> trace_recorder) {
+RequestStateEntry PreemptLastRunningRequestStateEntry(
+    EngineState estate, const Array<Model>& models,
+    Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
+    Optional<EventTraceRecorder> trace_recorder) {
   ICHECK(!estate->running_queue.empty());
   Request request = estate->running_queue.back();
 
@@ -168,8 +169,12 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
   // - Update `inputs` for future prefill.
   RECORD_EVENT(trace_recorder, rsentry->request->id, "preempt");
   rsentry->status = RequestStateStatus::kPending;
+  std::vector<int> draft_token_slots;
   for (RequestModelState mstate : rsentry->mstates) {
-    mstate->RemoveAllDraftTokens();
+    if (draft_token_workspace_manager.defined()) {
+      mstate->RemoveAllDraftTokens(&draft_token_slots);
+      draft_token_workspace_manager.value()->FreeSlots(draft_token_slots);
+    }
     std::vector<int32_t> committed_token_ids;
     committed_token_ids.reserve(mstate->committed_tokens.size());
     for (const SampleResult& committed_token : mstate->committed_tokens) {

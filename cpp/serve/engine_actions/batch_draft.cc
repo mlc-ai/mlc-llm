@@ -23,10 +23,14 @@ namespace serve {
 class BatchDraftActionObj : public EngineActionObj {
  public:
   explicit BatchDraftActionObj(Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
+                               std::vector<ModelWorkspace> model_workspaces,
+                               DraftTokenWorkspaceManager draft_token_workspace_manager,
                                Optional<EventTraceRecorder> trace_recorder, int draft_length)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
+        model_workspaces_(std::move(model_workspaces)),
+        draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         trace_recorder_(std::move(trace_recorder)),
         draft_length_(draft_length) {
     ICHECK_GT(draft_length_, 0);
@@ -41,8 +45,8 @@ class BatchDraftActionObj : public EngineActionObj {
     // Preempt request state entries when decode cannot apply.
     std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
     while (!CanDecode(running_rsentries.size())) {
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, trace_recorder_);
+      RequestStateEntry preempted = PreemptLastRunningRequestStateEntry(
+          estate, models_, draft_token_workspace_manager_, trace_recorder_);
       if (preempted.same_as(running_rsentries.back())) {
         running_rsentries.pop_back();
       }
@@ -123,8 +127,11 @@ class BatchDraftActionObj : public EngineActionObj {
         ICHECK_EQ(sample_results.size(), num_rsentries);
 
         // - Add draft token to the state.
+        draft_token_workspace_manager_->AllocSlots(num_rsentries, &draft_token_slots_);
+        models_[model_id]->ScatterDraftProbs(probs_on_device, draft_token_slots_,
+                                             &model_workspaces_[0].draft_probs_storage);
         for (int i = 0; i < num_rsentries; ++i) {
-          mstates[i]->AddDraftToken(sample_results[i], prob_dist[i]);
+          mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
           estate->stats.total_draft_length += 1;
         }
       }
@@ -156,18 +163,27 @@ class BatchDraftActionObj : public EngineActionObj {
   LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
+  /*! \brief The model workspaces. */
+  std::vector<ModelWorkspace> model_workspaces_;
+  /*! \brief The draft token workspace manager. */
+  DraftTokenWorkspaceManager draft_token_workspace_manager_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Draft proposal length */
   int draft_length_;
+  /*! \brief Temporary buffer to store the slots of the current draft tokens */
+  std::vector<int> draft_token_slots_;
 };
 
 EngineAction EngineAction::BatchDraft(Array<Model> models, LogitProcessor logit_processor,
-                                      Sampler sampler, Optional<EventTraceRecorder> trace_recorder,
+                                      Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
+                                      DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                      Optional<EventTraceRecorder> trace_recorder,
                                       int draft_length) {
   return EngineAction(make_object<BatchDraftActionObj>(
-      std::move(models), std::move(logit_processor), std::move(sampler), std::move(trace_recorder),
-      draft_length));
+      std::move(models), std::move(logit_processor), std::move(sampler),
+      std::move(model_workspaces), std::move(draft_token_workspace_manager),
+      std::move(trace_recorder), draft_length));
 }
 
 }  // namespace serve

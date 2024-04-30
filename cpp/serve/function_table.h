@@ -50,8 +50,18 @@ struct FunctionTable {
 
   ObjectRef Empty(ShapeTuple shape, DataType dtype, Device device) const;
 
+  /*!
+   * \brief Copy a host array to the worker or local gpu.
+   * \param host_array The host array to be copied.
+   * \param buffer_cache_key The key to the buffer cache.
+   * \param max_reserved_shape The maximum shape to be reserved in the buffer cache.
+   * \param local_only Whether to copy the array to the local gpu only. If true, the use_disco
+   *                  flag will be ignored. This can be useful for functions that run only on the
+   *                  local gpu when disco is enabled.
+   * \return The array on the worker or local gpu.
+   */
   ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
-                          ShapeTuple max_reserved_shape);
+                          ShapeTuple max_reserved_shape, bool local_only = false);
 
   void DebugCallFuncOnAllAllWorker(const String& func_name) const;
 
@@ -110,6 +120,11 @@ struct FunctionTable {
   PackedFunc nd_view_func_;
   PackedFunc nd_get_shape_func_;
   PackedFunc nd_copy_embedding_to_offset_func_;
+  // Auxiliary functions for speculative decoding.
+  PackedFunc gather_probs_func_;
+  PackedFunc scatter_probs_func_;
+  PackedFunc gather_hidden_states_func_;
+  PackedFunc scatter_hidden_states_func_;
 };
 
 }  // namespace serve

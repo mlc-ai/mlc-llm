@@ -430,7 +430,7 @@ class CPUSampler : public SamplerObj {
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
-      const std::vector<std::vector<NDArray>>& draft_output_prob_dist) final {
+      NDArray draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_host->ndim, 2);
@@ -438,8 +438,8 @@ class CPUSampler : public SamplerObj {
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
     CHECK_EQ(rngs.size(), num_sequence);
     CHECK_EQ(draft_output_tokens.size(), num_sequence);
-    CHECK_EQ(draft_output_prob_dist.size(), num_sequence);
 
+    NDArray draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
     std::vector<std::vector<SampleResult>> sample_results;
     sample_results.resize(num_sequence);
 
@@ -451,6 +451,7 @@ class CPUSampler : public SamplerObj {
         [&](int i) {
           int verify_start = cum_verify_lengths[i];
           int verify_end = cum_verify_lengths[i + 1];
+
           int cur_token_idx = 0;
           // Sub 1 to ignore the last prediction.
           for (; cur_token_idx < verify_end - verify_start - 1; ++cur_token_idx) {
@@ -477,12 +478,9 @@ class CPUSampler : public SamplerObj {
 
             // normalize a new probability distribution
             double sum_v = 0.0;
-            NDArray q_dist = draft_output_prob_dist[i][cur_token_idx];
-            ICHECK(q_dist->device.device_type == kDLCPU);
-            ICHECK(q_dist->ndim == 1);
-            ICHECK(vocab_size == q_dist->shape[q_dist->ndim - 1]);
             const float* __restrict p_qdist =
-                static_cast<float*>(__builtin_assume_aligned(q_dist->data, 4));
+                static_cast<float*>(__builtin_assume_aligned(draft_probs_on_host->data, 4)) +
+                (verify_start + cur_token_idx + 1) * vocab_size;
 
             for (int j = 0; j < vocab_size; ++j) {
               p_probs[j] = std::max(p_probs[j] - p_qdist[j], 0.0f);
