@@ -51,7 +51,7 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
   void AddEvent(const Array<String>& request_ids, const std::string& event) final {
     double event_time = std::chrono::duration_cast<std::chrono::duration<double>>(
                             std::chrono::system_clock::now().time_since_epoch())
-                            .count();
+                            .count();  // in seconds
 
     {
       std::lock_guard<std::mutex> lock(mutex_);
