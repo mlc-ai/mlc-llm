@@ -156,14 +156,14 @@ int32_t EBNFParserImpl::ParseCharacterClass() {
       continue;
     }
 
-    auto [codepoint, len] = Utf8OrEscapeToCodepoint(cur_, kCustomEscapeMap);
+    auto [codepoint, new_cur] = ParseNextUTF8OrEscaped(cur_, kCustomEscapeMap);
     if (codepoint == static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8)) {
-      ThrowParseError("Invalid utf8 sequence");
+      ThrowParseError("Invalid UTF8 sequence");
     }
     if (codepoint == static_cast<TCodepoint>(CharHandlingError::kInvalidEscape)) {
       ThrowParseError("Invalid escape sequence");
     }
-    Consume(len);
+    Consume(new_cur - cur_);
     if (past_is_hyphen) {
       ICHECK(!elements.empty());
       if (elements.back().lower > codepoint) {
@@ -194,14 +194,15 @@ int32_t EBNFParserImpl::ParseString() {
     if (Peek() == '\r' || Peek() == '\n') {
       ThrowParseError("There should be no newline character in a string literal");
     }
-    auto [codepoint, len] = Utf8OrEscapeToCodepoint(cur_);
+
+    auto [codepoint, new_cur] = ParseNextUTF8OrEscaped(cur_);
     if (codepoint == static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8)) {
       ThrowParseError("Invalid utf8 sequence");
     }
     if (codepoint == static_cast<TCodepoint>(CharHandlingError::kInvalidEscape)) {
       ThrowParseError("Invalid escape sequence");
     }
-    Consume(len);
+    Consume(new_cur - cur_);
     character_classes.push_back(builder_.AddCharacterClass({{codepoint, codepoint}}));
   }
   if (character_classes.empty()) {

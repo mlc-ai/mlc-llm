@@ -510,7 +510,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherResetState")
 bool MatchCompleteString(GrammarStateMatcher matcher, String str) {
   auto mutable_node =
       const_cast<GrammarStateMatcherNodeImpl*>(matcher.as<GrammarStateMatcherNodeImpl>());
-  auto codepoints = Utf8StringToCodepoints(str.c_str());
+  auto codepoints = ParseUTF8(str.c_str());
   int accepted_cnt = 0;
   for (auto codepoint : codepoints) {
     if (!mutable_node->AcceptCodepoint(codepoint, false)) {
@@ -553,9 +553,9 @@ void PrintAcceptedRejectedTokens(
         // First cast to unsigned, then cast to int
         std::cerr << static_cast<int>(static_cast<unsigned char>(token[0]));
       } else {
-        auto codepoints = Utf8StringToCodepoints(token.c_str());
+        auto codepoints = ParseUTF8(token.c_str());
         for (auto c : codepoints) {
-          std::cerr << CodepointToPrintable(c);
+          std::cerr << PrintAsEscaped(c);
         }
       }
       std::cerr << "> ";
@@ -571,9 +571,9 @@ void PrintAcceptedRejectedTokens(
       if (token.size() == 1 && ((unsigned char)token[0] >= 128 || token[0] == 0)) {
         std::cerr << (int)(unsigned char)token[0];
       } else {
-        auto codepoints = Utf8StringToCodepoints(token.c_str());
+        auto codepoints = ParseUTF8(token.c_str());
         for (auto c : codepoints) {
-          std::cerr << CodepointToPrintable(c);
+          std::cerr << PrintAsEscaped(c);
         }
       }
       std::cerr << "> ";

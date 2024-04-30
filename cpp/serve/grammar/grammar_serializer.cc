@@ -59,12 +59,12 @@ std::string BNFGrammarPrinter::PrintCharacterClass(const RuleExpr& rule_expr) {
     result += "^";
   }
   for (auto i = 0; i < rule_expr.data_len; i += 2) {
-    result += CodepointToPrintable(rule_expr[i], kCustomEscapeMap);
+    result += PrintAsEscaped(rule_expr[i], kCustomEscapeMap);
     if (rule_expr[i] == rule_expr[i + 1]) {
       continue;
     }
     result += "-";
-    result += CodepointToPrintable(rule_expr[i + 1], kCustomEscapeMap);
+    result += PrintAsEscaped(rule_expr[i + 1], kCustomEscapeMap);
   }
   result += "]";
   return result;
