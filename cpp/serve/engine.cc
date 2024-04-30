@@ -56,9 +56,7 @@ class EngineImpl : public Engine {
     }
     this->request_stream_callback_ = std::move(request_stream_callback);
     this->trace_recorder_ = trace_recorder;
-    this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
-    this->token_table_ = tokenizer_->TokenTable();
-    this->grammar_init_context_storage_ = GrammarInitContextStorage(this->token_table_);
+
     // Step 2. Initialize each model independently.
     //         Create the logit processor and sampler.
     this->models_.clear();
@@ -100,6 +98,21 @@ class EngineImpl : public Engine {
                      engine_config->additional_model_lib_paths[i], /*model_index=*/i + 1);
     }
 
+    // Step 3. Initialize tokenizer and grammar
+    this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
+    std::string token_table_postproc_method;
+    if (model_configs[0].count("token_table_postproc_method") == 0) {
+      // Backward compatibility: use "byte-fallback" by default
+      token_table_postproc_method = "byte-fallback";
+    } else {
+      token_table_postproc_method =
+          model_configs[0].at("token_table_postproc_method").get<std::string>();
+    }
+    this->token_table_ =
+        Tokenizer::PostProcessTokenTable(tokenizer_->TokenTable(), token_table_postproc_method);
+    this->grammar_init_context_storage_ = GrammarInitContextStorage(this->token_table_);
+
+    // Step 4. Initialize engine actions that represent state transitions.
     int max_num_tokens = engine_config->max_num_sequence;
     DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
@@ -113,7 +126,6 @@ class EngineImpl : public Engine {
         this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
     Sampler sampler = this->models_[0]->CreateSampler(
         max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
-    // Step 3. Initialize engine actions that represent state transitions.
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
       // Speculative decoding is only possible for more than one model.
       ICHECK_GT(this->models_.size(), 1U);
