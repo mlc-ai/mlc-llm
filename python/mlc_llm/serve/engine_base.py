@@ -6,7 +6,6 @@ import ast
 import asyncio
 import json
 import queue
-import subprocess
 import sys
 import threading
 from dataclasses import asdict, dataclass
@@ -20,12 +19,7 @@ from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_mod
 from mlc_llm.protocol import openai_api_protocol, protocol_utils
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import (
-    EngineConfig,
-    GenerationConfig,
-    KVStateKind,
-    SpeculativeMode,
-)
+from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -49,25 +43,25 @@ class ModelInfo:
         or a full path to a model directory
         (e.g., "dist/prebuilt/mlc-chat-Llama-2-7b-chat-hf-q4f16_1")
 
-    model_lib_path : Optional[str]
+    model_lib : Optional[str]
         The path to the compiled library of the model.
         E.g., "dist/prebuilt/lib/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
     """
 
     model: str
-    model_lib_path: Optional[str] = None
+    model_lib: Optional[str] = None
 
 
 def _parse_models(
-    model: str, model_lib_path: Optional[str], additional_models: Optional[List[str]]
+    model: str, model_lib: Optional[str], additional_models: Optional[List[str]]
 ) -> List[ModelInfo]:
-    """Parse the specified model paths and model lib paths.
+    """Parse the specified model paths and model libs.
     Return a list of ModelInfo, which is a wrapper class of the model path + lib path.
 
     Each additional model is expected to follow the format of either
-    "{MODEL_PATH}" or "{MODEL_PATH}:{MODEL_LIB_PATH}".
+    "{MODEL_PATH}" or "{MODEL_PATH}:{MODEL_LIB}".
     """
-    models = [ModelInfo(model, model_lib_path)]
+    models = [ModelInfo(model, model_lib)]
     if additional_models is not None:
         for additional_model in additional_models:
             splits = additional_model.split(":", maxsplit=1)
@@ -95,30 +89,30 @@ def _process_model_args(
             assert isinstance(chat_config.conv_template, Conversation)
             conversation = chat_config.conv_template
 
-        if model.model_lib_path is not None:
-            # do model lib search if the model lib path is provided
+        if model.model_lib is not None:
+            # do model lib search if the model lib is provided
             # error out if file not found
-            model_lib_path = _get_lib_module_path(
+            model_lib = _get_lib_module_path(
                 model=model.model,
                 model_path=model_path,
                 chat_config=chat_config,
-                model_lib_path=model.model_lib_path,
+                model_lib=model.model_lib,
                 device_name=device.MASK2STR[device.device_type],
                 config_file_path=config_file_path,
             )
         else:
             # TODO(mlc-team) add logging information
-            # Run jit if model_lib_path is not provided
+            # Run jit if model_lib is not provided
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
-            model_lib_path = str(
+            model_lib = str(
                 jit.jit(
                     model_path=Path(model_path),
                     chat_config=asdict(chat_config),
                     device=device,
                 )
             )
-        return model_path, model_lib_path
+        return model_path, model_lib
 
     model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]
 
@@ -126,618 +120,43 @@ def _process_model_args(
     return model_args, config_file_paths, conversation
 
 
-def _estimate_mem_usage_and_max_total_sequence_length_for_kv_cache(  # pylint: disable=too-many-locals,too-many-arguments
-    models: List[ModelInfo],
-    device: tvm.runtime.Device,
-    model_config_paths: List[str],
-    model_config_dicts: List[Dict[str, Any]],
-    max_num_sequence: int,
-    gpu_memory_utilization: Optional[float],
-) -> Tuple[float, float, float, float, float, int]:
-    """Estimate the memory usage and the max total sequence length (capacity)
-    that the KV cache can support.
-    """
-    assert len(models) != 0
-
-    kv_bytes_per_token = 0
-    kv_aux_workspace_bytes = 0
-    model_workspace_bytes = 0
-    logit_processor_workspace_bytes = 0
-    params_bytes = 0
-    temp_func_bytes = 0
-
-    for model, model_config_path, model_config_dict in zip(
-        models, model_config_paths, model_config_dicts
-    ):
-        # Read metadata for the parameter size and the temporary memory size.
-        cmd = [
-            sys.executable,
-            "-m",
-            "mlc_llm.cli.model_metadata",
-            model.model_lib_path,
-            "--print-memory-usage-in-json",
-            "--mlc-chat-config",
-            model_config_path,
-        ]
-        usage_str = subprocess.check_output(cmd, universal_newlines=True)
-        usage_json = json.loads(usage_str)
-        params_bytes += usage_json["params_bytes"]
-        temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
-
-        cmd = [
-            sys.executable,
-            "-m",
-            "mlc_llm.cli.model_metadata",
-            model.model_lib_path,
-            "--print-kv-cache-metadata-in-json",
-        ]
-        kv_cache_metadata_str = subprocess.check_output(cmd, universal_newlines=True)
-        kv_cache_metadata = json.loads(kv_cache_metadata_str)
-
-        # Read model config and compute the kv size per token.
-        model_config = model_config_dict["model_config"]
-        vocab_size = model_config["vocab_size"]
-        prefill_chunk_size = model_config["prefill_chunk_size"]
-        num_layers = kv_cache_metadata["num_hidden_layers"]
-        head_dim = kv_cache_metadata["head_dim"]
-        num_qo_heads = kv_cache_metadata["num_attention_heads"]
-        num_kv_heads = kv_cache_metadata["num_key_value_heads"]
-        hidden_size = head_dim * num_qo_heads
-        kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25
-        kv_aux_workspace_bytes += (
-            (max_num_sequence + 1) * 88
-            + prefill_chunk_size * (num_qo_heads + 1) * 8
-            + prefill_chunk_size * head_dim * (num_qo_heads + num_kv_heads) * 4
-            + 48 * 1024 * 1024
-        )
-        model_workspace_bytes += (
-            prefill_chunk_size * 4
-            + max_num_sequence * 4
-            + (prefill_chunk_size * 2 + max_num_sequence) * hidden_size * 2
-        )
-        logit_processor_workspace_bytes += (
-            max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125
-        )
-
-    # Get single-card GPU size.
-    gpu_size_bytes = device.total_global_memory
-    if gpu_size_bytes is None:
-        raise ValueError("Cannot read total GPU global memory from device.")
-    if gpu_memory_utilization is None:
-        gpu_memory_utilization = 0.85
-
-    model_max_total_sequence_length = int(
-        (
-            int(gpu_size_bytes) * gpu_memory_utilization
-            - params_bytes
-            - temp_func_bytes
-            - kv_aux_workspace_bytes
-            - model_workspace_bytes
-            - logit_processor_workspace_bytes
-        )
-        / kv_bytes_per_token
-    )
-    if model_max_total_sequence_length <= 0:
-        raise ValueError(
-            f"The model weight size {params_bytes} may be larger than available GPU memory "
-            f"size {gpu_size_bytes * gpu_memory_utilization} bytes."
-        )
-
-    if device.device_type == Device.kDLMetal:
-        # NOTE: Metal runtime has severe performance issues with large buffers.
-        # To work around the issue, we limit the KV cache capacity to 32768.
-        model_max_total_sequence_length = min(model_max_total_sequence_length, 32768)
-
-    total_mem_usage_except_kv_cache = (
-        params_bytes
-        + temp_func_bytes
-        + kv_aux_workspace_bytes
-        + model_workspace_bytes
-        + logit_processor_workspace_bytes
-    )
-    return (
-        total_mem_usage_except_kv_cache,
-        params_bytes,
-        kv_bytes_per_token,
-        kv_aux_workspace_bytes,
-        model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes,
-        int(model_max_total_sequence_length),
-    )
-
-
-def _estimate_mem_usage_and_max_history_size_for_rnn_state(  # pylint: disable=too-many-arguments, too-many-locals, unused-argument
-    models: List[ModelInfo],
-    device: tvm.runtime.Device,
-    model_config_paths: List[str],
-    model_config_dicts: List[Dict[str, Any]],
-    max_num_sequence: int,
-    gpu_memory_utilization: Optional[float],
-) -> Tuple[float, float, float, int]:
-    # Get single-card GPU size.
-    gpu_size_bytes = device.total_global_memory
-    if gpu_size_bytes is None:
-        raise ValueError("Cannot read total GPU global memory from device.")
-    if gpu_memory_utilization is None:
-        gpu_memory_utilization = 0.90
-
-    rnn_state_base_bytes = 0.0  # the memory usage for rnn state when history = 1
-    param_bytes = 0.0
-    temp_func_bytes = 0.0
-    model_workspace_bytes = 0.0
-    logit_processor_workspace_bytes = 0.0
-    for model, model_config_path, model_config_dict in zip(
-        models, model_config_paths, model_config_dicts
-    ):
-        # Read metadata for the parameter size and the temporary memory size.
-        cmd = [
-            sys.executable,
-            "-m",
-            "mlc_llm.cli.model_metadata",
-            model.model_lib_path,
-            "--print-memory-usage-in-json",
-            "--mlc-chat-config",
-            model_config_path,
-        ]
-        usage_str = subprocess.check_output(cmd, universal_newlines=True)
-        usage_json = json.loads(usage_str)
-        param_bytes += usage_json["params_bytes"]
-        temp_func_bytes = max(temp_func_bytes, usage_json["temp_func_bytes"])
-
-        model_config = model_config_dict["model_config"]
-        vocab_size = model_config_dict["vocab_size"]
-        head_size = model_config["head_size"]
-        num_heads = model_config["num_heads"]
-        num_layers = model_config["num_hidden_layers"]
-        hidden_size = model_config["hidden_size"]
-        prefill_chunk_size = model_config["prefill_chunk_size"]
-        logit_processor_workspace_bytes += (
-            max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125
-        )
-
-        model_workspace_bytes += (
-            prefill_chunk_size * 4
-            + max_num_sequence * 4
-            + (prefill_chunk_size * 2 + max_num_sequence) * hidden_size * 2
-        )
-
-        rnn_state_base_bytes += (
-            max_num_sequence * hidden_size * num_layers * 2 * 2
-            + max_num_sequence * num_heads * head_size * head_size * num_layers * 2
-        )
-
-    max_history_size = int(
-        (
-            gpu_size_bytes * gpu_memory_utilization
-            - logit_processor_workspace_bytes
-            - model_workspace_bytes
-            - param_bytes
-            - temp_func_bytes
-        )
-        / rnn_state_base_bytes
-    )
-    if max_history_size < 1:
-        raise ValueError(
-            f"Memory required by models may be larger than available GPU memory "
-            f"size {gpu_size_bytes * gpu_memory_utilization} bytes."
-        )
-
-    return (
-        param_bytes,
-        model_workspace_bytes + logit_processor_workspace_bytes + temp_func_bytes,
-        rnn_state_base_bytes,
-        max_history_size,
-    )
-
-
-def _get_model_config_limit(model_config_dicts: List[Dict[str, Any]]) -> Tuple[int, int, int]:
-    """Read the model config dictionaries, and return the maximum single
-    sequence length the models can support, the maximum prefill chunk
-    size the models can support, and the max batch size the models can support.
-
-    Returns
-    -------
-    model_max_single_sequence_length : int
-        The maximum single sequence length the models can support.
-    model_max_prefill_chunk_size : int
-        The maximum prefill chunk size the models can support.
-    model_max_batch_size : int
-        The max batch size the models can support.
-    """
-    model_max_single_sequence_length = int(1e9)
-    model_max_prefill_chunk_size = int(1e9)
-    model_max_batch_size = int(1e9)
-    for i, config in enumerate(model_config_dicts):
-        runtime_context_window_size = config["context_window_size"]
-        compile_time_context_window_size = config["model_config"]["context_window_size"]
-        if runtime_context_window_size > compile_time_context_window_size:
-            raise ValueError(
-                f"Model {i}'s runtime context window size ({runtime_context_window_size}) is "
-                "larger than the context window size used at compile time "
-                f"({compile_time_context_window_size})"
-            )
-        if runtime_context_window_size == -1 and compile_time_context_window_size != -1:
-            raise ValueError(
-                f"Model {i}'s runtime context window size (infinite) is "
-                "larger than the context window size used at compile time "
-                f"({compile_time_context_window_size})"
-            )
-        if runtime_context_window_size != -1:
-            model_max_single_sequence_length = min(
-                model_max_single_sequence_length, runtime_context_window_size
-            )
-
-        runtime_prefill_chunk_size = config["prefill_chunk_size"]
-        compile_time_prefill_chunk_size = config["model_config"]["prefill_chunk_size"]
-        if runtime_prefill_chunk_size > compile_time_prefill_chunk_size:
-            raise ValueError(
-                f"Model {i}'s runtime prefill chunk size ({runtime_prefill_chunk_size}) is "
-                "larger than the prefill chunk size used at compile time "
-                f"({compile_time_prefill_chunk_size})"
-            )
-        model_max_prefill_chunk_size = min(model_max_prefill_chunk_size, runtime_prefill_chunk_size)
-
-        model_max_batch_size = min(model_max_batch_size, config["model_config"]["max_batch_size"])
-
-    assert model_max_prefill_chunk_size != int(1e9)
-    assert model_max_batch_size != int(1e9)
-    return model_max_single_sequence_length, model_max_prefill_chunk_size, model_max_batch_size
-
-
-def _infer_kv_cache_config_for_kv_cache(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
-    mode: Literal["local", "interactive", "server"],
-    max_batch_size: Optional[int],
-    max_total_sequence_length: Optional[int],
-    prefill_chunk_size: Optional[int],
-    gpu_memory_utilization: Optional[float],
-    models: List[ModelInfo],
-    device: tvm.runtime.Device,
-    model_config_dicts: List[Dict[str, Any]],
-    model_config_paths: List[str],
-) -> Tuple[int, int, int, KVStateKind, int]:
-    """Initialize the KV cache config with user input and GPU memory usage estimation.
-    The returned four integers are:
-    - max_batch_size
-    - max_total_sequence_length
-    - prefill_chunk_size
-    - kv_state_kind
-    - model_max_single_sequence_length
-    """
-    (
-        model_max_single_sequence_length,
-        model_max_prefill_chunk_size,
-        model_max_batch_size,
-    ) = _get_model_config_limit(model_config_dicts)
-
-    def infer_args_under_mode(
-        mode: Literal["local", "interactive", "server"],
-        max_batch_size: Optional[int],
-        max_total_sequence_length: Optional[int],
-        prefill_chunk_size: Optional[int],
-    ) -> Tuple[Tuple[int, int, int, KVStateKind], List[float]]:
-        logging_msg = ""
-        # - max_batch_size
-        if max_batch_size is None:
-            max_batch_size = (
-                min(4, model_max_batch_size)
-                if mode == "local"
-                else (1 if mode == "interactive" else model_max_batch_size)
-            )
-            logging_msg += f"max batch size is set to {max_batch_size}, "
-        else:
-            logging_msg += f"max batch size {max_batch_size} is specified by user, "
-        # - infer the maximum total sequence length that can fit GPU memory.
-        (
-            total_mem_usage_except_kv_cache,
-            model_params_bytes,
-            kv_bytes_per_token,
-            kv_aux_workspace_bytes,
-            temp_workspace_bytes,
-            model_max_total_sequence_length,
-        ) = _estimate_mem_usage_and_max_total_sequence_length_for_kv_cache(
-            models,
-            device,
-            model_config_paths,
-            model_config_dicts,
-            max_batch_size,
-            gpu_memory_utilization,
-        )
-        # - max_total_sequence_length
-        if max_total_sequence_length is None:
-            if mode == "local":
-                max_total_sequence_length = min(
-                    model_max_total_sequence_length, model_max_single_sequence_length, 8192
-                )
-            elif mode == "interactive":
-                max_total_sequence_length = min(
-                    model_max_total_sequence_length, model_max_single_sequence_length
-                )
-            else:
-                max_total_sequence_length = min(
-                    model_max_total_sequence_length,
-                    max_batch_size * model_max_single_sequence_length,
-                )
-            logging_msg += f"max KV cache token capacity is set to {max_total_sequence_length}, "
-        else:
-            logging_msg += (
-                f"max KV cache token capacity {max_total_sequence_length} is specified by user. "
-            )
-        # - prefill_chunk_size
-        if prefill_chunk_size is None:
-            if mode in ["local", "interactive"]:
-                prefill_chunk_size = min(
-                    model_max_prefill_chunk_size,
-                    model_max_total_sequence_length,
-                    model_max_single_sequence_length,
-                )
-            else:
-                prefill_chunk_size = model_max_prefill_chunk_size
-            logging_msg += f"prefill chunk size is set to {prefill_chunk_size}. "
-        else:
-            logging_msg += f"prefill chunk size {prefill_chunk_size} is specified by user. "
-
-        if mode == "local":
-            logging_msg += (
-                "We choose small max batch size and KV cache capacity to use less GPU memory."
-            )
-        elif mode == "interactive":
-            logging_msg += "We fix max batch size to 1 for interactive single sequence use."
-        else:
-            logging_msg += (
-                "We use as much GPU memory as possible (within the"
-                " limit of gpu_memory_utilization)."
-            )
-        logger.info('Under mode "%s", %s', mode, logging_msg)
-
-        # - Construct the KV cache config
-        # - Estimate total GPU memory usage on single GPU.
-        return (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            KVStateKind.ATTENTION,
-        ), [
-            total_mem_usage_except_kv_cache + max_total_sequence_length * kv_bytes_per_token,
-            model_params_bytes,
-            kv_bytes_per_token * max_total_sequence_length + kv_aux_workspace_bytes,
-            temp_workspace_bytes,
-        ]
-
-    # - Infer KV cache config and estimate memory usage for each mode.
-    local_kv_cache_config, local_mem_usage_list = infer_args_under_mode(
-        "local", max_batch_size, max_total_sequence_length, prefill_chunk_size
-    )
-    interactive_kv_cache_config, interactive_mem_usage_list = infer_args_under_mode(
-        "interactive", max_batch_size, max_total_sequence_length, prefill_chunk_size
-    )
-    server_kv_cache_config, server_mem_usage_list = infer_args_under_mode(
-        "server", max_batch_size, max_total_sequence_length, prefill_chunk_size
-    )
-
-    # - Select the config based on the actual mode.
+def _print_engine_mode_logging_msg(mode: Literal["local", "interactive", "server"]) -> None:
+    """Print the logging info for engine mode selection."""
     if mode == "local":
-        kv_cache_config = local_kv_cache_config
-        mem_usage_list = local_mem_usage_list
-    elif mode == "interactive":
-        kv_cache_config = interactive_kv_cache_config
-        mem_usage_list = interactive_mem_usage_list
-    else:
-        kv_cache_config = server_kv_cache_config
-        mem_usage_list = server_mem_usage_list
-
-    logger.info(
-        'The actual engine mode is "%s". So max batch size is %s, '
-        "max KV cache token capacity is %s, prefill chunk size is %s.",
-        green(mode),
-        green(str(kv_cache_config[0])),
-        green(str(kv_cache_config[1])),
-        green(str(kv_cache_config[2])),
-    )
-
-    logger.info(
-        "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB). "
-        "The actual usage might be slightly larger than the estimated number.",
-        green("Estimated total single GPU memory usage"),
-        *list(mem_usage / 1024 / 1024 for mem_usage in mem_usage_list),
-    )
-    # - Final messages
-    override_msg = "Please override the arguments if you have particular values to set."
-    if mode in ["local", "interactive"]:
         logger.info(
-            'Please switch to mode "server" if you want to use more GPU memory '
-            "and support more concurrent requests. %s",
-            override_msg,
+            "The selected engine mode is %s. "
+            "We choose small max batch size and KV cache capacity to use less GPU memory.",
+            green(mode),
+        )
+    elif mode == "interactive":
+        logger.info(
+            "The selected engine mode is %s. "
+            "We fix max batch size to 1 for interactive single sequence use.",
+            green(mode),
         )
     else:
         logger.info(
-            'Please switch to mode "local" or "interactive" if you want to use less GPU memory '
-            "or do not have many concurrent requests to process. %s",
-            override_msg,
+            "The selected engine mode is %s. "
+            "We use as much GPU memory as possible (within the limit "
+            "of gpu_memory_utilization).",
+            green(mode),
         )
 
-    return *kv_cache_config, model_max_single_sequence_length
-
-
-def _infer_kv_cache_config_for_rnn_state(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
-    mode: Literal["local", "interactive", "server"],
-    max_batch_size: Optional[int],
-    max_total_sequence_length: Optional[int],
-    prefill_chunk_size: Optional[int],
-    max_history_size: Optional[int],
-    gpu_memory_utilization: Optional[float],
-    models: List[ModelInfo],
-    device: tvm.runtime.Device,
-    model_config_dicts: List[Dict[str, Any]],
-    model_config_paths: List[str],
-) -> Tuple[int, int, int, KVStateKind, int]:
-    """Initialize the RNN state config with user input and GPU memory usage estimation.
-    The returned four integers are:
-    - max_batch_size
-    - max_total_sequence_length
-    - prefill_chunk_size
-    - kv_state_kind
-    - max_history_size
-    """
-    logging_msg = ""
-    prefill_chunk_size = 0
-
-    if prefill_chunk_size is None:
-        prefill_chunk_size = min(
-            config["prefill_chunk_size"] if "prefill_chunk_size" in config else 4096
-            for config in model_config_dicts
+    if mode != "local":
+        logger.info(
+            "If you have low concurrent requests and want to use less GPU memory, "
+            'please select mode "local".'
         )
-        logging_msg += f"prefill chunk size is set to {prefill_chunk_size}. "
-    else:
-        logging_msg += f"prefill chunk size {prefill_chunk_size} is specified by user. "
-    if max_batch_size is None:
-        max_batch_size = 1 if mode == "interactive" else 4
-        logging_msg += f"max batch size is set to {max_batch_size}, "
-    else:
-        logging_msg += f"max batch size {max_batch_size} is specified by user, "
-
-    if mode == "local":
-        logging_msg += (
-            "We choose small max batch size and RNN state capacity to use less GPU memory."
+    if mode != "interactive":
+        logger.info(
+            "If you don't have concurrent requests and only use the engine interactively, "
+            'please select mode "interactive".'
         )
-    elif mode == "interactive":
-        logging_msg += "We fix max batch size to 1 for interactive single sequence use."
-    else:
-        logging_msg += (
-            "We use as much GPU memory as possible (within the" " limit of gpu_memory_utilization)."
+    if mode != "server":
+        logger.info(
+            "If you have high concurrent requests and want to maximize the GPU memory utilization, "
+            'please select mode "server".'
         )
-    logger.info('Under mode "%s", %s', mode, logging_msg)
-
-    (
-        model_param_bytes,
-        model_temp_bytes,
-        model_rnn_state_base_bytes,
-        model_max_history_size,
-    ) = _estimate_mem_usage_and_max_history_size_for_rnn_state(
-        models,
-        device,
-        model_config_paths,
-        model_config_dicts,
-        max_batch_size,
-        gpu_memory_utilization,
-    )
-    if max_history_size is None:
-        max_history_size = model_max_history_size
-    else:
-        max_history_size = min(max_history_size, model_max_history_size)
-    max_total_sequence_length = 32768
-    prefill_chunk_size = 0
-    kind = KVStateKind.RNNSTATE
-
-    logger.info(
-        "%s: %.2f MB (Parameters: %.2f MB. RNNState: %.2f MB. Temporary buffer: %.2f MB). "
-        "The actual usage might be slightly larger than the estimated number.",
-        green("Estimated total single GPU memory usage"),
-        (model_param_bytes + model_temp_bytes + model_rnn_state_base_bytes) / 1024 / 1024,
-        model_param_bytes / 1024 / 1024,
-        max_history_size * model_rnn_state_base_bytes / 1024 / 1024,
-        model_temp_bytes / 1024 / 1024,
-    )
-
-    return (
-        max_batch_size,
-        max_total_sequence_length,
-        prefill_chunk_size,
-        kind,
-        max_history_size,
-    )
-
-
-def _infer_kv_cache_config(  # pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements
-    mode: Literal["local", "interactive", "server"],
-    max_batch_size: Optional[int],
-    max_total_sequence_length: Optional[int],
-    prefill_chunk_size: Optional[int],
-    max_history_size: Optional[int],
-    gpu_memory_utilization: Optional[float],
-    models: List[ModelInfo],
-    device: tvm.runtime.Device,
-    model_config_dicts: List[Dict[str, Any]],
-    model_config_paths: List[str],
-) -> Tuple[int, int, int, int, int, KVStateKind]:
-    """Initialize the cache config with user input and GPU memory usage estimation.
-    The returned four integers are:
-    - max_batch_size
-    - max_total_sequence_length
-    - prefill_chunk_size
-    - max_single_sequence_length
-    - max_history_size
-    - kv_state_kind
-    """
-    if all("rwkv" not in model.model for model in models):
-        (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            kv_state_kind,
-            max_single_sequence_length,
-        ) = _infer_kv_cache_config_for_kv_cache(
-            mode,
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            gpu_memory_utilization,
-            models,
-            device,
-            model_config_dicts,
-            model_config_paths,
-        )
-        max_history_size = 0  # KV cache doesn't need this
-    elif all("rwkv" in model.model for model in models):
-        (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            kv_state_kind,
-            max_history_size,
-        ) = _infer_kv_cache_config_for_rnn_state(
-            mode,
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_history_size,
-            gpu_memory_utilization,
-            models,
-            device,
-            model_config_dicts,
-            model_config_paths,
-        )
-        max_single_sequence_length = max_total_sequence_length  # RNN state doesn't need this
-    else:
-        raise ValueError("The models should be either all KV cache models or all RNN state models.")
-    return (
-        max_batch_size,
-        max_total_sequence_length,
-        prefill_chunk_size,
-        max_single_sequence_length,
-        max_history_size,
-        kv_state_kind,
-    )
-
-
-def _infer_generation_config(
-    model_config_dicts: List[Dict[str, Any]]
-) -> List[Tuple[float, float, float, float]]:
-    """Infer the generation config from the model config dictionaries.
-    The returned four floats are:
-    - temperature
-    - top_p
-    - frequency_penalty
-    - presence_penalty
-    """
-    generation_configs = []
-
-    for model_config in model_config_dicts:
-        temperature = model_config.get("temperature", 1.0)
-        top_p = model_config.get("top_p", 1.0)
-        frequency_penalty = model_config.get("frequency_penalty", 0.0)
-        presence_penalty = model_config.get("presence_penalty", 0.0)
-        generation_configs.append((temperature, top_p, frequency_penalty, presence_penalty))
-
-    return generation_configs
 
 
 @dataclass
@@ -1000,7 +419,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         kind: Literal["async", "sync"],
         model: str,
         device: Union[str, tvm.runtime.Device],
-        model_lib_path: Optional[str],
+        model_lib: Optional[str],
         mode: Literal["local", "interactive", "server"],
         additional_models: Optional[List[str]],
         max_batch_size: Optional[int],
@@ -1008,12 +427,13 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         prefill_chunk_size: Optional[int],
         max_history_size: Optional[int],
         gpu_memory_utilization: Optional[float],
-        speculative_mode: SpeculativeMode,
+        speculative_mode: Literal["disable", "small_draft", "eagle"],
         spec_draft_length: int,
         enable_tracing: bool,
+        verbose: bool,
     ) -> None:
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib_path, additional_models)
+        models = _parse_models(model, model_lib, additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, Device)
@@ -1026,31 +446,13 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         # - Load the raw model config into dict
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            model_info.model_lib_path = model_args[i][1]
+            model_info.model_lib = model_args[i][1]
             with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
-        # - Decide the KV cache config based on mode and user input.
-        (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_single_sequence_length,
-            max_history_size,
-            kv_state_kind,
-        ) = _infer_kv_cache_config(
-            mode,
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_history_size,
-            gpu_memory_utilization,
-            models,
-            device,
-            self.model_config_dicts,
-            model_config_paths,
-        )
-        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
+        # - Print logging info for regarding the mode selection.
+        if verbose:
+            _print_engine_mode_logging_msg(mode)
 
         # - Initialize engine state and engine.
         self.state = EngineState(enable_tracing)
@@ -1063,34 +465,19 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "run_background_loop",
                 "run_background_stream_back_loop",
                 "reload",
-                "init_background_engine",
+                "init_threaded_engine",
                 "exit_background_loop",
-                "debug_call_func_on_all_worker",
+                "get_default_generation_config",
+                "get_complete_engine_config",
                 "stats",
+                "debug_call_func_on_all_worker",
             ]
         }
         self.tokenizer = Tokenizer(model_args[0][0])
-        self._ffi["init_background_engine"](
+        self._ffi["init_threaded_engine"](
             device,
             self.state.get_request_stream_callback(kind),
             self.state.trace_recorder,
-        )
-        self._ffi["reload"](
-            EngineConfig(
-                model=model_args[0][0],
-                model_lib_path=model_args[0][1],
-                additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                kv_cache_page_size=16,
-                max_num_sequence=max_batch_size,
-                max_total_sequence_length=max_total_sequence_length,
-                max_single_sequence_length=max_single_sequence_length,
-                prefill_chunk_size=prefill_chunk_size,
-                max_history_size=max_history_size,
-                kv_state_kind=kv_state_kind,
-                speculative_mode=speculative_mode,
-                spec_draft_length=spec_draft_length,
-            )
         )
 
         def _background_loop():
@@ -1107,6 +494,31 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         self._background_loop_thread.start()
         self._background_stream_back_loop_thread.start()
         self._terminated = False
+
+        self._ffi["reload"](
+            EngineConfig(
+                model=model_args[0][0],
+                model_lib=model_args[0][1],
+                additional_models=[model_arg[0] for model_arg in model_args[1:]],
+                additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
+                mode=mode,
+                gpu_memory_utilization=gpu_memory_utilization,
+                kv_cache_page_size=16,
+                max_num_sequence=max_batch_size,
+                max_total_sequence_length=max_total_sequence_length,
+                prefill_chunk_size=prefill_chunk_size,
+                max_history_size=max_history_size,
+                speculative_mode=speculative_mode,
+                spec_draft_length=spec_draft_length,
+                verbose=verbose,
+            ).asjson()
+        )
+        self.default_generation_cfg_json_str: str = self._ffi["get_default_generation_config"]()
+        self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
+        self.max_input_sequence_length = min(
+            self.engine_config.max_single_sequence_length,
+            self.engine_config.max_total_sequence_length,
+        )
 
     def terminate(self):
         """Terminate the engine."""
@@ -1215,7 +627,6 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     # Process generation config. Create request id.
     generation_cfg = protocol_utils.get_generation_config(
         request,
-        model_config,
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
     )
@@ -1336,11 +747,10 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     return response, num_completion_tokens
 
 
-def process_completion_request(  # pylint: disable=too-many-arguments
+def process_completion_request(
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
-    model_config: Dict[str, Any],
     tokenizer: Tokenizer,
     max_input_sequence_length: int,
 ) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:
@@ -1392,7 +802,7 @@ def process_completion_request(  # pylint: disable=too-many-arguments
     assert isinstance(prompt, list)
 
     # Process generation config. Create request id.
-    generation_cfg = protocol_utils.get_generation_config(request, model_config)
+    generation_cfg = protocol_utils.get_generation_config(request)
 
     # - Echo back the prompt.
     echo_response = None

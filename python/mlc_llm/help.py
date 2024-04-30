@@ -25,9 +25,9 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
 It can also be a link to a HF repository pointing to an MLC compiled model.
 """.strip(),
-    "model_lib_path": """
+    "model_lib": """
 The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
-the provided ``model`` to search over possible paths. It the model lib path is not found, it will be 
+the provided ``model`` to search over possible paths. It the model lib is not found, it will be 
 compiled in a JIT manner.
 """.strip(),
     "model_type": """
@@ -186,8 +186,8 @@ The model paths and (optional) model library paths of additional models (other t
 When engine is enabled with speculative decoding, additional models are needed.
 The way of specifying additional models is:
 "--additional-models model_path_1 model_path_2 ..." or
-"--additional-models model_path_1:model_lib_path_1 model_path_2 ...".
-When the model lib path of a model is not given, JIT model compilation will be activated
+"--additional-models model_path_1:model_lib_1 model_path_2 ...".
+When the model lib of a model is not given, JIT model compilation will be activated
 to compile the model automatically.
 """,
     "gpu_memory_utilization_serve": """
@@ -199,10 +199,10 @@ this number. Under mode "server", the actual memory usage may be slightly larger
 """,
     "speculative_mode_serve": """
 The speculative decoding mode. Right now three options are supported:
- - DISABLE, where speculative decoding is not enabled,
- - SMALL_DRAFT, denoting the normal speculative decoding (small draft) style,
- - EAGLE, denoting the eagle-style speculative decoding.
-The default mode is "DISABLE".
+ - "disable", where speculative decoding is not enabled,
+ - "small_draft", denoting the normal speculative decoding (small draft) style,
+ - "eagle", denoting the eagle-style speculative decoding.
+The default mode is "disable".
 """,
     "spec_draft_length_serve": """
 The number of draft tokens to generate in speculative proposal. The default values is 4.

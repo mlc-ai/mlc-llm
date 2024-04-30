@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
+from typing import Dict, List, Optional
 
 from mlc_llm.json_ffi import JSONFFIEngine
 
@@ -120,12 +120,10 @@ def test_reload_reset_unload():
 
 def test_function_calling():
     model = "dist/gorilla-openfunctions-v1-q4f16_1-MLC"
-    model_lib_path = (
-        "dist/gorilla-openfunctions-v1-q4f16_1-MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so"
-    )
+    model_lib = "dist/gorilla-openfunctions-v1-q4f16_1-MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so"
     engine = JSONFFIEngine(
         model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         max_total_sequence_length=1024,
     )
 

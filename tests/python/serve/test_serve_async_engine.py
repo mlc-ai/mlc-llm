@@ -22,10 +22,10 @@ prompts = [
 async def test_engine_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )
@@ -79,10 +79,10 @@ async def test_engine_generate():
 async def test_chat_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )
@@ -131,10 +131,10 @@ async def test_chat_completion():
 async def test_chat_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )
@@ -182,10 +182,10 @@ async def test_chat_completion_non_stream():
 async def test_completion():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )
@@ -234,10 +234,10 @@ async def test_completion():
 async def test_completion_non_stream():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )

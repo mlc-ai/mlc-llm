@@ -12,6 +12,7 @@
 #include <tvm/runtime/ndarray.h>
 
 #include "../base.h"
+#include "../support/result.h"
 #include "config.h"
 #include "draft_token_workspace_manager.h"
 #include "event_trace_recorder.h"
@@ -254,6 +255,9 @@ class ModelObj : public Object {
 
   /************** Raw Info Query **************/
 
+  /*! \brief Return the metadata JSON object of the model. */
+  virtual ModelMetadata GetMetadata() const = 0;
+
   /*! \brief Get the number of available pages in KV cache. */
   virtual int GetNumAvailablePages() const = 0;
 
@@ -261,6 +265,21 @@ class ModelObj : public Object {
   virtual int GetCurrentTotalSequenceLength() const = 0;
 
   /*********************** Utilities  ***********************/
+
+  /*! \brief Load the model's weight parameters, which is not loaded at construction time. */
+  virtual void LoadParams() = 0;
+
+  /*!
+   * \brief Set the maximum number of sequences to be processed for the model,
+   * which is not initialized at construction time.
+   */
+  virtual void SetMaxNumSequence(int max_num_sequence) = 0;
+
+  /*!
+   * \brief Set the prefill chunk size for the model,
+   * which is not initialized at construction time.
+   */
+  virtual void SetPrefillChunkSize(int prefill_chunk_size) = 0;
 
   /*! \brief Create a logit processor from this model. */
   virtual LogitProcessor CreateLogitProcessor(int max_num_token,
@@ -278,9 +297,6 @@ class ModelObj : public Object {
    * avoid overuse cores in other places.
    */
   virtual int EstimateHostCPURequirement() const = 0;
-
-  /*! \brief Get the max window size of the model. "-1" means infinite length. */
-  virtual int GetMaxWindowSize() const = 0;
 
   /*! \brief Allocate an embedding tensor with the prefill chunk size. */
   virtual ObjectRef AllocEmbeddingTensor() = 0;
@@ -331,22 +347,20 @@ class Model : public ObjectRef {
    * \param model_path The path to the model weight parameters.
    * \param model_config The model config json object.
    * \param device The device to run the model on.
-   * \param max_num_sequence The maximum number of sequences to be processed
    * \param session The session to run the model on.
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
   TVM_DLL static Model Create(String reload_lib_path, String model_path,
                               const picojson::object& model_config, DLDevice device,
-                              int max_num_sequence, const Optional<Session>& session,
-                              bool trace_enabled);
+                              const Optional<Session>& session, bool trace_enabled);
 
   /*!
    * Load the model config from the given model path.
    * \param model_path The path to the model weight parameters.
    * \return The model config json object.
    */
-  static picojson::object LoadModelConfig(const String& model_path);
+  TVM_DLL static Result<picojson::object> LoadModelConfig(const String& model_path);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
 };

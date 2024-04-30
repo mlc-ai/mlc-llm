@@ -139,7 +139,7 @@ def get_instrument(args):
     if args.cmp_device is None:
         assert args.cmp_lib_path is None, "cmp_lib_path must be None if cmp_device is None"
         args.cmp_device = args.device
-        args.cmp_lib_path = args.model_lib_path
+        args.cmp_lib_path = args.model_lib
 
     if args.cmp_device == "iphone":
         assert args.cmp_lib_path.endswith(".dylib"), "Require a dylib file for iPhone"
@@ -194,7 +194,7 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "--model-lib-path",
+        "--model-lib",
         type=str,
         help="The full path to the model library file to use (e.g. a ``.so`` file).",
         required=True,
@@ -230,7 +230,7 @@ def main():
     instrument = get_instrument(parsed)
     debug_chat = DebugChat(
         model=parsed.model,
-        model_lib_path=parsed.model_lib_path,
+        model_lib=parsed.model_lib,
         debug_dir=Path(parsed.debug_dir),
         device=parsed.device,
         debug_instrument=instrument,

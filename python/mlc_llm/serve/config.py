@@ -1,13 +1,8 @@
 """Configuration dataclasses used in MLC LLM serving"""
 
-import enum
 import json
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Literal, Optional
-
-import tvm
-
-from . import _ffi_api
 
 
 @dataclass
@@ -43,19 +38,19 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     n : int
         How many chat completion choices to generate for each input message.
 
-    temperature : float
+    temperature : Optional[float]
         The value that applies to logits and modulates the next token probabilities.
 
-    top_p : float
+    top_p : Optional[float]
         In sampling, only the most probable tokens with probabilities summed up to
         `top_p` are kept for sampling.
 
-    frequency_penalty : float
+    frequency_penalty : Optional[float]
         Positive values penalize new tokens based on their existing frequency
         in the text so far, decreasing the model's likelihood to repeat the same
         line verbatim.
 
-    presence_penalty : float
+    presence_penalty : Optional[float]
         Positive values penalize new tokens based on whether they appear in the text
         so far, increasing the model's likelihood to talk about new topics.
 
@@ -101,10 +96,10 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     """
 
     n: int = 1
-    temperature: float = 0.8
-    top_p: float = 0.95
-    frequency_penalty: float = 0.0
-    presence_penalty: float = 0.0
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
     repetition_penalty: float = 1.0
     logprobs: bool = False
     top_logprobs: int = 0
@@ -128,26 +123,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
         return GenerationConfig(**json.loads(json_str))
 
 
-class KVStateKind(enum.IntEnum):  # pylint: disable=too-few-public-methods
-    """Possible kinds of KV state."""
-
-    ATTENTION = 0
-    RNNSTATE = 1
-
-
-class SpeculativeMode(enum.IntEnum):
-    """The speculative mode."""
-
-    # Disable speculative decoding.
-    DISABLE = 0
-    # The normal speculative decoding (small draft) mode.
-    SMALL_DRAFT = 1
-    # The eagle-style speculative decoding.
-    EAGLE = 2
-
-
-@tvm._ffi.register_object("mlc.serve.EngineConfig")  # pylint: disable=protected-access
-class EngineConfig(tvm.runtime.Object):
+@dataclass
+class EngineConfig:  # pylint: disable=too-many-instance-attributes
     """The class of MLCEngine execution configuration.
 
     Parameters
@@ -155,74 +132,103 @@ class EngineConfig(tvm.runtime.Object):
     model : str
         The path to the model directory.
 
-    model_lib_path : str
+    model_lib : str
         The path to the model library.
 
     additional_models : List[str]
         The path to the additional models' directories.
 
-    additional_model_lib_paths : List[str]
+    additional_model_libs : List[str]
         The path to the additional models' libraries.
+
+    mode : Literal["local", "interactive", "server"]
+        The engine mode in MLC LLM.
+        We provide three preset modes: "local", "interactive" and "server".
+        The default mode is "local".
+        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        and "prefill_chunk_size" when they are not explicitly specified.
+        1. Mode "local" refers to the local server deployment which has low
+        request concurrency. So the max batch size will be set to 4, and max
+        total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        2. Mode "interactive" refers to the interactive use of server, which
+        has at most 1 concurrent request. So the max batch size will be set to 1,
+        and max total sequence length and prefill chunk size are set to the context
+        window size (or sliding window size) of the model.
+        3. Mode "server" refers to the large server use case which may handle
+        many concurrent request and want to use GPU memory as much as possible.
+        In this mode, we will automatically infer the largest possible max batch
+        size and max total sequence length.
+
+        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        "prefill_chunk_size" to override the automatic inferred values.
+
+    gpu_memory_utilization : float
+        A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
+        It is used to infer to maximum possible KV cache capacity.
+        When it is unspecified, it defaults to 0.85.
+        Under mode "local" or "interactive", the actual memory usage may be
+        significantly smaller than this number. Under mode "server", the actual
+        memory usage may be slightly larger than this number.
 
     kv_cache_page_size : int
         The number of consecutive tokens handled in each page in paged KV cache.
 
-    max_num_sequence : int
+    max_num_sequence : Optional[int]
         The maximum number of sequences that are allowed to be
         processed by the KV cache at any time.
 
-    max_total_sequence_length : int
+    max_total_sequence_length : Optional[int]
         The maximum length allowed for a single sequence in the engine.
 
-    max_single_sequence_length : int
+    max_single_sequence_length : Optional[int]
         The maximum total number of tokens whose KV data are allowed
         to exist in the KV cache at any time.
 
-    prefill_chunk_size : int
+    prefill_chunk_size : Optional[int]
         The maximum total sequence length in a prefill.
 
-    max_history_size: int
+    max_history_size: Optional[int]
         The maximum history size for RNN state to rool back.
 
-    kv_state_kind: KVStateKind
+    kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]]
         The kind of cache.
 
-    speculative_mode : SpeculativeMode
+    speculative_mode : Literal["disable", "small_draft", "eagle"]
         The speculative mode.
+        "disable" means speculative decoding is disabled.
+        "small_draft" means the normal speculative decoding (small draft) mode.
+        "eagle" means the eagle-style speculative decoding.
 
     spec_draft_length : int
         The number of tokens to generate in speculative proposal (draft).
+
+    verbose : bool
+        A boolean indicating whether to print logging info in engine.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
-        self,
-        model: str,
-        model_lib_path: str,
-        additional_models: List[str],
-        additional_model_lib_paths: List[str],
-        kv_cache_page_size: int,
-        max_num_sequence: int,
-        max_total_sequence_length: int,
-        max_single_sequence_length: int,
-        prefill_chunk_size: int,
-        max_history_size: int,
-        kv_state_kind: KVStateKind,
-        speculative_mode: SpeculativeMode,
-        spec_draft_length: int,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.EngineConfig,  # type: ignore  # pylint: disable=no-member
-            model,
-            model_lib_path,
-            additional_models,
-            additional_model_lib_paths,
-            kv_cache_page_size,
-            max_num_sequence,
-            max_total_sequence_length,
-            max_single_sequence_length,
-            prefill_chunk_size,
-            max_history_size,
-            kv_state_kind,
-            speculative_mode,
-            spec_draft_length,
-        )
+    model: str
+    model_lib: str
+    additional_models: List[str] = field(default_factory=list)
+    additional_model_libs: List[str] = field(default_factory=list)
+    mode: Literal["local", "interactive", "server"] = "local"
+    gpu_memory_utilization: Optional[float] = None
+    kv_cache_page_size: int = 16
+    max_num_sequence: Optional[int] = None
+    max_total_sequence_length: Optional[int] = None
+    max_single_sequence_length: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    max_history_size: Optional[int] = None
+    kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]] = None
+    speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable"
+    spec_draft_length: int = 4
+    verbose: bool = True
+
+    def asjson(self) -> str:
+        """Return the config in string of JSON format."""
+        return json.dumps(asdict(self))
+
+    @staticmethod
+    def from_json(json_str: str) -> "EngineConfig":
+        """Construct a config from JSON string."""
+        return EngineConfig(**json.loads(json_str))

@@ -4,7 +4,6 @@ import json
 
 from mlc_llm.help import HELP
 from mlc_llm.interface.serve import serve
-from mlc_llm.serve.config import SpeculativeMode
 from mlc_llm.support.argparse import ArgumentParser
 
 
@@ -24,10 +23,10 @@ def main(argv):
         help=HELP["device_deploy"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--model-lib-path",
+        "--model-lib",
         type=str,
         default=None,
-        help=HELP["model_lib_path"] + ' (default: "%(default)s")',
+        help=HELP["model_lib"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--mode",
@@ -44,18 +43,16 @@ def main(argv):
         "--max-total-seq-length", type=int, help=HELP["max_total_sequence_length_serve"]
     )
     parser.add_argument("--prefill-chunk-size", type=int, help=HELP["prefill_chunk_size_serve"])
-    parser.add_argument(
-        "--max-history-size", type=int, default=1, help=HELP["max_history_size_serve"]
-    )
+    parser.add_argument("--max-history-size", type=int, help=HELP["max_history_size_serve"])
     parser.add_argument(
         "--gpu-memory-utilization", type=float, help=HELP["gpu_memory_utilization_serve"]
     )
     parser.add_argument(
         "--speculative-mode",
         type=str,
-        choices=["DISABLE", "SMALL_DRAFT", "EAGLE"],
-        default="DISABLE",
-        help=HELP["speculative_mode_serve"],
+        choices=["disable", "small_draft", "eable"],
+        default="disable",
+        help=HELP["speculative_mode_serve"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--spec-draft-length", type=int, default=4, help=HELP["spec_draft_length_serve"]
@@ -97,7 +94,7 @@ def main(argv):
     serve(
         model=parsed.model,
         device=parsed.device,
-        model_lib_path=parsed.model_lib_path,
+        model_lib=parsed.model_lib,
         mode=parsed.mode,
         additional_models=parsed.additional_models,
         max_batch_size=parsed.max_batch_size,
@@ -105,7 +102,7 @@ def main(argv):
         prefill_chunk_size=parsed.prefill_chunk_size,
         max_history_size=parsed.max_history_size,
         gpu_memory_utilization=parsed.gpu_memory_utilization,
-        speculative_mode=SpeculativeMode[parsed.speculative_mode],
+        speculative_mode=parsed.speculative_mode,
         spec_draft_length=parsed.spec_draft_length,
         enable_tracing=parsed.enable_tracing,
         host=parsed.host,

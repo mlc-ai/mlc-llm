@@ -107,9 +107,9 @@ class CompletionRequest(BaseModel):
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
-    def check_penalty_range(cls, penalty_value: float) -> float:
+    def check_penalty_range(cls, penalty_value: Optional[float]) -> Optional[float]:
         """Check if the penalty value is in range [-2, 2]."""
-        if penalty_value < -2 or penalty_value > 2:
+        if penalty_value and (penalty_value < -2 or penalty_value > 2):
             raise ValueError("Penalty value should be in range [-2, 2].")
         return penalty_value
 
@@ -221,7 +221,7 @@ class ChatCompletionRequest(BaseModel):
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
-    def check_penalty_range(cls, penalty_value: float) -> float:
+    def check_penalty_range(cls, penalty_value: Optional[float]) -> Optional[float]:
         """Check if the penalty value is in range [-2, 2]."""
         if penalty_value and (penalty_value < -2 or penalty_value > 2):
             raise ValueError("Penalty value should be in range [-2, 2].")
@@ -386,7 +386,7 @@ def openai_api_get_unsupported_fields(
 
 
 def openai_api_get_generation_config(
-    request: Union[CompletionRequest, ChatCompletionRequest], model_config: Dict[str, Any]
+    request: Union[CompletionRequest, ChatCompletionRequest]
 ) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     from ..serve.config import ResponseFormat  # pylint: disable=import-outside-toplevel
@@ -407,17 +407,6 @@ def openai_api_get_generation_config(
     ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
-
-    # If per-request generation config values are missing, try loading from model config.
-    # If still not found, then use the default OpenAI API value
-    if kwargs["temperature"] is None:
-        kwargs["temperature"] = model_config.get("temperature", 1.0)
-    if kwargs["top_p"] is None:
-        kwargs["top_p"] = model_config.get("top_p", 1.0)
-    if kwargs["frequency_penalty"] is None:
-        kwargs["frequency_penalty"] = model_config.get("frequency_penalty", 0.0)
-    if kwargs["presence_penalty"] is None:
-        kwargs["presence_penalty"] = model_config.get("presence_penalty", 0.0)
     if kwargs["max_tokens"] is None:
         # Setting to -1 means the generation will not stop until
         # exceeding model capability or hit any stop criteria.

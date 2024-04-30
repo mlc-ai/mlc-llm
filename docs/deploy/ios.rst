@@ -273,7 +273,7 @@ We simply specify the Huggingface link as ``model_url``, while reusing the ``mod
          "model_url": "https://huggingface.co/mlc-ai/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC",
          "model_id": "Mistral-7B-Instruct-v0.2-q3f16_1",
          "model_lib": "mistral_q3f16_1",
-         "model_lib_path": "lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar",
+         "model_lib": "lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar",
          "estimated_vram_bytes": 3316000000
       }
    ]
@@ -421,7 +421,6 @@ rounded up to MB.
          "model_url": "https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC",
          "model_id": "phi-2-q4f16_1",
          "model_lib": "phi_msft_q4f16_1",
-         "model_lib_path": "lib/phi-2/phi-2-q4f16_1-iphone.tar",
          "estimated_vram_bytes": 3043000000
       }
    ]

@@ -240,20 +240,20 @@ Below is an example command of compiling model libraries in MLC LLM:
 
 .. code:: bash
 
-  export $MODEL_LIB_PATH=$MLC_MODEL_PATH/lib.so  # ".dylib" for Intel Macs.
-                                                 # ".dll" for Windows.
-                                                 # ".wasm" for web.
-                                                 # ".tar" for iPhone/Android.
-  mlc_llm compile $MLC_MODEL_PATH -o $MODEL_LIB_PATH
+  export $MODEL_LIB=$MLC_MODEL_PATH/lib.so  # ".dylib" for Intel Macs.
+                                            # ".dll" for Windows.
+                                            # ".wasm" for web.
+                                            # ".tar" for iPhone/Android.
+  mlc_llm compile $MLC_MODEL_PATH -o $MODEL_LIB
 
 At runtime, we need to specify this model library path to use it. For example,
 
 .. code:: bash
 
   # For chat CLI
-  mlc_llm chat $MLC_MODEL_PATH --model-lib-path $MODEL_LIB_PATH
+  mlc_llm chat $MLC_MODEL_PATH --model-lib $MODEL_LIB
   # For REST server
-  mlc_llm serve $MLC_MODEL_PATH --model-lib-path $MODEL_LIB_PATH
+  mlc_llm serve $MLC_MODEL_PATH --model-lib $MODEL_LIB
 
 .. code:: python
 
@@ -261,8 +261,8 @@ At runtime, we need to specify this model library path to use it. For example,
 
   # For Python API
   model = "models/phi-2"
-  model_lib_path = "models/phi-2/lib.so"
-  engine = MLCEngine(model, model_lib_path=model_lib_path)
+  model_lib = "models/phi-2/lib.so"
+  engine = MLCEngine(model, model_lib=model_lib)
 
 :ref:`compile-model-libraries` introduces the model compilation command in detail,
 where you can find instructions and example commands to compile model to different

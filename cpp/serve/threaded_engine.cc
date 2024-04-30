@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "../support/result.h"
 #include "engine.h"
 #include "request.h"
 
@@ -36,8 +37,8 @@ enum class InstructionKind : int {
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
-                            Optional<EventTraceRecorder> trace_recorder) final {
+  void InitThreadedEngine(Device device, Optional<PackedFunc> request_stream_callback,
+                          Optional<EventTraceRecorder> trace_recorder) final {
     device_ = device;
     CHECK(request_stream_callback.defined())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
@@ -45,16 +46,22 @@ class ThreadedEngineImpl : public ThreadedEngine {
     trace_recorder_ = trace_recorder;
   }
 
-  void Reload(EngineConfig engine_config) final {
+  void Reload(String engine_config_json_str) final {
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
-      instruction_queue_.emplace_back(InstructionKind::kReloadEngine, std::move(engine_config));
+      instruction_queue_.emplace_back(InstructionKind::kReloadEngine,
+                                      std::move(engine_config_json_str));
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }
     if (need_notify) {
       background_loop_cv_.notify_one();
+    }
+    {
+      std::unique_lock<std::mutex> lock(reload_unload_mutex_);
+      reload_finished_ = false;
+      reload_unload_cv_.wait(lock, [this] { return reload_finished_; });
     }
   }
 
@@ -68,6 +75,11 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
     if (need_notify) {
       background_loop_cv_.notify_one();
+    }
+    {
+      std::unique_lock<std::mutex> lock(reload_unload_mutex_);
+      unload_finished_ = false;
+      reload_unload_cv_.wait(lock, [this] { return unload_finished_; });
     }
   }
 
@@ -140,7 +152,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
           EngineUnloadImpl();
         } else if (kind == InstructionKind::kReloadEngine) {
           EngineUnloadImpl();
-          EngineReloadImpl(Downcast<EngineConfig>(arg));
+          EngineReloadImpl(Downcast<String>(arg));
         } else if (kind == InstructionKind::kResetEngine) {
           if (background_engine_ != nullptr) {
             background_engine_->Reset();
@@ -199,7 +211,23 @@ class ThreadedEngineImpl : public ThreadedEngine {
     request_stream_callback_cv_.notify_one();
   }
 
-  /************** Debug/Profile **************/
+  /************** Query/Profile/Debug **************/
+
+  String GetDefaultGenerationConfigJSONString() const final {
+    CHECK(!default_generation_cfg_json_str_.empty())
+        << "The default generation config has not been set.";
+    return default_generation_cfg_json_str_;
+  };
+
+  String GetCompleteEngineConfigJSONString() const final {
+    CHECK(!complete_engine_config_json_str_.empty()) << "The engine config has not been set.";
+    return complete_engine_config_json_str_;
+  };
+
+  String Stats() final {
+    std::lock_guard<std::mutex> lock(background_loop_mutex_);
+    return background_engine_->Stats();
+  }
 
   void DebugCallFuncOnAllAllWorker(const String& func_name) final {
     bool need_notify = false;
@@ -214,13 +242,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
   }
 
-  String Stats() final {
-    std::lock_guard<std::mutex> lock(background_loop_mutex_);
-    return background_engine_->Stats();
-  }
-
  private:
-  void EngineReloadImpl(EngineConfig engine_config) {
+  void EngineReloadImpl(const std::string& engine_config_json_str) {
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
       ICHECK_EQ(args.size(), 1);
       Array<RequestStreamOutput> delta_outputs = args[0];
@@ -237,8 +260,19 @@ class ThreadedEngineImpl : public ThreadedEngine {
     };
 
     Optional<PackedFunc> request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    background_engine_ = Engine::Create(std::move(engine_config), device_,
-                                        std::move(request_stream_callback), trace_recorder_);
+    Result<EngineCreationOutput> output_res = Engine::Create(
+        engine_config_json_str, device_, std::move(request_stream_callback), trace_recorder_);
+    CHECK(output_res.IsOk()) << output_res.UnwrapErr();
+    EngineCreationOutput output = output_res.Unwrap();
+    background_engine_ = std::move(output.reloaded_engine);
+    default_generation_cfg_json_str_ = output.default_generation_cfg->AsJSONString();
+    complete_engine_config_json_str_ = output.completed_engine_config->AsJSONString();
+    {
+      // Wake up the thread waiting for reload finish.
+      std::lock_guard<std::mutex> lock(reload_unload_mutex_);
+      reload_finished_ = true;
+      reload_unload_cv_.notify_one();
+    }
   }
 
   void EngineUnloadImpl() {
@@ -250,6 +284,14 @@ class ThreadedEngineImpl : public ThreadedEngine {
           tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
       ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
       (*fclear_memory_manager)();
+      default_generation_cfg_json_str_ = "";
+      complete_engine_config_json_str_ = "";
+    }
+    {
+      // Wake up the thread waiting for unload finish.
+      std::lock_guard<std::mutex> lock(reload_unload_mutex_);
+      unload_finished_ = true;
+      reload_unload_cv_.notify_one();
     }
   }
 
@@ -261,13 +303,19 @@ class ThreadedEngineImpl : public ThreadedEngine {
   PackedFunc request_stream_callback_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
+  /*! \brief The complete engine config JSON string. */
+  String complete_engine_config_json_str_;
+  /*! \brief The default generation config JSON string. */
+  String default_generation_cfg_json_str_;
 
   /*! \brief The mutex ensuring only one thread can access critical regions. */
   std::mutex background_loop_mutex_;
   std::mutex request_stream_callback_mutex_;
+  std::mutex reload_unload_mutex_;
   /*! \brief The condition variable preventing threaded engine from spinning. */
   std::condition_variable background_loop_cv_;
   std::condition_variable request_stream_callback_cv_;
+  std::condition_variable reload_unload_cv_;
   /*! \brief A boolean flag denoting if the engine needs to exit background loop. */
   std::atomic<bool> exit_now_ = false;
 
@@ -303,13 +351,17 @@ class ThreadedEngineImpl : public ThreadedEngine {
   bool engine_waiting_ = false;
   /*! \brief A boolean flag indicating if the stream callback loop is waiting. */
   bool stream_callback_waiting_ = false;
+  /*! \brief A boolean indicating if the engine reload has finished. */
+  bool reload_finished_ = false;
+  /*! \brief A boolean indicating if the engine unload has finished. */
+  bool unload_finished_ = false;
 };
 
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
-  TVM_MODULE_VTABLE_ENTRY("init_background_engine", &ThreadedEngineImpl::InitBackgroundEngine);
+  TVM_MODULE_VTABLE_ENTRY("init_threaded_engine", &ThreadedEngineImpl::InitThreadedEngine);
   TVM_MODULE_VTABLE_ENTRY("reload", &ThreadedEngineImpl::Reload);
   TVM_MODULE_VTABLE_ENTRY("add_request", &ThreadedEngineImpl::AddRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &ThreadedEngineImpl::AbortRequest);
@@ -317,9 +369,13 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &ThreadedEngineImpl::RunBackgroundStreamBackLoop);
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
+  TVM_MODULE_VTABLE_ENTRY("get_default_generation_config",
+                          &ThreadedEngineImpl::GetDefaultGenerationConfigJSONString);
+  TVM_MODULE_VTABLE_ENTRY("get_complete_engine_config",
+                          &ThreadedEngineImpl::GetCompleteEngineConfigJSONString);
+  TVM_MODULE_VTABLE_ENTRY("stats", &ThreadedEngineImpl::Stats);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
-  TVM_MODULE_VTABLE_ENTRY("stats", &ThreadedEngineImpl::Stats);
   TVM_MODULE_VTABLE_END();
 };
 

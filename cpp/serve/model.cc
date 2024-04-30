@@ -12,6 +12,7 @@
 
 #include <fstream>
 
+#include "../support/json_parser.h"
 #include "config.h"
 #include "logit_processor.h"
 
@@ -26,13 +27,13 @@ class ModelImpl;
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
-                    DLDevice device, int max_num_sequence, const Optional<Session>& session,
-                    bool trace_enabled) {
-  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
-                                      max_num_sequence, session, trace_enabled));
+                    DLDevice device, const Optional<Session>& session, bool trace_enabled) {
+  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device, session,
+                                      trace_enabled));
 }
 
-picojson::object Model::LoadModelConfig(const String& model_path) {
+Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
+  using TResult = Result<picojson::object>;
   picojson::object model_config;
   std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
   std::ostringstream config_ostream;
@@ -42,10 +43,10 @@ picojson::object Model::LoadModelConfig(const String& model_path) {
   picojson::value config_json;
   std::string err = picojson::parse(config_json, config_str);
   if (!err.empty()) {
-    LOG(FATAL) << err;
+    return TResult::Error(err);
   }
   picojson::object config = config_json.get<picojson::object>();
-  return config;
+  return TResult::Ok(config);
 }
 
 class ModelImpl : public ModelObj {
@@ -55,34 +56,21 @@ class ModelImpl : public ModelObj {
    * \sa Model::Create
    */
   explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
-                     DLDevice device, int max_num_sequence, const Optional<Session>& session,
-                     bool trace_enabled)
-      : device_(device) {
+                     DLDevice device, const Optional<Session>& session, bool trace_enabled)
+      : model_(model_path), device_(device) {
     // Step 1. Process model config json string.
     LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
     this->ft_.Init(reload_lib_path, device_, model_config, session);
-    // Step 3. Load params in nd-array cache.
-    this->params_ = ft_.LoadParams(model_path, device_);
-    // Step 4. Set max_num_sequence
-    this->max_num_sequence_ = max_num_sequence;
-    // Step 5. Reset
+    // Step 3. Reset
     this->Reset();
-    // Step 6. Initialize the shared NDArray.
-    Device device_host{DLDeviceType::kDLCPU, 0};
-    memory::Allocator* allocator =
-        memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
-    ICHECK_NOTNULL(allocator);
-    token_ids_storage_ = memory::Storage(
-        allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
-    this->logit_pos_arr_ = NDArray::Empty({max_num_sequence}, DataType::Int(32), device_host);
-    // Step 7. Set model type
-    if (model_config["model_type"].get<std::string>().find("rwkv") != std::string::npos) {
+    // Step 4. Set model type
+    if (json::Lookup<std::string>(model_config, "model_type").find("rwkv") != std::string::npos) {
       this->kind = KVStateKind::kRNNState;
     } else {
-      this->kind = KVStateKind::kAttention;
+      this->kind = KVStateKind::kKVCache;
     }
   }
 
@@ -104,6 +92,7 @@ class ModelImpl : public ModelObj {
     }
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
+    ICHECK_NE(prefill_chunk_size_, -1);
     auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
@@ -249,6 +238,7 @@ class ModelImpl : public ModelObj {
       ShapeTuple embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
     }
+    ICHECK_NE(max_num_sequence_, -1);
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
     // args: embeddings, logit_pos, kv_cache, params
@@ -576,7 +566,7 @@ class ModelImpl : public ModelObj {
   void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
                      int prefill_chunk_size, int max_history_size,
                      KVStateKind kv_state_kind) final {
-    if (kv_state_kind == KVStateKind::kAttention) {
+    if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
       IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
       IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
@@ -619,6 +609,8 @@ class ModelImpl : public ModelObj {
 
   /************** Raw Info Query **************/
 
+  ModelMetadata GetMetadata() const final { return ft_.model_metadata_; }
+
   int GetNumAvailablePages() const final {
     if (this->kind == KVStateKind::kRNNState) {
       // RNNState does not introduce new page at runtime
@@ -639,14 +631,32 @@ class ModelImpl : public ModelObj {
 
   /*********************** Utilities  ***********************/
 
+  void LoadParams() final { this->params_ = ft_.LoadParams(model_, device_); }
+
+  void SetMaxNumSequence(int max_num_sequence) final {
+    this->max_num_sequence_ = max_num_sequence;
+    this->logit_pos_arr_ =
+        NDArray::Empty({max_num_sequence}, DataType::Int(32), Device{DLDeviceType::kDLCPU, 0});
+  }
+
+  void SetPrefillChunkSize(int prefill_chunk_size) final {
+    this->prefill_chunk_size_ = prefill_chunk_size;
+    Device device_host{DLDeviceType::kDLCPU, 0};
+    memory::Allocator* allocator =
+        memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
+    ICHECK_NOTNULL(allocator);
+    token_ids_storage_ = memory::Storage(
+        allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
+  }
+
   LogitProcessor CreateLogitProcessor(int max_num_token,
-                                      Optional<EventTraceRecorder> trace_recorder) {
+                                      Optional<EventTraceRecorder> trace_recorder) final {
     return LogitProcessor(max_num_token, vocab_size_, &this->ft_, device_,
                           std::move(trace_recorder));
   }
 
   Sampler CreateSampler(int max_num_sample, int num_models,
-                        Optional<EventTraceRecorder> trace_recorder) {
+                        Optional<EventTraceRecorder> trace_recorder) final {
     if (Sampler::SupportGPUSampler(device_)) {
       return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
                                        std::move(trace_recorder));
@@ -658,11 +668,6 @@ class ModelImpl : public ModelObj {
   int EstimateHostCPURequirement() const final {
     CHECK_NE(num_shards_, -1) << "The model has not been initialized";
     return num_shards_ > 1 ? num_shards_ : 0;
-  }
-
-  int GetMaxWindowSize() const final {
-    // Being "-1" means there is no limit on the window size.
-    return max_window_size_ != -1 ? max_window_size_ : std::numeric_limits<int>::max();
   }
 
   ObjectRef AllocEmbeddingTensor() final {
@@ -678,6 +683,7 @@ class ModelImpl : public ModelObj {
       NDArray embedding_nd = Downcast<NDArray>(embedding);
       embedding_shape = embedding_nd.Shape();
     }
+    ICHECK_NE(prefill_chunk_size_, -1);
     ICHECK_EQ(embedding_shape.size(), 2);
     ICHECK_GE(embedding_shape[0], prefill_chunk_size_);
     this->hidden_size_ = embedding_shape[1];
@@ -697,8 +703,9 @@ class ModelImpl : public ModelObj {
       hidden_states_nd = Downcast<NDArray>(hidden_states);
     }
     ShapeTuple hidden_states_shape = hidden_states_nd.Shape();
+    ICHECK_NE(prefill_chunk_size_, -1);
     ICHECK_EQ(hidden_states_shape.size(), 2);
-    ICHECK_EQ(hidden_states_shape[0], prefill_chunk_size_);
+    ICHECK_GE(hidden_states_shape[0], prefill_chunk_size_);
     this->hidden_size_ = hidden_states_shape[1];
     this->hidden_states_dtype_ = hidden_states_nd->dtype;
     return hidden_states;
@@ -731,6 +738,7 @@ class ModelImpl : public ModelObj {
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.gather_hidden_states_func_(input, indices_device, dst_view);
     return dst_view;
@@ -741,6 +749,7 @@ class ModelImpl : public ModelObj {
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.scatter_hidden_states_func_(input, indices_device, *dst);
   }
@@ -752,6 +761,7 @@ class ModelImpl : public ModelObj {
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
     ft_.gather_probs_func_(input, indices_device, dst_view);
@@ -763,6 +773,7 @@ class ModelImpl : public ModelObj {
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
+    ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
     ft_.scatter_probs_func_(input, indices_device, *dst);
@@ -776,50 +787,22 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  picojson::object LoadModelConfigJSON(picojson::object config) {
-    if (config.count("context_window_size")) {
-      CHECK(config["context_window_size"].is<int64_t>());
-      this->max_window_size_ = config["context_window_size"].get<int64_t>();
-    } else {
-      LOG(FATAL) << "Key \"context_window_size\" not found.";
-    }
-    if (config.count("sliding_window_size")) {
-      CHECK(config["sliding_window_size"].is<int64_t>());
-      this->sliding_window_size_ = config["sliding_window_size"].get<int64_t>();
-      CHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)
-          << "Sliding window should be either -1 (which means disabled) of positive";
-    }
-    if (config.count("attention_sink_size")) {
-      CHECK(config["attention_sink_size"].is<int64_t>());
-      this->attention_sink_size_ = config["attention_sink_size"].get<int64_t>();
-      this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
-    }
-    if (config.count("tensor_parallel_shards")) {
-      CHECK(config["tensor_parallel_shards"].is<int64_t>());
-      this->num_shards_ = config["tensor_parallel_shards"].get<int64_t>();
-    } else {
-      LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
-    }
-    if (config.count("prefill_chunk_size")) {
-      CHECK(config["prefill_chunk_size"].is<int64_t>());
-      this->prefill_chunk_size_ = config["prefill_chunk_size"].get<int64_t>();
-    } else {
-      LOG(FATAL) << "Key \"prefill_chunk_size\" not found.";
-    }
-    if (config.count("vocab_size")) {
-      CHECK(config["vocab_size"].is<int64_t>());
-      this->vocab_size_ = config["vocab_size"].get<int64_t>();
-    } else {
-      LOG(FATAL) << "Key \"vocab_size\" not found.";
-    }
-
-    return config;
+  void LoadModelConfigJSON(const picojson::object& config) {
+    this->sliding_window_size_ =
+        json::LookupOrDefault<int64_t>(config, "sliding_window_size", this->sliding_window_size_);
+    CHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)
+        << "Sliding window should be either -1 (which means disabled) of positive";
+    this->attention_sink_size_ =
+        json::LookupOrDefault<int64_t>(config, "attention_sink_size", this->attention_sink_size_);
+    this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
+    this->num_shards_ = json::Lookup<int64_t>(config, "tensor_parallel_shards");
+    this->vocab_size_ = json::Lookup<int64_t>(config, "vocab_size");
   }
 
   //----------------------------
   // Model configurations
   //----------------------------
-  int max_window_size_ = -1;
+  std::string model_;
   int sliding_window_size_ = -1;
   int attention_sink_size_ = 0;
   int num_shards_ = -1;

@@ -1,6 +1,5 @@
 # pylint: disable=chained-comparison,missing-docstring,too-few-public-methods,too-many-instance-attributes
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
-import json
 import queue
 import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
@@ -11,39 +10,11 @@ from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
     EngineConfig,
-    SpeculativeMode,
-    _infer_kv_cache_config,
     _parse_models,
     _process_model_args,
     detect_device,
 )
 from mlc_llm.tokenizer import Tokenizer
-
-
-# TODO(mlc-team): further minimize the JSONFFIEngine
-# construction to not depend on any config and directly pass in JSON
-# model defined generation config should be read from the JSONFFIEngine via Reload
-def create_model_defined_generation_config(
-    temperature: float, top_p: float, frequency_penalty: float, presence_penalty: float
-) -> tvm.runtime.Object:
-    return tvm.get_global_func("mlc.json_ffi.ModelDefinedGenerationConfig")(
-        temperature,
-        top_p,
-        frequency_penalty,
-        presence_penalty,
-    )
-
-
-# TODO(mlc-team): further minimize the JSONFFIEngine
-# Engine config should be passed as json str
-# and backend should have good default
-# only model and model_lib should be mandatory
-def create_json_ffi_engine_config(
-    conv_template: str, model_generation_cfgs: Dict[str, tvm.runtime.Object]
-) -> tvm.runtime.Object:
-    return tvm.get_global_func("mlc.json_ffi.JSONFFIEngineConfig")(
-        conv_template, model_generation_cfgs
-    )
 
 
 class EngineState:
@@ -70,27 +41,23 @@ class JSONFFIEngine:
         model: str,
         device: Union[str, tvm.runtime.Device] = "auto",
         *,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         additional_models: Optional[List[str]] = None,
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         max_history_size: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
-        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
         gpu_memory_utilization: Optional[float] = None,
     ) -> None:
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib_path, additional_models)
+        models = _parse_models(model, model_lib, additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, tvm.runtime.Device)
-        (
-            model_args,
-            model_config_paths,
-            self.conv_template,
-        ) = _process_model_args(models, device)
+        model_args = _process_model_args(models, device)[0]
 
         # TODO(mlc-team) Remove the model config parsing, estimation below
         # in favor of a simple direct passing of parameters into backend.
@@ -103,33 +70,8 @@ class JSONFFIEngine:
         # since we won't have similar logics in android/iOS
         #
         # - Load the raw model config into dict
-        self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            model_info.model_lib_path = model_args[i][1]
-            with open(model_config_paths[i], "r", encoding="utf-8") as file:
-                self.model_config_dicts.append(json.load(file))
-
-        # - Decide the KV cache config based on mode and user input.
-        (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_single_sequence_length,
-            max_history_size,
-            kv_state_kind,
-        ) = _infer_kv_cache_config(
-            mode,
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_history_size,
-            gpu_memory_utilization,
-            models,
-            device,
-            self.model_config_dicts,
-            model_config_paths,
-        )
-        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
+            model_info.model_lib = model_args[i][1]
 
         # - Initialize engine state and engine.
         self.state = EngineState()
@@ -151,43 +93,6 @@ class JSONFFIEngine:
         }
         self.tokenizer = Tokenizer(model_args[0][0])
 
-        self.engine_config = EngineConfig(
-            model=model_args[0][0],
-            model_lib_path=model_args[0][1],
-            additional_models=[model_arg[0] for model_arg in model_args[1:]],
-            additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-            kv_cache_page_size=16,
-            max_num_sequence=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            max_single_sequence_length=max_single_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-            max_history_size=max_history_size,
-            kv_state_kind=kv_state_kind,
-            speculative_mode=speculative_mode,
-            spec_draft_length=spec_draft_length,
-        )
-
-        self.json_ffi_engine_config = create_json_ffi_engine_config(
-            conv_template=self.conv_template.model_dump_json(),
-            model_generation_cfgs={
-                model.model: create_model_defined_generation_config(
-                    temperature=model_config["temperature"],
-                    top_p=model_config["top_p"],
-                    frequency_penalty=model_config["frequency_penalty"],
-                    presence_penalty=model_config["presence_penalty"],
-                )
-                for model, model_config in zip(models, self.model_config_dicts)
-            },
-        )
-
-        self._ffi["init_background_engine"](
-            self.json_ffi_engine_config,
-            self.engine_config,
-            device,
-            self.state.get_request_stream_callback(),
-            None,
-        )
-
         def _background_loop():
             self._ffi["run_background_loop"]()
 
@@ -202,6 +107,26 @@ class JSONFFIEngine:
         self._background_loop_thread.start()
         self._background_stream_back_loop_thread.start()
         self._terminated = False
+
+        self.engine_config = EngineConfig(
+            model=model_args[0][0],
+            model_lib=model_args[0][1],
+            additional_models=[model_arg[0] for model_arg in model_args[1:]],
+            additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
+            mode=mode,
+            gpu_memory_utilization=gpu_memory_utilization,
+            kv_cache_page_size=16,
+            max_num_sequence=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            max_history_size=max_history_size,
+            speculative_mode=speculative_mode,
+            spec_draft_length=spec_draft_length,
+            verbose=False,
+        )
+
+        self._ffi["init_background_engine"](device, self.state.get_request_stream_callback(), None)
+        self._ffi["reload"](self.engine_config.asjson())
 
     def terminate(self):
         self._terminated = True
@@ -301,7 +226,7 @@ class JSONFFIEngine:
             raise exception
 
     def _test_reload(self):
-        self._ffi["reload"](self.engine_config)
+        self._ffi["reload"](self.engine_config.asjson())
 
     def _test_reset(self):
         self._ffi["reset"]()

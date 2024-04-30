@@ -1,4 +1,5 @@
 """Command line entrypoint of chat."""
+
 from mlc_llm.help import HELP
 from mlc_llm.interface.chat import ChatConfigOverride, chat
 from mlc_llm.support.argparse import ArgumentParser
@@ -32,10 +33,10 @@ def main(argv):
         help=HELP["chatconfig_overrides"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--model-lib-path",
+        "--model-lib",
         type=str,
         default=None,
-        help=HELP["model_lib_path"] + ' (default: "%(default)s")',
+        help=HELP["model_lib"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     chat(
@@ -43,5 +44,5 @@ def main(argv):
         device=parsed.device,
         opt=parsed.opt,
         overrides=parsed.overrides,
-        model_lib_path=parsed.model_lib_path,
+        model_lib=parsed.model_lib,
     )

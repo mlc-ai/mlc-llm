@@ -219,15 +219,15 @@ you can construct a :class:`mlc_llm.MLCEngine` as follows:
 
 
 **Specify Model Library Path.** Further, if you build the model library on your own,
-you can use it in :class:`mlc_llm.MLCEngine` by passing the library path through argument ``model_lib_path``.
+you can use it in :class:`mlc_llm.MLCEngine` by passing the library path through argument ``model_lib``.
 
 .. code:: python
 
   from mlc_llm import MLCEngine
 
   model = "models/phi-2"
-  model_lib_path = "models/phi-2/lib.so"  # Assuming the phi-2 model library is built at "models/phi-2/lib.so"
-  engine = MLCEngine(model, model_lib_path=model_lib_path)
+  model_lib = "models/phi-2/lib.so"  # Assuming the phi-2 model library is built at "models/phi-2/lib.so"
+  engine = MLCEngine(model, model_lib=model_lib)
 
 
 The same applies to :class:`mlc_llm.AsyncMLCEngine`.

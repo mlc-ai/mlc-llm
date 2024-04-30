@@ -5,8 +5,8 @@
 
 #include "grammar_parser.h"
 
-#include "../../metadata/json_parser.h"
 #include "../../support/encoding.h"
+#include "../../support/json_parser.h"
 #include "grammar_builder.h"
 
 namespace mlc {
