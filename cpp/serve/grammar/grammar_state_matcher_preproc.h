@@ -268,7 +268,7 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
       ptr->special_token_ids.push_back(i);
     } else {
       // First replace the special underscore with space.
-      auto codepoints = Utf8StringToCodepoints(token.c_str());
+      auto codepoints = ParseUTF8(token.c_str());
       DCHECK(!codepoints.empty() &&
              codepoints[0] != static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8))
           << "Invalid token: " << token;

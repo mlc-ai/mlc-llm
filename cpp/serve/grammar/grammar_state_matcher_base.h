@@ -156,15 +156,15 @@ inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool 
   }
   if (tmp_new_stack_tops_.empty()) {
     if (verbose) {
-      std::cout << "Codepoint: " << codepoint << " \"" << CodepointToPrintable(codepoint)
-                << "\" Rejected" << std::endl;
+      std::cout << "Codepoint: " << codepoint << " \"" << PrintAsEscaped(codepoint) << "\" Rejected"
+                << std::endl;
     }
     return false;
   }
   stack_tops_history_.PushHistory(tmp_new_stack_tops_);
   if (verbose) {
-    std::cout << "Codepoint: " << codepoint << " \"" << CodepointToPrintable(codepoint)
-              << "\" Accepted" << std::endl;
+    std::cout << "Codepoint: " << codepoint << " \"" << PrintAsEscaped(codepoint) << "\" Accepted"
+              << std::endl;
     std::cout << "Stack after accepting: " << PrintStackState() << std::endl;
   }
 #if TVM_LOG_DEBUG
