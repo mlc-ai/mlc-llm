@@ -5,7 +5,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.model import Model
@@ -51,7 +51,11 @@ class MLCChatConfig:  # pylint: disable=too-many-instance-attributes
     pad_token_id: int = None
     bos_token_id: int = None
     eos_token_id: int = None
+    # Tokenizer configuration
     tokenizer_files: List[str] = dataclasses.field(default_factory=list)
+    # The method to post-process the token table. See
+    # cpp/tokenizers.h::Tokenizer::PostProcessTokenTable for details
+    token_table_postproc_method: Literal["byte_fallback", "byte_level"] = None
     # Version control
     version: str = VERSION
 
@@ -127,6 +131,70 @@ def json2rwkv_tokenizer(vocab: Path, out: Path) -> None:
         import msgpack  # pylint: disable=import-outside-toplevel,import-error
 
         msgpack.pack(idx2token, f)
+
+
+def detect_token_table_postproc_method(output_path: Path) -> Literal["byte_fallback", "byte_level"]:
+    """Detect the token table postprocessing method from tokenizer.json that is found under
+    output_path. If not detected, use ByteFallback as default.
+
+    Check the decoder field of the tokenizer. If it uses ByteFallback decoder, return
+    "byte_fallback". If it uses ByteLevel decoder, return "byte_level". Otherwise, use
+    ByteFallback as default.
+
+    See also cpp/tokenizers.h::Tokenizer::PostProcessTokenTable.
+    """
+    output_tokenizer_path = output_path / "tokenizer.json"
+    if not output_tokenizer_path.exists():
+        logger.warning(
+            "Tokenizer token table postprocessing method is not detected as tokenizer.json "
+            "is not found, use ByteFallback (the same as LLaMA/LLaMA2) by default"
+        )
+        return "byte_fallback"
+
+    with output_tokenizer_path.open("r", encoding="utf-8") as in_file:
+        tokenizer_json = json.load(in_file)
+
+    # Find all decoders in tokenizer.json
+    decoders = []
+
+    if "decoder" not in tokenizer_json:
+        logger.warning(
+            "Decoder field is not found in tokenizer.json, use ByteFallback (the same as "
+            "LLaMA/LLaMA2) as the token table postprocessing method by default"
+        )
+        return "byte_fallback"
+
+    decoders_json = tokenizer_json["decoder"]
+    assert "type" in decoders_json, "Decoder type is not specified in tokenizer.json"
+    if decoders_json["type"] == "Sequence":
+        assert "decoders" in decoders_json
+        decoders = decoders_json["decoders"]
+    else:
+        decoders = [decoders_json]
+
+    is_byte_level = False
+    is_byte_fallback = False
+
+    for decoder in decoders:
+        if decoder["type"] == "ByteLevel":
+            is_byte_level = True
+        if decoder["type"] == "ByteFallback":
+            is_byte_fallback = True
+    assert not (
+        is_byte_level and is_byte_fallback
+    ), "Tokenizer decoder cannot have both type ByteLevel and type ByteFallback"
+
+    if is_byte_level:
+        return "byte_level"
+    if is_byte_fallback:
+        return "byte_fallback"
+
+    logger.warning(
+        "Neither ByteLevel nor ByteFallback decoder is detected in tokenizer.json, use "
+        "ByteFallback (the same as LLaMA/LLaMA2) as the token table postprocessing method "
+        "by default"
+    )
+    return "byte_fallback"
 
 
 def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-branches,too-many-statements
@@ -254,6 +322,10 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             logger.info("Succesfully converted from tiktoken files to: %s", str(output))
         except Exception:  # pylint: disable=broad-exception-caught
             logger.exception("%s with the exception below. Skipping", FAILED)
+
+    # 3.4. Find the token table postprocessing method from tokenizer.json if it exists. If not
+    # detected, use "byte_fallback" as default.
+    mlc_chat_config.token_table_postproc_method = detect_token_table_postproc_method(output)
 
     # Step 4. Load system default value
     mlc_chat_config.apply_defaults()
