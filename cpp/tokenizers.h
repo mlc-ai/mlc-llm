@@ -69,12 +69,12 @@ class Tokenizer : public ObjectRef {
    * later processing. E.g. For LLaMA-2, convert "▁of" to " of".
    *
    * \param token_table The raw token table.
-   * \param postproc_method The postprocessing method to use. Now we only support "byte-fallback"
-   * and "byte-level", which refers to the type of the decoder of the tokenizer.
-   *   - "byte-fallback": Use the decoding method in the byte-fallback BPE tokenizer. This is used
+   * \param postproc_method The postprocessing method to use. Now we only support "byte_fallback"
+   * and "byte_level", which refers to the type of the decoder of the tokenizer.
+   *   - "byte_fallback": Use the decoding method in the byte-fallback BPE tokenizer. This is used
    *     by LLaMA-2, Mixtral-7b, etc. This method: 1) transform tokens like <0x1B> to hex char
    *     byte 1B. (known as the byte-fallback method); 2) transform \\u2581 to space.
-   *   - "byte-level": Use the decoding method in the byte-level BPE tokenizer. This is used by
+   *   - "byte_level": Use the decoding method in the byte-level BPE tokenizer. This is used by
    *     LLaMA-3, GPT-2, Phi-2, etc. This method inverses the bytes-to-unicode transformation in
    *     the encoding process as in
    * https://github.com/huggingface/transformers/blob/87be06ca77166e6a6215eee5a990ab9f07238a18/src/transformers/models/gpt2/tokenization_gpt2.py#L38-L59
