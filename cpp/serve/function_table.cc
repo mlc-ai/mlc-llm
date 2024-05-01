@@ -135,7 +135,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
         static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
         static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
     this->mod_get_func = [this](const std::string& name) -> PackedFunc {
-      return this->local_vm->GetFunction(name, false);
+      return this->local_vm->GetFunction(name, true);
     };
     this->get_global_func = [](const std::string& name) -> PackedFunc {
       const auto* f = tvm::runtime::Registry::Get(name);
