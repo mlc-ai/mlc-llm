@@ -102,8 +102,8 @@ class EngineImpl : public Engine {
     this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
     std::string token_table_postproc_method;
     if (model_configs[0].count("token_table_postproc_method") == 0) {
-      // Backward compatibility: use "byte-fallback" by default
-      token_table_postproc_method = "byte-fallback";
+      // Backward compatibility: use "byte_fallback" by default
+      token_table_postproc_method = "byte_fallback";
     } else {
       token_table_postproc_method =
           model_configs[0].at("token_table_postproc_method").get<std::string>();
