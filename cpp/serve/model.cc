@@ -5,7 +5,6 @@
  */
 #include "model.h"
 
-#include <picojson.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
@@ -137,35 +136,23 @@ class ModelImpl : public ModelObj {
     return ft_.get_logits_func_.defined() && ft_.batch_get_logits_func_.defined();
   }
 
-  NDArray GetLogits(const ObjectRef& last_hidden_states, int batch_size, int seq_len) final {
+  NDArray GetLogits(const ObjectRef& hidden_states, int batch_size, int seq_len) final {
     NVTXScopedRange nvtx_scope("GetLogits");
     CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
 
-    ObjectRef hidden_states_dref_or_nd;
-    CHECK(!last_hidden_states->IsInstance<DRefObj>());
-    // hidden_states: (b, s, h)
-    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
-    ICHECK_NE(hidden_size_, -1);
-    ICHECK_EQ(hidden_states->ndim, 3);
-    ICHECK_EQ(hidden_states->shape[0], batch_size);
-    ICHECK_EQ(hidden_states->shape[1], seq_len);
-    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
-    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
-    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
-
-    hidden_states =
-        hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
-
-    // This copy can be avoided by not copying the hidden states to engine.
-    hidden_states_dref_or_nd = ft_.CopyToWorker0(
-        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
+    ObjectRef hidden_states_dref_or_nd{nullptr};
+    if (!ft_.use_disco && hidden_states->IsInstance<DRefObj>()) {
+      hidden_states_dref_or_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0);
+    } else {
+      hidden_states_dref_or_nd = hidden_states;
+    }
     ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
 
     NDArray logits{nullptr};
-    if (ret->IsInstance<DRefObj>()) {
+    if (ft_.use_disco) {
       logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
     } else {
       logits = Downcast<NDArray>(ret);
@@ -177,142 +164,11 @@ class ModelImpl : public ModelObj {
     return logits.CreateView({batch_size, seq_len, logits->shape[1]}, logits->dtype);
   }
 
-  NDArray BatchGetLogits(const ObjectRef& last_hidden_states, const std::vector<int64_t>& seq_ids,
-                         const std::vector<int>& lengths) {
-    NVTXScopedRange nvtx_scope("BatchGetLogits");
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
-    int num_sequences = seq_ids.size();
-    int total_length = 0;
-
-    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
-    for (int i = 0; i < num_sequences; ++i) {
-      total_length += lengths[i];
-      p_logit_pos[i] = total_length - 1;
-    }
-    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
-    ObjectRef logit_pos_dref_or_nd =
-        ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
-
-    CHECK(ft_.batch_get_logits_func_.defined())
-        << "`batch_get_logits` function is not found in the model.";
-
-    ObjectRef hidden_states_dref_or_nd;
-    CHECK(!last_hidden_states->IsInstance<DRefObj>());
-    // hidden_states: (b, s, h)
-    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
-    ICHECK_NE(hidden_size_, -1);
-    ICHECK_EQ(hidden_states->ndim, 3);
-    ICHECK_EQ(hidden_states->shape[0], 1);
-    ICHECK_EQ(hidden_states->shape[1], total_length);
-    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
-    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
-    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
-
-    hidden_states = hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
-
-    // This copy can be avoided by not copying the hidden states to engine.
-    hidden_states_dref_or_nd = ft_.CopyToWorker0(
-        hidden_states, "hidden_states", {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
-
-    ObjectRef ret =
-        ft_.batch_get_logits_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd, params_);
-    if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
-    }
-
-    NDArray logits;
-    logits = Downcast<NDArray>(ret);
-    CHECK(logits.defined());
-    // logits: (b * s, v)
-    ICHECK_EQ(logits->ndim, 2);
-    ICHECK_EQ(logits->shape[0], num_sequences);
-    return logits.CreateView({1, num_sequences, logits->shape[1]}, logits->dtype);
-  }
-
-  NDArray BatchSelectLastHidden(const ObjectRef& last_hidden_states,
-                                const std::vector<int64_t>& seq_ids,
-                                const std::vector<int>& lengths) {
-    NVTXScopedRange nvtx_scope("BatchSelectLastHidden");
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
-    int num_sequences = seq_ids.size();
-    int total_length = 0;
-
-    int* p_logit_pos = static_cast<int*>(logit_pos_arr_->data);
-    for (int i = 0; i < num_sequences; ++i) {
-      total_length += lengths[i];
-      p_logit_pos[i] = total_length - 1;
-    }
-    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
-
-    ObjectRef logit_pos_dref_or_nd = ft_.CopyToWorker0(logit_pos_nd, "logit_pos_local",
-                                                       {max_num_sequence_}, /*local_only=*/true);
-
-    CHECK(ft_.batch_select_last_hidden_func_.defined())
-        << "`batch_select_last_hidden_states` function is not found in the model.";
-
-    ObjectRef hidden_states_dref_or_nd;
-    CHECK(!last_hidden_states->IsInstance<DRefObj>());
-    // hidden_states: (b, s, h)
-    NDArray hidden_states = Downcast<NDArray>(last_hidden_states);
-    ICHECK_NE(hidden_size_, -1);
-    ICHECK_EQ(hidden_states->ndim, 3);
-    ICHECK_EQ(hidden_states->shape[0], 1);
-    ICHECK_EQ(hidden_states->shape[1], total_length);
-    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
-    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
-    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
-
-    hidden_states_dref_or_nd =
-        hidden_states.CreateView({total_length, hidden_size_}, hidden_states->dtype);
-
-    ObjectRef ret =
-        ft_.batch_select_last_hidden_func_(hidden_states_dref_or_nd, logit_pos_dref_or_nd);
-    if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
-    }
-
-    NDArray hidden;
-    hidden = Downcast<NDArray>(ret);
-    // hidden: (b * s, v)
-    ICHECK_EQ(hidden->ndim, 2);
-    ICHECK_EQ(hidden->shape[0], num_sequences);
-    return hidden.CreateView({1, num_sequences, hidden->shape[1]}, hidden->dtype);
-  }
-
-  NDArray ConcatLastHidden(std::vector<NDArray>& hidden_states, ObjectRef* dst) final {
-    NVTXScopedRange nvtx_scope("ConcatLastHidden");
-
-    CHECK(dst->defined());
-
-    int cum_length = 0;
-    ICHECK_GE(hidden_states.size(), 1);
-    for (auto hidden : hidden_states) {
-      ICHECK_EQ(hidden->ndim, 1);
-      // No ICHECK_EQ(hidden->shape[0], hidden_size_) here to allow different hidden_sizes.
-      hidden = hidden.CreateView({1, hidden_size_}, hidden->dtype);
-      // Reuse the copy embedding function
-      ObjectRef hidden_dref_or_nd =
-          ft_.CopyToWorker0(hidden, "hidden_for_concat", {1, hidden_size_});
-      ft_.nd_copy_embedding_to_offset_func_(hidden_dref_or_nd, *dst, cum_length);
-      cum_length += 1;
-    }
-    NDArray ret{nullptr};
-    if ((*dst)->IsInstance<DRefObj>()) {
-      ret = Downcast<DRef>(*dst)->DebugGetFromRemote(0);
-    } else {
-      ret = Downcast<NDArray>(*dst);
-    }
-    ret = ret.CreateView({cum_length, hidden_size_}, hidden_states[0]->dtype);
-    return ret;
-  }
-
   ObjectRef FuseEmbedHidden(const ObjectRef& embeddings, const ObjectRef& previous_hidden_states,
                             int batch_size, int seq_len) final {
     NVTXScopedRange nvtx_scope("FuseEmbedHidden");
 
-    ObjectRef embeddings_dref_or_nd;
+    ObjectRef embeddings_dref_or_nd{nullptr};
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (n, h)
       NDArray embeddings_nd = Downcast<NDArray>(embeddings);
@@ -320,51 +176,33 @@ class ModelImpl : public ModelObj {
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
       ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({batch_size * seq_len, hidden_size_}, embeddings_nd->dtype);
-
-      if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
-        // Model has no support for fuse_embed_hidden_states or this is the first model (base model)
-        return embeddings_nd.CreateView({batch_size, seq_len, hidden_size_}, embeddings_nd->dtype);
-      }
     } else {
       ShapeTuple embedding_shape{batch_size * seq_len, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
-
-      if (!ft_.fuse_embed_hidden_func_.defined() || !previous_hidden_states.defined()) {
-        // Model has no support for fuse_embed_hidden_states or this is the first model (base model)
-        ShapeTuple embedding_shape{batch_size, seq_len, hidden_size_};
-        return ft_.nd_view_func_(embeddings, embedding_shape);
-      }
     }
 
-    NDArray hidden_states = Downcast<NDArray>(previous_hidden_states);
-    CHECK(hidden_states.defined());
-    ICHECK_EQ(hidden_states->ndim, 3);
-    ICHECK_EQ(hidden_states->shape[0], batch_size);
-    ICHECK_EQ(hidden_states->shape[1], seq_len);
-    ICHECK_EQ(hidden_states->shape[2], hidden_size_);
-    ICHECK_EQ(hidden_states->device.device_type, device_.device_type);
-    ICHECK_EQ(hidden_states->device.device_id, device_.device_id);
-    NDArray hidden_states_2d =
-        hidden_states.CreateView({batch_size * seq_len, hidden_size_}, hidden_states->dtype);
-    auto hidden_states_dref_or_nd =
-        ft_.CopyToWorker0(hidden_states_2d, "hidden_states_2d",
-                          {max_num_sequence_ * prefill_chunk_size_, hidden_size_});
-
-    ObjectRef ret =
-        ft_.fuse_embed_hidden_func_(embeddings_dref_or_nd, hidden_states_dref_or_nd, params_);
+    ObjectRef previous_hidden_states_dref_or_nd{nullptr};
+    if (!ft_.use_disco && previous_hidden_states->IsInstance<DRefObj>()) {
+      previous_hidden_states_dref_or_nd =
+          Downcast<DRef>(previous_hidden_states)->DebugGetFromRemote(0);
+    } else {
+      previous_hidden_states_dref_or_nd = previous_hidden_states;
+    }
+    ObjectRef fused = ft_.fuse_embed_hidden_func_(embeddings_dref_or_nd,
+                                                  previous_hidden_states_dref_or_nd, params_);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
-    if (!ret->IsInstance<DRefObj>()) {
-      NDArray fused = Downcast<NDArray>(ret);
-      return fused.CreateView({batch_size, seq_len, hidden_size_}, fused->dtype);
+    ShapeTuple out_shape{batch_size, seq_len, hidden_size_};
+    if (ft_.use_disco) {
+      return ft_.nd_view_func_(fused, out_shape);
     } else {
-      ShapeTuple fused_shape{batch_size, seq_len, hidden_size_};
-      return ft_.nd_view_func_(ret, fused_shape);
+      NDArray fused_nd = Downcast<NDArray>(fused);
+      ICHECK_EQ(fused_nd->ndim, 2);
+      ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
+      return fused_nd.CreateView(out_shape, fused_nd->dtype);
     }
   }
 
@@ -439,9 +277,9 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray BatchPrefillToLastHidden(const ObjectRef& hidden_states,
-                                   const std::vector<int64_t>& seq_ids,
-                                   const std::vector<int>& lengths) final {
+  ObjectRef BatchPrefillToLastHidden(const ObjectRef& embedding_or_hidden_states,
+                                     const std::vector<int64_t>& seq_ids,
+                                     const std::vector<int>& lengths) final {
     NVTXScopedRange nvtx_scope("BatchPrefillToLastHidden");
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
@@ -452,19 +290,15 @@ class ModelImpl : public ModelObj {
       total_length += lengths[i];
     }
 
-    ObjectRef hidden_states_dref_or_nd;
-    if (!hidden_states->IsInstance<DRefObj>()) {
-      // hidden_states: (1, n, h)
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      hidden_states_dref_or_nd =
-          hidden_states_nd.CreateView({1, total_length, hidden_size_}, hidden_states_nd->dtype);
+    ObjectRef embedding_or_hidden_states_dref_or_nd{nullptr};
+    ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
+    if (!ft_.use_disco) {
+      NDArray embedding_or_hidden_states_nd = Downcast<NDArray>(embedding_or_hidden_states);
+      embedding_or_hidden_states_dref_or_nd = embedding_or_hidden_states_nd.CreateView(
+          hidden_states_shape, embedding_or_hidden_states_nd->dtype);
     } else {
-      ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
-      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
+      embedding_or_hidden_states_dref_or_nd =
+          ft_.nd_view_func_(embedding_or_hidden_states, hidden_states_shape);
     }
 
     CHECK(ft_.prefill_to_last_hidden_func_.defined())
@@ -479,32 +313,34 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef ret;
+    ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
       CHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
           << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
-      ret = ft_.single_batch_prefill_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
-                                                          params_);
+      result = ft_.single_batch_prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd,
+                                                             kv_cache_, params_);
     } else {
-      ret = ft_.prefill_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+      result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
+                                                params_);
     }
-    NDArray last_hidden_states;
-    if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      last_hidden_states = Downcast<NDArray>(result[0]);
-    } else {
-      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
-    }
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
+
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
-    // hidden_states: (1, total_length, v)
-    ICHECK_EQ(last_hidden_states->ndim, 3);
-    ICHECK_EQ(last_hidden_states->shape[0], 1);
-    ICHECK_EQ(last_hidden_states->shape[1], total_length);
-    return last_hidden_states;
+    ShapeTuple out_shape{total_length, hidden_size_};
+    if (ft_.use_disco) {
+      return ft_.nd_view_func_(hidden_states, out_shape);
+    } else {
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+    }
   }
 
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
@@ -567,8 +403,8 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray BatchDecodeToLastHidden(const ObjectRef& hidden_states,
-                                  const std::vector<int64_t>& seq_ids) final {
+  ObjectRef BatchDecodeToLastHidden(const ObjectRef& hidden_states_dref_or_nd,
+                                    const std::vector<int64_t>& seq_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecodeToLastHidden");
     int num_sequence = seq_ids.size();
 
@@ -578,21 +414,6 @@ class ModelImpl : public ModelObj {
     ICHECK(ft_.kv_cache_end_forward_func_.defined());
     ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
-    ObjectRef hidden_states_dref_or_nd;
-    if (!hidden_states->IsInstance<DRefObj>()) {
-      // hidden_states: (1, n, h)
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
-      ICHECK_EQ(hidden_states_nd->shape[1], 1);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      hidden_states_dref_or_nd =
-          hidden_states_nd.CreateView({num_sequence, 1, hidden_size_}, hidden_states_nd->dtype);
-    } else {
-      ShapeTuple hidden_states_shape{num_sequence, 1, hidden_size_};
-      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
-    }
-
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
@@ -600,32 +421,34 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
     // args: embeddings, kv_cache, params
-    ObjectRef ret;
+    ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
       CHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
           << "`decode_to_last_hidden_states` function is not found in the model.";
-      ret = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
-                                                         params_);
+      result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                            params_);
     } else {
-      ret = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+      result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
     }
-    NDArray last_hidden_states;
-    if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      last_hidden_states = Downcast<NDArray>(result[0]);
-    } else {
-      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
-    }
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
+
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
-    ft_.kv_cache_end_forward_func_(kv_cache_);
 
-    // hidden_states: (b, 1, v)
-    ICHECK_EQ(last_hidden_states->ndim, 3);
-    ICHECK_EQ(last_hidden_states->shape[0], num_sequence);
-    ICHECK_EQ(last_hidden_states->shape[1], 1);
-    return last_hidden_states;
+    // hidden_states: (b, 1, v) to (b, v)
+    ShapeTuple out_shape{num_sequence, hidden_size_};
+    if (ft_.use_disco) {
+      return ft_.nd_view_func_(hidden_states, out_shape);
+    } else {
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
+      ICHECK_EQ(hidden_states_nd->shape[1], 1);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+    }
   }
 
   NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
@@ -688,9 +511,9 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray BatchVerifyToLastHidden(const ObjectRef& hidden_states,
-                                  const std::vector<int64_t>& seq_ids,
-                                  const std::vector<int>& lengths) final {
+  ObjectRef BatchVerifyToLastHidden(const ObjectRef& embeddings,
+                                    const std::vector<int64_t>& seq_ids,
+                                    const std::vector<int>& lengths) final {
     NVTXScopedRange nvtx_scope("BatchVerifyToLastHidden");
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
@@ -706,45 +529,46 @@ class ModelImpl : public ModelObj {
     ICHECK(ft_.kv_cache_end_forward_func_.defined());
     ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
-    ObjectRef hidden_states_dref_or_nd;
-    if (!hidden_states->IsInstance<DRefObj>()) {
-      // hidden_states: (1, n, h)
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
-      hidden_states_dref_or_nd =
-          hidden_states_nd.CreateView({1, total_length, hidden_size_}, hidden_states_nd->dtype);
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (1, n, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
-      hidden_states_dref_or_nd = ft_.nd_view_func_(hidden_states, hidden_states_shape);
+      ShapeTuple embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
     }
-
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
 
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef ret = ft_.verify_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
-    NDArray last_hidden_states;
-    if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      last_hidden_states = Downcast<NDArray>(result[0]);
-    } else {
-      last_hidden_states = Downcast<Array<NDArray>>(ret)[0];
-    }
+    ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
-    ft_.kv_cache_end_forward_func_(kv_cache_);
 
-    // hidden_states: (1, total_length, v)
-    ICHECK_EQ(last_hidden_states->ndim, 3);
-    ICHECK_EQ(last_hidden_states->shape[0], 1);
-    ICHECK_EQ(last_hidden_states->shape[1], total_length);
-    return last_hidden_states;
+    ShapeTuple out_shape{total_length, hidden_size_};
+    if (!ft_.use_disco) {
+      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      ICHECK_EQ(hidden_states_nd->ndim, 3);
+      ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
+    } else {
+      return ft_.nd_view_func_(hidden_states, out_shape);
+    }
   }
 
   /*********************** KV Cache Management  ***********************/
@@ -877,8 +701,7 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(hidden_states_shape[0], prefill_chunk_size_);
     this->hidden_size_ = hidden_states_shape[1];
     this->hidden_states_dtype_ = hidden_states_nd->dtype;
-    // TODO(wuwei): We can keep hidden_states on the worker after refactor
-    return hidden_states_nd;
+    return hidden_states;
   }
 
   void Reset() final {
@@ -897,13 +720,18 @@ class ModelImpl : public ModelObj {
 
   ObjectRef GatherHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
                                ObjectRef* dst) final {
-    NDArray dst_view = Downcast<NDArray>(*dst).CreateView(
-        {static_cast<int64_t>(indices.size()), hidden_size_}, hidden_states_dtype_);
+    ObjectRef dst_view{nullptr};
+    ShapeTuple out_shape{static_cast<int64_t>(indices.size()), hidden_size_};
+    if ((*dst)->IsInstance<DRefObj>()) {
+      dst_view = ft_.nd_view_func_(*dst, out_shape);
+    } else {
+      NDArray dst_nd = Downcast<NDArray>(*dst);
+      dst_view = dst_nd.CreateView(out_shape, hidden_states_dtype_);
+    }
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ObjectRef indices_device =
-        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.gather_hidden_states_func_(input, indices_device, dst_view);
     return dst_view;
   }
@@ -913,8 +741,7 @@ class ModelImpl : public ModelObj {
     NDArray indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ObjectRef indices_device =
-        ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
+    ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.scatter_hidden_states_func_(input, indices_device, *dst);
   }
 

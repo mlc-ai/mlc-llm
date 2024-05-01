@@ -1,4 +1,5 @@
 """Python entrypoint of compilation."""
+
 import dataclasses
 import math
 from io import StringIO
@@ -162,7 +163,11 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         logger.info("Running optimizations using TVM Unity")
         additional_tirs = _apply_preproc_to_params(named_params, model_config)
         variable_bounds = _get_variable_bounds(model_config)
-        cuda_graph_symbolic_capture_hints = {"batch_decode": ["batch_size"]}
+        cuda_graph_symbolic_capture_hints = {
+            "batch_decode": ["batch_size"],
+            "batch_decode_to_last_hidden_states": ["batch_size"],
+            "batch_verify_to_last_hidden_states": ["batch_size", "seq_len"],
+        }
         metadata = {
             "model_type": args.model.name,
             "quantization": args.quantization.name,
