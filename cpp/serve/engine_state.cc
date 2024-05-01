@@ -12,10 +12,10 @@ namespace serve {
 
 String EngineStats::AsJSON() const {
   picojson::object config;
-  config["single_token_prefill_latency"] =
-      picojson::value(total_prefill_length > 0 ? request_total_prefill_time / total_prefill_length : 0.0);
-  config["single_token_decode_latency"] =
-      picojson::value(total_decode_length > 0 ? request_total_decode_time / total_decode_length : 0.0);
+  config["single_token_prefill_latency"] = picojson::value(
+      total_prefill_length > 0 ? request_total_prefill_time / total_prefill_length : 0.0);
+  config["single_token_decode_latency"] = picojson::value(
+      total_decode_length > 0 ? request_total_decode_time / total_decode_length : 0.0);
   config["engine_total_prefill_time"] = picojson::value(engine_total_prefill_time);
   config["engine_total_decode_time"] = picojson::value(engine_total_decode_time);
   config["total_prefill_tokens"] = picojson::value(total_prefill_length);

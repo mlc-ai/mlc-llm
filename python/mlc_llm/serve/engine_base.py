@@ -1120,6 +1120,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         self._ffi["debug_call_func_on_all_worker"](func_name)
 
     def stats(self):
+        """Get the engine stats."""
         return self._ffi["stats"]()
 
 
