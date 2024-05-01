@@ -179,9 +179,9 @@ class GPUSampler : public SamplerObj {
     sample_results.resize(num_sequence);
 
     int num_nodes = cum_verify_lengths.back();
+    ICHECK(num_nodes <= max_num_sample_);
     CHECK_EQ(draft_probs_on_device->shape[0], num_nodes);
-    NDArray uniform_samples_host = uniform_samples_host_.CreateView({num_nodes}, dtype_f32_);
-    NDArray uniform_samples_device = uniform_samples_device_.CreateView({num_nodes}, dtype_f32_);
+    NDArray uniform_samples_device = GenerateUniformSamples(rngs, cum_verify_lengths);
     NDArray draft_tokens_host = draft_tokens_host_.CreateView({num_nodes}, dtype_i32_);
     NDArray draft_tokens_device = draft_tokens_device_.CreateView({num_nodes}, dtype_i32_);
 
@@ -200,16 +200,6 @@ class GPUSampler : public SamplerObj {
       }
     }
     CopyArray(draft_tokens_host, draft_tokens_device, copy_stream_);
-
-    float* p_uniform_samples = static_cast<float*>(uniform_samples_host->data);
-    for (int i = 0; i < num_sequence; ++i) {
-      int start = cum_verify_lengths[i];
-      int end = cum_verify_lengths[i + 1];
-      for (int j = start; j < end; j++) {
-        p_uniform_samples[j] = rngs[i]->GetRandomNumber();
-      }
-    }
-    CopyArray(uniform_samples_host, uniform_samples_device, copy_stream_);
 
     NDArray token_tree_first_child_host =
         token_tree_first_child_host_.CreateView({num_nodes}, dtype_i32_);
@@ -254,10 +244,44 @@ class GPUSampler : public SamplerObj {
                                   token_tree_first_child_device, token_tree_next_sibling_device,
                                   uniform_samples_device, token_tree_parent_ptr_device);
 
-    CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, compute_stream_);
-    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+    CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, copy_stream_);
 
-    std::vector<int> sample_indices;
+    std::vector<SampleResult> additional_sample_result;
+    {
+      additional_sample_result.reserve(num_sequence);
+      // Sample one additional token for each sequence using the probablity at the last accepted
+      // token.
+      uniform_samples_device = GenerateUniformSamples(rngs, num_sequence);
+      const NDArray& sample_indices_device = token_tree_parent_ptr_device;
+      // Check need_prob_values
+      bool need_prob_values = false;
+      for (int i = 0; i < num_sequence; i++) {
+        need_prob_values |= generation_cfg[i]->logprobs;
+      }
+      std::vector<int> top_prob_offset_indptr;
+      if (!need_prob_values) {
+        top_prob_offset_indptr.resize(num_sequence + 1, 0);
+      } else {
+        // Slow path: if any of the generation config requires prob values, we need to copy
+        // sample_indices to host to compute top_prob_offset_indptr.
+        TVMSynchronize(device_.device_type, device_.device_id, copy_stream_);
+        std::vector<int> sample_indices;
+        sample_indices.reserve(num_sequence);
+        const int* p_token_tree_parent_ptr = static_cast<int*>(token_tree_parent_ptr_host->data);
+        for (int i = 0; i < num_sequence; i++) {
+          sample_indices.push_back(p_token_tree_parent_ptr[i]);
+        }
+        CheckProbValues(generation_cfg, sample_indices, num_nodes, num_sequence, vocab_size_,
+                        &top_prob_offset_indptr);
+      }
+      auto device_arrays =
+          SampleOnGPU(probs_on_device, uniform_samples_device, sample_indices_device,
+                      /*need_top_p=*/false, need_prob_values, num_nodes, top_prob_offset_indptr);
+      auto host_arrays = CopyArraysToCPU(device_arrays, num_sequence, need_prob_values,
+                                         top_prob_offset_indptr.back());
+      additional_sample_result =
+          CollectSampleResult(host_arrays, num_sequence, need_prob_values, top_prob_offset_indptr);
+    }
 
     for (int i = 0; i < num_sequence; i++) {
       int start = cum_verify_lengths[i];
@@ -270,11 +294,9 @@ class GPUSampler : public SamplerObj {
         num_accepted++;
       }
       std::reverse(sample_results[i].rbegin(), sample_results[i].rbegin() + num_accepted);
-      sample_indices.push_back(last_accepted);
     }
-    std::vector<SampleResult> additional_sample_result;
-    additional_sample_result = this->BatchSampleTokensWithProbAfterTopP(
-        probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
+
+    // Append the additional sample result to the sample_results
     ICHECK_EQ(additional_sample_result.size(), num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       sample_results[i].push_back(additional_sample_result[i]);
@@ -347,42 +369,10 @@ class GPUSampler : public SamplerObj {
     return sample_results;
   }
 
-  std::vector<SampleResult> ChunkSampleTokensImpl(NDArray probs_on_device,                        //
-                                                  const std::vector<int>& sample_indices,         //
-                                                  const Array<GenerationConfig>& generation_cfg,  //
-                                                  const std::vector<RandomGenerator*>& rngs,      //
-                                                  bool top_p_applied) {
-    // probs_on_device: (n, v)
-    int num_samples = sample_indices.size();
-    int num_probs = probs_on_device->shape[0];
-    int vocab_size = probs_on_device->shape[1];
-
-    // - Generate random numbers.
-    //   Copy the random numbers and sample indices.
-    auto [uniform_samples_device, sample_indices_device] =
-        CopySamplesAndIndicesToGPU(sample_indices, rngs, num_samples);
-
-    // - Check if there is need for applying top p or prob values,
-    //   so that argsort is needed.
-    bool need_top_p = false;
-    if (!top_p_applied) {
-      need_top_p = CheckTopP(generation_cfg, sample_indices, num_probs, num_samples, vocab_size);
-    }
-    // The indptr array of the number of top probs for each sample.
-    std::vector<int> top_prob_offset_indptr;
-    bool need_prob_values = CheckProbValues(generation_cfg, sample_indices, num_probs, num_samples,
-                                            vocab_size, &top_prob_offset_indptr);
-
-    // - Sample tokens on GPU, and take out the probability values if needed.
-    std::vector<NDArray> device_arrays =
-        SampleOnGPU(probs_on_device, uniform_samples_device, sample_indices_device, need_top_p,
-                    need_prob_values, num_probs, top_prob_offset_indptr);
-
-    // - Copy the GPU sampling function results to CPU.
-    std::vector<NDArray> host_arrays = CopyArraysToCPU(device_arrays, num_samples, need_prob_values,
-                                                       top_prob_offset_indptr.back());
-
-    // - Collect the sampling results.
+  /*! \brief Collect the sampling results from the computed NDArray results. */
+  std::vector<SampleResult> CollectSampleResult(const std::vector<NDArray>& host_arrays,
+                                                int num_samples, bool need_prob_values,
+                                                const std::vector<int> top_prob_offset_indptr) {
     const int* p_sampled_token_ids = static_cast<const int*>(host_arrays[0]->data);
     const float* p_sampled_probs = nullptr;
     const float* p_top_prob_probs = nullptr;
@@ -406,29 +396,88 @@ class GPUSampler : public SamplerObj {
       sample_results.push_back(
           SampleResult{{p_sampled_token_ids[i], sampled_prob}, top_prob_tokens});
     }
-
     return sample_results;
   }
 
-  /*! \brief Generate uniform random numbers, and copy the numbers and sample indices to GPU. */
-  std::pair<NDArray, NDArray> CopySamplesAndIndicesToGPU(const std::vector<int>& sample_indices,
-                                                         const std::vector<RandomGenerator*>& rngs,
-                                                         int num_samples) {
-    // Generate random numbers.
+  std::vector<SampleResult> ChunkSampleTokensImpl(NDArray probs_on_device,                        //
+                                                  const std::vector<int>& sample_indices,         //
+                                                  const Array<GenerationConfig>& generation_cfg,  //
+                                                  const std::vector<RandomGenerator*>& rngs,      //
+                                                  bool top_p_applied) {
+    // probs_on_device: (n, v)
+    int num_samples = sample_indices.size();
+    int num_probs = probs_on_device->shape[0];
+    int vocab_size = probs_on_device->shape[1];
+
+    // - Generate random numbers.
+    //   Copy the random numbers and sample indices.
+    auto uniform_samples_device = GenerateUniformSamples(rngs, num_samples);
+    auto sample_indices_device = CopySampleIndicesToGPU(sample_indices);
+
+    // - Check if there is need for applying top p or prob values,
+    //   so that argsort is needed.
+    bool need_top_p = false;
+    if (!top_p_applied) {
+      need_top_p = CheckTopP(generation_cfg, sample_indices, num_probs, num_samples, vocab_size);
+    }
+    // The indptr array of the number of top probs for each sample.
+    std::vector<int> top_prob_offset_indptr;
+    bool need_prob_values = CheckProbValues(generation_cfg, sample_indices, num_probs, num_samples,
+                                            vocab_size, &top_prob_offset_indptr);
+
+    // - Sample tokens on GPU, and take out the probability values if needed.
+    std::vector<NDArray> device_arrays =
+        SampleOnGPU(probs_on_device, uniform_samples_device, sample_indices_device, need_top_p,
+                    need_prob_values, num_probs, top_prob_offset_indptr);
+
+    // - Copy the GPU sampling function results to CPU.
+    std::vector<NDArray> host_arrays = CopyArraysToCPU(device_arrays, num_samples, need_prob_values,
+                                                       top_prob_offset_indptr.back());
+
+    // - Collect the sampling results.
+    return CollectSampleResult(host_arrays, num_samples, need_prob_values, top_prob_offset_indptr);
+  }
+
+  /*! \brief Generate num_samples uniform random numbers, and copy them to GPU. */
+  NDArray GenerateUniformSamples(const std::vector<RandomGenerator*>& rngs, int num_samples) {
     float* p_uniform_samples = static_cast<float*>(uniform_samples_host_->data);
-    int* p_sample_indices = static_cast<int*>(sample_indices_host_->data);
     for (int i = 0; i < num_samples; ++i) {
       p_uniform_samples[i] = rngs[i]->GetRandomNumber();
-      p_sample_indices[i] = sample_indices[i];
     }
-    // Copy the random numbers and sample indices to GPU.
     NDArray uniform_samples_host = uniform_samples_host_.CreateView({num_samples}, dtype_f32_);
     NDArray uniform_samples_device = uniform_samples_device_.CreateView({num_samples}, dtype_f32_);
+    CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
+    return uniform_samples_device;
+  }
+
+  /*! \brief Generate uniform random numbers, and copy the numbers and sample indices to GPU. The
+   * number of samples for each random generator is given by `cum_num_samples`. */
+  NDArray GenerateUniformSamples(const std::vector<RandomGenerator*>& rngs,
+                                 const std::vector<int>& cum_num_samples) {
+    float* p_uniform_samples = static_cast<float*>(uniform_samples_host_->data);
+    int total_samples = cum_num_samples.back();
+    for (int i = 0; i + 1 < static_cast<int>(cum_num_samples.size()); ++i) {
+      for (int j = cum_num_samples[i]; j < cum_num_samples[i + 1]; ++j) {
+        p_uniform_samples[j] = rngs[i]->GetRandomNumber();
+      }
+    }
+    NDArray uniform_samples_host = uniform_samples_host_.CreateView({total_samples}, dtype_f32_);
+    NDArray uniform_samples_device =
+        uniform_samples_device_.CreateView({total_samples}, dtype_f32_);
+    CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
+    return uniform_samples_device;
+  }
+
+  /*! \brief Generate uniform random numbers, and copy the numbers and sample indices to GPU. */
+  NDArray CopySampleIndicesToGPU(const std::vector<int>& sample_indices) {
+    int* p_sample_indices = static_cast<int*>(sample_indices_host_->data);
+    std::copy(sample_indices.begin(), sample_indices.end(), p_sample_indices);
+    // Copy the sample indices to GPU.
+    int num_samples = static_cast<int>(sample_indices.size());
     NDArray sample_indices_host = sample_indices_host_.CreateView({num_samples}, dtype_i32_);
     NDArray sample_indices_device = sample_indices_device_.CreateView({num_samples}, dtype_i32_);
-    CopyArray(/*src=*/uniform_samples_host, /*dst=*/uniform_samples_device, copy_stream_);
     CopyArray(/*src=*/sample_indices_host, /*dst=*/sample_indices_device, copy_stream_);
-    return {uniform_samples_device, sample_indices_device};
+    return sample_indices_device;
   }
 
   /*! \brief Check if top p is needed. Update host top p array in place. */
