@@ -79,3 +79,31 @@ async def debug_cuda_profiler_stop(_request: fastapi.Request):
             "mlc.debug_cuda_profiler_stop"
         )
         break
+
+
+@app.post("/debug/dump_engine_stats")
+async def debug_dump_engine_stats(request: fastapi.Request):
+    """Dump the engine stats for the engine. Only for debug purpose."""
+    # Get the raw request body as bytes
+    request_raw_data = await request.body()
+    request_json_str = request_raw_data.decode("utf-8")
+    try:
+        # Parse the JSON string
+        request_dict = json.loads(request_json_str)
+    except json.JSONDecodeError:
+        return error_protocol.create_error_response(
+            HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
+        )
+    if "model" not in request_dict:
+        return error_protocol.create_error_response(
+            HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
+        )
+
+    # - Check the requested model.
+    model = request_dict["model"]
+
+    server_context: ServerContext = ServerContext.current()
+    async_engine = server_context.get_engine(model)
+    res = async_engine.stats()
+    print(res)
+    return json.loads(res)
