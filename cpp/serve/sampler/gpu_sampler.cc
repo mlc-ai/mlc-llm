@@ -244,6 +244,7 @@ class GPUSampler : public SamplerObj {
                                   token_tree_first_child_device, token_tree_next_sibling_device,
                                   uniform_samples_device, token_tree_parent_ptr_device);
 
+    DeviceAPI::Get(device_)->SyncStreamFromTo(device_, compute_stream_, copy_stream_);
     CopyArray(token_tree_parent_ptr_device, token_tree_parent_ptr_host, copy_stream_);
 
     std::vector<SampleResult> additional_sample_result;
