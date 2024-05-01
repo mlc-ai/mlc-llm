@@ -77,6 +77,9 @@ class ThreadedEngine {
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+
+  /*! \brief Print the statistics of the engine. */
+  virtual String Stats() = 0;
 };
 
 }  // namespace serve

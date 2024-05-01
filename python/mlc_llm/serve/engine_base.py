@@ -1066,6 +1066,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "init_background_engine",
                 "exit_background_loop",
                 "debug_call_func_on_all_worker",
+                "stats",
             ]
         }
         self.tokenizer = Tokenizer(model_args[0][0])
@@ -1117,6 +1118,9 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
     def _debug_call_func_on_all_worker(self, func_name: str) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
         self._ffi["debug_call_func_on_all_worker"](func_name)
+
+    def stats(self):
+        return self._ffi["stats"]()
 
 
 def process_chat_completion_request(  # pylint: disable=too-many-arguments

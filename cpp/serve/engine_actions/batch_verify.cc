@@ -141,6 +141,8 @@ class BatchVerifyActionObj : public EngineActionObj {
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
       estate->stats.total_accepted_length += accept_length;
+      estate->stats.UpdateSpecDecodingStats(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
+                                            accept_length);
       int rollback_length =
           std::max(cum_verify_lengths[i + 1] - cum_verify_lengths[i] - accept_length, 0);
       // rollback kv cache

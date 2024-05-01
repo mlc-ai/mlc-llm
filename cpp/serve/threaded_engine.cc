@@ -214,6 +214,11 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
   }
 
+  String Stats() final {
+    std::lock_guard<std::mutex> lock(background_loop_mutex_);
+    return background_engine_->Stats();
+  }
+
  private:
   void EngineReloadImpl(EngineConfig engine_config) {
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
@@ -314,6 +319,7 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
+  TVM_MODULE_VTABLE_ENTRY("stats", &ThreadedEngineImpl::Stats);
   TVM_MODULE_VTABLE_END();
 };
 
