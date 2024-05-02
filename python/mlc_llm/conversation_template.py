@@ -64,7 +64,7 @@ ConvTemplateRegistry.register_conv_template(
         system_template=f"[INST] <<SYS>>\n{MessagePlaceholders.SYSTEM.value}\n<</SYS>>\n\n",
         system_message="You are a helpful, respectful and honest assistant.",
         roles={"user": "[INST]", "assistant": "[/INST]", "tool": "[INST]"},
-        seps=[" "],
+        seps=["", " "],
         role_content_sep=" ",
         role_empty_sep=" ",
         stop_str=["[INST]"],
