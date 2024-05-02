@@ -993,7 +993,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             Exception,
             asyncio.CancelledError,
         ) as err:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error in chat completion with request ID {request_id}: {err}")
+            logger.error("Error in chat completion with request ID %s: %s", request_id, err)
             raise err
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
@@ -1179,7 +1179,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             Exception,
             asyncio.CancelledError,
         ) as err:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error in _handle_chat_completion for request {request_id}: {str(err)}")
+            logger.error("Error in _handle_chat_completion for request %s: %s", request_id, err)
             raise err
 
     async def _handle_completion(
@@ -1245,7 +1245,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             Exception,
             asyncio.CancelledError,
         ) as err:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error in _handle_completion for request {request_id}: {str(err)}")
+            logger.error("Error in _handle_completion for request %s: %s", request_id, err)
             raise err
 
     async def _generate(
@@ -1314,7 +1314,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             Exception,
             asyncio.CancelledError,
         ) as exception:  # pylint: disable=broad-exception-caught
-            logger.error(f"Error in _generate for request {request_id}: {str(exception)}")
+            logger.error("Error in _generate for request %s: %s", request_id, exception)
             await self.abort(request_id)
             raise exception
 
