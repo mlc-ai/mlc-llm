@@ -102,7 +102,7 @@ Conversation Llama2() {
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {"", " "};
+  conv.seps = {" "};
   conv.role_msg_sep = " ";
   conv.role_empty_sep = " ";
   conv.stop_tokens = {2};
