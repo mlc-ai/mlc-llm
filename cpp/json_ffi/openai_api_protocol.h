@@ -13,7 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "config.h"
+#include "conv_template.h"
 #include "picojson.h"
 
 namespace mlc {
@@ -94,7 +94,7 @@ class ChatCompletionRequest {
   std::optional<double> presence_penalty = std::nullopt;
   bool logprobs = false;
   int top_logprobs = 0;
-  std::optional<std::unordered_map<int, double>> logit_bias = std::nullopt;
+  std::optional<std::vector<std::pair<int, float>>> logit_bias = std::nullopt;
   std::optional<int> max_tokens = std::nullopt;
   int n = 1;
   std::optional<int> seed = std::nullopt;

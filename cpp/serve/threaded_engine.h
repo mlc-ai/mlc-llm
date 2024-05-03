@@ -39,14 +39,14 @@ class ThreadedEngine {
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
    */
-  virtual void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
-                                    Optional<EventTraceRecorder> trace_recorder) = 0;
+  virtual void InitThreadedEngine(Device device, Optional<PackedFunc> request_stream_callback,
+                                  Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!
    * \brief Reload the engine with the new engine config.
-   * \param engine_config The engine config.
+   * \param engine_config_json_str The engine config JSON string.
    */
-  virtual void Reload(EngineConfig engine_config) = 0;
+  virtual void Reload(String engine_config_json_str) = 0;
 
   /*! \brief Unload the background engine. */
   virtual void Unload() = 0;
@@ -73,13 +73,19 @@ class ThreadedEngine {
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
 
-  /************** Debug/Profile **************/
+  /************** Query/Profile/Debug **************/
 
-  /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+  /*! \brief Return the default generation config JSON string. */
+  virtual String GetDefaultGenerationConfigJSONString() const = 0;
+
+  /*! \brief Return the complete engine config JSON string. */
+  virtual String GetCompleteEngineConfigJSONString() const = 0;
 
   /*! \brief Print the statistics of the engine. */
   virtual String Stats() = 0;
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
 };
 
 }  // namespace serve

@@ -285,7 +285,7 @@ We can check the output with the commands below:
             python
             >>> from mlc_llm import ChatModule
             >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")
+                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")
             >>> cm.generate("hi")
             'Hi! How can I assist you today?'
 
@@ -312,7 +312,7 @@ We can check the output with the commands below:
             python
             >>> from mlc_llm import ChatModule
             >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so")
+                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so")
             >>> cm.generate("hi")
             'Hi! How can I assist you today?'
 
@@ -340,7 +340,7 @@ We can check the output with the commands below:
             python
             >>> from mlc_llm import ChatModule
             >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib_path="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so", device="vulkan")
+                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so", device="vulkan")
             >>> cm.generate("hi")
             'Hi! How can I assist you today?'
 

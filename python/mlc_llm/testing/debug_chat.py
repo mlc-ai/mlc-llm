@@ -144,7 +144,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
     dc = DebugChat(
         model="./dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
         debug_dir=Path("./debug-llama-2"),
-        model_lib_path="./dist/llama-2-7b-chat-q4f16_1-metal.so",
+        model_lib="./dist/llama-2-7b-chat-q4f16_1-metal.so",
     )
     dc.generate("hello world", 3)
     """
@@ -152,7 +152,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
     def __init__(  # pylint: disable=too-many-arguments
         self,
         model: str,
-        model_lib_path: str,
+        model_lib: str,
         debug_dir: Path,
         device: Optional[str] = "auto",
         chat_config: Optional[ChatConfig] = None,
@@ -169,7 +169,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             folder. In the former case, we will use the provided name to search
             for the model folder over possible paths.
 
-        model_lib_path : str
+        model_lib : str
             The full path to the model library file to use (e.g. a ``.so`` file).
 
         debug_dir: Path
@@ -213,7 +213,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             debug_instrument if debug_instrument else DefaultDebugInstrument(debug_dir / "prefill")
         )
         self.mod, self.params, self.metadata = _get_tvm_module(
-            model, model_lib_path, self.device, self.instrument
+            model, model_lib, self.device, self.instrument
         )
         self.model_path, self.config_file_path = _get_model_path(model)
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
@@ -427,7 +427,7 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "--model-lib-path",
+        "--model-lib",
         type=str,
         help="The full path to the model library file to use (e.g. a ``.so`` file).",
         required=True,
@@ -447,7 +447,7 @@ def main():
     parsed = parser.parse_args()
     dc = DebugChat(
         model=parsed.model,
-        model_lib_path=parsed.model_lib_path,
+        model_lib=parsed.model_lib,
         debug_dir=Path(parsed.debug_dir),
         device=parsed.device,
     )

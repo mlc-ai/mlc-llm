@@ -1287,14 +1287,14 @@ def test_debug_dump_event_trace(
 
 
 if __name__ == "__main__":
-    model_lib_path = os.environ.get("MLC_SERVE_MODEL_LIB")
-    if model_lib_path is None:
+    model_lib = os.environ.get("MLC_SERVE_MODEL_LIB")
+    if model_lib is None:
         raise ValueError(
             'Environment variable "MLC_SERVE_MODEL_LIB" not found. '
             "Please set it to model lib compiled by MLC LLM "
             "(e.g., `dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so`)."
         )
-    MODEL = (os.path.dirname(model_lib_path), model_lib_path)
+    MODEL = (os.path.dirname(model_lib), model_lib)
 
     test_openai_v1_models(MODEL, None)
 

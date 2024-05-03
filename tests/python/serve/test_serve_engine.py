@@ -31,11 +31,11 @@ test_models = [
 ]
 
 
-def create_engine(model: str, model_lib_path: str):
+def create_engine(model: str, model_lib: str):
     if "rwkv" in model:
         return MLCEngine(
             model=model,
-            model_lib_path=model_lib_path,
+            model_lib=model_lib,
             mode="server",
             max_batch_size=8,
             max_history_size=1,
@@ -43,15 +43,15 @@ def create_engine(model: str, model_lib_path: str):
     else:
         return MLCEngine(
             model=model,
-            model_lib_path=model_lib_path,
+            model_lib=model_lib,
             mode="server",
             max_total_sequence_length=4096,
         )
 
 
-@pytest.mark.parametrize("model,model_lib_path", test_models)
-def test_engine_generate(model: str, model_lib_path: str):
-    engine = create_engine(model, model_lib_path)
+@pytest.mark.parametrize("model,model_lib", test_models)
+def test_engine_generate(model: str, model_lib: str):
+    engine = create_engine(model, model_lib)
 
     num_requests = 10
     max_tokens = 256
@@ -81,10 +81,10 @@ def test_engine_generate(model: str, model_lib_path: str):
     del engine
 
 
-@pytest.mark.parametrize("model,model_lib_path", test_models)
-def test_chat_completion(model: str, model_lib_path: str):
+@pytest.mark.parametrize("model,model_lib", test_models)
+def test_chat_completion(model: str, model_lib: str):
     # Create engine
-    engine = create_engine(model, model_lib_path)
+    engine = create_engine(model, model_lib)
 
     num_requests = 2
     max_tokens = 64
@@ -119,9 +119,9 @@ def test_chat_completion(model: str, model_lib_path: str):
     del engine
 
 
-@pytest.mark.parametrize("model,model_lib_path", test_models)
-def test_chat_completion_non_stream(model: str, model_lib_path: str):
-    engine = create_engine(model, model_lib_path)
+@pytest.mark.parametrize("model,model_lib", test_models)
+def test_chat_completion_non_stream(model: str, model_lib: str):
+    engine = create_engine(model, model_lib)
 
     num_requests = 2
     max_tokens = 64
@@ -155,9 +155,9 @@ def test_chat_completion_non_stream(model: str, model_lib_path: str):
     del engine
 
 
-@pytest.mark.parametrize("model,model_lib_path", test_models)
-def test_completion(model: str, model_lib_path: str):
-    engine = create_engine(model, model_lib_path)
+@pytest.mark.parametrize("model,model_lib", test_models)
+def test_completion(model: str, model_lib: str):
+    engine = create_engine(model, model_lib)
 
     num_requests = 2
     max_tokens = 128
@@ -192,9 +192,9 @@ def test_completion(model: str, model_lib_path: str):
     del engine
 
 
-@pytest.mark.parametrize("model,model_lib_path", test_models)
-def test_completion_non_stream(model: str, model_lib_path: str):
-    engine = create_engine(model, model_lib_path)
+@pytest.mark.parametrize("model,model_lib", test_models)
+def test_completion_non_stream(model: str, model_lib: str):
+    engine = create_engine(model, model_lib)
 
     num_requests = 2
     max_tokens = 128
@@ -229,9 +229,9 @@ def test_completion_non_stream(model: str, model_lib_path: str):
 
 
 if __name__ == "__main__":
-    for model, model_lib_path in test_models:
-        test_engine_generate(model, model_lib_path)
-        test_chat_completion(model, model_lib_path)
-        test_chat_completion_non_stream(model, model_lib_path)
-        test_completion(model, model_lib_path)
-        test_completion_non_stream(model, model_lib_path)
+    for model, model_lib in test_models:
+        test_engine_generate(model, model_lib)
+        test_chat_completion(model, model_lib)
+        test_chat_completion_non_stream(model, model_lib)
+        test_completion(model, model_lib)
+        test_completion_non_stream(model, model_lib)

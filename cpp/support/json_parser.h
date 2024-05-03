@@ -2,8 +2,8 @@
  * \file json_parser.h
  * \brief Helps to parse JSON strings and objects.
  */
-#ifndef MLC_LLM_CPP_JSON_PARSER_H_
-#define MLC_LLM_CPP_JSON_PARSER_H_
+#ifndef MLC_LLM_SUPPORT_JSON_PARSER_H_
+#define MLC_LLM_SUPPORT_JSON_PARSER_H_
 
 #include <picojson.h>
 #include <tvm/runtime/container/shape_tuple.h>
@@ -166,6 +166,17 @@ inline ValueType LookupOrDefault(const picojson::object& json, const std::string
 }
 
 template <typename ValueType>
+inline std::optional<ValueType> LookupOptional(const picojson::object& json,
+                                               const std::string& key) {
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return std::nullopt;
+  }
+  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
+  return it->second.get<ValueType>();
+}
+
+template <typename ValueType>
 inline ValueType Lookup(const picojson::array& json, int index) {
   CHECK(index < json.size()) << "IndexError: json::array index out of range";
   auto value = json.at(index);
@@ -209,4 +220,4 @@ inline picojson::object ParseToJsonObject(const std::string& json_str) {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_CPP_JSON_PARSER_H_
+#endif  // MLC_LLM_SUPPORT_JSON_PARSER_H_

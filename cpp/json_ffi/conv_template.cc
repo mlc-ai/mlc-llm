@@ -1,35 +1,14 @@
-#include "config.h"
+#include "conv_template.h"
 
 #include <tvm/runtime/registry.h>
 
-#include "../metadata/json_parser.h"
+#include "../support/json_parser.h"
 
 namespace mlc {
 namespace llm {
 namespace json_ffi {
 
 using namespace mlc::llm;
-
-/****************** Model-defined generation config ******************/
-
-TVM_REGISTER_OBJECT_TYPE(ModelDefinedGenerationConfigNode);
-
-ModelDefinedGenerationConfig::ModelDefinedGenerationConfig(double temperature, double top_p,
-                                                           double frequency_penalty,
-                                                           double presence_penalty) {
-  ObjectPtr<ModelDefinedGenerationConfigNode> n = make_object<ModelDefinedGenerationConfigNode>();
-  n->temperature = temperature;
-  n->top_p = top_p;
-  n->frequency_penalty = frequency_penalty;
-  n->presence_penalty = presence_penalty;
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("mlc.json_ffi.ModelDefinedGenerationConfig")
-    .set_body_typed([](double temperature, double top_p, double frequency_penalty,
-                       double presence_penalty) {
-      return ModelDefinedGenerationConfig(temperature, top_p, frequency_penalty, presence_penalty);
-    });
 
 /****************** Conversation template ******************/
 
@@ -333,24 +312,6 @@ std::optional<Conversation> Conversation::FromJSON(const std::string& json_str, 
   }
   return Conversation::FromJSON(json_obj.value(), err);
 }
-
-/****************** JSON FFI engine config ******************/
-
-TVM_REGISTER_OBJECT_TYPE(JSONFFIEngineConfigNode);
-
-JSONFFIEngineConfig::JSONFFIEngineConfig(
-    String conv_template, Map<String, ModelDefinedGenerationConfig> model_generation_cfgs) {
-  ObjectPtr<JSONFFIEngineConfigNode> n = make_object<JSONFFIEngineConfigNode>();
-  n->conv_template = conv_template;
-  n->model_generation_cfgs = model_generation_cfgs;
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("mlc.json_ffi.JSONFFIEngineConfig")
-    .set_body_typed([](String conv_template,
-                       Map<String, ModelDefinedGenerationConfig> model_generation_cfgs) {
-      return JSONFFIEngineConfig(std::move(conv_template), std::move(model_generation_cfgs));
-    });
 
 }  // namespace json_ffi
 }  // namespace llm

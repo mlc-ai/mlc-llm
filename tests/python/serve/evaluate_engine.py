@@ -10,14 +10,14 @@ from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 def _parse_args():
     args = argparse.ArgumentParser()
-    args.add_argument("--model-lib-path", type=str)
+    args.add_argument("--model-lib", type=str)
     args.add_argument("--device", type=str, default="auto")
     args.add_argument("--batch-size", type=int, default=80)
     args.add_argument("--max-total-seq-length", type=int)
     args.add_argument("--seed", type=int, default=0)
 
     parsed = args.parse_args()
-    parsed.model = os.path.dirname(parsed.model_lib_path)
+    parsed.model = os.path.dirname(parsed.model_lib)
     assert parsed.batch_size % 16 == 0
     return parsed
 
@@ -44,7 +44,7 @@ def benchmark(args: argparse.Namespace):
     engine = SyncMLCEngine(
         model=args.model,
         device=args.device,
-        model_lib_path=args.model_lib_path,
+        model_lib=args.model_lib,
         mode="server",
         max_batch_size=args.batch_size,
         max_total_sequence_length=args.max_total_seq_length,

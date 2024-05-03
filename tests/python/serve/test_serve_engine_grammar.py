@@ -17,12 +17,12 @@ prompts_list = [
     "Generate a JSON with 5 elements:",
 ]
 model_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-model_lib_path = "dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+model_lib = "dist/libs/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
 
 
 def test_batch_generation_with_grammar():
     # Create engine
-    engine = SyncMLCEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    engine = SyncMLCEngine(model=model_path, model_lib=model_lib, mode="server")
 
     prompt_len = len(prompts_list)
     prompts = prompts_list * 3
@@ -69,7 +69,7 @@ def test_batch_generation_with_grammar():
 
 def test_batch_generation_with_schema():
     # Create engine
-    engine = SyncMLCEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    engine = SyncMLCEngine(model=model_path, model_lib=model_lib, mode="server")
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -121,7 +121,7 @@ def test_batch_generation_with_schema():
 
 async def run_async_engine():
     # Create engine
-    async_engine = AsyncMLCEngine(model=model_path, model_lib_path=model_lib_path, mode="server")
+    async_engine = AsyncMLCEngine(model=model_path, model_lib=model_lib, mode="server")
 
     prompts = prompts_list * 20
 

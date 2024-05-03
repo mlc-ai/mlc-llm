@@ -32,6 +32,14 @@ struct ModelMetadata {
     static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);
   };
 
+  struct KVCacheMetadata {
+    int64_t num_hidden_layers;
+    int64_t num_attention_heads;
+    int64_t num_key_value_heads;
+    int64_t head_dim;
+    static KVCacheMetadata FromJSON(const picojson::object& json);
+  };
+
   std::string model_type;
   std::string quantization;
   int64_t context_window_size;
@@ -41,6 +49,7 @@ struct ModelMetadata {
   int64_t attention_sink_size;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
+  KVCacheMetadata kv_cache_metadata;
 
   static ModelMetadata FromJSON(const picojson::object& json_str,
                                 const picojson::object& model_config);

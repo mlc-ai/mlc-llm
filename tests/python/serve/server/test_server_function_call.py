@@ -195,15 +195,15 @@ def test_openai_v1_chat_completion_function_call(
 
 
 if __name__ == "__main__":
-    model_lib_path = os.environ.get("MLC_SERVE_MODEL_LIB")
-    if model_lib_path is None:
+    model_lib = os.environ.get("MLC_SERVE_MODEL_LIB")
+    if model_lib is None:
         raise ValueError(
             'Environment variable "MLC_SERVE_MODEL_LIB" not found. '
             "Please set it to model lib compiled by MLC LLM "
             "(e.g., `./dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so`) "
             "which supports function calls."
         )
-    MODEL = (os.path.dirname(model_lib_path), model_lib_path)
+    MODEL = (os.path.dirname(model_lib), model_lib)
 
     for msg in CHAT_COMPLETION_MESSAGES:
         test_openai_v1_chat_completion_function_call(MODEL, None, stream=False, messages=msg)

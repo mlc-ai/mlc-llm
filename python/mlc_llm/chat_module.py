@@ -442,7 +442,7 @@ def _get_chat_config(config_file_path: str, user_chat_config: Optional[ChatConfi
                 if field_name == "model_lib":
                     warn_msg = (
                         'WARNING: Do not override "model_lib" in ChatConfig. '
-                        "This override will be ignored. Please use ChatModule.model_lib_path to "
+                        "This override will be ignored. Please use ChatModule.model_lib to "
                         "override the full model library path instead."
                     )
                     warnings.warn(warn_msg)
@@ -493,7 +493,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
     model: str,
     model_path: str,
     chat_config: ChatConfig,
-    model_lib_path: Optional[str],
+    model_lib: Optional[str],
     device_name: str,
     config_file_path: str,
 ) -> str:
@@ -507,7 +507,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
         Model path found by `_get_model_path`.
     chat_config : ChatConfig
         Chat config after potential overrides. Returned by ``_get_chat_config``.
-    model_lib_path : Optional[str]
+    model_lib : Optional[str]
         User's input. Supposedly a full path to model library. Prioritized to use.
     device_name : str
         User's input. Used to construct the library model file name.
@@ -516,20 +516,20 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
 
     Returns
     -------
-    model_lib_path : str
+    model_lib : str
         The path pointing to the model library we find.
 
     Raises
     ------
     FileNotFoundError: if we cannot find a valid model library file.
     """
-    # 1. Use user's model_lib_path if provided
-    if model_lib_path is not None:
-        if os.path.isfile(model_lib_path):
-            logger.info("Using library model: %s", model_lib_path)
-            return model_lib_path
+    # 1. Use user's model_lib if provided
+    if model_lib is not None:
+        if os.path.isfile(model_lib):
+            logger.info("Using library model: %s", model_lib)
+            return model_lib
         raise FileNotFoundError(
-            f"The `model_lib_path` you passed in is not a file: {model_lib_path}.\n"
+            f"The `model_lib` you passed in is not a file: {model_lib}.\n"
             f"Please refer to {_PYTHON_GET_STARTED_TUTORIAL_URL} as tutorial on model loading."
         )
 
@@ -584,7 +584,7 @@ def _get_lib_module_path(  # pylint: disable=too-many-arguments
         err_msg += f"- {candidate}\n"
     err_msg += (
         "If you would like to directly specify the model library path, you may "
-        "consider passing in the `ChatModule.model_lib_path` parameter.\n"
+        "consider passing in the `ChatModule.model_lib` parameter.\n"
         f"Please checkout {_PYTHON_GET_STARTED_TUTORIAL_URL} for an example "
         "on how to load a model."
     )
@@ -654,12 +654,12 @@ def _convert_generation_config_to_json_str(generation_config: Optional[Generatio
     return json.dumps(asdict(generation_config))
 
 
-def _inspect_model_lib_metadata_memory_usage(model_lib_path, config_file_path):
+def _inspect_model_lib_metadata_memory_usage(model_lib, config_file_path):
     cmd = [
         sys.executable,
         "-m",
         "mlc_llm.cli.model_metadata",
-        model_lib_path,
+        model_lib,
         "--memory-only",
         "--mlc-chat-config",
         config_file_path,
@@ -716,7 +716,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         A ``ChatConfig`` instance partially filled. Will be used to override the
         ``mlc-chat-config.json``.
 
-    model_lib_path : Optional[str]
+    model_lib : Optional[str]
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over
         possible paths.
@@ -727,7 +727,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         model: str,
         device: str = "auto",
         chat_config: Optional[ChatConfig] = None,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
     ):
         # 0. Get device:
         # Retrieve device_name and device_id (if any, default 0) from device arg
@@ -768,12 +768,12 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
         self.chat_config = _get_chat_config(self.config_file_path, chat_config)
 
         # 4. Look up model library
-        if model_lib_path is not None:
-            self.model_lib_path = _get_lib_module_path(
+        if model_lib is not None:
+            self.model_lib = _get_lib_module_path(
                 model,
                 self.model_path,
                 self.chat_config,
-                model_lib_path,
+                model_lib,
                 self.device.MASK2STR[self.device.device_type],
                 self.config_file_path,
             )
@@ -781,20 +781,20 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             logger.info("Now compiling model lib on device...")
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
-            self.model_lib_path = str(
+            self.model_lib = str(
                 jit.jit(
                     model_path=Path(self.model_path),
                     chat_config=asdict(self.chat_config),
                     device=self.device,
                 )
             )
-        _inspect_model_lib_metadata_memory_usage(self.model_lib_path, self.config_file_path)
+        _inspect_model_lib_metadata_memory_usage(self.model_lib, self.config_file_path)
 
         # 5. Call reload
         user_chat_config_json_str = _convert_chat_config_to_json_str(
             self.chat_config, self.chat_config.conv_template
         )
-        self._reload(self.model_lib_path, self.model_path, user_chat_config_json_str)
+        self._reload(self.model_lib, self.model_path, user_chat_config_json_str)
 
     def generate(
         self,
