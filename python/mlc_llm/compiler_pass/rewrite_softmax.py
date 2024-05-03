@@ -1,7 +1,5 @@
 """A compiler pass that rewrites one-shot softmax into two-stage softmax."""
 
-import math
-
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
