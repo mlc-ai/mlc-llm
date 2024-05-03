@@ -3,12 +3,14 @@
 import tvm
 from tvm.script import tir as T
 
+from mlc_llm.support.max_thread_check import get_max_num_threads_per_block
+
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 # pylint: disable=too-many-locals,invalid-name,too-many-arguments,unnecessary-lambda
 # pylint: disable=too-many-statements,line-too-long,too-many-nested-blocks,too-many-branches
 
 
-def top_p_pivot(pN):
+def top_p_pivot(pN, target: tvm.target.Target):
     """Top-p pivot function. This function finds the pivot to cut-off top-p percentile.
 
     A valide pivot should satisfy the following conditions:
@@ -23,7 +25,7 @@ def top_p_pivot(pN):
     prob:
         The probability vector
 
-    top_p_global:
+    top_p_arr:
         The top-p threshold
 
     init_pivots:
@@ -31,10 +33,17 @@ def top_p_pivot(pN):
 
     final_pivot:
         The final pivot to cut-off top-p percentile
+
+    final_lsum:
+        The final sum of the values after top-p filtering.
     """
     TX = 1024
     K = 32
     eps_LR = 1e-7
+
+    max_num_threads_per_block = get_max_num_threads_per_block(target)
+    if max_num_threads_per_block < TX:
+        TX = max_num_threads_per_block
 
     def _var(dtype="int32"):
         return T.alloc_buffer((1,), dtype, scope="local")
@@ -46,7 +55,7 @@ def top_p_pivot(pN):
     @T.prim_func(private=True)
     def _func(
         var_prob: T.handle,
-        top_p_global: T.buffer([1], dtype="float32"),
+        var_top_p_arr: T.handle,
         var_init_pivots: T.handle,
         var_final_pivot: T.handle,
         var_final_lsum: T.handle,
@@ -55,7 +64,8 @@ def top_p_pivot(pN):
         B = T.int32()
         N = T.int32()
         prob = T.match_buffer(var_prob, (B, N,), "float32")
-        init_pivots = T.match_buffer(var_init_pivots, (pN,), "float32")
+        top_p_arr = T.match_buffer(var_top_p_arr, (B,), dtype="float32")
+        init_pivots = T.match_buffer(var_init_pivots, (B, pN), "float32")
         final_pivot = T.match_buffer(var_final_pivot, (B,), "float32")
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")
 
@@ -92,7 +102,7 @@ def top_p_pivot(pN):
                     with T.block("CTA"):
                         b, tx = T.axis.remap("SS", [_bx, _tx])
 
-                        top_p[0] = top_p_global[0]
+                        top_p[0] = top_p_arr[b]
 
                         if tx == 0:
                             # leader thread initializes L, R
@@ -105,8 +115,14 @@ def top_p_pivot(pN):
                         R_local[0] = R[0]
                         for i in T.unroll(0, pN):
                             # pivots are in descending order
-                            pivot[i] = init_pivots[i]
+                            pivot[i] = init_pivots[b, i]
                         find_pivot_local[0] = False
+                        if L_local[0] - R_local[0] <= eps_LR:
+                            # When the initial value is too small, set the result directly.
+                            if tx == 0:
+                                final_lsum[b] = 1.0
+                                final_pivot[b] = 0.0
+                            find_pivot_local[0] = True
 
                         while T.tvm_thread_invariant(
                             L_local[0] - R_local[0] > eps_LR
@@ -118,7 +134,7 @@ def top_p_pivot(pN):
                             ### get lsum, lmin, total_sum
                             for pidx in T.unroll(0, pN):
                                 lsum[pidx] = 0.0
-                                lmin[pidx] = 1.0
+                                lmin[pidx] = T.max_value("float32")
                                 cmin[pidx] = 0
                             total_sum[0] = 0.0
                             it[0] = 0
@@ -226,6 +242,7 @@ def top_p_pivot(pN):
                                         final_lsum[b] = lsum[pidx]
                                     elif lsum[pidx] - lmin[pidx] * cmin[pidx] >= top_p[0]:
                                         R[0] = pivot[pidx]
+                                        final_lsum[b] = lsum[pidx]
                                     elif lsum[pidx] < top_p[0]:
                                         L[0] = pivot[pidx]
                                     it[0] += 1
@@ -243,13 +260,15 @@ def top_p_pivot(pN):
                         if tx == 0:
                             # leader thread writes back the pivot
                             if T.Not(find_pivot_local[0]):
-                                final_pivot[b] = -1e5
+                                final_pivot[b] = R_local[0]
+                                if R_local[0] == eps_LR:
+                                    final_lsum[b] = lsum[pN - 1]
     # fmt: on
 
     return _func
 
 
-def top_p_renorm():
+def top_p_renorm(target: tvm.target.Target = None):
     """Top-p renormalization function. This function renormalizes the probability vector.
 
     Given the pivot, the probability vector is renormalized as follows:
@@ -272,6 +291,11 @@ def top_p_renorm():
     """
     TX = 1024
     CTA_COUNT = 512
+
+    if target:
+        max_num_threads_per_block = get_max_num_threads_per_block(target)
+        if max_num_threads_per_block < TX:
+            TX = max_num_threads_per_block
 
     def _var(dtype="int32"):
         return T.alloc_buffer((1,), dtype, scope="local")

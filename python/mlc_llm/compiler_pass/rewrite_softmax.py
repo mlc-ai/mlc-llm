@@ -79,6 +79,15 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-statements
     target: tvm.target.Target, chunk_size: int
 ):
+    # NOTE: A quick note on the softmax implementation.
+    # We once tried to multiply every element by log2e which can be computed
+    # potentially more efficiently on hardware.
+    # However, when the input values are large, multiplying by the factor of log2e
+    # causes numerical issue in float32 dtype.
+    # This leads to the softmax output not summing up to 1.
+    # For numerical stability, we removed the log2e factor and switched back
+    # to the standard log/exp computation.
+
     # pylint: disable=invalid-name
     @T.prim_func
     def chunk_lse(var_A: T.handle, var_chunked_lse: T.handle):  # pylint: disable=too-many-locals
