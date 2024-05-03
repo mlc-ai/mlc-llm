@@ -445,7 +445,7 @@ git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/m
 python
 &gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>ChatModule
 &gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">model_lib_path</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span><span class="w">  </span><span class="c1"># Adjust based on backend</span>
+<span class="w">    </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span><span class="w">  </span><span class="c1"># Adjust based on backend</span>
 &gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
 <span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
 </pre></div>

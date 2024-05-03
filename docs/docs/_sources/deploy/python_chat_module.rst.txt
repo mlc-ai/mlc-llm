@@ -95,7 +95,7 @@ file ``sample_mlc_llm.py`` and paste the following lines:
    # Create a ChatModule instance
    cm = ChatModule(
       model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      model_lib="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
       # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
       # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
       # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
@@ -106,7 +106,7 @@ file ``sample_mlc_llm.py`` and paste the following lines:
    # Here WizardMath reuses Mistral's model library
    # cm = ChatModule(
    #     model="dist/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",  # or "dist/WizardMath-7B-V1.1-q4f16_1-MLC"
-   #     model_lib_path="dist/prebuilt_libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so"
+   #     model_lib="dist/prebuilt_libs/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-cuda.so"
    # )
 
    # Generate a response for a given prompt
@@ -200,7 +200,7 @@ We provide an example below.
    cm = ChatModule(
       chat_config=chat_config,
       model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      model_lib="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
       # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
       # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
       # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
@@ -275,7 +275,7 @@ We provide an example below.
    cm = ChatModule(
       chat_config=chat_config,
       model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      model_lib="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
       # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
       # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
       # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}
@@ -320,7 +320,7 @@ We provide an example below.
    # Create a ChatModule instance
    cm = ChatModule(
       model="dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
-      model_lib_path="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
+      model_lib="dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so"
       # Vulkan on Linux: Llama-2-7b-chat-hf-q4f16_1-vulkan.so
       # Metal on macOS: Llama-2-7b-chat-hf-q4f16_1-metal.so
       # Other platforms: Llama-2-7b-chat-hf-q4f16_1-{backend}.{suffix}

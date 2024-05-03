@@ -372,11 +372,11 @@ follow <a class="reference internal" href="../compilation/convert_weights.html#c
 <p>Once you have the model locally compiled with a model library and model weights, to run <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code>, simply</p>
 <ul class="simple">
 <li><p>Specify the path to <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and the converted model weights to <code class="docutils literal notranslate"><span class="pre">--model</span></code></p></li>
-<li><p>Specify the path to the compiled model library (e.g. a .so file) to <code class="docutils literal notranslate"><span class="pre">--model-lib-path</span></code></p></li>
+<li><p>Specify the path to the compiled model library (e.g. a .so file) to <code class="docutils literal notranslate"><span class="pre">--model-lib</span></code></p></li>
 </ul>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
 <span class="w">             </span>--device<span class="w"> </span><span class="s2">&quot;cuda:0&quot;</span><span class="w"> </span>--overrides<span class="w"> </span><span class="nv">context_window_size</span><span class="o">=</span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
-<span class="w">             </span>--model-lib-path<span class="w"> </span>dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+<span class="w">             </span>--model-lib<span class="w"> </span>dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
 <span class="w">             </span><span class="c1"># CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so</span>
 <span class="w">             </span><span class="c1"># Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
 <span class="w">             </span><span class="c1"># Same rule applies for other platforms</span>

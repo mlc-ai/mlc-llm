@@ -28,7 +28,7 @@ This section provides a quick start guide to work with MLC-LLM REST API. To laun
 
 .. code:: bash
 
-   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH]
+   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB]
 
 where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found under :ref:`Launch the server <rest_launch_server>` section.
 
@@ -66,14 +66,14 @@ To launch the MLC Server for MLC-LLM, run the following command in your terminal
 
 .. code:: bash
 
-   mlc_llm serve MODEL [--model-lib-path MODEL_LIB_PATH] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
+   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
 
 MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
                        (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
                        folder. In the former case, we will use the provided name to search
                        for the model folder over possible paths.
---model-lib-path       A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
+--model-lib            A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
 --device               The description of the device to run on. User should provide a string in the
                        form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
                        'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the

@@ -508,26 +508,26 @@ In some cases, it is beneficial to explicitly compile the model libraries.
 We can deploy LLMs with reduced dependencies by shipping the library for deployment without going through compilation.
 It will also enable advanced options such as cross-compiling the libraries for web and mobile deployments.</p>
 <p>Below is an example command of compiling model libraries in MLC LLM:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span><span class="o">=</span><span class="nv">$MLC_MODEL_PATH</span>/lib.so<span class="w">  </span><span class="c1"># &quot;.dylib&quot; for Intel Macs.</span>
-<span class="w">                                               </span><span class="c1"># &quot;.dll&quot; for Windows.</span>
-<span class="w">                                               </span><span class="c1"># &quot;.wasm&quot; for web.</span>
-<span class="w">                                               </span><span class="c1"># &quot;.tar&quot; for iPhone/Android.</span>
-mlc_llm<span class="w"> </span>compile<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>-o<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">$MODEL_LIB</span><span class="o">=</span><span class="nv">$MLC_MODEL_PATH</span>/lib.so<span class="w">  </span><span class="c1"># &quot;.dylib&quot; for Intel Macs.</span>
+<span class="w">                                          </span><span class="c1"># &quot;.dll&quot; for Windows.</span>
+<span class="w">                                          </span><span class="c1"># &quot;.wasm&quot; for web.</span>
+<span class="w">                                          </span><span class="c1"># &quot;.tar&quot; for iPhone/Android.</span>
+mlc_llm<span class="w"> </span>compile<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>-o<span class="w"> </span><span class="nv">$MODEL_LIB</span>
 </pre></div>
 </div>
 <p>At runtime, we need to specify this model library path to use it. For example,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For chat CLI</span>
-mlc_llm<span class="w"> </span>chat<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib-path<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+mlc_llm<span class="w"> </span>chat<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib<span class="w"> </span><span class="nv">$MODEL_LIB</span>
 <span class="c1"># For REST server</span>
-mlc_llm<span class="w"> </span>serve<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib-path<span class="w"> </span><span class="nv">$MODEL_LIB_PATH</span>
+mlc_llm<span class="w"> </span>serve<span class="w"> </span><span class="nv">$MLC_MODEL_PATH</span><span class="w"> </span>--model-lib<span class="w"> </span><span class="nv">$MODEL_LIB</span>
 </pre></div>
 </div>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">MLCEngine</span>
 
 <span class="c1"># For Python API</span>
 <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>
-<span class="n">model_lib_path</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2/lib.so&quot;</span>
-<span class="n">engine</span> <span class="o">=</span> <span class="n">MLCEngine</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model_lib_path</span><span class="o">=</span><span class="n">model_lib_path</span><span class="p">)</span>
+<span class="n">model_lib</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2/lib.so&quot;</span>
+<span class="n">engine</span> <span class="o">=</span> <span class="n">MLCEngine</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model_lib</span><span class="o">=</span><span class="n">model_lib</span><span class="p">)</span>
 </pre></div>
 </div>
 <p><a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> introduces the model compilation command in detail,
