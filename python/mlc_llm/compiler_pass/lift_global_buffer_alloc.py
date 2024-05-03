@@ -34,11 +34,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
     def transform(self) -> IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
-            # TODO(@eric): This is a temporary hack to get around with two functions for BYOC.
-            if isinstance(func, tir.PrimFunc) and g_var.name_hint not in [
-                "is_bfloat16_dtype",
-                "is_float32_dtype",
-            ]:
+            if isinstance(func, tir.PrimFunc):
                 updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
                 if len(tensor_sinfo_list) > 0:
                     new_gv = self.builder_.add_func(updated_func, g_var.name_hint)

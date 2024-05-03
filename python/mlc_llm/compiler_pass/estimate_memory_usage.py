@@ -21,7 +21,6 @@ class AttachMetadataWithMemoryUsage:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        mod = mod.clone()
 
         func_name = "_metadata"
 
