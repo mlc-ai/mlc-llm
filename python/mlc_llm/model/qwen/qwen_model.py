@@ -63,21 +63,19 @@ class QWenConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %s (%d)",
+                "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                bold("context_window_size"),
-                self.context_window_size,
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = self.context_window_size
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
         elif self.prefill_chunk_size > self.context_window_size:
             logger.info(
-                "Overriding %s from %d to %d (%s)",
+                "Overriding %s from %d to %d",
                 bold("prefill_chunk_size"),
                 self.prefill_chunk_size,
-                self.context_window_size,
-                bold("context_window_size"),
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = self.context_window_size
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
 
 
 # pylint: disable=invalid-name,missing-docstring

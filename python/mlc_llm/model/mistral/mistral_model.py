@@ -54,12 +54,11 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.attention_sink_size >= 0
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %s (%d)",
+                "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                bold("sliding_window_size"),
-                self.sliding_window_size,
+                min(self.sliding_window_size, 2048),
             )
-            self.prefill_chunk_size = self.sliding_window_size
+            self.prefill_chunk_size = min(self.sliding_window_size, 2048)
 
 
 # pylint: disable=invalid-name,missing-docstring
