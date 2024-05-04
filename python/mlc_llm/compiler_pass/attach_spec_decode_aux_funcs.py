@@ -2,7 +2,7 @@
 
 import tvm
 from tvm import IRModule, relax, tir
-from tvm.relax import TensorStructInfo, BlockBuilder
+from tvm.relax import BlockBuilder, TensorStructInfo
 from tvm.script import tir as T
 
 
@@ -89,7 +89,7 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
                 ),
                 [src, indices, dst],
                 2,
-                dst.struct_info,
+                dst.struct_info,  # pylint: disable=no-member
             )
             bb.emit_output(output)
         gv = bb.emit_func_output(output)
@@ -113,7 +113,7 @@ def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dty
                 ),
                 [src, indices, dst],
                 2,
-                dst.struct_info,
+                dst.struct_info,  # pylint: disable=no-member
             )
             bb.emit_output(output)
         gv = bb.emit_func_output(output)
