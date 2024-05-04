@@ -92,6 +92,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     additional_tirs = additional_tirs or {}
     metadata = metadata or {}
     ext_mods = ext_mods or []
+    tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -105,7 +106,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
                 AttachGPUSamplingFunc(target, variable_bounds),
-                AttachSpecDecodeAuxFuncs(),
+                AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),

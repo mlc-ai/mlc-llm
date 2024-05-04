@@ -1,7 +1,8 @@
 """The pass that attaches logit processor functions to the IRModule."""
 
 import tvm
-from tvm import IRModule
+from tvm import IRModule, relax, tir
+from tvm.relax import TensorStructInfo, BlockBuilder
 from tvm.script import tir as T
 
 
@@ -9,25 +10,29 @@ from tvm.script import tir as T
 class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
     """Attach logit processing TIR functions to IRModule."""
 
+    tensor_parallel_shards: int
+
+    def __init__(self, tensor_parallel_shards: int):
+        self.tensor_parallel_shards = tensor_parallel_shards
+
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
-        mod["scatter_probs"] = _get_scatter_2d_inplace(
-            dtype="float32", global_symbol="scatter_probs"
+        bb = BlockBuilder(mod)
+        bb.add_func(
+            _get_scatter_2d_inplace(dtype="float32", global_symbol="scatter_probs"), "scatter_probs"
         )
-        mod["gather_probs"] = _get_gather_2d_inplace(dtype="float32", global_symbol="gather_probs")
+        bb.add_func(
+            _get_gather_2d_inplace(dtype="float32", global_symbol="gather_probs"), "gather_probs"
+        )
         if "prefill_to_last_hidden_states" in mod:
             hidden_states_struct_info = mod["prefill_to_last_hidden_states"].ret_struct_info.fields[
                 0
             ]  # pylint: disable=no-member
             dtype = hidden_states_struct_info.dtype
-            mod["scatter_hidden_states"] = _get_scatter_2d_inplace(
-                dtype, global_symbol="scatter_hidden_states"
-            )
-            mod["gather_hidden_states"] = _get_gather_2d_inplace(
-                dtype, global_symbol="gather_hidden_states"
-            )
-        return mod
+            _add_gather_hidden_states(bb, self.tensor_parallel_shards, dtype)
+            _add_scatter_hidden_states(bb, self.tensor_parallel_shards, dtype)
+        return bb.finalize()
 
 
 def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
@@ -64,3 +69,52 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
                 dst[vb, vj] = src[indices[vb], vj]
 
     return _gather_2d
+
+
+def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
+    batch_size = tir.Var("batch_size", "int64")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    src = relax.Var("src", struct_info=TensorStructInfo([batch_size, n], dtype))
+    indices = relax.Var("indices", struct_info=TensorStructInfo([batch_size], "int32"))
+    dst = relax.Var("dst", struct_info=TensorStructInfo([m, n], dtype))
+    with bb.function("scatter_hidden_states", [src, indices, dst]):
+        with bb.dataflow():
+            if tensor_parallel_shards > 1:
+                indices = relax.op.ccl.broadcast_from_worker0(indices)
+            output = relax.op.call_tir_inplace(
+                bb.add_func(
+                    _get_scatter_2d_inplace(dtype, "_scatter_hidden_states"),
+                    "_scatter_hidden_states",
+                ),
+                [src, indices, dst],
+                2,
+                dst.struct_info,
+            )
+            bb.emit_output(output)
+        gv = bb.emit_func_output(output)
+    return gv
+
+
+def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
+    batch_size = tir.Var("batch_size", "int64")
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+    src = relax.Var("src", struct_info=TensorStructInfo([m, n], dtype))
+    indices = relax.Var("indices", struct_info=TensorStructInfo([batch_size], "int32"))
+    dst = relax.Var("dst", struct_info=TensorStructInfo([batch_size, n], dtype))
+    with bb.function("gather_hidden_states", [src, indices, dst]):
+        with bb.dataflow():
+            if tensor_parallel_shards > 1:
+                indices = relax.op.ccl.broadcast_from_worker0(indices)
+            output = relax.op.call_tir_inplace(
+                bb.add_func(
+                    _get_gather_2d_inplace(dtype, "_gather_hidden_states"), "_gather_hidden_states"
+                ),
+                [src, indices, dst],
+                2,
+                dst.struct_info,
+            )
+            bb.emit_output(output)
+        gv = bb.emit_func_output(output)
+    return gv
