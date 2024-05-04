@@ -50,7 +50,7 @@ def main(argv):
     parser.add_argument(
         "--speculative-mode",
         type=str,
-        choices=["disable", "small_draft", "eable"],
+        choices=["disable", "small_draft", "eagle"],
         default="disable",
         help=HELP["speculative_mode_serve"] + ' (default: "%(default)s")',
     )
