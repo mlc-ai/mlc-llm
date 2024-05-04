@@ -60,6 +60,8 @@ class GPUSampler : public SamplerObj {
     uniform_samples_host_ = NDArray::Empty({max_num_sample}, dtype_f32_, device_cpu);
     sample_indices_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
     top_p_host_ = NDArray::Empty({max_num_sample}, dtype_f32_, device_cpu);
+    top_p_init_pivots_host_ =
+        NDArray::Empty({max_num_sample, num_top_p_cutoff_pivots_}, dtype_f32_, device_cpu);
     top_prob_offsets_host_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device_cpu);
     draft_tokens_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
     token_tree_first_child_host_ = NDArray::Empty({max_num_sample}, dtype_i32_, device_cpu);
@@ -73,6 +75,8 @@ class GPUSampler : public SamplerObj {
     uniform_samples_device_ = NDArray::Empty({max_num_sample}, dtype_f32_, device);
     sample_indices_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     top_p_device_ = NDArray::Empty({max_num_sample}, dtype_f32_, device);
+    top_p_init_pivots_device_ =
+        NDArray::Empty({max_num_sample, num_top_p_cutoff_pivots_}, dtype_f32_, device);
     top_prob_offsets_device_ = NDArray::Empty({max_num_sample * 5}, dtype_i32_, device);
     draft_tokens_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
     token_tree_first_child_device_ = NDArray::Empty({max_num_sample}, dtype_i32_, device);
@@ -118,21 +122,35 @@ class GPUSampler : public SamplerObj {
       return probs_on_device;
     }
 
-    // - Argsort the probability.
-    Array<NDArray> argsort_results = gpu_argsort_probs_func_(probs_on_device);
-    ICHECK_EQ(argsort_results.size(), 2);
-    NDArray sorted_probs_on_device = argsort_results[0];
-    NDArray sorted_indices_on_device = argsort_results[1];
-
-    // - Copy auxiliary array for top-p.
+    // - Copy auxiliary array for top-p and initial pivots.
     NDArray top_p_host = top_p_host_.CreateView({num_probs}, dtype_f32_);
     NDArray top_p_device = top_p_device_.CreateView({num_probs}, dtype_f32_);
     CopyArray(/*src=*/top_p_host, /*dst=*/top_p_device, copy_stream_);
+
+    NDArray top_p_init_pivots_host =
+        top_p_init_pivots_host_.CreateView({num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
+    NDArray top_p_init_pivots_device =
+        top_p_init_pivots_device_.CreateView({num_probs, num_top_p_cutoff_pivots_}, dtype_f32_);
+    const float* p_top_p = static_cast<const float*>(top_p_host->data);
+    float* p_top_p_init_pivots = static_cast<float*>(top_p_init_pivots_host->data);
+    for (int i = 0; i < num_probs; ++i) {
+      if (1 - p_top_p[i] >= 0.02) {
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_] =
+            std::min(1 - p_top_p[i], static_cast<float>(0.5));
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_ + 1] = 0.02;
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_ + 2] = 0.01;
+      } else {
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_] = 1 - p_top_p[i];
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_ + 1] = (1 - p_top_p[i]) / 2;
+        p_top_p_init_pivots[i * num_top_p_cutoff_pivots_ + 2] = (1 - p_top_p[i]) / 4;
+      }
+    }
+    CopyArray(/*src=*/top_p_init_pivots_host, /*dst=*/top_p_init_pivots_device, copy_stream_);
     SyncCopyStream(device_, compute_stream_, copy_stream_);
 
     // - Renormalize the prob with top p.
     NDArray renormed_probs_on_device =
-        gpu_renormalize_by_top_p_func_(probs_on_device, sorted_probs_on_device, top_p_device);
+        gpu_renormalize_by_top_p_func_(probs_on_device, top_p_device, top_p_init_pivots_device);
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish renormalization by top p");
     return renormed_probs_on_device;
@@ -500,6 +518,9 @@ class GPUSampler : public SamplerObj {
             << "GPU sampler requires the top_p values for each prob distribution are the same.";
       }
     }
+    for (int i = 0; i < num_probs; ++i) {
+      p_top_p[i] = std::max(p_top_p[i], eps_);
+    }
     return need_top_p;
   }
 
@@ -665,6 +686,7 @@ class GPUSampler : public SamplerObj {
   NDArray uniform_samples_host_;
   NDArray sample_indices_host_;
   NDArray top_p_host_;
+  NDArray top_p_init_pivots_host_;
   NDArray top_prob_offsets_host_;
   NDArray draft_tokens_host_;
   NDArray token_tree_first_child_host_;
@@ -678,6 +700,7 @@ class GPUSampler : public SamplerObj {
   NDArray uniform_samples_device_;
   NDArray sample_indices_device_;
   NDArray top_p_device_;
+  NDArray top_p_init_pivots_device_;
   NDArray top_prob_offsets_device_;
   NDArray draft_tokens_device_;
   NDArray token_tree_first_child_device_;
@@ -691,6 +714,7 @@ class GPUSampler : public SamplerObj {
   // The device stream for copying auxiliary data structure to GPU.
   TVMStreamHandle copy_stream_ = nullptr;
   const float eps_ = 1e-5;
+  const int num_top_p_cutoff_pivots_ = 3;
 };
 
 Sampler Sampler::CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
