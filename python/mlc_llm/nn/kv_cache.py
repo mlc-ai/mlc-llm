@@ -399,7 +399,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype):
                     pages[T.floordiv(position, 16), 0, vh, T.floormod(position, 16), vf] = k_data[vgpos, vh, vf]
                 with T.block("v_transpose_append"):
                     vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-                    T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
+                    T.reads(position_map[vgpos], v_data[vgpos, vh, vf])
                     T.writes(pages[position_map[vgpos] // 16, 1, vh, position_map[vgpos] % 16, vf])
                     position: T.int32 = position_map[vgpos] # type: ignore[name-defined,no-redef]
                     pages[T.floordiv(position, 16), 1, vh, T.floormod(position, 16), vf] = v_data[vgpos, vh, vf]
