@@ -19,6 +19,43 @@ namespace mlc {
 namespace llm {
 namespace json_ffi {
 
+/****************** Model vision config ******************/
+
+/*! \brief Defines the Vision config of the model (if present) */
+class ModelVisionConfig {
+ public:
+  int hidden_size;
+  int image_size;
+  int intermediate_size;
+  int num_attention_heads;
+  int num_hidden_layers;
+  int patch_size;
+  int projection_dim;
+  int vocab_size;
+  std::string dtype;
+  int num_channels;
+  double layer_norm_eps;
+
+  static ModelVisionConfig FromJSON(const picojson::object& json_obj);
+};
+
+/****************** Model config ******************/
+
+/*! \brief Defines the config of the model.
+Populated from "model_config" field in mlc-chat-config.json */
+class ModelConfig {
+ public:
+  int vocab_size;
+  int context_window_size;
+  int sliding_window_size;
+  int prefill_chunk_size;
+  int tensor_parallel_shards;
+  int max_batch_size;
+  std::optional<ModelVisionConfig> vision_config = std::nullopt;
+
+  static ModelConfig FromJSON(const picojson::object& json_obj);
+};
+
 /****************** Conversation template ******************/
 
 enum class MessagePlaceholders { SYSTEM, USER, ASSISTANT, TOOL, FUNCTION };
@@ -92,7 +129,7 @@ struct Conversation {
   Conversation();
 
   /*! \brief Create the list of prompts from the messages based on the conversation template. */
-  Result<std::vector<Data>> AsPrompt();
+  Result<std::vector<Data>> AsPrompt(ModelConfig config, DLDevice device);
 
   /*! \brief Create a Conversation instance from the given JSON object. */
   static Result<Conversation> FromJSON(const picojson::object& json);

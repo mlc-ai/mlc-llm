@@ -88,6 +88,7 @@ target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
 target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_compile_definitions(mlc_llm_objs PRIVATE -DMLC_LLM_EXPORTS)
+target_include_directories(mlc_llm_objs PRIVATE 3rdparty/stb)
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)

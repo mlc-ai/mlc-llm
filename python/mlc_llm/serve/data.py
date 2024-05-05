@@ -112,11 +112,9 @@ class ImageData(Data):
             size={"shortest_edge": image_input_size},
             crop_size={"height": image_input_size, "width": image_input_size},
         )
-        quantization = config["quantization"]
-        out_dtype = "float16" if "f16" in quantization else "float32"
         image_features = tvm.nd.array(
             image_processor.preprocess(image_tensor, return_tensors="np")["pixel_values"].astype(
-                out_dtype
+                "float32"
             )
         )
         image_data = ImageData(image_features, image_embed_size)
