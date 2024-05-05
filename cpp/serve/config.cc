@@ -79,7 +79,7 @@ GenerationConfig::GenerationConfig(
 
 GenerationConfig::GenerationConfig(String config_json_str,
                                    Optional<String> default_config_json_str) {
-  picojson::object config = json::ParseToJsonObject(config_json_str);
+  picojson::object config = json::ParseToJSONObject(config_json_str);
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
   GenerationConfig default_config;
   if (default_config_json_str.defined()) {

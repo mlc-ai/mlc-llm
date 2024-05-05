@@ -34,14 +34,8 @@ Conversation::Conversation()
                       {"assistant", PLACEHOLDERS[MessagePlaceholders::ASSISTANT]},
                       {"tool", PLACEHOLDERS[MessagePlaceholders::TOOL]}}) {}
 
-std::vector<std::string> Conversation::CheckMessageSeps(std::vector<std::string>& seps) {
-  if (seps.size() == 0 || seps.size() > 2) {
-    throw std::invalid_argument("seps should have size 1 or 2.");
-  }
-  return seps;
-}
-
-std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
+Result<std::vector<Data>> Conversation::AsPrompt() {
+  using TResult = Result<std::vector<Data>>;
   // Get the system message
   std::string system_msg = system_template;
   size_t pos = system_msg.find(PLACEHOLDERS[MessagePlaceholders::SYSTEM]);
@@ -64,11 +58,11 @@ std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
 
   for (int i = 0; i < messages.size(); i++) {
     std::string role = messages[i].role;
+    // Todo(mlc-team): support content to be a single string.
     std::optional<std::vector<std::unordered_map<std::string, std::string>>> content =
         messages[i].content;
     if (roles.find(role) == roles.end()) {
-      *err += "\nRole " + role + " is not supported. ";
-      return std::nullopt;
+      return TResult::Error("Role \"" + role + "\" is not supported");
     }
 
     std::string separator = separators[role == "assistant"];  // check assistant role
@@ -90,29 +84,30 @@ std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
 
     message += role_prefix;
 
-    for (auto& item : content.value()) {
-      if (item.find("type") == item.end()) {
-        *err += "Content item should have a type field";
-        return std::nullopt;
+    for (const auto& item : content.value()) {
+      auto it_type = item.find("type");
+      if (it_type == item.end()) {
+        return TResult::Error("The content of a message does not have \"type\" field");
       }
-      if (item["type"] == "text") {
-        if (item.find("text") == item.end()) {
-          *err += "Content item should have a text field";
-          return std::nullopt;
+      if (it_type->second == "text") {
+        auto it_text = item.find("text");
+        if (it_text == item.end()) {
+          return TResult::Error("The text type content of a message does not have \"text\" field");
         }
         // replace placeholder[ROLE] with input message from role
         std::string role_text = role_templates[role];
         std::string placeholder = PLACEHOLDERS[MessagePlaceholderFromString(role)];
         size_t pos = role_text.find(placeholder);
         if (pos != std::string::npos) {
-          role_text.replace(pos, placeholder.length(), item["text"]);
+          role_text.replace(pos, placeholder.length(), it_text->second);
         }
-        if (use_function_calling.has_value() && use_function_calling.value()) {
+        if (use_function_calling) {
           // replace placeholder[FUNCTION] with function_string
           // this assumes function calling is used for a single request scenario only
           if (!function_string.has_value()) {
-            *err += "Function string is required for function calling";
-            return std::nullopt;
+            return TResult::Error(
+                "The function string in conversation template is not defined for function "
+                "calling.");
           }
           pos = role_text.find(PLACEHOLDERS[MessagePlaceholders::FUNCTION]);
           if (pos != std::string::npos) {
@@ -122,8 +117,7 @@ std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
         }
         message += role_text;
       } else {
-        *err += "Unsupported content type: " + item["type"];
-        return std::nullopt;
+        return TResult::Error("Unsupported content type: " + it_type->second);
       }
     }
 
@@ -131,186 +125,201 @@ std::optional<std::vector<Data>> Conversation::AsPrompt(std::string* err) {
     message_list.push_back(TextData(message));
   }
 
-  return message_list;
+  return TResult::Ok(message_list);
 }
 
-std::optional<Conversation> Conversation::FromJSON(const picojson::object& json, std::string* err) {
+Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<Conversation>;
   Conversation conv;
 
-  // name
-  std::string name;
-  if (json::ParseJSONField(json, "name", name, err, false)) {
-    conv.name = name;
+  Result<std::optional<std::string>> name_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "name");
+  if (name_res.IsErr()) {
+    return TResult::Error(name_res.UnwrapErr());
   }
+  conv.name = name_res.Unwrap();
 
-  std::string system_template;
-  if (!json::ParseJSONField(json, "system_template", system_template, err, true)) {
-    return std::nullopt;
+  Result<std::string> system_template_res =
+      json::LookupWithResultReturn<std::string>(json_obj, "system_template");
+  if (system_template_res.IsErr()) {
+    return TResult::Error(system_template_res.UnwrapErr());
   }
-  conv.system_template = system_template;
+  conv.system_template = system_template_res.Unwrap();
 
-  std::string system_message;
-  if (!json::ParseJSONField(json, "system_message", system_message, err, true)) {
-    return std::nullopt;
+  Result<std::string> system_message_res =
+      json::LookupWithResultReturn<std::string>(json_obj, "system_message");
+  if (system_message_res.IsErr()) {
+    return TResult::Error(system_message_res.UnwrapErr());
   }
-  conv.system_message = system_message;
+  conv.system_message = system_message_res.Unwrap();
 
-  picojson::array system_prefix_token_ids_arr;
-  if (json::ParseJSONField(json, "system_prefix_token_ids", system_prefix_token_ids_arr, err,
-                           false)) {
+  Result<std::optional<picojson::array>> system_prefix_token_ids_arr_res =
+      json::LookupOptionalWithResultReturn<picojson::array>(json_obj, "system_prefix_token_ids");
+  if (system_prefix_token_ids_arr_res.IsErr()) {
+    return TResult::Error(system_prefix_token_ids_arr_res.UnwrapErr());
+  }
+  std::optional<picojson::array> system_prefix_token_ids_arr =
+      system_prefix_token_ids_arr_res.Unwrap();
+  if (system_prefix_token_ids_arr.has_value()) {
     std::vector<int> system_prefix_token_ids;
-    for (const auto& token_id : system_prefix_token_ids_arr) {
+    system_prefix_token_ids.reserve(system_prefix_token_ids_arr.value().size());
+    for (const auto& token_id : system_prefix_token_ids_arr.value()) {
       if (!token_id.is<int64_t>()) {
-        *err += "system_prefix_token_ids should be an array of integers.";
-        return std::nullopt;
+        return TResult::Error("A system prefix token id is not integer.");
       }
       system_prefix_token_ids.push_back(token_id.get<int64_t>());
     }
-    conv.system_prefix_token_ids = system_prefix_token_ids;
+    conv.system_prefix_token_ids = std::move(system_prefix_token_ids);
   }
 
-  bool add_role_after_system_message;
-  if (!json::ParseJSONField(json, "add_role_after_system_message", add_role_after_system_message,
-                            err, true)) {
-    return std::nullopt;
+  Result<bool> add_role_after_system_message_res =
+      json::LookupWithResultReturn<bool>(json_obj, "add_role_after_system_message");
+  if (add_role_after_system_message_res.IsErr()) {
+    return TResult::Error(add_role_after_system_message_res.UnwrapErr());
   }
-  conv.add_role_after_system_message = add_role_after_system_message;
+  conv.add_role_after_system_message = add_role_after_system_message_res.Unwrap();
 
-  picojson::object roles_object;
-  if (!json::ParseJSONField(json, "roles", roles_object, err, true)) {
-    return std::nullopt;
+  Result<picojson::object> roles_object_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "roles");
+  if (roles_object_res.IsErr()) {
+    return TResult::Error(roles_object_res.UnwrapErr());
   }
-  std::unordered_map<std::string, std::string> roles;
-  for (const auto& role : roles_object) {
+  for (const auto& role : roles_object_res.Unwrap()) {
     if (!role.second.is<std::string>()) {
-      *err += "roles should be a map of string to string.";
-      return std::nullopt;
+      return TResult::Error("A role value in the conversation template is not a string.");
     }
-    roles[role.first] = role.second.get<std::string>();
+    conv.roles[role.first] = role.second.get<std::string>();
   }
-  conv.roles = roles;
 
-  picojson::object role_templates_object;
-  if (json::ParseJSONField(json, "role_templates", role_templates_object, err, false)) {
-    for (const auto& role : role_templates_object) {
-      if (!role.second.is<std::string>()) {
-        *err += "role_templates should be a map of string to string.";
-        return std::nullopt;
+  Result<std::optional<picojson::object>> role_templates_object_res =
+      json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "role_templates");
+  if (role_templates_object_res.IsErr()) {
+    return TResult::Error(role_templates_object_res.UnwrapErr());
+  }
+  std::optional<picojson::object> role_templates_object = role_templates_object_res.Unwrap();
+  if (role_templates_object.has_value()) {
+    for (const auto& [role, msg] : role_templates_object.value()) {
+      if (!msg.is<std::string>()) {
+        return TResult::Error("A value in \"role_templates\" is not a string.");
       }
-      conv.role_templates[role.first] = role.second.get<std::string>();
+      conv.role_templates[role] = msg.get<std::string>();
     }
   }
 
-  picojson::array messages_arr;
-  if (!json::ParseJSONField(json, "messages", messages_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> messages_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "messages");
+  if (messages_arr_res.IsErr()) {
+    return TResult::Error(messages_arr_res.UnwrapErr());
   }
-  std::vector<Message> messages;
-  for (const auto& message : messages_arr) {
+  for (const auto& message : messages_arr_res.Unwrap()) {
     if (!message.is<picojson::object>()) {
-      *err += "messages should be an array of objects.";
-      return std::nullopt;
+      return TResult::Error("A message in the conversation template is not a JSON object.");
     }
     picojson::object message_obj = message.get<picojson::object>();
-    std::string role;
-    if (!json::ParseJSONField(message_obj, "role", role, err, true)) {
-      *err += "role field is required in messages.";
-      return std::nullopt;
+    Result<std::string> role_res = json::LookupWithResultReturn<std::string>(message_obj, "role");
+    if (role_res.IsErr()) {
+      return TResult::Error(role_res.UnwrapErr());
     }
-    picojson::array content_arr;
+    Result<std::optional<picojson::array>> content_arr_res =
+        json::LookupOptionalWithResultReturn<picojson::array>(message_obj, "content");
+    if (content_arr_res.IsErr()) {
+      return TResult::Error(content_arr_res.UnwrapErr());
+    }
+    std::optional<picojson::array> content_arr = content_arr_res.Unwrap();
     std::vector<std::unordered_map<std::string, std::string>> content;
-    if (json::ParseJSONField(message_obj, "content", content_arr, err, false)) {
-      for (const auto& item : content_arr) {
+    if (content_arr.has_value()) {
+      content.reserve(content_arr.value().size());
+      for (const auto& item : content_arr.value()) {
+        // Todo(mlc-team): allow content item to be a single string.
         if (!item.is<picojson::object>()) {
-          *err += "Content item is not an object";
-          return std::nullopt;
+          return TResult::Error("The content of conversation template message is not an object");
         }
         std::unordered_map<std::string, std::string> item_map;
-        picojson::object item_obj = item.get<picojson::object>();
-        for (picojson::value::object::const_iterator i = item_obj.begin(); i != item_obj.end();
-             ++i) {
-          item_map[i->first] = i->second.to_str();
+        for (const auto& [key, value] : item.get<picojson::object>()) {
+          item_map[key] = value.to_str();
         }
-        content.push_back(item_map);
+        content.push_back(std::move(item_map));
       }
     }
-    messages.push_back({role, content});
+    conv.messages.push_back({role_res.Unwrap(), content});
   }
-  conv.messages = messages;
 
-  picojson::array seps_arr;
-  if (!json::ParseJSONField(json, "seps", seps_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> seps_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "seps");
+  if (seps_arr_res.IsErr()) {
+    return TResult::Error(seps_arr_res.UnwrapErr());
   }
   std::vector<std::string> seps;
-  for (const auto& sep : seps_arr) {
+  for (const auto& sep : seps_arr_res.Unwrap()) {
     if (!sep.is<std::string>()) {
-      *err += "seps should be an array of strings.";
-      return std::nullopt;
+      return TResult::Error("A separator (\"seps\") of the conversation template is not a string");
     }
-    seps.push_back(sep.get<std::string>());
+    conv.seps.push_back(sep.get<std::string>());
   }
-  conv.seps = seps;
 
-  std::string role_content_sep;
-  if (!json::ParseJSONField(json, "role_content_sep", role_content_sep, err, true)) {
-    return std::nullopt;
+  Result<std::string> role_content_sep_res =
+      json::LookupWithResultReturn<std::string>(json_obj, "role_content_sep");
+  if (role_content_sep_res.IsErr()) {
+    return TResult::Error(role_content_sep_res.UnwrapErr());
   }
-  conv.role_content_sep = role_content_sep;
+  conv.role_content_sep = role_content_sep_res.Unwrap();
 
-  std::string role_empty_sep;
-  if (!json::ParseJSONField(json, "role_empty_sep", role_empty_sep, err, true)) {
-    return std::nullopt;
+  Result<std::string> role_empty_sep_res =
+      json::LookupWithResultReturn<std::string>(json_obj, "role_empty_sep");
+  if (role_empty_sep_res.IsErr()) {
+    return TResult::Error(role_empty_sep_res.UnwrapErr());
   }
-  conv.role_empty_sep = role_empty_sep;
+  conv.role_empty_sep = role_empty_sep_res.Unwrap();
 
-  picojson::array stop_str_arr;
-  if (!json::ParseJSONField(json, "stop_str", stop_str_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> stop_str_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "stop_str");
+  if (stop_str_arr_res.IsErr()) {
+    return TResult::Error(stop_str_arr_res.UnwrapErr());
   }
-  std::vector<std::string> stop_str;
-  for (const auto& stop : stop_str_arr) {
+  for (const auto& stop : stop_str_arr_res.Unwrap()) {
     if (!stop.is<std::string>()) {
-      *err += "stop_str should be an array of strings.";
-      return std::nullopt;
+      return TResult::Error(
+          "A stop string (\"stop_str\") of the conversation template is not a string.");
     }
-    stop_str.push_back(stop.get<std::string>());
+    conv.stop_str.push_back(stop.get<std::string>());
   }
-  conv.stop_str = stop_str;
 
-  picojson::array stop_token_ids_arr;
-  if (!json::ParseJSONField(json, "stop_token_ids", stop_token_ids_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> stop_token_ids_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "stop_token_ids");
+  if (stop_token_ids_arr_res.IsErr()) {
+    return TResult::Error(stop_token_ids_arr_res.UnwrapErr());
   }
-  std::vector<int> stop_token_ids;
-  for (const auto& stop : stop_token_ids_arr) {
+  for (const auto& stop : stop_token_ids_arr_res.Unwrap()) {
     if (!stop.is<int64_t>()) {
-      *err += "stop_token_ids should be an array of integers.";
-      return std::nullopt;
+      return TResult::Error(
+          "A stop token id (\"stop_token_ids\") of the conversation template is not an integer.");
     }
-    stop_token_ids.push_back(stop.get<int64_t>());
-  }
-  conv.stop_token_ids = stop_token_ids;
-
-  std::string function_string;
-  if (!json::ParseJSONField(json, "function_string", function_string, err, false)) {
-    conv.function_string = function_string;
+    conv.stop_token_ids.push_back(stop.get<int64_t>());
   }
 
-  bool use_function_calling;
-  if (json::ParseJSONField(json, "use_function_calling", use_function_calling, err, false)) {
-    conv.use_function_calling = use_function_calling;
+  Result<std::optional<std::string>> function_string_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "function_string");
+  if (function_string_res.IsErr()) {
+    return TResult::Error(function_string_res.UnwrapErr());
   }
+  conv.function_string = function_string_res.Unwrap();
 
-  return conv;
+  Result<bool> use_function_calling_res = json::LookupOrDefaultWithResultReturn<bool>(
+      json_obj, "use_function_calling", conv.use_function_calling);
+  if (use_function_calling_res.IsErr()) {
+    return TResult::Error(use_function_calling_res.UnwrapErr());
+  }
+  conv.use_function_calling = use_function_calling_res.Unwrap();
+
+  return TResult::Ok(conv);
 }
 
-std::optional<Conversation> Conversation::FromJSON(const std::string& json_str, std::string* err) {
-  std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
-  if (!json_obj.has_value()) {
-    return std::nullopt;
+Result<Conversation> Conversation::FromJSON(const std::string& json_str) {
+  Result<picojson::object> json_obj = json::ParseToJSONObjectWithResultReturn(json_str);
+  if (json_obj.IsErr()) {
+    return Result<Conversation>::Error(json_obj.UnwrapErr());
   }
-  return Conversation::FromJSON(json_obj.value(), err);
+  return Conversation::FromJSON(json_obj.Unwrap());
 }
 
 }  // namespace json_ffi

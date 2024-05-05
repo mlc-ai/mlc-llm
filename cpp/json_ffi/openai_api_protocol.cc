@@ -11,53 +11,41 @@ namespace mlc {
 namespace llm {
 namespace json_ffi {
 
-std::string generate_uuid_string(size_t length) {
-  auto randchar = []() -> char {
-    const char charset[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-    const size_t max_index = (sizeof(charset) - 1);
-    return charset[rand() % max_index];
-  };
-  std::string str(length, 0);
-  std::generate_n(str.begin(), length, randchar);
-  return str;
-}
+Result<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<ChatFunction>;
+  ChatFunction chat_func;
 
-std::optional<ChatFunction> ChatFunction::FromJSON(const picojson::object& json_obj,
-                                                   std::string* err) {
-  ChatFunction chatFunc;
-
-  // description (optional)
-  std::string description;
-  if (json::ParseJSONField(json_obj, "description", description, err, false)) {
-    chatFunc.description = description;
+  // description
+  Result<std::optional<std::string>> description_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "description");
+  if (description_res.IsErr()) {
+    return TResult::Error(description_res.UnwrapErr());
   }
+  chat_func.description = description_res.Unwrap();
 
   // name
-  std::string name;
-  if (!json::ParseJSONField(json_obj, "name", name, err, true)) {
-    return std::nullopt;
+  Result<std::string> name_res = json::LookupWithResultReturn<std::string>(json_obj, "name");
+  if (name_res.IsErr()) {
+    return TResult::Error(name_res.UnwrapErr());
   }
-  chatFunc.name = name;
+  chat_func.name = name_res.Unwrap();
 
   // parameters
-  picojson::object parameters_obj;
-  if (!json::ParseJSONField(json_obj, "parameters", parameters_obj, err, true)) {
-    return std::nullopt;
+  Result<picojson::object> parameters_obj_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "parameters");
+  if (parameters_obj_res.IsErr()) {
+    return TResult::Error(parameters_obj_res.UnwrapErr());
   }
-  std::unordered_map<std::string, std::string> parameters;
-  for (picojson::value::object::const_iterator i = parameters_obj.begin();
-       i != parameters_obj.end(); ++i) {
-    parameters[i->first] = i->second.to_str();
+  picojson::object parameters_obj = parameters_obj_res.Unwrap();
+  chat_func.parameters.reserve(parameters_obj.size());
+  for (const auto& [key, value] : parameters_obj) {
+    chat_func.parameters[key] = value.to_str();
   }
-  chatFunc.parameters = parameters;
 
-  return chatFunc;
+  return TResult::Ok(chat_func);
 }
 
-picojson::object ChatFunction::ToJSON() const {
+picojson::object ChatFunction::AsJSON() const {
   picojson::object obj;
   if (this->description.has_value()) {
     obj["description"] = picojson::value(this->description.value());
@@ -71,57 +59,63 @@ picojson::object ChatFunction::ToJSON() const {
   return obj;
 }
 
-std::optional<ChatTool> ChatTool::FromJSON(const picojson::object& json_obj, std::string* err) {
+Result<ChatTool> ChatTool::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<ChatTool>;
   ChatTool chatTool;
 
   // function
-  picojson::object function_obj;
-  if (!json::ParseJSONField(json_obj, "function", function_obj, err, true)) {
-    return std::nullopt;
+  Result<picojson::object> function_obj_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "function");
+  if (function_obj_res.IsErr()) {
+    return TResult::Error(function_obj_res.UnwrapErr());
   }
-
-  std::optional<ChatFunction> function = ChatFunction::FromJSON(function_obj, err);
-  if (!function.has_value()) {
-    return std::nullopt;
+  Result<ChatFunction> function = ChatFunction::FromJSON(function_obj_res.Unwrap());
+  if (function.IsErr()) {
+    return TResult::Error(function.UnwrapErr());
   }
-  chatTool.function = function.value();
+  chatTool.function = function.Unwrap();
 
-  return chatTool;
+  return TResult::Ok(chatTool);
 }
 
-picojson::object ChatTool::ToJSON() const {
+picojson::object ChatTool::AsJSON() const {
   picojson::object obj;
   obj["type"] = picojson::value("function");
-  obj["function"] = picojson::value(this->function.ToJSON());
+  obj["function"] = picojson::value(this->function.AsJSON());
   return obj;
 }
 
-std::optional<ChatFunctionCall> ChatFunctionCall::FromJSON(const picojson::object& json_obj,
-                                                           std::string* err) {
-  ChatFunctionCall chatFuncCall;
+Result<ChatFunctionCall> ChatFunctionCall::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<ChatFunctionCall>;
+  ChatFunctionCall chat_func_call;
 
   // name
-  std::string name;
-  if (!json::ParseJSONField(json_obj, "name", name, err, true)) {
-    return std::nullopt;
+  Result<std::string> name_res = json::LookupWithResultReturn<std::string>(json_obj, "name");
+  if (name_res.IsErr()) {
+    return TResult::Error(name_res.UnwrapErr());
   }
-  chatFuncCall.name = name;
+  chat_func_call.name = name_res.Unwrap();
 
   // arguments
-  picojson::object arguments_obj;
-  if (json::ParseJSONField(json_obj, "arguments", arguments_obj, err, false)) {
+  Result<std::optional<picojson::object>> arguments_obj_res =
+      json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "arguments");
+  if (arguments_obj_res.IsErr()) {
+    return TResult::Error(arguments_obj_res.UnwrapErr());
+  }
+  std::optional<picojson::object> arguments_obj = arguments_obj_res.Unwrap();
+  if (arguments_obj.has_value()) {
     std::unordered_map<std::string, std::string> arguments;
-    for (picojson::value::object::const_iterator i = arguments_obj.begin();
-         i != arguments_obj.end(); ++i) {
-      arguments[i->first] = i->second.to_str();
+    arguments.reserve(arguments_obj.value().size());
+    for (const auto& [key, value] : arguments_obj.value()) {
+      arguments[key] = value.to_str();
     }
-    chatFuncCall.arguments = arguments;
+    chat_func_call.arguments = std::move(arguments);
   }
 
-  return chatFuncCall;
+  return TResult::Ok(chat_func_call);
 }
 
-picojson::object ChatFunctionCall::ToJSON() const {
+picojson::object ChatFunctionCall::AsJSON() const {
   picojson::object obj;
   picojson::object arguments_obj;
   if (this->arguments.has_value()) {
@@ -135,69 +129,75 @@ picojson::object ChatFunctionCall::ToJSON() const {
   return obj;
 }
 
-std::optional<ChatToolCall> ChatToolCall::FromJSON(const picojson::object& json_obj,
-                                                   std::string* err) {
-  ChatToolCall chatToolCall;
+Result<ChatToolCall> ChatToolCall::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<ChatToolCall>;
+  ChatToolCall chat_tool_call;
 
   // function
-  picojson::object function_obj;
-  if (!json::ParseJSONField(json_obj, "function", function_obj, err, true)) {
-    return std::nullopt;
+  Result<picojson::object> function_obj_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "function");
+  if (function_obj_res.IsErr()) {
+    return TResult::Error(function_obj_res.UnwrapErr());
   }
-
-  std::optional<ChatFunctionCall> function = ChatFunctionCall::FromJSON(function_obj, err);
-  if (!function.has_value()) {
-    return std::nullopt;
-  };
-  chatToolCall.function = function.value();
+  Result<ChatFunctionCall> function_res = ChatFunctionCall::FromJSON(function_obj_res.Unwrap());
+  if (function_res.IsErr()) {
+    return TResult::Error(function_res.UnwrapErr());
+  }
+  chat_tool_call.function = function_res.Unwrap();
 
   // overwrite default id
-  std::string id;
-  if (!json::ParseJSONField(json_obj, "id", id, err, false)) {
-    return std::nullopt;
+  Result<std::optional<std::string>> id_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "id");
+  if (id_res.IsErr()) {
+    return TResult::Error(id_res.UnwrapErr());
   }
-  chatToolCall.id = id;
+  std::optional<std::string> id = id_res.UnwrapErr();
+  if (id.has_value()) {
+    chat_tool_call.id = id.value();
+  }
 
-  return chatToolCall;
+  return TResult::Ok(chat_tool_call);
 }
 
-picojson::object ChatToolCall::ToJSON() const {
+picojson::object ChatToolCall::AsJSON() const {
   picojson::object obj;
   obj["id"] = picojson::value(this->id);
-  obj["function"] = picojson::value(this->function.ToJSON());
+  obj["function"] = picojson::value(this->function.AsJSON());
   obj["type"] = picojson::value("function");
   return obj;
 }
 
-std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(
-    const picojson::object& json_obj, std::string* err) {
+Result<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picojson::object& json_obj) {
+  using TResult = Result<ChatCompletionMessage>;
   ChatCompletionMessage message;
 
   // content
-  picojson::array content_arr;
-  if (!json::ParseJSONField(json_obj, "content", content_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> content_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "content");
+  if (content_arr_res.IsErr()) {
+    return TResult::Error(content_arr_res.UnwrapErr());
   }
-  std::vector<std::unordered_map<std::string, std::string> > content;
-  for (const auto& item : content_arr) {
+  std::vector<std::unordered_map<std::string, std::string>> content;
+  for (const auto& item : content_arr_res.Unwrap()) {
+    // Todo(mlc-team): allow content item to be a single string.
     if (!item.is<picojson::object>()) {
-      *err += "Content item is not an object";
-      return std::nullopt;
+      return TResult::Error("The content of chat completion message is not an object");
     }
-    std::unordered_map<std::string, std::string> item_map;
     picojson::object item_obj = item.get<picojson::object>();
-    for (picojson::value::object::const_iterator i = item_obj.begin(); i != item_obj.end(); ++i) {
-      item_map[i->first] = i->second.to_str();
+    std::unordered_map<std::string, std::string> item_map;
+    for (const auto& [key, value] : item_obj) {
+      item_map[key] = value.to_str();
     }
-    content.push_back(item_map);
+    content.push_back(std::move(item_map));
   }
   message.content = content;
 
   // role
-  std::string role_str;
-  if (!json::ParseJSONField(json_obj, "role", role_str, err, true)) {
-    return std::nullopt;
+  Result<std::string> role_str_res = json::LookupWithResultReturn<std::string>(json_obj, "role");
+  if (role_str_res.IsErr()) {
+    return TResult::Error(role_str_res.UnwrapErr());
   }
+  std::string role_str = role_str_res.Unwrap();
   if (role_str == "system") {
     message.role = Role::system;
   } else if (role_str == "user") {
@@ -207,124 +207,148 @@ std::optional<ChatCompletionMessage> ChatCompletionMessage::FromJSON(
   } else if (role_str == "tool") {
     message.role = Role::tool;
   } else {
-    *err += "Invalid role";
-    return std::nullopt;
+    return TResult::Error("Invalid role in chat completion message: " + role_str);
   }
 
   // name
-  std::string name;
-  if (json::ParseJSONField(json_obj, "name", name, err, false)) {
-    message.name = name;
+  Result<std::optional<std::string>> name_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "name");
+  if (name_res.IsErr()) {
+    return TResult::Error(name_res.UnwrapErr());
   }
+  message.name = name_res.Unwrap();
 
   // tool calls
-  picojson::array tool_calls_arr;
-  if (json::ParseJSONField(json_obj, "tool_calls", tool_calls_arr, err, false)) {
+  Result<std::optional<picojson::array>> tool_calls_arr_res =
+      json::LookupOptionalWithResultReturn<picojson::array>(json_obj, "tool_calls");
+  if (tool_calls_arr_res.IsErr()) {
+    return TResult::Error(tool_calls_arr_res.UnwrapErr());
+  }
+  std::optional<picojson::array> tool_calls_arr = tool_calls_arr_res.Unwrap();
+  if (tool_calls_arr.has_value()) {
     std::vector<ChatToolCall> tool_calls;
-    for (const auto& item : tool_calls_arr) {
+    tool_calls.reserve(tool_calls_arr.value().size());
+    for (const auto& item : tool_calls_arr.value()) {
       if (!item.is<picojson::object>()) {
-        *err += "Chat Tool Call item is not an object";
-        return std::nullopt;
+        return TResult::Error("A tool call item in the chat completion message is not an object");
       }
-      picojson::object item_obj = item.get<picojson::object>();
-      std::optional<ChatToolCall> tool_call = ChatToolCall::FromJSON(item_obj, err);
-      if (!tool_call.has_value()) {
-        return std::nullopt;
-      };
-      tool_calls.push_back(tool_call.value());
+      Result<ChatToolCall> tool_call = ChatToolCall::FromJSON(item.get<picojson::object>());
+      if (tool_call.IsErr()) {
+        return TResult::Error(tool_call.UnwrapErr());
+      }
+      tool_calls.push_back(tool_call.Unwrap());
     }
     message.tool_calls = tool_calls;
   }
 
   // tool call id
-  std::string tool_call_id;
-  if (json::ParseJSONField(json_obj, "tool_call_id", tool_call_id, err, false)) {
-    message.tool_call_id = tool_call_id;
+  Result<std::optional<std::string>> tool_call_id_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "tool_call_id");
+  if (tool_call_id_res.IsErr()) {
+    return TResult::Error(tool_call_id_res.UnwrapErr());
   }
+  message.tool_call_id = tool_call_id_res.Unwrap();
 
-  return message;
+  return TResult::Ok(message);
 }
 
-std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(
-    const picojson::object& json_obj, std::string* err) {
+Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string& json_str) {
+  using TResult = Result<ChatCompletionRequest>;
+  Result<picojson::object> json_obj_res = json::ParseToJSONObjectWithResultReturn(json_str);
+  if (json_obj_res.IsErr()) {
+    return TResult::Error(json_obj_res.UnwrapErr());
+  }
+  picojson::object json_obj = json_obj_res.Unwrap();
   ChatCompletionRequest request;
 
   // messages
-  picojson::array messages_arr;
-  if (!json::ParseJSONField(json_obj, "messages", messages_arr, err, true)) {
-    return std::nullopt;
+  Result<picojson::array> messages_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "messages");
+  if (messages_arr_res.IsErr()) {
+    return TResult::Error(messages_arr_res.UnwrapErr());
   }
   std::vector<ChatCompletionMessage> messages;
-  for (const auto& item : messages_arr) {
-    picojson::object item_obj = item.get<picojson::object>();
-    std::optional<ChatCompletionMessage> message = ChatCompletionMessage::FromJSON(item_obj, err);
-    if (!message.has_value()) {
-      return std::nullopt;
+  for (const auto& item : messages_arr_res.Unwrap()) {
+    if (!item.is<picojson::object>()) {
+      return TResult::Error("A message in chat completion request is not object");
     }
-    messages.push_back(message.value());
+    picojson::object item_obj = item.get<picojson::object>();
+    Result<ChatCompletionMessage> message = ChatCompletionMessage::FromJSON(item_obj);
+    if (message.IsErr()) {
+      return TResult::Error(message.UnwrapErr());
+    }
+    messages.push_back(message.Unwrap());
   }
   request.messages = messages;
 
   // model
-  std::string model;
-  if (!json::ParseJSONField(json_obj, "model", model, err, true)) {
-    return std::nullopt;
+  Result<std::string> model_res = json::LookupWithResultReturn<std::string>(json_obj, "model");
+  if (model_res.IsErr()) {
+    return TResult::Error(model_res.UnwrapErr());
   }
-  request.model = model;
+  request.model = model_res.Unwrap();
+
+  // max_tokens
+  Result<std::optional<int64_t>> max_tokens_res =
+      json::LookupOptionalWithResultReturn<int64_t>(json_obj, "max_tokens");
+  if (max_tokens_res.IsErr()) {
+    return TResult::Error(max_tokens_res.UnwrapErr());
+  }
+  request.max_tokens = max_tokens_res.Unwrap();
 
   // frequency_penalty
-  double frequency_penalty;
-  if (json::ParseJSONField(json_obj, "frequency_penalty", frequency_penalty, err, false)) {
-    request.frequency_penalty = frequency_penalty;
+  Result<std::optional<double>> frequency_penalty_res =
+      json::LookupOptionalWithResultReturn<double>(json_obj, "frequency_penalty");
+  if (frequency_penalty_res.IsErr()) {
+    return TResult::Error(frequency_penalty_res.UnwrapErr());
   }
+  request.frequency_penalty = frequency_penalty_res.Unwrap();
 
   // presence_penalty
-  double presence_penalty;
-  if (json::ParseJSONField(json_obj, "presence_penalty", presence_penalty, err, false)) {
-    request.presence_penalty = presence_penalty;
+  Result<std::optional<double>> presence_penalty_res =
+      json::LookupOptionalWithResultReturn<double>(json_obj, "presence_penalty");
+  if (presence_penalty_res.IsErr()) {
+    return TResult::Error(presence_penalty_res.UnwrapErr());
   }
+  request.presence_penalty = presence_penalty_res.Unwrap();
 
   // tool_choice
-  std::string tool_choice = "auto";
-  request.tool_choice = tool_choice;
-  if (json::ParseJSONField(json_obj, "tool_choice", tool_choice, err, false)) {
-    request.tool_choice = tool_choice;
+  Result<std::string> tool_choice_res =
+      json::LookupOrDefaultWithResultReturn<std::string>(json_obj, "tool_choice", "auto");
+  if (tool_choice_res.IsErr()) {
+    return TResult::Error(tool_choice_res.UnwrapErr());
   }
+  request.tool_choice = tool_choice_res.Unwrap();
 
   // tools
-  picojson::array tools_arr;
-  if (json::ParseJSONField(json_obj, "tools", tools_arr, err, false)) {
+  Result<std::optional<picojson::array>> tools_arr_res =
+      json::LookupOptionalWithResultReturn<picojson::array>(json_obj, "tools");
+  if (tool_choice_res.IsErr()) {
+    return TResult::Error(tool_choice_res.UnwrapErr());
+  }
+  std::optional<picojson::array> tools_arr = tools_arr_res.Unwrap();
+  if (tools_arr.has_value()) {
     std::vector<ChatTool> tools;
-    for (const auto& item : tools_arr) {
+    tools.reserve(tools_arr.value().size());
+    for (const auto& item : tools_arr.value()) {
       if (!item.is<picojson::object>()) {
-        *err += "Chat Tool item is not an object";
-        return std::nullopt;
+        return TResult::Error("A tool of the chat completion request is not an object");
       }
-      picojson::object item_obj = item.get<picojson::object>();
-      std::optional<ChatTool> tool = ChatTool::FromJSON(item_obj, err);
-      if (!tool.has_value()) {
-        return std::nullopt;
-      };
-      tools.push_back(tool.value());
+      Result<ChatTool> tool = ChatTool::FromJSON(item.get<picojson::object>());
+      if (tool.IsErr()) {
+        return TResult::Error(tool.UnwrapErr());
+      }
+      tools.push_back(tool.Unwrap());
     }
     request.tools = tools;
   }
 
   // TODO: Other parameters
 
-  return request;
+  return TResult::Ok(request);
 }
 
-std::optional<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string& json_str,
-                                                                     std::string* err) {
-  std::optional<picojson::object> json_obj = json::LoadJSONFromString(json_str, err);
-  if (!json_obj.has_value()) {
-    return std::nullopt;
-  }
-  return ChatCompletionRequest::FromJSON(json_obj.value(), err);
-}
-
-picojson::object ChatCompletionMessage::ToJSON() const {
+picojson::object ChatCompletionMessage::AsJSON() const {
   picojson::object obj;
   picojson::array content_arr;
   for (const auto& item : this->content.value()) {
@@ -353,17 +377,18 @@ picojson::object ChatCompletionMessage::ToJSON() const {
   if (this->tool_calls.has_value()) {
     picojson::array tool_calls_arr;
     for (const auto& tool_call : this->tool_calls.value()) {
-      tool_calls_arr.push_back(picojson::value(tool_call.ToJSON()));
+      tool_calls_arr.push_back(picojson::value(tool_call.AsJSON()));
     }
     obj["tool_calls"] = picojson::value(tool_calls_arr);
   }
   return obj;
 }
 
-bool ChatCompletionRequest::CheckFunctionCalling(Conversation& conv_template, std::string* err) {
+Result<Conversation> ChatCompletionRequest::CheckFunctionCalling(Conversation conv_template) {
+  using TResult = Result<Conversation>;
   if (!tools.has_value() || (tool_choice.has_value() && tool_choice.value() == "none")) {
     conv_template.use_function_calling = false;
-    return true;
+    return TResult::Ok(conv_template);
   }
   std::vector<ChatTool> tools_ = tools.value();
   std::string tool_choice_ = tool_choice.value();
@@ -372,29 +397,28 @@ bool ChatCompletionRequest::CheckFunctionCalling(Conversation& conv_template, st
   for (const auto& tool : tools_) {
     if (tool.function.name == tool_choice_) {
       conv_template.use_function_calling = true;
-      picojson::value function_str(tool.function.ToJSON());
+      picojson::value function_str(tool.function.AsJSON());
       conv_template.function_string = function_str.serialize();
-      return true;
+      return TResult::Ok(conv_template);
     }
   }
 
   if (tool_choice_ != "auto") {
-    *err += "Invalid tool_choice value: " + tool_choice_;
-    return false;
+    return TResult::Error("Invalid tool_choice value in the request: " + tool_choice_);
   }
 
   picojson::array function_list;
   for (const auto& tool : tools_) {
-    function_list.push_back(picojson::value(tool.function.ToJSON()));
+    function_list.push_back(picojson::value(tool.function.AsJSON()));
   }
 
   conv_template.use_function_calling = true;
   picojson::value function_list_json(function_list);
   conv_template.function_string = function_list_json.serialize();
-  return true;
+  return TResult::Ok(conv_template);
 };
 
-picojson::object ChatCompletionResponseChoice::ToJSON() const {
+picojson::object ChatCompletionResponseChoice::AsJSON() const {
   picojson::object obj;
   if (!this->finish_reason.has_value()) {
     obj["finish_reason"] = picojson::value();
@@ -410,11 +434,11 @@ picojson::object ChatCompletionResponseChoice::ToJSON() const {
     }
   }
   obj["index"] = picojson::value((int64_t)this->index);
-  obj["message"] = picojson::value(this->message.ToJSON());
+  obj["message"] = picojson::value(this->message.AsJSON());
   return obj;
 }
 
-picojson::object ChatCompletionStreamResponseChoice::ToJSON() const {
+picojson::object ChatCompletionStreamResponseChoice::AsJSON() const {
   picojson::object obj;
   if (!this->finish_reason.has_value()) {
     obj["finish_reason"] = picojson::value();
@@ -431,16 +455,16 @@ picojson::object ChatCompletionStreamResponseChoice::ToJSON() const {
   }
 
   obj["index"] = picojson::value((int64_t)this->index);
-  obj["delta"] = picojson::value(this->delta.ToJSON());
+  obj["delta"] = picojson::value(this->delta.AsJSON());
   return obj;
 }
 
-picojson::object ChatCompletionResponse::ToJSON() const {
+picojson::object ChatCompletionResponse::AsJSON() const {
   picojson::object obj;
   obj["id"] = picojson::value(this->id);
   picojson::array choices_arr;
   for (const auto& choice : this->choices) {
-    choices_arr.push_back(picojson::value(choice.ToJSON()));
+    choices_arr.push_back(picojson::value(choice.AsJSON()));
   }
   obj["choices"] = picojson::value(choices_arr);
   obj["created"] = picojson::value((int64_t)this->created);
@@ -450,12 +474,12 @@ picojson::object ChatCompletionResponse::ToJSON() const {
   return obj;
 }
 
-picojson::object ChatCompletionStreamResponse::ToJSON() const {
+picojson::object ChatCompletionStreamResponse::AsJSON() const {
   picojson::object obj;
   obj["id"] = picojson::value(this->id);
   picojson::array choices_arr;
   for (const auto& choice : this->choices) {
-    choices_arr.push_back(picojson::value(choice.ToJSON()));
+    choices_arr.push_back(picojson::value(choice.AsJSON()));
   }
   obj["choices"] = picojson::value(choices_arr);
   obj["created"] = picojson::value((int64_t)this->created);

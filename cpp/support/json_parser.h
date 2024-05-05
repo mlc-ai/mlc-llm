@@ -12,6 +12,8 @@
 
 #include <optional>
 
+#include "result.h"
+
 namespace mlc {
 namespace llm {
 namespace json {
@@ -21,52 +23,31 @@ namespace json {
  * \param json_str The JSON string to parse.
  * \return The parsed JSON object.
  */
-picojson::object ParseToJsonObject(const std::string& json_str);
-
-// Todo(mlc-team): implement "Result<T, E>" class for JSON parsing with error collection.
-/*!
- * \brief Parse input JSON string into JSON dict.
- * Any error will be dumped to the input error string.
- */
-inline std::optional<picojson::object> LoadJSONFromString(const std::string& json_str,
-                                                          std::string* err) {
-  ICHECK_NOTNULL(err);
-  picojson::value json;
-  *err = picojson::parse(json, json_str);
-  if (!json.is<picojson::object>()) {
-    *err += "The input JSON string does not correspond to a JSON dict.";
-    return std::nullopt;
-  }
-  return json.get<picojson::object>();
+inline picojson::object ParseToJSONObject(const std::string& json_str) {
+  picojson::value result;
+  std::string err = picojson::parse(result, json_str);
+  CHECK(err.empty()) << "Failed to parse JSON: err. The JSON string is:" << json_str;
+  CHECK(result.is<picojson::object>())
+      << "ValueError: The given string is not a JSON object: " << json_str;
+  return result.get<picojson::object>();
 }
-
 /*!
- * \brief  // Todo(mlc-team): document this function.
- * \tparam T
- * \param json_obj
- * \param field
- * \param value
- * \param err
- * \param required
- * \return
+ * \brief Parse a JSON string to a JSON object.
+ * \param json_str The JSON string to parse.
+ * \return The parsed JSON object, or the error message.
  */
-template <typename T>
-inline bool ParseJSONField(const picojson::object& json_obj, const std::string& field, T& value,
-                           std::string* err, bool required) {
-  // T can be int, double, bool, string, picojson::array
-  if (json_obj.count(field)) {
-    if (!json_obj.at(field).is<T>()) {
-      *err += "Field " + field + " is not of type " + typeid(T).name() + "\n";
-      return false;
-    }
-    value = json_obj.at(field).get<T>();
-  } else {
-    if (required) {
-      *err += "Field " + field + " is required\n";
-      return false;
-    }
+inline Result<picojson::object> ParseToJSONObjectWithResultReturn(const std::string& json_str) {
+  using TResult = Result<picojson::object>;
+  picojson::value result;
+  std::string err = picojson::parse(result, json_str);
+  if (!err.empty()) {
+    return TResult::Error("Failed to parse JSON: err. The JSON string is: " + json_str +
+                          ". The error is " + err);
   }
-  return true;
+  if (!result.is<picojson::object>()) {
+    return TResult::Error("ValueError: The given string is not a JSON object: " + json_str);
+  }
+  return TResult::Ok(result.get<picojson::object>());
 }
 
 /*!
@@ -87,6 +68,109 @@ ValueType Lookup(const picojson::object& json, const std::string& key);
  */
 template <typename ValueType>
 ValueType Lookup(const picojson::array& json, int index);
+/*!
+ * \brief Lookup a JSON object by a key, and convert it to a given type.
+ * If the key doesn't exist or has null value, the default value is returned.
+ * \param json The JSON object to look up.
+ * \param key The key to look up.
+ * \tparam ValueType The type to be converted to.
+ * \return The converted value, or the default value if the key doesn't exist or has null value.
+ */
+template <typename ValueType>
+inline ValueType LookupOrDefault(const picojson::object& json, const std::string& key,
+                                 const ValueType& default_value) {
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return default_value;
+  }
+  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
+  return it->second.get<ValueType>();
+}
+/*!
+ * \brief Lookup a JSON object by a key, and convert it to a given type.
+ * If the key doesn't exist or has null value, return std::nullopt.
+ * \param json The JSON object to look up.
+ * \param key The key to look up.
+ * \tparam ValueType The type to be converted to.
+ * \return The converted value, or std::nullopt if the value doesn't exist or has null value.
+ */
+template <typename ValueType>
+inline std::optional<ValueType> LookupOptional(const picojson::object& json,
+                                               const std::string& key) {
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return std::nullopt;
+  }
+  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
+  return it->second.get<ValueType>();
+}
+/*!
+ * \brief Lookup a JSON object by a key, and convert it to a given type.
+ * \param json The JSON object to look up.
+ * \param key The key to look up.
+ * \tparam ValueType The type to be converted to.
+ * \return The converted value, or the error message.
+ */
+template <typename ValueType>
+inline Result<ValueType> LookupWithResultReturn(const picojson::object& json,
+                                                const std::string& key) {
+  using TResult = Result<ValueType>;
+  auto it = json.find(key);
+  if (it == json.end()) {
+    return TResult::Error("ValueError: key \"" + key + "\" not found in the JSON object");
+  }
+  if (!it->second.is<ValueType>()) {
+    return TResult::Error("ValueError: key \"" + key + "\" has unexpected value type.");
+  }
+  return TResult::Ok(it->second.get<ValueType>());
+}
+/*!
+ * \brief Lookup a JSON object by a key, and convert it to a given type.
+ * If the key doesn't exist or has null value, the default value is returned.
+ * \param json The JSON object to look up.
+ * \param key The key to look up.
+ * \tparam ValueType The type to be converted to.
+ * \return The converted value, or the default value if the key doesn't exist or has null value
+ * , or the error message.
+ */
+template <typename ValueType>
+inline Result<ValueType> LookupOrDefaultWithResultReturn(const picojson::object& json,
+                                                         const std::string& key,
+                                                         const ValueType& default_value) {
+  using TResult = Result<ValueType>;
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return TResult::Ok(default_value);
+  }
+  if (!it->second.is<ValueType>()) {
+    return TResult::Error("ValueError: key \"" + key + "\" has unexpected value type.");
+  }
+  return TResult::Ok(it->second.get<ValueType>());
+}
+/*!
+ * \brief Lookup a JSON object by a key, and convert it to a given type.
+ * If the key doesn't exist or has null value, return std::nullopt.
+ * \param json The JSON object to look up.
+ * \param key The key to look up.
+ * \tparam ValueType The type to be converted to.
+ * \return The converted value, or std::nullopt if the value doesn't exist or has null value,
+ * , or the error message.
+ */
+template <typename ValueType>
+inline Result<std::optional<ValueType>> LookupOptionalWithResultReturn(const picojson::object& json,
+                                                                       const std::string& key) {
+  using TResult = Result<std::optional<ValueType>>;
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return TResult::Ok(std::nullopt);
+  }
+  if (!it->second.is<ValueType>()) {
+    return TResult::Error("ValueError: key \"" + key + "\" has unexpected value type.");
+  }
+  return TResult::Ok(it->second.get<ValueType>());
+}
+
+// Implementation details
 
 /*! \brief ShapeTuple extension to incorporate symbolic shapes. */
 struct SymShapeTuple {
@@ -111,8 +195,6 @@ struct SymShapeTuple {
     return tvm::runtime::ShapeTuple(std::move(shape));
   }
 };
-
-// Implementation details
 
 namespace details {
 
@@ -150,33 +232,6 @@ inline ValueType Lookup(const picojson::object& json, const std::string& key) {
 }
 
 template <typename ValueType>
-inline ValueType LookupOrDefault(const picojson::object& json, const std::string& key,
-                                 const ValueType& default_value) {
-  auto it = json.find(key);
-  if (it == json.end()) {
-    return default_value;
-  }
-
-  if (it->second.is<picojson::null>()) {
-    return default_value;
-  }
-
-  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
-  return it->second.get<ValueType>();
-}
-
-template <typename ValueType>
-inline std::optional<ValueType> LookupOptional(const picojson::object& json,
-                                               const std::string& key) {
-  auto it = json.find(key);
-  if (it == json.end() || it->second.is<picojson::null>()) {
-    return std::nullopt;
-  }
-  CHECK(it->second.is<ValueType>()) << "ValueError: key `" << key << "` has unexpected type";
-  return it->second.get<ValueType>();
-}
-
-template <typename ValueType>
 inline ValueType Lookup(const picojson::array& json, int index) {
   CHECK(index < json.size()) << "IndexError: json::array index out of range";
   auto value = json.at(index);
@@ -203,17 +258,6 @@ inline SymShapeTuple Lookup(const picojson::object& json, const std::string& key
 template <>
 inline SymShapeTuple Lookup(const picojson::array& json, int index) {
   return details::SymShapeTupleFromArray(Lookup<picojson::array>(json, index));
-}
-
-inline picojson::object ParseToJsonObject(const std::string& json_str) {
-  picojson::value result;
-  std::string err = picojson::parse(result, json_str);
-  if (!err.empty()) {
-    LOG(FATAL) << "Failed to parse JSON: err. The JSON string is:" << json_str;
-  }
-  CHECK(result.is<picojson::object>())
-      << "ValueError: The given string is not a JSON object: " << json_str;
-  return result.get<picojson::object>();
 }
 
 }  // namespace json

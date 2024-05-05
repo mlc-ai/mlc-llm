@@ -41,16 +41,16 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
   response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
   response.system_fingerprint = "";
 
-  this->request_stream_callback_(Array<String>{picojson::value(response.ToJSON()).serialize()});
+  this->request_stream_callback_(Array<String>{picojson::value(response.AsJSON()).serialize()});
 }
 
 bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
-  std::optional<ChatCompletionRequest> optional_request =
-      ChatCompletionRequest::FromJSON(request_json_str, &err_);
-  if (!optional_request.has_value()) {
+  Result<ChatCompletionRequest> request_res = ChatCompletionRequest::FromJSON(request_json_str);
+  if (request_res.IsErr()) {
+    err_ = request_res.UnwrapErr();
     return false;
   }
-  ChatCompletionRequest request = optional_request.value();
+  ChatCompletionRequest request = request_res.Unwrap();
   // Create Request
   // TODO: Check if request_id is present already
 
@@ -74,17 +74,20 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   conv_template.messages = messages;
 
   // check function calling
-  bool success_check = request.CheckFunctionCalling(conv_template, &err_);
-  if (!success_check) {
+  Result<Conversation> updated_conv_template = request.CheckFunctionCalling(conv_template);
+  if (updated_conv_template.IsErr()) {
+    err_ = updated_conv_template.UnwrapErr();
     return false;
   }
+  conv_template = updated_conv_template.Unwrap();
 
   // get prompt
-  std::optional<Array<Data>> inputs_obj = conv_template.AsPrompt(&err_);
-  if (!inputs_obj.has_value()) {
+  Result<std::vector<Data>> inputs_obj = conv_template.AsPrompt();
+  if (inputs_obj.IsErr()) {
+    err_ = inputs_obj.UnwrapErr();
     return false;
   }
-  Array<Data> inputs = inputs_obj.value();
+  Array<Data> inputs = inputs_obj.Unwrap();
 
   // generation_cfg
   Array<String> stop_strs;
@@ -162,18 +165,17 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     this->engine_->Reload(engine_config_json_str);
     this->default_generation_cfg_json_str_ = this->engine_->GetDefaultGenerationConfigJSONString();
     picojson::object engine_config_json =
-        json::ParseToJsonObject(this->engine_->GetCompleteEngineConfigJSONString());
+        json::ParseToJSONObject(this->engine_->GetCompleteEngineConfigJSONString());
 
     // Load conversation template.
     Result<picojson::object> model_config_json =
         serve::Model::LoadModelConfig(json::Lookup<std::string>(engine_config_json, "model"));
     CHECK(model_config_json.IsOk()) << model_config_json.UnwrapErr();
-    std::optional<Conversation> conv_template = Conversation::FromJSON(
-        json::Lookup<picojson::object>(model_config_json.Unwrap(), "conv_template"), &err_);
-    if (!conv_template.has_value()) {
-      LOG(FATAL) << "Invalid conversation template JSON: " << err_;
-    }
-    this->conv_template_ = conv_template.value();
+    Result<Conversation> conv_template = Conversation::FromJSON(
+        json::Lookup<picojson::object>(model_config_json.Unwrap(), "conv_template"));
+    CHECK(!conv_template.IsErr()) << "Invalid conversation template JSON: "
+                                  << conv_template.UnwrapErr();
+    this->conv_template_ = conv_template.Unwrap();
     // Create streamer.
     // Todo(mlc-team): Create one streamer for each request, instead of a global one.
     this->streamer_ =
@@ -240,7 +242,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       response.choices = choices;
       response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
       response.system_fingerprint = "";
-      response_arr.push_back(picojson::value(response.ToJSON()).serialize());
+      response_arr.push_back(picojson::value(response.AsJSON()).serialize());
     }
     return response_arr;
   }

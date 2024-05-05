@@ -420,7 +420,7 @@ BNFGrammar EBNFParser::Parse(std::string ebnf_string, std::string main_rule) {
 
 BNFGrammar BNFJSONParser::Parse(std::string json_string) {
   auto node = make_object<BNFGrammarNode>();
-  auto grammar_json = json::ParseToJsonObject(json_string);
+  auto grammar_json = json::ParseToJSONObject(json_string);
   auto rules_json = json::Lookup<picojson::array>(grammar_json, "rules");
   for (const auto& rule_json : rules_json) {
     auto rule_json_obj = rule_json.get<picojson::object>();

@@ -90,7 +90,7 @@ ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
   std::string json_str = "";
   TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
   json_str = pf();
-  picojson::object json = json::ParseToJsonObject(json_str);
+  picojson::object json = json::ParseToJSONObject(json_str);
   try {
     return ModelMetadata::FromJSON(json, model_config);
   } catch (const std::exception& e) {
