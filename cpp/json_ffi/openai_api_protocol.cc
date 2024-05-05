@@ -5,7 +5,7 @@
  */
 #include "openai_api_protocol.h"
 
-#include "../metadata/json_parser.h"
+#include "../support/json_parser.h"
 
 namespace mlc {
 namespace llm {

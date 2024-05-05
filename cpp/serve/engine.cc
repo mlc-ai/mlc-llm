@@ -12,10 +12,13 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <numeric>
 #include <optional>
 #include <tuple>
 #include <unordered_set>
 
+#include "../support/json_parser.h"
+#include "../support/result.h"
 #include "../tokenizers.h"
 #include "engine_actions/action.h"
 #include "engine_actions/action_commons.h"
@@ -44,103 +47,150 @@ class EngineImpl : public Engine {
  public:
   /********************** Engine Management **********************/
 
-  explicit EngineImpl(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
-                      Optional<EventTraceRecorder> trace_recorder) {
-    // Step 1. Initialize metadata and singleton states inside the engine
-    this->estate_->Reset();
-    // Being "-1" means there is no limit on single sequence length.
-    if (engine_config->max_single_sequence_length == -1) {
-      engine_config->max_single_sequence_length = std::numeric_limits<int>::max();
-    }
-    this->request_stream_callback_ = std::move(request_stream_callback);
-    this->trace_recorder_ = trace_recorder;
-    this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
-    this->token_table_ = tokenizer_->TokenTable();
-    this->grammar_init_context_storage_ = GrammarInitContextStorage(this->token_table_);
-    // Step 2. Initialize each model independently.
-    //         Create the logit processor and sampler.
-    this->models_.clear();
-    this->model_workspaces_.clear();
+  static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
+                                             DLDevice device,
+                                             Optional<PackedFunc> request_stream_callback,
+                                             Optional<EventTraceRecorder> trace_recorder) {
+    using TResult = Result<EngineCreationOutput>;
+    std::unique_ptr<EngineImpl> n = std::make_unique<EngineImpl>();
 
-    auto f_create_model = [this, &engine_config, &trace_recorder](const String& model_path,
-                                                                  const String& model_lib_path) {
-      Model model = Model::Create(model_lib_path, std::move(model_path), engine_config->device,
-                                  engine_config->max_num_sequence,
+    // - Read the models and model libs from the EngineConfig JSON string.
+    Result<std::vector<std::pair<std::string, std::string>>> models_and_model_libs_res =
+        EngineConfig::GetModelsAndModelLibsFromJSONString(engine_config_json_str);
+    if (models_and_model_libs_res.IsErr()) {
+      return TResult::Error(models_and_model_libs_res.UnwrapErr());
+    }
+    std::vector<std::pair<std::string, std::string>> models_and_model_libs =
+        models_and_model_libs_res.Unwrap();
+    ICHECK_GE(models_and_model_libs.size(), 1);
+    // - Initialize singleton states inside the engine.
+    n->estate_->Reset();
+    n->request_stream_callback_ = std::move(request_stream_callback);
+    n->trace_recorder_ = trace_recorder;
+    n->device_ = device;
+    // - Load model config, create a shared disco session when tensor
+    // parallelism is enabled.
+    std::vector<picojson::object> model_configs;
+    for (int i = 0; i < static_cast<int>(models_and_model_libs.size()); ++i) {
+      const auto& [model_str, model_lib] = models_and_model_libs[i];
+      Result<picojson::object> model_config_res = Model::LoadModelConfig(model_str);
+      if (model_config_res.IsErr()) {
+        return TResult::Error("Model " + std::to_string(i) +
+                              " has invalid mlc-chat-config.json: " + model_config_res.UnwrapErr());
+      }
+      model_configs.push_back(model_config_res.Unwrap());
+    }
+    Optional<Session> session = n->CreateDiscoSession(model_configs, device);
+    // - Initialize each model independently.
+    n->models_.clear();
+    for (int i = 0; i < static_cast<int>(models_and_model_libs.size()); ++i) {
+      const auto& [model_str, model_lib] = models_and_model_libs[i];
+      Model model = Model::Create(model_lib, model_str, model_configs[i], device, session,
                                   /*trace_enabled=*/trace_recorder.defined());
+      n->models_.push_back(model);
+    }
+    // - Automatically infer the missing fields in EngineConfig JSON strings
+    // and get the final EngineConfig.
+    Result<EngineConfig> engine_config_res =
+        n->AutoDecideEngineConfig(engine_config_json_str, model_configs);
+    if (engine_config_res.IsErr()) {
+      return TResult::Error(engine_config_res.UnwrapErr());
+    }
+    EngineConfig engine_config = engine_config_res.Unwrap();
+    // - Load model weights, create KV cache and workspace.
+    n->model_workspaces_.clear();
+    for (const Model& model : n->models_) {
+      model->LoadParams();
+      model->SetMaxNumSequence(engine_config->max_num_sequence);
+      model->SetPrefillChunkSize(engine_config->prefill_chunk_size);
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
                            engine_config->max_total_sequence_length,
                            engine_config->prefill_chunk_size, engine_config->max_history_size,
                            engine_config->kv_state_kind);
-      CHECK_GE(model->GetMaxWindowSize(), engine_config->max_single_sequence_length)
-          << "The window size of the model, " << model->GetMaxWindowSize()
-          << ", is smaller than the pre-defined max single sequence length, "
-          << engine_config->max_single_sequence_length;
-      this->models_.push_back(model);
-      this->model_workspaces_.push_back(
+      n->model_workspaces_.push_back(
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
-    };
-
-    f_create_model(engine_config->model, engine_config->model_lib_path);
-    CHECK_EQ(engine_config->additional_models.size(),
-             engine_config->additional_model_lib_paths.size())
-        << "The additional model and lib path list has mismatched size.";
-    for (int i = 0; i < static_cast<int>(engine_config->additional_models.size()); ++i) {
-      f_create_model(engine_config->additional_models[i],
-                     engine_config->additional_model_lib_paths[i]);
     }
-
+    // - Initialize tokenizer and grammar
+    n->tokenizer_ = Tokenizer::FromPath(engine_config->model);
+    std::string token_table_postproc_method;
+    if (model_configs[0].count("token_table_postproc_method") == 0) {
+      // Backward compatibility: use "byte_fallback" by default
+      token_table_postproc_method = "byte_fallback";
+    } else {
+      token_table_postproc_method =
+          model_configs[0].at("token_table_postproc_method").get<std::string>();
+    }
+    n->token_table_ =
+        Tokenizer::PostProcessTokenTable(n->tokenizer_->TokenTable(), token_table_postproc_method);
+    n->grammar_init_context_storage_ = GrammarInitContextStorage(n->token_table_);
+    // - Create the logit processor and sampler, and
+    // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
+    DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
       max_num_tokens *= engine_config->spec_draft_length + 1;
+      draft_token_workspace_manager =
+          n->models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens);
+      draft_token_workspace_manager->AllocWorkspace(
+          &n->model_workspaces_[0],
+          /*require_hidden_states=*/engine_config->speculative_mode == SpeculativeMode::kEagle);
     }
     LogitProcessor logit_processor =
-        this->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
-    Sampler sampler = this->models_[0]->CreateSampler(
-        max_num_tokens, static_cast<int>(this->models_.size()), trace_recorder);
-    // Step 3. Initialize engine actions that represent state transitions.
+        n->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
+    Sampler sampler = n->models_[0]->CreateSampler(
+        max_num_tokens, static_cast<int>(n->models_.size()), trace_recorder);
+    // - Initialize engine actions that represent state transitions.
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
       // Speculative decoding is only possible for more than one model.
-      ICHECK_GT(this->models_.size(), 1U);
+      ICHECK_GT(n->models_.size(), 1U);
       switch (engine_config->speculative_mode) {
         case SpeculativeMode::kEagle:
-          this->actions_ = {EngineAction::EagleNewRequestPrefill(this->models_,            //
-                                                                 logit_processor,          //
-                                                                 sampler,                  //
-                                                                 this->model_workspaces_,  //
-                                                                 engine_config,            //
-                                                                 this->trace_recorder_),
-                            EngineAction::EagleBatchDraft(
-                                this->models_, logit_processor, sampler, this->model_workspaces_,
-                                this->trace_recorder_, engine_config->spec_draft_length),
-                            EngineAction::EagleBatchVerify(this->models_, logit_processor, sampler,
-                                                           this->model_workspaces_, engine_config,
-                                                           this->trace_recorder_)};
+          n->actions_ = {
+              EngineAction::EagleNewRequestPrefill(n->models_,                     //
+                                                   logit_processor,                //
+                                                   sampler,                        //
+                                                   n->model_workspaces_,           //
+                                                   draft_token_workspace_manager,  //
+                                                   engine_config,                  //
+                                                   n->trace_recorder_),
+              EngineAction::EagleBatchDraft(n->models_, logit_processor, sampler,
+                                            n->model_workspaces_, draft_token_workspace_manager,
+                                            n->trace_recorder_, engine_config->spec_draft_length),
+              EngineAction::EagleBatchVerify(n->models_, logit_processor, sampler,
+                                             n->model_workspaces_, draft_token_workspace_manager,
+                                             engine_config, n->trace_recorder_)};
           break;
         default:
-          this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
-                                                            logit_processor,          //
-                                                            sampler,                  //
-                                                            this->model_workspaces_,  //
-                                                            engine_config,            //
-                                                            this->trace_recorder_),
-                            EngineAction::BatchDraft(this->models_, logit_processor, sampler,
-                                                     this->trace_recorder_),
-                            EngineAction::BatchVerify(this->models_, logit_processor, sampler,
-                                                      engine_config, this->trace_recorder_)};
+          n->actions_ = {
+              EngineAction::NewRequestPrefill(n->models_,            //
+                                              logit_processor,       //
+                                              sampler,               //
+                                              n->model_workspaces_,  //
+                                              engine_config,         //
+                                              n->trace_recorder_),
+              EngineAction::BatchDraft(n->models_, logit_processor, sampler, n->model_workspaces_,
+                                       draft_token_workspace_manager, n->trace_recorder_),
+              EngineAction::BatchVerify(n->models_, logit_processor, sampler, n->model_workspaces_,
+                                        draft_token_workspace_manager, engine_config,
+                                        n->trace_recorder_)};
       }
     } else {
-      this->actions_ = {EngineAction::NewRequestPrefill(this->models_,            //
-                                                        logit_processor,          //
-                                                        sampler,                  //
-                                                        this->model_workspaces_,  //
-                                                        engine_config,            //
-                                                        this->trace_recorder_),
-                        EngineAction::BatchDecode(this->models_, logit_processor, sampler,
-                                                  this->trace_recorder_)};
+      n->actions_ = {
+          EngineAction::NewRequestPrefill(n->models_,            //
+                                          logit_processor,       //
+                                          sampler,               //
+                                          n->model_workspaces_,  //
+                                          engine_config,         //
+                                          n->trace_recorder_),
+          EngineAction::BatchDecode(n->models_, logit_processor, sampler, n->trace_recorder_)};
     }
-    // Step 4. Automatically set the threading backend max concurrency.
-    this->engine_config_ = engine_config;
-    SetThreadMaxConcurrency();
+    // - Automatically set the threading backend max concurrency.
+    n->engine_config_ = engine_config;
+    n->SetThreadMaxConcurrency();
+    // - Get the default generation config from the first model.
+    GenerationConfig default_generation_cfg =
+        GenerationConfig::GetDefaultFromModelConfig(model_configs[0]);
+    return TResult::Ok({std::move(n), std::move(engine_config), std::move(default_generation_cfg)});
   }
 
   void Reset() final {
@@ -286,6 +336,52 @@ class EngineImpl : public Engine {
            "action (e.g. prefill, decode, etc.) but it does not.";
   }
 
+  /************** Utility Functions **************/
+  Optional<Session> CreateDiscoSession(const std::vector<picojson::object>& model_configs,
+                                       Device device) {
+    const auto& base_model_config = model_configs[0];
+
+    auto f_get_num_shards = [](const picojson::object& model_config) -> int {
+      constexpr auto kNumShardsKey = "tensor_parallel_shards";
+      if (model_config.count(kNumShardsKey)) {
+        const auto& val = model_config.at(kNumShardsKey);
+        CHECK(val.is<int64_t>());
+        return static_cast<int>(val.get<int64_t>());
+      } else {
+        LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
+      }
+      throw;
+    };
+
+    int num_shards = std::transform_reduce(
+        model_configs.begin(), model_configs.end(), 1, [](int a, int b) { return std::max(a, b); },
+        f_get_num_shards);
+    Optional<Session> session = NullOpt;
+    if (num_shards > 1) {
+      constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
+      if (Registry::Get(f_create_process_pool) == nullptr) {
+        LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
+                   << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
+      }
+      std::string ccl;
+      if (device.device_type == kDLCUDA) {
+        ccl = "nccl";
+      } else if (device.device_type == kDLROCM) {
+        ccl = "rccl";
+      } else {
+        LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
+                   << " is not supported. Currently, only NCCL and RCCL are integrated.";
+      }
+      std::vector<int64_t> device_ids(num_shards);
+      for (int i = 0; i < num_shards; ++i) {
+        device_ids[i] = i;
+      }
+      session = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
+      session.value()->InitCCL(ccl, ShapeTuple(device_ids));
+    }
+    return session;
+  }
+
   /************** Debug/Profile **************/
 
   void DebugCallFuncOnAllAllWorker(const String& func_name) final {
@@ -294,6 +390,95 @@ class EngineImpl : public Engine {
   }
 
  private:
+  Result<EngineConfig> AutoDecideEngineConfig(const std::string& engine_config_json_str,
+                                              const std::vector<picojson::object>& model_configs) {
+    using TResult = Result<EngineConfig>;
+    picojson::value config_json;
+    std::string err = picojson::parse(config_json, engine_config_json_str);
+    if (!err.empty()) {
+      return TResult::Error(err);
+    }
+    picojson::object config = config_json.get<picojson::object>();
+    ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+
+    // - Get the engine mode and maximum GPU utilization for inference.
+    EngineMode mode = EngineModeFromString(json::Lookup<std::string>(config, "mode"));
+    double gpu_memory_utilization =
+        json::LookupOrDefault<double>(config, "gpu_memory_utilization", n->gpu_memory_utilization);
+    bool verbose = json::LookupOrDefault<bool>(config, "verbose", n->verbose);
+
+    // - Get the config fields that can be automatically inferred.
+    std::optional<int64_t> max_num_sequence =
+        json::LookupOptional<int64_t>(config, "max_num_sequence");
+    std::optional<int64_t> max_total_sequence_length =
+        json::LookupOptional<int64_t>(config, "max_total_sequence_length");
+    std::optional<int64_t> max_single_sequence_length =
+        json::LookupOptional<int64_t>(config, "max_single_sequence_length");
+    std::optional<int64_t> prefill_chunk_size =
+        json::LookupOptional<int64_t>(config, "prefill_chunk_size");
+    std::optional<int64_t> max_history_size =
+        json::LookupOptional<int64_t>(config, "max_history_size");
+    std::optional<std::string> kv_state_kind_str =
+        json::LookupOptional<std::string>(config, "kv_state_kind");
+    std::optional<KVStateKind> kv_state_kind;
+    if (kv_state_kind_str.has_value()) {
+      kv_state_kind = KVStateKindFromString(kv_state_kind_str.value());
+    }
+    InferrableEngineConfig inferrable_cfg{max_num_sequence,           max_total_sequence_length,
+                                          max_single_sequence_length, prefill_chunk_size,
+                                          max_history_size,           kv_state_kind};
+
+    // - Get the model metadata.
+    std::vector<ModelMetadata> model_metadata;
+    for (const Model& model : models_) {
+      model_metadata.push_back(model->GetMetadata());
+    }
+    // - Select from kv cache or RNN state.
+    Result<bool> use_kv_cache = ModelsUseKVCache(model_configs);
+    if (use_kv_cache.IsErr()) {
+      return TResult::Error(use_kv_cache.UnwrapErr());
+    }
+    KVStateKind inferred_kv_state_kind;
+    Result<InferrableEngineConfig> inferrable_cfg_res;
+    if (use_kv_cache.Unwrap()) {
+      inferred_kv_state_kind = KVStateKind::kKVCache;
+      // - Check if the kv state kind from config is valid.
+      if (kv_state_kind.has_value() && kv_state_kind.value() != inferred_kv_state_kind) {
+        return TResult::Error(
+            "Invalid kv state kind in EngineConfig. The models use KV cache, but RNN state is "
+            "specified in EngineConfig.");
+      }
+      // - Infer configuration.
+      inferrable_cfg_res = InferrableEngineConfig::InferForKVCache(
+          mode, device_, gpu_memory_utilization, model_configs, model_metadata, inferrable_cfg,
+          verbose);
+    } else {
+      inferred_kv_state_kind = KVStateKind::kRNNState;
+      // - Check if the kv state kind from config is valid.
+      if (kv_state_kind.has_value() && kv_state_kind.value() != inferred_kv_state_kind) {
+        return TResult::Error(
+            "Invalid kv state kind in EngineConfig. The models use RNN state, but KV cache is "
+            "specified in EngineConfig.");
+      }
+      // - Infer configuration.
+      inferrable_cfg_res = InferrableEngineConfig::InferForRNNState(
+          mode, device_, gpu_memory_utilization, model_configs, model_metadata, inferrable_cfg,
+          verbose);
+    }
+
+    if (inferrable_cfg_res.IsErr()) {
+      return TResult::Error(inferrable_cfg_res.UnwrapErr());
+    }
+    inferrable_cfg = inferrable_cfg_res.Unwrap();
+    ICHECK(inferrable_cfg.max_num_sequence.has_value());
+    ICHECK(inferrable_cfg.max_total_sequence_length.has_value());
+    ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
+    ICHECK(inferrable_cfg.prefill_chunk_size.has_value());
+    ICHECK(inferrable_cfg.max_history_size.has_value());
+    ICHECK(inferrable_cfg.kv_state_kind.has_value());
+    return TResult::Ok(EngineConfig::FromJSONAndInferredConfig(config, inferrable_cfg));
+  }
+
   /*! \brief Set the maximum threading backend concurrency. */
   void SetThreadMaxConcurrency() {
     int host_cpu_usage = 1;
@@ -329,6 +514,8 @@ class EngineImpl : public Engine {
   GrammarInitContextStorage grammar_init_context_storage_;
   // Models
   Array<Model> models_;
+  // Device that the models run on.
+  Device device_;
   // Workspace of each model.
   std::vector<ModelWorkspace> model_workspaces_;
   // Request stream callback function
@@ -339,11 +526,12 @@ class EngineImpl : public Engine {
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
-std::unique_ptr<Engine> Engine::Create(EngineConfig engine_config,
-                                       Optional<PackedFunc> request_stream_callback,
-                                       Optional<EventTraceRecorder> trace_recorder) {
-  return std::make_unique<EngineImpl>(std::move(engine_config), std::move(request_stream_callback),
-                                      std::move(trace_recorder));
+Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_json_str,
+                                            Device device,
+                                            Optional<PackedFunc> request_stream_callback,
+                                            Optional<EventTraceRecorder> trace_recorder) {
+  return EngineImpl::Create(engine_config_json_str, device, std::move(request_stream_callback),
+                            std::move(trace_recorder));
 }
 
 /*! \brief Clear global memory manager */
@@ -365,13 +553,21 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
   TVM_MODULE_VTABLE_ENTRY("get_request_stream_callback", &EngineModule::GetRequestStreamCallback);
   TVM_MODULE_VTABLE_ENTRY("set_request_stream_callback", &EngineModule::SetRequestStreamCallback);
+  TVM_MODULE_VTABLE_ENTRY("get_default_generation_config",
+                          &EngineModule::GetDefaultGenerationConfigJSONString);
   TVM_MODULE_VTABLE_END();
 
   /*! \brief Initialize the engine with config and other fields. */
-  void Init(EngineConfig engine_config, Optional<PackedFunc> request_stream_callback,
+  void Init(const std::string& engine_config_json_str, Device device,
+            Optional<PackedFunc> request_stream_callback,
             Optional<EventTraceRecorder> trace_recorder) {
-    this->engine_ = Engine::Create(std::move(engine_config), std::move(request_stream_callback),
-                                   std::move(trace_recorder));
+    Result<EngineCreationOutput> output_res =
+        Engine::Create(engine_config_json_str, device, std::move(request_stream_callback),
+                       std::move(trace_recorder));
+    CHECK(output_res.IsOk()) << output_res.UnwrapErr();
+    EngineCreationOutput output = output_res.Unwrap();
+    this->engine_ = std::move(output.reloaded_engine);
+    this->default_generation_cfg_json_str_ = output.default_generation_cfg->AsJSONString();
   }
   /*! \brief Construct an EngineModule. */
   static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
@@ -393,6 +589,12 @@ class EngineModule : public ModuleNode {
   void Reset() { return GetEngine()->Reset(); }
   /*! \brief Redirection to `Engine::Stats` */
   String Stats() { return GetEngine()->Stats(); }
+  /*! \brief Return the default generation config string. */
+  String GetDefaultGenerationConfigJSONString() {
+    CHECK(!default_generation_cfg_json_str_.empty())
+        << "The default generation config has not been set.";
+    return default_generation_cfg_json_str_;
+  }
 
  private:
   Engine* GetEngine() {
@@ -401,6 +603,7 @@ class EngineModule : public ModuleNode {
   }
 
   std::unique_ptr<Engine> engine_ = nullptr;
+  String default_generation_cfg_json_str_;
 };
 
 TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);

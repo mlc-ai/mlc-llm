@@ -7,6 +7,7 @@
 #define MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 
 #include "../../tokenizers.h"
+#include "../draft_token_workspace_manager.h"
 #include "../engine.h"
 #include "../engine_state.h"
 #include "../event_trace_recorder.h"
@@ -52,12 +53,14 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
  * If it is not in the waiting request queue, add it to the waiting queue.
  * \param estate The engine state to update due to preemption.
  * \param models The models to remove preempted requests from.
- * \param trace_recorder The event trace recorder for requests.
- * \return The preempted request state.
+ * \param draft_token_workspace_manager The draft token workspace manager for requests. Must be
+ * provided if speculative decoding is enabled. \param trace_recorder The event trace recorder for
+ * requests. \return The preempted request state.
  */
-RequestStateEntry PreemptLastRunningRequestStateEntry(EngineState estate,
-                                                      const Array<Model>& models,
-                                                      Optional<EventTraceRecorder> trace_recorder);
+RequestStateEntry PreemptLastRunningRequestStateEntry(
+    EngineState estate, const Array<Model>& models,
+    Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
+    Optional<EventTraceRecorder> trace_recorder);
 
 /*! \brief Get the running request entries from the engine state. */
 inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const EngineState& estate) {

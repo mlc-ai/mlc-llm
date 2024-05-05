@@ -112,7 +112,7 @@ You can now locally deploy your compiled model with the MLC serve module. To fin
 
    python -m mlc_llm.serve.server \
       --model dist/CodeLlama-7b-hf-q4f16_1-MLC \
-      --model-lib-path ./dist/libs/CodeLlama-7b-hf-q4f16_1-cuda.so
+      --model-lib ./dist/libs/CodeLlama-7b-hf-q4f16_1-cuda.so
 
 Configure the IDE Extension
 ---------------------------

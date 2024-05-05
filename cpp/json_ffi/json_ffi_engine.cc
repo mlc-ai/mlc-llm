@@ -4,6 +4,10 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
+#include "../serve/model.h"
+#include "../support/json_parser.h"
+#include "../support/result.h"
+
 namespace mlc {
 namespace llm {
 namespace json_ffi {
@@ -83,13 +87,27 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   Array<Data> inputs = inputs_obj.value();
 
   // generation_cfg
-  Optional<GenerationConfig> generation_cfg = GenerationConfig::Create(
-      request_json_str, &err_, conv_template, this->model_generation_cfgs[request.model]);
-  if (!generation_cfg.defined()) {
-    return false;
+  Array<String> stop_strs;
+  stop_strs.reserve(conv_template.stop_str.size());
+  for (const std::string& stop_str : conv_template.stop_str) {
+    stop_strs.push_back(stop_str);
+  }
+  if (request.stop.has_value()) {
+    stop_strs.reserve(stop_strs.size() + request.stop.value().size());
+    for (const std::string& stop_str : request.stop.value()) {
+      stop_strs.push_back(stop_str);
+    }
   }
 
-  Request engine_request(request_id, inputs, generation_cfg.value());
+  GenerationConfig generation_cfg(request.n, request.temperature, request.top_p,
+                                  request.frequency_penalty, request.presence_penalty,
+                                  /*repetition_penalty=*/std::nullopt, request.logprobs,
+                                  request.top_logprobs, request.logit_bias, request.seed,
+                                  request.ignore_eos, request.max_tokens, std::move(stop_strs),
+                                  conv_template.stop_token_ids, /*response_format=*/std::nullopt,
+                                  this->default_generation_cfg_json_str_);
+
+  Request engine_request(request_id, inputs, generation_cfg);
   this->engine_->AddRequest(engine_request);
 
   return true;
@@ -122,22 +140,8 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_END();
 
-  void InitBackgroundEngine(JSONFFIEngineConfig json_ffi_engine_config, EngineConfig engine_config,
-                            Optional<PackedFunc> request_stream_callback,
+  void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
-    std::optional<Conversation> conv_template =
-        Conversation::FromJSON(json_ffi_engine_config->conv_template, &err_);
-    if (!conv_template.has_value()) {
-      LOG(FATAL) << "Invalid conversation template JSON: " << err_;
-    }
-    this->conv_template_ = conv_template.value();
-    this->model_generation_cfgs = json_ffi_engine_config->model_generation_cfgs;
-
-    // Todo(mlc-team): decouple InitBackgroundEngine into two functions
-    // by removing `engine_config` from arguments, after properly handling
-    // streamers.
-    this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
-
     CHECK(request_stream_callback.defined())
         << "JSONFFIEngine requires request stream callback function, but it is not given.";
     this->request_stream_callback_ = request_stream_callback.value();
@@ -150,12 +154,31 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    this->engine_->InitBackgroundEngine(std::move(request_stream_callback),
-                                        std::move(trace_recorder));
-    this->engine_->Reload(std::move(engine_config));
+    this->engine_->InitThreadedEngine(device, std::move(request_stream_callback),
+                                      std::move(trace_recorder));
   }
 
-  void Reload(EngineConfig engine_config) { this->engine_->Reload(std::move(engine_config)); }
+  void Reload(String engine_config_json_str) {
+    this->engine_->Reload(engine_config_json_str);
+    this->default_generation_cfg_json_str_ = this->engine_->GetDefaultGenerationConfigJSONString();
+    picojson::object engine_config_json =
+        json::ParseToJsonObject(this->engine_->GetCompleteEngineConfigJSONString());
+
+    // Load conversation template.
+    Result<picojson::object> model_config_json =
+        serve::Model::LoadModelConfig(json::Lookup<std::string>(engine_config_json, "model"));
+    CHECK(model_config_json.IsOk()) << model_config_json.UnwrapErr();
+    std::optional<Conversation> conv_template = Conversation::FromJSON(
+        json::Lookup<picojson::object>(model_config_json.Unwrap(), "conv_template"), &err_);
+    if (!conv_template.has_value()) {
+      LOG(FATAL) << "Invalid conversation template JSON: " << err_;
+    }
+    this->conv_template_ = conv_template.value();
+    // Create streamer.
+    // Todo(mlc-team): Create one streamer for each request, instead of a global one.
+    this->streamer_ =
+        TextStreamer(Tokenizer::FromPath(json::Lookup<std::string>(engine_config_json, "model")));
+  }
 
   void Unload() { this->engine_->Unload(); }
 

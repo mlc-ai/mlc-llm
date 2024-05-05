@@ -11,8 +11,6 @@ import psutil
 import requests
 from tvm.runtime import Device
 
-from mlc_llm.serve.config import SpeculativeMode
-
 
 class PopenServer:  # pylint: disable=too-many-instance-attributes
     """The wrapper of MLC LLM server, which runs the server in
@@ -23,14 +21,14 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         model: str,
         device: Union[str, Device] = "auto",
         *,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         additional_models: Optional[List[str]] = None,
         max_batch_size: Optional[int] = None,
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
         enable_tracing: bool = False,
         host: str = "127.0.0.1",
@@ -38,7 +36,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
     ) -> None:
         """Please check out `python/mlc_llm/cli/serve.py` for the server arguments."""
         self.model = model
-        self.model_lib_path = model_lib_path
+        self.model_lib = model_lib
         self.device = device
         self.mode = mode
         self.additional_models = additional_models
@@ -59,8 +57,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         """
         cmd = [sys.executable]
         cmd += ["-m", "mlc_llm", "serve", self.model]
-        if self.model_lib_path is not None:
-            cmd += ["--model-lib-path", self.model_lib_path]
+        if self.model_lib is not None:
+            cmd += ["--model-lib", self.model_lib]
         cmd += ["--device", self.device]
         if self.mode is not None:
             cmd += ["--mode", self.mode]
@@ -72,10 +70,10 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
             cmd += ["--max-total-seq-length", str(self.max_total_sequence_length)]
         if self.prefill_chunk_size is not None:
             cmd += ["--prefill-chunk-size", str(self.prefill_chunk_size)]
-        if self.speculative_mode != SpeculativeMode.DISABLE:
+        if self.speculative_mode != "disable":
             cmd += [
                 "--speculative-mode",
-                self.speculative_mode.name,
+                self.speculative_mode,
                 "--spec-draft-length",
                 str(self.spec_draft_length),
             ]

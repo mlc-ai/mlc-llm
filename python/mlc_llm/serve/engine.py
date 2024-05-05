@@ -22,7 +22,7 @@ from tvm.runtime import Device
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import GenerationConfig, SpeculativeMode
+from mlc_llm.serve.config import GenerationConfig
 from mlc_llm.serve.request import Request
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -63,8 +63,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         messages: List[Dict[str, Any]],
         stream: Literal[True],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -72,8 +72,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -112,8 +112,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -122,8 +122,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: Literal[False] = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -161,8 +161,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -171,8 +171,8 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -240,8 +240,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         messages: List[Dict[str, Any]],
         stream: Literal[True],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -249,8 +249,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -289,8 +289,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -299,8 +299,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: Literal[False] = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -336,8 +336,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -346,8 +346,8 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -417,8 +417,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -427,8 +427,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -467,8 +467,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -478,8 +478,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         stop: Optional[Union[str, List[str]]] = None,
         stream: Literal[False] = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -515,8 +515,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -526,8 +526,8 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -596,8 +596,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -606,8 +606,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -646,8 +646,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -657,8 +657,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         stop: Optional[Union[str, List[str]]] = None,
         stream: Literal[False] = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -694,8 +694,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -705,8 +705,8 @@ class Completion:  # pylint: disable=too-few-public-methods
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -758,7 +758,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
 
     Parameters
     ----------
-    models : str
+    model : str
         A path to ``mlc-chat-config.json``, or an MLC model directory that contains
         `mlc-chat-config.json`.
         It can also be a link to a HF repository pointing to an MLC compiled model.
@@ -767,10 +767,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         The device used to deploy the model such as "cuda" or "cuda:0".
         Will default to "auto" and detect from local available GPUs if not specified.
 
-    model_lib_path : Optional[str]
+    model_lib : Optional[str]
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over possible paths.
-        It the model lib path is not found, it will be compiled in a JIT manner.
+        It the model lib is not found, it will be compiled in a JIT manner.
 
     mode : Literal["local", "interactive", "server"]
         The engine mode in MLC LLM.
@@ -798,8 +798,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         The model paths and (optional) model library paths of additional models
         (other than the main model).
         When engine is enabled with speculative decoding, additional models are needed.
-        Each string in the list is either in form "model_path" or "model_path:model_lib_path".
-        When the model lib path of a model is not given, JIT model compilation will
+        Each string in the list is either in form "model_path" or "model_path:model_lib".
+        When the model lib of a model is not given, JIT model compilation will
         be activated to compile the model automatically.
 
     max_batch_size : Optional[int]
@@ -827,15 +827,20 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         significantly smaller than this number. Under mode "server", the actual
         memory usage may be slightly larger than this number.
 
-    engine_config : Optional[EngineConfig]
-        The MLCEngine execution configuration.
-        Currently speculative decoding mode is specified via engine config.
-        For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
-        to specify the eagle-style speculative decoding.
-        Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
+    speculative_mode : Literal["disable", "small_draft", "eagle"]
+        The speculative mode.
+        "disable" means speculative decoding is disabled.
+        "small_draft" means the normal speculative decoding (small draft) mode.
+        "eagle" means the eagle-style speculative decoding.
+
+    spec_draft_length : int
+        The number of tokens to generate in speculative proposal (draft).
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
+
+    verbose : bool
+        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -843,7 +848,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         model: str,
         device: Union[str, Device] = "auto",
         *,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         additional_models: Optional[List[str]] = None,
         max_batch_size: Optional[int] = None,
@@ -851,15 +856,16 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         prefill_chunk_size: Optional[int] = None,
         max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
         enable_tracing: bool = False,
+        verbose: bool = True,
     ) -> None:
         super().__init__(
             "async",
             model=model,
             device=device,
-            model_lib_path=model_lib_path,
+            model_lib=model_lib,
             mode=mode,
             additional_models=additional_models,
             max_batch_size=max_batch_size,
@@ -870,6 +876,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
             enable_tracing=enable_tracing,
+            verbose=verbose,
         )
         self.chat = Chat(weakref.ref(self))
         self.completions = AsyncCompletion(weakref.ref(self))
@@ -889,8 +896,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -899,8 +906,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -975,19 +982,26 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (
             [[] for _ in range(n)] if logprobs else None
         )
-        async for response in chatcmpl_generator:
-            num_prompt_tokens = response.usage.prompt_tokens
-            num_completion_tokens = response.usage.completion_tokens
-            for choice in response.choices:
-                assert isinstance(choice.delta.content, str)
-                output_texts[choice.index] += choice.delta.content
-                if choice.finish_reason is not None and finish_reasons[choice.index] is None:
-                    finish_reasons[choice.index] = choice.finish_reason
-                if choice.logprobs is not None:
-                    assert logprob_results is not None
-                    logprob_results[  # pylint: disable=unsupported-assignment-operation
-                        choice.index
-                    ] += choice.logprobs.content
+        try:
+            async for response in chatcmpl_generator:
+                num_prompt_tokens = response.usage.prompt_tokens
+                num_completion_tokens = response.usage.completion_tokens
+                for choice in response.choices:
+                    assert isinstance(choice.delta.content, str)
+                    output_texts[choice.index] += choice.delta.content
+                    if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                        finish_reasons[choice.index] = choice.finish_reason
+                    if choice.logprobs is not None:
+                        assert logprob_results is not None
+                        logprob_results[  # pylint: disable=unsupported-assignment-operation
+                            choice.index
+                        ] += choice.logprobs.content
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as err:  # pylint: disable=broad-exception-caught
+            logger.error("Error in chat completion with request ID %s: %s", request_id, err)
+            raise err
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         use_function_calling, tool_calls_list = engine_base.process_function_call_output(
@@ -1012,8 +1026,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -1023,8 +1037,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -1150,23 +1164,30 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
         num_completion_tokens = 0
         self.state.record_event(request_id, event="invoke generate")
-        async for delta_outputs in self._generate(
-            prompts, generation_cfg, request_id  # type: ignore
-        ):
-            response, num_completion_tokens = engine_base.process_chat_completion_stream_output(
-                delta_outputs,
-                request_id,
-                self.state,
-                request.model,
-                generation_cfg,
-                use_function_calling,
-                prompt_length,
-                finish_reasons,
-                num_completion_tokens,
-            )
-            if response is not None:
-                yield response
-        self.state.record_event(request_id, event="finish")
+        try:
+            async for delta_outputs in self._generate(
+                prompts, generation_cfg, request_id  # type: ignore
+            ):
+                response, num_completion_tokens = engine_base.process_chat_completion_stream_output(
+                    delta_outputs,
+                    request_id,
+                    self.state,
+                    request.model,
+                    generation_cfg,
+                    use_function_calling,
+                    prompt_length,
+                    finish_reasons,
+                    num_completion_tokens,
+                )
+                if response is not None:
+                    yield response
+            self.state.record_event(request_id, event="finish")
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as err:  # pylint: disable=broad-exception-caught
+            logger.error("Error in _handle_chat_completion for request %s: %s", request_id, err)
+            raise err
 
     async def _handle_completion(
         self, request: openai_api_protocol.CompletionRequest, request_id: str
@@ -1194,7 +1215,6 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             request,
             request_id,
             self.state,
-            self.model_config_dicts[0],
             self.tokenizer,
             self.max_input_sequence_length,
         )
@@ -1204,28 +1224,35 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         num_completion_tokens = 0
         finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
         self.state.record_event(request_id, event="invoke generate")
-        async for delta_outputs in self._generate(
-            prompt, generation_cfg, request_id  # type: ignore
-        ):
-            response, num_completion_tokens = engine_base.process_completion_stream_output(
-                delta_outputs,
-                request_id,
-                self.state,
-                request.model,
-                generation_cfg,
-                prompt_length,
-                finish_reasons,
-                num_completion_tokens,
-            )
-            if response is not None:
-                yield response
+        try:
+            async for delta_outputs in self._generate(
+                prompt, generation_cfg, request_id  # type: ignore
+            ):
+                response, num_completion_tokens = engine_base.process_completion_stream_output(
+                    delta_outputs,
+                    request_id,
+                    self.state,
+                    request.model,
+                    generation_cfg,
+                    prompt_length,
+                    finish_reasons,
+                    num_completion_tokens,
+                )
+                if response is not None:
+                    yield response
 
-        suffix_response = engine_base.create_completion_suffix_response(
-            request, request_id, prompt_length, finish_reasons, num_completion_tokens
-        )
-        if suffix_response is not None:
-            yield suffix_response
-        self.state.record_event(request_id, event="finish")
+            suffix_response = engine_base.create_completion_suffix_response(
+                request, request_id, prompt_length, finish_reasons, num_completion_tokens
+            )
+            if suffix_response is not None:
+                yield suffix_response
+            self.state.record_event(request_id, event="finish")
+        except (
+            Exception,
+            asyncio.CancelledError,
+        ) as err:  # pylint: disable=broad-exception-caught
+            logger.error("Error in _handle_completion for request %s: %s", request_id, err)
+            raise err
 
     async def _generate(
         self,
@@ -1264,7 +1291,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = Request(request_id, input_data, generation_config)
+        request = Request(
+            request_id, input_data, generation_config, self.default_generation_cfg_json_str
+        )
 
         # Create the unique async request stream of the request.
         stream = engine_base.AsyncRequestStream()
@@ -1293,6 +1322,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             Exception,
             asyncio.CancelledError,
         ) as exception:  # pylint: disable=broad-exception-caught
+            logger.error("Error in _generate for request %s: %s", request_id, exception)
             await self.abort(request_id)
             raise exception
 
@@ -1309,7 +1339,7 @@ class MLCEngine(engine_base.MLCEngineBase):
 
     Parameters
     ----------
-    models : str
+    model : str
         A path to ``mlc-chat-config.json``, or an MLC model directory that contains
         `mlc-chat-config.json`.
         It can also be a link to a HF repository pointing to an MLC compiled model.
@@ -1318,10 +1348,10 @@ class MLCEngine(engine_base.MLCEngineBase):
         The device used to deploy the model such as "cuda" or "cuda:0".
         Will default to "auto" and detect from local available GPUs if not specified.
 
-    model_lib_path : Optional[str]
+    model_lib : Optional[str]
         The full path to the model library file to use (e.g. a ``.so`` file).
         If unspecified, we will use the provided ``model`` to search over possible paths.
-        It the model lib path is not found, it will be compiled in a JIT manner.
+        It the model lib is not found, it will be compiled in a JIT manner.
 
     mode : Literal["local", "interactive", "server"]
         The engine mode in MLC LLM.
@@ -1349,8 +1379,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         The model paths and (optional) model library paths of additional models
         (other than the main model).
         When engine is enabled with speculative decoding, additional models are needed.
-        Each string in the list is either in form "model_path" or "model_path:model_lib_path".
-        When the model lib path of a model is not given, JIT model compilation will
+        Each string in the list is either in form "model_path" or "model_path:model_lib".
+        When the model lib of a model is not given, JIT model compilation will
         be activated to compile the model automatically.
 
     max_batch_size : Optional[int]
@@ -1375,15 +1405,20 @@ class MLCEngine(engine_base.MLCEngineBase):
         significantly smaller than this number. Under mode "server", the actual
         memory usage may be slightly larger than this number.
 
-    engine_config : Optional[EngineConfig]
-        The MLCEngine execution configuration.
-        Currently speculative decoding mode is specified via engine config.
-        For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'"
-        to specify the eagle-style speculative decoding.
-        Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
+    speculative_mode : Literal["disable", "small_draft", "eagle"]
+        The speculative mode.
+        "disable" means speculative decoding is disabled.
+        "small_draft" means the normal speculative decoding (small draft) mode.
+        "eagle" means the eagle-style speculative decoding.
+
+    spec_draft_length : int
+        The number of tokens to generate in speculative proposal (draft).
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
+
+    verbose : bool
+        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments
@@ -1391,7 +1426,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         model: str,
         device: Union[str, Device] = "auto",
         *,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         additional_models: Optional[List[str]] = None,
         max_batch_size: Optional[int] = None,
@@ -1399,15 +1434,16 @@ class MLCEngine(engine_base.MLCEngineBase):
         prefill_chunk_size: Optional[int] = None,
         max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
         enable_tracing: bool = False,
+        verbose: bool = True,
     ) -> None:
         super().__init__(
             "sync",
             model=model,
             device=device,
-            model_lib_path=model_lib_path,
+            model_lib=model_lib,
             mode=mode,
             additional_models=additional_models,
             max_batch_size=max_batch_size,
@@ -1418,6 +1454,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
             enable_tracing=enable_tracing,
+            verbose=verbose,
         )
         self.chat = Chat(weakref.ref(self))
         self.completions = Completion(weakref.ref(self))
@@ -1437,8 +1474,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         *,
         messages: List[Dict[str, Any]],
         model: Optional[str] = None,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -1447,8 +1484,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
@@ -1560,8 +1597,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         model: Optional[str] = None,
         best_of: int = 1,
         echo: bool = False,
-        frequency_penalty: float = 0.0,
-        presence_penalty: float = 0.0,
+        frequency_penalty: Optional[float] = None,
+        presence_penalty: Optional[float] = None,
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
@@ -1571,8 +1608,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
         suffix: Optional[str] = None,
-        temperature: float = 1.0,
-        top_p: float = 1.0,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
         user: Optional[str] = None,
         ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
@@ -1737,7 +1774,6 @@ class MLCEngine(engine_base.MLCEngineBase):
             request,
             request_id,
             self.state,
-            self.model_config_dicts[0],
             self.tokenizer,
             self.max_input_sequence_length,
         )
@@ -1804,7 +1840,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = Request(request_id, input_data, generation_config)
+        request = Request(
+            request_id, input_data, generation_config, self.default_generation_cfg_json_str
+        )
 
         # Record the stream in the tracker
         self.state.sync_output_queue = queue.Queue()

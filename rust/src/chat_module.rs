@@ -213,24 +213,24 @@ fn get_chat_config(config_file_path: &Path) -> result::Result<ChatConfig, Box<dy
 /// * `model` - A string representing either the name of a compiled model or a full path to it.
 /// * `model_path` - The path to the model, as determined by `get_model_path`.
 /// * `chat_config` - The chat configuration, possibly with overrides, returned by `get_chat_config`.
-/// * `model_lib_path` - An optional string specifying the full path to the model library. This is prioritized if provided.
+/// * `model_lib` - An optional string specifying the full path to the model library. This is prioritized if provided.
 /// * `device_name` - A string representing the device for which the library model file name will be constructed.
 /// * `config_file_path` - The path to the `mlc-chat-config.json` file, used for constructing error messages.
 ///
 /// # Returns
 /// The path pointing to the model library we find.
 fn get_lib_module_path(
-    model: &str, model_path: &Path, chat_config: &ChatConfig, model_lib_path: Option<&str>, device_name: &str,
+    model: &str, model_path: &Path, chat_config: &ChatConfig, model_lib: Option<&str>, device_name: &str,
     config_file_path: &Path,
 ) -> PathBuf {
-    // 1. Use user's model_lib_path if provided
-    if let Some(lib_path) = model_lib_path {
+    // 1. Use user's model_lib if provided
+    if let Some(lib_path) = model_lib {
         let path = Path::new(lib_path);
         if path.is_file() {
             info!("Using library model: {:?}", path);
             return path.to_path_buf();
         } else {
-            panic!("The `model_lib_path` you passed in is not a file: {:?}.", lib_path);
+            panic!("The `model_lib` you passed in is not a file: {:?}.", lib_path);
         }
     }
 
@@ -290,7 +290,7 @@ fn get_lib_module_path(
         }
         err_msg += &format!(
             "If you would like to directly specify the model library path, you may \
-             consider passing in the `ChatModule.model_lib_path` parameter."
+             consider passing in the `ChatModule.model_lib` parameter."
         );
 
         panic!("{}", err_msg);
@@ -323,7 +323,7 @@ pub struct ChatModule {
 }
 
 impl ChatModule {
-    pub fn new(model: &str, device: &str, model_lib_path: Option<&str>) -> Result<Self> {
+    pub fn new(model: &str, device: &str, model_lib: Option<&str>) -> Result<Self> {
         let device_err_msg = format!(
             "Invalid device name: {}. Please enter the device in the form \
             'device_name:device_id' or 'device_name', where 'device_name' needs to be \
@@ -362,11 +362,11 @@ impl ChatModule {
         let chat_config = get_chat_config(&config_file_path).unwrap();
 
         // 4. Look up the model library
-        let model_lib_path = get_lib_module_path(
+        let model_lib = get_lib_module_path(
             model,
             &model_path,
             &chat_config,
-            model_lib_path,
+            model_lib,
             device_name,
             &config_file_path,
         );
@@ -375,7 +375,7 @@ impl ChatModule {
             chat_module: m,
             chat_config,
         };
-        let model_lib_str = model_lib_path.as_path().display().to_string();
+        let model_lib_str = model_lib.as_path().display().to_string();
         let model_path_str = model_path.as_path().display().to_string();
         chat_mod.reload(&model_lib_str, &model_path_str, "").unwrap();
         Ok(chat_mod)

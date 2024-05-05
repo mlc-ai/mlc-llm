@@ -69,7 +69,8 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
   });
 }
 
-void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config) {
+void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
+                         Optional<Session> session) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   int num_shards;
@@ -85,33 +86,14 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   this->cached_buffers = Map<String, ObjectRef>();
 
   if (num_shards > 1) {
-    constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
-    if (Registry::Get(f_create_process_pool) == nullptr) {
-      LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
-                 << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
-    }
-    std::string ccl;
-    if (device.device_type == kDLCUDA) {
-      ccl = "nccl";
-    } else if (device.device_type == kDLROCM) {
-      ccl = "rccl";
-    } else {
-      LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
-                 << " is not supported. Currently, only NCCL and RCCL are integrated.";
-    }
-    std::vector<int64_t> device_ids(num_shards);
-    for (int i = 0; i < num_shards; ++i) {
-      device_ids[i] = i;
-    }
+    this->sess = session.value();
     this->use_disco = true;
-    this->sess = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
-    this->sess->InitCCL(ccl, ShapeTuple(device_ids));
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        reload_lib_path, null_device);
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> PackedFunc {
-      DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, false);
+      DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, true);
       bool exists = (func->DebugGetFromRemote(0).operator PackedFunc()) != nullptr;
       if (!exists) {
         return PackedFunc(nullptr);
@@ -153,7 +135,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
         static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
         static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
     this->mod_get_func = [this](const std::string& name) -> PackedFunc {
-      return this->local_vm->GetFunction(name, false);
+      return this->local_vm->GetFunction(name, true);
     };
     this->get_global_func = [](const std::string& name) -> PackedFunc {
       const auto* f = tvm::runtime::Registry::Get(name);
@@ -236,7 +218,7 @@ void FunctionTable::_InitFunctions() {
   Module mod = this->use_disco ? this->disco_mod->DebugGetFromRemote(0) : this->local_vm;
   this->get_logits_func_ = mod_get_func("get_logits");
   this->batch_get_logits_func_ = mod_get_func("batch_get_logits");
-  this->batch_select_last_hidden_func_ = mod->GetFunction("batch_select_last_hidden_states", true);
+  this->batch_select_last_hidden_func_ = mod_get_func("batch_select_last_hidden_states");
   this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
   this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
   this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
@@ -277,6 +259,12 @@ void FunctionTable::_InitFunctions() {
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
   this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
+  this->tuple_getitem_func_ = get_global_func("vm.builtin.tuple_getitem");
+
+  this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
+  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
+  this->gather_hidden_states_func_ = mod_get_func("gather_hidden_states");
+  this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
 }
 
 ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) const {
@@ -290,8 +278,8 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
 }
 
 ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
-                                       ShapeTuple max_reserved_shape) {
-  if (this->use_disco) {
+                                       ShapeTuple max_reserved_shape, bool local_only) {
+  if (this->use_disco && !local_only) {
     Device null_device{DLDeviceType(0), 0};
     DRef buffer(nullptr);
     auto it = this->cached_buffers.find(buffer_cache_key);

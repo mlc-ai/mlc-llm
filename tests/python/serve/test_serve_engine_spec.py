@@ -4,13 +4,7 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_llm.serve import (
-    GenerationConfig,
-    Request,
-    RequestStreamOutput,
-    SpeculativeMode,
-    data,
-)
+from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
 from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts = [
@@ -85,18 +79,16 @@ def test_engine_basic():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib_path = (
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.SMALL_DRAFT,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="small_draft",
         request_stream_callback=fcallback,
     )
 
@@ -153,18 +145,16 @@ def test_engine_eagle_basic():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
-    small_model_lib_path = (
-        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.EAGLE,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="eagle",
         spec_draft_length=2,
         request_stream_callback=fcallback,
     )
@@ -236,19 +226,17 @@ def test_engine_continuous_batching_1():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib_path = (
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     timer = CallbackTimer()
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.SMALL_DRAFT,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="small_draft",
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -322,19 +310,19 @@ def test_engine_eagle_continuous_batching_1():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
-    small_model_lib_path = (
+    small_model_lib = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
     timer = CallbackTimer()
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.EAGLE,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="eagle",
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -379,19 +367,17 @@ def compare_output_text(output_text1, output_text2):
 def test_engine_generate(compare_precision=False):
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib_path = (
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
 
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.SMALL_DRAFT,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="small_draft",
     )
 
     num_requests = 10
@@ -405,7 +391,7 @@ def test_engine_generate(compare_precision=False):
         )
         engine_single_model = SyncMLCEngine(
             model=model,
-            model_lib_path=model_lib_path,
+            model_lib=model_lib,
             mode="server",
             max_total_sequence_length=4096,
         )
@@ -441,18 +427,18 @@ def test_engine_generate(compare_precision=False):
 def test_engine_eagle_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
-    small_model_lib_path = (
+    small_model_lib = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
-        speculative_mode=SpeculativeMode.EAGLE,
+        additional_models=[small_model + ":" + small_model_lib],
+        speculative_mode="eagle",
     )
 
     num_requests = 10
@@ -493,10 +479,10 @@ def test_engine_efficiency():
 
     # Create engine
     model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
-    model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
+    model_lib = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         request_stream_callback=fcallback,
@@ -556,24 +542,22 @@ def test_engine_spec_efficiency():
 
     # Create engine
     model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
-    model_lib_path = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
+    model_lib = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
     small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib_path = (
-        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     # If Flashinfer allows head_dim < 128, we can test this model
     # small_model = "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC"
-    # small_model_lib_path = (
+    # small_model_lib = (
     #     "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC-cuda.so"
     # )
     spec_engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
+        additional_models=[small_model + ":" + small_model_lib],
         spec_draft_length=6,
-        speculative_mode=SpeculativeMode.SMALL_DRAFT,
+        speculative_mode="small_draft",
         request_stream_callback=fcallback,
     )
 
@@ -631,19 +615,17 @@ def test_engine_eagle_spec_efficiency():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
-    small_model_lib_path = (
-        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
-    )
+    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     spec_engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib_path],
+        additional_models=[small_model + ":" + small_model_lib],
         spec_draft_length=6,
-        speculative_mode=SpeculativeMode.EAGLE,
+        speculative_mode="eagle",
         request_stream_callback=fcallback,
     )
 

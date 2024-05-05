@@ -79,10 +79,10 @@ def test_engine_basic():
 
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         request_stream_callback=fcallback,
     )
@@ -155,10 +155,10 @@ def test_engine_continuous_batching_1():
     # Create engine
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         request_stream_callback=timer.callback_getter(),
     )
@@ -236,10 +236,10 @@ def test_engine_continuous_batching_2():
     # Create engine
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         request_stream_callback=timer.callback_getter(),
     )
@@ -322,10 +322,10 @@ def test_engine_continuous_batching_3():
     # Create engine
     timer = CallbackTimer()
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         request_stream_callback=timer.callback_getter(),
     )
@@ -364,10 +364,10 @@ def test_engine_continuous_batching_3():
 def test_engine_generate():
     # Create engine
     model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib_path = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )

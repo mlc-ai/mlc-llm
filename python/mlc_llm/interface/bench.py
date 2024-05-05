@@ -1,4 +1,5 @@
 """Python entrypoint of benchmark."""
+
 from typing import Optional
 
 from mlc_llm.chat_module import ChatConfig, ChatModule
@@ -13,7 +14,7 @@ def bench(  # pylint: disable=too-many-arguments
     opt: str,
     overrides: ChatConfigOverride,
     generate_length: int,
-    model_lib_path: Optional[str],
+    model_lib: Optional[str],
 ):
     """run the benchmarking"""
     # Set up chat config
@@ -21,7 +22,7 @@ def bench(  # pylint: disable=too-many-arguments
     # Apply overrides
     config = overrides.apply(config)
     # Set up ChatModule
-    cm = ChatModule(model, device, chat_config=config, model_lib_path=model_lib_path)
+    cm = ChatModule(model, device, chat_config=config, model_lib=model_lib)
 
     output = cm.benchmark_generate(prompt, generate_length=generate_length)
     print(f"Generated text:\n{output}\n")

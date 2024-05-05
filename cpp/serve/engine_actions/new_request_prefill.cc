@@ -100,7 +100,7 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         }
 
         ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_output_prob_dist.empty());
+        ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending) {
           // Add the sequence to the model, or fork the sequence from its parent.
           if (rsentry->parent_idx == -1) {
@@ -229,8 +229,10 @@ class NewRequestPrefillActionObj : public EngineActionObj {
         rsentry_activated.push_back(true);
       }
     }
-    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbBeforeTopP(
-        probs_on_device, sample_indices, request_ids, generation_cfg, rngs);
+    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+        probs_on_device, sample_indices, request_ids, generation_cfg);
+    std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
+        renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
     ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
 
     // - Update the committed tokens of states.

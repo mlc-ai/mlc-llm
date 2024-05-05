@@ -21,6 +21,18 @@ using namespace tvm::runtime;
 
 typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
 
+class Engine;
+
+/*!
+ * \brief The output of engine creation, including the created engine and
+ * the default generation config for requests.
+ */
+struct EngineCreationOutput {
+  std::unique_ptr<Engine> reloaded_engine;
+  EngineConfig completed_engine_config;
+  GenerationConfig default_generation_cfg;
+};
+
 /*!
  * \brief The engine interface for request serving in MLC LLM.
  * The engine can run one or multiple LLM models internally for
@@ -50,14 +62,16 @@ class Engine {
 
   /*!
    * \brief Create an engine in unique pointer.
-   * \param engine_config The engine config.
+   * \param engine_config_json_str The serialized JSON string of the engine config.
+   * \param device The device where the run models.
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
-   * \return The created Engine in pointer.
+   * \return The created Engine in pointer, and the default generation config.
    */
-  static std::unique_ptr<Engine> Create(EngineConfig engine_config,
-                                        Optional<PackedFunc> request_stream_callback,
-                                        Optional<EventTraceRecorder> trace_recorder);
+  static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
+                                             Device device,
+                                             Optional<PackedFunc> request_stream_callback,
+                                             Optional<EventTraceRecorder> trace_recorder);
 
   /*! \brief Reset the engine, clean up all running data and statistics. */
   virtual void Reset() = 0;

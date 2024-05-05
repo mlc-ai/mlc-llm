@@ -1,6 +1,6 @@
 """The request class in MLC LLM serving"""
 
-from typing import List, Union
+from typing import List, Optional, Union
 
 import tvm._ffi
 from tvm.runtime import Object
@@ -28,6 +28,11 @@ class Request(Object):
     generation_config : GenerationConfig
         The sampling configuration which may contain temperature,
         top_p, repetition_penalty, max_gen_len, etc.
+
+    default_generation_config_json_str : Optional[str]
+        The JSON string of the default generation config.
+        When a field in the input generation_config is not defined,
+        we use the value in the default generation config.
     """
 
     def __init__(
@@ -35,6 +40,7 @@ class Request(Object):
         request_id: str,
         inputs: Union[Data, List[Data]],
         generation_config: GenerationConfig,
+        default_generation_config_json_str: Optional[str] = None,
     ):
         if not isinstance(inputs, list):
             inputs = [inputs]
@@ -43,6 +49,7 @@ class Request(Object):
             request_id,
             inputs,
             generation_config.asjson(),
+            default_generation_config_json_str,
         )
 
     @property

@@ -135,7 +135,6 @@ class Conversation(BaseModel):
             separators.append(separators[0])
 
         if system_msg != "":
-            system_msg += separators[0]
             message_list.append(system_msg)
 
         for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable

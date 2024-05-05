@@ -1,4 +1,5 @@
 """Command line entrypoint of benchmark."""
+
 from mlc_llm.help import HELP
 from mlc_llm.interface.bench import bench
 from mlc_llm.interface.chat import ChatConfigOverride
@@ -45,10 +46,10 @@ def main(argv):
         help=HELP["generate_length"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--model-lib-path",
+        "--model-lib",
         type=str,
         default=None,
-        help=HELP["model_lib_path"] + ' (default: "%(default)s")',
+        help=HELP["model_lib"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
     bench(
@@ -58,5 +59,5 @@ def main(argv):
         opt=parsed.opt,
         overrides=parsed.overrides,
         generate_length=parsed.generate_length,
-        model_lib_path=parsed.model_lib_path,
+        model_lib=parsed.model_lib,
     )

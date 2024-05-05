@@ -1,5 +1,6 @@
 import json
 import os
+
 from tvm.contrib import ndk
 
 
@@ -23,8 +24,8 @@ def main():
     tar_list = []
     model_set = set()
 
-    for model, model_lib_path in app_config["model_lib_path_for_prepare_libs"].items():
-        path = os.path.join(artifact_path, model_lib_path)
+    for model, model_lib in app_config["model_lib_path_for_prepare_libs"].items():
+        path = os.path.join(artifact_path, model_lib)
         if not os.path.isfile(path):
             raise RuntimeError(f"Cannot find android library {path}")
         tar_list.append(path)
@@ -58,11 +59,11 @@ def main():
             model_prefix_pattern not in global_symbol_map
             and "_" + model_prefix_pattern not in global_symbol_map
         ):
-            model_lib_path = app_config["model_lib_path_for_prepare_libs"][model_lib]
+            model_lib = app_config["model_lib_path_for_prepare_libs"][model_lib]
             print(
                 "ValidationError:\n"
                 f"\tmodel_lib {model_lib} requested in {app_config_path} is not found in {lib_path}\n"
-                f"\tspecifically the model_lib for {model_lib_path} in model_lib_path_for_prepare_libs.\n"
+                f"\tspecifically the model_lib for {model_lib} in model_lib_path_for_prepare_libs.\n"
                 f"\tcurrent available model_libs in {lib_path}: {available_model_libs}"
             )
             error_happened = True

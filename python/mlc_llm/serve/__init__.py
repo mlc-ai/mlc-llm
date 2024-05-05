@@ -2,7 +2,7 @@
 
 # Load MLC LLM library by importing base
 from .. import base
-from .config import EngineConfig, GenerationConfig, SpeculativeMode
+from .config import EngineConfig, GenerationConfig
 from .data import Data, ImageData, RequestStreamOutput, TextData, TokenData
 from .engine import AsyncMLCEngine, MLCEngine
 from .grammar import BNFGrammar, GrammarStateMatcher

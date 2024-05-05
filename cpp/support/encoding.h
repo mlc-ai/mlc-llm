@@ -21,7 +21,7 @@ using TCodepoint = int32_t;
  * \param codepoint The codepoint.
  * \return The UTF-8 string.
  */
-std::string CodepointToUtf8(TCodepoint codepoint);
+std::string PrintAsUTF8(TCodepoint codepoint);
 
 /*!
  * \brief Convert a codepoint to a printable string. If the codepoint is not printable, it will be
@@ -29,10 +29,10 @@ std::string CodepointToUtf8(TCodepoint codepoint);
  * specify more escape sequences using custom_escape_map.
  * \param codepoint The codepoint.
  * \param custom_escape_map A map from codepoint to escape sequence. If the codepoint is in the map,
- * it will be escaped using the corresponding escape sequence. e.g. {'-', "\\-"}.
+ * it will be escaped using the corresponding escape sequence. e.g. {{'-', "\\-"}}.
  * \return The printable string.
  */
-std::string CodepointToPrintable(
+std::string PrintAsEscaped(
     TCodepoint codepoint,
     const std::unordered_map<TCodepoint, std::string>& custom_escape_map = {});
 
@@ -53,9 +53,9 @@ enum class CharHandlingError : TCodepoint {
  * \return The codepoint and the number of bytes consumed. If the UTF-8 string is invalid, the
  * function returns (CharHandlingError::kInvalidUtf8, 0).
  */
-std::pair<TCodepoint, int> Utf8ToCodepoint(const char* utf8);
+std::pair<TCodepoint, const char*> ParseNextUTF8(const char* utf8);
 
-std::vector<TCodepoint> Utf8StringToCodepoints(const char* utf8);
+std::vector<TCodepoint> ParseUTF8(const char* utf8);
 
 /*!
  * \brief Convert a UTF-8 string or an escape sequence to a codepoint. By default the function
@@ -63,12 +63,12 @@ std::vector<TCodepoint> Utf8StringToCodepoints(const char* utf8);
  * using custom_escape_map.
  * \param utf8 The UTF-8 string or the escape sequence.
  * \param custom_escape_map A map from escape sequence to codepoint. If the escape sequence is in
- * the map, it will be converted to the corresponding codepoint. e.g. {"\\-", '-'}.
+ * the map, it will be converted to the corresponding codepoint. e.g. {{"\\-", '-'}}.
  * \return The codepoint and the number of bytes consumed. If the UTF-8 string or the escape
  * sequence is invalid, the function returns
  * (CharHandlingError::kInvalidUtf8 or CharHandlingError::kInvalidEscape, 0).
  */
-std::pair<TCodepoint, int> Utf8OrEscapeToCodepoint(
+std::pair<TCodepoint, const char*> ParseNextUTF8OrEscaped(
     const char* utf8, const std::unordered_map<std::string, TCodepoint>& custom_escape_map = {});
 
 }  // namespace llm

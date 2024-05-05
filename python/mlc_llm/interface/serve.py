@@ -8,7 +8,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.serve import engine
-from mlc_llm.serve.config import SpeculativeMode
 from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
 from mlc_llm.serve.server import ServerContext
 
@@ -16,7 +15,7 @@ from mlc_llm.serve.server import ServerContext
 def serve(
     model: str,
     device: str,
-    model_lib_path: Optional[str],
+    model_lib: Optional[str],
     mode: Literal["local", "interactive", "server"],
     additional_models: List[str],
     max_batch_size: Optional[int],
@@ -24,7 +23,7 @@ def serve(
     prefill_chunk_size: Optional[int],
     max_history_size: Optional[int],
     gpu_memory_utilization: Optional[float],
-    speculative_mode: SpeculativeMode,
+    speculative_mode: Literal["disable", "small_draft", "eagle"],
     spec_draft_length: int,
     enable_tracing: bool,
     host: str,
@@ -39,7 +38,7 @@ def serve(
     async_engine = engine.AsyncMLCEngine(
         model=model,
         device=device,
-        model_lib_path=model_lib_path,
+        model_lib=model_lib,
         mode=mode,
         additional_models=additional_models,
         max_batch_size=max_batch_size,

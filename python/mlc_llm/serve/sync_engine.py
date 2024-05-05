@@ -14,10 +14,10 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 import tvm
 
 from mlc_llm.serve import data
-from mlc_llm.serve.config import EngineConfig, GenerationConfig, SpeculativeMode
+from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.engine_base import (
-    _infer_kv_cache_config,
     _parse_models,
+    _print_engine_mode_logging_msg,
     _process_model_args,
     detect_device,
 )
@@ -58,13 +58,6 @@ class SyncMLCEngine:
 
     Parameters
     ----------
-    models : Union[ModelInfo, List[ModelInfo]]
-        One or a list of model info (specifying which models to load and
-        which device to load to) to launch the engine.
-
-    kv_cache_config : KVCacheConfig
-        The configuration of the paged KV cache.
-
     request_stream_callback : Optional[Callable[[str, data.TokenData, Optional[str]], None]]
         The provided callback function to handle the generation
         output. It has the signature of `(str, data.TokenData, bool) -> None`,
@@ -80,11 +73,11 @@ class SyncMLCEngine:
         the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
 
-    engine_config : Optional[EngineConfig]
-        The Engine execution configuration.
-
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
+
+    verbose : bool
+        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
@@ -92,7 +85,7 @@ class SyncMLCEngine:
         model: str,
         device: Union[str, tvm.runtime.Device] = "auto",
         *,
-        model_lib_path: Optional[str] = None,
+        model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         additional_models: Optional[List[str]] = None,
         max_batch_size: Optional[int] = None,
@@ -101,12 +94,13 @@ class SyncMLCEngine:
         max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         enable_tracing: bool = False,
-        speculative_mode: SpeculativeMode = SpeculativeMode.DISABLE,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
+        verbose: bool = True,
         request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib_path, additional_models)
+        models = _parse_models(model, model_lib, additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, tvm.runtime.Device)
@@ -119,31 +113,13 @@ class SyncMLCEngine:
         # - Load the raw model config into dict
         self.model_config_dicts = []
         for i, model_info in enumerate(models):
-            model_info.model_lib_path = model_args[i][1]
+            model_info.model_lib = model_args[i][1]
             with open(model_config_paths[i], "r", encoding="utf-8") as file:
                 self.model_config_dicts.append(json.load(file))
 
-        # - Decide the KV cache config based on mode and user input.
-        (
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_single_sequence_length,
-            max_history_size,
-            kv_state_kind,
-        ) = _infer_kv_cache_config(
-            mode,
-            max_batch_size,
-            max_total_sequence_length,
-            prefill_chunk_size,
-            max_history_size,
-            gpu_memory_utilization,
-            models,
-            device,
-            self.model_config_dicts,
-            model_config_paths,
-        )
-        self.max_input_sequence_length = min(max_single_sequence_length, max_total_sequence_length)
+        # - Print logging info for regarding the mode selection.
+        if verbose:
+            _print_engine_mode_logging_msg(mode)
 
         self._ffi = _create_tvm_module(
             "mlc.serve.create_engine",
@@ -156,6 +132,7 @@ class SyncMLCEngine:
                 "reset",
                 "get_request_stream_callback",
                 "set_request_stream_callback",
+                "get_default_generation_config",
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
@@ -163,23 +140,25 @@ class SyncMLCEngine:
         self._ffi["init"](
             EngineConfig(
                 model=model_args[0][0],
-                model_lib_path=model_args[0][1],
+                model_lib=model_args[0][1],
                 additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                additional_model_lib_paths=[model_arg[1] for model_arg in model_args[1:]],
-                device=device,
+                additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
+                mode=mode,
+                gpu_memory_utilization=gpu_memory_utilization,
                 kv_cache_page_size=16,
                 max_num_sequence=max_batch_size,
                 max_total_sequence_length=max_total_sequence_length,
-                max_single_sequence_length=max_single_sequence_length,
                 prefill_chunk_size=prefill_chunk_size,
                 max_history_size=max_history_size,
-                kv_state_kind=kv_state_kind,
                 speculative_mode=speculative_mode,
                 spec_draft_length=spec_draft_length,
-            ),
+                verbose=verbose,
+            ).asjson(),
+            device,
             request_stream_callback,
             self.trace_recorder,
         )
+        self.default_generation_cfg_json_str: str = self._ffi["get_default_generation_config"]()
         self.tokenizer = Tokenizer(model_args[0][0])
 
     def generate(  # pylint: disable=too-many-locals
@@ -304,6 +283,7 @@ class SyncMLCEngine:
                     request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
+                    default_generation_config_json_str=self.default_generation_cfg_json_str,
                 )
             )
 

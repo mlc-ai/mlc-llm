@@ -4,7 +4,7 @@
 
 #include <unordered_map>
 
-#include "./json_parser.h"
+#include "../support/json_parser.h"
 
 namespace mlc {
 namespace llm {
@@ -39,6 +39,16 @@ ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& para
   return result;
 }
 
+ModelMetadata::KVCacheMetadata ModelMetadata::KVCacheMetadata::FromJSON(
+    const picojson::object& json) {
+  KVCacheMetadata kv_cache_metadata;
+  kv_cache_metadata.num_hidden_layers = json::Lookup<int64_t>(json, "num_hidden_layers");
+  kv_cache_metadata.head_dim = json::Lookup<int64_t>(json, "head_dim");
+  kv_cache_metadata.num_attention_heads = json::Lookup<int64_t>(json, "num_attention_heads");
+  kv_cache_metadata.num_key_value_heads = json::Lookup<int64_t>(json, "num_key_value_heads");
+  return kv_cache_metadata;
+}
+
 ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
                                       const picojson::object& model_config) {
   ModelMetadata result;
@@ -53,6 +63,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
     result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
+  result.kv_cache_metadata =
+      KVCacheMetadata::FromJSON(json::Lookup<picojson::object>(metadata, "kv_cache"));
   {
     std::vector<ModelMetadata::Param>& params = result.params;
     picojson::array json_params = json::Lookup<picojson::array>(metadata, "params");
@@ -76,17 +88,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
 ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
                                         const picojson::object& model_config) {
   std::string json_str = "";
-  try {
-    TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
-    if (pf == nullptr) {
-      // legacy path
-      // TODO: remove this after full SLMify
-      return ModelMetadata();
-    }
-    json_str = pf();
-  } catch (...) {
-    return ModelMetadata();  // TODO: add a warning message about legacy usecases
-  }
+  TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
+  json_str = pf();
   picojson::object json = json::ParseToJsonObject(json_str);
   try {
     return ModelMetadata::FromJSON(json, model_config);

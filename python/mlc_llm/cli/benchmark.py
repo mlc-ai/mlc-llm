@@ -1,4 +1,5 @@
 """A command line tool for benchmarking a chat model."""
+
 import argparse
 from pathlib import Path
 
@@ -74,7 +75,7 @@ def main():
         model=args.model,
         device=args.device,
         chat_config=ChatConfig(tensor_parallel_shards=args.tensor_parallel_shards),
-        model_lib_path=args.model_lib,
+        model_lib=args.model_lib,
     )
     prompt = _load_prompt(args.prompt)
     output = chat_module.benchmark_generate(prompt, generate_length=args.generate_length)

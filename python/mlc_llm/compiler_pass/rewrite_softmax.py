@@ -1,7 +1,5 @@
 """A compiler pass that rewrites one-shot softmax into two-stage softmax."""
 
-import math
-
 import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
@@ -34,7 +32,10 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point"""
-        gv = self.mod.get_global_var("softmax_with_temperature")
+        func_name = "softmax_with_temperature"
+        if func_name not in self.mod:
+            return self.mod
+        gv = self.mod.get_global_var(func_name)
         updated_func = self.visit_expr(self.mod[gv])
         self.builder_.update_func(gv, updated_func)
         return self.builder_.get()
@@ -78,7 +79,14 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-statements
     target: tvm.target.Target, chunk_size: int
 ):
-    log2e = math.log2(math.exp(1))
+    # NOTE: A quick note on the softmax implementation.
+    # We once tried to multiply every element by log2e which can be computed
+    # potentially more efficiently on hardware.
+    # However, when the input values are large, multiplying by the factor of log2e
+    # causes numerical issue in float32 dtype.
+    # This leads to the softmax output not summing up to 1.
+    # For numerical stability, we removed the log2e factor and switched back
+    # to the standard log/exp computation.
 
     # pylint: disable=invalid-name
     @T.prim_func
@@ -114,13 +122,13 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
                     v1 * T.int64(chunk_size) + v2 < vocab_size,
-                    T.exp2((A_pad[v0, v1, v2] - temp_max[v0, v1]) * log2e),
+                    T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
                     T.float32(0),
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(1)):
             with T.block("log"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
-                chunked_lse[v0, v1] = T.log2(temp_sum[v0, v1]) + temp_max[v0, v1] * log2e
+                chunked_lse[v0, v1] = T.log(temp_sum[v0, v1]) + temp_max[v0, v1]
 
     @T.prim_func
     def softmax_with_chunked_lse(var_A: T.handle, var_chunked_lse: T.handle, var_softmax: T.handle):
@@ -145,17 +153,17 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 v0, v1 = T.axis.remap("SR", [l0, l1])
                 with T.init():
                     temp_sum[v0] = T.float32(0)
-                temp_sum[v0] += T.exp2(chunked_lse[v0, v1] - temp_max[v0])
+                temp_sum[v0] += T.exp(chunked_lse[v0, v1] - temp_max[v0])
         for l0 in T.serial(0, batch_size):
             with T.block("log"):
                 v0 = T.axis.remap("S", [l0])
-                lse[v0] = T.log2(temp_sum[v0]) + temp_max[v0]
+                lse[v0] = T.log(temp_sum[v0]) + temp_max[v0]
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with T.block("pad"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
-                    softmax[v0, v1 * T.int64(chunk_size) + v2] = T.exp2(
-                        A[v0, v1 * T.int64(chunk_size) + v2] * log2e - lse[v0]
+                    softmax[v0, v1 * T.int64(chunk_size) + v2] = T.exp(
+                        A[v0, v1 * T.int64(chunk_size) + v2] - lse[v0]
                     )
 
     sch = tvm.tir.Schedule(IRModule({"softmax_with_chunked_lse": softmax_with_chunked_lse}))

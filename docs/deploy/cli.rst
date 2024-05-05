@@ -92,13 +92,13 @@ For models other than the prebuilt ones we provided:
 Once you have the model locally compiled with a model library and model weights, to run ``mlc_llm``, simply
 
 - Specify the path to ``mlc-chat-config.json`` and the converted model weights to ``--model``
-- Specify the path to the compiled model library (e.g. a .so file) to ``--model-lib-path``
+- Specify the path to the compiled model library (e.g. a .so file) to ``--model-lib``
 
 .. code:: shell
 
   mlc_llm chat dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
                --device "cuda:0" --overrides context_window_size=1024 \
-               --model-lib-path dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
+               --model-lib dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
                # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
                # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
                # Same rule applies for other platforms

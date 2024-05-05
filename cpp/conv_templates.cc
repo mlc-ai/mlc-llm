@@ -97,12 +97,12 @@ Conversation Llama2() {
   Conversation conv;
   conv.name = "llama-2";
   conv.system =
-      ("[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n ");
-  conv.roles = {"[INST]", "[/INST]"};
+      ("[INST] <<SYS>>\nYou are a helpful, respectful and honest assistant.\n<</SYS>>\n\n");
+  conv.roles = {"<s>[INST]", "[/INST]"};
   conv.messages = {};
   conv.offset = 0;
   conv.separator_style = SeparatorStyle::kSepRoleMsg;
-  conv.seps = {" "};
+  conv.seps = {" ", " </s>"};
   conv.role_msg_sep = " ";
   conv.role_empty_sep = " ";
   conv.stop_tokens = {2};

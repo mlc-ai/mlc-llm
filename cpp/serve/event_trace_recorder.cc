@@ -51,7 +51,7 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
   void AddEvent(const Array<String>& request_ids, const std::string& event) final {
     double event_time = std::chrono::duration_cast<std::chrono::duration<double>>(
                             std::chrono::system_clock::now().time_since_epoch())
-                            .count();
+                            .count();  // in seconds
 
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -96,16 +96,16 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
           name = event;
           phase = "i";
         }
-        int64_t event_time_in_ms = static_cast<int64_t>(event_time * 1e6);
+        int64_t event_time_in_us = static_cast<int64_t>(event_time * 1e6);
 
         picojson::object event_json;
         event_json["name"] = picojson::value(name);
         event_json["ph"] = picojson::value(phase);
-        event_json["ts"] = picojson::value(event_time_in_ms);
+        event_json["ts"] = picojson::value(event_time_in_us);
         event_json["pid"] = picojson::value(static_cast<int64_t>(1));
         event_json["tid"] = picojson::value(request_id);
 
-        events_to_sort.push_back({event_time_in_ms, picojson::value(event_json)});
+        events_to_sort.push_back({event_time_in_us, picojson::value(event_json)});
       }
       std::sort(events_to_sort.begin(), events_to_sort.end(), fcmp_events);
       for (auto [timestamp, event] : events_to_sort) {

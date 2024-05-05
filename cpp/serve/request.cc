@@ -67,9 +67,11 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.Request")
-    .set_body_typed([](String id, Array<Data> inputs, String generation_cfg_json) {
+    .set_body_typed([](String id, Array<Data> inputs, String generation_cfg_json_str,
+                       Optional<String> default_generation_cfg_json_str) {
       return Request(std::move(id), std::move(inputs),
-                     GenerationConfig(std::move(generation_cfg_json)));
+                     GenerationConfig(std::move(generation_cfg_json_str),
+                                      std::move(default_generation_cfg_json_str)));
     });
 
 TVM_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request request) {

@@ -1,4 +1,5 @@
 """Python entrypoint of chat."""
+
 import dataclasses
 from typing import List, Optional, Union
 
@@ -121,7 +122,7 @@ def chat(
     device: str,
     opt: str,
     overrides: ChatConfigOverride,
-    model_lib_path: Optional[str],
+    model_lib: Optional[str],
 ):
     """chat with a model."""
     # Set up chat config and generate config
@@ -130,7 +131,7 @@ def chat(
     # Apply overrides
     config = overrides.apply(config)
     # Set up ChatModule
-    cm = ChatModule(model, device, chat_config=config, model_lib_path=model_lib_path)
+    cm = ChatModule(model, device, chat_config=config, model_lib=model_lib)
     _print_help_str()
     cm._process_system_prompts()  # pylint: disable=protected-access
 
