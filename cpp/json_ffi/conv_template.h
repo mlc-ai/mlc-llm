@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "../serve/data.h"
+#include "../support/result.h"
 #include "picojson.h"
 
 using namespace mlc::llm::serve;
@@ -86,34 +87,17 @@ struct Conversation {
   // Function call fields
   // whether using function calling or not, helps check for output message format in API call
   std::optional<std::string> function_string = std::nullopt;
-  std::optional<bool> use_function_calling = false;
+  bool use_function_calling = false;
 
   Conversation();
 
-  /**
-   * @brief Checks the size of the separators vector.
-   * This function checks if the size of the separators vector is either 1 or 2.
-   * If the size is not 1 or 2, it throws an invalid_argument exception.
-   */
-  static std::vector<std::string> CheckMessageSeps(std::vector<std::string>& seps);
+  /*! \brief Create the list of prompts from the messages based on the conversation template. */
+  Result<std::vector<Data>> AsPrompt();
 
-  /*!
-   * \brief Create the list of prompts from the messages based on the conversation template.
-   * When creation fails, errors are dumped to the input error string, and nullopt is returned.
-   */
-  std::optional<std::vector<Data>> AsPrompt(std::string* err);
-
-  /*!
-   * \brief Create a Conversation instance from the given JSON object.
-   * When creation fails, errors are dumped to the input error string, and nullopt is returned.
-   */
-  static std::optional<Conversation> FromJSON(const picojson::object& json, std::string* err);
-
-  /*!
-   * \brief Parse and create a Conversation instance from the given JSON string.
-   * When creation fails, errors are dumped to the input error string, and nullopt is returned.
-   */
-  static std::optional<Conversation> FromJSON(const std::string& json_str, std::string* err);
+  /*! \brief Create a Conversation instance from the given JSON object. */
+  static Result<Conversation> FromJSON(const picojson::object& json);
+  /*! \brief Parse and create a Conversation instance from the given JSON string. */
+  static Result<Conversation> FromJSON(const std::string& json_str);
 };
 
 }  // namespace json_ffi
