@@ -166,7 +166,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
       int token_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
       for (int j = 0; j < num_token_to_process; ++j) {
-        p_temperature[token_offset + j] = std::max(generation_cfg[i]->temperature, eps_);
+        p_temperature[token_offset + j] = std::max(generation_cfg[i]->temperature, 0.0);
       }
     }
 
