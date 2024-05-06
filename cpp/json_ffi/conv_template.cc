@@ -3,12 +3,131 @@
 #include <tvm/runtime/registry.h>
 
 #include "../support/json_parser.h"
+#include "image_utils.h"
 
 namespace mlc {
 namespace llm {
 namespace json_ffi {
 
 using namespace mlc::llm;
+
+/****************** Model vision config ******************/
+
+ModelVisionConfig ModelVisionConfig::FromJSON(const picojson::object& json_obj) {
+  ModelVisionConfig config;
+
+  Result<int64_t> hidden_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "hidden_size");
+  if (hidden_size_res.IsOk()) {
+    config.hidden_size = hidden_size_res.Unwrap();
+  }
+
+  Result<int64_t> image_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "image_size");
+  if (image_size_res.IsOk()) {
+    config.image_size = image_size_res.Unwrap();
+  }
+
+  Result<int64_t> intermediate_size_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "intermediate_size");
+  if (intermediate_size_res.IsOk()) {
+    config.intermediate_size = intermediate_size_res.Unwrap();
+  }
+
+  Result<int64_t> num_attention_heads_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "num_attention_heads");
+  if (num_attention_heads_res.IsOk()) {
+    config.num_attention_heads = num_attention_heads_res.Unwrap();
+  }
+
+  Result<int64_t> num_hidden_layers_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "num_hidden_layers");
+  if (num_hidden_layers_res.IsOk()) {
+    config.num_hidden_layers = num_hidden_layers_res.Unwrap();
+  }
+
+  Result<int64_t> patch_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "patch_size");
+  if (patch_size_res.IsOk()) {
+    config.patch_size = patch_size_res.Unwrap();
+  }
+
+  Result<int64_t> projection_dim_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "projection_dim");
+  if (projection_dim_res.IsOk()) {
+    config.projection_dim = projection_dim_res.Unwrap();
+  }
+
+  Result<int64_t> vocab_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "vocab_size");
+  if (vocab_size_res.IsOk()) {
+    config.vocab_size = vocab_size_res.Unwrap();
+  }
+
+  Result<std::string> dtype_res = json::LookupWithResultReturn<std::string>(json_obj, "dtype");
+  if (dtype_res.IsOk()) {
+    config.dtype = dtype_res.Unwrap();
+  }
+
+  Result<int64_t> num_channels_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "num_channels");
+  if (num_channels_res.IsOk()) {
+    config.num_channels = num_channels_res.Unwrap();
+  }
+
+  Result<double> layer_norm_eps_res =
+      json::LookupWithResultReturn<double>(json_obj, "layer_norm_eps");
+  if (layer_norm_eps_res.IsOk()) {
+    config.layer_norm_eps = layer_norm_eps_res.Unwrap();
+  }
+
+  return config;
+}
+
+/****************** Model config ******************/
+
+ModelConfig ModelConfig::FromJSON(const picojson::object& json_obj) {
+  ModelConfig config;
+
+  Result<int64_t> vocab_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "vocab_size");
+  if (vocab_size_res.IsOk()) {
+    config.vocab_size = vocab_size_res.Unwrap();
+  }
+
+  Result<int64_t> context_window_size_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "context_window_size");
+  if (context_window_size_res.IsOk()) {
+    config.context_window_size = context_window_size_res.Unwrap();
+  }
+
+  Result<int64_t> sliding_window_size_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "sliding_window_size");
+  if (sliding_window_size_res.IsOk()) {
+    config.sliding_window_size = sliding_window_size_res.Unwrap();
+  }
+
+  Result<int64_t> prefill_chunk_size_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "prefill_chunk_size");
+  if (prefill_chunk_size_res.IsOk()) {
+    config.prefill_chunk_size = prefill_chunk_size_res.Unwrap();
+  }
+
+  Result<int64_t> tensor_parallel_shards_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "tensor_parallel_shards");
+  if (tensor_parallel_shards_res.IsOk()) {
+    config.tensor_parallel_shards = tensor_parallel_shards_res.Unwrap();
+  }
+
+  Result<int64_t> max_batch_size_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "max_batch_size");
+  if (max_batch_size_res.IsOk()) {
+    config.max_batch_size = max_batch_size_res.Unwrap();
+  }
+
+  if (json_obj.count("vision_config")) {
+    const picojson::object& vision_config_obj =
+        json_obj.at("vision_config").get<picojson::object>();
+    config.vision_config = ModelVisionConfig::FromJSON(vision_config_obj);
+  }
+
+  return config;
+}
 
 /****************** Conversation template ******************/
 
@@ -34,7 +153,7 @@ Conversation::Conversation()
                       {"assistant", PLACEHOLDERS[MessagePlaceholders::ASSISTANT]},
                       {"tool", PLACEHOLDERS[MessagePlaceholders::TOOL]}}) {}
 
-Result<std::vector<Data>> Conversation::AsPrompt() {
+Result<std::vector<Data>> Conversation::AsPrompt(ModelConfig config, DLDevice device) {
   using TResult = Result<std::vector<Data>>;
   // Get the system message
   std::string system_msg = system_template;
@@ -116,6 +235,29 @@ Result<std::vector<Data>> Conversation::AsPrompt() {
           }
         }
         message += role_text;
+      } else if (it_type->second == "image_url") {
+        if (item.find("image_url") == item.end()) {
+          return TResult::Error("Content should have an image_url field");
+        }
+        std::string image_url =
+            item.at("image_url");  // TODO(mlc-team): According to OpenAI API reference this
+                                   // should be a map, with a "url" key containing the URL, but
+                                   // we are just assuming this as the URL for now
+        std::string base64_image = image_url.substr(image_url.find(",") + 1);
+        Result<NDArray> image_data_res = LoadImageFromBase64(base64_image);
+        if (image_data_res.IsErr()) {
+          return TResult::Error(image_data_res.UnwrapErr());
+        }
+        if (!config.vision_config.has_value()) {
+          return TResult::Error("Vision config is required for image input");
+        }
+        int image_size = config.vision_config.value().image_size;
+        int patch_size = config.vision_config.value().patch_size;
+
+        int embed_size = (image_size * image_size) / (patch_size * patch_size);
+
+        auto image_ndarray = ClipPreprocessor(image_data_res.Unwrap(), image_size, device);
+        message_list.push_back(ImageData(image_ndarray, embed_size));
       } else {
         return TResult::Error("Unsupported content type: " + it_type->second);
       }

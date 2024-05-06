@@ -7,7 +7,7 @@ import dataclasses
 import logging
 from typing import Any, Dict, Optional, Tuple
 
-from tvm import relax, te, tir
+from tvm import relax, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
 from tvm.relax.frontend.nn.modules import Conv2D
@@ -375,84 +375,11 @@ class LlavaForCasualLM(Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def _embed_input_ids(self, input_ids: Tensor) -> Tensor:
+    def embed(self, input_ids: Tensor) -> Tensor:
         return self.language_model.embed(input_ids)
 
-    def _embed_pixel_values_and_input_ids(self, pixel_values: Tensor, input_ids: Tensor) -> Tensor:
-        def _index(x, value, batch_size, seq_len):
-            return te.compute(
-                (batch_size, seq_len),
-                lambda i, j: tir.if_then_else(
-                    x[i, j] == value,
-                    j,
-                    tir.IntImm("int32", 0),
-                ),
-                name="index",
-            )
-
-        def _concat(x: Tensor, y: Tensor, new_shape: tuple, insert_index: Tensor):
-            return te.compute(
-                (new_shape),
-                lambda b, i, j: tir.if_then_else(
-                    i < insert_index[0],
-                    x[b, i, j],
-                    tir.if_then_else(
-                        i < insert_index[0] + y.shape[1],
-                        y[b, i - insert_index[0], j],
-                        x[b, i - y.shape[1] + 1, j],
-                    ),
-                ),
-            )
-
-        input_embeddings = self._embed_input_ids(input_ids)
-
-        image_features_all = self.vision_tower.forward(pixel_values)
-        image_features = wrap_nested(
-            strided_slice(
-                image_features_all._expr,  # pylint: disable=protected-access
-                axes=[1],
-                begin=[1],
-                end=[image_features_all.shape[1]],
-            ),
-            name="slice",
-        )
-        image_features = self.multi_modal_projector(image_features)
-        batch_size, seq_len = input_ids.shape
-        image_index_tensor = op.tensor_expr_op(
-            _index,
-            name_hint="index",
-            args=[
-                input_ids,
-                tir.IntImm("int32", self.config.image_token_index),
-                batch_size,
-                seq_len,
-            ],
-        ).astype("int32")
-        ##! Assume only one <IMAGE> token in input
-        ##! Also assume batch_size = 1 for now
-        # TODO: Support image_count > 1 and batch_size > 1 # pylint: disable=fixme
-        insert_index = op.sum(image_index_tensor, axis=1)
-
-        new_shape = (
-            batch_size,
-            seq_len + tir.IntImm("int32", image_features.shape[1] - 1),
-            self.config.text_config.hidden_size,
-        )
-
-        combined_embeddings = op.tensor_expr_op(
-            _concat,
-            name_hint="combined_embeddings",
-            args=[input_embeddings, image_features, new_shape, insert_index],
-        )
-        return combined_embeddings
-
-    def embed(self, input_ids: Tensor) -> Tensor:
-        return self._embed_input_ids(input_ids)
-
-    def embed_with_pixel_values(self, pixel_values: Tensor, input_ids: Tensor) -> Tensor:
-        return self._embed_pixel_values_and_input_ids(pixel_values, input_ids)
-
     def image_embed(self, pixel_values: Tensor) -> Tensor:
+        pixel_values = pixel_values.astype(self.dtype)
         image_features_all = self.vision_tower.forward(pixel_values)
         image_features = wrap_nested(
             strided_slice(
@@ -536,22 +463,6 @@ class LlavaForCasualLM(Module):
                     "effect_mode": "none",
                 },
             },
-            "embed_with_pixel_values": {
-                "pixel_values": nn.spec.Tensor(
-                    [
-                        1,
-                        3,
-                        self.config.vision_config.image_size,
-                        self.config.vision_config.image_size,
-                    ],
-                    self.dtype,
-                ),
-                "input_ids": nn.spec.Tensor([1, "seq_len"], "int32"),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
             "image_embed": {
                 "pixel_values": nn.spec.Tensor(
                     [
@@ -560,7 +471,7 @@ class LlavaForCasualLM(Module):
                         self.config.vision_config.image_size,
                         self.config.vision_config.image_size,
                     ],
-                    self.dtype,
+                    "float32",
                 ),
                 "$": {
                     "param_mode": "packed",

@@ -4,6 +4,9 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
+#include <filesystem>
+#include <fstream>
+
 #include "../serve/model.h"
 #include "../support/json_parser.h"
 #include "../support/result.h"
@@ -82,7 +85,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   conv_template = updated_conv_template.Unwrap();
 
   // get prompt
-  Result<std::vector<Data>> inputs_obj = conv_template.AsPrompt();
+  Result<std::vector<Data>> inputs_obj = conv_template.AsPrompt(this->model_config_, this->device_);
   if (inputs_obj.IsErr()) {
     err_ = inputs_obj.UnwrapErr();
     return false;
@@ -145,6 +148,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
   void InitBackgroundEngine(Device device, Optional<PackedFunc> request_stream_callback,
                             Optional<EventTraceRecorder> trace_recorder) {
+    this->device_ = device;
     CHECK(request_stream_callback.defined())
         << "JSONFFIEngine requires request stream callback function, but it is not given.";
     this->request_stream_callback_ = request_stream_callback.value();
@@ -171,11 +175,15 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     Result<picojson::object> model_config_json =
         serve::Model::LoadModelConfig(json::Lookup<std::string>(engine_config_json, "model"));
     CHECK(model_config_json.IsOk()) << model_config_json.UnwrapErr();
+    const picojson::object& model_config_json_unwrapped = model_config_json.Unwrap();
     Result<Conversation> conv_template = Conversation::FromJSON(
-        json::Lookup<picojson::object>(model_config_json.Unwrap(), "conv_template"));
+        json::Lookup<picojson::object>(model_config_json_unwrapped, "conv_template"));
     CHECK(!conv_template.IsErr()) << "Invalid conversation template JSON: "
                                   << conv_template.UnwrapErr();
     this->conv_template_ = conv_template.Unwrap();
+    this->model_config_ = ModelConfig::FromJSON(
+        json::Lookup<picojson::object>(model_config_json_unwrapped, "model_config"));
+
     // Create streamer.
     // Todo(mlc-team): Create one streamer for each request, instead of a global one.
     this->streamer_ =

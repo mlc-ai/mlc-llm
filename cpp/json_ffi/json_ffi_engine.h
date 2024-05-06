@@ -50,6 +50,8 @@ class JSONFFIEngine {
   TextStreamer streamer_;  // TODO: Support "n", and support different streamers for each request
   Conversation conv_template_;
   String default_generation_cfg_json_str_;
+  ModelConfig model_config_;
+  DLDevice device_;
 };
 
 }  // namespace json_ffi
