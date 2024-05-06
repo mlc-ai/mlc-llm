@@ -64,7 +64,8 @@ cmake ../..\
   -DCMAKE_CXX_FLAGS="-O3"\
   -DMLC_LLM_INSTALL_STATIC_LIB=ON\
   -DUSE_METAL=ON
-make mlc_llm_static
+
+cmake --build . --config release --target mlc_llm_static -j
 cmake --build . --target install --config release -j
 cd ..
 

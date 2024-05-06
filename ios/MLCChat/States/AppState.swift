@@ -13,7 +13,7 @@ final class AppState: ObservableObject {
 
     @Published var alertMessage = "" // TODO: Should move out
     @Published var alertDisplayed = false // TODO: Should move out
-    
+
     private var appConfig: AppConfig?
     private var modelIDs = Set<String>()
 
@@ -33,7 +33,7 @@ final class AppState: ObservableObject {
         }
         loadModelsConfig(modelList: appConfig.modelList)
     }
-    
+
     func requestDeleteModel(modelID: String) {
         // model dir should have been deleted in ModelState
         assert(!fileManager.fileExists(atPath: cacheDirectoryURL.appending(path: modelID).path()))
@@ -65,7 +65,7 @@ private extension AppState {
             return nil
         }
     }
-    
+
     func loadModelsConfig(modelList: [AppConfig.ModelRecord]) {
         for model in modelList {
             if model.modelPath != nil {
@@ -131,7 +131,7 @@ private extension AppState {
             let fileHandle = try FileHandle(forReadingFrom: modelConfigURL)
             let data = fileHandle.readDataToEndOfFile()
             var modelConfig = try jsonDecoder.decode(ModelConfig.self, from: data)
-            modelConfig.modelLib = modelLib 
+            modelConfig.modelLib = modelLib
             modelConfig.modelID = modelID
             modelConfig.estimatedVRAMReq = estimatedVRAMReq
             return modelConfig

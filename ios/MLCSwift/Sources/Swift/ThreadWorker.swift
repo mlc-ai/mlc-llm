@@ -7,7 +7,7 @@ import Foundation
 public class ThreadWorker : Thread {
     private var cond = NSCondition();
     private var queue = Array<()->Void>();
-    
+
     public override func main()  {
         Thread.setThreadPriority(1)
         while (true) {
@@ -20,7 +20,7 @@ public class ThreadWorker : Thread {
             task()
         }
     }
-    
+
     public func push(task: @escaping ()->Void) {
         self.cond.lock()
         self.queue.append(task)
