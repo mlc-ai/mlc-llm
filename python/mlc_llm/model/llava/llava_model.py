@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from tvm import relax, tir
 from tvm.relax.frontend import nn
-from tvm.relax.frontend.nn import Module, Tensor, op
+from tvm.relax.frontend.nn import Module, Tensor
 from tvm.relax.frontend.nn.modules import Conv2D
 from tvm.relax.frontend.nn.op import (
     broadcast_to,
