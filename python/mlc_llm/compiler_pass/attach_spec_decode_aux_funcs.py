@@ -82,16 +82,17 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
         with bb.dataflow():
             if tensor_parallel_shards > 1:
                 indices = relax.op.ccl.broadcast_from_worker0(indices)
-            output = relax.op.call_tir_inplace(
-                bb.add_func(
-                    _get_scatter_2d_inplace(dtype, "_scatter_hidden_states"),
-                    "_scatter_hidden_states",
-                ),
-                [src, indices, dst],
-                2,
-                dst.struct_info,  # pylint: disable=no-member
+            output = bb.emit_output(
+                relax.op.call_tir_inplace(
+                    bb.add_func(
+                        _get_scatter_2d_inplace(dtype, "_scatter_hidden_states"),
+                        "_scatter_hidden_states",
+                    ),
+                    [src, indices, dst],
+                    2,
+                    dst.struct_info,  # pylint: disable=no-member
+                )
             )
-            bb.emit_output(output)
         gv = bb.emit_func_output(output)
     return gv
 
@@ -107,14 +108,16 @@ def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dty
         with bb.dataflow():
             if tensor_parallel_shards > 1:
                 indices = relax.op.ccl.broadcast_from_worker0(indices)
-            output = relax.op.call_tir_inplace(
-                bb.add_func(
-                    _get_gather_2d_inplace(dtype, "_gather_hidden_states"), "_gather_hidden_states"
-                ),
-                [src, indices, dst],
-                2,
-                dst.struct_info,  # pylint: disable=no-member
+            output = bb.emit_output(
+                relax.op.call_tir_inplace(
+                    bb.add_func(
+                        _get_gather_2d_inplace(dtype, "_gather_hidden_states"),
+                        "_gather_hidden_states",
+                    ),
+                    [src, indices, dst],
+                    2,
+                    dst.struct_info,  # pylint: disable=no-member
+                )
             )
-            bb.emit_output(output)
         gv = bb.emit_func_output(output)
     return gv

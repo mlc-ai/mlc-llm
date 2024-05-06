@@ -125,8 +125,7 @@ def _attach_argsort_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                 sorted_indices,
                 primfunc_name_hint="take_sorted_probs",
             )
-            output = (sorted_values, sorted_indices)
-            bb.emit_output(output)
+            output = bb.emit_output((sorted_values, sorted_indices))
         gv = bb.emit_func_output(output)
     return gv
 
@@ -215,7 +214,7 @@ def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
                     sample_indices_tensor,
                 )
             )
-            result = bb.emit(
+            result = bb.emit_output(
                 relax.call_pure_packed(
                     "vm.builtin.reshape",
                     result_tensor._expr,  # pylint: disable=protected-access
@@ -223,7 +222,6 @@ def _attach_sample_with_top_p(  # pylint: disable=too-many-locals
                     sinfo_args=sample_indices.struct_info,  # pylint: disable=no-member
                 )
             )
-            bb.emit_output(result)
         gv = bb.emit_func_output(result)
     return gv
 
@@ -249,14 +247,13 @@ def _attach_renormalize_by_top_p(
             )
             final_pivot = cutoff_output[0]
             renorm_sum = cutoff_output[1]
-            renormalized_probs = bb.emit(
+            renormalized_probs = bb.emit_output(
                 relax.call_tir(
                     bb.add_func(top_p_renorm(target), "top_p_renorm_after_cutoff"),
                     args=[probs, final_pivot, renorm_sum],
                     out_sinfo=probs.struct_info,  # pylint: disable=no-member
                 )
             )
-            bb.emit_output(renormalized_probs)
         gv = bb.emit_func_output(renormalized_probs)
     return gv
 
@@ -315,7 +312,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
     args = [unsorted_probs, sorted_indices, sample_indices, sampling_results, top_prob_offsets]
     with bb.function("sampler_take_probs", args):
         with bb.dataflow():
-            taken_probs_indices = bb.emit(
+            taken_probs_indices = bb.emit_output(
                 relax.call_tir(
                     bb.add_func(sampler_take_probs_tir, "sampler_take_probs_tir"),
                     args,
@@ -326,7 +323,6 @@ def _attach_take_probs_func(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                     ],
                 )
             )
-            bb.emit_output(taken_probs_indices)
         gv = bb.emit_func_output(taken_probs_indices)
     return gv
 
@@ -362,7 +358,7 @@ def _attach_batch_verifier(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
     ]
     with bb.function("sampler_verify_draft_tokens", args):
         with bb.dataflow():
-            res = bb.emit(
+            res = bb.emit_output(
                 relax.call_tir_inplace(
                     bb.add_func(batch_spec_verify(vocab_size), "batch_verify_on_gpu_single_kernel"),
                     args,
@@ -373,6 +369,5 @@ def _attach_batch_verifier(bb: relax.BlockBuilder, vocab_size: tir.PrimExpr):
                     ],
                 )
             )
-            bb.emit_output(res)
         gv = bb.emit_func_output(res)
     return gv
