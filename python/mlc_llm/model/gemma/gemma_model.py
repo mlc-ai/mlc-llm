@@ -195,7 +195,7 @@ class GemmaModel(nn.Module):
     def __init__(self, config: GemmaConfig):
         self.hidden_size = config.hidden_size
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = GemmaEmbedding("vocab_size", config.hidden_size)
+        self.embed_tokens = GemmaEmbedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [GemmaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )

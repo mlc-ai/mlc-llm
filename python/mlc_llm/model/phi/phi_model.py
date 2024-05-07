@@ -280,7 +280,7 @@ class PhiCausalLMHead(nn.Module):
         super().__init__()
 
         self.ln = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
-        self.linear = nn.Linear(config.n_embd, "vocab_size")
+        self.linear = nn.Linear(config.n_embd, config.vocab_size)
 
     def forward(self, hidden_states: Tensor):
         hidden_states = self.ln(hidden_states)

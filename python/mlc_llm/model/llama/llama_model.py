@@ -178,7 +178,7 @@ class LlamaDecoderLayer(nn.Module):
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
+        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -195,7 +195,7 @@ class LlamaModel(nn.Module):
 class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
