@@ -246,6 +246,24 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# Phi-3
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="phi-3",
+        system_template=f"<|system|>\n{MessagePlaceholders.SYSTEM.value}",
+        system_message="You are a helpful digital assistant. Please provide safe, "
+        "ethical and accurate information to the user.",
+        roles={"user": "<|user|>", "assistant": "<|assistant|>"},
+        seps=["<|end|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        system_prefix_token_ids=[1],
+        stop_str=["<|endoftext|>"],
+        stop_token_ids=[32000, 32001, 32007],
+    )
+)
+
+
 # StableLM Tuned Alpha
 ConvTemplateRegistry.register_conv_template(
     Conversation(
