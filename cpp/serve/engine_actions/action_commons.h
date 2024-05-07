@@ -75,6 +75,24 @@ inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const Engine
   return rsentries;
 }
 
+/*!
+ * \brief Apply the logit processor to the logits and sample one token for each request.
+ * \param logit_processor The logit processor to apply.
+ * \param sampler The sampler to sample tokens.
+ * \param logits The logits to process.
+ * \param generation_cfg The generation configurations of the requests.
+ * \param request_ids The request ids.
+ * \param mstates The model states of the requests.
+ * \param rngs The random generators of the requests.
+ * \param sample_indices The indices of the requests to sample.
+ * \return The processed logits and the sampled results.
+ */
+std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
+    const LogitProcessor& logit_processor, const Sampler& sampler, const NDArray& logits,
+    const Array<GenerationConfig>& generation_cfg, const Array<String>& request_ids,
+    const Array<RequestModelState>& mstates, const std::vector<RandomGenerator*>& rngs,
+    const std::vector<int>& sample_indices);
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

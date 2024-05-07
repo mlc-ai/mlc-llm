@@ -232,7 +232,6 @@ void FunctionTable::_InitFunctions() {
     } else {
       this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
     }
-    ICHECK(this->create_kv_cache_func_.defined());
   }
   this->reset_kv_cache_func_ = get_global_func("vm.builtin.kv_state_clear");
   this->kv_cache_add_sequence_func_ = get_global_func("vm.builtin.kv_state_add_sequence");

@@ -114,12 +114,8 @@ enum class SpeculativeMode : int {
   kSmallDraft = 1,
   /*! \brief The eagle-style speculative decoding. */
   kEagle = 2,
-};
-
-/*! \brief The kind of cache. */
-enum class KVStateKind : int {
-  kKVCache = 0,
-  kRNNState = 1,
+  /*! \brief The Medusa-style speculative decoding. */
+  kMedusa = 3,
 };
 
 class InferrableEngineConfig;
@@ -172,8 +168,6 @@ class EngineConfigNode : public Object {
   int prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
-  /*! \brief The kind of cache. Whether it's KV cache or RNN state. */
-  KVStateKind kv_state_kind = KVStateKind::kKVCache;
 
   /*************** Speculative decoding ***************/
 
@@ -216,7 +210,6 @@ struct InferrableEngineConfig {
   std::optional<int64_t> max_single_sequence_length;
   std::optional<int64_t> prefill_chunk_size;
   std::optional<int64_t> max_history_size;
-  std::optional<KVStateKind> kv_state_kind;
 
   /*! \brief Infer the config for KV cache from a given initial config. */
   TVM_DLL static Result<InferrableEngineConfig> InferForKVCache(
@@ -238,9 +231,16 @@ struct InferrableEngineConfig {
 Result<bool> ModelsUseKVCache(const std::vector<picojson::object>& model_configs);
 
 inline std::string EngineModeToString(EngineMode mode) {
-  return mode == EngineMode::kLocal         ? "local"
-         : mode == EngineMode::kInteractive ? "interactive"
-                                            : "server";
+  if (mode == EngineMode::kLocal) {
+    return "local";
+  } else if (mode == EngineMode::kInteractive) {
+    return "interactive";
+  } else if (mode == EngineMode::kServer) {
+    return "server";
+  } else {
+    LOG(FATAL) << "Invalid engine mode: " << static_cast<int>(mode);
+    throw;
+  }
 }
 
 inline EngineMode EngineModeFromString(const std::string& mode) {
@@ -252,13 +252,22 @@ inline EngineMode EngineModeFromString(const std::string& mode) {
     return EngineMode::kServer;
   } else {
     LOG(FATAL) << "Invalid engine mode string: " << mode;
+    throw;
   }
 }
 
 inline std::string SpeculativeModeToString(SpeculativeMode speculative_mode) {
-  return speculative_mode == SpeculativeMode::kDisable      ? "disable"
-         : speculative_mode == SpeculativeMode::kSmallDraft ? "small_draft"
-                                                            : "eagle";
+  if (speculative_mode == SpeculativeMode::kDisable) {
+    return "disable";
+  } else if (speculative_mode == SpeculativeMode::kSmallDraft) {
+    return "small_draft";
+  } else if (speculative_mode == SpeculativeMode::kEagle) {
+    return "eagle";
+  } else if (speculative_mode == SpeculativeMode::kMedusa) {
+    return "medusa";
+  } else {
+    LOG(FATAL) << "Invalid speculative mode: " << static_cast<int>(speculative_mode);
+  }
 }
 
 inline SpeculativeMode SpeculativeModeFromString(const std::string& speculative_mode) {
@@ -268,22 +277,11 @@ inline SpeculativeMode SpeculativeModeFromString(const std::string& speculative_
     return SpeculativeMode::kSmallDraft;
   } else if (speculative_mode == "eagle") {
     return SpeculativeMode::kEagle;
+  } else if (speculative_mode == "medusa") {
+    return SpeculativeMode::kMedusa;
   } else {
     LOG(FATAL) << "Invalid speculative mode string: " << speculative_mode;
-  }
-}
-
-inline std::string KVStateKindToString(KVStateKind kv_state_kind) {
-  return kv_state_kind == KVStateKind::kKVCache ? "kv_cache" : "rnn_State";
-}
-
-inline KVStateKind KVStateKindFromString(const std::string& kv_state_kind) {
-  if (kv_state_kind == "kv_cache") {
-    return KVStateKind::kKVCache;
-  } else if (kv_state_kind == "rnn_state") {
-    return KVStateKind::kRNNState;
-  } else {
-    LOG(FATAL) << "Invalid kv state kind string: " << kv_state_kind;
+    throw;
   }
 }
 

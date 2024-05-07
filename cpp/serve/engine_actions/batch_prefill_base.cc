@@ -34,6 +34,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   int num_available_pages = models_[0]->GetNumAvailablePages();
   int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
   int current_total_seq_len = models_[0]->GetCurrentTotalSequenceLength();
+  KVStateKind kv_state_kind = models_[0]->GetMetadata().kv_state_kind;
 
   int num_prefill_rsentries = 0;
   for (const Request& request : estate->waiting_queue) {
@@ -61,7 +62,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
            --num_child_to_activate) {
         if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                        total_input_length, total_required_pages, num_available_pages,
-                       current_total_seq_len, num_running_rsentries)) {
+                       current_total_seq_len, num_running_rsentries, kv_state_kind)) {
           prefill_inputs.push_back({rsentry, input_length, num_child_to_activate});
           num_prefill_rsentries += 1 + num_child_to_activate;
           can_prefill = true;
@@ -93,7 +94,8 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
       total_input_length += input_length;
       total_required_pages += num_require_pages;
       if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length, total_required_pages,
-                     num_available_pages, current_total_seq_len, num_running_rsentries)) {
+                     num_available_pages, current_total_seq_len, num_running_rsentries,
+                     kv_state_kind)) {
         prefill_inputs.push_back({rsentry, input_length, 0});
         num_prefill_rsentries += 1;
       }
@@ -114,11 +116,11 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
 bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_rsentries,
                                            int total_input_length, int num_required_pages,
                                            int num_available_pages, int current_total_seq_len,
-                                           int num_running_rsentries) {
+                                           int num_running_rsentries, KVStateKind kv_state_kind) {
   ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
   // For RNN State, it can prefill as long as it can be instantiated.
-  if (engine_config_->kv_state_kind == KVStateKind::kRNNState) {
+  if (kv_state_kind == KVStateKind::kRNNState || kv_state_kind == KVStateKind::kNone) {
     return true;
   }
 

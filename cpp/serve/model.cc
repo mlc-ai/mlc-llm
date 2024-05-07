@@ -67,11 +67,7 @@ class ModelImpl : public ModelObj {
     // Step 3. Reset
     this->Reset();
     // Step 4. Set model type
-    if (json::Lookup<std::string>(model_config, "model_type").find("rwkv") != std::string::npos) {
-      this->kind = KVStateKind::kRNNState;
-    } else {
-      this->kind = KVStateKind::kKVCache;
-    }
+    this->kind = GetMetadata().kv_state_kind;
   }
 
   /*********************** Model Computation  ***********************/
@@ -146,6 +142,21 @@ class ModelImpl : public ModelObj {
       logits = Downcast<NDArray>(ret);
     }
     // logits: (b * s, v)
+    return logits;
+  }
+
+  Array<NDArray> GetMultiStepLogits(const ObjectRef& hidden_states) final {
+    NVTXScopedRange nvtx_scope("GetMultiStepLogits");
+    CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
+
+    ObjectRef hidden_states_dref_or_nd{nullptr};
+    ObjectRef ret = ft_.get_logits_func_(hidden_states, params_);
+    Array<NDArray> logits{nullptr};
+    if (ft_.use_disco) {
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+    } else {
+      logits = Downcast<Array<NDArray>>(ret);
+    }
     return logits;
   }
 
@@ -563,8 +574,9 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                     int prefill_chunk_size, int max_history_size,
-                     KVStateKind kv_state_kind) final {
+                     int prefill_chunk_size, int max_history_size) final {
+    //  KVStateKind kv_state_kind) final {
+    KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
       IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
@@ -576,30 +588,51 @@ class ModelImpl : public ModelObj {
                                             support_sliding_window);
       local_kv_cache_ =
           ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
-    } else {
+    } else if (kv_state_kind == KVStateKind::kRNNState) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
       IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple);
       local_kv_cache_ =
           ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+    } else if (kv_state_kind == KVStateKind::kNone) {
+      // Do nothing
+    } else {
+      LOG(FATAL) << "Unknown kv_state_kind: " << static_cast<int>(kv_state_kind);
     }
   }
 
-  void AddNewSequence(int64_t seq_id) final { ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id); }
+  void AddNewSequence(int64_t seq_id) final {
+    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+      return;
+    }
+    ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id);
+  }
 
   void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos) final {
+    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+      return;
+    }
     ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id, fork_pos);
   }
 
   void RemoveSequence(int64_t seq_id) final {
+    if (this->kind == KVStateKind::kNone) {
+      return;
+    }
     ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);
   }
 
   void PopNFromKVCache(int64_t seq_id, int num_tokens) final {
+    if (this->kind == KVStateKind::kNone) {
+      return;
+    }
     ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
   }
 
   void EnableSlidingWindowForSeq(int64_t seq_id) final {
+    if (this->kind == KVStateKind::kNone) {
+      return;
+    }
     if (sliding_window_size_ != -1) {
       ft_.kv_cache_enable_sliding_window_for_seq_(kv_cache_, seq_id, sliding_window_size_,
                                                   attention_sink_size_);
@@ -620,7 +653,7 @@ class ModelImpl : public ModelObj {
   }
 
   int GetCurrentTotalSequenceLength() const final {
-    if (this->kind == KVStateKind::kRNNState) {
+    if (this->kind == KVStateKind::kRNNState || this->kind == KVStateKind::kNone) {
       // RNNState does not have a total sequence length limit
       return 0;
     } else {
@@ -670,6 +703,9 @@ class ModelImpl : public ModelObj {
   }
 
   ObjectRef AllocEmbeddingTensor() final {
+    if (!ft_.alloc_embedding_tensor_func_.defined()) {
+      return ObjectRef{nullptr};
+    }
     // Allocate the embedding tensor.
     ObjectRef embedding = ft_.alloc_embedding_tensor_func_();
     // Get the shape of the embedding tensor for hidden size.
@@ -690,6 +726,9 @@ class ModelImpl : public ModelObj {
   }
 
   ObjectRef AllocHiddenStatesTensor() final {
+    if (!ft_.alloc_embedding_tensor_func_.defined()) {
+      return ObjectRef{nullptr};
+    }
     // Allocate the hidden_states tensor.
     // Use the same function as embeddings.
     ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_();
@@ -776,6 +815,17 @@ class ModelImpl : public ModelObj {
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
     ft_.scatter_probs_func_(input, indices_device, *dst);
+  }
+
+  Array<NDArray> GetMedusaLogits(const ObjectRef& hidden_states) {
+    ObjectRef result = ft_.get_logits_func_(hidden_states);
+    Array<NDArray> logits{nullptr};
+    if (ft_.use_disco) {
+      logits = Downcast<DRef>(result)->DebugGetFromRemote(0);
+    } else {
+      logits = Downcast<Array<NDArray>>(result);
+    }
+    return logits;
   }
 
   /************** Debug/Profile **************/

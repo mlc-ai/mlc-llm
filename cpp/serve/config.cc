@@ -248,7 +248,6 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   CHECK(inferred_config.max_single_sequence_length.has_value());
   CHECK(inferred_config.prefill_chunk_size.has_value());
   CHECK(inferred_config.max_history_size.has_value());
-  CHECK(inferred_config.kv_state_kind.has_value());
   ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
 
   // - Get models and model libs.
@@ -290,7 +289,6 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
   n->prefill_chunk_size = inferred_config.prefill_chunk_size.value();
   n->max_history_size = inferred_config.max_history_size.value();
-  n->kv_state_kind = inferred_config.kv_state_kind.value();
 
   return EngineConfig(n);
 }
@@ -356,7 +354,6 @@ String EngineConfigNode::AsJSONString() const {
       picojson::value(static_cast<int64_t>(this->max_single_sequence_length));
   config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
   config["max_history_size"] = picojson::value(static_cast<int64_t>(this->max_history_size));
-  config["kv_state_kind"] = picojson::value(KVStateKindToString(this->kv_state_kind));
   config["speculative_mode"] = picojson::value(SpeculativeModeToString(this->speculative_mode));
   config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
   config["verbose"] = picojson::value(static_cast<bool>(this->verbose));
@@ -428,14 +425,18 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
           ") is larger than the prefill chunk size used at compile time (" +
           std::to_string(compile_time_prefill_chunk_size) + ").");
     }
-    model_max_prefill_chunk_size =
-        std::min(model_max_prefill_chunk_size, runtime_prefill_chunk_size);
+    if (runtime_prefill_chunk_size != -1) {
+      model_max_prefill_chunk_size =
+          std::min(model_max_prefill_chunk_size, runtime_prefill_chunk_size);
+    }
     // - The maximum batch size is the minimum max batch size among all models.
     model_max_batch_size = std::min(
         model_max_batch_size, json::Lookup<int64_t>(compile_time_model_config, "max_batch_size"));
   }
   ICHECK_NE(model_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
   ICHECK_NE(model_max_batch_size, std::numeric_limits<int64_t>::max());
+  ICHECK_GT(model_max_prefill_chunk_size, 0);
+  ICHECK_GT(model_max_batch_size, 0);
   return Result<ModelConfigLimits>::Ok(
       {model_max_single_sequence_length, model_max_prefill_chunk_size, model_max_batch_size});
 }
@@ -689,7 +690,6 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
               << " MB). The actual usage might be slightly larger than the estimated number.";
   }
 
-  inferred_config.kv_state_kind = KVStateKind::kKVCache;
   inferred_config.max_history_size = 0;
   return Result<InferrableEngineConfig>::Ok(inferred_config);
 }
@@ -853,7 +853,6 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
               << " MB). The actual usage might be slightly larger than the estimated number.";
   }
 
-  inferred_config.kv_state_kind = KVStateKind::kRNNState;
   return Result<InferrableEngineConfig>::Ok(inferred_config);
 }
 

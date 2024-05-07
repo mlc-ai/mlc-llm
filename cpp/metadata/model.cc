@@ -63,8 +63,17 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
     result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
-  result.kv_cache_metadata =
-      KVCacheMetadata::FromJSON(json::Lookup<picojson::object>(metadata, "kv_cache"));
+  result.kv_state_kind = KVStateKindFromString(
+      json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
+  if (result.kv_state_kind != KVStateKind::kNone) {
+    result.kv_cache_metadata =
+        KVCacheMetadata::FromJSON(json::Lookup<picojson::object>(metadata, "kv_cache"));
+  } else {
+    result.kv_cache_metadata = {/*num_hidden_layers=*/0,
+                                /*head_dim=*/0,
+                                /*num_attention_heads=*/0,
+                                /*num_key_value_heads=*/0};
+  }
   {
     std::vector<ModelMetadata::Param>& params = result.params;
     picojson::array json_params = json::Lookup<picojson::array>(metadata, "params");
@@ -94,7 +103,7 @@ ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
   try {
     return ModelMetadata::FromJSON(json, model_config);
   } catch (const std::exception& e) {
-    LOG(WARNING) << "Failed to parse metadata:\n" << json_str;
+    LOG(WARNING) << "Failed to parse metadata:\n" << json_str << "\nerror: " << e.what();
     throw e;
   }
 }

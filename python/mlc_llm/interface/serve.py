@@ -23,7 +23,7 @@ def serve(
     prefill_chunk_size: Optional[int],
     max_history_size: Optional[int],
     gpu_memory_utilization: Optional[float],
-    speculative_mode: Literal["disable", "small_draft", "eagle"],
+    speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"],
     spec_draft_length: int,
     enable_tracing: bool,
     host: str,

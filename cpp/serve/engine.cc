@@ -105,8 +105,7 @@ class EngineImpl : public Engine {
       model->SetPrefillChunkSize(engine_config->prefill_chunk_size);
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
                            engine_config->max_total_sequence_length,
-                           engine_config->prefill_chunk_size, engine_config->max_history_size,
-                           engine_config->kv_state_kind);
+                           engine_config->prefill_chunk_size, engine_config->max_history_size);
       n->model_workspaces_.push_back(
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
@@ -160,6 +159,18 @@ class EngineImpl : public Engine {
               EngineAction::EagleBatchVerify(n->models_, logit_processor, sampler,
                                              n->model_workspaces_, draft_token_workspace_manager,
                                              engine_config, n->trace_recorder_)};
+          break;
+        case SpeculativeMode::kMedusa:
+          n->actions_ = {EngineAction::EagleNewRequestPrefill(n->models_,                     //
+                                                              logit_processor,                //
+                                                              sampler,                        //
+                                                              n->model_workspaces_,           //
+                                                              draft_token_workspace_manager,  //
+                                                              engine_config,                  //
+                                                              n->trace_recorder_),
+                         EngineAction::EagleBatchVerify(
+                             n->models_, logit_processor, sampler, n->model_workspaces_,
+                             draft_token_workspace_manager, engine_config, n->trace_recorder_)};
           break;
         default:
           n->actions_ = {
@@ -422,13 +433,9 @@ class EngineImpl : public Engine {
         json::LookupOptional<int64_t>(config, "max_history_size");
     std::optional<std::string> kv_state_kind_str =
         json::LookupOptional<std::string>(config, "kv_state_kind");
-    std::optional<KVStateKind> kv_state_kind;
-    if (kv_state_kind_str.has_value()) {
-      kv_state_kind = KVStateKindFromString(kv_state_kind_str.value());
-    }
-    InferrableEngineConfig inferrable_cfg{max_num_sequence,           max_total_sequence_length,
+    InferrableEngineConfig inferrable_cfg{max_num_sequence, max_total_sequence_length,
                                           max_single_sequence_length, prefill_chunk_size,
-                                          max_history_size,           kv_state_kind};
+                                          max_history_size};
 
     // - Get the model metadata.
     std::vector<ModelMetadata> model_metadata;
@@ -440,28 +447,13 @@ class EngineImpl : public Engine {
     if (use_kv_cache.IsErr()) {
       return TResult::Error(use_kv_cache.UnwrapErr());
     }
-    KVStateKind inferred_kv_state_kind;
     Result<InferrableEngineConfig> inferrable_cfg_res;
     if (use_kv_cache.Unwrap()) {
-      inferred_kv_state_kind = KVStateKind::kKVCache;
-      // - Check if the kv state kind from config is valid.
-      if (kv_state_kind.has_value() && kv_state_kind.value() != inferred_kv_state_kind) {
-        return TResult::Error(
-            "Invalid kv state kind in EngineConfig. The models use KV cache, but RNN state is "
-            "specified in EngineConfig.");
-      }
       // - Infer configuration.
       inferrable_cfg_res = InferrableEngineConfig::InferForKVCache(
           mode, device_, gpu_memory_utilization, model_configs, model_metadata, inferrable_cfg,
           verbose);
     } else {
-      inferred_kv_state_kind = KVStateKind::kRNNState;
-      // - Check if the kv state kind from config is valid.
-      if (kv_state_kind.has_value() && kv_state_kind.value() != inferred_kv_state_kind) {
-        return TResult::Error(
-            "Invalid kv state kind in EngineConfig. The models use RNN state, but KV cache is "
-            "specified in EngineConfig.");
-      }
       // - Infer configuration.
       inferrable_cfg_res = InferrableEngineConfig::InferForRNNState(
           mode, device_, gpu_memory_utilization, model_configs, model_metadata, inferrable_cfg,
@@ -477,7 +469,6 @@ class EngineImpl : public Engine {
     ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
     ICHECK(inferrable_cfg.prefill_chunk_size.has_value());
     ICHECK(inferrable_cfg.max_history_size.has_value());
-    ICHECK(inferrable_cfg.kv_state_kind.has_value());
     return TResult::Ok(EngineConfig::FromJSONAndInferredConfig(config, inferrable_cfg));
   }
 
