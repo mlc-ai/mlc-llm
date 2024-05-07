@@ -133,6 +133,13 @@ class BatchVerifyActionObj : public EngineActionObj {
             draft_output_tokens, draft_probs_on_device);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
+    // We collect the requests whose drafts are fully accepted.
+    // When a request's draft is fully accepted, there is an extra token proposed
+    // by the draft model but not added into the draft model's KV cache.
+    // In this case, an additional batch decode step is needed for these requests.
+    std::vector<int64_t> fully_accepted_rsentries;
+    fully_accepted_rsentries.reserve(num_rsentries);
+
     for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
       int accept_length = sample_results.size();
@@ -151,9 +158,47 @@ class BatchVerifyActionObj : public EngineActionObj {
       if (rollback_length > 0) {
         models_[verify_model_id_]->PopNFromKVCache(
             rsentries[i]->mstates[verify_model_id_]->internal_id, rollback_length);
+        // The last accepted token is not yet added into the draft model.
+        // Therefore, the rollback length for the draft model is one less.
         models_[draft_model_id_]->PopNFromKVCache(
-            rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length);
+            rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length - 1);
+      } else {
+        fully_accepted_rsentries.push_back(i);
       }
+    }
+
+    if (!fully_accepted_rsentries.empty()) {
+      // - Run a step of batch decode for requests whose drafts are fully accepted.
+      // When a request's draft is fully accepted, there is an extra token proposed
+      // by the draft model but not added into the draft model's KV cache.
+      // In this case, an additional batch decode step is needed for these requests.
+      std::vector<int> input_tokens;
+      std::vector<int64_t> fully_accepted_request_internal_ids;
+      input_tokens.reserve(fully_accepted_rsentries.size());
+      fully_accepted_request_internal_ids.reserve(fully_accepted_rsentries.size());
+      for (int rsentry_id : fully_accepted_rsentries) {
+        int num_committed_tokens =
+            rsentries[rsentry_id]->mstates[verify_model_id_]->committed_tokens.size();
+        // When a request's draft is fully accepted, an additional new token is sampled.
+        // So the token needed to fill in the draft model is the committed_token[-2].
+        ICHECK_GE(num_committed_tokens, 2);
+        input_tokens.push_back(rsentries[rsentry_id]
+                                   ->mstates[verify_model_id_]
+                                   ->committed_tokens[num_committed_tokens - 2]
+                                   .sampled_token_id.first);
+        fully_accepted_request_internal_ids.push_back(
+            rsentries[rsentry_id]->mstates[draft_model_id_]->internal_id);
+      }
+      // - Compute embeddings.
+      ObjectRef embeddings = models_[draft_model_id_]->TokenEmbed(
+          {IntTuple{input_tokens.begin(), input_tokens.end()}});
+      // - Invoke model decode.
+      NDArray logits =
+          models_[draft_model_id_]->BatchDecode(embeddings, fully_accepted_request_internal_ids);
+      // - We explicitly synchronize to avoid the input tokens getting overriden in the
+      // next runs of BatchDecode.
+      // This is because we do not do sample for this round of batch decode.
+      TVMSynchronize(logits->device.device_type, logits->device.device_id, nullptr);
     }
 
     // clear the draft model state entries
