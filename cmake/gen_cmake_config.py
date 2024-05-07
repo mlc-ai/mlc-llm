@@ -29,6 +29,7 @@ if __name__ == "__main__":
             "USE_OPENCL",
             "Use OpenCL? (y/n) ",
         ),
+        Backend("OpenCLHostPtr", "USE_OPENCL_ENABLE_HOST_PTR", "Use OpenCLHostPtr? (y/n): "),
     ]
 
     enabled_backends = set()
