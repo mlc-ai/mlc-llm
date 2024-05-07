@@ -61,8 +61,37 @@ public actor MLCEngine {
         jsonFFIEngine.unload()
     }
 
+    public struct ChatCompletionRequest {
+        let model: String
+        let messages: [Message]
+
+        struct Message: Codable {
+            let role: String        // "user"
+            let content: [Content]
+            
+            struct Content: Codable {
+                let type: String    // "text"
+                let text: String
+            }
+        }
+
+        var dictionary: [String: Any] {
+            return [
+                "model": model,
+                "messages": messages.map { message in
+                    return [
+                        "role": message.role,
+                        "content": message.content.map { content in
+                            return ["type": content.type, "text": content.text]
+                        }
+                    ]
+                }
+            ]
+        }
+    }
+
     // TODO(mlc-team) turn into a structured interface
-    public func chatCompletion(jsonRequest: String) -> AsyncStream<ChatCompletionStreamResponse> {
+    public func chatCompletion(request: ChatCompletionRequest) -> AsyncStream<ChatCompletionStreamResponse> {
         // generate a UUID for the request
         let requestID = UUID().uuidString
         let stream = AsyncStream(ChatCompletionStreamResponse.self) { continuation in
@@ -73,6 +102,16 @@ public actor MLCEngine {
             }
             // store continuation map for further callbacks
             self.continuationMap[requestID] = continuation
+            
+            // convert to json
+            var jsonRequest: String?
+            do {
+                let jsonData = try JSONSerialization.data(withJSONObject: request.dictionary, options: [])
+                jsonRequest = String(data: jsonData, encoding: .utf8)
+            } catch {
+                print("Error when converting ChatCompletionRequest to JSON: \(error)")
+            }
+            
             // start invoking engine for completion
             self.jsonFFIEngine.chatCompletion(jsonRequest, requestID: requestID)
         }
