@@ -170,7 +170,8 @@ class EngineImpl : public Engine {
                                               engine_config,         //
                                               n->trace_recorder_),
               EngineAction::BatchDraft(n->models_, logit_processor, sampler, n->model_workspaces_,
-                                       draft_token_workspace_manager, n->trace_recorder_),
+                                       draft_token_workspace_manager, n->trace_recorder_,
+                                       engine_config->spec_draft_length),
               EngineAction::BatchVerify(n->models_, logit_processor, sampler, n->model_workspaces_,
                                         draft_token_workspace_manager, engine_config,
                                         n->trace_recorder_)};

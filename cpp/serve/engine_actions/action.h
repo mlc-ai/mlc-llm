@@ -115,7 +115,7 @@ class EngineAction : public ObjectRef {
   static EngineAction BatchDraft(Array<Model> models, LogitProcessor logit_processor,
                                  Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                  DraftTokenWorkspaceManager draft_token_workspace_manager,
-                                 Optional<EventTraceRecorder> trace_recorder, int draft_length = 4);
+                                 Optional<EventTraceRecorder> trace_recorder, int draft_length);
 
   /*!
    * \brief Create the action that runs one-step speculative draft proposal for
