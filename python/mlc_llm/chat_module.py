@@ -781,13 +781,11 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
             logger.info("Now compiling model lib on device...")
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
-            self.model_lib = str(
-                jit.jit(
-                    model_path=Path(self.model_path),
-                    chat_config=asdict(self.chat_config),
-                    device=self.device,
-                )
-            )
+            self.model_lib = jit.jit(
+                model_path=Path(self.model_path),
+                chat_config=asdict(self.chat_config),
+                device=self.device,
+            ).model_lib_path
         _inspect_model_lib_metadata_memory_usage(self.model_lib, self.config_file_path)
 
         # 5. Call reload

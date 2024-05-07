@@ -225,7 +225,7 @@ private extension AppState {
 
         // model_id dir should exist
         if modelURL == nil {
-            // prebuilt model in dist
+            // prebuilt model in bundle
             modelBaseURL = Bundle.main.bundleURL.appending(path: Constants.prebuiltModelDir).appending(path: modelPath!)
         } else {
             // download model in cache

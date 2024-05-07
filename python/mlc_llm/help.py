@@ -214,4 +214,15 @@ For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=
 specify the eagle-style speculative decoding.
 Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
 """,
+    "config_package": """
+The path to "mlc-package-config.json" which is used for package build.
+See "ios/MLCChat/mlc-package-config.json" as an example.
+""",
+    "device_package": """
+The device to build package for.
+Options are ["iphone", "android"].
+""",
+    "output_package": """
+The path of output directory for the package build outputs.
+""",
 }

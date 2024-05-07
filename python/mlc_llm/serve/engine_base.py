@@ -105,13 +105,11 @@ def _process_model_args(
             # Run jit if model_lib is not provided
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
-            model_lib = str(
-                jit.jit(
-                    model_path=Path(model_path),
-                    chat_config=asdict(chat_config),
-                    device=device,
-                )
-            )
+            model_lib = jit.jit(
+                model_path=Path(model_path),
+                chat_config=asdict(chat_config),
+                device=device,
+            ).model_lib_path
         return model_path, model_lib
 
     model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]
