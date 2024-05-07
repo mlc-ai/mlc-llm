@@ -129,8 +129,9 @@ class EngineImpl : public Engine {
     DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
       max_num_tokens *= engine_config->spec_draft_length + 1;
+      // multiply max num_tokens by two so we can do ping-pong swaping during draft/verify process
       draft_token_workspace_manager =
-          n->models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens);
+          n->models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens * 2);
       draft_token_workspace_manager->AllocWorkspace(
           &n->model_workspaces_[0],
           /*require_hidden_states=*/engine_config->speculative_mode == SpeculativeMode::kEagle);
