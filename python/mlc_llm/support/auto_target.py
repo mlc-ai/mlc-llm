@@ -400,6 +400,7 @@ PRESET = {
         "target": {
             "kind": "opencl",
             "device": "adreno",
+            "max_threads_per_block": 512,
             "host": {
                 "kind": "llvm",
                 "mtriple": "aarch64-linux-android",
@@ -411,6 +412,7 @@ PRESET = {
         "target": {
             "kind": "opencl",
             "device": "adreno",
+            "max_threads_per_block": 512,
             "host": {
                 "kind": "llvm",
                 "mtriple": "aarch64-linux-android",

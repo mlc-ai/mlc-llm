@@ -887,7 +887,7 @@ def _attention_decode(
     THREAD_LIMIT = 512
     TILE_SIZE_PER_BDX = 2
     if target.kind.name == "opencl" and "android" in str(target.host):
-        THREAD_LIMIT = 256
+        THREAD_LIMIT = 256 if H_kv < 8 else 512
         TILE_SIZE_PER_BDX = 1
     max_num_threads_per_block = get_max_num_threads_per_block(target)
     thread_limit = min(max_num_threads_per_block, THREAD_LIMIT)
@@ -976,12 +976,14 @@ def _attention_decode(
                                 t0 = T.alloc_buffer((1,), "float32", scope="local")
 
                                 S_local = T.alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
-                                K_local = T.alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
+                                QK_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
                                 V_local = T.alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
                                 m_prev = T.alloc_buffer((1,), "float32", scope="local")
                                 d_prev = T.alloc_buffer((1,), "float32", scope="local")
                                 other_m = T.alloc_buffer((1,), "float32", scope="local")
                                 other_d = T.alloc_buffer((1,), "float32", scope="local")
+                                exp_mprev = T.alloc_buffer((1,), "float32", scope="local")
+                                exp_otherm = T.alloc_buffer((1,), "float32", scope="local")
                                 other_o = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
                                 st_m = T.alloc_buffer((1,), "float32", scope="local")
                                 st_d = T.alloc_buffer((1,), "float32", scope="local")
@@ -1015,9 +1017,9 @@ def _attention_decode(
                                 for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_size_per_bdx * bdy * bdz)):
                                     tile_start_s: T.int32(is_size_var=True) = (tz * bdy + ty) * tile_size_per_bdx  # type: ignore
                                     tile_start_g: T.int32(is_size_var=True) = ((iterator * bdz + tz) * bdy + ty) * tile_size_per_bdx  # type: ignore
-                                    # load K from global memory to shared memory
+                                    # load KV from global memory to shared memory
                                     for j in T.serial(tile_size_per_bdx):
-                                        with T.block("K_load"):
+                                        with T.block("KV_load"):
                                             T.reads()
                                             T.writes()
                                             row_g: T.int32(is_size_var=True) = tile_start_g + j  # type: ignore
@@ -1031,36 +1033,21 @@ def _attention_decode(
                                                         _rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, tx * VEC_SIZE + vec), qkv_dtype),
                                                         pages[page_no, 0, by, page_offset, tx * VEC_SIZE + vec]
                                                     )
-                                            else:
-                                                for vec in T.vectorized(VEC_SIZE):
-                                                    K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
-                                    T.tvm_storage_sync("shared")
-                                    # load V from global memory to shared memory
-                                    for j in T.serial(tile_size_per_bdx):
-                                        with T.block("V_load"):
-                                            T.reads()
-                                            T.writes()
-                                            row_g: T.int32(is_size_var=True) = tile_start_g + j  # type: ignore
-                                            if row_g < kv_chunk_len[0]:
-                                                seq_offset: T.int32(is_size_var=True) = _get_seq_offset(row_g, batch_idx, length_info, sliding_window)  # type: ignore
-                                                page_no: T.int32(is_size_var=True) = page_table_values[cur_page_indptr_begin + T.floordiv(seq_offset, 16)]  # type: ignore
-                                                page_offset: T.int32(is_size_var=True) = T.floormod(seq_offset, 16)  # type: ignore
-                                                for vec in T.vectorized(VEC_SIZE):
                                                     V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = pages[page_no, 1, by, page_offset, tx * VEC_SIZE + vec]
                                             else:
                                                 for vec in T.vectorized(VEC_SIZE):
+                                                    K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
                                                     V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = 0.0
                                     T.tvm_storage_sync("shared")
                                     # compute QK
                                     m_prev[0] = st_m[0]
                                     for j in T.serial(bdy * tile_size_per_bdx):
-                                        # load K from shared memory to local memory
-                                        for vec in T.vectorized(VEC_SIZE):
-                                            K_local[vec] = K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec]
                                         # compute S = Q * K * sm_scale
+                                        for vec in T.vectorized(VEC_SIZE):
+                                            QK_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * attn_score_scaling_factor * sm_scale
                                         S_reduce_local[0] = 0
-                                        for vec in T.serial(VEC_SIZE):
-                                            S_reduce_local[0] += T.cast(Q_local[vec], "float32") * T.cast(K_local[vec], "float32") * attn_score_scaling_factor * sm_scale
+                                        for vec in T.unroll(VEC_SIZE):
+                                            S_reduce_local[0] += QK_local[vec]
 
                                         with T.block("block_cross_thread"):
                                             T.reads(S_reduce_local[0])
@@ -1117,11 +1104,13 @@ def _attention_decode(
                                             other_o[vec] = O_allreduce[j, ty, tx * VEC_SIZE + vec]
                                         st_m[0] = T.max(st_m[0], other_m[0])
                                         st_d[0] = d_prev[0] * T.exp2(m_prev[0] - st_m[0]) + other_d[0] * T.exp2(other_m[0] - st_m[0])
-                                        for vec in T.serial(VEC_SIZE):
-                                            O_local[vec] = O_local[vec] * T.exp2(m_prev[0] - st_m[0]) + other_o[vec] * T.exp2(other_m[0] - st_m[0])
+                                        exp_mprev[0] = T.exp2(m_prev[0] - st_m[0])
+                                        exp_otherm[0] = T.exp2(other_m[0] - st_m[0])
+                                        for vec in T.vectorized(VEC_SIZE):
+                                            O_local[vec] = O_local[vec] * exp_mprev[0] + other_o[vec] * exp_otherm[0]
 
                                 # normalize O
-                                for vec in T.serial(VEC_SIZE):
+                                for vec in T.vectorized(VEC_SIZE):
                                     O_local[vec] /= st_d[0]
 
                                 # store O to global memory
