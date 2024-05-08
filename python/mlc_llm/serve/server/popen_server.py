@@ -95,7 +95,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         # Try to query the server until it is ready.
         openai_v1_models_url = f"http://{self.host}:{str(self.port)}/v1/models"
         query_result = None
-        timeout = 60
+        timeout = 120
         attempts = 0.0
         while query_result is None and attempts < timeout:
             try:

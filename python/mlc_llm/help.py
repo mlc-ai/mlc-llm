@@ -210,7 +210,7 @@ The number of draft tokens to generate in speculative proposal. The default valu
     "engine_config_serve": """
 The MLCEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.
-For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=EAGLE'" to
+For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=eagle'" to
 specify the eagle-style speculative decoding.
 Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
 """,
