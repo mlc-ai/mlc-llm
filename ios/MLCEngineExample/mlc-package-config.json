@@ -1,0 +1,11 @@
+{
+    "model_list": [
+        {
+            "model": "HF://mlc-ai/Llama-3-8B-Instruct-q3f16_1-MLC",
+            "model_id": "llama3",
+            "estimated_vram_bytes": 3316000000,
+            "bundle_weight": true,
+            "model_lib": "llama_q3f16_1"
+        }
+    ]
+}

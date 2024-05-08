@@ -12,7 +12,7 @@
 		C0B37B8D2BE8226B00B2F80B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0B37B8C2BE8226B00B2F80B /* Assets.xcassets */; };
 		C0B37B902BE8226B00B2F80B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0B37B8F2BE8226B00B2F80B /* Preview Assets.xcassets */; };
 		C0B37B982BE8234D00B2F80B /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C0B37B972BE8234D00B2F80B /* MLCSwift */; };
-		C0B37C0A2BE82D5900B2F80B /* dist in Copy Files */ = {isa = PBXBuildFile; fileRef = C0B37C062BE825DC00B2F80B /* dist */; };
+		F31E1EEE2BEAD4870061D498 /* bundle in Copy Files */ = {isa = PBXBuildFile; fileRef = F31E1EED2BEAD4870061D498 /* bundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -22,7 +22,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
-				C0B37C0A2BE82D5900B2F80B /* dist in Copy Files */,
+				F31E1EEE2BEAD4870061D498 /* bundle in Copy Files */,
 			);
 			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -35,8 +35,8 @@
 		C0B37B8A2BE8226A00B2F80B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C0B37B8C2BE8226B00B2F80B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C0B37B8F2BE8226B00B2F80B /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		C0B37C062BE825DC00B2F80B /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = ../dist; sourceTree = "<group>"; };
 		C0B37C0C2BE8349300B2F80B /* MLCEngineExample.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCEngineExample.entitlements; sourceTree = "<group>"; };
+		F31E1EED2BEAD4870061D498 /* bundle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = bundle; path = ../dist/bundle; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,7 +54,7 @@
 		C0B37B7C2BE8226A00B2F80B = {
 			isa = PBXGroup;
 			children = (
-				C0B37C062BE825DC00B2F80B /* dist */,
+				F31E1EED2BEAD4870061D498 /* bundle */,
 				C0B37B872BE8226A00B2F80B /* MLCEngineExample */,
 				C0B37B862BE8226A00B2F80B /* Products */,
 			);
@@ -314,7 +314,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build/lib";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../dist/lib";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
@@ -355,7 +355,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../build/lib";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../dist/lib";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",

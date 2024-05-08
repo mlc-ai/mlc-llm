@@ -72,4 +72,5 @@ cd ..
 rm -rf MLCSwift/tvm_home
 ln -s ../../3rdparty/tvm MLCSwift/tvm_home
 
-python prepare_model_lib.py
+python -m mlc_llm package MLCChat/mlc-package-config.json --device iphone -o dist
+cp build/lib/* dist/lib/

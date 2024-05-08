@@ -5,8 +5,8 @@
 // example and quick testing purposes.
 //
 // To build this app, select target My Mac(Designed for iPad) and run
-// Make sure you run prepare_libs.sh and prepare_params.sh first
-// to ensure the dist folder populates with the right model file
+// Make sure you run prepare_package.sh first with "MLCChat" replaced by "MLCEngineExample"
+// to ensure the "dist/bundle" folder populates with the right model file
 // and we have the model lib packaged correctly
 import Foundation
 import SwiftUI
@@ -19,18 +19,12 @@ class AppState: ObservableObject {
     private let engine = MLCEngine()
     // obtain the local path to store models
     // this that stores the model files in the dist folder
-    private let distURL = Bundle.main.bundleURL.appending(path: "dist")
-    // NOTE: this does not yet work out of box
-    // need to supply the Llama-3-8B-Instruct-q3f16_1-MLC and llama_q3f16_1
-    // via manual local compile
-    // TODO(mlc-team): update prebuild so it can be used out of box
-    //
+    private let bundleURL = Bundle.main.bundleURL.appending(path: "bundle")
     // model path, this must match a builtin
     // file name in prepare_params.sh
     private let modelPath = "Llama-3-8B-Instruct-q3f16_1-MLC"
     // model lib identifier of within the packaged library
-    // this must match a config in MLCChat/app-config.json
-    // make sure we run prepare_libs.sh
+    // make sure we run prepare_package.sh
     private let modelLib = "llama_q3f16_1"
 
     // this is a message to be displayed in app
@@ -39,7 +33,7 @@ class AppState: ObservableObject {
     public func runExample() {
         // MLCEngine is a actor that can be called in an async context
         Task {
-            let modelLocalPath = distURL.appending(path: modelPath).path()
+            let modelLocalPath = bundleURL.appending(path: modelPath).path()
             // Step 0: load the engine
             await engine.reload(modelPath: modelLocalPath, modelLib: modelLib)
 

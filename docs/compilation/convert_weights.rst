@@ -107,10 +107,10 @@ See :ref:`compile-command-specification` for specification of ``gen_config``.
     ``dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC/mlc-chat-config.json`` (checkout :ref:`configure-mlc-chat-json` for more detailed instructions).
     You can also simply use the default configuration.
 
-    `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`__
+    `conversation_template.py <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py>`__
     contains a full list of conversation templates that MLC provides. If the model you are adding
     requires a new conversation template, you would need to add your own.
-    Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/1402>`__ as an example. However,
+    Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/2163>`__ as an example. However,
     adding your own template would require you :ref:`build mlc_llm from source <mlcchat_build_from_source>` in order for it
     to be recognized by the runtime.
 
