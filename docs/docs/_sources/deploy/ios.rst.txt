@@ -61,6 +61,7 @@ We have a one-line command to build and prepare all the model libraries:
 
 .. code:: bash
 
+   cd /path/to/MLCChat
    ./prepare_package.sh
 
 This command mainly executes the following two steps:
@@ -88,6 +89,17 @@ Please make sure all the following files exist in ``./dist/``.
    libtokenizers_cpp.a  # Huggingface tokenizer
    libtvm_runtime.a     # TVM Unity runtime
 
+
+.. note::
+
+   We leverage a local JIT cache to avoid repetitive compilation of the same input.
+   However, sometimes it is helpful to force rebuild when we have a new compiler update
+   or when something goes wrong with the ached library.
+   You can do so by setting the environment variable ``MLC_JIT_POLICY=REDO``
+
+   .. code:: bash
+
+      MLC_JIT_POLICY=REDO ./prepare_package.sh
 
 .. _ios-bundle-model-weights:
 
@@ -129,7 +141,7 @@ The outcome of running ``prepare_package.sh`` should be as follows:
 Step 4. Build iOS App
 ^^^^^^^^^^^^^^^^^^^^^
 
-Open ``./ios/MLCChat.xcodeproj`` using Xcode. Note that you will need an
+Open ``./ios/MLCChat/MLCChat.xcodeproj`` using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
 your own developer team credential and product bundle identifier.
 
@@ -232,7 +244,7 @@ Example:
          }
       ],
       "model_lib_path_for_prepare_libs": {
-         "gpt_neox_q4f16_1": "../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar"
+         "gpt_neox_q4f16_1": "../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar"
       }
    }
 
@@ -334,15 +346,18 @@ Build Apps with MLC Swift API
 We also provide a Swift package that you can use to build
 your own app. The package is located under ``ios/MLCSwift``.
 
-- First make sure you have run the same steps listed
-  in the previous section. This will give us the necessary libraries
-  under ``/path/to/ios/build/lib``.
-- Then you can add ``ios/MLCSwift`` package to your app in Xcode.
+- First, create `mlc-package-config.json` and `prepare_package.sh` in your project folder.
+  You do so by copying the files in MLCChat folder.
+  Run `prepare_package.sh`
+  This will give us the necessary libraries under ``/path/to/project/dist``.
+- Under "Build phases", add ``/path/to/project/dist/bundle`` this will copying
+  this folder into your app to include bundled weights and configs.
+- Add ``ios/MLCSwift`` package to your app in Xcode.
   Under "Frameworks, Libraries, and Embedded Content", click add package dependencies
   and add local package that points to ``ios/MLCSwift``.
 - Finally, we need to add the libraries dependencies. Under build settings:
 
-  - Add library search path ``/path/to/ios/build/lib``.
+  - Add library search path ``/path/to/project/dist/lib``.
   - Add the following items to "other linker flags".
 
    .. code::

@@ -357,7 +357,8 @@ in the <code class="docutils literal notranslate"><span class="pre">model_list</
 where model weights are downloaded from. <code class="docutils literal notranslate"><span class="pre">model_id</span></code> is a unique model identifier.
 <code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code> is an estimation of the vRAM the model takes at runtime.</p>
 <p>We have a one-line command to build and prepare all the model libraries:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./prepare_package.sh
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/MLCChat
+./prepare_package.sh
 </pre></div>
 </div>
 <p>This command mainly executes the following two steps:</p>
@@ -382,6 +383,16 @@ libsentencepiece.a<span class="w">   </span><span class="c1"># SentencePiece tok
 libtokenizers_cpp.a<span class="w">  </span><span class="c1"># Huggingface tokenizer</span>
 libtvm_runtime.a<span class="w">     </span><span class="c1"># TVM Unity runtime</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We leverage a local JIT cache to avoid repetitive compilation of the same input.
+However, sometimes it is helpful to force rebuild when we have a new compiler update
+or when something goes wrong with the ached library.
+You can do so by setting the environment variable <code class="docutils literal notranslate"><span class="pre">MLC_JIT_POLICY=REDO</span></code></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MLC_JIT_POLICY</span><span class="o">=</span>REDO<span class="w"> </span>./prepare_package.sh
+</pre></div>
+</div>
 </div>
 </section>
 <section id="step-3-optional-bundle-model-weights-into-the-app">
@@ -415,7 +426,7 @@ gemma-2b-it-q4f16_1-MLC<span class="w">   </span><span class="c1"># The model we
 </section>
 <section id="step-4-build-ios-app">
 <span id="ios-build-app"></span><h3><a class="toc-backref" href="#id7" role="doc-backlink">Step 4. Build iOS App</a><a class="headerlink" href="#step-4-build-ios-app" title="Permalink to this heading">¶</a></h3>
-<p>Open <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat.xcodeproj</span></code> using Xcode. Note that you will need an
+<p>Open <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat/MLCChat.xcodeproj</span></code> using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
 your own developer team credential and product bundle identifier.</p>
 <p>Ensure that all the necessary dependencies and configurations are
@@ -500,7 +511,7 @@ Example:</p>
 <span class="w">      </span><span class="p">}</span>
 <span class="w">   </span><span class="p">],</span>
 <span class="w">   </span><span class="nt">&quot;model_lib_path_for_prepare_libs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
-<span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar&quot;</span>
+<span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar&quot;</span>
 <span class="w">   </span><span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
@@ -582,15 +593,18 @@ The app will use the <code class="docutils literal notranslate"><span class="pre
 <p>We also provide a Swift package that you can use to build
 your own app. The package is located under <code class="docutils literal notranslate"><span class="pre">ios/MLCSwift</span></code>.</p>
 <ul>
-<li><p>First make sure you have run the same steps listed
-in the previous section. This will give us the necessary libraries
-under <code class="docutils literal notranslate"><span class="pre">/path/to/ios/build/lib</span></code>.</p></li>
-<li><p>Then you can add <code class="docutils literal notranslate"><span class="pre">ios/MLCSwift</span></code> package to your app in Xcode.
+<li><p>First, create <cite>mlc-package-config.json</cite> and <cite>prepare_package.sh</cite> in your project folder.
+You do so by copying the files in MLCChat folder.
+Run <cite>prepare_package.sh</cite>
+This will give us the necessary libraries under <code class="docutils literal notranslate"><span class="pre">/path/to/project/dist</span></code>.</p></li>
+<li><p>Under “Build phases”, add <code class="docutils literal notranslate"><span class="pre">/path/to/project/dist/bundle</span></code> this will copying
+this folder into your app to include bundled weights and configs.</p></li>
+<li><p>Add <code class="docutils literal notranslate"><span class="pre">ios/MLCSwift</span></code> package to your app in Xcode.
 Under “Frameworks, Libraries, and Embedded Content”, click add package dependencies
 and add local package that points to <code class="docutils literal notranslate"><span class="pre">ios/MLCSwift</span></code>.</p></li>
 <li><p>Finally, we need to add the libraries dependencies. Under build settings:</p>
 <ul class="simple">
-<li><p>Add library search path <code class="docutils literal notranslate"><span class="pre">/path/to/ios/build/lib</span></code>.</p></li>
+<li><p>Add library search path <code class="docutils literal notranslate"><span class="pre">/path/to/project/dist/lib</span></code>.</p></li>
 <li><p>Add the following items to “other linker flags”.</p></li>
 </ul>
 <blockquote>
