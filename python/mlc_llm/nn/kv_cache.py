@@ -1047,7 +1047,7 @@ def _attention_decode(
                                             QK_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * attn_score_scaling_factor * sm_scale
                                         S_reduce_local[0] = 0
                                         for vec in T.unroll(VEC_SIZE):
-                                            S_reduce_local[0] += K_local[vec]
+                                            S_reduce_local[0] += QK_local[vec]
 
                                         with T.block("block_cross_thread"):
                                             T.reads(S_reduce_local[0])
