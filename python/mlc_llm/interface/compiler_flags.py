@@ -102,7 +102,7 @@ class OptimizationFlags:
 
         def _cublas_gemm(target, quantization) -> bool:
             """correct cublas_gemm flag"""
-            if not target.kind.name == "cuda":
+            if not target.kind.name in ["cuda", "rocm"]:
                 return False
             if not (
                 quantization.name in ["q0f16", "q0f32"]
