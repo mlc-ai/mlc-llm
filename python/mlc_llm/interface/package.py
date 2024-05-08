@@ -34,7 +34,11 @@ def _get_model_libs(lib_path: Path) -> List[str]:
 
 
 def validate_model_lib(  # pylint: disable=too-many-locals
-    app_config_path: Path, device: Literal["iphone", "android"], output: Path
+    app_config_path: Path,
+    package_config_path: Path,
+    model_lib_path_for_prepare_libs: dict,
+    device: Literal["iphone", "android"],
+    output: Path,
 ) -> None:
     """Validate the model lib prefixes of model libraries."""
     # pylint: disable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
@@ -50,7 +54,7 @@ def validate_model_lib(  # pylint: disable=too-many-locals
     tar_list = []
     model_set = set()
 
-    for model, model_lib_path in app_config["model_lib_path_for_prepare_libs"].items():
+    for model, model_lib_path in model_lib_path_for_prepare_libs.items():
         model_lib_path = os.path.join(model_lib_path)
         lib_path_valid = os.path.isfile(model_lib_path)
         if not lib_path_valid:
@@ -74,39 +78,39 @@ def validate_model_lib(  # pylint: disable=too-many-locals
     )
     global_symbol_map = cc.get_global_symbol_section_map(lib_path)
     error_happened = False
+
     for item in app_config["model_list"]:
         model_lib = item["model_lib"]
         model_id = item["model_id"]
         if model_lib not in model_set:
-            logger.info(
-                "ValidationError: model_lib=%s specified for model_id=%s "
-                "is not included in model_lib_path_for_prepare_libs field, "
+            # NOTE: this cannot happen under new setting
+            # since if model_lib is not included, it will be jitted
+            raise RuntimeError(
+                f"ValidationError: model_lib={model_lib} specified for model_id={model_id} "
+                "is not included in model_lib_path_for_prepare_libs argument, "
                 "This will cause the specific model not being able to load, "
-                "please check %s.",
-                model_lib,
-                model_id,
-                str(app_config_path),
+                f"model_lib_path_for_prepare_libs={model_lib_path_for_prepare_libs}"
             )
-            error_happened = True
 
         model_prefix_pattern = model_lib.replace("-", "_") + "___tvm_dev_mblob"
         if (
             model_prefix_pattern not in global_symbol_map
             and "_" + model_prefix_pattern not in global_symbol_map
         ):
-            model_lib_path = app_config["model_lib_path_for_prepare_libs"][model_lib]
-            logger.info(
+            # NOTE: no lazy format is ok since this is a slow pass
+            model_lib_path = model_lib_path_for_prepare_libs[model_lib]
+            log_msg = (
                 "ValidationError:\n"
-                "\tmodel_lib %s requested in %s is not found in %s\n"
-                "\tspecifically the model_lib for %s in model_lib_path_for_prepare_libs.\n"
-                "\tcurrent available model_libs in %s: %s",
-                model_lib,
-                str(app_config_path),
-                str(lib_path),
-                model_lib_path,
-                str(lib_path),
-                str(available_model_libs),
+                f"\tmodel_lib {model_lib} requested in {str(app_config_path)}"
+                f" is not found in {str(lib_path)}\n"
+                f"\tspecifically the model_lib for {model_lib_path}.\n"
+                f"\tcurrent available model_libs in {str(lib_path)}: {available_model_libs}\n"
+                f"\tThis can happen when we manually specified model_lib_path_for_prepare_libs"
+                f" in {str(package_config_path)}\n"
+                f"\tConsider remove model_lib_path_for_prepare_libs (so library can be jitted)"
+                "or check the compile command"
             )
+            logger.info(log_msg)
             error_happened = True
 
     if not error_happened:
@@ -152,6 +156,8 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
             'The "model_lib_path_for_prepare_libs" in "mlc-package-config.json" is expected to be '
             "a dict."
         )
+
+    jit.log_jit_policy()
 
     for model_entry in package_config.get("model_list", []):
         # - Parse model entry.
@@ -205,6 +211,7 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
                     chat_config=asdict(chat_config),
                     device=device,
                     system_lib_prefix=model_lib,
+                    skip_log_jit_policy=True,
                 )
             )
             assert model_lib is not None
@@ -237,10 +244,9 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
             # Overwrite the model weight directory in bundle.
             bundle_model_weight_path = bundle_dir / model_path.name
             logger.info(
-                'Bundle weight for model "%s". Copying weights from "%s" to "%s".',
-                model_id,
-                model_path,
-                bundle_model_weight_path,
+                "Bundle weight for %s, copy into %s",
+                style.bold(model_id),
+                style.bold(str(bundle_model_weight_path)),
             )
             if bundle_model_weight_path.exists():
                 shutil.rmtree(bundle_model_weight_path)
@@ -256,10 +262,7 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
 
     # - Dump "mlc-app-config.json".
     app_config_json_str = json.dumps(
-        {
-            "model_list": app_config_model_list,
-            "model_lib_path_for_prepare_libs": model_lib_path_for_prepare_libs,
-        },
+        {"model_list": app_config_model_list},
         indent=2,
     )
     app_config_path = bundle_dir / "mlc-app-config.json"
@@ -271,4 +274,6 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
         )
 
     # - Validate model libraries.
-    validate_model_lib(app_config_path, device, output)
+    validate_model_lib(
+        app_config_path, package_config_path, model_lib_path_for_prepare_libs, device, output
+    )

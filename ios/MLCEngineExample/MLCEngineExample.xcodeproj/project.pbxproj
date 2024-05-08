@@ -7,12 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C04105DF2BEBC61B005A434D /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C04105DE2BEBC61B005A434D /* MLCSwift */; };
+		C07094522BEBC6C4005C29FC /* bundle in Copy Files */ = {isa = PBXBuildFile; fileRef = C07094512BEBC6C4005C29FC /* bundle */; };
 		C0B37B892BE8226A00B2F80B /* MLCEngineExampleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B37B882BE8226A00B2F80B /* MLCEngineExampleApp.swift */; };
 		C0B37B8B2BE8226A00B2F80B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0B37B8A2BE8226A00B2F80B /* ContentView.swift */; };
 		C0B37B8D2BE8226B00B2F80B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0B37B8C2BE8226B00B2F80B /* Assets.xcassets */; };
 		C0B37B902BE8226B00B2F80B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0B37B8F2BE8226B00B2F80B /* Preview Assets.xcassets */; };
 		C0B37B982BE8234D00B2F80B /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C0B37B972BE8234D00B2F80B /* MLCSwift */; };
-		F31E1EEE2BEAD4870061D498 /* bundle in Copy Files */ = {isa = PBXBuildFile; fileRef = F31E1EED2BEAD4870061D498 /* bundle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -22,7 +23,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 7;
 			files = (
-				F31E1EEE2BEAD4870061D498 /* bundle in Copy Files */,
+				C07094522BEBC6C4005C29FC /* bundle in Copy Files */,
 			);
 			name = "Copy Files";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -30,13 +31,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C07094512BEBC6C4005C29FC /* bundle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = bundle; path = dist/bundle; sourceTree = "<group>"; };
 		C0B37B852BE8226A00B2F80B /* MLCEngineExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MLCEngineExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0B37B882BE8226A00B2F80B /* MLCEngineExampleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLCEngineExampleApp.swift; sourceTree = "<group>"; };
 		C0B37B8A2BE8226A00B2F80B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		C0B37B8C2BE8226B00B2F80B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C0B37B8F2BE8226B00B2F80B /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C0B37C0C2BE8349300B2F80B /* MLCEngineExample.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCEngineExample.entitlements; sourceTree = "<group>"; };
-		F31E1EED2BEAD4870061D498 /* bundle */ = {isa = PBXFileReference; lastKnownFileType = folder; name = bundle; path = ../dist/bundle; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +46,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0B37B982BE8234D00B2F80B /* MLCSwift in Frameworks */,
+				C04105DF2BEBC61B005A434D /* MLCSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -54,7 +56,7 @@
 		C0B37B7C2BE8226A00B2F80B = {
 			isa = PBXGroup;
 			children = (
-				F31E1EED2BEAD4870061D498 /* bundle */,
+				C07094512BEBC6C4005C29FC /* bundle */,
 				C0B37B872BE8226A00B2F80B /* MLCEngineExample */,
 				C0B37B862BE8226A00B2F80B /* Products */,
 			);
@@ -107,6 +109,7 @@
 			name = MLCEngineExample;
 			packageProductDependencies = (
 				C0B37B972BE8234D00B2F80B /* MLCSwift */,
+				C04105DE2BEBC61B005A434D /* MLCSwift */,
 			);
 			productName = MLCEngineExample;
 			productReference = C0B37B852BE8226A00B2F80B /* MLCEngineExample.app */;
@@ -314,7 +317,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../dist/lib";
+				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/dist/lib";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
@@ -355,7 +358,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../dist/lib";
+				LIBRARY_SEARCH_PATHS = "${PROJECT_DIR}/dist/lib";
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
@@ -405,6 +408,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C04105DE2BEBC61B005A434D /* MLCSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = MLCSwift;
+		};
 		C0B37B972BE8234D00B2F80B /* MLCSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MLCSwift;
