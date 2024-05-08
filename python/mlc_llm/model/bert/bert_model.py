@@ -248,9 +248,6 @@ class BertModel(nn.Module):
         )
         return self.forward(inputs, attention_mask_2d)
 
-    def softmax_with_temperature(self, logits: Tensor, temperature: Tensor):
-        return op.softmax(logits / op.reshape(temperature, (temperature.shape[0], 1, 1)), axis=-1)
-
     def get_default_spec(self):
         mod_spec = {
             "prefill": {
@@ -258,14 +255,6 @@ class BertModel(nn.Module):
                 "attention_mask": nn.spec.Tensor(["batch_size", "seq_len"], "int32"),
                 "$": {
                     "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "softmax_with_temperature": {
-                "logits": nn.spec.Tensor(["batch_size", 1, "vocab_size"], "float32"),
-                "temperature": nn.spec.Tensor(["batch_size"], "float32"),
-                "$": {
-                    "param_mode": "none",
                     "effect_mode": "none",
                 },
             },
