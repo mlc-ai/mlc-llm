@@ -4,6 +4,7 @@
             "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC",
             "model_id": "Mistral-7B-Instruct-v0.2-q3f16_1",
             "estimated_vram_bytes": 3316000000,
+            "bundle_weight": true,
             "overrides": {
                 "context_window_size": 512
             }

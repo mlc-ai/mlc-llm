@@ -28,7 +28,7 @@ public struct ChatFunction : Codable {
 }
 
 public struct ChatTool : Codable {
-    public let type: String = "function"
+    public var type: String = "function"
     public let function: ChatFunction
 }
 
@@ -40,8 +40,8 @@ public struct ChatFunctionCall : Codable {
 }
 
 public struct ChatToolCall : Codable {
-    public let id: String = UUID().uuidString
-    public let type: String = "function"
+    public var id: String = UUID().uuidString
+    public var type: String = "function"
     public let function: ChatFunctionCall
 }
 

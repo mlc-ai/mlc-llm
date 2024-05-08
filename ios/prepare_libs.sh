@@ -1,3 +1,5 @@
+# Command to prepare the mlc llm static libraries
+# This command will be invoked by prepare_package.sh in the subfolder
 function help {
     echo -e "OPTION:"
     echo -e "  -s, --simulator                      Build for Simulator"
@@ -71,6 +73,3 @@ cd ..
 
 rm -rf MLCSwift/tvm_home
 ln -s ../../3rdparty/tvm MLCSwift/tvm_home
-
-python -m mlc_llm package MLCChat/mlc-package-config.json --device iphone -o dist
-cp build/lib/* dist/lib/

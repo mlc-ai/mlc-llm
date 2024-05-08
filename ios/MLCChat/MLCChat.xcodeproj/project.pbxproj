@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -16,13 +16,13 @@
 		AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */; };
 		AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFB2A85C3B000254E67 /* AppConfig.swift */; };
 		AEC27F022A86337E00254E67 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27F012A86337E00254E67 /* Constants.swift */; };
+		C04105DD2BEBBEA6005A434D /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C04105DC2BEBBEA6005A434D /* MLCSwift */; };
 		C0D643B329F99A7F004DDAA4 /* MLCChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */; };
 		C0D643B729F99A80004DDAA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D643B629F99A80004DDAA4 /* Assets.xcassets */; };
 		C0D643BA29F99A80004DDAA4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D643B929F99A80004DDAA4 /* Preview Assets.xcassets */; };
 		C0D643C429F99B07004DDAA4 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C229F99B07004DDAA4 /* ChatView.swift */; };
 		C0D643C829F99B34004DDAA4 /* MessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C729F99B34004DDAA4 /* MessageView.swift */; };
 		C0DDBDF62A39103F00E9D060 /* ChatState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643C029F99B07004DDAA4 /* ChatState.swift */; };
-		C0DDBE0D2A3BCD8000E9D060 /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */; };
 		F3C280002BEB16ED00F1E016 /* bundle in CopyFiles */ = {isa = PBXBuildFile; fileRef = F3C27FFF2BEB16ED00F1E016 /* bundle */; };
 /* End PBXBuildFile section */
 
@@ -60,7 +60,6 @@
 		AEC27EFB2A85C3B000254E67 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		AEC27F012A86337E00254E67 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		C06A74E629F9A1DF00BC4BE6 /* MLCChat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MLCChat.entitlements; sourceTree = "<group>"; };
-		C09834182A16F4CB00A05B51 /* app-config.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "app-config.json"; sourceTree = "<group>"; };
 		C0D643AF29F99A7F004DDAA4 /* MLCChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MLCChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLCChatApp.swift; sourceTree = "<group>"; };
 		C0D643B629F99A80004DDAA4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -77,7 +76,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C0DDBE0D2A3BCD8000E9D060 /* MLCSwift in Frameworks */,
+				C04105DD2BEBBEA6005A434D /* MLCSwift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -146,7 +145,6 @@
 		C0D643B129F99A7F004DDAA4 /* MLCChat */ = {
 			isa = PBXGroup;
 			children = (
-				C09834182A16F4CB00A05B51 /* app-config.json */,
 				AEC27F032A86338800254E67 /* Common */,
 				AEC27EF82A85C29000254E67 /* Models */,
 				AEC27EFF2A85EE2800254E67 /* States */,
@@ -201,7 +199,7 @@
 			);
 			name = MLCChat;
 			packageProductDependencies = (
-				C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */,
+				C04105DC2BEBBEA6005A434D /* MLCSwift */,
 			);
 			productName = MLCChat;
 			productReference = C0D643AF29F99A7F004DDAA4 /* MLCChat.app */;
@@ -232,6 +230,9 @@
 				Base,
 			);
 			mainGroup = C0D643A629F99A7F004DDAA4;
+			packageReferences = (
+				C04105DB2BEBBEA6005A434D /* XCLocalSwiftPackageReference "../MLCSwift" */,
+			);
 			productRefGroup = C0D643B029F99A7F004DDAA4 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -517,8 +518,15 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		C04105DB2BEBBEA6005A434D /* XCLocalSwiftPackageReference "../MLCSwift" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../MLCSwift;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
-		C0DDBE0C2A3BCD8000E9D060 /* MLCSwift */ = {
+		C04105DC2BEBBEA6005A434D /* MLCSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MLCSwift;
 		};

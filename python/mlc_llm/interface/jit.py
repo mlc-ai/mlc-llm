@@ -38,18 +38,28 @@ class JITResult:
     system_lib_prefix: Optional[str] = None
 
 
-def jit(  # pylint: disable=too-many-locals,too-many-statements
-    model_path: Path,
-    chat_config: Dict[str, Any],
-    device: Union[Device, str],
-    system_lib_prefix: Optional[str] = None,
-) -> JITResult:
-    """Just-in-time compile a MLC-Chat model."""
+def log_jit_policy():
+    """log current jit policy"""
     logger.info(
         "%s = %s. Can be one of: ON, OFF, REDO, READONLY",
         bold("MLC_JIT_POLICY"),
         MLC_JIT_POLICY,
     )
+
+
+def jit(  # pylint: disable=too-many-locals,too-many-statements
+    model_path: Path,
+    chat_config: Dict[str, Any],
+    device: Union[Device, str],
+    system_lib_prefix: Optional[str] = None,
+    *,
+    skip_log_jit_policy=False,
+) -> JITResult:
+    """Just-in-time compile a MLC-Chat model."""
+    # skip logging jit policy since when outside can hint once
+    if not skip_log_jit_policy:
+        log_jit_policy()
+
     if MLC_JIT_POLICY == "OFF":
         raise RuntimeError("JIT is disabled by MLC_JIT_POLICY=OFF")
 
