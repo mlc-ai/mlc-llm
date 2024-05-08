@@ -976,7 +976,7 @@ def _attention_decode(
                                 t0 = T.alloc_buffer((1,), "float32", scope="local")
 
                                 S_local = T.alloc_buffer((bdy * tile_size_per_bdx), "float32", scope="local")
-                                K_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
+                                QK_local = T.alloc_buffer((VEC_SIZE,), "float32", scope="local")
                                 V_local = T.alloc_buffer((VEC_SIZE,), qkv_dtype, scope="local")
                                 m_prev = T.alloc_buffer((1,), "float32", scope="local")
                                 d_prev = T.alloc_buffer((1,), "float32", scope="local")
@@ -1044,7 +1044,7 @@ def _attention_decode(
                                     for j in T.serial(bdy * tile_size_per_bdx):
                                         # compute S = Q * K * sm_scale
                                         for vec in T.vectorized(VEC_SIZE):
-                                            K_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * attn_score_scaling_factor * sm_scale
+                                            QK_local[vec] = T.cast(Q_local[vec], "float32") * T.cast(K_smem[tz * bdy * tile_size_per_bdx + j, tx * VEC_SIZE + vec], "float32") * attn_score_scaling_factor * sm_scale
                                         S_reduce_local[0] = 0
                                         for vec in T.unroll(VEC_SIZE):
                                             S_reduce_local[0] += K_local[vec]
