@@ -150,11 +150,11 @@ See :ref:`compile-command-specification` for specification of ``gen_config``.
         --quantization q4f16_1 --conv-template wizard_coder_or_math \
         -o dist/WizardMath-7B-V1.1-q4f16_1-MLC/
 
-For the ``conv-template``, `conv_template.cc <https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc>`__
+For the ``conv-template``, `conversation_template.py <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py>`__
 contains a full list of conversation templates that MLC provides.
 
 If the model you are adding requires a new conversation template, you would need to add your own.
-Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/1402>`__ as an example. Besides, you also need to add the new template to ``/path/to/web-llm/src/conversation.ts``.
+Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/2163>`__ as an example. Besides, you also need to add the new template to ``/path/to/web-llm/src/conversation.ts``.
 We look up the template to use with the ``conv_template`` field in ``mlc-chat-config.json``.
 
 For more details, please see :ref:`configure-mlc-chat-json`.

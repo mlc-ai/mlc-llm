@@ -179,14 +179,13 @@
 <li class="toctree-l2"><a class="reference internal" href="#use-pre-built-ios-app">Use Pre-built iOS App</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#build-ios-app-from-source">Build iOS App from Source</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#step-1-install-build-dependencies">Step 1. Install Build Dependencies</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-2-download-prebuilt-weights-and-library">Step 2. Download Prebuilt Weights and Library</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#step-3-build-auxiliary-components">Step 3. Build Auxiliary Components</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-build-runtime-and-model-libraries">Step 2. Build Runtime and Model Libraries</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-optional-bundle-model-weights-into-the-app">Step 3. (Optional) Bundle model weights into the app</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#step-4-build-ios-app">Step 4. Build iOS App</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#customize-the-app">Customize the App</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-variant">Bring Your Own Model Variant</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model-library">Bring Your Own Model Library</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#bring-your-own-model">Bring Your Own Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#build-apps-with-mlc-swift-api">Build Apps with MLC Swift API</a></li>
 </ul>
 </li>
@@ -310,15 +309,14 @@
 <li><p><a class="reference internal" href="#build-ios-app-from-source" id="id3">Build iOS App from Source</a></p>
 <ul>
 <li><p><a class="reference internal" href="#step-1-install-build-dependencies" id="id4">Step 1. Install Build Dependencies</a></p></li>
-<li><p><a class="reference internal" href="#step-2-download-prebuilt-weights-and-library" id="id5">Step 2. Download Prebuilt Weights and Library</a></p></li>
-<li><p><a class="reference internal" href="#step-3-build-auxiliary-components" id="id6">Step 3. Build Auxiliary Components</a></p></li>
+<li><p><a class="reference internal" href="#step-2-build-runtime-and-model-libraries" id="id5">Step 2. Build Runtime and Model Libraries</a></p></li>
+<li><p><a class="reference internal" href="#step-3-optional-bundle-model-weights-into-the-app" id="id6">Step 3. (Optional) Bundle model weights into the app</a></p></li>
 <li><p><a class="reference internal" href="#step-4-build-ios-app" id="id7">Step 4. Build iOS App</a></p></li>
 </ul>
 </li>
 <li><p><a class="reference internal" href="#customize-the-app" id="id8">Customize the App</a></p></li>
-<li><p><a class="reference internal" href="#bring-your-own-model-variant" id="id9">Bring Your Own Model Variant</a></p></li>
-<li><p><a class="reference internal" href="#bring-your-own-model-library" id="id10">Bring Your Own Model Library</a></p></li>
-<li><p><a class="reference internal" href="#build-apps-with-mlc-swift-api" id="id11">Build Apps with MLC Swift API</a></p></li>
+<li><p><a class="reference internal" href="#bring-your-own-model" id="id9">Bring Your Own Model</a></p></li>
+<li><p><a class="reference internal" href="#build-apps-with-mlc-swift-api" id="id10">Build Apps with MLC Swift API</a></p></li>
 </ul>
 </nav>
 <p>The MLC LLM iOS app can be installed in two ways: through the pre-built package or by building from the source.
@@ -336,10 +334,15 @@ developer seeking to integrate new features into the package, building the iOS p
 <p>This section shows how we can build the app from the source.</p>
 <section id="step-1-install-build-dependencies">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">Step 1. Install Build Dependencies</a><a class="headerlink" href="#step-1-install-build-dependencies" title="Permalink to this heading">¶</a></h3>
-<p>First and foremost, please clone the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.</p>
-<p>Please follow <a class="reference internal" href="../install/tvm.html"><span class="doc">Install TVM Unity Compiler</span></a> to install TVM Unity.
-Note that we <strong>do not</strong> have to run <cite>build.py</cite> since we can use prebuilt weights.
-We only need TVM Unity’s utility to combine the libraries (<cite>local-id-iphone.tar</cite>) into a single library.</p>
+<p>First and foremost, please clone the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.
+After cloning, go to the <code class="docutils literal notranslate"><span class="pre">ios/</span></code> directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git
+<span class="nb">cd</span><span class="w"> </span>mlc-llm
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+<span class="nb">cd</span><span class="w"> </span>./ios
+</pre></div>
+</div>
+<p>Please follow <a class="reference internal" href="../install/tvm.html"><span class="doc">Install TVM Unity Compiler</span></a> to install TVM Unity.</p>
 <p>We also need to have the following build dependencies:</p>
 <ul class="simple">
 <li><p>CMake &gt;= 3.24,</p></li>
@@ -347,52 +350,32 @@ We only need TVM Unity’s utility to combine the libraries (<cite>local-id-ipho
 <li><p><a class="reference external" href="https://www.rust-lang.org/tools/install">Rust and Cargo</a>, which are required by Hugging Face’s tokenizer.</p></li>
 </ul>
 </section>
-<section id="step-2-download-prebuilt-weights-and-library">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">Step 2. Download Prebuilt Weights and Library</a><a class="headerlink" href="#step-2-download-prebuilt-weights-and-library" title="Permalink to this heading">¶</a></h3>
-<p>You also need to obtain a copy of the MLC-LLM source code
-by cloning the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.
-To simplify the build, we will use prebuilt model
-weights and libraries here. Run the following command
-in the root directory of the MLC-LLM.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt/lib
+<section id="step-2-build-runtime-and-model-libraries">
+<span id="ios-build-runtime-and-model-libraries"></span><h3><a class="toc-backref" href="#id5" role="doc-backlink">Step 2. Build Runtime and Model Libraries</a><a class="headerlink" href="#step-2-build-runtime-and-model-libraries" title="Permalink to this heading">¶</a></h3>
+<p>The models to be built for the iOS app are specified in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>:
+in the <code class="docutils literal notranslate"><span class="pre">model_list</span></code> field of this file, <code class="docutils literal notranslate"><span class="pre">model</span></code> points to the Hugging Face model repository,
+where model weights are downloaded from. <code class="docutils literal notranslate"><span class="pre">model_id</span></code> is a unique model identifier.
+<code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code> is an estimation of the vRAM the model takes at runtime.</p>
+<p>We have a one-line command to build and prepare all the model libraries:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./prepare_package.sh
+</pre></div>
+</div>
+<p>This command mainly executes the following two steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Build runtime and tokenizer.</strong> In addition to the model itself, a lightweight runtime and tokenizer are required to actually run the LLM.</p></li>
+<li><p><strong>Compile models.</strong> We compile each model in <code class="docutils literal notranslate"><span class="pre">model_list</span></code> of <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code> into a binary model library.</p></li>
+</ol>
+<p>The command creates a <code class="docutils literal notranslate"><span class="pre">./dist/</span></code> directory that contains the runtime and model build output.
+Please make sure all the following files exist in <code class="docutils literal notranslate"><span class="pre">./dist/</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist
+bundle<span class="w">               </span><span class="c1"># The directory for mlc-app-config.json (and optionally model weights)</span>
+<span class="w">                     </span><span class="c1"># that will be bundled into the iOS app.</span>
+lib<span class="w">                  </span><span class="c1"># The directory for runtime and model libraries.</span>
 
-<span class="nb">cd</span><span class="w"> </span>dist/prebuilt
-git<span class="w"> </span>lfs<span class="w"> </span>install
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
-<span class="nb">cd</span><span class="w"> </span>../..
-</pre></div>
-</div>
-<p>Validate that the files and directories exist:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/lib/*/*-iphone.tar
-./dist/prebuilt/lib/RedPajama-INCITE-Chat-3B-v1/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar
-./dist/prebuilt/lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar
-...
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/bundle
+mlc-app-config.json<span class="w">  </span><span class="c1"># The app config JSON file.</span>
 
-&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>./dist/prebuilt/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
-<span class="c1"># chat config:</span>
-mlc-chat-config.json
-<span class="c1"># model weights:</span>
-ndarray-cache.json
-params_shard_*.bin
-...
-</pre></div>
-</div>
-</section>
-<section id="step-3-build-auxiliary-components">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Step 3. Build Auxiliary Components</a><a class="headerlink" href="#step-3-build-auxiliary-components" title="Permalink to this heading">¶</a></h3>
-<p><strong>Tokenizer and runtime</strong></p>
-<p>In addition to the model itself, a lightweight runtime and tokenizer are
-required to actually run the LLM. You can build and organize these
-components by following these steps:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
-<span class="nb">cd</span><span class="w"> </span>./ios
-./prepare_libs.sh
-</pre></div>
-</div>
-<p>This will create a <code class="docutils literal notranslate"><span class="pre">./build</span></code> folder that contains the following files.
-Please make sure all the following files exist in <code class="docutils literal notranslate"><span class="pre">./build/</span></code>.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./build/lib/
+&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/lib
 libmlc_llm.a<span class="w">         </span><span class="c1"># A lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime</span>
 libmodel_iphone.a<span class="w">    </span><span class="c1"># The compiled model lib</span>
 libsentencepiece.a<span class="w">   </span><span class="c1"># SentencePiece tokenizer</span>
@@ -400,22 +383,38 @@ libtokenizers_cpp.a<span class="w">  </span><span class="c1"># Huggingface token
 libtvm_runtime.a<span class="w">     </span><span class="c1"># TVM Unity runtime</span>
 </pre></div>
 </div>
-<p><strong>Add prepackage model</strong></p>
-<p>We can also <em>optionally</em> add prepackage weights into the app,
-run the following command under the <code class="docutils literal notranslate"><span class="pre">./ios</span></code> directory:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./ios
-open<span class="w"> </span>./prepare_params.sh<span class="w"> </span><span class="c1"># make sure builtin_list only contains &quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span>
-./prepare_params.sh
+</section>
+<section id="step-3-optional-bundle-model-weights-into-the-app">
+<span id="ios-bundle-model-weights"></span><h3><a class="toc-backref" href="#id6" role="doc-backlink">Step 3. (Optional) Bundle model weights into the app</a><a class="headerlink" href="#step-3-optional-bundle-model-weights-into-the-app" title="Permalink to this heading">¶</a></h3>
+<p>By default, we download the model weights from Hugging Face when running the app.
+<strong>As an option,</strong>, we bundle model weights into the app:
+set the field <code class="docutils literal notranslate"><span class="pre">&quot;bundle_weight&quot;:</span> <span class="pre">true</span></code> for any model you want to bundle weights
+in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>, and run <code class="docutils literal notranslate"><span class="pre">prepare_package.sh</span></code> again.
+Below is an example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">         </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/gemma-2b-it-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gemma-2b-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000000000</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;prefill_chunk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span>
+<span class="w">         </span><span class="p">},</span>
+<span class="w">         </span><span class="nt">&quot;bundle_weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
 </pre></div>
 </div>
-<p>The outcome should be as follows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/
-RedPajama-INCITE-Chat-3B-v1-q4f16_1
+<p>The outcome of running <code class="docutils literal notranslate"><span class="pre">prepare_package.sh</span></code> should be as follows:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>ls<span class="w"> </span>./dist/bundle
+mlc-app-config.json
+gemma-2b-it-q4f16_1-MLC<span class="w">   </span><span class="c1"># The model weights that will be bundled into the app.</span>
 </pre></div>
 </div>
 </section>
 <section id="step-4-build-ios-app">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">Step 4. Build iOS App</a><a class="headerlink" href="#step-4-build-ios-app" title="Permalink to this heading">¶</a></h3>
+<span id="ios-build-app"></span><h3><a class="toc-backref" href="#id7" role="doc-backlink">Step 4. Build iOS App</a><a class="headerlink" href="#step-4-build-ios-app" title="Permalink to this heading">¶</a></h3>
 <p>Open <code class="docutils literal notranslate"><span class="pre">./ios/MLCChat.xcodeproj</span></code> using Xcode. Note that you will need an
 Apple Developer Account to use Xcode, and you may be prompted to use
 your own developer team credential and product bundle identifier.</p>
@@ -432,50 +431,92 @@ to run on your Mac. You can also directly run it on your iPad or iPhone.</p>
 </section>
 <section id="customize-the-app">
 <h2><a class="toc-backref" href="#id8" role="doc-backlink">Customize the App</a><a class="headerlink" href="#customize-the-app" title="Permalink to this heading">¶</a></h2>
-<p>We can customize the iOS app in several ways.
-<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json">MLCChat/app-config.json</a>
-controls the list of local and remote models to be packaged into the app, given a local path or a URL respectively. Only models in <code class="docutils literal notranslate"><span class="pre">model_list</span></code> will have their libraries brought into the app when running <cite>./prepare_libs</cite> to package them into <code class="docutils literal notranslate"><span class="pre">libmodel_iphone.a</span></code>. Each model defined in <cite>app-config.json</cite> contain the following fields:</p>
-<dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">model_path</span></code></dt><dd><p>(Required if local model) Name of the local folder containing the weights.</p>
+<p>We can customize the models built in the iOS app by customizing <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/mlc-package-config.json">MLCChat/mlc-package-config.json</a>.
+We introduce each field of the JSON file here.</p>
+<p>Each entry in <code class="docutils literal notranslate"><span class="pre">&quot;model_list&quot;</span></code> of the JSON file has the following fields:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>(Required) The path to the MLC-converted model to be built into the app.</p>
+<p>It can be either a Hugging Face URL (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;HF://mlc-ai/phi-2-q4f16_1-MLC&quot;`</span></code>), or a path to a local model directory which contains converted model weights (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;../dist/gemma-2b-q4f16_1&quot;</span></code>). Please check out <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> if you want to build local model into the app.</p>
+<p><em>Note: the local path (if relative) is relative to the</em> <code class="docutils literal notranslate"><span class="pre">ios/</span></code> <em>directory.</em></p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_url</span></code></dt><dd><p>(Required if remote model) URL to the repo containing the weights.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) A unique local identifier to identify the model.
+It can be an arbitrary one.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) Unique local identifier to identify the model.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Required) Estimated requirements of vRAM to run the model.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Required) Matches the system-lib-prefix, generally set during <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code> which can be specified using
-<code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">gpt_neox_q4f16_1</span></code>
-for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during
-<code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">bundle_weight</span></code></dt><dd><p>(Optional) A boolean flag indicating whether to bundle model weights into the app. See <a class="reference internal" href="#ios-bundle-model-weights"><span class="std std-ref">Step 3. (Optional) Bundle model weights into the app</span></a>.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">required_vram_bytes</span></code></dt><dd><p>(Required) Estimated requirements of VRAM to run the model.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">overrides</span></code></dt><dd><p>(Optional) A dictionary to override the default model context window size (to limit the KV cache size) and prefill chunk size (to limit the model temporary execution memory).
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">               </span><span class="nt">&quot;context_window_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
+<span class="w">               </span><span class="nt">&quot;prefill_chunk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib_path_for_prepare_libs</span></code></dt><dd><p>(Required) List of paths to the model libraries in the app (respective <code class="docutils literal notranslate"><span class="pre">.tar</span></code> file in the <code class="docutils literal notranslate"><span class="pre">binary-mlc-llm-libs</span></code>
-repo, relative path in the <code class="docutils literal notranslate"><span class="pre">dist</span></code> artifact folder or full path to the library). Only used while running
-<code class="docutils literal notranslate"><span class="pre">prepare_libs.sh</span></code> to determine which model library to use during runtime. Useful when selecting a library with
-different settings (e.g. <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>, <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, and <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Optional) A string specifying the system library prefix to use for the model.
+Usually this is used when you want to build multiple model variants with the same architecture into the app.
+<strong>This field does not affect any app functionality.</strong>
+The <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> introduced below is also related.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </dd>
 </dl>
-<p>Additionally, the app prepackages the models under <code class="docutils literal notranslate"><span class="pre">./ios/dist</span></code>.
-This built-in list can be controlled by editing <code class="docutils literal notranslate"><span class="pre">prepare_params.sh</span></code>.
-You can package new prebuilt models or compiled models by changing the above fields and then repeating the steps above.</p>
+<p>Besides <code class="docutils literal notranslate"><span class="pre">model_list</span></code> in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>,
+you can also <strong>optionally</strong> specify a dictionary of <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code>,
+<strong>if you want to use model libraries that are manually compiled</strong>.
+The keys of this dictionary should be the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> that specified in model list,
+and the values of this dictionary are the paths (absolute, or relative) to the manually compiled model libraries.
+The model libraries specified in <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> will be built into the app when running <code class="docutils literal notranslate"><span class="pre">prepare_package.sh</span></code>.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">],</span>
+<span class="w">   </span><span class="nt">&quot;model_lib_path_for_prepare_libs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar&quot;</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
 </section>
-<section id="bring-your-own-model-variant">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Bring Your Own Model Variant</a><a class="headerlink" href="#bring-your-own-model-variant" title="Permalink to this heading">¶</a></h2>
-<p>In cases where the model you are adding is simply a variant of an existing
-model, we only need to convert weights and reuse existing model library. For instance:</p>
-<ul class="simple">
-<li><p>Adding <code class="docutils literal notranslate"><span class="pre">NeuralHermes</span></code> when MLC already supports the <code class="docutils literal notranslate"><span class="pre">Mistral</span></code> architecture</p></li>
-</ul>
-<p>In this section, we walk you through adding <code class="docutils literal notranslate"><span class="pre">NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC</span></code> to the MLC iOS app.
-According to the model’s <code class="docutils literal notranslate"><span class="pre">config.json</span></code> on <a class="reference external" href="https://huggingface.co/mlabonne/NeuralHermes-2.5-Mistral-7B/blob/main/config.json">its Huggingface repo</a>,
-it reuses the Mistral model architecture.</p>
+<section id="bring-your-own-model">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Bring Your Own Model</a><a class="headerlink" href="#bring-your-own-model" title="Permalink to this heading">¶</a></h2>
+<p>This section introduces how to build your own model into the iOS app.
+We use the example of <a class="reference external" href="https://huggingface.co/mlabonne/NeuralHermes-2.5-Mistral-7B">NeuralHermes</a> model, which a variant of Mistral model.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>This section largely replicates <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a>.
 See that page for more details. Note that the weights are shared across
 all platforms in MLC.</p>
 </div>
-<p><strong>Step 1 Clone from HF and convert_weight</strong></p>
+<p><strong>Step 1. Clone from HF and convert_weight</strong></p>
 <p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
 can share the same compiled/quantized weights. See <a class="reference internal" href="../compilation/compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a>
 for specification of <code class="docutils literal notranslate"><span class="pre">convert_weight</span></code>.</p>
@@ -491,7 +532,7 @@ mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/mode
 <span class="w">    </span>-o<span class="w"> </span>dist/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC
 </pre></div>
 </div>
-<p><strong>Step 2 Generate MLC Chat Config</strong></p>
+<p><strong>Step 2. Generate MLC Chat Config</strong></p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">gen_config</span></code> to generate <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and process tokenizers.
 See <a class="reference internal" href="../compilation/compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> for specification of <code class="docutils literal notranslate"><span class="pre">gen_config</span></code>.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/NeuralHermes-2.5-Mistral-7B/<span class="w"> </span><span class="se">\</span>
@@ -499,13 +540,13 @@ See <a class="reference internal" href="../compilation/compile_models.html#compi
 <span class="w">    </span>-o<span class="w"> </span>dist/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC
 </pre></div>
 </div>
-<p>For the <code class="docutils literal notranslate"><span class="pre">conv-template</span></code>, <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/cpp/conv_templates.cc">conv_template.cc</a>
+<p>For the <code class="docutils literal notranslate"><span class="pre">conv-template</span></code>, <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py">conversation_template.py</a>
 contains a full list of conversation templates that MLC provides.</p>
 <p>If the model you are adding requires a new conversation template, you would need to add your own.
-Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/1402">this PR</a> as an example.
+Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/2163">this PR</a> as an example.
 We look up the template to use with the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
 <p>For more details, please see <a class="reference internal" href="mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a>.</p>
-<p><strong>Step 3 Upload weights to HF</strong></p>
+<p><strong>Step 3. Upload weights to HF</strong></p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
 <span class="c1"># With the repository created, run</span>
 git<span class="w"> </span>lfs<span class="w"> </span>install
@@ -519,153 +560,27 @@ git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </
 <p>After successfully following all steps, you should end up with a Huggingface repo similar to
 <a class="reference external" href="https://huggingface.co/mlc-ai/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC">NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC</a>,
 which includes the converted/quantized weights, the <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, and tokenizer files.</p>
-<p><strong>Step 4 Register as a ModelRecord</strong></p>
-<p>Finally, we modify the code snippet for
-<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json">app-config.json</a>
-pasted above.</p>
-<p>We simply specify the Huggingface link as <code class="docutils literal notranslate"><span class="pre">model_url</span></code>, while reusing the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> for
-<code class="docutils literal notranslate"><span class="pre">Mistral-7B</span></code>.</p>
-<div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;model_list&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">   </span><span class="c1">// Other records here omitted...</span>
-<span class="w">   </span><span class="p">{</span>
-<span class="w">      </span><span class="c1">// Substitute model_url with the one you created `my-huggingface-account/my-mistral-weight-huggingface-repo`</span>
-<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;Mistral-7B-Instruct-v0.2-q3f16_1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_lib&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;mistral_q3f16_1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_lib&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;lib/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q3f16_1-iphone.tar&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;estimated_vram_bytes&quot;</span><span class="o">:</span><span class="w"> </span><span class="mf">3316000000</span>
-<span class="w">   </span><span class="p">}</span>
-<span class="p">]</span>
+<p><strong>Step 4. Register in Model List</strong></p>
+<p>Finally, we add the model into the <code class="docutils literal notranslate"><span class="pre">model_list</span></code> of
+<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/mlc-package-config.json">MLCChat/mlc-package-config.json</a> by specifying the Hugging Face link as <code class="docutils literal notranslate"><span class="pre">model</span></code>:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Mistral-7B-Instruct-v0.2-q3f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3316000000</span><span class="p">,</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
 </pre></div>
 </div>
-<p>Now, the app will use the <code class="docutils literal notranslate"><span class="pre">NeuralHermes-Mistral</span></code> model you just added.</p>
-</section>
-<section id="bring-your-own-model-library">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Bring Your Own Model Library</a><a class="headerlink" href="#bring-your-own-model-library" title="Permalink to this heading">¶</a></h2>
-<p>A model library is specified by:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>The model architecture (e.g. <code class="docutils literal notranslate"><span class="pre">mistral</span></code>, <code class="docutils literal notranslate"><span class="pre">phi-msft</span></code>)</p></li>
-<li><p>Quantization Scheme (e.g. <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>)</p></li>
-<li><p>Metadata (e.g. <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>), which affects memory planning</p></li>
-<li><p>Platform (e.g. <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">webgpu</span></code>, <code class="docutils literal notranslate"><span class="pre">iphone</span></code>, <code class="docutils literal notranslate"><span class="pre">android</span></code>)</p></li>
-</ul>
-</div></blockquote>
-<p>In cases where the model you want to run is not compatible with the provided MLC
-prebuilt model libraries (e.g. having a different quantization, a different
-metadata spec, or even a different model architecture), you need to build your
-own model library.</p>
-<p>In this section, we walk you through adding <code class="docutils literal notranslate"><span class="pre">phi-2</span></code> to the iOS app.</p>
-<p>This section largely replicates <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a>. See that page for
-more details, specifically the <code class="docutils literal notranslate"><span class="pre">iOS</span></code> option.</p>
-<p><strong>Step 0. Install dependencies</strong></p>
-<p>To compile model libraries for iOS, you need to <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">build mlc_llm from source</span></a>.</p>
-<p><strong>Step 1. Clone from HF and convert_weight</strong></p>
-<p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
-can share the same compiled/quantized weights.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create directory</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>dist/models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>dist/models
-<span class="c1"># Clone HF weights</span>
-git<span class="w"> </span>lfs<span class="w"> </span>install
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/microsoft/phi-2
-<span class="nb">cd</span><span class="w"> </span>../..
-<span class="c1"># Convert weight</span>
-mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/phi-2/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-o<span class="w"> </span>dist/phi-2-q4f16_1-MLC
-</pre></div>
-</div>
-<p><strong>Step 2. Generate mlc-chat-config and compile</strong></p>
-<p>A model library is specified by:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>The model architecture (e.g. <code class="docutils literal notranslate"><span class="pre">mistral</span></code>, <code class="docutils literal notranslate"><span class="pre">phi-msft</span></code>)</p></li>
-<li><p>Quantization Scheme (e.g. <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>)</p></li>
-<li><p>Metadata (e.g. <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>), which affects memory planning</p></li>
-<li><p>Platform (e.g. <code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">webgpu</span></code>, <code class="docutils literal notranslate"><span class="pre">iphone</span></code>, <code class="docutils literal notranslate"><span class="pre">android</span></code>)</p></li>
-</ul>
-</div></blockquote>
-<p>All these knobs are specified in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> generated by <code class="docutils literal notranslate"><span class="pre">gen_config</span></code>.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. gen_config: generate mlc-chat-config.json and process tokenizers</span>
-mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/phi-2/<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--quantization<span class="w"> </span>q4f16_1<span class="w"> </span>--conv-template<span class="w"> </span>phi-2<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>-o<span class="w"> </span>dist/phi-2-q4f16_1-MLC/
-<span class="c1"># 2. mkdir: create a directory to store the compiled model library</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>dist/libs
-<span class="c1"># 3. compile: compile model library with specification in mlc-chat-config.json</span>
-mlc_llm<span class="w"> </span>compile<span class="w"> </span>./dist/phi-2-q4f16_1-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--device<span class="w"> </span>iphone<span class="w"> </span>-o<span class="w"> </span>dist/libs/phi-2-q4f16_1-iphone.tar
-</pre></div>
-</div>
-<p>Given the compiled library, it is possible to calculate an upper bound for the VRAM
-usage during runtime. This useful to better understand if a model is able to fit particular
-hardware.
-That information will be displayed at the end of the console log when the <code class="docutils literal notranslate"><span class="pre">compile</span></code> is executed.
-It might look something like this:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>model_metadata.py:96:<span class="w"> </span>Total<span class="w"> </span>memory<span class="w"> </span>usage:<span class="w"> </span><span class="m">1625</span>.73<span class="w"> </span>MB<span class="w"> </span><span class="o">(</span>Parameters:<span class="w"> </span><span class="m">1492</span>.45<span class="w"> </span>MB.<span class="w"> </span>KVCache:<span class="w"> </span><span class="m">0</span>.00<span class="w"> </span>MB.<span class="w"> </span>Temporary<span class="w"> </span>buffer:<span class="w"> </span><span class="m">133</span>.28<span class="w"> </span>MB<span class="o">)</span>
-<span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>model_metadata.py:105:<span class="w"> </span>To<span class="w"> </span>reduce<span class="w"> </span>memory<span class="w"> </span>usage,<span class="w"> </span>tweak<span class="w"> </span><span class="sb">`</span>prefill_chunk_size<span class="sb">`</span>,<span class="w"> </span><span class="sb">`</span>context_window_size<span class="sb">`</span><span class="w"> </span>and<span class="w"> </span><span class="sb">`</span>sliding_window_size<span class="sb">`</span>
-<span class="o">[</span><span class="m">2024</span>-04-25<span class="w"> </span><span class="m">03</span>:19:56<span class="o">]</span><span class="w"> </span>INFO<span class="w"> </span>compile.py:198:<span class="w"> </span>Generated:<span class="w"> </span>dist/libs/phi-2-q4f16_1-iphone.tar
-</pre></div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>When compiling larger models like <code class="docutils literal notranslate"><span class="pre">Llama-2-7B</span></code>, you may want to add a lower chunk size
-while prefilling prompts <code class="docutils literal notranslate"><span class="pre">--prefill_chunk_size</span> <span class="pre">128</span></code> or even lower <code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>to decrease memory usage. Otherwise, during runtime, you may run out of memory.</p>
-</div>
-<p><strong>Step 3. Distribute model library and model weights</strong></p>
-<p>After following the steps above, you should end up with:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
-<span class="w">  </span>phi-2-q4f16_1-iphone.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
-
-~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/phi-2-q4f16_1-MLC
-<span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
-<span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
-<span class="w">  </span>params_shard_1.bin
-<span class="w">  </span>...
-<span class="w">  </span>tokenizer.json<span class="w">                                   </span><span class="c1"># ===&gt; the tokenizer files</span>
-<span class="w">  </span>tokenizer_config.json
-</pre></div>
-</div>
-<p>Upload the <code class="docutils literal notranslate"><span class="pre">phi-2-q4f16_1-iphone.tar</span></code> to a github repository (for us,
-it is in <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>). Then
-upload the weights <code class="docutils literal notranslate"><span class="pre">phi-2-q4f16_1-MLC</span></code> to a Huggingface repo:</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
-<span class="c1"># With the repository created, run</span>
-git<span class="w"> </span>lfs<span class="w"> </span>install
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-phi-weight-huggingface-repo
-<span class="nb">cd</span><span class="w"> </span>my-phi-weight-huggingface-repo
-cp<span class="w"> </span>path/to/mlc-llm/dist/phi-2-q4f16_1-MLC/*<span class="w"> </span>.
-git<span class="w"> </span>add<span class="w"> </span>.<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add phi-2 model weights&quot;</span>
-git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
-</pre></div>
-</div>
-<p>This would result in something like <a class="reference external" href="https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC/tree/main">phi-2-q4f16_1-MLC</a>.</p>
-<p><strong>Step 4. Register as a ModelRecord</strong></p>
-<p>Finally, we update the code snippet for
-<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/app-config.json">app-config.json</a>
-pasted above.</p>
-<p>We simply specify the Huggingface link as <code class="docutils literal notranslate"><span class="pre">model_url</span></code>, while using the new <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> for
-<code class="docutils literal notranslate"><span class="pre">phi-2</span></code>. Regarding the field <code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code>, we can use the output of the last step
-rounded up to MB.</p>
-<div class="highlight-javascript notranslate"><div class="highlight"><pre><span></span><span class="s2">&quot;model_list&quot;</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
-<span class="w">   </span><span class="c1">// Other records here omitted...</span>
-<span class="w">   </span><span class="p">{</span>
-<span class="w">      </span><span class="c1">// Substitute model_url with the one you created `my-huggingface-account/my-phi-weight-huggingface-repo`</span>
-<span class="w">      </span><span class="s2">&quot;model_url&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;https://huggingface.co/mlc-ai/phi-2-q4f16_1-MLC&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_id&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;phi-2-q4f16_1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;model_lib&quot;</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;phi_msft_q4f16_1&quot;</span><span class="p">,</span>
-<span class="w">      </span><span class="s2">&quot;estimated_vram_bytes&quot;</span><span class="o">:</span><span class="w"> </span><span class="mf">3043000000</span>
-<span class="w">   </span><span class="p">}</span>
-<span class="p">]</span>
-</pre></div>
-</div>
-<p>Now, the app will use the <code class="docutils literal notranslate"><span class="pre">phi-2</span></code> model library you just added.</p>
+<p>Now, go through <a class="reference internal" href="#ios-build-runtime-and-model-libraries"><span class="std std-ref">Step 2. Build Runtime and Model Libraries</span></a> and <a class="reference internal" href="#ios-build-app"><span class="std std-ref">Step 4. Build iOS App</span></a> again.
+The app will use the <code class="docutils literal notranslate"><span class="pre">NeuralHermes-Mistral</span></code> model you just added.</p>
 </section>
 <section id="build-apps-with-mlc-swift-api">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">Build Apps with MLC Swift API</a><a class="headerlink" href="#build-apps-with-mlc-swift-api" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Build Apps with MLC Swift API</a><a class="headerlink" href="#build-apps-with-mlc-swift-api" title="Permalink to this heading">¶</a></h2>
 <p>We also provide a Swift package that you can use to build
-your own app. The package is located under <cite>ios/MLCSwift</cite>.</p>
+your own app. The package is located under <code class="docutils literal notranslate"><span class="pre">ios/MLCSwift</span></code>.</p>
 <ul>
 <li><p>First make sure you have run the same steps listed
 in the previous section. This will give us the necessary libraries
