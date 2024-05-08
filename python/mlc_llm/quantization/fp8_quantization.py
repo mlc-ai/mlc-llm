@@ -576,11 +576,12 @@ class PTQLinearFP8(ptq.PerTensorQuantizeLinear):  # pylint: disable=too-many-ins
             total_scale = 1.0
         else:
             if self.runtime == "max" and self.weight_dtype == "e4m3_float8":
-                total_scale = local_scale * self.q_scale
+                local_scale = nn.op.astype(local_scale, dtype="float32")
+                q_scale = nn.op.astype(self.q_scale, dtype="float32")
+                total_scale = local_scale * q_scale
             else:
                 # for calibration, q_scale is already used to dequantize the weights
-                total_scale = local_scale
-            total_scale = nn.op.astype(total_scale, dtype="float32")
+                total_scale = nn.op.astype(local_scale, dtype="float32")
 
         x *= total_scale
 
