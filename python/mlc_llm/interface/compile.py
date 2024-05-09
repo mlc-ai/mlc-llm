@@ -166,6 +166,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         cuda_graph_symbolic_capture_hints = {
             "batch_decode": ["batch_size"],
             "batch_decode_to_last_hidden_states": ["batch_size"],
+            "batch_verify": ["batch_size", "seq_len"],
             "batch_verify_to_last_hidden_states": ["batch_size", "seq_len"],
         }
         metadata = {
