@@ -58,6 +58,8 @@ def group_gemm(
         func_name = "cutlass.group_gemm_e4m3_e4m3_fp16"
     elif x.dtype == "float16" and weight_dtype == "float16" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_fp16_sm90"
+    elif x.dtype == "float16" and weight_dtype == "e4m3_float8" and out_dtype == "float16":
+        func_name = "cutlass.group_gemm_scale_fp16_sm90"
     else:
         raise NotImplementedError(
             f"Unsupported data type: x={x.dtype}, weight={weight_dtype}, out={out_dtype}"
