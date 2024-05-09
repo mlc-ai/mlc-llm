@@ -172,11 +172,10 @@ class GPUSampler : public SamplerObj {
       const std::vector<int>& sample_indices,         //
       const Array<String>& request_ids,               //
       const Array<GenerationConfig>& generation_cfg,  //
-      const std::vector<RandomGenerator*>& rngs,      //
-      std::vector<NDArray>* output_prob_dist = nullptr) final {
+      const std::vector<RandomGenerator*>& rngs) final {
     NVTXScopedRange nvtx_scope("BatchSampleTokensWithProbAfterTopP");
     return BatchSampleTokensImpl(std::move(probs_on_device), sample_indices, request_ids,
-                                 generation_cfg, rngs, /*top_p_applied=*/true, output_prob_dist);
+                                 generation_cfg, rngs, /*top_p_applied=*/true);
   }
 
   std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
@@ -326,14 +325,12 @@ class GPUSampler : public SamplerObj {
   }
 
  private:
-  std::vector<SampleResult> BatchSampleTokensImpl(
-      NDArray probs_on_device,                        //
-      const std::vector<int>& sample_indices,         //
-      const Array<String>& request_ids,               //
-      const Array<GenerationConfig>& generation_cfg,  //
-      const std::vector<RandomGenerator*>& rngs,      //
-      bool top_p_applied,                             //
-      std::vector<NDArray>* output_prob_dist = nullptr) {
+  std::vector<SampleResult> BatchSampleTokensImpl(NDArray probs_on_device,                        //
+                                                  const std::vector<int>& sample_indices,         //
+                                                  const Array<String>& request_ids,               //
+                                                  const Array<GenerationConfig>& generation_cfg,  //
+                                                  const std::vector<RandomGenerator*>& rngs,      //
+                                                  bool top_p_applied) {
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     CHECK_EQ(probs_on_device->ndim, 2);
@@ -342,16 +339,6 @@ class GPUSampler : public SamplerObj {
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
-    if (output_prob_dist != nullptr) {
-      ICHECK(output_prob_dist->empty());
-      output_prob_dist->reserve(num_samples);
-      for (int i = 0; i < num_samples; ++i) {
-        NDArray prob_dist = NDArray::Empty({vocab_size}, dtype_f32_, device_);
-        float* p_prob = static_cast<float*>(probs_on_device->data) + sample_indices[i] * vocab_size;
-        prob_dist.CopyFromBytes(p_prob, vocab_size * sizeof(float));
-        output_prob_dist->push_back(std::move(prob_dist));
-      }
-    }
     if (num_samples == 0) {
       // This synchronization is necessary for making sure that this round
       // of model forward is finished.

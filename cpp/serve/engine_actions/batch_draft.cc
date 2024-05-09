@@ -123,7 +123,7 @@ class BatchDraftActionObj : public EngineActionObj {
         NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
             probs_on_device, sample_indices, request_ids, generation_cfg);
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
-            renormalized_probs, sample_indices, request_ids, generation_cfg, rngs, &prob_dist);
+            renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
         ICHECK_EQ(sample_results.size(), num_rsentries);
 
         // - Add draft token to the state.

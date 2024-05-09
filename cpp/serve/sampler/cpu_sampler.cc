@@ -27,15 +27,12 @@ namespace serve {
  * \param input_prob_offset The offset specifying which distribution to sample from.
  * \param top_p The top-p value of sampling.
  * \param uniform_sample The random number in [0, 1] for sampling.
- * \param output_prob_dist Optional pointer to store the corresponding probability distribution of
- * each token, offset by unit_offset. If nullptr provided, nothing will be stored out.
  * \return The sampled value and probability.
  * \note This function is an enhancement of SampleTopPFromProb in TVM Unity.
  * We will upstream the enhancement after it gets stable.
  */
 TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_offset, double top_p,
-                                 double uniform_sample,
-                                 std::vector<NDArray>* output_prob_dist = nullptr) {
+                                 double uniform_sample) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
   // The last dimension corresponds to the prob distribution size.
@@ -50,13 +47,6 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_o
   const float* __restrict p_prob =
       static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (input_prob_offset * ndata);
   constexpr double one = 1.0f - 1e-5f;
-
-  if (output_prob_dist) {
-    ICHECK_LT(unit_offset, static_cast<int>(output_prob_dist->size()));
-    if (!(*output_prob_dist)[unit_offset].defined()) {
-      (*output_prob_dist)[unit_offset] = NDArray::Empty({ndata}, prob->dtype, DLDevice{kDLCPU, 0});
-    }
-  }
 
   if (top_p == 0) {
     // Specially handle case where top_p == 0.
@@ -75,18 +65,7 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_o
         break;
       }
     }
-    if (output_prob_dist) {
-      float* __restrict p_output_prob =
-          static_cast<float*>(__builtin_assume_aligned((*output_prob_dist)[unit_offset]->data, 4));
-      for (int i = 0; i < ndata; ++i) {
-        p_output_prob[i] = i == argmax_pos ? 1.0 : 0.0;
-      }
-    }
     return {argmax_pos, 1.0};
-  }
-
-  if (output_prob_dist) {
-    (*output_prob_dist)[unit_offset].CopyFromBytes(p_prob, ndata * sizeof(float));
   }
 
   if (top_p >= one) {
@@ -419,10 +398,9 @@ class CPUSampler : public SamplerObj {
       const std::vector<int>& sample_indices,         //
       const Array<String>& request_ids,               //
       const Array<GenerationConfig>& generation_cfg,  //
-      const std::vector<RandomGenerator*>& rngs,      //
-      std::vector<NDArray>* output_prob_dist) final {
+      const std::vector<RandomGenerator*>& rngs) final {
     return BatchSampleTokensImpl(probs_on_host, sample_indices, request_ids, generation_cfg, rngs,
-                                 /*top_p_applied=*/true, output_prob_dist);
+                                 /*top_p_applied=*/true);
   }
 
   std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
@@ -520,14 +498,12 @@ class CPUSampler : public SamplerObj {
   }
 
  private:
-  std::vector<SampleResult> BatchSampleTokensImpl(
-      NDArray probs_on_host,                          //
-      const std::vector<int>& sample_indices,         //
-      const Array<String>& request_ids,               //
-      const Array<GenerationConfig>& generation_cfg,  //
-      const std::vector<RandomGenerator*>& rngs,      //
-      bool top_p_applied,                             //
-      std::vector<NDArray>* output_prob_dist = nullptr) {
+  std::vector<SampleResult> BatchSampleTokensImpl(NDArray probs_on_host,                          //
+                                                  const std::vector<int>& sample_indices,         //
+                                                  const Array<String>& request_ids,               //
+                                                  const Array<GenerationConfig>& generation_cfg,  //
+                                                  const std::vector<RandomGenerator*>& rngs,      //
+                                                  bool top_p_applied) {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
     ICHECK_EQ(probs_on_host->ndim, 2);
@@ -540,29 +516,20 @@ class CPUSampler : public SamplerObj {
 
     std::vector<SampleResult> sample_results;
     sample_results.resize(n);
-    if (output_prob_dist) {
-      output_prob_dist->resize(n);
-    }
 
     tvm::runtime::parallel_for_with_threading_backend(
         [this, &sample_results, &probs_on_host, &generation_cfg, &rngs, &request_ids, top_p_applied,
-         sample_indices, output_prob_dist](int i) {
+         sample_indices](int i) {
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "start sample token");
           // Sample top p from probability.
           double top_p =
               top_p_applied
                   ? 1.0f
                   : (generation_cfg[i]->temperature < eps_ ? 0.0 : generation_cfg[i]->top_p);
-          sample_results[i].sampled_token_id =
-              SampleTopPFromProb(probs_on_host, i, sample_indices[i], top_p,
-                                 rngs[i]->GetRandomNumber(), output_prob_dist);
-          if (output_prob_dist == nullptr) {
-            // When `output_prob_dist` is not nullptr, it means right now
-            // we are sampling for a small model in speculation, in which
-            // case we do not need to get the top probs.
-            sample_results[i].top_prob_tokens =
-                ComputeTopProbs(probs_on_host, i, generation_cfg[i]->top_logprobs);
-          }
+          sample_results[i].sampled_token_id = SampleTopPFromProb(
+              probs_on_host, i, sample_indices[i], top_p, rngs[i]->GetRandomNumber());
+          sample_results[i].top_prob_tokens =
+              ComputeTopProbs(probs_on_host, i, generation_cfg[i]->top_logprobs);
           RECORD_EVENT(this->trace_recorder_, request_ids[i], "finish sample token");
         },
         0, n);
