@@ -14,4 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "MLCChat"
 include ':app'
-include ':library'
+include ':mlc4j'
+project(':mlc4j').projectDir = file('dist/lib/mlc4j')

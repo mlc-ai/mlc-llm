@@ -1,4 +1,5 @@
 {
+    "device": "iphone",
     "model_list": [
         {
             "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC",

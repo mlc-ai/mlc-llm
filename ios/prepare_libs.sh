@@ -1,5 +1,5 @@
 # Command to prepare the mlc llm static libraries
-# This command will be invoked by prepare_package.sh in the subfolder
+# This command will be invoked by the "mlc_llm package" command
 function help {
     echo -e "OPTION:"
     echo -e "  -s, --simulator                      Build for Simulator"
@@ -7,6 +7,7 @@ function help {
     echo -e "  -h,  --help                          Prints this help\n"
 }
 
+MLC_LLM_HOME="${MLC_LLM_HOME:-..}"
 is_simulator="false"
 arch="arm64"
 
@@ -53,7 +54,7 @@ fi
 
 mkdir -p build/ && cd build/
 
-cmake ../..\
+cmake $MLC_LLM_HOME\
   -DCMAKE_BUILD_TYPE=$type\
   -DCMAKE_SYSTEM_NAME=iOS\
   -DCMAKE_SYSTEM_VERSION=14.0\
@@ -71,5 +72,5 @@ cmake --build . --config release --target mlc_llm_static -j
 cmake --build . --target install --config release -j
 cd ..
 
-rm -rf MLCSwift/tvm_home
-ln -s ../../3rdparty/tvm MLCSwift/tvm_home
+rm -rf $MLC_LLM_HOME/ios/MLCSwift/tvm_home
+ln -s $MLC_LLM_HOME/3rdparty/tvm $MLC_LLM_HOME/ios/MLCSwift/tvm_home

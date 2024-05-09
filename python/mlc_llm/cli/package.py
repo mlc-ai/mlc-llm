@@ -1,5 +1,6 @@
 """Command line entrypoint of package."""
 
+import os
 from pathlib import Path
 from typing import Union
 
@@ -22,6 +23,10 @@ def main(argv):
             raise ValueError(f"Path {str(path)} is expected to be a JSON file.")
         return path
 
+    def _parse_mlc_llm_home(path: str) -> Path:
+        os.environ["MLC_LLM_HOME"] = path
+        return Path(path)
+
     def _parse_output(path: Union[str, Path]) -> Path:
         path = Path(path)
         if not path.is_dir():
@@ -29,27 +34,34 @@ def main(argv):
         return path
 
     parser.add_argument(
-        "package_config",
+        "--package-config",
         type=_parse_package_config,
-        help=HELP["config_package"] + " (required)",
+        default="mlc-package-config.json",
+        help=HELP["config_package"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--device",
-        type=str,
-        choices=["iphone", "android"],
-        required=True,
-        help=HELP["device_package"] + " (required)",
+        "--mlc-llm-home",
+        type=_parse_mlc_llm_home,
+        default=os.environ.get("MLC_LLM_HOME", None),
+        help=HELP["mlc_llm_home"] + " (default: the $MLC_LLM_HOME environment variable)",
     )
     parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
-        required=True,
-        help=HELP["output_package"] + " (required)",
+        default="dist",
+        help=HELP["output_package"] + ' (default: "%(default)s")',
     )
     parsed = parser.parse_args(argv)
+    if parsed.mlc_llm_home is None:
+        raise ValueError(
+            "MLC LLM home is not specified. "
+            "Please obtain a copy of MLC LLM source code by "
+            "cloning https://github.com/mlc-ai/mlc-llm, and set environment variable "
+            '"MLC_LLM_HOME=path/to/mlc-llm"'
+        )
     package(
         package_config_path=parsed.package_config,
-        device=parsed.device,
+        mlc_llm_home=parsed.mlc_llm_home,
         output=parsed.output,
     )

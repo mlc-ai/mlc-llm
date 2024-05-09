@@ -37,7 +37,7 @@ add_custom_command(
 )
 
 add_library(model_android STATIC IMPORTED)
-set_target_properties(model_android PROPERTIES IMPORTED_LOCATION ${ANDROID_BIN_DIR}/model_lib/libmodel_android.a)
+set_target_properties(model_android PROPERTIES IMPORTED_LOCATION ${ANDROID_BIN_DIR}/lib/libmodel_android.a)
 
 add_library(tvm4j_runtime_packed SHARED ${TVM_HOME}/jvm/native/src/main/native/org_apache_tvm_native_c_api.cc)
 

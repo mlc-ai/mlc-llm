@@ -4,12 +4,11 @@ import dataclasses
 import json
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Literal
-
-from tvm.contrib import cc
+from typing import Any, Dict, List, Literal
 
 from mlc_llm.chat_module import ChatConfig, _get_chat_config, _get_model_path
 from mlc_llm.interface import jit
@@ -18,125 +17,14 @@ from mlc_llm.support import logging, style
 logging.enable_logging()
 logger = logging.getLogger(__name__)
 
-
-def _get_model_libs(lib_path: Path) -> List[str]:
-    """Get the model lib prefixes in the given static lib path."""
-    global_symbol_map = cc.get_global_symbol_section_map(lib_path)
-    libs = []
-    suffix = "___tvm_dev_mblob"
-    for name, _ in global_symbol_map.items():
-        if name.endswith(suffix):
-            model_lib = name[: -len(suffix)]
-            if model_lib.startswith("_"):
-                model_lib = model_lib[1:]
-            libs.append(model_lib)
-    return libs
+SUPPORTED_DEVICES = ["iphone", "android"]
 
 
-def validate_model_lib(  # pylint: disable=too-many-locals
-    app_config_path: Path,
-    package_config_path: Path,
-    model_lib_path_for_prepare_libs: dict,
-    device: Literal["iphone", "android"],
-    output: Path,
-) -> None:
-    """Validate the model lib prefixes of model libraries."""
-    # pylint: disable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
-    if device == "android":
-        from tvm.contrib import ndk as cc
-    else:
-        from tvm.contrib import cc
-    # pylint: enable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
-
-    with open(app_config_path, "r", encoding="utf-8") as file:
-        app_config = json.load(file)
-
-    tar_list = []
-    model_set = set()
-
-    for model, model_lib_path in model_lib_path_for_prepare_libs.items():
-        model_lib_path = os.path.join(model_lib_path)
-        lib_path_valid = os.path.isfile(model_lib_path)
-        if not lib_path_valid:
-            raise RuntimeError(f"Cannot find file {model_lib_path} as an {device} model library")
-        tar_list.append(model_lib_path)
-        model_set.add(model)
-
-    os.makedirs(output / "lib", exist_ok=True)
-    lib_path = (
-        output / "lib" / ("libmodel_iphone.a" if device == "iphone" else "libmodel_android.a")
-    )
-
-    cc.create_staticlib(lib_path, tar_list)
-    available_model_libs = _get_model_libs(lib_path)
-    logger.info("Creating lib from %s", str(tar_list))
-    logger.info("Validating the library %s", str(lib_path))
-    logger.info(
-        "List of available model libs packaged: %s,"
-        " if we have '-' in the model_lib string, it will be turned into '_'",
-        str(available_model_libs),
-    )
-    global_symbol_map = cc.get_global_symbol_section_map(lib_path)
-    error_happened = False
-
-    for item in app_config["model_list"]:
-        model_lib = item["model_lib"]
-        model_id = item["model_id"]
-        if model_lib not in model_set:
-            # NOTE: this cannot happen under new setting
-            # since if model_lib is not included, it will be jitted
-            raise RuntimeError(
-                f"ValidationError: model_lib={model_lib} specified for model_id={model_id} "
-                "is not included in model_lib_path_for_prepare_libs argument, "
-                "This will cause the specific model not being able to load, "
-                f"model_lib_path_for_prepare_libs={model_lib_path_for_prepare_libs}"
-            )
-
-        model_prefix_pattern = model_lib.replace("-", "_") + "___tvm_dev_mblob"
-        if (
-            model_prefix_pattern not in global_symbol_map
-            and "_" + model_prefix_pattern not in global_symbol_map
-        ):
-            # NOTE: no lazy format is ok since this is a slow pass
-            model_lib_path = model_lib_path_for_prepare_libs[model_lib]
-            log_msg = (
-                "ValidationError:\n"
-                f"\tmodel_lib {model_lib} requested in {str(app_config_path)}"
-                f" is not found in {str(lib_path)}\n"
-                f"\tspecifically the model_lib for {model_lib_path}.\n"
-                f"\tcurrent available model_libs in {str(lib_path)}: {available_model_libs}\n"
-                f"\tThis can happen when we manually specified model_lib_path_for_prepare_libs"
-                f" in {str(package_config_path)}\n"
-                f"\tConsider remove model_lib_path_for_prepare_libs (so library can be jitted)"
-                "or check the compile command"
-            )
-            logger.info(log_msg)
-            error_happened = True
-
-    if not error_happened:
-        logger.info(style.green("Validation pass"))
-    else:
-        logger.info(style.red("Validation failed"))
-        sys.exit(255)
-
-
-def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
-    package_config_path: Path,
-    device: Literal["iphone", "android"],
-    output: Path,
-) -> None:
-    """Python entrypoint of package."""
-    # - Read package config.
-    with open(package_config_path, "r", encoding="utf-8") as file:
-        package_config = json.load(file)
-    if not isinstance(package_config, dict):
-        raise ValueError(
-            "The content of MLC package config is expected to be a dict with "
-            f'field "model_list". However, the content of "{package_config_path}" is not a dict.'
-        )
-
+def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
+    package_config: Dict[str, Any], device: str, bundle_dir: Path, app_config_path: Path
+) -> Dict[str, str]:
+    """Build model libraries. Return the dictionary of "library prefix to lib path"."""
     # - Create the bundle directory.
-    bundle_dir = output / "bundle"
     os.makedirs(bundle_dir, exist_ok=True)
     # Clean up all the directories in `output/bundle`.
     logger.info('Clean up all directories under "%s"', str(bundle_dir))
@@ -242,7 +130,7 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
                     )
                 )
             # Overwrite the model weight directory in bundle.
-            bundle_model_weight_path = bundle_dir / model_path.name
+            bundle_model_weight_path = bundle_dir / model_id
             logger.info(
                 "Bundle weight for %s, copy into %s",
                 style.bold(model_id),
@@ -251,7 +139,8 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
             if bundle_model_weight_path.exists():
                 shutil.rmtree(bundle_model_weight_path)
             shutil.copytree(model_path, bundle_model_weight_path)
-            app_config_model_entry["model_path"] = model_path.name
+        if bundle_weight and device == "iphone":
+            app_config_model_entry["model_path"] = model_id
         else:
             app_config_model_entry["model_url"] = model.replace("HF://", "https://huggingface.co/")
 
@@ -265,15 +154,217 @@ def package(  # pylint: disable=too-many-locals,too-many-statements,too-many-bra
         {"model_list": app_config_model_list},
         indent=2,
     )
-    app_config_path = bundle_dir / "mlc-app-config.json"
     with open(app_config_path, "w", encoding="utf-8") as file:
         print(app_config_json_str, file=file)
         logger.info(
-            'Dump the app config below to "dist/bundle/mlc-app-config.json":\n%s',
+            'Dump the app config below to "%s":\n%s',
+            str(app_config_path),
             style.green(app_config_json_str),
         )
+    return model_lib_path_for_prepare_libs
 
+
+def validate_model_lib(  # pylint: disable=too-many-locals
+    app_config_path: Path,
+    package_config_path: Path,
+    model_lib_path_for_prepare_libs: dict,
+    device: Literal["iphone", "android"],
+    output: Path,
+) -> None:
+    """Validate the model lib prefixes of model libraries."""
+    # pylint: disable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
+    if device == "android":
+        from tvm.contrib import ndk as cc
+    else:
+        from tvm.contrib import cc
+    # pylint: enable=import-outside-toplevel,redefined-outer-name,shadowed-import,reimported
+
+    with open(app_config_path, "r", encoding="utf-8") as file:
+        app_config = json.load(file)
+
+    tar_list = []
+    model_set = set()
+
+    for model, model_lib_path in model_lib_path_for_prepare_libs.items():
+        model_lib_path = os.path.join(model_lib_path)
+        lib_path_valid = os.path.isfile(model_lib_path)
+        if not lib_path_valid:
+            raise RuntimeError(f"Cannot find file {model_lib_path} as an {device} model library")
+        tar_list.append(model_lib_path)
+        model_set.add(model)
+
+    os.makedirs(output / "lib", exist_ok=True)
+    lib_path = (
+        output / "lib" / ("libmodel_iphone.a" if device == "iphone" else "libmodel_android.a")
+    )
+
+    def _get_model_libs(lib_path: Path) -> List[str]:
+        """Get the model lib prefixes in the given static lib path."""
+        global_symbol_map = cc.get_global_symbol_section_map(lib_path)
+        libs = []
+        suffix = "___tvm_dev_mblob"
+        for name, _ in global_symbol_map.items():
+            if name.endswith(suffix):
+                model_lib = name[: -len(suffix)]
+                if model_lib.startswith("_"):
+                    model_lib = model_lib[1:]
+                libs.append(model_lib)
+        return libs
+
+    cc.create_staticlib(lib_path, tar_list)
+    available_model_libs = _get_model_libs(lib_path)
+    logger.info("Creating lib from %s", str(tar_list))
+    logger.info("Validating the library %s", str(lib_path))
+    logger.info(
+        "List of available model libs packaged: %s,"
+        " if we have '-' in the model_lib string, it will be turned into '_'",
+        str(available_model_libs),
+    )
+    global_symbol_map = cc.get_global_symbol_section_map(lib_path)
+    error_happened = False
+
+    for item in app_config["model_list"]:
+        model_lib = item["model_lib"]
+        model_id = item["model_id"]
+        if model_lib not in model_set:
+            # NOTE: this cannot happen under new setting
+            # since if model_lib is not included, it will be jitted
+            raise RuntimeError(
+                f"ValidationError: model_lib={model_lib} specified for model_id={model_id} "
+                "is not included in model_lib_path_for_prepare_libs argument, "
+                "This will cause the specific model not being able to load, "
+                f"model_lib_path_for_prepare_libs={model_lib_path_for_prepare_libs}"
+            )
+
+        model_prefix_pattern = model_lib.replace("-", "_") + "___tvm_dev_mblob"
+        if (
+            model_prefix_pattern not in global_symbol_map
+            and "_" + model_prefix_pattern not in global_symbol_map
+        ):
+            # NOTE: no lazy format is ok since this is a slow pass
+            model_lib_path = model_lib_path_for_prepare_libs[model_lib]
+            log_msg = (
+                "ValidationError:\n"
+                f"\tmodel_lib {model_lib} requested in {str(app_config_path)}"
+                f" is not found in {str(lib_path)}\n"
+                f"\tspecifically the model_lib for {model_lib_path}.\n"
+                f"\tcurrent available model_libs in {str(lib_path)}: {available_model_libs}\n"
+                f"\tThis can happen when we manually specified model_lib_path_for_prepare_libs"
+                f" in {str(package_config_path)}\n"
+                f"\tConsider remove model_lib_path_for_prepare_libs (so library can be jitted)"
+                "or check the compile command"
+            )
+            logger.info(log_msg)
+            error_happened = True
+
+    if not error_happened:
+        logger.info(style.green("Validation pass"))
+    else:
+        logger.info(style.red("Validation failed"))
+        sys.exit(255)
+
+
+def build_android_binding(mlc_llm_home: Path, output: Path) -> None:
+    """Build android binding in MLC LLM"""
+    mlc4j_path = mlc_llm_home / "android" / "mlc4j"
+
+    # Move the model libraries to "build/lib/" for linking
+    os.makedirs(Path("build") / "lib", exist_ok=True)
+    src_path = str(output / "lib" / "libmodel_android.a")
+    dst_path = str(Path("build") / "lib" / "libmodel_android.a")
+    logger.info('Moving "%s" to "%s"', src_path, dst_path)
+    shutil.move(src_path, dst_path)
+
+    # Build mlc4j
+    logger.info("Building mlc4j")
+    subprocess.run([sys.executable, mlc4j_path / "prepare_libs.py"], check=True, env=os.environ)
+    # Copy built files back to output directory.
+    lib_path = output / "lib" / "mlc4j"
+    os.makedirs(lib_path, exist_ok=True)
+    logger.info('Clean up all directories under "%s"', str(lib_path))
+    for content_path in lib_path.iterdir():
+        if content_path.is_dir():
+            shutil.rmtree(content_path)
+
+    src_path = str(mlc4j_path / "src")
+    dst_path = str(lib_path / "src")
+    logger.info('Copying "%s" to "%s"', src_path, dst_path)
+    shutil.copytree(src_path, dst_path)
+
+    src_path = str(mlc4j_path / "build.gradle")
+    dst_path = str(lib_path / "build.gradle")
+    logger.info('Copying "%s" to "%s"', src_path, dst_path)
+    shutil.copy(src_path, dst_path)
+
+    src_path = str(Path("build") / "output")
+    dst_path = str(lib_path / "output")
+    logger.info('Copying "%s" to "%s"', src_path, dst_path)
+    shutil.copytree(src_path, dst_path)
+
+    os.makedirs(lib_path / "src" / "main" / "assets")
+    src_path = str(output / "bundle" / "mlc-app-config.json")
+    dst_path = str(lib_path / "src" / "main" / "assets" / "mlc-app-config.json")
+    logger.info('Moving "%s" to "%s"', src_path, dst_path)
+    shutil.move(src_path, dst_path)
+
+
+def build_iphone_binding(mlc_llm_home: Path, output: Path) -> None:
+    """Build iOS binding in MLC LLM"""
+    # Build iphone binding
+    logger.info("Build iphone binding")
+    subprocess.run(["bash", mlc_llm_home / "ios" / "prepare_libs.sh"], check=True, env=os.environ)
+
+    # Copy built libraries back to output directory.
+    for static_library in (Path("build") / "lib").iterdir():
+        dst_path = str(output / "lib" / static_library.name)
+        logger.info('Copying "%s" to "%s"', static_library, dst_path)
+        shutil.copy(static_library, dst_path)
+
+
+def package(
+    package_config_path: Path,
+    mlc_llm_home: Path,
+    output: Path,
+) -> None:
+    """Python entrypoint of package."""
+    logger.info('MLC LLM HOME: "%s"', mlc_llm_home)
+
+    # - Read package config.
+    with open(package_config_path, "r", encoding="utf-8") as file:
+        package_config = json.load(file)
+    if not isinstance(package_config, dict):
+        raise ValueError(
+            "The content of MLC package config is expected to be a dict with "
+            f'field "model_list". However, the content of "{package_config_path}" is not a dict.'
+        )
+
+    # - Read device.
+    if "device" not in package_config:
+        raise ValueError(f'JSON file "{package_config_path}" is required to have field "device".')
+    device = package_config["device"]
+    if device not in SUPPORTED_DEVICES:
+        raise ValueError(
+            f'The "device" field of JSON file {package_config_path} is expected to be one of '
+            f'{SUPPORTED_DEVICES}, while "{device}" is given in the JSON.'
+        )
+
+    bundle_dir = output / "bundle"
+    app_config_path = bundle_dir / "mlc-app-config.json"
+    # - Build model libraries.
+    model_lib_path_for_prepare_libs = build_model_library(
+        package_config, device, bundle_dir, app_config_path
+    )
     # - Validate model libraries.
     validate_model_lib(
         app_config_path, package_config_path, model_lib_path_for_prepare_libs, device, output
     )
+
+    # - Copy model libraries
+    if device == "android":
+        build_android_binding(mlc_llm_home, output)
+    elif device == "iphone":
+        build_iphone_binding(mlc_llm_home, output)
+    else:
+        assert False, "Cannot reach here"
+
+    logger.info("All finished.")

@@ -38,7 +38,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val modelIdSet = emptySet<String>().toMutableSet()
 
     companion object {
-        const val AppConfigFilename = "app-config.json"
+        const val AppConfigFilename = "mlc-app-config.json"
         const val ModelConfigFilename = "mlc-chat-config.json"
         const val ParamsConfigFilename = "ndarray-cache.json"
         const val ModelUrlSuffix = "resolve/main/"

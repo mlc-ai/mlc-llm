@@ -5,7 +5,8 @@
 // example and quick testing purposes.
 //
 // To build this app, select target My Mac(Designed for iPad) and run
-// Make sure you run prepare_package.sh first with "MLCChat" replaced by "MLCEngineExample"
+// Make sure you run "mlc_llm package" first with "MLCChat"
+// replaced by "MLCEngineExample"
 // to ensure the "dist/bundle" folder populates with the right model file
 // and we have the model lib packaged correctly
 import Foundation
@@ -22,9 +23,9 @@ class AppState: ObservableObject {
     private let bundleURL = Bundle.main.bundleURL.appending(path: "bundle")
     // model path, this must match a builtin
     // file name in prepare_params.sh
-    private let modelPath = "Llama-3-8B-Instruct-q3f16_1-MLC"
+    private let modelPath = "llama3"
     // model lib identifier of within the packaged library
-    // make sure we run prepare_package.sh
+    // make sure we run "mlc_llm package"
     private let modelLib = "llama_q3f16_1"
 
     // this is a message to be displayed in app
