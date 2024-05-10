@@ -37,35 +37,35 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
          .. tab:: CUDA 12.1
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu121
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu121
 
          .. tab:: CUDA 12.2
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu122
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu122
 
          .. tab:: ROCm 5.6
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm56
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm56
 
          .. tab:: ROCm 5.7
 
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
 
          .. tab:: Vulkan
 
@@ -88,7 +88,7 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
         .. note::
 
@@ -109,7 +109,7 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
             .. code-block:: bash
 
               conda activate your-environment
-              python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 
       .. note::
         Make sure you also install vulkan loader and clang to avoid vulkan
