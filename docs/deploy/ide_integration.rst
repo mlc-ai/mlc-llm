@@ -1,7 +1,7 @@
 .. _deploy-ide-integration:
 
-Code Completion IDE Integration
-===============================
+IDE Integration
+===============
 
 .. contents:: Table of Contents
    :local:

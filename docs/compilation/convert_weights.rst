@@ -26,8 +26,7 @@ This can be extended to, e.g.:
 
     Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-chat-module` to obtain
     the CLI app / Python API that can be used to chat with the compiled model.
-    Finally, we strongly recommend you to read :ref:`project-overview` first to get
-    familiarized with the high-level terminologies.
+
 
 .. contents:: Table of Contents
     :depth: 1
