@@ -43,13 +43,31 @@ def run_cmake(mlc4j_path: Path):
 
 def run_cmake_build():
     logger.info("Running cmake build")
-    cmd = ["cmake", "--build", ".", "--target", "tvm4j_runtime_packed", "--config", "release"]
+    cmd = [
+        "cmake",
+        "--build",
+        ".",
+        "--target",
+        "tvm4j_runtime_packed",
+        "--config",
+        "release",
+        f"-j{os.cpu_count()}",
+    ]
     subprocess.run(cmd, check=True, env=os.environ)
 
 
 def run_cmake_install():
     logger.info("Running cmake install")
-    cmd = ["cmake", "--build", ".", "--target", "install", "--config", "release", "-j"]
+    cmd = [
+        "cmake",
+        "--build",
+        ".",
+        "--target",
+        "install",
+        "--config",
+        "release",
+        f"-j{os.cpu_count()}",
+    ]
     subprocess.run(cmd, check=True, env=os.environ)
 
 
