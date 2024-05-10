@@ -1,7 +1,7 @@
 .. _configure-mlc-chat-json:
 
-Customize MLC Config File in JSON
-=================================
+Customize MLC Chat Config
+=========================
 
 ``mlc-chat-config.json`` is required for both compile-time and runtime, hence serving two purposes:
 
@@ -112,7 +112,7 @@ Conversation Structure
 ^^^^^^^^^^^^^^^^^^^^^^
 
 MLC-LLM provided a set of pre-defined conversation templates, which you can directly use by
-specifying ``--conv-template [name]`` when generating config. Below is a list (not complete) of 
+specifying ``--conv-template [name]`` when generating config. Below is a list (not complete) of
 supported conversation templates:
 
 - ``llama-2``
