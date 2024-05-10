@@ -3,18 +3,29 @@
 Compile Model Libraries
 =======================
 
-To run a model with MLC LLM in any platform, you need:
+To run a model with MLC LLM in any platform, we need:
 
 1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`__.)
-2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
-
-If you are simply adding a model variant, follow :ref:`convert-weights-via-MLC` suffices.
+2. **Model library** that comprises the inference logic
 
 This page describes how to compile a model library with MLC LLM. Model compilation optimizes
 the model inference for a given platform, allowing users bring their own new model
 architecture, use different quantization modes, and customize the overall model
 optimization flow.
 
+
+
+Notably, in many cases you do not need to explicit call compile.
+
+- If you are using the Python API, you can skip specifying ``model_lib`` and
+  the system will JIT compile the library.
+
+- If you are building iOS/android package, checkout :ref:`package-libraries-and-weights`,
+  which provides a simpler high-level command that leverages the compile behind the scheme.
+
+
+This page is still helpful to understand the compilation flow behind the scheme,
+or be used to explicit create model libraries.
 We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for all platforms.
 
 .. note::
@@ -23,8 +34,7 @@ We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for al
 
     Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-chat-module` to obtain
     the CLI app / Python API that can be used to chat with the compiled model.
-    Finally, we strongly recommend you to read :ref:`project-overview` first to get
-    familiarized with the high-level terminologies.
+
 
 .. contents:: Table of Contents
     :depth: 1

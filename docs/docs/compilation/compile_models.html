@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Package Model Libraries &amp; Weights" href="package_model_libraries_weights.html" />
+    <link rel="next" title="Package Libraries and Weights" href="package_libraries_and_weights.html" />
     <link rel="prev" title="Convert Weights via MLC" href="convert_weights.html" /> 
 </head>
 
@@ -176,10 +176,10 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS and Swift SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS Swift SDK</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android SDK</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Chat Config</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
@@ -198,7 +198,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="package_model_libraries_weights.html">Package Model Libraries &amp; Weights</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
@@ -304,25 +304,31 @@
             
   <section id="compile-model-libraries">
 <span id="id1"></span><h1>Compile Model Libraries<a class="headerlink" href="#compile-model-libraries" title="Permalink to this heading">¶</a></h1>
-<p>To run a model with MLC LLM in any platform, you need:</p>
+<p>To run a model with MLC LLM in any platform, we need:</p>
 <ol class="arabic simple">
 <li><p><strong>Model weights</strong> converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</a>.)</p></li>
-<li><p><strong>Model library</strong> that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
+<li><p><strong>Model library</strong> that comprises the inference logic</p></li>
 </ol>
-<p>If you are simply adding a model variant, follow <a class="reference internal" href="convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> suffices.</p>
 <p>This page describes how to compile a model library with MLC LLM. Model compilation optimizes
 the model inference for a given platform, allowing users bring their own new model
 architecture, use different quantization modes, and customize the overall model
 optimization flow.</p>
-<p>We compile <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1</span></code> with <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> as an example for all platforms.</p>
+<p>Notably, in many cases you do not need to explicit call compile.</p>
+<ul class="simple">
+<li><p>If you are using the Python API, you can skip specifying <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> and
+the system will JIT compile the library.</p></li>
+<li><p>If you are building iOS/android package, checkout <a class="reference internal" href="package_libraries_and_weights.html#package-libraries-and-weights"><span class="std std-ref">Package Libraries and Weights</span></a>,
+which provides a simpler high-level command that leverages the compile behind the scheme.</p></li>
+</ul>
+<p>This page is still helpful to understand the compilation flow behind the scheme,
+or be used to explicit create model libraries.
+We compile <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1</span></code> with <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> as an example for all platforms.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Before you proceed, make sure you followed <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>, a required
 backend to compile models with MLC LLM.</p>
 <p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_chat_module.html#deploy-python-chat-module"><span class="std std-ref">Python API (Chat Module)</span></a> to obtain
-the CLI app / Python API that can be used to chat with the compiled model.
-Finally, we strongly recommend you to read <a class="reference internal" href="../get_started/project_overview.html#project-overview"><span class="std std-ref">Project Overview</span></a> first to get
-familiarized with the high-level terminologies.</p>
+the CLI app / Python API that can be used to chat with the compiled model.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
@@ -517,7 +523,7 @@ requires a new conversation template, you would need to add your own.
 Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/2163">this PR</a> as an example.
 However, adding your own template would require you <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">build mlc_llm from source</span></a>
 in order for it to be recognized by the runtime.</p>
-<p>For more details, please see <a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a>.</p>
+<p>For more details, please see <a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Chat Config</span></a>.</p>
 </div>
 </section>
 <section id="verify-output-and-chat">
@@ -605,7 +611,7 @@ We can check the output with the commands below:</p>
 </pre></div>
 </div>
 <p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar</span></code>
-will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS and Swift SDK</span></a> for more details.</p>
+will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS Swift SDK</span></a> for more details.</p>
 </div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
 <span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 
@@ -1203,7 +1209,7 @@ knobs, e.g. <code class="docutils literal notranslate"><span class="pre">--overr
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="package_model_libraries_weights.html" class="btn btn-neutral float-right" title="Package Model Libraries &amp; Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="package_libraries_and_weights.html" class="btn btn-neutral float-right" title="Package Libraries and Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="convert_weights.html" class="btn btn-neutral float-left" title="Convert Weights via MLC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

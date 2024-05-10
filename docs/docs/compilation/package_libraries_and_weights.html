@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Package Model Libraries &amp; Weights &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Package Libraries and Weights &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -175,17 +175,18 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS and Swift SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS Swift SDK</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android SDK</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Chat Config</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Weights via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Package Model Libraries &amp; Weights</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Package Libraries and Weights</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#compilation-cache">Compilation Cache</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#arguments-of-mlc-llm-package">Arguments of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#summary-and-what-to-do-next">Summary and What to Do Next</a></li>
 </ul>
@@ -268,7 +269,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Package Model Libraries &amp; Weights</li>
+      <li>Package Libraries and Weights</li>
     
     
       
@@ -279,7 +280,7 @@
         
             
             
-              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/package_model_libraries_weights.rst" class="fa fa-github"> Edit on GitHub</a>
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/package_libraries_and_weights.rst" class="fa fa-github"> Edit on GitHub</a>
             
           
         
@@ -293,14 +294,14 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="package-model-libraries-weights">
-<span id="id1"></span><h1>Package Model Libraries &amp; Weights<a class="headerlink" href="#package-model-libraries-weights" title="Permalink to this heading">¶</a></h1>
+  <section id="package-libraries-and-weights">
+<span id="id1"></span><h1>Package Libraries and Weights<a class="headerlink" href="#package-libraries-and-weights" title="Permalink to this heading">¶</a></h1>
 <p>When we want to build LLM applications with MLC LLM (e.g., iOS/Android apps),
 usually we need to build static model libraries and app binding libraries,
 and sometimes bundle model weights into the app.
 MLC LLM provides a tool for fast model library and weight packaging: <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>.</p>
 <p>This page briefly introduces how to use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> for packaging.
-Tutorials <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS and Swift SDK</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android SDK</span></a> contain detailed examples and instructions
+Tutorials <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS Swift SDK</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android SDK</span></a> contain detailed examples and instructions
 on using this packaging tool for iOS and Android deployment.</p>
 <hr class="docutils" />
 <section id="introduction">
@@ -444,6 +445,17 @@ Example:</p>
 <span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar&quot;</span>
 <span class="w">   </span><span class="p">}</span>
 <span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="compilation-cache">
+<h2>Compilation Cache<a class="headerlink" href="#compilation-cache" title="Permalink to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> leverage a local JIT cache to avoid repetitive compilation of the same input.
+It also leverages a local cache to download weights from remote. These caches
+are shared across the entire project. Sometimes it is helpful to force rebuild when
+we have a new compiler update or when something goes wrong with the ached library.
+You can do so by setting the environment variable <code class="docutils literal notranslate"><span class="pre">MLC_JIT_POLICY=REDO</span></code></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MLC_JIT_POLICY</span><span class="o">=</span>REDO<span class="w"> </span>mlc_llm<span class="w"> </span>package
 </pre></div>
 </div>
 </section>

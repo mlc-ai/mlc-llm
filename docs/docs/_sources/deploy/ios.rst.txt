@@ -1,7 +1,7 @@
 .. _deploy-ios:
 
-iOS and Swift SDK
-=================
+iOS Swift SDK
+=============
 
 .. contents:: Table of Contents
    :local:

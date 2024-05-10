@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>iOS and Swift SDK &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>iOS Swift SDK &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -175,7 +175,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_engine.html">Python API</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">iOS and Swift SDK</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">iOS Swift SDK</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#use-pre-built-ios-app">Use Pre-built iOS App</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#build-ios-app-from-source">Build iOS App from Source</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#step-1-install-build-dependencies">Step 1. Install Build Dependencies</a></li>
@@ -190,14 +190,14 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="android.html">Android SDK</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ide_integration.html">Code Completion IDE Integration</a></li>
-<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ide_integration.html">IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mlc_chat_config.html">Customize MLC Chat Config</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/package_model_libraries_weights.html">Package Model Libraries &amp; Weights</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
@@ -276,7 +276,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>iOS and Swift SDK</li>
+      <li>iOS Swift SDK</li>
     
     
       
@@ -301,8 +301,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="ios-and-swift-sdk">
-<span id="deploy-ios"></span><h1>iOS and Swift SDK<a class="headerlink" href="#ios-and-swift-sdk" title="Permalink to this heading">¶</a></h1>
+  <section id="ios-swift-sdk">
+<span id="deploy-ios"></span><h1>iOS Swift SDK<a class="headerlink" href="#ios-swift-sdk" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -566,7 +566,7 @@ contains a full list of conversation templates that MLC provides.</p>
 <p>If the model you are adding requires a new conversation template, you would need to add your own.
 Follow <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/pull/2163">this PR</a> as an example.
 We look up the template to use with the <code class="docutils literal notranslate"><span class="pre">conv_template</span></code> field in <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>.</p>
-<p>For more details, please see <a class="reference internal" href="mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Config File in JSON</span></a>.</p>
+<p>For more details, please see <a class="reference internal" href="mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Chat Config</span></a>.</p>
 <p><strong>Step 3. Upload weights to HF</strong></p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
 <span class="c1"># With the repository created, run</span>
