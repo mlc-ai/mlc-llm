@@ -183,8 +183,7 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
       hidden_states_for_sample = models_[sample_model_id]->GatherHiddenStates(
           hidden_states, logit_positions, &model_workspaces_[model_id].hidden_states);
       // logits_for_sample: (b * s, v)
-      logits_for_sample =
-          models_[sample_model_id]->GetLogits(hidden_states_for_sample, 1, num_rsentries);
+      logits_for_sample = models_[sample_model_id]->GetLogits(hidden_states_for_sample);
       // - Update logits.
       ICHECK(logits_for_sample.defined());
       Array<GenerationConfig> generation_cfg;
@@ -195,8 +194,6 @@ class EagleNewRequestPrefillActionObj : public EngineActionObj {
         generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
         mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[sample_model_id]);
       }
-      logits_for_sample = logits_for_sample.CreateView({num_rsentries, logits_for_sample->shape[2]},
-                                                       logits_for_sample->dtype);
       logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg,
                                             mstates_for_logitproc, request_ids);
 

@@ -352,7 +352,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "get_logits": {
-                "hidden_states": nn.spec.Tensor(["batch_size", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

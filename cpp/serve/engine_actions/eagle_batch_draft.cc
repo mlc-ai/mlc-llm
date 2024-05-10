@@ -116,20 +116,16 @@ class EagleBatchDraftActionObj : public EngineActionObj {
                                                                    request_internal_ids);
         NDArray logits;
         if (models_[model_id]->CanGetLogits()) {
-          logits = models_[model_id]->GetLogits(hidden_states, /*batch_size*/ num_rsentries,
-                                                /*seq_len*/ 1);
+          logits = models_[model_id]->GetLogits(hidden_states);
         } else {
           // - Use base model's head.
-          logits =
-              models_[0]->GetLogits(hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+          logits = models_[0]->GetLogits(hidden_states);
         }
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        ICHECK_EQ(logits->ndim, 3);
+        ICHECK_EQ(logits->ndim, 2);
         ICHECK_EQ(logits->shape[0], num_rsentries);
-        ICHECK_EQ(logits->shape[1], 1);
 
         // - Update logits.
-        logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
         logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
         // - Compute probability distributions.

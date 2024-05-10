@@ -135,11 +135,9 @@ class ModelObj : public Object {
   /*!
    * \brief Compute logits for last hidden_states.
    * \param last_hidden_states The last hidden_states to compute logits for.
-   * \param batch_size The batch size of last_hidden_states
-   * \param seq_len The length of tokens in last_hidden_states
    * \return The computed logits.
    */
-  virtual NDArray GetLogits(const ObjectRef& last_hidden_states, int batch_size, int seq_len) = 0;
+  virtual NDArray GetLogits(const ObjectRef& last_hidden_states) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
