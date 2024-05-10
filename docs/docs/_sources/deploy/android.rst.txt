@@ -1,6 +1,6 @@
 .. _deploy-android:
 
-Android App
+Android SDK
 ===========
 
 .. contents:: Table of Contents
@@ -35,11 +35,14 @@ Prerequisite
   ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
 
-**JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:
+**JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime.
+We recommended setting the ``JAVA_HOME`` to the JDK bundled with Android Studio. e.g. ``export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home`` for macOS.
+In other ways, it could be installed via Homebrew on macOS, apt on Ubuntu or other package managers.
+Set up the following environment variable:
 
 - ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``.
 
-Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same. We recommended setting the `JAVA_HOME` to the JDK bundled with Android Studio. e.g. `export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home` for macOS.
+Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.
 
 **TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
@@ -60,128 +63,258 @@ Check if **environment variable** are properly set as the last check. One way to
   export JAVA_HOME=...    # Java
   export TVM_HOME=...     # TVM Unity runtime
 
-Compile PyTorch Models from HuggingFace
----------------------------------------
 
-To deploy models on Android with reasonable performance, one has to cross-compile to and fully utilize mobile GPUs using TVM Unity. MLC provides a few pre-compiled models, or one could compile the models on their own.
+Build Android App from Source
+-----------------------------
 
-**Cloning MLC LLM from GitHub**. Download MLC LLM via the following command:
+This section shows how we can build the app from the source.
 
-.. code-block:: bash
+Step 1. Install Build Dependencies
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-  git clone --recursive https://github.com/mlc-ai/mlc-llm/
-            ^^^^^^^^^^^
-  cd ./mlc-llm/
+First and foremost, please clone the `MLC LLM GitHub repository <https://github.com/mlc-ai/mlc-llm>`_.
+After cloning, go to the ``android/`` directory.
+
+.. code:: bash
+
+   git clone https://github.com/mlc-ai/mlc-llm.git
+   cd mlc-llm
+   git submodule update --init --recursive
+   cd android
+
+
+.. _android-build-runtime-and-model-libraries:
+
+Step 2. Build Runtime and Model Libraries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The models to be built for the Android app are specified in ``MLCChat/mlc-package-config.json``:
+in the ``model_list``, ``model`` points to the Hugging Face repository which
+
+* ``model`` points to the Hugging Face repository which contains the pre-converted model weights. The Android app will download model weights from the Hugging Face URL.
+* ``model_id`` is a unique model identifier.
+* ``estimated_vram_bytes`` is an estimation of the vRAM the model takes at runtime.
+* ``"bundle_weight": true`` means the model weights of the model will be bundled into the app when building.
+* ``overrides`` specifies some model config parameter overrides.
+
+
+We have a one-line command to build and prepare all the model libraries:
+
+.. code:: bash
+
+   cd /path/to/MLCChat  # e.g., "android/MLCChat"
+   export MLC_LLM_HOME=/path/to/mlc-llm  # e.g., "../.."
+   mlc_llm package
+
+This command mainly executes the following two steps:
+
+1. **Compile models.** We compile each model in ``model_list`` of ``MLCChat/mlc-package-config.json`` into a binary model library.
+2. **Build runtime and tokenizer.** In addition to the model itself, a lightweight runtime and tokenizer are required to actually run the LLM.
+
+The command creates a ``./dist/`` directory that contains the runtime and model build output.
+Please make sure all the following files exist in ``./dist/``.
+
+.. code::
+
+   dist
+   └── lib
+       └── mlc4j
+           ├── build.gradle
+           ├── output
+           │   ├── arm64-v8a
+           │   │   └── libtvm4j_runtime_packed.so
+           │   └── tvm4j_core.jar
+           └── src
+               ├── cpp
+               │   └── tvm_runtime.h
+               └── main
+                   ├── AndroidManifest.xml
+                   ├── assets
+                   │   └── mlc-app-config.json
+                   └── java
+                       └── ai
+                           └── mlc
+                               └── mlcllm
+                                   └── ChatModule.java
+
+The model execution logic in mobile GPUs is incorporated into ``libtvm4j_runtime_packed.so``,
+while ``tvm4j_core.jar`` is a lightweight (~60 kb) `Java binding <https://tvm.apache.org/docs/reference/api/javadoc/>`_ to it.
+
 
 .. note::
-    ❗ The ``--recursive`` flag is necessary to download submodules like `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__. If you see any file missing during compilation, please double check if git submodules are properly cloned.
 
-**Download the PyTorch model** using Git Large File Storage (LFS), and by default, under ``./dist/models/``:
+   We leverage a local JIT cache to avoid repetitive compilation of the same input.
+   However, sometimes it is helpful to force rebuild when we have a new compiler update
+   or when something goes wrong with the ached library.
+   You can do so by setting the environment variable ``MLC_JIT_POLICY=REDO``
 
-.. code-block:: bash
+   .. code:: bash
 
-  MODEL_NAME=Llama-2-7b-chat-hf
-  QUANTIZATION=q4f16_1
+      MLC_JIT_POLICY=REDO mlc_llm package
 
-  git lfs install
-  git clone https://huggingface.co/meta-llama/$MODEL_NAME \
-            ./dist/models/
 
-**Compile Android-capable models**. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:
+Step 3. Build Android App
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. code-block:: bash
-
-  # convert weights
-  mlc_llm convert_weight ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION -o dist/$MODEL_NAME-$QUANTIZATION-MLC/
-
-  # create mlc-chat-config.json
-  mlc_llm gen_config ./dist/models/$MODEL_NAME/ --quantization $QUANTIZATION \
-    --conv-template llama-2 --context-window-size 768 -o dist/${MODEL_NAME}-${QUANTIZATION}-MLC/
-
-  # 2. compile: compile model library with specification in mlc-chat-config.json
-  mlc_llm compile ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/mlc-chat-config.json \
-      --device android -o ./dist/${MODEL_NAME}-${QUANTIZATION}-MLC/${MODEL_NAME}-${QUANTIZATION}-android.tar
-
-This generates the directory ``./dist/$MODEL_NAME-$QUANTIZATION-MLC`` which contains the necessary components to run the model, as explained below.
-
-.. note::
-    ❗ To run 7B models like llama-2-7B, Mistral-7B, it is recommended to use smaller values of parameter ``--context-window-size`` (``--sliding-window-size`` and ``--prefill-chunk-size`` for sliding window attention) to reduce the memory footprint of the model. Default configurations for certains models can be found under the Android tab in the `Compile Models <https://llm.mlc.ai/docs/compilation/compile_models.html>`_ section.
-
-**Expected output format**. By default models are placed under ``./dist/${MODEL_NAME}-${QUANTIZATION}-MLC``, and the result consists of 3 major components:
-
-- Runtime configuration: It configures conversation templates including system prompts, repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as ``mlc-chat-config.json`` alongside with tokenizer configurations.
-- Model lib: The compiled library that uses mobile GPU. It is usually named as ``${MODEL_NAME}-${QUANTIZATION}-android.tar``, for example, ``Llama-2-7b-chat-hf-q4f16_1-android.tar``.
-- Model weights: the model weights are sharded as ``params_shard_*.bin`` and the metadata is stored in ``ndarray-cache.json``
-
-Create Android Project using Compiled Models
---------------------------------------------
-
-The source code for MLC LLM is available under ``android/``, including scripts to build dependencies. Enter the directory first:
-
-.. code-block:: bash
-
-  cd ./android/library
-
-**Build necessary dependencies.** Configure the list of models the app comes with using the JSON file ``app-config.json`` which contains two properties `model_list` and `model_lib_path_for_prepare_libs` ``model_lib_path_for_prepare_libs`` contains list of model library paths under `./dist/` that will be bundled with the apk. The ``model_list`` property contains data for models that are not bundled with the apk, but downloaded from the internet at run-time. Each model defined in `model_list` contain the following fields:
-
-``model_url``
-   (Required) URL to the repo containing the weights.
-
-``model_id``
-  (Required) Unique local identifier to identify the model.
-
-``model_lib``
-   (Required) Matches the system-lib-prefix, generally set during ``mlc_llm compile`` which can be specified using
-   ``--system-lib-prefix`` argument. By default, it is set to ``"${model_type}_${quantization}"`` e.g. ``gpt_neox_q4f16_1`` for the RedPajama-INCITE-Chat-3B-v1 model. If the ``--system-lib-prefix`` argument is manually specified during ``mlc_llm compile``, the ``model_lib`` field should be updated accordingly.
-
-``estimated_vram_bytes``
-   (Optional) Estimated requirements of VRAM to run the model.
-
-To change the configuration, edit ``app-config.json``:
-
-.. code-block:: bash
-
-  vim ./src/main/assets/app-config.json
-
-Then bundle the android library ``${MODEL_NAME}-${QUANTIZATION}-android.tar`` compiled from ``mlc_llm compile`` in the previous steps, with TVM Unity's Java runtime by running the commands below:
-
-.. code-block:: bash
-
-  ./prepare_libs.sh
-
-which generates the two files below:
-
-.. code-block:: bash
-
-  >>> find ./build/output -type f
-  ./build/output/arm64-v8a/libtvm4j_runtime_packed.so
-  ./build/output/tvm4j_core.jar
-
-The model execution logic in mobile GPUs is incorporated into ``libtvm4j_runtime_packed.so``, while ``tvm4j_core.jar`` is a lightweight (~60 kb) `Java binding <https://tvm.apache.org/docs/reference/api/javadoc/>`_ to it.
-
-**Build the Android app**. Open folder ``./android`` as an Android Studio Project. Connect your Android device to your machine. In the menu bar of Android Studio, click "Build → Make Project". Once the build is finished, click "Run → Run 'app'" and you will see the app launched on your phone.
+Open folder ``./android`` as an Android Studio Project.
+Connect your Android device to your machine.
+In the menu bar of Android Studio, click **"Build → Make Project"**.
+Once the build is finished, click **"Run → Run 'app'"** and you will see the app launched on your phone.
 
 .. note::
     ❗ This app cannot be run in an emulator and thus a physical phone is required, because MLC LLM needs an actual mobile GPU to meaningfully run at an accelerated speed.
 
-Incorporate Model Weights
--------------------------
 
-Instructions have been provided to build an Android App with MLC LLM in previous sections, but it requires run-time weight downloading from HuggingFace, as configured in `app-config.json` in previous steps under `model_url`. However, it could be desirable to bundle weights together into the app to avoid downloading over the network. In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.
+Customize the App
+-----------------
 
-**Generating APK**. Enter Android Studio, and click "Build → Generate Signed Bundle/APK" to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to `the official guide from Android <https://developer.android.com/studio/publish/app-signing#generate-key>`_. This APK will be placed under ``android/app/release/app-release.apk``.
+We can customize the models built in the Android app by customizing `MLCChat/mlc-package-config.json <https://github.com/mlc-ai/mlc-llm/blob/main/android/MLCChat/mlc-package-config.json>`_.
+We introduce each field of the JSON file here.
 
-**Install ADB and USB debugging**. Enable "USB debugging" in the developer mode in your phone settings. In SDK manager, install `Android SDK Platform-Tools <https://developer.android.com/studio/releases/platform-tools>`_. Add the path to platform-tool path to the environment variable ``PATH``. Run the following commands, and if ADB is installed correctly, your phone will appear as a device:
+Each entry in ``"model_list"`` of the JSON file has the following fields:
+
+``model``
+   (Required) The path to the MLC-converted model to be built into the app.
+   It is a Hugging Face URL (e.g., ``"model": "HF://mlc-ai/phi-2-q4f16_1-MLC"```) that contains
+   the pre-converted model weights.
+
+``model_id``
+  (Required) A unique local identifier to identify the model.
+  It can be an arbitrary one.
+
+``estimated_vram_bytes``
+   (Required) Estimated requirements of vRAM to run the model.
+
+``bundle_weight``
+   (Optional) A boolean flag indicating whether to bundle model weights into the app. See :ref:`android-bundle-model-weights` below.
+
+``overrides``
+   (Optional) A dictionary to override the default model context window size (to limit the KV cache size) and prefill chunk size (to limit the model temporary execution memory).
+   Example:
+
+   .. code:: json
+
+      {
+         "device": "android",
+         "model_list": [
+            {
+                  "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+                  "estimated_vram_bytes": 1948348579,
+                  "overrides": {
+                     "context_window_size": 512,
+                     "prefill_chunk_size": 128
+                  }
+            }
+         ]
+      }
+
+``model_lib``
+   (Optional) A string specifying the system library prefix to use for the model.
+   Usually this is used when you want to build multiple model variants with the same architecture into the app.
+   **This field does not affect any app functionality.**
+   The ``"model_lib_path_for_prepare_libs"`` introduced below is also related.
+   Example:
+
+   .. code:: json
+
+      {
+         "device": "android",
+         "model_list": [
+            {
+                  "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+                  "estimated_vram_bytes": 1948348579,
+                  "model_lib": "gpt_neox_q4f16_1"
+            }
+         ]
+      }
+
+
+Besides ``model_list`` in ``MLCChat/mlc-package-config.json``,
+you can also **optionally** specify a dictionary of ``"model_lib_path_for_prepare_libs"``,
+**if you want to use model libraries that are manually compiled**.
+The keys of this dictionary should be the ``model_lib`` that specified in model list,
+and the values of this dictionary are the paths (absolute, or relative) to the manually compiled model libraries.
+The model libraries specified in ``"model_lib_path_for_prepare_libs"`` will be built into the app when running ``mlc_llm package``.
+Example:
+
+.. code:: json
+
+   {
+      "device": "android",
+      "model_list": [
+         {
+               "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+               "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+               "estimated_vram_bytes": 1948348579,
+               "model_lib": "gpt_neox_q4f16_1"
+         }
+      ],
+      "model_lib_path_for_prepare_libs": {
+         "gpt_neox_q4f16_1": "../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar"
+      }
+   }
+
+.. _android-bundle-model-weights:
+
+Bundle Model Weights
+--------------------
+
+Instructions have been provided to build an Android App with MLC LLM in previous sections,
+but it requires run-time weight downloading from HuggingFace,
+as configured in ``MLCChat/mlc-package-config.json``.
+However, it could be desirable to bundle weights together into the app to avoid downloading over the network.
+In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.
+
+**Enable weight bundle**.
+Set the field ``"bundle_weight": true`` for any model you want to bundle weights
+in ``MLCChat/mlc-package-config.json``, and run ``mlc_llm package`` again.
+Below is an example:
+
+.. code:: json
+
+   {
+      "device": "android",
+      "model_list": [
+         {
+            "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
+            "model_id": "gemma-2b-q4f16_1",
+            "estimated_vram_bytes": 3000000000,
+            "bundle_weight": true
+         }
+      ]
+   }
+
+The outcome of running ``mlc_llm package`` should be as follows:
+
+.. code::
+
+   dist
+   ├── bundle
+   │   ├── gemma-2b-q4f16_1   # The model weights that will be bundled into the app.
+   │   └── mlc-app-config.json
+   └── ...
+
+
+**Generating APK**. Enter Android Studio, and click **"Build → Generate Signed Bundle/APK"** to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to `the official guide from Android <https://developer.android.com/studio/publish/app-signing#generate-key>`_.
+This APK will be placed under ``android/MLCChat/app/release/app-release.apk``.
+
+**Install ADB and USB debugging**. Enable "USB debugging" in the developer mode in your phone settings.
+In "SDK manager - SDK Tools", install `Android SDK Platform-Tools <https://developer.android.com/studio/releases/platform-tools>`_.
+Add the path to platform-tool path to the environment variable ``PATH`` (on macOS, it is ``$HOME/Library/Android/sdk/platform-tools``).
+Run the following commands, and if ADB is installed correctly, your phone will appear as a device:
 
 .. code-block:: bash
 
   adb devices
 
-**Install the APK and weights to your phone**. Run the commands below replacing ``${MODEL_NAME}`` and ``${QUANTIZATION}`` with the actual model name (e.g. Llama-2-7b-chat-hf) and quantization format (e.g. q4f16_1).
+**Install the APK and weights to your phone**.
+Run the commands below to install the app, and push the local weights to the app data directory on your device.
+Once it finishes, you can start the MLCChat app on your device.
+The models with ``bundle_weight`` set to true will have their weights already on device.
 
 .. code-block:: bash
 
-  adb install android/app/release/app-release.apk
-  adb push dist/${MODEL_NAME}-${QUANTIZATION}-MLC /data/local/tmp/${MODEL_NAME}-${QUANTIZATION}/
-  adb shell "mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
-  adb shell "mv /data/local/tmp/${MODEL_NAME}-${QUANTIZATION} /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/"
+  cd /path/to/MLCChat  # e.g., "android/MLCChat"
+  python bundle_weight.py --apk-path app/release/app-release.apk

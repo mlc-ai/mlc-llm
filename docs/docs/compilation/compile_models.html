@@ -47,7 +47,7 @@
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Define New Model Architectures" href="define_new_models.html" />
+    <link rel="next" title="Package Model Libraries &amp; Weights" href="package_model_libraries_weights.html" />
     <link rel="prev" title="Convert Weights via MLC" href="convert_weights.html" /> 
 </head>
 
@@ -176,8 +176,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS App and Swift API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android App</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS and Swift SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android SDK</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
 </ul>
@@ -198,6 +198,7 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="package_model_libraries_weights.html">Package Model Libraries &amp; Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
@@ -604,7 +605,7 @@ We can check the output with the commands below:</p>
 </pre></div>
 </div>
 <p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar</span></code>
-will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS App and Swift API</span></a> for more details.</p>
+will be packaged as a static library into the iOS app. Checkout <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS and Swift SDK</span></a> for more details.</p>
 </div><div aria-labelledby="tab-1-QW5kcm9pZA==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-QW5kcm9pZA==" name="QW5kcm9pZA==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
 <span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 
@@ -619,7 +620,7 @@ will be packaged as a static library into the iOS app. Checkout <a class="refere
 </pre></div>
 </div>
 <p>The model lib <code class="docutils literal notranslate"><span class="pre">dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar</span></code>
-will be packaged as a static library into the android app. Checkout <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android App</span></a> for more details.</p>
+will be packaged as a static library into the android app. Checkout <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android SDK</span></a> for more details.</p>
 </div><div aria-labelledby="tab-1-V2ViR1BV" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-V2ViR1BV" name="V2ViR1BV" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
 <span class="w">  </span>RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm<span class="w">  </span><span class="c1"># ===&gt; the model library</span>
 
@@ -1202,7 +1203,7 @@ knobs, e.g. <code class="docutils literal notranslate"><span class="pre">--overr
 
     <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
       
-        <a href="define_new_models.html" class="btn btn-neutral float-right" title="Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+        <a href="package_model_libraries_weights.html" class="btn btn-neutral float-right" title="Package Model Libraries &amp; Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
         <a href="convert_weights.html" class="btn btn-neutral float-left" title="Convert Weights via MLC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>

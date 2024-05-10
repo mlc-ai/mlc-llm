@@ -45,6 +45,7 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
 
    compilation/convert_weights.rst
    compilation/compile_models.rst
+   compilation/package_model_libraries_weights.rst
    compilation/define_new_models.rst
 
 .. toctree::

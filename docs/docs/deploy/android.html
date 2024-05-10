@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Android App &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Android SDK &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -47,7 +47,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Code Completion IDE Integration" href="ide_integration.html" />
-    <link rel="prev" title="iOS App and Swift API" href="ios.html" /> 
+    <link rel="prev" title="iOS and Swift SDK" href="ios.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -175,13 +175,18 @@
 <li class="toctree-l1"><a class="reference internal" href="rest.html">REST API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cli.html">CLI</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_engine.html">Python API</a></li>
-<li class="toctree-l1"><a class="reference internal" href="ios.html">iOS App and Swift API</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Android App</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="ios.html">iOS and Swift SDK</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Android SDK</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#demo-app">Demo App</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#prerequisite">Prerequisite</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#compile-pytorch-models-from-huggingface">Compile PyTorch Models from HuggingFace</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#create-android-project-using-compiled-models">Create Android Project using Compiled Models</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#incorporate-model-weights">Incorporate Model Weights</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#build-android-app-from-source">Build Android App from Source</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-install-build-dependencies">Step 1. Install Build Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-build-runtime-and-model-libraries">Step 2. Build Runtime and Model Libraries</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-build-android-app">Step 3. Build Android App</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#customize-the-app">Customize the App</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#bundle-model-weights">Bundle Model Weights</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ide_integration.html">Code Completion IDE Integration</a></li>
@@ -191,6 +196,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/package_model_libraries_weights.html">Package Model Libraries &amp; Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
@@ -269,7 +275,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Android App</li>
+      <li>Android SDK</li>
     
     
       
@@ -294,16 +300,22 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="android-app">
-<span id="deploy-android"></span><h1>Android App<a class="headerlink" href="#android-app" title="Permalink to this heading">¶</a></h1>
+  <section id="android-sdk">
+<span id="deploy-android"></span><h1>Android SDK<a class="headerlink" href="#android-sdk" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#demo-app" id="id1">Demo App</a></p></li>
 <li><p><a class="reference internal" href="#prerequisite" id="id2">Prerequisite</a></p></li>
-<li><p><a class="reference internal" href="#compile-pytorch-models-from-huggingface" id="id3">Compile PyTorch Models from HuggingFace</a></p></li>
-<li><p><a class="reference internal" href="#create-android-project-using-compiled-models" id="id4">Create Android Project using Compiled Models</a></p></li>
-<li><p><a class="reference internal" href="#incorporate-model-weights" id="id5">Incorporate Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#build-android-app-from-source" id="id3">Build Android App from Source</a></p>
+<ul>
+<li><p><a class="reference internal" href="#step-1-install-build-dependencies" id="id4">Step 1. Install Build Dependencies</a></p></li>
+<li><p><a class="reference internal" href="#step-2-build-runtime-and-model-libraries" id="id5">Step 2. Build Runtime and Model Libraries</a></p></li>
+<li><p><a class="reference internal" href="#step-3-build-android-app" id="id6">Step 3. Build Android App</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#customize-the-app" id="id7">Customize the App</a></p></li>
+<li><p><a class="reference internal" href="#bundle-model-weights" id="id8">Bundle Model Weights</a></p></li>
 </ul>
 </nav>
 <section id="demo-app">
@@ -327,11 +339,14 @@ ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Library/Androi
 TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
 </pre></div>
 </div>
-<p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM Unity runtime. It could be installed via Homebrew on macOS, apt on Ubuntu or other package managers. Set up the following environment variable:</p>
+<p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM Unity runtime.
+We recommended setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio. e.g. <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/Applications/Android\</span> <span class="pre">Studio.app/Contents/jbr/Contents/Home</span></code> for macOS.
+In other ways, it could be installed via Homebrew on macOS, apt on Ubuntu or other package managers.
+Set up the following environment variable:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> so that Java is available in <code class="docutils literal notranslate"><span class="pre">$JAVA_HOME/bin/java</span></code>.</p></li>
 </ul>
-<p>Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same. We recommended setting the <cite>JAVA_HOME</cite> to the JDK bundled with Android Studio. e.g. <cite>export JAVA_HOME=/Applications/AndroidStudio.app/Contents/jbr/Contents/Home</cite> for macOS.</p>
+<p>Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.</p>
 <p><strong>TVM Unity runtime</strong> is placed under <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a> in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">TVM_HOME</span></code> so that its headers are available under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME/include/tvm/runtime</span></code>.</p></li>
@@ -350,105 +365,218 @@ TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchai
 </pre></div>
 </div>
 </section>
-<section id="compile-pytorch-models-from-huggingface">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Compile PyTorch Models from HuggingFace</a><a class="headerlink" href="#compile-pytorch-models-from-huggingface" title="Permalink to this heading">¶</a></h2>
-<p>To deploy models on Android with reasonable performance, one has to cross-compile to and fully utilize mobile GPUs using TVM Unity. MLC provides a few pre-compiled models, or one could compile the models on their own.</p>
-<p><strong>Cloning MLC LLM from GitHub</strong>. Download MLC LLM via the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/mlc-llm/
-<span class="w">          </span>^^^^^^^^^^^
-<span class="nb">cd</span><span class="w"> </span>./mlc-llm/
+<section id="build-android-app-from-source">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Build Android App from Source</a><a class="headerlink" href="#build-android-app-from-source" title="Permalink to this heading">¶</a></h2>
+<p>This section shows how we can build the app from the source.</p>
+<section id="step-1-install-build-dependencies">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Step 1. Install Build Dependencies</a><a class="headerlink" href="#step-1-install-build-dependencies" title="Permalink to this heading">¶</a></h3>
+<p>First and foremost, please clone the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.
+After cloning, go to the <code class="docutils literal notranslate"><span class="pre">android/</span></code> directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git
+<span class="nb">cd</span><span class="w"> </span>mlc-llm
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+<span class="nb">cd</span><span class="w"> </span>android
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>❗ The <code class="docutils literal notranslate"><span class="pre">--recursive</span></code> flag is necessary to download submodules like <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>. If you see any file missing during compilation, please double check if git submodules are properly cloned.</p>
-</div>
-<p><strong>Download the PyTorch model</strong> using Git Large File Storage (LFS), and by default, under <code class="docutils literal notranslate"><span class="pre">./dist/models/</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MODEL_NAME</span><span class="o">=</span>Llama-2-7b-chat-hf
-<span class="nv">QUANTIZATION</span><span class="o">=</span>q4f16_1
-
-git<span class="w"> </span>lfs<span class="w"> </span>install
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/meta-llama/<span class="nv">$MODEL_NAME</span><span class="w"> </span><span class="se">\</span>
-<span class="w">          </span>./dist/models/
-</pre></div>
-</div>
-<p><strong>Compile Android-capable models</strong>. Install TVM Unity compiler as a Python package, and then compile the model for android using the following commands:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># convert weights</span>
-mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="nv">$MODEL_NAME</span>-<span class="nv">$QUANTIZATION</span>-MLC/
-
-<span class="c1"># create mlc-chat-config.json</span>
-mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/<span class="nv">$MODEL_NAME</span>/<span class="w"> </span>--quantization<span class="w"> </span><span class="nv">$QUANTIZATION</span><span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--conv-template<span class="w"> </span>llama-2<span class="w"> </span>--context-window-size<span class="w"> </span><span class="m">768</span><span class="w"> </span>-o<span class="w"> </span>dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/
-
-<span class="c1"># 2. compile: compile model library with specification in mlc-chat-config.json</span>
-mlc_llm<span class="w"> </span>compile<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/mlc-chat-config.json<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--device<span class="w"> </span>android<span class="w"> </span>-o<span class="w"> </span>./dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-android.tar
-</pre></div>
-</div>
-<p>This generates the directory <code class="docutils literal notranslate"><span class="pre">./dist/$MODEL_NAME-$QUANTIZATION-MLC</span></code> which contains the necessary components to run the model, as explained below.</p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>❗ To run 7B models like llama-2-7B, Mistral-7B, it is recommended to use smaller values of parameter <code class="docutils literal notranslate"><span class="pre">--context-window-size</span></code> (<code class="docutils literal notranslate"><span class="pre">--sliding-window-size</span></code> and <code class="docutils literal notranslate"><span class="pre">--prefill-chunk-size</span></code> for sliding window attention) to reduce the memory footprint of the model. Default configurations for certains models can be found under the Android tab in the <a class="reference external" href="https://llm.mlc.ai/docs/compilation/compile_models.html">Compile Models</a> section.</p>
-</div>
-<p><strong>Expected output format</strong>. By default models are placed under <code class="docutils literal notranslate"><span class="pre">./dist/${MODEL_NAME}-${QUANTIZATION}-MLC</span></code>, and the result consists of 3 major components:</p>
-<ul class="simple">
-<li><p>Runtime configuration: It configures conversation templates including system prompts, repetition penalty, sampling including temperature and top-p probability, maximum sequence length, etc. It is usually named as <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> alongside with tokenizer configurations.</p></li>
-<li><p>Model lib: The compiled library that uses mobile GPU. It is usually named as <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code>, for example, <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1-android.tar</span></code>.</p></li>
-<li><p>Model weights: the model weights are sharded as <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> and the metadata is stored in <code class="docutils literal notranslate"><span class="pre">ndarray-cache.json</span></code></p></li>
-</ul>
 </section>
-<section id="create-android-project-using-compiled-models">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Create Android Project using Compiled Models</a><a class="headerlink" href="#create-android-project-using-compiled-models" title="Permalink to this heading">¶</a></h2>
-<p>The source code for MLC LLM is available under <code class="docutils literal notranslate"><span class="pre">android/</span></code>, including scripts to build dependencies. Enter the directory first:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>./android/library
+<section id="step-2-build-runtime-and-model-libraries">
+<span id="android-build-runtime-and-model-libraries"></span><h3><a class="toc-backref" href="#id5" role="doc-backlink">Step 2. Build Runtime and Model Libraries</a><a class="headerlink" href="#step-2-build-runtime-and-model-libraries" title="Permalink to this heading">¶</a></h3>
+<p>The models to be built for the Android app are specified in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>:
+in the <code class="docutils literal notranslate"><span class="pre">model_list</span></code>, <code class="docutils literal notranslate"><span class="pre">model</span></code> points to the Hugging Face repository which</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model</span></code> points to the Hugging Face repository which contains the pre-converted model weights. The Android app will download model weights from the Hugging Face URL.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model_id</span></code> is a unique model identifier.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code> is an estimation of the vRAM the model takes at runtime.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;bundle_weight&quot;:</span> <span class="pre">true</span></code> means the model weights of the model will be bundled into the app when building.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">overrides</span></code> specifies some model config parameter overrides.</p></li>
+</ul>
+<p>We have a one-line command to build and prepare all the model libraries:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/MLCChat<span class="w">  </span><span class="c1"># e.g., &quot;android/MLCChat&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_HOME</span><span class="o">=</span>/path/to/mlc-llm<span class="w">  </span><span class="c1"># e.g., &quot;../..&quot;</span>
+mlc_llm<span class="w"> </span>package
 </pre></div>
 </div>
-<p><strong>Build necessary dependencies.</strong> Configure the list of models the app comes with using the JSON file <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code> which contains two properties <cite>model_list</cite> and <cite>model_lib_path_for_prepare_libs</cite> <code class="docutils literal notranslate"><span class="pre">model_lib_path_for_prepare_libs</span></code> contains list of model library paths under <cite>./dist/</cite> that will be bundled with the apk. The <code class="docutils literal notranslate"><span class="pre">model_list</span></code> property contains data for models that are not bundled with the apk, but downloaded from the internet at run-time. Each model defined in <cite>model_list</cite> contain the following fields:</p>
-<dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">model_url</span></code></dt><dd><p>(Required) URL to the repo containing the weights.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) Unique local identifier to identify the model.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Required) Matches the system-lib-prefix, generally set during <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code> which can be specified using
-<code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument. By default, it is set to <code class="docutils literal notranslate"><span class="pre">&quot;${model_type}_${quantization}&quot;</span></code> e.g. <code class="docutils literal notranslate"><span class="pre">gpt_neox_q4f16_1</span></code> for the RedPajama-INCITE-Chat-3B-v1 model. If the <code class="docutils literal notranslate"><span class="pre">--system-lib-prefix</span></code> argument is manually specified during <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code>, the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> field should be updated accordingly.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Optional) Estimated requirements of VRAM to run the model.</p>
-</dd>
-</dl>
-<p>To change the configuration, edit <code class="docutils literal notranslate"><span class="pre">app-config.json</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>vim<span class="w"> </span>./src/main/assets/app-config.json
+<p>This command mainly executes the following two steps:</p>
+<ol class="arabic simple">
+<li><p><strong>Compile models.</strong> We compile each model in <code class="docutils literal notranslate"><span class="pre">model_list</span></code> of <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code> into a binary model library.</p></li>
+<li><p><strong>Build runtime and tokenizer.</strong> In addition to the model itself, a lightweight runtime and tokenizer are required to actually run the LLM.</p></li>
+</ol>
+<p>The command creates a <code class="docutils literal notranslate"><span class="pre">./dist/</span></code> directory that contains the runtime and model build output.
+Please make sure all the following files exist in <code class="docutils literal notranslate"><span class="pre">./dist/</span></code>.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>dist
+└── lib
+    └── mlc4j
+        ├── build.gradle
+        ├── output
+        │   ├── arm64-v8a
+        │   │   └── libtvm4j_runtime_packed.so
+        │   └── tvm4j_core.jar
+        └── src
+            ├── cpp
+            │   └── tvm_runtime.h
+            └── main
+                ├── AndroidManifest.xml
+                ├── assets
+                │   └── mlc-app-config.json
+                └── java
+                    └── ai
+                        └── mlc
+                            └── mlcllm
+                                └── ChatModule.java
 </pre></div>
 </div>
-<p>Then bundle the android library <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}-${QUANTIZATION}-android.tar</span></code> compiled from <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">compile</span></code> in the previous steps, with TVM Unity’s Java runtime by running the commands below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./prepare_libs.sh
+<p>The model execution logic in mobile GPUs is incorporated into <code class="docutils literal notranslate"><span class="pre">libtvm4j_runtime_packed.so</span></code>,
+while <code class="docutils literal notranslate"><span class="pre">tvm4j_core.jar</span></code> is a lightweight (~60 kb) <a class="reference external" href="https://tvm.apache.org/docs/reference/api/javadoc/">Java binding</a> to it.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We leverage a local JIT cache to avoid repetitive compilation of the same input.
+However, sometimes it is helpful to force rebuild when we have a new compiler update
+or when something goes wrong with the ached library.
+You can do so by setting the environment variable <code class="docutils literal notranslate"><span class="pre">MLC_JIT_POLICY=REDO</span></code></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MLC_JIT_POLICY</span><span class="o">=</span>REDO<span class="w"> </span>mlc_llm<span class="w"> </span>package
 </pre></div>
 </div>
-<p>which generates the two files below:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>find<span class="w"> </span>./build/output<span class="w"> </span>-type<span class="w"> </span>f
-./build/output/arm64-v8a/libtvm4j_runtime_packed.so
-./build/output/tvm4j_core.jar
-</pre></div>
 </div>
-<p>The model execution logic in mobile GPUs is incorporated into <code class="docutils literal notranslate"><span class="pre">libtvm4j_runtime_packed.so</span></code>, while <code class="docutils literal notranslate"><span class="pre">tvm4j_core.jar</span></code> is a lightweight (~60 kb) <a class="reference external" href="https://tvm.apache.org/docs/reference/api/javadoc/">Java binding</a> to it.</p>
-<p><strong>Build the Android app</strong>. Open folder <code class="docutils literal notranslate"><span class="pre">./android</span></code> as an Android Studio Project. Connect your Android device to your machine. In the menu bar of Android Studio, click “Build → Make Project”. Once the build is finished, click “Run → Run ‘app’” and you will see the app launched on your phone.</p>
+</section>
+<section id="step-3-build-android-app">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Step 3. Build Android App</a><a class="headerlink" href="#step-3-build-android-app" title="Permalink to this heading">¶</a></h3>
+<p>Open folder <code class="docutils literal notranslate"><span class="pre">./android</span></code> as an Android Studio Project.
+Connect your Android device to your machine.
+In the menu bar of Android Studio, click <strong>“Build → Make Project”</strong>.
+Once the build is finished, click <strong>“Run → Run ‘app’”</strong> and you will see the app launched on your phone.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>❗ This app cannot be run in an emulator and thus a physical phone is required, because MLC LLM needs an actual mobile GPU to meaningfully run at an accelerated speed.</p>
 </div>
 </section>
-<section id="incorporate-model-weights">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Incorporate Model Weights</a><a class="headerlink" href="#incorporate-model-weights" title="Permalink to this heading">¶</a></h2>
-<p>Instructions have been provided to build an Android App with MLC LLM in previous sections, but it requires run-time weight downloading from HuggingFace, as configured in <cite>app-config.json</cite> in previous steps under <cite>model_url</cite>. However, it could be desirable to bundle weights together into the app to avoid downloading over the network. In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.</p>
-<p><strong>Generating APK</strong>. Enter Android Studio, and click “Build → Generate Signed Bundle/APK” to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to <a class="reference external" href="https://developer.android.com/studio/publish/app-signing#generate-key">the official guide from Android</a>. This APK will be placed under <code class="docutils literal notranslate"><span class="pre">android/app/release/app-release.apk</span></code>.</p>
-<p><strong>Install ADB and USB debugging</strong>. Enable “USB debugging” in the developer mode in your phone settings. In SDK manager, install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK Platform-Tools</a>. Add the path to platform-tool path to the environment variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code>. Run the following commands, and if ADB is installed correctly, your phone will appear as a device:</p>
+</section>
+<section id="customize-the-app">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Customize the App</a><a class="headerlink" href="#customize-the-app" title="Permalink to this heading">¶</a></h2>
+<p>We can customize the models built in the Android app by customizing <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/android/MLCChat/mlc-package-config.json">MLCChat/mlc-package-config.json</a>.
+We introduce each field of the JSON file here.</p>
+<p>Each entry in <code class="docutils literal notranslate"><span class="pre">&quot;model_list&quot;</span></code> of the JSON file has the following fields:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>(Required) The path to the MLC-converted model to be built into the app.
+It is a Hugging Face URL (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;HF://mlc-ai/phi-2-q4f16_1-MLC&quot;`</span></code>) that contains
+the pre-converted model weights.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) A unique local identifier to identify the model.
+It can be an arbitrary one.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Required) Estimated requirements of vRAM to run the model.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">bundle_weight</span></code></dt><dd><p>(Optional) A boolean flag indicating whether to bundle model weights into the app. See <a class="reference internal" href="#android-bundle-model-weights"><span class="std std-ref">Bundle Model Weights</span></a> below.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">overrides</span></code></dt><dd><p>(Optional) A dictionary to override the default model context window size (to limit the KV cache size) and prefill chunk size (to limit the model temporary execution memory).
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;android&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1948348579</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">               </span><span class="nt">&quot;context_window_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
+<span class="w">               </span><span class="nt">&quot;prefill_chunk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Optional) A string specifying the system library prefix to use for the model.
+Usually this is used when you want to build multiple model variants with the same architecture into the app.
+<strong>This field does not affect any app functionality.</strong>
+The <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> introduced below is also related.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;android&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1948348579</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<p>Besides <code class="docutils literal notranslate"><span class="pre">model_list</span></code> in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>,
+you can also <strong>optionally</strong> specify a dictionary of <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code>,
+<strong>if you want to use model libraries that are manually compiled</strong>.
+The keys of this dictionary should be the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> that specified in model list,
+and the values of this dictionary are the paths (absolute, or relative) to the manually compiled model libraries.
+The model libraries specified in <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> will be built into the app when running <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;android&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1948348579</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">],</span>
+<span class="w">   </span><span class="nt">&quot;model_lib_path_for_prepare_libs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-android.tar&quot;</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="bundle-model-weights">
+<span id="android-bundle-model-weights"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Bundle Model Weights</a><a class="headerlink" href="#bundle-model-weights" title="Permalink to this heading">¶</a></h2>
+<p>Instructions have been provided to build an Android App with MLC LLM in previous sections,
+but it requires run-time weight downloading from HuggingFace,
+as configured in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>.
+However, it could be desirable to bundle weights together into the app to avoid downloading over the network.
+In this section, we provide a simple ADB-based walkthrough that hopefully helps with further development.</p>
+<p><strong>Enable weight bundle</strong>.
+Set the field <code class="docutils literal notranslate"><span class="pre">&quot;bundle_weight&quot;:</span> <span class="pre">true</span></code> for any model you want to bundle weights
+in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>, and run <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> again.
+Below is an example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;android&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">         </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/gemma-2b-it-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gemma-2b-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000000000</span><span class="p">,</span>
+<span class="w">         </span><span class="nt">&quot;bundle_weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The outcome of running <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> should be as follows:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>dist
+├── bundle
+│   ├── gemma-2b-q4f16_1   # The model weights that will be bundled into the app.
+│   └── mlc-app-config.json
+└── ...
+</pre></div>
+</div>
+<p><strong>Generating APK</strong>. Enter Android Studio, and click <strong>“Build → Generate Signed Bundle/APK”</strong> to build an APK for release. If it is the first time you generate an APK, you will need to create a key according to <a class="reference external" href="https://developer.android.com/studio/publish/app-signing#generate-key">the official guide from Android</a>.
+This APK will be placed under <code class="docutils literal notranslate"><span class="pre">android/MLCChat/app/release/app-release.apk</span></code>.</p>
+<p><strong>Install ADB and USB debugging</strong>. Enable “USB debugging” in the developer mode in your phone settings.
+In “SDK manager - SDK Tools”, install <a class="reference external" href="https://developer.android.com/studio/releases/platform-tools">Android SDK Platform-Tools</a>.
+Add the path to platform-tool path to the environment variable <code class="docutils literal notranslate"><span class="pre">PATH</span></code> (on macOS, it is <code class="docutils literal notranslate"><span class="pre">$HOME/Library/Android/sdk/platform-tools</span></code>).
+Run the following commands, and if ADB is installed correctly, your phone will appear as a device:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>devices
 </pre></div>
 </div>
-<p><strong>Install the APK and weights to your phone</strong>. Run the commands below replacing <code class="docutils literal notranslate"><span class="pre">${MODEL_NAME}</span></code> and <code class="docutils literal notranslate"><span class="pre">${QUANTIZATION}</span></code> with the actual model name (e.g. Llama-2-7b-chat-hf) and quantization format (e.g. q4f16_1).</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>adb<span class="w"> </span>install<span class="w"> </span>android/app/release/app-release.apk
-adb<span class="w"> </span>push<span class="w"> </span>dist/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>-MLC<span class="w"> </span>/data/local/tmp/<span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span>-<span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span>/
-adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mkdir -p /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/&quot;</span>
-adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;mv /data/local/tmp/</span><span class="si">${</span><span class="nv">MODEL_NAME</span><span class="si">}</span><span class="s2">-</span><span class="si">${</span><span class="nv">QUANTIZATION</span><span class="si">}</span><span class="s2"> /storage/emulated/0/Android/data/ai.mlc.mlcchat/files/&quot;</span>
+<p><strong>Install the APK and weights to your phone</strong>.
+Run the commands below to install the app, and push the local weights to the app data directory on your device.
+Once it finishes, you can start the MLCChat app on your device.
+The models with <code class="docutils literal notranslate"><span class="pre">bundle_weight</span></code> set to true will have their weights already on device.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/MLCChat<span class="w">  </span><span class="c1"># e.g., &quot;android/MLCChat&quot;</span>
+python<span class="w"> </span>bundle_weight.py<span class="w"> </span>--apk-path<span class="w"> </span>app/release/app-release.apk
 </pre></div>
 </div>
 </section>
@@ -467,7 +595,7 @@ adb<span class="w"> </span>shell<span class="w"> </span><span class="s2">&quot;m
         <a href="ide_integration.html" class="btn btn-neutral float-right" title="Code Completion IDE Integration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="ios.html" class="btn btn-neutral float-left" title="iOS App and Swift API" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="ios.html" class="btn btn-neutral float-left" title="iOS and Swift SDK" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

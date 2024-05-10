@@ -1,0 +1,535 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Package Model Libraries &amp; Weights &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Define New Model Architectures" href="define_new_models.html" />
+    <link rel="prev" title="Compile Model Libraries" href="compile_models.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://llm.mlc.ai/>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/introduction.html">Introduction to MLC LLM</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/javascript.html">WebLLM and JavaScript API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS and Swift SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">Code Completion IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Config File in JSON</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Package Model Libraries &amp; Weights</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#arguments-of-mlc-llm-package">Arguments of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#summary-and-what-to-do-next">Summary and What to Do Next</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/emcc.html">Install Wasm Build Environment</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Privacy</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../privacy.html">MLC Chat App Privacy</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Package Model Libraries &amp; Weights</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/compilation/package_model_libraries_weights.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="package-model-libraries-weights">
+<span id="id1"></span><h1>Package Model Libraries &amp; Weights<a class="headerlink" href="#package-model-libraries-weights" title="Permalink to this heading">¶</a></h1>
+<p>When we want to build LLM applications with MLC LLM (e.g., iOS/Android apps),
+usually we need to build static model libraries and app binding libraries,
+and sometimes bundle model weights into the app.
+MLC LLM provides a tool for fast model library and weight packaging: <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>.</p>
+<p>This page briefly introduces how to use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> for packaging.
+Tutorials <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS and Swift SDK</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android SDK</span></a> contain detailed examples and instructions
+on using this packaging tool for iOS and Android deployment.</p>
+<hr class="docutils" />
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading">¶</a></h2>
+<p>To use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>, we must clone the source code of <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM</a>
+and <a class="reference external" href="https://llm.mlc.ai/docs/install/mlc_llm.html#option-1-prebuilt-package">install the MLC LLM and TVM Unity package</a>.
+Depending on the app we build, there might be some other dependencies, which are described in
+corresponding <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android</span></a> tutorials.</p>
+<p>After cloning, the basic usage of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> is as the following.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_HOME</span><span class="o">=</span>/path/to/mlc-llm
+<span class="nb">cd</span><span class="w"> </span>/path/to/app<span class="w">  </span><span class="c1"># The app root directory which contains &quot;mlc-package-config.json&quot;.</span>
+<span class="w">                 </span><span class="c1"># E.g., &quot;ios/MLCChat&quot; or &quot;android/MLCChat&quot;</span>
+mlc_llm<span class="w"> </span>package
+</pre></div>
+</div>
+<p><strong>The package command reads from the JSON file</strong> <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> <strong>under the current directory.</strong>
+The output of this command is a directory <code class="docutils literal notranslate"><span class="pre">dist/</span></code>,
+which contains the packaged model libraries (under <code class="docutils literal notranslate"><span class="pre">dist/lib/</span></code>) and weights (under <code class="docutils literal notranslate"><span class="pre">dist/bundle/</span></code>).
+This directory contains all necessary data for the app build.
+Depending on the app we build, the internal structure of <code class="docutils literal notranslate"><span class="pre">dist/lib/</span></code> may be different.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>dist
+├── lib
+│   └── ...
+└── bundle
+    └── ...
+</pre></div>
+</div>
+<p>The input <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> file specifies</p>
+<ul class="simple">
+<li><p>the device (e.g., iPhone or Android) to package model libraries and weights for,</p></li>
+<li><p>the list of models to package.</p></li>
+</ul>
+<p>Below is an example <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> file:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;iphone&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Mistral-7B-Instruct-v0.2-q3f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3316000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;bundle_weight&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;context_window_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/gemma-2b-it-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gemma-2b-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3000000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">                </span><span class="nt">&quot;prefill_chunk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This example <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> specifies “iphone” as the target device.
+In the <code class="docutils literal notranslate"><span class="pre">model_list</span></code>,</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model</span></code> points to the Hugging Face repository which contains the pre-converted model weights. Apps will download model weights from the Hugging Face URL.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model_id</span></code> is a unique model identifier.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code> is an estimation of the vRAM the model takes at runtime.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;bundle_weight&quot;:</span> <span class="pre">true</span></code> means the model weights of the model will be bundled into the app when building.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">overrides</span></code> specifies some model config parameter overrides.</p></li>
+</ul>
+<p>Below is a more detailed specification of the <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> file.
+Each entry in <code class="docutils literal notranslate"><span class="pre">&quot;model_list&quot;</span></code> of the JSON file has the following fields:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>(Required) The path to the MLC-converted model to be built into the app.</p>
+<p>Usually it is a Hugging Face URL (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;HF://mlc-ai/phi-2-q4f16_1-MLC&quot;`</span></code>) that contains the pre-converted model weights.
+For iOS, it can also be a path to a local model directory which contains converted model weights (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;../dist/gemma-2b-q4f16_1&quot;</span></code>).
+Please check out <a class="reference internal" href="convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> if you want to build local model into the app.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) A unique local identifier to identify the model.
+It can be an arbitrary one.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">estimated_vram_bytes</span></code></dt><dd><p>(Required) Estimated requirements of vRAM to run the model.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">bundle_weight</span></code></dt><dd><p>(Optional) A boolean flag indicating whether to bundle model weights into the app.
+If this field is set to true, the <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> command will copy the model weights
+to <code class="docutils literal notranslate"><span class="pre">dist/bundle/$model_id</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">overrides</span></code></dt><dd><p>(Optional) A dictionary to override the default model context window size (to limit the KV cache size) and prefill chunk size (to limit the model temporary execution memory).
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;iphone&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;overrides&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">               </span><span class="nt">&quot;context_window_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
+<span class="w">               </span><span class="nt">&quot;prefill_chunk_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span>
+<span class="w">            </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">model_lib</span></code></dt><dd><p>(Optional) A string specifying the system library prefix to use for the model.
+Usually this is used when you want to build multiple model variants with the same architecture into the app.
+<strong>This field does not affect any app functionality.</strong>
+The <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> introduced below is also related.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;iphone&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<p>Besides <code class="docutils literal notranslate"><span class="pre">model_list</span></code> in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>,
+you can also <strong>optionally</strong> specify a dictionary of <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code>,
+<strong>if you want to use model libraries that are manually compiled</strong>.
+The keys of this dictionary should be the <code class="docutils literal notranslate"><span class="pre">model_lib</span></code> that specified in model list,
+and the values of this dictionary are the paths (absolute, or relative) to the manually compiled model libraries.
+The model libraries specified in <code class="docutils literal notranslate"><span class="pre">&quot;model_lib_path_for_prepare_libs&quot;</span></code> will be built into the app when running <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>.
+Example:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">   </span><span class="nt">&quot;device&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;iphone&quot;</span><span class="p">,</span>
+<span class="w">   </span><span class="nt">&quot;model_list&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;model&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_id&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;RedPajama-INCITE-Chat-3B-v1-q4f16_1&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;estimated_vram_bytes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2960000000</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;model_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gpt_neox_q4f16_1&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">   </span><span class="p">],</span>
+<span class="w">   </span><span class="nt">&quot;model_lib_path_for_prepare_libs&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;gpt_neox_q4f16_1&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../../dist/lib/RedPajama-INCITE-Chat-3B-v1-q4f16_1-iphone.tar&quot;</span>
+<span class="w">   </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="arguments-of-mlc-llm-package">
+<h2>Arguments of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code><a class="headerlink" href="#arguments-of-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
+<p>Command <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> can optionally take the arguments below:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--package-config</span></code></dt><dd><p>A path to <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> which contains the device and model specification.
+By default, it is the <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> under the current directory.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--mlc-llm-home</span></code></dt><dd><p>The path to MLC LLM source code (cloned from <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">https://github.com/mlc-ai/mlc-llm</a>).
+By default, it is the <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_HOME</span></code> environment variable.
+If neither <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_HOME</span></code> or <code class="docutils literal notranslate"><span class="pre">--mlc-llm-home</span></code> is specified, error will be reported.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--output</span></code> / <code class="docutils literal notranslate"><span class="pre">-o</span></code></dt><dd><p>The output directory of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> command.
+By default, it is <code class="docutils literal notranslate"><span class="pre">dist/</span></code> under the current directory.</p>
+</dd>
+</dl>
+</section>
+<section id="summary-and-what-to-do-next">
+<h2>Summary and What to Do Next<a class="headerlink" href="#summary-and-what-to-do-next" title="Permalink to this heading">¶</a></h2>
+<p>In this page, we introduced the <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> command for fast model library and weight packaging.</p>
+<ul class="simple">
+<li><p>It takes input file <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> which contains the device and model specification for packaging.</p></li>
+<li><p>It outputs directory <code class="docutils literal notranslate"><span class="pre">dist/</span></code>, which contains packaged libraries under <code class="docutils literal notranslate"><span class="pre">dist/lib/</span></code> and model weights under <code class="docutils literal notranslate"><span class="pre">dist/bundle/</span></code>.</p></li>
+</ul>
+<p>Next, please feel free to check out the <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android</span></a> tutorials for detailed examples of using <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code>.</p>
+</section>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="define_new_models.html" class="btn btn-neutral float-right" title="Define New Model Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="compile_models.html" class="btn btn-neutral float-left" title="Compile Model Libraries" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2023 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

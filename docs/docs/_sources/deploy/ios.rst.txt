@@ -1,7 +1,7 @@
 .. _deploy-ios:
 
-iOS App and Swift API
-=====================
+iOS and Swift SDK
+=================
 
 .. contents:: Table of Contents
    :local:
@@ -53,41 +53,44 @@ Step 2. Build Runtime and Model Libraries
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The models to be built for the iOS app are specified in ``MLCChat/mlc-package-config.json``:
-in the ``model_list`` field of this file, ``model`` points to the Hugging Face model repository,
-where model weights are downloaded from. ``model_id`` is a unique model identifier.
-``estimated_vram_bytes`` is an estimation of the vRAM the model takes at runtime.
+in the ``model_list``,
+
+* ``model`` points to the Hugging Face repository which contains the pre-converted model weights. The iOS app will download model weights from the Hugging Face URL.
+* ``model_id`` is a unique model identifier.
+* ``estimated_vram_bytes`` is an estimation of the vRAM the model takes at runtime.
+* ``"bundle_weight": true`` means the model weights of the model will be bundled into the app when building.
+* ``overrides`` specifies some model config parameter overrides.
+
 
 We have a one-line command to build and prepare all the model libraries:
 
 .. code:: bash
 
-   cd /path/to/MLCChat
-   ./prepare_package.sh
+   cd /path/to/MLCChat  # e.g., "ios/MLCChat"
+   export MLC_LLM_HOME=/path/to/mlc-llm  # e.g., "../.."
+   mlc_llm package
 
 This command mainly executes the following two steps:
 
-1. **Build runtime and tokenizer.** In addition to the model itself, a lightweight runtime and tokenizer are required to actually run the LLM.
-2. **Compile models.** We compile each model in ``model_list`` of ``MLCChat/mlc-package-config.json`` into a binary model library.
+1. **Compile models.** We compile each model in ``model_list`` of ``MLCChat/mlc-package-config.json`` into a binary model library.
+2. **Build runtime and tokenizer.** In addition to the model itself, a lightweight runtime and tokenizer are required to actually run the LLM.
 
 The command creates a ``./dist/`` directory that contains the runtime and model build output.
-Please make sure all the following files exist in ``./dist/``.
+Please make sure ``dist/`` follows the structure below, except the optional model weights.
 
-.. code:: bash
+.. code::
 
-   >>> ls ./dist
-   bundle               # The directory for mlc-app-config.json (and optionally model weights)
-                        # that will be bundled into the iOS app.
-   lib                  # The directory for runtime and model libraries.
-
-   >>> ls ./dist/bundle
-   mlc-app-config.json  # The app config JSON file.
-
-   >>> ls ./dist/lib
-   libmlc_llm.a         # A lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime
-   libmodel_iphone.a    # The compiled model lib
-   libsentencepiece.a   # SentencePiece tokenizer
-   libtokenizers_cpp.a  # Huggingface tokenizer
-   libtvm_runtime.a     # TVM Unity runtime
+   dist
+   ├── bundle                   # The directory for mlc-app-config.json (and optionally model weights)
+   │   │                        # that will be bundled into the iOS app.
+   │   ├── mlc-app-config.json  # The app config JSON file.
+   │   └── [optional model weights]
+   └── lib
+      ├── libmlc_llm.a          # A lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime.
+      ├── libmodel_iphone.a     # The compiled model lib.
+      ├── libsentencepiece.a    # SentencePiece tokenizer
+      ├── libtokenizers_cpp.a   # Huggingface tokenizer.
+      └── libtvm_runtime.a      # TVM Unity runtime.
 
 
 .. note::
@@ -99,7 +102,7 @@ Please make sure all the following files exist in ``./dist/``.
 
    .. code:: bash
 
-      MLC_JIT_POLICY=REDO ./prepare_package.sh
+      MLC_JIT_POLICY=REDO mlc_llm package
 
 .. _ios-bundle-model-weights:
 
@@ -109,12 +112,13 @@ Step 3. (Optional) Bundle model weights into the app
 By default, we download the model weights from Hugging Face when running the app.
 **As an option,**, we bundle model weights into the app:
 set the field ``"bundle_weight": true`` for any model you want to bundle weights
-in ``MLCChat/mlc-package-config.json``, and run ``prepare_package.sh`` again.
+in ``MLCChat/mlc-package-config.json``, and run ``mlc_llm package`` again.
 Below is an example:
 
 .. code:: json
 
    {
+      "device": "iphone",
       "model_list": [
          {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
@@ -128,13 +132,15 @@ Below is an example:
       ]
    }
 
-The outcome of running ``prepare_package.sh`` should be as follows:
+The outcome of running ``mlc_llm package`` should be as follows:
 
-.. code:: bash
+.. code::
 
-   >>> ls ./dist/bundle
-   mlc-app-config.json
-   gemma-2b-it-q4f16_1-MLC   # The model weights that will be bundled into the app.
+   dist
+   ├── bundle
+   │   ├── gemma-2b-q4f16_1   # The model weights that will be bundled into the app.
+   │   └── mlc-app-config.json
+   └── ...
 
 .. _ios-build-app:
 
@@ -190,6 +196,7 @@ Each entry in ``"model_list"`` of the JSON file has the following fields:
    .. code:: json
 
       {
+         "device": "iphone",
          "model_list": [
             {
                   "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
@@ -213,6 +220,7 @@ Each entry in ``"model_list"`` of the JSON file has the following fields:
    .. code:: json
 
       {
+         "device": "iphone",
          "model_list": [
             {
                   "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
@@ -229,12 +237,13 @@ you can also **optionally** specify a dictionary of ``"model_lib_path_for_prepar
 **if you want to use model libraries that are manually compiled**.
 The keys of this dictionary should be the ``model_lib`` that specified in model list,
 and the values of this dictionary are the paths (absolute, or relative) to the manually compiled model libraries.
-The model libraries specified in ``"model_lib_path_for_prepare_libs"`` will be built into the app when running ``prepare_package.sh``.
+The model libraries specified in ``"model_lib_path_for_prepare_libs"`` will be built into the app when running ``mlc_llm package``.
 Example:
 
 .. code:: json
 
    {
+      "device": "iphone",
       "model_list": [
          {
                "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
@@ -326,6 +335,7 @@ Finally, we add the model into the ``model_list`` of
 .. code:: json
 
    {
+      "device": "iphone",
       "model_list": [
          {
                "model": "HF://mlc-ai/NeuralHermes-2.5-Mistral-7B-q3f16_1-MLC",
@@ -346,9 +356,9 @@ Build Apps with MLC Swift API
 We also provide a Swift package that you can use to build
 your own app. The package is located under ``ios/MLCSwift``.
 
-- First, create `mlc-package-config.json` and `prepare_package.sh` in your project folder.
+- First, create ``mlc-package-config.json`` in your project folder.
   You do so by copying the files in MLCChat folder.
-  Run `prepare_package.sh`
+  Run ``mlc_llm package``.
   This will give us the necessary libraries under ``/path/to/project/dist``.
 - Under "Build phases", add ``/path/to/project/dist/bundle`` this will copying
   this folder into your app to include bundled weights and configs.
