@@ -20,10 +20,14 @@ class CublasDispatch:  # pylint: disable=too-few-public-methods,broad-exception-
         model_names = [
             gv.name_hint for gv, func in mod.functions.items() if isinstance(func, relax.Function)
         ]
+        model_names = [name for name in model_names if "batch" not in name]
         mod = tvm.transform.Sequential(
             [
                 relax.transform.FuseOpsByPattern(
-                    patterns, bind_constants=False, annotate_codegen=True
+                    patterns,
+                    bind_constants=False,
+                    annotate_codegen=True,
+                    entry_functions=model_names,
                 ),
                 relax.transform.RunCodegen({}, entry_functions=model_names),
             ]
