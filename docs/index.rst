@@ -50,13 +50,6 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
 
 .. toctree::
    :maxdepth: 1
-   :caption: Model Prebuilts
-   :hidden:
-
-   prebuilt_models.rst
-
-.. toctree::
-   :maxdepth: 1
    :caption: Dependency Installation
    :hidden:
 

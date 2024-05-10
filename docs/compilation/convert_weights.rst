@@ -1,15 +1,11 @@
 .. _convert-weights-via-MLC:
 
-Convert Weights via MLC
-=======================
+Convert Model Weights
+=====================
 
-To run a model with MLC LLM in any platform, you need:
-
-1. **Model weights** converted to MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_.)
-2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__).
-
-In many cases, we only need to convert weights and reuse existing model library.
-This page demonstrates adding a model variant with ``mlc_llm convert_weight``, which
+To run a model with MLC LLM,
+we need to convert model weights into MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_.)
+This page walks us through the process of adding a model variant with ``mlc_llm convert_weight``, which
 takes a hugginface model as input and converts/quantizes into MLC-compatible weights.
 
 Specifically, we add RedPjama-INCITE-**Instruct**-3B-v1, while MLC already
@@ -24,7 +20,7 @@ This can be extended to, e.g.:
     Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
     backend to compile models with MLC LLM.
 
-    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-chat-module` to obtain
+    Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-engine` to obtain
     the CLI app / Python API that can be used to chat with the compiled model.
 
 
@@ -151,31 +147,11 @@ for **Instruct** instead of **Chat**.
 Good job, you have successfully distributed the model you compiled.
 Next, we will talk about how we can consume the model weights in applications.
 
-Download the Distributed Models and Run in Python
--------------------------------------------------
+Download the Distributed Models
+-------------------------------
 
-Running the distributed models are similar to running prebuilt model weights and libraries in :ref:`Model Prebuilts`.
+You can now use the existing mlc tools such as chat/serve/package with the converted weights.
 
 .. code:: shell
 
-    # Clone prebuilt libs so we can reuse them:
-    mkdir -p dist/
-    git clone https://github.com/mlc-ai/binary-mlc-llm-libs.git dist/prebuilt_libs
-
-    # Or download the model library (only needed if we do not reuse the model lib):
-    cd dist/prebuilt_libs
-    wget url-to-my-model-lib
-    cd ../..
-
-    # Download the model weights
-    cd dist
-    git clone https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
-    cd ..
-
-    # Run the model in Python; note that we reuse `-Chat` model library
-    python
-    >>> from mlc_llm import ChatModule
-    >>> cm = ChatModule(model="dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC", \
-        model_lib="dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")  # Adjust based on backend
-    >>> cm.generate("hi")
-    'Hi! How can I assist you today?'
+    mlc_llm chat HF://my-huggingface-account/my-redpajama3b-weight-huggingface-repo
