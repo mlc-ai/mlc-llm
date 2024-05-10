@@ -334,7 +334,7 @@ class ModelImpl : public ModelObj {
   }
 
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
-    NVTXScopedRange nvtx_scope("BatchDecode");
+    NVTXScopedRange nvtx_scope("BatchDecode batch=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
 
     CHECK(ft_.decode_func_.defined())
@@ -443,7 +443,7 @@ class ModelImpl : public ModelObj {
 
   NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                       const std::vector<int>& lengths) final {
-    NVTXScopedRange nvtx_scope("BatchVerify");
+    NVTXScopedRange nvtx_scope("BatchVerify batch=" + std::to_string(seq_ids.size()));
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
