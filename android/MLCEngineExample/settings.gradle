@@ -12,8 +12,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "MLCChat"
+rootProject.name = "MLCEngineExample"
 include ':app'
 include ':mlc4j'
 project(':mlc4j').projectDir = file('dist/lib/mlc4j')
-include ':mlcengineexample'
