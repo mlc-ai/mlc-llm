@@ -189,40 +189,39 @@ The way of specifying additional models is:
 "--additional-models model_path_1:model_lib_1 model_path_2 ...".
 When the model lib of a model is not given, JIT model compilation will be activated
 to compile the model automatically.
-""",
+""".strip(),
     "gpu_memory_utilization_serve": """
 A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
 It is used to infer to maximum possible KV cache capacity.
 When it is unspecified, it defaults to 0.85.
 Under mode "local" or "interactive", the actual memory usage may be significantly smaller than
 this number. Under mode "server", the actual memory usage may be slightly larger than this number.
-""",
+""".strip(),
     "speculative_mode_serve": """
 The speculative decoding mode. Right now three options are supported:
  - "disable", where speculative decoding is not enabled,
  - "small_draft", denoting the normal speculative decoding (small draft) style,
  - "eagle", denoting the eagle-style speculative decoding.
 The default mode is "disable".
-""",
+""".strip(),
     "spec_draft_length_serve": """
 The number of draft tokens to generate in speculative proposal. The default values is 4.
-""",
+""".strip(),
     "engine_config_serve": """
 The MLCEngine execution configuration.
 Currently speculative decoding mode is specified via engine config.
 For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=eagle'" to
 specify the eagle-style speculative decoding.
 Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
-""",
+""".strip(),
     "config_package": """
 The path to "mlc-package-config.json" which is used for package build.
-See "ios/MLCChat/mlc-package-config.json" as an example.
-""",
-    "device_package": """
-The device to build package for.
-Options are ["iphone", "android"].
-""",
+See "https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/mlc-package-config.json" as an example.
+""".strip(),
+    "mlc_llm_home": """
+The source code path to MLC LLM.
+""".strip(),
     "output_package": """
 The path of output directory for the package build outputs.
-""",
+""".strip(),
 }

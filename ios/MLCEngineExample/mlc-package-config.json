@@ -1,4 +1,5 @@
 {
+    "device": "iphone",
     "model_list": [
         {
             "model": "HF://mlc-ai/Llama-3-8B-Instruct-q3f16_1-MLC",
