@@ -9,6 +9,7 @@ from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
+from .bert import bert_loader, bert_model, bert_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
@@ -368,6 +369,20 @@ MODELS: Dict[str, Model] = {
             "group-quant": eagle_quantization.group_quant,
             "ft-quant": eagle_quantization.ft_quant,
             "awq": eagle_quantization.awq_quant,
+        },
+    ),
+    "bert": Model(
+        name="bert",
+        model=bert_model.BertModel,
+        config=bert_model.BertConfig,
+        source={
+            "huggingface-torch": bert_loader.huggingface,
+            "huggingface-safetensor": bert_loader.huggingface,
+        },
+        quantize={
+            "no-quant": bert_quantization.no_quant,
+            "group-quant": bert_quantization.group_quant,
+            "ft-quant": bert_quantization.ft_quant,
         },
     ),
 }
