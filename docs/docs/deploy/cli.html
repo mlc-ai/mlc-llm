@@ -187,14 +187,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -335,7 +331,7 @@ Then please follow the instructions in <a class="reference internal" href="../in
 <p>Once <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> is installed, you are able to run any MLC-compiled model on the command line.</p>
 <p>To run a model with MLC LLM in any platform, you can either:</p>
 <ul class="simple">
-<li><p>Use off-the-shelf model prebuilts from the MLC Huggingface repo (see <a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a> for details).</p></li>
+<li><p>Use off-the-shelf model prebuilts from the MLC Huggingface repo (see <span class="xref std std-ref">Model Prebuilts</span> for details).</p></li>
 <li><p>Use locally compiled model weights and libraries following <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">the model compilation page</span></a>.</p></li>
 </ul>
 <p><strong>Option 1: Use model prebuilts</strong></p>
@@ -367,7 +363,7 @@ The concept of the meaning of life has been debated and...
 <p>For models other than the prebuilt ones we provided:</p>
 <ol class="arabic simple">
 <li><p>If the model is a variant to an existing model library (e.g. <code class="docutils literal notranslate"><span class="pre">WizardMathV1.1</span></code> and <code class="docutils literal notranslate"><span class="pre">OpenHermes</span></code> are variants of <code class="docutils literal notranslate"><span class="pre">Mistral</span></code>),
-follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> to convert the weights and reuse existing model libraries.</p></li>
+follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a> to convert the weights and reuse existing model libraries.</p></li>
 <li><p>Otherwise, follow <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> to compile both the model library and weights.</p></li>
 </ol>
 <p>Once you have the model locally compiled with a model library and model weights, to run <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code>, simply</p>

@@ -48,7 +48,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Package Libraries and Weights" href="package_libraries_and_weights.html" />
-    <link rel="prev" title="Convert Weights via MLC" href="convert_weights.html" /> 
+    <link rel="prev" title="Convert Model Weights" href="convert_weights.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -183,7 +183,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Compile Model Libraries</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#verify-installation">0. Verify Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#clone-from-hf-and-convert-weight">1. Clone from HF and convert_weight</a></li>
@@ -200,10 +200,6 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -327,7 +323,7 @@ We compile <code class="docutils literal notranslate"><span class="pre">RedPajam
 <p class="admonition-title">Note</p>
 <p>Before you proceed, make sure you followed <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>, a required
 backend to compile models with MLC LLM.</p>
-<p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_chat_module.html#deploy-python-chat-module"><span class="std std-ref">Python API (Chat Module)</span></a> to obtain
+<p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a> to obtain
 the CLI app / Python API that can be used to chat with the compiled model.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
@@ -366,7 +362,7 @@ Here we verify <code class="docutils literal notranslate"><span class="pre">tvm<
 </section>
 <section id="clone-from-hf-and-convert-weight">
 <h2><a class="toc-backref" href="#id6" role="doc-backlink">1. Clone from HF and convert_weight</a><a class="headerlink" href="#clone-from-hf-and-convert-weight" title="Permalink to this heading">¶</a></h2>
-<p>This replicates <a class="reference internal" href="convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a>, see that page for more details.</p>
+<p>This replicates <a class="reference internal" href="convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a>, see that page for more details.</p>
 <p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
 can share the same compiled/quantized weights.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create directory</span>
@@ -1212,7 +1208,7 @@ knobs, e.g. <code class="docutils literal notranslate"><span class="pre">--overr
         <a href="package_libraries_and_weights.html" class="btn btn-neutral float-right" title="Package Libraries and Weights" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="convert_weights.html" class="btn btn-neutral float-left" title="Convert Weights via MLC" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="convert_weights.html" class="btn btn-neutral float-left" title="Convert Model Weights" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

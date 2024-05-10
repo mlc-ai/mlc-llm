@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Convert Weights via MLC &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Convert Model Weights &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -182,21 +182,17 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Convert Weights via MLC</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Convert Model Weights</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#verify-installation">0. Verify installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#clone-from-hf-and-convert-weight">1. Clone from HF and convert_weight</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#generate-mlc-chat-config">2. Generate MLC Chat Config</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#optional-3-upload-weights-to-hf">(Optional) 3. Upload weights to HF</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#download-the-distributed-models-and-run-in-python">Download the Distributed Models and Run in Python</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#download-the-distributed-models">Download the Distributed Models</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -270,7 +266,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Convert Weights via MLC</li>
+      <li>Convert Model Weights</li>
     
     
       
@@ -295,15 +291,11 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="convert-weights-via-mlc">
-<span id="id1"></span><h1>Convert Weights via MLC<a class="headerlink" href="#convert-weights-via-mlc" title="Permalink to this heading">¶</a></h1>
-<p>To run a model with MLC LLM in any platform, you need:</p>
-<ol class="arabic simple">
-<li><p><strong>Model weights</strong> converted to MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</a>.)</p></li>
-<li><p><strong>Model library</strong> that comprises the inference logic (see repo <a class="reference external" href="https://github.com/mlc-ai/binary-mlc-llm-libs">binary-mlc-llm-libs</a>).</p></li>
-</ol>
-<p>In many cases, we only need to convert weights and reuse existing model library.
-This page demonstrates adding a model variant with <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">convert_weight</span></code>, which
+  <section id="convert-model-weights">
+<span id="convert-weights-via-mlc"></span><h1>Convert Model Weights<a class="headerlink" href="#convert-model-weights" title="Permalink to this heading">¶</a></h1>
+<p>To run a model with MLC LLM,
+we need to convert model weights into MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main">RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC</a>.)
+This page walks us through the process of adding a model variant with <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">convert_weight</span></code>, which
 takes a hugginface model as input and converts/quantizes into MLC-compatible weights.</p>
 <p>Specifically, we add RedPjama-INCITE-<strong>Instruct</strong>-3B-v1, while MLC already
 provides a model library for RedPjama-INCITE-<strong>Chat</strong>-3B-v1, which we can reuse.</p>
@@ -316,21 +308,21 @@ provides a model library for RedPjama-INCITE-<strong>Chat</strong>-3B-v1, which 
 <p class="admonition-title">Note</p>
 <p>Before you proceed, make sure you followed <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>, a required
 backend to compile models with MLC LLM.</p>
-<p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_chat_module.html#deploy-python-chat-module"><span class="std std-ref">Python API (Chat Module)</span></a> to obtain
+<p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a> to obtain
 the CLI app / Python API that can be used to chat with the compiled model.</p>
 </div>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#verify-installation" id="id4">0. Verify installation</a></p></li>
-<li><p><a class="reference internal" href="#clone-from-hf-and-convert-weight" id="id5">1. Clone from HF and convert_weight</a></p></li>
-<li><p><a class="reference internal" href="#generate-mlc-chat-config" id="id6">2. Generate MLC Chat Config</a></p></li>
-<li><p><a class="reference internal" href="#optional-3-upload-weights-to-hf" id="id7">(Optional) 3. Upload weights to HF</a></p></li>
-<li><p><a class="reference internal" href="#download-the-distributed-models-and-run-in-python" id="id8">Download the Distributed Models and Run in Python</a></p></li>
+<li><p><a class="reference internal" href="#verify-installation" id="id3">0. Verify installation</a></p></li>
+<li><p><a class="reference internal" href="#clone-from-hf-and-convert-weight" id="id4">1. Clone from HF and convert_weight</a></p></li>
+<li><p><a class="reference internal" href="#generate-mlc-chat-config" id="id5">2. Generate MLC Chat Config</a></p></li>
+<li><p><a class="reference internal" href="#optional-3-upload-weights-to-hf" id="id6">(Optional) 3. Upload weights to HF</a></p></li>
+<li><p><a class="reference internal" href="#download-the-distributed-models" id="id7">Download the Distributed Models</a></p></li>
 </ul>
 </nav>
 <section id="verify-installation">
-<span id="verify-installation-for-compile"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">0. Verify installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
+<span id="verify-installation-for-compile"></span><h2><a class="toc-backref" href="#id3" role="doc-backlink">0. Verify installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
 <p><strong>Step 1. Verify mlc_llm</strong></p>
 <p>We use the python package <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> to compile models. This can be installed by
 following <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a>, either by building from source, or by
@@ -353,7 +345,7 @@ Here we verify <code class="docutils literal notranslate"><span class="pre">tvm<
 </div>
 </section>
 <section id="clone-from-hf-and-convert-weight">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">1. Clone from HF and convert_weight</a><a class="headerlink" href="#clone-from-hf-and-convert-weight" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">1. Clone from HF and convert_weight</a><a class="headerlink" href="#clone-from-hf-and-convert-weight" title="Permalink to this heading">¶</a></h2>
 <p>You can be under the mlc-llm repo, or your own working directory. Note that all platforms
 can share the same compiled/quantized weights. See <a class="reference internal" href="compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a>
 for specification of <code class="docutils literal notranslate"><span class="pre">convert_weight</span></code>.</p>
@@ -371,7 +363,7 @@ mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/mode
 </div>
 </section>
 <section id="generate-mlc-chat-config">
-<span id="id2"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">2. Generate MLC Chat Config</a><a class="headerlink" href="#generate-mlc-chat-config" title="Permalink to this heading">¶</a></h2>
+<span id="id1"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">2. Generate MLC Chat Config</a><a class="headerlink" href="#generate-mlc-chat-config" title="Permalink to this heading">¶</a></h2>
 <p>Use <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">gen_config</span></code> to generate <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and process tokenizers.
 See <a class="reference internal" href="compile_models.html#compile-command-specification"><span class="std std-ref">Compile Command Specification</span></a> for specification of <code class="docutils literal notranslate"><span class="pre">gen_config</span></code>.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>gen_config<span class="w"> </span>./dist/models/RedPajama-INCITE-Instruct-3B-v1/<span class="w"> </span><span class="se">\</span>
@@ -406,7 +398,7 @@ to be recognized by the runtime.</p>
 </div>
 </section>
 <section id="optional-3-upload-weights-to-hf">
-<span id="distribute-compiled-models"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">(Optional) 3. Upload weights to HF</a><a class="headerlink" href="#optional-3-upload-weights-to-hf" title="Permalink to this heading">¶</a></h2>
+<span id="distribute-compiled-models"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">(Optional) 3. Upload weights to HF</a><a class="headerlink" href="#optional-3-upload-weights-to-hf" title="Permalink to this heading">¶</a></h2>
 <p>Optionally, you can upload what we have to huggingface.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># First, please create a repository on Hugging Face.</span>
 <span class="c1"># With the repository created, run</span>
@@ -423,30 +415,10 @@ for <strong>Instruct</strong> instead of <strong>Chat</strong>.</p>
 <p>Good job, you have successfully distributed the model you compiled.
 Next, we will talk about how we can consume the model weights in applications.</p>
 </section>
-<section id="download-the-distributed-models-and-run-in-python">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Download the Distributed Models and Run in Python</a><a class="headerlink" href="#download-the-distributed-models-and-run-in-python" title="Permalink to this heading">¶</a></h2>
-<p>Running the distributed models are similar to running prebuilt model weights and libraries in <a class="reference internal" href="../prebuilt_models.html#model-prebuilts"><span class="std std-ref">Model Prebuilts</span></a>.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone prebuilt libs so we can reuse them:</span>
-mkdir<span class="w"> </span>-p<span class="w"> </span>dist/
-git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/binary-mlc-llm-libs.git<span class="w"> </span>dist/prebuilt_libs
-
-<span class="c1"># Or download the model library (only needed if we do not reuse the model lib):</span>
-<span class="nb">cd</span><span class="w"> </span>dist/prebuilt_libs
-wget<span class="w"> </span>url-to-my-model-lib
-<span class="nb">cd</span><span class="w"> </span>../..
-
-<span class="c1"># Download the model weights</span>
-<span class="nb">cd</span><span class="w"> </span>dist
-git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/my-huggingface-account/my-redpajama3b-weight-huggingface-repo<span class="w"> </span>RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
-<span class="nb">cd</span><span class="w"> </span>..
-
-<span class="c1"># Run the model in Python; note that we reuse `-Chat` model library</span>
-python
-&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>ChatModule
-&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;dist/prebuilt_libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span><span class="w">  </span><span class="c1"># Adjust based on backend</span>
-&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
-<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
+<section id="download-the-distributed-models">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Download the Distributed Models</a><a class="headerlink" href="#download-the-distributed-models" title="Permalink to this heading">¶</a></h2>
+<p>You can now use the existing mlc tools such as chat/serve/package with the converted weights.</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://my-huggingface-account/my-redpajama3b-weight-huggingface-repo
 </pre></div>
 </div>
 </section>

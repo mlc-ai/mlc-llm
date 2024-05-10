@@ -190,14 +190,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -311,7 +307,7 @@
 <p>MLC LLM has now support for code completion on multiple IDEs. This means you can easily integrate an LLM with coding capabilities with your IDE through the MLC LLM <a class="reference internal" href="rest.html#deploy-rest-api"><span class="std std-ref">REST API</span></a>. Here we provide a step-by-step guide on how to do this.</p>
 <section id="convert-your-model-weights">
 <h2><a class="toc-backref" href="#id1" role="doc-backlink">Convert Your Model Weights</a><a class="headerlink" href="#convert-your-model-weights" title="Permalink to this heading">¶</a></h2>
-<p>To run a model with MLC LLM in any platform, you need to convert your model weights to the MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/CodeLlama-7b-hf-q4f16_1-MLC">CodeLlama-7b-hf-q4f16_1-MLC</a>). You can always refer to <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> for in-depth details on how to convert your model weights. If you are using your own model weights, i.e., you finetuned the model on your personal codebase, it is important to follow these steps to convert the respective weights properly. However, it is also possible to download precompiled weights from the original models, available in the MLC format. See the full list of all precompiled weights <a class="reference external" href="https://huggingface.co/mlc-ai">here</a>.</p>
+<p>To run a model with MLC LLM in any platform, you need to convert your model weights to the MLC format (e.g. <a class="reference external" href="https://huggingface.co/mlc-ai/CodeLlama-7b-hf-q4f16_1-MLC">CodeLlama-7b-hf-q4f16_1-MLC</a>). You can always refer to <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a> for in-depth details on how to convert your model weights. If you are using your own model weights, i.e., you finetuned the model on your personal codebase, it is important to follow these steps to convert the respective weights properly. However, it is also possible to download precompiled weights from the original models, available in the MLC format. See the full list of all precompiled weights <a class="reference external" href="https://huggingface.co/mlc-ai">here</a>.</p>
 <p><strong>Example:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># convert model weights</span>
 mlc_llm<span class="w"> </span>convert_weight<span class="w"> </span>./dist/models/CodeLlama-7b-hf<span class="w"> </span><span class="se">\</span>

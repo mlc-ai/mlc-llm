@@ -195,14 +195,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -454,7 +450,7 @@ We introduce each field of the JSON file here.</p>
 <p>Each entry in <code class="docutils literal notranslate"><span class="pre">&quot;model_list&quot;</span></code> of the JSON file has the following fields:</p>
 <dl>
 <dt><code class="docutils literal notranslate"><span class="pre">model</span></code></dt><dd><p>(Required) The path to the MLC-converted model to be built into the app.</p>
-<p>It can be either a Hugging Face URL (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;HF://mlc-ai/phi-2-q4f16_1-MLC&quot;`</span></code>), or a path to a local model directory which contains converted model weights (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;../dist/gemma-2b-q4f16_1&quot;</span></code>). Please check out <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a> if you want to build local model into the app.</p>
+<p>It can be either a Hugging Face URL (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;HF://mlc-ai/phi-2-q4f16_1-MLC&quot;`</span></code>), or a path to a local model directory which contains converted model weights (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;model&quot;:</span> <span class="pre">&quot;../dist/gemma-2b-q4f16_1&quot;</span></code>). Please check out <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a> if you want to build local model into the app.</p>
 <p><em>Note: the local path (if relative) is relative to the</em> <code class="docutils literal notranslate"><span class="pre">ios/</span></code> <em>directory.</em></p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">model_id</span></code></dt><dd><p>(Required) A unique local identifier to identify the model.
@@ -533,7 +529,7 @@ Example:</p>
 We use the example of <a class="reference external" href="https://huggingface.co/mlabonne/NeuralHermes-2.5-Mistral-7B">NeuralHermes</a> model, which a variant of Mistral model.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This section largely replicates <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Weights via MLC</span></a>.
+<p>This section largely replicates <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a>.
 See that page for more details. Note that the weights are shared across
 all platforms in MLC.</p>
 </div>

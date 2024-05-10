@@ -182,14 +182,10 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Weights via MLC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">Model Prebuilts</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../prebuilt_models.html">Model Prebuilts</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -351,7 +347,7 @@ on GitHub directly. Once your update is complete, you can click the <code class=
 <section id="contribute-new-models-to-mlc-llm">
 <span id="contribute-new-models"></span><h3><a class="toc-backref" href="#id8" role="doc-backlink">Contribute New Models to MLC-LLM</a><a class="headerlink" href="#contribute-new-models-to-mlc-llm" title="Permalink to this heading">¶</a></h3>
 <ul class="simple">
-<li><p>If you have compiled a model using our <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">Compile Model Libraries</span></a> tutorial for an existing model architecture, please upload your models to the internet (e.g., Hugging Face) by following <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a> tutorial. Once you have done that, you can create a pull request to add an entry in the <a class="reference internal" href="../prebuilt_models.html"><span class="doc">Model Prebuilts</span></a> page. Additionally, you have the option to <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/new?assignees=&amp;labels=Work+Item&amp;projects=&amp;template=speed-report.md&amp;title=">create a speed report issue</a> to track the speed and memory consumption of your model. You don’t need to test it on all devices; let the community collaborate on building it together!</p></li>
+<li><p>If you have compiled a model using our <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">Compile Model Libraries</span></a> tutorial for an existing model architecture, please upload your models to the internet (e.g., Hugging Face) by following <a class="reference internal" href="../compilation/convert_weights.html#distribute-compiled-models"><span class="std std-ref">(Optional) 3. Upload weights to HF</span></a> tutorial.</p></li>
 <li><p>If you add a new model variant to MLC-LLM by following our <a class="reference internal" href="../compilation/define_new_models.html"><span class="doc">Define New Model Architectures</span></a> tutorial.
 Please create a pull request to add your model architecture (currently model architectures are placed under
 <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/mlc_llm/relax_model">relax_models</a> folder).</p></li>
