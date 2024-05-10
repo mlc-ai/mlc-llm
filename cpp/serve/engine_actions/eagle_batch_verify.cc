@@ -114,16 +114,12 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
     ObjectRef hidden_states = models_[verify_model_id_]->BatchVerifyToLastHidden(
         embeddings, request_internal_ids, verify_lengths);
-    NDArray logits =
-        models_[verify_model_id_]->GetLogits(hidden_states, 1, cum_verify_lengths[num_rsentries]);
+    NDArray logits = models_[verify_model_id_]->GetLogits(hidden_states);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], 1);
-    ICHECK_EQ(logits->shape[1], cum_verify_lengths[num_rsentries]);
+    ICHECK_EQ(logits->ndim, 2);
+    ICHECK_EQ(logits->shape[0], cum_verify_lengths.back());
 
     // - Update logits.
-    logits =
-        logits.CreateView({cum_verify_lengths[num_rsentries], logits->shape[2]}, logits->dtype);
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
                                           request_ids, &cum_verify_lengths, &draft_output_tokens);
 
@@ -273,19 +269,16 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
           fused_embedding_hidden_states, request_internal_ids);
 
       if (models_[draft_model_id_]->CanGetLogits()) {
-        logits = models_[draft_model_id_]->GetLogits(hidden_states, /*batch_size*/ num_rsentries,
-                                                     /*seq_len*/ 1);
+        logits = models_[draft_model_id_]->GetLogits(hidden_states);
       } else {
         // - Use base model's head.
-        logits = models_[0]->GetLogits(hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+        logits = models_[0]->GetLogits(hidden_states);
       }
       RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-      ICHECK_EQ(logits->ndim, 3);
+      ICHECK_EQ(logits->ndim, 2);
       ICHECK_EQ(logits->shape[0], num_rsentries);
-      ICHECK_EQ(logits->shape[1], 1);
 
       // - Update logits.
-      logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
       logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
       // - Compute probability distributions.

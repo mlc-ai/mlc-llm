@@ -125,7 +125,7 @@ class ModelImpl : public ModelObj {
     return ft_.get_logits_func_.defined() && ft_.batch_get_logits_func_.defined();
   }
 
-  NDArray GetLogits(const ObjectRef& hidden_states, int batch_size, int seq_len) final {
+  NDArray GetLogits(const ObjectRef& hidden_states) final {
     NVTXScopedRange nvtx_scope("GetLogits");
     CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
 
@@ -139,18 +139,14 @@ class ModelImpl : public ModelObj {
     if (trace_enabled_) {
       TVMSynchronize(device_.device_type, device_.device_id, nullptr);
     }
-
     NDArray logits{nullptr};
     if (ft_.use_disco) {
       logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
     } else {
       logits = Downcast<NDArray>(ret);
     }
-    CHECK(logits.defined());
     // logits: (b * s, v)
-    ICHECK_EQ(logits->ndim, 2);
-    ICHECK_EQ(logits->shape[0], batch_size * seq_len);
-    return logits.CreateView({batch_size, seq_len, logits->shape[1]}, logits->dtype);
+    return logits;
   }
 
   ObjectRef FuseEmbedHidden(const ObjectRef& embeddings, const ObjectRef& previous_hidden_states,
