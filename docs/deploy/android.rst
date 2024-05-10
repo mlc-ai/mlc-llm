@@ -132,13 +132,18 @@ Please make sure all the following files exist in ``./dist/``.
                    ├── assets
                    │   └── mlc-app-config.json
                    └── java
-                       └── ai
-                           └── mlc
-                               └── mlcllm
-                                   └── ChatModule.java
+                       └── ...
 
 The model execution logic in mobile GPUs is incorporated into ``libtvm4j_runtime_packed.so``,
-while ``tvm4j_core.jar`` is a lightweight (~60 kb) `Java binding <https://tvm.apache.org/docs/reference/api/javadoc/>`_ to it.
+while ``tvm4j_core.jar`` is a lightweight (~60 kb) `Java binding <https://tvm.apache.org/docs/reference/api/javadoc/>`_
+to it. ``dist/lib/mlc4j`` is a gradle subproject that you should include in your app
+so the Android project can reference the mlc4j (MLC LLM java library).
+This library packages the dependent model libraries and necessary runtime to execute the model.
+
+.. code::
+
+   include ':mlc4j'
+   project(':mlc4j').projectDir = file('dist/lib/mlc4j')
 
 
 .. note::
