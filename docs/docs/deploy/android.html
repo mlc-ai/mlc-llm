@@ -419,14 +419,18 @@ Please make sure all the following files exist in <code class="docutils literal 
                 ├── assets
                 │   └── mlc-app-config.json
                 └── java
-                    └── ai
-                        └── mlc
-                            └── mlcllm
-                                └── ChatModule.java
+                    └── ...
 </pre></div>
 </div>
 <p>The model execution logic in mobile GPUs is incorporated into <code class="docutils literal notranslate"><span class="pre">libtvm4j_runtime_packed.so</span></code>,
-while <code class="docutils literal notranslate"><span class="pre">tvm4j_core.jar</span></code> is a lightweight (~60 kb) <a class="reference external" href="https://tvm.apache.org/docs/reference/api/javadoc/">Java binding</a> to it.</p>
+while <code class="docutils literal notranslate"><span class="pre">tvm4j_core.jar</span></code> is a lightweight (~60 kb) <a class="reference external" href="https://tvm.apache.org/docs/reference/api/javadoc/">Java binding</a>
+to it. <code class="docutils literal notranslate"><span class="pre">dist/lib/mlc4j</span></code> is a gradle subproject that you should include in your app
+so the Android project can reference the mlc4j (MLC LLM java library).
+This library packages the dependent model libraries and necessary runtime to execute the model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">include</span> <span class="s1">&#39;:mlc4j&#39;</span>
+<span class="n">project</span><span class="p">(</span><span class="s1">&#39;:mlc4j&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">projectDir</span> <span class="o">=</span> <span class="n">file</span><span class="p">(</span><span class="s1">&#39;dist/lib/mlc4j&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>We leverage a local JIT cache to avoid repetitive compilation of the same input.
