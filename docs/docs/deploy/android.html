@@ -336,16 +336,18 @@ TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchai
 </pre></div>
 </div>
 <p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM Unity runtime.
-We recommended setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio. e.g. <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/Applications/Android\</span> <span class="pre">Studio.app/Contents/jbr/Contents/Home</span></code> for macOS.
-In other ways, it could be installed via Homebrew on macOS, apt on Ubuntu or other package managers.
+We strongly recommend setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio. e.g.
+<code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/Applications/Android\</span> <span class="pre">Studio.app/Contents/jbr/Contents/Home</span></code> for macOS.
+Using Android Studio’s JBR bundle as recommended <cite>here https://developer.android.com/build/jdks</cite>
+will reduce the chances of potential errors in JNI compilation.
 Set up the following environment variable:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> so that Java is available in <code class="docutils literal notranslate"><span class="pre">$JAVA_HOME/bin/java</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/path/to/java_home</span></code> you can then cross check and make sure <code class="docutils literal notranslate"><span class="pre">$JAVA_HOME/bin/java</span></code> exists.</p></li>
 </ul>
 <p>Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.</p>
 <p><strong>TVM Unity runtime</strong> is placed under <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a> in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">TVM_HOME</span></code> so that its headers are available under <code class="docutils literal notranslate"><span class="pre">$TVM_HOME/include/tvm/runtime</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">TVM_HOME=/path/to/mlc-llm/3rdparty/tvm</span></code>.</p></li>
 </ul>
 <p>(Optional) <strong>TVM Unity compiler</strong> Python package (<a class="reference internal" href="../install/tvm.html#tvm-unity-prebuilt-package"><span class="std std-ref">install</span></a> or <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">build from source</span></a>). It is <em>NOT</em> required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.</p>
 <div class="admonition note">

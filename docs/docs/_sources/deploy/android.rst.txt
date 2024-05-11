@@ -36,17 +36,19 @@ Prerequisite
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
 
 **JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime.
-We recommended setting the ``JAVA_HOME`` to the JDK bundled with Android Studio. e.g. ``export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home`` for macOS.
-In other ways, it could be installed via Homebrew on macOS, apt on Ubuntu or other package managers.
+We strongly recommend setting the ``JAVA_HOME`` to the JDK bundled with Android Studio. e.g.
+``export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home`` for macOS.
+Using Android Studio's JBR bundle as recommended `here https://developer.android.com/build/jdks`
+will reduce the chances of potential errors in JNI compilation.
 Set up the following environment variable:
 
-- ``JAVA_HOME`` so that Java is available in ``$JAVA_HOME/bin/java``.
+- ``export JAVA_HOME=/path/to/java_home`` you can then cross check and make sure ``$JAVA_HOME/bin/java`` exists.
 
 Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.
 
 **TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
-- ``TVM_HOME`` so that its headers are available under ``$TVM_HOME/include/tvm/runtime``.
+- ``export TVM_HOME=/path/to/mlc-llm/3rdparty/tvm``.
 
 (Optional) **TVM Unity compiler** Python package (:ref:`install <tvm-unity-prebuilt-package>` or :ref:`build from source <tvm-unity-build-from-source>`). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
 

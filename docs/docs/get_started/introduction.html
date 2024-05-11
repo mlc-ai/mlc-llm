@@ -403,9 +403,9 @@ You can save the code below into a Python file and run it.</p>
 <p><span class="caption-text">MLC LLM Python API</span><a class="headerlink" href="#id3" title="Permalink to this image">¶</a></p>
 </figcaption>
 </figure>
-<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> instance with the 4-bit quantized Llama-3 model.
-<strong>We design the Python API</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> <strong>to align with OpenAI API</strong>,
-which means you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> in the same way of using
+<p>This code example first creates an <a class="reference internal" href="../deploy/python_engine.html#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> instance with the 4-bit quantized Llama-3 model.
+<strong>We design the Python API</strong> <a class="reference internal" href="../deploy/python_engine.html#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> <strong>to align with OpenAI API</strong>,
+which means you can use <a class="reference internal" href="../deploy/python_engine.html#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> in the same way of using
 <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
 for both synchronous and asynchronous generation.</p>
 <p>In this code example, we use the synchronous chat completion interface and iterate over
@@ -420,7 +420,7 @@ If you want to run without streaming, you can run</p>
 </pre></div>
 </div>
 <p>You can also try different arguments supported in <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>.
-If you would like to do concurrent asynchronous generation, you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> instead.</p>
+If you would like to do concurrent asynchronous generation, you can use <a class="reference internal" href="../deploy/python_engine.html#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> instead.</p>
 </section>
 <section id="rest-server">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">REST Server</a><a class="headerlink" href="#rest-server" title="Permalink to this heading">¶</a></h2>
@@ -499,7 +499,7 @@ The chat interface will be displayed after model JIT compilation finishes.
 You can also use this model in Python API, MLC serve and other use scenarios.</p>
 <section id="optional-compile-model-library">
 <h3><a class="toc-backref" href="#id9" role="doc-backlink">(Optional) Compile Model Library</a><a class="headerlink" href="#optional-compile-model-library" title="Permalink to this heading">¶</a></h3>
-<p>In previous sections, model libraries are compiled when the <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> launches,
+<p>In previous sections, model libraries are compiled when the <a class="reference internal" href="../deploy/python_engine.html#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> launches,
 which is what we call “JIT (Just-in-Time) model compilation”.
 In some cases, it is beneficial to explicitly compile the model libraries.
 We can deploy LLMs with reduced dependencies by shipping the library for deployment without going through compilation.
