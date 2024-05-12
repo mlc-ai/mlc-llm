@@ -30,7 +30,8 @@ GenerationConfig::GenerationConfig(
     std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
     std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
     std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-    std::optional<ResponseFormat> response_format, Optional<String> default_config_json_str) {
+    std::optional<ResponseFormat> response_format, std::optional<bool> pinned,
+    Optional<String> default_config_json_str) {
   ObjectPtr<GenerationConfigNode> obj = make_object<GenerationConfigNode>();
   GenerationConfig default_config;
   if (default_config_json_str.defined()) {
@@ -73,6 +74,8 @@ GenerationConfig::GenerationConfig(
   obj->stop_strs = stop_strs.value_or(default_config->stop_strs);
   obj->stop_token_ids = stop_token_ids.value_or(default_config->stop_token_ids);
   obj->response_format = response_format.value_or(default_config->response_format);
+  // "pinned" is for internal usage. Not the part of OpenAI API spec.
+  obj->pinned = pinned.value_or(default_config->pinned);
 
   data_ = std::move(obj);
 }
@@ -177,6 +180,8 @@ GenerationConfig::GenerationConfig(String config_json_str,
   } else {
     n->response_format = default_config->response_format;
   }
+  // "pinned" is for internal usage. Not the part of OpenAI API spec.
+  n->pinned = json::LookupOrDefault<bool>(config, "pinned", default_config->pinned);
 
   data_ = std::move(n);
 }
@@ -233,6 +238,9 @@ String GenerationConfigNode::AsJSONString() const {
                                   ? picojson::value(this->response_format.schema.value())
                                   : picojson::value();
   config["response_format"] = picojson::value(response_format);
+
+  // Params for internal usage. Not the part of OpenAI API spec.
+  config["pinned"] = picojson::value(this->pinned);
 
   return picojson::value(config).serialize(true);
 }

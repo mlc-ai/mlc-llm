@@ -93,6 +93,11 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     response_format : ResponseFormat
         The response format of the generation output.
+
+    pinned : bool
+        Whether the input and generated data pinned in engine. Default is set to False.
+        This can be used for system prompt or other purpose, if the data is aimed to be
+        kept all the time.
     """
 
     n: int = 1
@@ -112,6 +117,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     ignore_eos: bool = False
 
     response_format: ResponseFormat = field(default_factory=ResponseFormat)
+
+    pinned: bool = False
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""

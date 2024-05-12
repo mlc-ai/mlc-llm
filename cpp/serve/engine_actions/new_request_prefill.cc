@@ -38,6 +38,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     int num_rsentries = prefill_inputs.size();
+    for (int i = 0; i < num_rsentries; ++i) {
+      MatchPrefixCache(estate, prefill_inputs[i]);
+    }
+
     auto tstart = std::chrono::high_resolution_clock::now();
 
     // - Update status of request states from pending to alive.
@@ -231,6 +235,71 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
   Sampler sampler_;
   /*! \brief Workspace of each model. */
   std::vector<ModelWorkspace> model_workspaces_;
+
+  /*!
+   * \brief Match the request state entry with prefix cache, to skip prefilling common prefix
+   * tokens. If the request state entry is not added to KVCache yet, this method will add/fork the
+   * request in the KVCache, depending on the matching result from prefix cache.
+   * \param estate The engine state.
+   * \param[out] input The prefill input to be matched and updated.
+   */
+  void MatchPrefixCache(EngineState estate, PrefillInput& input) final {
+    RequestStateEntry rsentry = input.rsentry;
+    if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
+        !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+      IntTuple tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
+      if (!tokens.size()) {
+        // If the RequestStateEntry is of empty input data, or not fully tokenized, do nothing
+        // and return.
+        return;
+      }
+      PrefixCacheMatchedResult result =
+          estate->prefix_cache->InsertSequence(rsentry->mstates[0]->internal_id, tokens);
+
+      RECORD_EVENT(trace_recorder_, rsentry->request->id,
+                   "prefix cache matched result: NewSeqID=" + std::to_string(result.new_seq_id) +
+                       " ,ParentSeqID=" + std::to_string(result.parent_seq_id) +
+                       " ,MatchedOffset=" + std::to_string(result.matched_offset) +
+                       " ,PopLastTokens=" + std::to_string(result.pop_last_tokens));
+      if (result.new_seq_id == rsentry->mstates[0]->internal_id) {
+        CHECK_EQ(result.pop_last_tokens, 0);
+        if (result.parent_seq_id == -1) {
+          // Add new sequence
+          CHECK_EQ(result.matched_offset, 0);
+          for (Model model : models_) {
+            model->AddNewSequence(rsentry->mstates[0]->internal_id);
+            model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          }
+        } else {
+          // Fork from active sequence
+          for (Model model : models_) {
+            model->ForkSequence(result.parent_seq_id, rsentry->mstates[0]->internal_id,
+                                result.matched_offset);
+            model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          }
+        }
+      } else {
+        // Reuse recycling sequence
+        CHECK_EQ(result.parent_seq_id, -1);
+        estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+        for (int i = 0; i < rsentry->mstates.size(); ++i) {
+          rsentry->mstates[i]->internal_id = result.new_seq_id;
+        }
+        if (result.pop_last_tokens) {
+          for (Model model : models_) {
+            model->PopNFromKVCache(rsentry->mstates[0]->internal_id, result.pop_last_tokens);
+          }
+        }
+      }
+      // Pop matched prefix
+      for (int i = 0; i < rsentry->mstates.size(); ++i) {
+        PopPrefillInputData(rsentry->mstates[i], result.matched_offset);
+      }
+      // Update max prefill length
+      input.max_prefill_length =
+          std::min(input.max_prefill_length, rsentry->mstates[0]->GetInputLength());
+    }
+  }
 };
 
 EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,

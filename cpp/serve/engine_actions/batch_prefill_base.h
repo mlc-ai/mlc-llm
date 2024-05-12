@@ -86,13 +86,36 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
    * \brief Update the committed tokens of states. If a request is first-time prefilled, set the
    * prefill finish time.
    * \param rsentries_for_sample The request state entries for sample.
-   * \param
-   * rsentry_activated The activation status of the request state entries.
+   * \param rsentry_activated The activation status of the request state entries.
    * \param sample_results The sample results.
    */
   void UpdateRequestStateEntriesWithSampleResults(
       const std::vector<RequestStateEntry>& rsentries_for_sample,
       const std::vector<bool>& rsentry_activated, const std::vector<SampleResult>& sample_results);
+
+  /*!
+   * \brief Get the concatenated IntTuple of RequestModelState input data, return empty IntTuple if
+   * there is untokenized data.
+   * \param mstate The RequestModelState whose input data is to be concatenated.
+   * \return The concatenate IntTuple.
+   */
+  IntTuple GetConcatPrefillInputData(const RequestModelState& mstate);
+
+  /*!
+   * \brief Pop the prefix tokens of the RequestModelState input data array.
+   * \param mstate The RequestModelState to be popped.
+   * \param num_tokens The number of prefix tokens to be popped.
+   */
+  void PopPrefillInputData(const RequestModelState& mstate, size_t num_tokens);
+
+  /*!
+   * \brief Match the request state entry with prefix cache, to skip prefilling common prefix
+   * tokens. If the request state entry is not added to KVCache yet, this method will add/fork the
+   * request in the KVCache, depending on the matching result from prefix cache.
+   * \param estate The engine state.
+   * \param[out] input The prefill input to be matched and updated.
+   */
+  virtual void MatchPrefixCache(EngineState estate, PrefillInput& input) = 0;
 
   /*! \brief The models to run prefill in. */
   Array<Model> models_;
@@ -100,16 +123,6 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
-
- private:
-  /*!
-   * \brief Match the request state entry with prefix cache, to skip prefilling common prefix
-   * tokens. If the request state entry is not added to KVCache yet, this method will add/fork the
-   * request in the KVCache, depending on the matching result from prefix cache.
-   * \param estate The engine state.
-   * \param rsentry The request state entry to be matched. their input lengths.
-   */
-  void MatchPrefixCache(EngineState estate, RequestStateEntry rsentry);
 };
 
 }  // namespace serve

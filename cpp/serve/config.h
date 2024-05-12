@@ -50,6 +50,7 @@ class GenerationConfigNode : public Object {
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
+  bool pinned = false;
 
   String AsJSONString() const;
 
@@ -68,7 +69,8 @@ class GenerationConfig : public ObjectRef {
       std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
       std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
       std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-      std::optional<ResponseFormat> response_format, Optional<String> default_config_json_str);
+      std::optional<ResponseFormat> response_format, std::optional<bool> pinned,
+      Optional<String> default_config_json_str);
 
   TVM_DLL explicit GenerationConfig(String config_json_str,
                                     Optional<String> default_config_json_str);

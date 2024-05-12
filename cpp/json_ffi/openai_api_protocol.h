@@ -148,6 +148,7 @@ class ChatCompletionRequest {
   std::optional<std::string> user = std::nullopt;
   bool ignore_eos = false;
   //   RequestResponseFormat response_format; //TODO: implement this
+  bool pinned = false;
 
   /*! \brief Parse and create a ChatCompletionRequest instance from the given JSON string. */
   static Result<ChatCompletionRequest> FromJSON(const std::string& json_str);

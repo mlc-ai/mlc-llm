@@ -43,14 +43,14 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \param tokens The tokens of tokenized sequence.
    * \return The matched result.
    */
-  MatchedResult InsertSequence(int64_t seq_id, IntTuple tokens) {
+  PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens) {
     auto [matched_offset, matched_seqs] = radix_tree->MatchPrefix(tokens);
     if (!matched_offset) {
       // No prefix matched
       radix_tree->AddSequence(seq_id);
       ++lru_counter;
       latest_visit[seq_id] = lru_counter;
-      return MatchedResult{seq_id, -1, 0, 0};
+      return PrefixCacheMatchedResult{seq_id, -1, 0, 0};
     }
 
     CHECK(!matched_seqs.empty());
@@ -87,8 +87,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
         radix_tree->RollBackSequence(shortest_recycling_seq_id,
                                      shortest_recycling_seq_length - matched_offset);
       }
-      return MatchedResult{shortest_recycling_seq_id, -1, matched_offset,
-                           shortest_recycling_seq_length - matched_offset};
+      return PrefixCacheMatchedResult{shortest_recycling_seq_id, -1, matched_offset,
+                                      shortest_recycling_seq_length - matched_offset};
     }
 
     // If there is no recycling sequences in matched candidates, we can only fork from the active
@@ -100,7 +100,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
         radix_tree->AddSequence(seq_id);
         ++lru_counter;
         latest_visit[seq_id] = lru_counter;
-        return MatchedResult{seq_id, -1, 0, 0};
+        return PrefixCacheMatchedResult{seq_id, -1, 0, 0};
       }
     }
     // Fork active sequence
@@ -108,7 +108,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
     radix_tree->ForkSequence(seq_id, matched_seq_id, matched_offset);
     ++lru_counter;
     latest_visit[seq_id] = lru_counter;
-    return MatchedResult{seq_id, matched_seq_id, matched_offset, 0};
+    return PrefixCacheMatchedResult{seq_id, matched_seq_id, matched_offset, 0};
   }
 
   /*!
@@ -120,6 +120,18 @@ class PrefixCacheImpl : public PrefixCacheObj {
   void ExtendSequence(int64_t seq_id, IntTuple tokens) {
     ++lru_counter;
     radix_tree->ExtendSequence(seq_id, tokens);
+    latest_visit[seq_id] = lru_counter;
+  }
+
+  /*!
+   * \brief Roll back a sequence by number of tokens.
+   * \param seq_id The sequence ID for index.
+   * \param num_tokens The number of tokens to be rolled back.
+   * \throw Error if the given sequence id is not valid or active.
+   */
+  void RollBackSequence(int64_t seq_id, size_t num_tokens) {
+    ++lru_counter;
+    radix_tree->RollBackSequence(seq_id, num_tokens);
     latest_visit[seq_id] = lru_counter;
   }
 

@@ -18,7 +18,7 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(RequestNode);
 
-Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg, bool pinned) {
+Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
   CHECK(!inputs.empty()) << "No input data is given.";
   // Compute the total input length, or fall back to "-1" which means
   // unknown due to the existence of untokenized data.
@@ -39,7 +39,6 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg,
   n->inputs = std::move(inputs);
   n->input_total_length = input_total_length;
   n->generation_cfg = std::move(generation_cfg);
-  n->pinned = pinned;
   data_ = std::move(n);
 }
 
@@ -63,17 +62,16 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
     ICHECK_NE(request->input_total_length, -1);
     return request;
   } else {
-    return Request(request->id, std::move(inputs), request->generation_cfg, request->pinned);
+    return Request(request->id, std::move(inputs), request->generation_cfg);
   }
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.Request")
     .set_body_typed([](String id, Array<Data> inputs, String generation_cfg_json_str,
-                       Optional<String> default_generation_cfg_json_str, bool pinned) {
+                       Optional<String> default_generation_cfg_json_str) {
       return Request(std::move(id), std::move(inputs),
                      GenerationConfig(std::move(generation_cfg_json_str),
-                                      std::move(default_generation_cfg_json_str)),
-                     pinned);
+                                      std::move(default_generation_cfg_json_str)));
     });
 
 TVM_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request request) {

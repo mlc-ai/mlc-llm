@@ -24,7 +24,7 @@ using namespace tvm::runtime;
 /*!
  * \brief The matched result from prefix cache.
  */
-struct MatchedResult {
+struct PrefixCacheMatchedResult {
   /*!
    * \brief The new sequence ID.
    * If it is the same as original, do nothing. Otherwise, it is different, which means reusing an
@@ -54,7 +54,7 @@ class PrefixCacheObj : public Object {
    * \param tokens The tokens of tokenized sequence.
    * \return The matched result.
    */
-  virtual MatchedResult InsertSequence(int64_t seq_id, IntTuple tokens) = 0;
+  virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens) = 0;
 
   /*!
    * \brief Extend a sequence with new tokenized sequence suffix.
@@ -63,6 +63,14 @@ class PrefixCacheObj : public Object {
    * \throw Error if the given sequence id is not valid or active.
    */
   virtual void ExtendSequence(int64_t seq_id, IntTuple tokens) = 0;
+
+  /*!
+   * \brief Roll back a sequence by number of tokens.
+   * \param seq_id The sequence ID for index.
+   * \param num_tokens The number of tokens to be rolled back.
+   * \throw Error if the given sequence id is not valid or active.
+   */
+  virtual void RollBackSequence(int64_t seq_id, size_t num_tokens) = 0;
 
   /*!
    * \brief Recycle a sequence. The recycled sequence will not be removed immediately, as long as

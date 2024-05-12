@@ -606,28 +606,31 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     CHECK_GT(num_tokens, 0);
     CHECK_LE(num_tokens, length);
     if (num_tokens == length) {
+      // If rolling back whole sequence, just remove the sequence and add it again equivalently.
       RemoveSequence(seq_id);
       AddSequence(seq_id);
       return;
     }
     RedixPage* page = seq2page[seq_id];
+    // Remove the sequence temporarily, but keeping the data and starting rolling back.
     page->PopSequence(seq_id_node_pool, seq_id);
     seq2page.erase(seq_id);
     while (page->length <= num_tokens) {
       // Roll back entire page
       num_tokens -= page->length;
       RedixPage* parent = page->parent;
-      if (!page->seq_ids && !page->first_child) {
+      if (page->seq_ids == nullptr && page->first_child == nullptr) {
         // The leaf page is removable
         parent->RemoveChild(page);
         radix_page_pool->Free(page);
       }
       page = parent;
     }
-    if (!page->seq_ids && !page->first_child) {
+    if (page->seq_ids == nullptr && page->first_child == nullptr) {
       // The page is leaf page, directly roll back in page length
-      page->AddSequence(seq_id_node_pool, seq_id);
       page->length -= num_tokens;
+      // Update the mapping from sequence to page
+      page->AddSequence(seq_id_node_pool, seq_id);
       seq2page[seq_id] = page;
       return;
     }
@@ -635,6 +638,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     if (num_tokens) {
       page = SplitPage(page, page->length - num_tokens);
     }
+    // Update the mapping from sequence to page
     page->AddSequence(seq_id_node_pool, seq_id);
     seq2page[seq_id] = page;
   }

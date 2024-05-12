@@ -30,7 +30,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
     if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-      if (!rsentry->request->pinned) {
+      if (!rsentry->request->generation_cfg->pinned) {
         // If the request is not pinned, recycle the request.
         estate->prefix_cache->RecycleSequence(
             rsentry->mstates[0]->internal_id, TypedPackedFunc<void()>([estate, models, rsentry]() {
@@ -65,7 +65,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
       if (estate->prefix_cache->HasSequence(rstate->entries[parent_idx]->mstates[0]->internal_id)) {
-        if (!rsentry->request->pinned) {
+        if (!rsentry->request->generation_cfg->pinned) {
           // If the request is not pinned, recycle the request.
           estate->prefix_cache->RecycleSequence(
               rstate->entries[parent_idx]->mstates[0]->internal_id,
@@ -100,7 +100,6 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       auto trequest_finish = std::chrono::high_resolution_clock::now();
       estate->stats.request_total_prefill_time +=
           static_cast<double>((root_rsentry->tprefill_finish - root_rsentry->tadd).count()) / 1e9;
-      estate->stats.total_prefill_length += rsentry->request->input_total_length;
       estate->stats.request_total_decode_time +=
           static_cast<double>((trequest_finish - root_rsentry->tprefill_finish).count()) / 1e9;
       for (const RequestStateEntry& entry : rstate->entries) {
@@ -128,6 +127,16 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
   for (Request request : requests) {
     RequestState rstate = estate->GetRequestState(request);
     for (const RequestStateEntry& rsentry : rstate->entries) {
+      if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+        for (Data data : rsentry->mstates[0]->prefilled_inputs) {
+          estate->stats.total_prefill_length += data->GetLength();
+        }
+      }
+    }
+  }
+  for (Request request : requests) {
+    RequestState rstate = estate->GetRequestState(request);
+    for (const RequestStateEntry& rsentry : rstate->entries) {
       if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
         if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
           // Notify the prefix cache of the newly prefilled data.
@@ -149,7 +158,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
           tokens.reserve((rsentry->mstates[0]->committed_tokens.size() -
                           rsentry->mstates[0]->cached_committed_tokens));
           for (int i = rsentry->mstates[0]->cached_committed_tokens;
-               i < rsentry->mstates[0]->committed_tokens.size(); ++i) {
+               i < rsentry->mstates[0]->committed_tokens.size() - 1; ++i) {
             tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
           }
           RECORD_EVENT(trace_recorder, rsentry->request->id,
