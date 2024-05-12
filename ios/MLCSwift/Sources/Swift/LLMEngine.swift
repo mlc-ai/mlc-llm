@@ -61,8 +61,56 @@ public actor MLCEngine {
         jsonFFIEngine.unload()
     }
 
-    // TODO(mlc-team) turn into a structured interface
-    public func chatCompletion(jsonRequest: String) -> AsyncStream<ChatCompletionStreamResponse> {
+    // offer a direct convenient method to pass in messages
+    public func chatCompletion(
+        messages: [ChatCompletionMessage],
+        model: Optional<String> = nil,
+        frequency_penalty: Optional<Float> = nil,
+        presence_penalty: Optional<Float> = nil,
+        logprobs: Bool = false,
+        top_logprobs: Int = 0,
+        logit_bias: Optional<[Int : Float]> = nil,
+        max_tokens: Optional<Int> = nil,
+        n: Int = 1,
+        seed: Optional<Int> = nil,
+        stop: Optional<[String]> = nil,
+        stream: Bool = false,
+        temperature: Optional<Float> = nil,
+        top_p: Optional<Float> = nil,
+        tools: Optional<[ChatTool]> = nil,
+        user: Optional<String> = nil,
+        response_format: Optional<ResponseFormat> = nil
+    ) -> AsyncStream<ChatCompletionStreamResponse> {
+        let request = ChatCompletionRequest(
+            messages: messages,
+            model: model,
+            frequency_penalty: frequency_penalty,
+            presence_penalty: presence_penalty,
+            logprobs: logprobs,
+            top_logprobs: top_logprobs,
+            logit_bias: logit_bias,
+            max_tokens: max_tokens,
+            n: n,
+            seed: seed,
+            stop: stop,
+            stream: stream,
+            temperature: temperature,
+            top_p: top_p,
+            tools: tools,
+            user: user,
+            response_format: response_format
+        )
+        return self.chatCompletion(request: request)
+    }
+
+    // completion function
+    public func chatCompletion(
+        request: ChatCompletionRequest
+    ) -> AsyncStream<ChatCompletionStreamResponse> {
+        let encoder = JSONEncoder()
+        let data = try! encoder.encode(request)
+        let jsonRequest = String(data: data, encoding: .utf8)!
+
         // generate a UUID for the request
         let requestID = UUID().uuidString
         let stream = AsyncStream(ChatCompletionStreamResponse.self) { continuation in
