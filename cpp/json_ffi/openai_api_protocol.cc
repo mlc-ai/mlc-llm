@@ -282,7 +282,8 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
   request.messages = messages;
 
   // model
-  Result<std::string> model_res = json::LookupWithResultReturn<std::string>(json_obj, "model");
+  Result<std::optional<std::string>> model_res =
+      json::LookupOptionalWithResultReturn<std::string>(json_obj, "model");
   if (model_res.IsErr()) {
     return TResult::Error(model_res.UnwrapErr());
   }

@@ -102,7 +102,7 @@ class RequestResponseFormat {
 class ChatCompletionRequest {
  public:
   std::vector<ChatCompletionMessage> messages;
-  std::string model;
+  std::optional<std::string> model = std::nullopt;
   std::optional<double> frequency_penalty = std::nullopt;
   std::optional<double> presence_penalty = std::nullopt;
   bool logprobs = false;

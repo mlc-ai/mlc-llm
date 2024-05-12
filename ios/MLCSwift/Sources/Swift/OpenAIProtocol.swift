@@ -5,14 +5,14 @@ import Foundation
 // API reference: https://platform.openai.com/docs/api-reference/chat/create
 
 public struct TopLogProbs : Codable {
-    public let token: String
-    public let logprob: Float
-    public let bytes: Optional<[Int]>
+    public var token: String
+    public var logprob: Float
+    public var bytes: Optional<[Int]>
 }
 
 public struct LogProbsContent : Codable {
-    public let token: String
-    public let logprob: Float
+    public var token: String
+    public var logprob: Float
     public var bytes: Optional<[Int]> = nil
     public var top_logprobs: [TopLogProbs] = []
 }
@@ -22,49 +22,184 @@ public struct LogProbs : Codable {
 }
 
 public struct ChatFunction : Codable {
-    public let name: String
+    public var name: String
     public var description: Optional<String> = nil
-    public let parameters: [String: String]
+    public var parameters: [String: String]
+
+    public init(
+        name: String,
+        description: Optional<String> = nil,
+        parameters: [String : String]
+    ) {
+        self.name = name
+        self.description = description
+        self.parameters = parameters
+    }
 }
 
 public struct ChatTool : Codable {
     public var type: String = "function"
     public let function: ChatFunction
+
+    public init(type: String, function: ChatFunction) {
+        self.type = type
+        self.function = function
+    }
 }
 
 public struct ChatFunctionCall : Codable {
-    public let name: String
+    public var name: String
     // NOTE: arguments shold be dict str to any codable
     // for now only allow string output due to typing issues
     public var arguments: Optional<[String: String]> = nil
+
+    public init(name: String, arguments: Optional<[String : String]> = nil) {
+        self.name = name
+        self.arguments = arguments
+    }
 }
 
 public struct ChatToolCall : Codable {
     public var id: String = UUID().uuidString
     public var type: String = "function"
-    public let function: ChatFunctionCall
+    public var function: ChatFunctionCall
+
+    public init(
+        id: String = UUID().uuidString,
+        type: String = "function",
+        function: ChatFunctionCall
+    ) {
+        self.id = id
+        self.type = type
+        self.function = function
+    }
 }
 
-public struct ChatCompletionMessage : Codable {
-    public let role: String
+public enum ChatCompletionRole: String, Codable {
+    case system = "system"
+    case user = "user"
+    case assistant = "assistant"
+    case tool = "tool"
+}
+
+public struct ChatCompletionMessage: Codable {
+    public var role: ChatCompletionRole
     public var content: Optional<[[String: String]]> = nil
     public var name: Optional<String> = nil
     public var tool_calls: Optional<[ChatToolCall]> = nil
     public var tool_call_id: Optional<String> = nil
+
+    // more complicated content construction
+    public init(
+        role: ChatCompletionRole,
+        content: Optional<[[String : String]]> = nil,
+        name: Optional<String> = nil,
+        tool_calls: Optional<[ChatToolCall]> = nil,
+        tool_call_id: Optional<String> = nil
+    ) {
+        self.role = role
+        self.content = content
+        self.name = name
+        self.tool_calls = tool_calls
+        self.tool_call_id = tool_call_id
+    }
+
+    // convenient method to construct content from string
+    public init(
+        role: ChatCompletionRole,
+        content: String,
+        name: Optional<String> = nil,
+        tool_calls: Optional<[ChatToolCall]> = nil,
+        tool_call_id: Optional<String> = nil
+    ) {
+        self.role = role
+        self.content = [["type": "text", "text": content]]
+        self.name = name
+        self.tool_calls = tool_calls
+        self.tool_call_id = tool_call_id
+    }
 }
 
 public struct ChatCompletionStreamResponseChoice: Codable {
     public var finish_reason: Optional<String> = nil
-    public let index: Int
-    public let delta: ChatCompletionMessage
+    public var index: Int
+    public var delta: ChatCompletionMessage
     public var lobprobs: Optional<LogProbs> = nil
 }
 
 public struct ChatCompletionStreamResponse: Codable {
-    public let id : String
+    public var id : String
     public var choices: [ChatCompletionStreamResponseChoice] = []
     public var created: Optional<Int> = nil
     public var model: Optional<String> = nil
-    public let system_fingerprint: String
+    public var system_fingerprint: String
     public var object: Optional<String> = nil
+}
+
+public struct ResponseFormat: Codable {
+    public var type: String
+    public var schema: Optional<String> = nil
+
+    public init(type: String, schema: Optional<String> = nil) {
+        self.type = type
+        self.schema = schema
+    }
+}
+
+public struct ChatCompletionRequest: Codable {
+    public var messages: [ChatCompletionMessage]
+    public var model: Optional<String> = nil
+    public var frequency_penalty: Optional<Float> = nil
+    public var presence_penalty: Optional<Float> = nil
+    public var logprobs: Bool = false
+    public var top_logprobs: Int = 0
+    public var logit_bias: Optional<[Int: Float]> = nil
+    public var max_tokens: Optional<Int> = nil
+    public var n: Int = 1
+    public var seed: Optional<Int> = nil
+    public var stop: Optional<[String]> = nil
+    public var stream: Bool = false
+    public var temperature: Optional<Float> = nil
+    public var top_p: Optional<Float> = nil
+    public var tools: Optional<[ChatTool]> = nil
+    public var user: Optional<String> = nil
+    public var response_format: Optional<ResponseFormat> = nil
+
+    public init(
+        messages: [ChatCompletionMessage],
+        model: Optional<String> = nil,
+        frequency_penalty: Optional<Float> = nil,
+        presence_penalty: Optional<Float> = nil,
+        logprobs: Bool = false,
+        top_logprobs: Int = 0,
+        logit_bias: Optional<[Int : Float]> = nil,
+        max_tokens: Optional<Int> = nil,
+        n: Int = 1,
+        seed: Optional<Int> = nil,
+        stop: Optional<[String]> = nil,
+        stream: Bool = false,
+        temperature: Optional<Float> = nil,
+        top_p: Optional<Float> = nil,
+        tools: Optional<[ChatTool]> = nil,
+        user: Optional<String> = nil,
+        response_format: Optional<ResponseFormat> = nil
+    ) {
+        self.messages = messages
+        self.model = model
+        self.frequency_penalty = frequency_penalty
+        self.presence_penalty = presence_penalty
+        self.logprobs = logprobs
+        self.top_logprobs = top_logprobs
+        self.logit_bias = logit_bias
+        self.max_tokens = max_tokens
+        self.n = n
+        self.seed = seed
+        self.stop = stop
+        self.stream = stream
+        self.temperature = temperature
+        self.top_p = top_p
+        self.tools = tools
+        self.user = user
+        self.response_format = response_format
+    }
 }
