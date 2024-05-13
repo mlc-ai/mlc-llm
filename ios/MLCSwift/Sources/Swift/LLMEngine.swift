@@ -110,7 +110,6 @@ public actor MLCEngine {
         let encoder = JSONEncoder()
         let data = try! encoder.encode(request)
         let jsonRequest = String(data: data, encoding: .utf8)!
-
         // generate a UUID for the request
         let requestID = UUID().uuidString
         let stream = AsyncStream(ChatCompletionStreamResponse.self) { continuation in

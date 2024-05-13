@@ -66,9 +66,8 @@ def run_chat_completion(
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
-                assert isinstance(choice.delta.content[0], Dict)
-                assert choice.delta.content[0]["type"] == "text"
-                output_texts[rid][choice.index] += choice.delta.content[0]["text"]
+                assert isinstance(choice.delta.content, str)
+                output_texts[rid][choice.index] += choice.delta.content
 
     # Print output.
     print("Chat completion all finished")
@@ -83,7 +82,7 @@ def run_chat_completion(
 
 def test_chat_completion():
     # Create engine.
-    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     engine = JSONFFIEngine(
         model,
         max_total_sequence_length=1024,
@@ -101,7 +100,7 @@ def test_chat_completion():
 
 def test_reload_reset_unload():
     # Create engine.
-    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     engine = JSONFFIEngine(
         model,
         max_total_sequence_length=1024,
@@ -136,4 +135,4 @@ def test_function_calling():
 if __name__ == "__main__":
     test_chat_completion()
     test_reload_reset_unload()
-    test_function_calling()
+    # test_function_calling()

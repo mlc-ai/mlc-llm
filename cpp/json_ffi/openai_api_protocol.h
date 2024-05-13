@@ -14,14 +14,12 @@
 #include <vector>
 
 #include "../support/result.h"
-#include "conv_template.h"
 #include "picojson.h"
 
 namespace mlc {
 namespace llm {
 namespace json_ffi {
 
-enum class Role { system, user, assistant, tool };
 enum class Type { text, json_object, function };
 enum class FinishReason { stop, length, tool_calls, error };
 
@@ -80,11 +78,41 @@ class ChatToolCall {
   picojson::object AsJSON() const;
 };
 
+class ChatCompletionMessageContent {
+ public:
+  ChatCompletionMessageContent() = default;
+
+  ChatCompletionMessageContent(std::nullopt_t) {}  // NOLINT(*)
+
+  ChatCompletionMessageContent(std::string text) : text_(text) {}  // NOLINT(*)
+
+  ChatCompletionMessageContent(
+      std::vector<std::unordered_map<std::string, std::string>> parts)  // NOLINT(*)
+      : parts_(parts) {}
+
+  bool IsNull() const { return !IsText() && !IsParts(); }
+
+  bool IsText() const { return text_.operator bool(); }
+
+  bool IsParts() const { return parts_.operator bool(); }
+
+  const std::string& Text() const { return text_.value(); }
+
+  const std::vector<std::unordered_map<std::string, std::string>>& Parts() const {
+    return parts_.value();
+  }
+
+ private:
+  /*! \brief used to store text content */
+  std::optional<std::string> text_;
+  std::optional<std::vector<std::unordered_map<std::string, std::string>>> parts_;
+};
+
 class ChatCompletionMessage {
  public:
-  std::optional<std::vector<std::unordered_map<std::string, std::string>>> content =
+  ChatCompletionMessageContent content =
       std::nullopt;  // Assuming content is a list of string key-value pairs
-  Role role;
+  std::string role;
   std::optional<std::string> name = std::nullopt;
   std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;
   std::optional<std::string> tool_call_id = std::nullopt;
@@ -124,7 +152,6 @@ class ChatCompletionRequest {
   /*! \brief Parse and create a ChatCompletionRequest instance from the given JSON string. */
   static Result<ChatCompletionRequest> FromJSON(const std::string& json_str);
 
-  Result<Conversation> CheckFunctionCalling(Conversation conv_template);
   // TODO: check_penalty_range, check_logit_bias, check_logprobs
 };
 

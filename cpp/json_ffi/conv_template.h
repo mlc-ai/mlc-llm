@@ -11,6 +11,7 @@
 
 #include "../serve/data.h"
 #include "../support/result.h"
+#include "openai_api_protocol.h"
 #include "picojson.h"
 
 using namespace mlc::llm::serve;
@@ -62,12 +63,6 @@ enum class MessagePlaceholders { SYSTEM, USER, ASSISTANT, TOOL, FUNCTION };
 
 MessagePlaceholders MessagePlaceholderFromString(const std::string& role);
 
-class Message {
- public:
-  std::string role;
-  std::optional<std::vector<std::unordered_map<std::string, std::string>>> content = std::nullopt;
-};
-
 /**
  * @brief A struct that specifies the convention template of conversation
  * and contains the conversation history.
@@ -102,7 +97,7 @@ struct Conversation {
   // The conversation history messages.
   // Each message is a pair of strings, denoting "(role, content)".
   // The content can be None.
-  std::vector<Message> messages;
+  std::vector<ChatCompletionMessage> messages;
 
   // The separators between messages when concatenating into a single prompt.
   // List size should be either 1 or 2.
@@ -121,21 +116,35 @@ struct Conversation {
   std::vector<std::string> stop_str;
   std::vector<int> stop_token_ids;
 
-  // Function call fields
-  // whether using function calling or not, helps check for output message format in API call
-  std::optional<std::string> function_string = std::nullopt;
-  bool use_function_calling = false;
-
   Conversation();
 
-  /*! \brief Create the list of prompts from the messages based on the conversation template. */
-  Result<std::vector<Data>> AsPrompt(ModelConfig config, DLDevice device);
+  /*!
+   * \brief Get the system text(with the prompt template) given the system prompt message
+   * \param system_msg The system prompt message.
+   * \return The created system text.
+   */
+  std::string GetSystemText(const std::string& system_msg) const;
+
+  /*!
+   * \brief replace the content from role by the correct role text in template
+   * \param role The input role
+   * \param content The input content from the role
+   * \param fn_call_str The function calling string if any.
+   * \return The created text.
+   */
+  std::string GetRoleText(const std::string& role, const std::string& content,
+                          const std::optional<std::string>& fn_call_str) const;
 
   /*! \brief Create a Conversation instance from the given JSON object. */
   static Result<Conversation> FromJSON(const picojson::object& json);
   /*! \brief Parse and create a Conversation instance from the given JSON string. */
   static Result<Conversation> FromJSON(const std::string& json_str);
 };
+
+/*! \brief Create the list of prompts from the messages based on the conversation template. */
+Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
+                                       const ChatCompletionRequest& request,
+                                       const ModelConfig& config, DLDevice device);
 
 }  // namespace json_ffi
 }  // namespace llm

@@ -82,9 +82,46 @@ public enum ChatCompletionRole: String, Codable {
     case tool = "tool"
 }
 
+public enum ChatCompletionMessageContent: Codable {
+    case text(String)
+    case parts([[String: String]])
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let text = try? container.decode(String.self) {
+            self = .text(text)
+        } else {
+            let parts = try container.decode([[String: String]].self)
+            self = .parts(parts)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .text(let text): try container.encode(text)
+        case .parts(let parts): try container.encode(parts)
+        }
+    }
+
+    public func asText() -> String {
+        switch (self) {
+        case .text(let text): return text
+        case .parts(let parts):
+            var res = ""
+            for item in parts {
+                if item["type"]! == "text" {
+                    res += item["text"]!
+                }
+            }
+            return res
+        }
+    }
+}
+
 public struct ChatCompletionMessage: Codable {
     public var role: ChatCompletionRole
-    public var content: Optional<[[String: String]]> = nil
+    public var content: Optional<ChatCompletionMessageContent> = nil
     public var name: Optional<String> = nil
     public var tool_calls: Optional<[ChatToolCall]> = nil
     public var tool_call_id: Optional<String> = nil
@@ -98,7 +135,11 @@ public struct ChatCompletionMessage: Codable {
         tool_call_id: Optional<String> = nil
     ) {
         self.role = role
-        self.content = content
+        if let cvalue = content {
+            self.content = .parts(cvalue)
+        } else {
+            self.content = nil
+        }
         self.name = name
         self.tool_calls = tool_calls
         self.tool_call_id = tool_call_id
@@ -113,7 +154,7 @@ public struct ChatCompletionMessage: Codable {
         tool_call_id: Optional<String> = nil
     ) {
         self.role = role
-        self.content = [["type": "text", "text": content]]
+        self.content = .text(content)
         self.name = name
         self.tool_calls = tool_calls
         self.tool_call_id = tool_call_id
