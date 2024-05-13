@@ -170,25 +170,37 @@ picojson::object ChatToolCall::AsJSON() const {
 Result<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picojson::object& json_obj) {
   using TResult = Result<ChatCompletionMessage>;
   ChatCompletionMessage message;
+  ChatCompletionMessageContent content;
 
   // content
-  Result<picojson::array> content_arr_res =
-      json::LookupWithResultReturn<picojson::array>(json_obj, "content");
-  if (content_arr_res.IsErr()) {
-    return TResult::Error(content_arr_res.UnwrapErr());
+  auto it = json_obj.find("content");
+  if (it == json_obj.end()) {
+    return TResult::Error("ValueError: key \"content\" not found in the chat completion.");
   }
-  std::vector<std::unordered_map<std::string, std::string>> content;
-  for (const auto& item : content_arr_res.Unwrap()) {
-    // Todo(mlc-team): allow content item to be a single string.
-    if (!item.is<picojson::object>()) {
-      return TResult::Error("The content of chat completion message is not an object");
+  if (it->second.is<std::string>()) {
+    content = it->second.get<std::string>();
+  } else if (it->second.is<picojson::null>()) {
+    // skip
+  } else {
+    // most complicated case
+    std::vector<std::unordered_map<std::string, std::string>> parts;
+    Result<picojson::array> content_arr_res =
+        json::LookupWithResultReturn<picojson::array>(json_obj, "content");
+    if (content_arr_res.IsErr()) {
+      return TResult::Error(content_arr_res.UnwrapErr());
     }
-    picojson::object item_obj = item.get<picojson::object>();
-    std::unordered_map<std::string, std::string> item_map;
-    for (const auto& [key, value] : item_obj) {
-      item_map[key] = value.to_str();
+    for (const auto& item : content_arr_res.Unwrap()) {
+      if (!item.is<picojson::object>()) {
+        return TResult::Error("The content of chat completion message is not an object");
+      }
+      picojson::object item_obj = item.get<picojson::object>();
+      std::unordered_map<std::string, std::string> item_map;
+      for (const auto& [key, value] : item_obj) {
+        item_map[key] = value.to_str();
+      }
+      parts.push_back(std::move(item_map));
     }
-    content.push_back(std::move(item_map));
+    content = parts;
   }
   message.content = content;
 
@@ -198,14 +210,8 @@ Result<ChatCompletionMessage> ChatCompletionMessage::FromJSON(const picojson::ob
     return TResult::Error(role_str_res.UnwrapErr());
   }
   std::string role_str = role_str_res.Unwrap();
-  if (role_str == "system") {
-    message.role = Role::system;
-  } else if (role_str == "user") {
-    message.role = Role::user;
-  } else if (role_str == "assistant") {
-    message.role = Role::assistant;
-  } else if (role_str == "tool") {
-    message.role = Role::tool;
+  if (role_str == "system" || role_str == "user" || role_str == "assistant" || role_str == "tool") {
+    message.role = role_str;
   } else {
     return TResult::Error("Invalid role in chat completion message: " + role_str);
   }
@@ -345,30 +351,28 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
   }
 
   // TODO: Other parameters
-
   return TResult::Ok(request);
 }
 
 picojson::object ChatCompletionMessage::AsJSON() const {
   picojson::object obj;
-  picojson::array content_arr;
-  for (const auto& item : this->content.value()) {
-    picojson::object item_obj;
-    for (const auto& pair : item) {
-      item_obj[pair.first] = picojson::value(pair.second);
+
+  if (this->content.IsText()) {
+    obj["content"] = picojson::value(this->content.Text());
+  } else if (this->content.IsParts()) {
+    picojson::array content_arr;
+    for (const auto& item : this->content.Parts()) {
+      picojson::object item_obj;
+      for (const auto& pair : item) {
+        item_obj[pair.first] = picojson::value(pair.second);
+      }
+      content_arr.push_back(picojson::value(item_obj));
     }
-    content_arr.push_back(picojson::value(item_obj));
+    obj["content"] = picojson::value(content_arr);
   }
-  obj["content"] = picojson::value(content_arr);
-  if (this->role == Role::system) {
-    obj["role"] = picojson::value("system");
-  } else if (this->role == Role::user) {
-    obj["role"] = picojson::value("user");
-  } else if (this->role == Role::assistant) {
-    obj["role"] = picojson::value("assistant");
-  } else if (this->role == Role::tool) {
-    obj["role"] = picojson::value("tool");
-  }
+
+  obj["role"] = picojson::value(this->role);
+
   if (this->name.has_value()) {
     obj["name"] = picojson::value(this->name.value());
   }
@@ -384,40 +388,6 @@ picojson::object ChatCompletionMessage::AsJSON() const {
   }
   return obj;
 }
-
-Result<Conversation> ChatCompletionRequest::CheckFunctionCalling(Conversation conv_template) {
-  using TResult = Result<Conversation>;
-  if (!tools.has_value() || (tool_choice.has_value() && tool_choice.value() == "none")) {
-    conv_template.use_function_calling = false;
-    return TResult::Ok(conv_template);
-  }
-  std::vector<ChatTool> tools_ = tools.value();
-  std::string tool_choice_ = tool_choice.value();
-
-  // TODO: support with tool choice as dict
-  for (const auto& tool : tools_) {
-    if (tool.function.name == tool_choice_) {
-      conv_template.use_function_calling = true;
-      picojson::value function_str(tool.function.AsJSON());
-      conv_template.function_string = function_str.serialize();
-      return TResult::Ok(conv_template);
-    }
-  }
-
-  if (tool_choice_ != "auto") {
-    return TResult::Error("Invalid tool_choice value in the request: " + tool_choice_);
-  }
-
-  picojson::array function_list;
-  for (const auto& tool : tools_) {
-    function_list.push_back(picojson::value(tool.function.AsJSON()));
-  }
-
-  conv_template.use_function_calling = true;
-  picojson::value function_list_json(function_list);
-  conv_template.function_string = function_list_json.serialize();
-  return TResult::Ok(conv_template);
-};
 
 picojson::object ChatCompletionResponseChoice::AsJSON() const {
   picojson::object obj;
