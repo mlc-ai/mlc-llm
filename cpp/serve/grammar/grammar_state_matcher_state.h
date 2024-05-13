@@ -20,18 +20,20 @@ using namespace tvm::runtime;
 
 /*! \brief Specifies a position in a rule. */
 struct RulePosition {
-  /*! \brief The rule's id. */
+  /*! \brief The rule's id. Used for debug purposes. */
   int32_t rule_id = -1;
   /*! \brief Which choice in this rule is selected. */
   int32_t sequence_id = -1;
-  /*! \brief Which element of the choice sequence is being visited. */
+  /*! \brief Which element of the choice sequence is to be visited. */
   int32_t element_id = -1;
-  /*!
-   * \brief If the element refers to another rule, and the body of another rule is a
-   * CharacterClassStar RuleExpr, this field will be set to the id of the character class.
-   * This is for the special support of CharacterClassStar.
-   */
-  int32_t char_class_star_id = -1;
+
+  /*! \brief The number of left utf8 bytes in the current element. Used when the element is
+   * a character class or a character class star. */
+  int32_t left_utf8_bytes = 0;
+  /*! \brief The next position to match in the current byte string. Used when the element is
+   * a byte string. */
+  int32_t element_in_string = 0;
+
   /*! \brief The id of the parent node in the RulePositionTree. */
   int32_t parent_id = -1;
   /*! \brief The reference count of this RulePosition. If reduces to zero, the node will be
@@ -43,24 +45,21 @@ struct RulePosition {
 
   constexpr RulePosition() = default;
   constexpr RulePosition(int32_t rule_id, int32_t sequence_id, int32_t element_id,
-                         int32_t parent_id = kNoParent, int32_t char_class_star_id = -1)
-      : rule_id(rule_id),
-        sequence_id(sequence_id),
-        element_id(element_id),
-        char_class_star_id(char_class_star_id),
-        parent_id(parent_id) {}
+                         int32_t parent_id = kNoParent)
+      : rule_id(rule_id), sequence_id(sequence_id), element_id(element_id), parent_id(parent_id) {}
+
+  // The position is invalid when sequence_id is -1.
+  bool IsInvalid() const { return sequence_id == -1; }
 
   bool operator==(const RulePosition& other) const {
     return rule_id == other.rule_id && sequence_id == other.sequence_id &&
-           element_id == other.element_id && char_class_star_id == other.char_class_star_id &&
-           parent_id == other.parent_id;
+           element_id == other.element_id && parent_id == other.parent_id &&
+           left_utf8_bytes == other.left_utf8_bytes && element_in_string == other.element_in_string;
   }
-
-  bool operator!=(const RulePosition& other) const { return !(*this == other); }
 };
 
 /*! \brief A special value for invalid RulePosition. */
-inline constexpr RulePosition kInvalidRulePosition(-1, -1, -1, -1, -1);
+inline constexpr RulePosition kInvalidRulePosition(-1, -1, -1, -1);
 
 /*! \brief A buffer to manage all RulePositions. */
 class RulePositionBuffer {
@@ -76,7 +75,7 @@ class RulePositionBuffer {
       id = buffer_.size() - 1;
     } else {
       id = free_nodes_.back();
-      DCHECK(buffer_[id] == kInvalidRulePosition);
+      DCHECK(buffer_[id].IsInvalid());
       free_nodes_.pop_back();
     }
     rule_position.reference_count = 0;
@@ -86,7 +85,7 @@ class RulePositionBuffer {
 
   /*! \brief Free the RulePosition with the given id. */
   void Free(int32_t id) {
-    DCHECK(buffer_[id] != kInvalidRulePosition);
+    DCHECK(!buffer_[id].IsInvalid());
     buffer_[id] = kInvalidRulePosition;
     free_nodes_.push_back(id);
   }
@@ -102,11 +101,13 @@ class RulePositionBuffer {
 
   /*! \brief Get the RulePosition with the given id. */
   RulePosition& operator[](int32_t id) {
-    DCHECK(id < static_cast<int32_t>(buffer_.size()) && buffer_[id] != kInvalidRulePosition);
+    DCHECK(id >= 0 && id < static_cast<int32_t>(buffer_.size()));
+    DCHECK(!buffer_[id].IsInvalid());
     return buffer_[id];
   }
   const RulePosition& operator[](int32_t id) const {
-    DCHECK(id < static_cast<int32_t>(buffer_.size()) && buffer_[id] != kInvalidRulePosition);
+    DCHECK(id >= 0 && id < static_cast<int32_t>(buffer_.size()));
+    DCHECK(!buffer_[id].IsInvalid());
     return buffer_[id];
   }
 
@@ -145,7 +146,7 @@ class RulePositionTree {
     auto id = node_buffer_.Allocate(rule_position);
     if (rule_position.parent_id != RulePosition::kNoParent) {
       DCHECK(rule_position.parent_id < static_cast<int32_t>(node_buffer_.Capacity()) &&
-             node_buffer_[rule_position.parent_id] != kInvalidRulePosition);
+             !node_buffer_[rule_position.parent_id].IsInvalid());
       node_buffer_[rule_position.parent_id].reference_count++;
     }
     return id;
@@ -183,7 +184,7 @@ class RulePositionTree {
   /*! \brief Get the RulePosition with the given id. */
   const RulePosition& operator[](int32_t id) const {
     DCHECK(id != RulePosition::kNoParent);
-    DCHECK(node_buffer_[id] != kInvalidRulePosition);
+    DCHECK(!node_buffer_[id].IsInvalid());
     return node_buffer_[id];
   }
 
@@ -331,15 +332,26 @@ inline std::string RulePositionTree::PrintNode(int32_t id) const {
 
 inline std::string RulePositionTree::PrintNode(const RulePosition& rule_position) const {
   std::stringstream ss;
-  ss << "RulePosition: rule " << rule_position.rule_id << ": "
-     << grammar_->GetRule(rule_position.rule_id).name;
+  ss << "RulePosition: rule " << rule_position.rule_id;
+  if (rule_position.rule_id != -1) {
+    ss << ": " << grammar_->GetRule(rule_position.rule_id).name;
+  }
   ss << ", sequence " << rule_position.sequence_id << ": "
      << BNFGrammarPrinter(grammar_).PrintRuleExpr(rule_position.sequence_id);
   ss << ", element id: " << rule_position.element_id;
-  if (rule_position.char_class_star_id != -1) {
-    ss << ", char class " << rule_position.char_class_star_id << ": "
-       << BNFGrammarPrinter(grammar_).PrintRuleExpr(rule_position.char_class_star_id) << "*";
+
+  auto sequence = grammar_->GetRuleExpr(rule_position.sequence_id);
+  if (rule_position.element_id < static_cast<int32_t>(sequence.size())) {
+    auto element = grammar_->GetRuleExpr(sequence[rule_position.element_id]);
+    if (element.type == BNFGrammarNode::RuleExprType::kByteString) {
+      ss << ", element in string: " << rule_position.element_in_string;
+    } else {
+      DCHECK(element.type == BNFGrammarNode::RuleExprType::kCharacterClass ||
+             element.type == BNFGrammarNode::RuleExprType::kCharacterClassStar);
+      ss << ", left utf8 bytes: " << rule_position.left_utf8_bytes;
+    }
   }
+
   ss << ", parent id: " << rule_position.parent_id
      << ", ref count: " << rule_position.reference_count;
   return ss.str();
@@ -370,7 +382,7 @@ inline void RulePositionTree::CheckWellFormed(const std::vector<int32_t>& outsid
   std::queue<int> visit_queue;
   for (auto id : outside_pointers) {
     CHECK(id >= 0 && id < buffer_size);
-    CHECK(buffer[id] != kInvalidRulePosition);
+    CHECK(!buffer[id].IsInvalid());
     new_reference_counter[id]++;
     if (visited[id] == false) {
       visited[id] = true;
@@ -383,7 +395,7 @@ inline void RulePositionTree::CheckWellFormed(const std::vector<int32_t>& outsid
     const auto& rule_position = buffer[cur_id];
     if (rule_position.parent_id != RulePosition::kNoParent) {
       CHECK(rule_position.parent_id >= 0 && rule_position.parent_id < buffer_size);
-      CHECK(buffer[rule_position.parent_id] != kInvalidRulePosition);
+      CHECK(!buffer[rule_position.parent_id].IsInvalid());
       new_reference_counter[rule_position.parent_id]++;
       if (visited[rule_position.parent_id] == false) {
         visited[rule_position.parent_id] = true;
@@ -394,11 +406,11 @@ inline void RulePositionTree::CheckWellFormed(const std::vector<int32_t>& outsid
 
   for (int i = 0; i < static_cast<int32_t>(buffer.size()); ++i) {
     if (free_nodes_set.count(i)) {
-      CHECK(buffer[i] == kInvalidRulePosition);
+      CHECK(buffer[i].IsInvalid());
       CHECK(visited[i] == false);
     } else {
       CHECK(visited[i] == true);
-      CHECK(buffer[i] != kInvalidRulePosition);
+      CHECK(!buffer[i].IsInvalid());
       CHECK(new_reference_counter[i] == buffer[i].reference_count)
           << "Reference counters unmatch for node #" << i << ": Updated "
           << new_reference_counter[i] << ", Original " << buffer[i].reference_count;

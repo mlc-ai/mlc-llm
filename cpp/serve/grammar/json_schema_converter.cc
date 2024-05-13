@@ -385,9 +385,9 @@ void JSONSchemaToEBNFConverter::AddBasicRules() {
 void JSONSchemaToEBNFConverter::AddHelperRules() {
   rules_.push_back(std::make_pair(
       kBasicEscape, "[\"\\\\/bfnrt] | \"u\" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]"));
-  rules_.push_back(std::make_pair(kBasicStringSub, "\"\" | [^\"\\\\\\r\\n] " + kBasicStringSub +
-                                                       " | \"\\\\\" " + kBasicEscape + " " +
-                                                       kBasicStringSub));
+  rules_.push_back(std::make_pair(
+      kBasicStringSub, "(\"\\\"\" | [^\"\\\\\\r\\n] " + kBasicStringSub + " | \"\\\\\" " +
+                           kBasicEscape + " " + kBasicStringSub + ") (= [ \\n\\t]* [,}\\]:])"));
 }
 
 void JSONSchemaToEBNFConverter::CreateBasicRule(const picojson::value& schema,
@@ -648,7 +648,7 @@ std::string JSONSchemaToEBNFConverter::VisitString(const picojson::object& schem
                                       "pattern",
                                       "format",
                                   });
-  return "[\"] " + kBasicStringSub + " [\"]";
+  return "[\"] " + kBasicStringSub;
 }
 
 std::string JSONSchemaToEBNFConverter::VisitBoolean(const picojson::object& schema,

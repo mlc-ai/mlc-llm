@@ -122,7 +122,7 @@ class EngineImpl : public Engine {
     }
     n->token_table_ =
         Tokenizer::PostProcessTokenTable(n->tokenizer_->TokenTable(), token_table_postproc_method);
-    n->grammar_init_context_storage_ = GrammarInitContextStorage(n->token_table_);
+    n->grammar_init_context_cache_ = GrammarInitContextCache(n->token_table_);
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -499,9 +499,9 @@ class EngineImpl : public Engine {
     if (response_format.type != "json_object") {
       return std::nullopt;
     } else if (!response_format.schema) {
-      return grammar_init_context_storage_->GetInitContextForJSON();
+      return grammar_init_context_cache_->GetInitContextForJSON();
     } else {
-      return grammar_init_context_storage_->GetInitContextForJSONSchema(
+      return grammar_init_context_cache_->GetInitContextForJSONSchema(
           response_format.schema.value());
     }
   }
@@ -513,7 +513,7 @@ class EngineImpl : public Engine {
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
   // Helper to get the grammar init context for requests.
-  GrammarInitContextStorage grammar_init_context_storage_;
+  GrammarInitContextCache grammar_init_context_cache_;
   // Models
   Array<Model> models_;
   // Device that the models run on.

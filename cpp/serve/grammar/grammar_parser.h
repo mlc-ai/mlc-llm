@@ -23,7 +23,7 @@ using namespace tvm::runtime;
  * \details This function accepts the EBNF notation defined in the W3C XML Specification
  * (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
  * changes:
- * - Using # as comment mark instead of /**\/
+ * - Using # as comment mark instead of C-style comments
  * - Accept C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
  * - Rule A-B (match A and not match B) is not supported yet
  *

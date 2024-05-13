@@ -5,9 +5,9 @@
 
 #include "grammar.h"
 
+#include "grammar_functor.h"
 #include "grammar_parser.h"
 #include "grammar_serializer.h"
-#include "grammar_simplifier.h"
 #include "json_schema_converter.h"
 
 namespace mlc {
@@ -21,18 +21,28 @@ std::ostream& operator<<(std::ostream& os, const BNFGrammar& grammar) {
   return os;
 }
 
-BNFGrammar BNFGrammar::FromEBNFString(const std::string& ebnf_string, const std::string& main_rule,
-                                      bool normalize, bool simplify) {
+BNFGrammar BNFGrammar::FromEBNFString(const std::string& ebnf_string,
+                                      const std::string& main_rule) {
   auto grammar = EBNFParser::Parse(ebnf_string, main_rule);
-  if (normalize) {
-    grammar = NestedRuleUnwrapper(grammar).Apply();
-  }
+  // Normalize the grammar by default
+  grammar = BNFGrammarNormalizer().Apply(grammar);
   return grammar;
 }
 
 TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromEBNFString")
-    .set_body_typed([](String ebnf_string, String main_rule, bool normalize, bool simplify) {
-      return BNFGrammar::FromEBNFString(ebnf_string, main_rule, normalize, simplify);
+    .set_body_typed([](String ebnf_string, String main_rule) {
+      return BNFGrammar::FromEBNFString(ebnf_string, main_rule);
+    });
+
+// Parse the EBNF string but not normalize it
+BNFGrammar DebugFromEBNFStringNoNormalize(const std::string& ebnf_string,
+                                          const std::string& main_rule) {
+  return EBNFParser::Parse(ebnf_string, main_rule);
+}
+
+TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarDebugFromEBNFStringNoNormalize")
+    .set_body_typed([](String ebnf_string, String main_rule) {
+      return DebugFromEBNFStringNoNormalize(ebnf_string, main_rule);
     });
 
 BNFGrammar BNFGrammar::FromJSON(const std::string& json_string) {
@@ -69,79 +79,90 @@ TVM_REGISTER_GLOBAL("mlc.serve.BNFGrammarFromSchema").set_body([](TVMArgs args, 
   *rv = BNFGrammar::FromSchema(args[0], indent, separators, args[3]);
 });
 
+// Optimized json grammar for the speed of the grammar state matcher
 const std::string kJSONGrammarString = R"(
 main ::= (
-    "{" ws members_or_embrace |
-    "[" ws elements_or_embrace
+    "{" [ \n\t]* members_and_embrace |
+    "[" [ \n\t]* elements_or_embrace
 )
-value ::= (
-    "{" ws members_or_embrace |
-    "[" ws elements_or_embrace |
-    "\"" characters "\"" |
-    [0-9] fraction exponent |
-    [1-9] digits fraction exponent |
+value_non_str ::= (
+    "{" [ \n\t]* members_and_embrace |
+    "[" [ \n\t]* elements_or_embrace |
+    "0" fraction exponent |
+    [1-9] [0-9]* fraction exponent |
     "-" [0-9] fraction exponent |
-    "-" [1-9] digits fraction exponent |
+    "-" [1-9] [0-9]* fraction exponent |
     "true" |
     "false" |
     "null"
-)
-members_or_embrace ::= (
-    "\"" characters "\"" ws ":" ws value members_rest ws "}" |
-    "}"
-)
-members ::= "\"" characters "\"" ws ":" ws value members_rest
-members_rest ::= (
-    "" |
-    "," ws "\"" characters "\"" ws ":" ws value members_rest |
-    " " ws "," ws "\"" characters "\"" ws ":" ws value members_rest |
-    "\n" ws "," ws "\"" characters "\"" ws ":" ws value members_rest |
-    "\t" ws "," ws "\"" characters "\"" ws ":" ws value members_rest
-)
+) (= [ \n\t,}\]])
+members_and_embrace ::= ("\"" characters_and_colon [ \n\t]* members_suffix | "}") (= [ \n\t,}\]])
+members_suffix ::= (
+    value_non_str [ \n\t]* member_suffix_suffix |
+    "\"" characters_and_embrace |
+    "\"" characters_and_comma [ \n\t]* "\"" characters_and_colon [ \n\t]* members_suffix
+) (= [ \n\t,}\]])
+member_suffix_suffix ::= (
+    "}" |
+    "," [ \n\t]* "\"" characters_and_colon [ \n\t]* members_suffix
+) (= [ \n\t,}\]])
 elements_or_embrace ::= (
-    "{" ws members_or_embrace elements_rest ws "]" |
-    "[" ws elements_or_embrace elements_rest ws "]" |
-    "\"" characters "\"" elements_rest ws "]" |
-    [0-9] fraction exponent elements_rest ws "]" |
-    [1-9] digits fraction exponent elements_rest ws "]" |
-    "-" [0-9] fraction exponent elements_rest ws "]" |
-    "-" [1-9] digits fraction exponent elements_rest ws "]" |
-    "true" elements_rest ws "]" |
-    "false" elements_rest ws "]" |
-    "null" elements_rest ws "]" |
+    "{" [ \n\t]* members_and_embrace elements_rest [ \n\t]* "]" |
+    "[" [ \n\t]* elements_or_embrace elements_rest [ \n\t]* "]" |
+    "\"" characters_item elements_rest [ \n\t]* "]" |
+    "0" fraction exponent elements_rest [ \n\t]* "]" |
+    [1-9] [0-9]* fraction exponent elements_rest [ \n\t]* "]" |
+    "-" "0" fraction exponent elements_rest [ \n\t]* "]" |
+    "-" [1-9] [0-9]* fraction exponent elements_rest [ \n\t]* "]" |
+    "true" elements_rest [ \n\t]* "]" |
+    "false" elements_rest [ \n\t]* "]" |
+    "null" elements_rest [ \n\t]* "]" |
     "]"
 )
 elements ::= (
-    "{" ws members_or_embrace elements_rest |
-    "[" ws elements_or_embrace elements_rest |
-    "\"" characters "\"" elements_rest |
-    [0-9] fraction exponent elements_rest |
-    [1-9] digits fraction exponent elements_rest |
+    "{" [ \n\t]* members_and_embrace elements_rest |
+    "[" [ \n\t]* elements_or_embrace elements_rest |
+    "\"" characters_item elements_rest |
+    "0" fraction exponent elements_rest |
+    [1-9] [0-9]* fraction exponent elements_rest |
     "-" [0-9] fraction exponent elements_rest |
-    "-" [1-9] digits fraction exponent elements_rest |
+    "-" [1-9] [0-9]* fraction exponent elements_rest |
     "true" elements_rest |
     "false" elements_rest |
     "null" elements_rest
 )
 elements_rest ::= (
     "" |
-    "," ws elements |
-    " " ws "," ws elements |
-    "\n" ws "," ws elements |
-    "\t" ws "," ws elements
+    [ \n\t]* "," [ \n\t]* elements
 )
-characters ::= "" | [^"\\\r\n] characters | "\\" escape characters
+characters_and_colon ::= (
+    "\"" [ \n\t]* ":" |
+    [^"\\\x00-\x1F] characters_and_colon |
+    "\\" escape characters_and_colon
+) (=[ \n\t]* [\"{[0-9tfn-])
+characters_and_comma ::= (
+    "\"" [ \n\t]* "," |
+    [^"\\\x00-\x1F] characters_and_comma |
+    "\\" escape characters_and_comma
+) (=[ \n\t]* "\"")
+characters_and_embrace ::= (
+    "\"" [ \n\t]* "}" |
+    [^"\\\x00-\x1F] characters_and_embrace |
+    "\\" escape characters_and_embrace
+) (=[ \n\t]* [},])
+characters_item ::= (
+    "\"" |
+    [^"\\\x00-\x1F] characters_item |
+    "\\" escape characters_item
+) (= [ \n\t]* [,\]])
 escape ::= ["\\/bfnrt] | "u" [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9] [A-Fa-f0-9]
-digits ::= [0-9] | [0-9] digits
-fraction ::= "" | "." digits
-exponent ::= "" |  "e" sign digits | "E" sign digits
+fraction ::= "" | "." [0-9] [0-9]*
+exponent ::= "" |  "e" sign [0-9] [0-9]* | "E" sign [0-9] [0-9]*
 sign ::= "" | "+" | "-"
-ws ::= [ \n\t]*
 )";
 
 BNFGrammar BNFGrammar::GetGrammarOfJSON() {
-  static const BNFGrammar grammar =
-      BNFGrammar::FromEBNFString(kJSONGrammarString, "main", true, false);
+  static const BNFGrammar grammar = BNFGrammar::FromEBNFString(kJSONGrammarString, "main");
   return grammar;
 }
 

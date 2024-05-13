@@ -8,30 +8,72 @@
 
 #include <tvm/runtime/logging.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace mlc {
 namespace llm {
 namespace serve {
 
-/*! \brief Manages a segment of externally provided memory and use it as a bitset. */
-class BitsetManager {
+/*! \brief A bitset with runtime specified length. It manages memory internally or the memory
+ * provided externally with enough size. */
+class DynamicBitset {
  public:
-  BitsetManager(uint32_t* data, int buffer_size, int element_cnt)
-      : data_(data), buffer_size_(buffer_size), element_cnt_(element_cnt) {
-    DCHECK(buffer_size >= CalculateBufferSize(element_cnt));
+  static int CalculateBufferSize(int element_size) { return (element_size + 31) / 32; }
+
+  DynamicBitset() : size_(0), buffer_size_(0), data_(nullptr), is_internal_(true) {}
+
+  DynamicBitset(int size, uint32_t* data = nullptr)
+      : size_(size), buffer_size_(CalculateBufferSize(size)) {
+    if (data == nullptr) {
+      internal_buffer_.resize(buffer_size_, 0);
+      data_ = internal_buffer_.data();
+      is_internal_ = true;
+    } else {
+      data_ = data;
+      is_internal_ = false;
+    }
   }
 
-  static int CalculateBufferSize(int element_cnt) { return (element_cnt + 31) / 32; }
+  DynamicBitset& operator=(const DynamicBitset& other) {
+    DCHECK(is_internal_ || size_ >= other.size_) << "Expanding bitset size is not allowed when the "
+                                                    "memory of the bitset is externally managed";
+    size_ = other.size_;
+    buffer_size_ = other.buffer_size_;
+    if (is_internal_) {
+      internal_buffer_.reserve(buffer_size_);
+      data_ = internal_buffer_.data();
+    }
+    if (data_ != other.data_) {
+      std::memcpy(data_, other.data_, buffer_size_ * sizeof(uint32_t));
+    }
+    return *this;
+  }
+
+  DynamicBitset& operator=(DynamicBitset&& other) {
+    size_ = other.size_;
+    buffer_size_ = other.buffer_size_;
+    is_internal_ = other.is_internal_;
+    if (is_internal_) {
+      internal_buffer_ = std::move(other.internal_buffer_);
+      data_ = internal_buffer_.data();
+    } else {
+      data_ = other.data_;
+    }
+    return *this;
+  }
 
   bool operator[](int index) const {
-    DCHECK(index >= 0 && index < element_cnt_);
+    DCHECK(data_ && index >= 0 && index < size_);
     return (data_[index / 32] >> (index % 32)) & 1;
   }
 
+  int Size() const { return size_; }
+
   void Set(int index, bool value) {
-    DCHECK(index >= 0 && index < element_cnt_);
+    DCHECK(data_ && index >= 0 && index < size_);
     if (value) {
       data_[index / 32] |= 1 << (index % 32);
     } else {
@@ -39,14 +81,30 @@ class BitsetManager {
     }
   }
 
-  void Reset(bool value) { std::memset(data_, value ? 0xFF : 0, buffer_size_ * sizeof(uint32_t)); }
+  void Set() {
+    DCHECK(data_);
+    std::memset(data_, 0xFF, buffer_size_ * sizeof(uint32_t));
+  }
 
-  int GetElementCnt() const { return element_cnt_; }
+  void Reset() {
+    DCHECK(data_);
+    std::memset(data_, 0, buffer_size_ * sizeof(uint32_t));
+  }
+
+  DynamicBitset& operator|=(const DynamicBitset& other) {
+    DCHECK(buffer_size_ <= other.buffer_size_);
+    for (int i = 0; i < buffer_size_; ++i) {
+      data_[i] |= other.data_[i];
+    }
+    return *this;
+  }
 
  private:
-  uint32_t* const data_;
-  const int buffer_size_;
-  const int element_cnt_;
+  int size_;
+  int buffer_size_;
+  uint32_t* data_;
+  std::vector<uint32_t> internal_buffer_;
+  bool is_internal_;
 };
 
 /*!

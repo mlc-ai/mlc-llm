@@ -62,8 +62,12 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
   std::string PrintRuleExpr(int32_t rule_expr_id);
 
  private:
+  /*! \brief Print a RuleExpr for byte string. */
+  std::string PrintByteString(const RuleExpr& rule_expr);
   /*! \brief Print a RuleExpr for character class. */
   std::string PrintCharacterClass(const RuleExpr& rule_expr);
+  /*! \brief Print a RuleExpr for a star quantifier of a character class. */
+  std::string PrintCharacterClassStar(const RuleExpr& rule_expr);
   /*! \brief Print a RuleExpr for empty string. */
   std::string PrintEmptyStr(const RuleExpr& rule_expr);
   /*! \brief Print a RuleExpr for rule reference. */
@@ -72,8 +76,6 @@ class BNFGrammarPrinter : public BNFGrammarSerializer {
   std::string PrintSequence(const RuleExpr& rule_expr);
   /*! \brief Print a RuleExpr for rule_expr choices. */
   std::string PrintChoices(const RuleExpr& rule_expr);
-  /*! \brief Print a RuleExpr for star quantifier. */
-  std::string PrintCharacterClassStar(const RuleExpr& rule_expr);
 };
 
 /*!
