@@ -218,11 +218,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
           hidden_states, hidden_states_positions_for_fully_accepted,
           &model_workspaces_[draft_model_id_].hidden_states);
       // - Invoke model decode.
-      ObjectRef fused_embedding_hidden_states =
-          models_[draft_model_id_]->FuseEmbedHidden(embeddings, hidden_states_for_fully_accepted,
-                                                    /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+      ObjectRef fused_embedding_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
+          embeddings, hidden_states_for_fully_accepted,
+          /*batch_size*/ fully_accepted_rsentries.size(), /*seq_len*/ 1);
       hidden_states_for_fully_accepted = models_[draft_model_id_]->BatchDecodeToLastHidden(
-          fused_embedding_hidden_states, request_internal_ids);
+          fused_embedding_hidden_states, fully_accepted_request_internal_ids);
       // - We explicitly synchronize to avoid the input tokens getting overriden in the
       // next runs of BatchDecode.
       // This is because we do not do sample for this round of batch decode.
