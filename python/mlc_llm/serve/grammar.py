@@ -1,6 +1,6 @@
 """Classes handling the grammar guided generation of MLC LLM serving"""
 
-from typing import List, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import tvm
 import tvm._ffi
@@ -22,19 +22,20 @@ class BNFGrammar(Object):
     def from_ebnf_string(
         ebnf_string: str,
         main_rule: str = "main",
-        normalize: bool = True,
-        simplify: bool = True,
     ) -> "BNFGrammar":
-        r"""Parse a BNF grammar from a string in BNF/EBNF format.
+        r"""Construct a BNF grammar with a EBNF-formatted string. The grammar will be normalized
+        (simplified) by default.
 
-        This method accepts the EBNF notation from the W3C XML Specification
-        (https://www.w3.org/TR/xml/#sec-notation), which is a popular standard, with the following
-        changes:
-        - Using # as comment mark instead of /**/
-        - Using C-style unicode escape sequence \u01AB, \U000001AB, \xAB instead of #x0123
-        - Do not support A-B (match A and not match B) yet
-
-        See tests/python/serve/json.ebnf for an example.
+        EBNF grammar: see https://www.w3.org/TR/xml/#sec-notation. Note:
+        1. Use # as the comment mark
+        2. Use C-style unicode escape sequence \u01AB, \U000001AB, \xAB
+        3. A-B (match A and not match B) is not supported yet
+        4. Lookahead assertion can be added at the end of a rule to speed up matching. E.g.
+        ```
+        main ::= "ab" a [a-z]
+        a ::= "cd" (=[a-z])
+        ```
+        The assertion (=[a-z]) means a must be followed by [a-z].
 
         Parameters
         ----------
@@ -44,28 +45,13 @@ class BNFGrammar(Object):
         main_rule : str
             The name of the main rule. Default: "main".
 
-        normalize : bool
-            Whether to normalize the grammar. Default: true. Only set to false for the purpose of
-            testing.
-
-            In The normalized form of a BNF grammar, every rule is in the form:
-            `rule_name ::= ("" | (element1_1 element1_2 ...) | (element2_1 element2_2 ...) | ...)`.
-
-            I.e. a list of choices, each choice is a sequence of elements. Elements can be a
-            character class or a rule reference. And if the rule can be empty, the first choice
-            will be an empty string.
-
-        simplify : bool
-            Whether to simplify the grammar to make matching more efficient. Default: true. Not
-            implemented yet.
-
         Returns
         -------
         grammar : BNFGrammar
             The parsed BNF grammar.
         """
         return _ffi_api.BNFGrammarFromEBNFString(  # type: ignore  # pylint: disable=no-member
-            ebnf_string, main_rule, normalize, simplify
+            ebnf_string, main_rule
         )
 
     def to_string(self) -> str:
@@ -168,6 +154,31 @@ class BNFGrammar(Object):
         return _ffi_api.BNFGrammarGetGrammarOfJSON()  # type: ignore  # pylint: disable=no-member
 
     @staticmethod
+    def debug_from_ebnf_string_no_normalize(
+        ebnf_string: str,
+        main_rule: str = "main",
+    ) -> "BNFGrammar":
+        r"""Construct a BNF grammar with a EBNF-formatted string, but not normalize it.
+        For test purposes.
+
+        Parameters
+        ----------
+        ebnf_string : str
+            The grammar string.
+
+        main_rule : str
+            The name of the main rule. Default: "main".
+
+        Returns
+        -------
+        grammar : BNFGrammar
+            The parsed BNF grammar.
+        """
+        return _ffi_api.BNFGrammarDebugFromEBNFStringNoNormalize(  # type: ignore  # pylint: disable=no-member
+            ebnf_string, main_rule
+        )
+
+    @staticmethod
     def debug_json_schema_to_ebnf(
         schema: str,
         *,
@@ -235,6 +246,11 @@ class GrammarStateMatcher(Object):
 
     max_rollback_steps : int
         The maximum number of steps to rollback when backtracking. Default: 0.
+
+    token_table_postproc_method : Literal["byte_fallback", "byte_level"]
+        A helper parameter for the tokenizer. Only useful when the tokenizer is specified.
+        The method to postprocess the token table. For LLaMA and LLaMA-2 tokenizer, use
+        "byte_fallback"; for LLaMA-3 tokenizer, use "byte_level". Default: "byte_fallback".
     """
 
     def __init__(
@@ -242,6 +258,7 @@ class GrammarStateMatcher(Object):
         grammar: BNFGrammar,
         tokenizer: Union[None, Tokenizer, List[str]] = None,
         max_rollback_steps: int = 0,
+        token_table_postproc_method: Literal["byte_fallback", "byte_level"] = "byte_fallback",
     ):
         if isinstance(tokenizer, list):
             self.__init_handle_by_constructor__(
@@ -256,6 +273,7 @@ class GrammarStateMatcher(Object):
                 grammar,
                 tokenizer,
                 max_rollback_steps,
+                token_table_postproc_method,
             )
 
     def accept_token(self, token_id: int) -> bool:
@@ -346,7 +364,7 @@ class GrammarStateMatcher(Object):
         """
         return _ffi_api.GrammarStateMatcherIsTerminated(self)  # type: ignore  # pylint: disable=no-member
 
-    def debug_accept_char(self, codepoint: int) -> bool:
+    def debug_accept_char(self, codepoint: int, verbose: bool = False) -> bool:
         """Accept one unicode codepoint to the current state. For test purposes.
 
         Parameters
@@ -354,11 +372,11 @@ class GrammarStateMatcher(Object):
         codepoint : int
             The unicode codepoint of the character to be accepted.
         """
-        return _ffi_api.GrammarStateMatcherDebugAcceptCodepoint(  # type: ignore  # pylint: disable=no-member
-            self, codepoint
+        return _ffi_api.GrammarStateMatcherDebugAcceptChar(  # type: ignore  # pylint: disable=no-member
+            self, codepoint, verbose
         )
 
-    def debug_match_complete_string(self, string: str) -> bool:
+    def debug_match_complete_string(self, string: str, verbose: bool = False) -> bool:
         """Check if the matcher can accept the complete string, and then reach the end of the
         grammar. Does not change the state of the GrammarStateMatcher. For test purposes.
 
@@ -367,4 +385,4 @@ class GrammarStateMatcher(Object):
         string : str
             The string to be matched.
         """
-        return _ffi_api.GrammarStateMatcherDebugMatchCompleteString(self, string)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.GrammarStateMatcherDebugMatchCompleteString(self, string, verbose)  # type: ignore  # pylint: disable=no-member

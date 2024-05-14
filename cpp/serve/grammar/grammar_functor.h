@@ -1,11 +1,11 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/grammar/grammar_simplifier.h
+ * \file serve/grammar/grammar_functor.h
  * \brief The header for the simplification of the BNF AST.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SIMPLIFIER_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SIMPLIFIER_H_
+#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_
+#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_
 
 #include <queue>
 #include <string>
@@ -27,29 +27,44 @@ namespace serve {
  * are void (for visitor) and BNFGrammar (for mutator).
  */
 template <typename T = int32_t, typename ReturnType = BNFGrammar>
-class BNFGrammarMutator {
+class BNFGrammarFunctor {
  public:
   /*!
    * \brief Constructor.
    * \param grammar The grammar to visit or mutate.
    */
-  explicit BNFGrammarMutator(const BNFGrammar& grammar) : grammar_(grammar) {}
+  explicit BNFGrammarFunctor() {}
 
   /*!
    * \brief Apply the transformation to the grammar, or visit the grammar.
    * \return The transformed grammar, or the visiting result, or void.
-   * \note Should be called only once after the mutator is constructed.
    */
-  virtual ReturnType Apply() {
-    if constexpr (std::is_same<T, int32_t>::value && std::is_same<ReturnType, BNFGrammar>::value) {
+  virtual ReturnType Apply(const BNFGrammar& grammar) {
+    Init(grammar);
+    if constexpr (std::is_same<T, void>::value) {
       for (int i = 0; i < static_cast<int>(grammar_->NumRules()); ++i) {
         auto rule = grammar_->GetRule(i);
-        auto rule_expr = grammar_->GetRuleExpr(rule.body_expr_id);
-        auto new_body_expr_id = VisitExpr(rule_expr);
-        builder_.AddRule(rule.name, new_body_expr_id);
+        cur_rule_name_ = rule.name;
+        VisitExpr(rule.body_expr_id);
+        VisitLookaheadAssertion(rule.lookahead_assertion_id);
+      }
+    } else if constexpr (std::is_same<T, int32_t>::value &&
+                         std::is_same<ReturnType, BNFGrammar>::value) {
+      // First add empty rules to ensure the new rule ids the same as the old ones, then update
+      // the rule bodies
+      for (int i = 0; i < static_cast<int>(grammar_->NumRules()); ++i) {
+        builder_.AddEmptyRule(grammar_->GetRule(i).name);
+      }
+      for (int i = 0; i < static_cast<int>(grammar_->NumRules()); ++i) {
+        auto rule = grammar_->GetRule(i);
+        cur_rule_name_ = rule.name;
+        auto new_body_expr_id = VisitExpr(rule.body_expr_id);
+        builder_.UpdateRuleBody(i, new_body_expr_id);
+        // Handle lookahead assertion
+        builder_.AddLookaheadAssertion(i, VisitLookaheadAssertion(rule.lookahead_assertion_id));
       }
       return builder_.Get(grammar_->GetMainRule().name);
-    } else if constexpr (!std::is_same<ReturnType, void>::value) {
+    } else {
       return ReturnType();
     }
   }
@@ -58,6 +73,25 @@ class BNFGrammarMutator {
   using Rule = BNFGrammarNode::Rule;
   using RuleExpr = BNFGrammarNode::RuleExpr;
   using RuleExprType = BNFGrammarNode::RuleExprType;
+
+  /*! \brief Initialize the functor. Should be called at the beginning of Apply(). */
+  virtual void Init(const BNFGrammar& grammar) {
+    grammar_ = grammar;
+    builder_ = BNFGrammarBuilder();
+  }
+
+  /*! \brief Visit a lookahead assertion expr referred by id. */
+  virtual T VisitLookaheadAssertion(int32_t lookahead_assertion_id) {
+    if (lookahead_assertion_id == -1) {
+      return -1;
+    }
+    return VisitExpr(lookahead_assertion_id);
+  }
+
+  /*! \brief Visit a RuleExpr by id. */
+  virtual T VisitExpr(int32_t old_rule_expr_id) {
+    return VisitExpr(grammar_->GetRuleExpr(old_rule_expr_id));
+  }
 
   /*! \brief Visit a RuleExpr. Dispatch to the corresponding Visit function. */
   virtual T VisitExpr(const RuleExpr& rule_expr) {
@@ -68,32 +102,16 @@ class BNFGrammarMutator {
         return VisitChoices(rule_expr);
       case RuleExprType::kEmptyStr:
         return VisitEmptyStr(rule_expr);
+      case RuleExprType::kByteString:
+        return VisitByteString(rule_expr);
       case RuleExprType::kCharacterClass:
-      case RuleExprType::kNegCharacterClass:
         return VisitCharacterClass(rule_expr);
-      case RuleExprType::kRuleRef:
-        return VisitRuleRef(rule_expr);
       case RuleExprType::kCharacterClassStar:
         return VisitCharacterClassStar(rule_expr);
+      case RuleExprType::kRuleRef:
+        return VisitRuleRef(rule_expr);
       default:
         LOG(FATAL) << "Unexpected sequence type: " << static_cast<int>(rule_expr.type);
-    }
-  }
-
-  /*! \brief Visit a sequence RuleExpr. */
-  virtual T VisitSequence(const RuleExpr& rule_expr) {
-    if constexpr (std::is_same<T, void>::value) {
-      for (auto i : rule_expr) {
-        VisitExpr(grammar_->GetRuleExpr(i));
-      }
-    } else if constexpr (std::is_same<T, int32_t>::value) {
-      std::vector<T> sequence_ids;
-      for (int32_t i : rule_expr) {
-        sequence_ids.push_back(VisitExpr(grammar_->GetRuleExpr(i)));
-      }
-      return builder_.AddSequence(sequence_ids);
-    } else {
-      return T();
     }
   }
 
@@ -101,14 +119,31 @@ class BNFGrammarMutator {
   virtual T VisitChoices(const RuleExpr& rule_expr) {
     if constexpr (std::is_same<T, void>::value) {
       for (auto i : rule_expr) {
-        VisitExpr(grammar_->GetRuleExpr(i));
+        VisitExpr(i);
       }
     } else if constexpr (std::is_same<T, int32_t>::value) {
       std::vector<int32_t> choice_ids;
       for (int32_t i : rule_expr) {
-        choice_ids.push_back(VisitExpr(grammar_->GetRuleExpr(i)));
+        choice_ids.push_back(VisitExpr(i));
       }
       return builder_.AddChoices(choice_ids);
+    } else {
+      return T();
+    }
+  }
+
+  /*! \brief Visit a sequence RuleExpr. */
+  virtual T VisitSequence(const RuleExpr& rule_expr) {
+    if constexpr (std::is_same<T, void>::value) {
+      for (auto i : rule_expr) {
+        VisitExpr(i);
+      }
+    } else if constexpr (std::is_same<T, int32_t>::value) {
+      std::vector<T> sequence_ids;
+      for (int32_t i : rule_expr) {
+        sequence_ids.push_back(VisitExpr(i));
+      }
+      return builder_.AddSequence(sequence_ids);
     } else {
       return T();
     }
@@ -129,21 +164,16 @@ class BNFGrammarMutator {
   virtual T VisitEmptyStr(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
 
   /*! \brief Visit a character class RuleExpr. */
+  virtual T VisitByteString(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
+
+  /*! \brief Visit a character class RuleExpr. */
   virtual T VisitCharacterClass(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
+
+  /*! \brief Visit a star quantifier RuleExpr. */
+  virtual T VisitCharacterClassStar(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
 
   /*! \brief Visit a rule reference RuleExpr. */
   virtual T VisitRuleRef(const RuleExpr& rule_expr) { return VisitElement(rule_expr); }
-
-  /*! \brief Visit a star quantifier RuleExpr. */
-  virtual T VisitCharacterClassStar(const RuleExpr& rule_expr) {
-    if constexpr (std::is_same<T, void>::value) {
-      VisitExpr(grammar_->GetRuleExpr(rule_expr[0]));
-    } else if constexpr (std::is_same<T, int32_t>::value) {
-      return builder_.AddCharacterClassStar(VisitExpr(grammar_->GetRuleExpr(rule_expr[0])));
-    } else {
-      return T();
-    }
-  }
 
   /*! \brief The grammar to visit or mutate. */
   BNFGrammar grammar_;
@@ -152,33 +182,38 @@ class BNFGrammarMutator {
    * can be used to build a new grammar in subclasses.
    */
   BNFGrammarBuilder builder_;
+  /*! \brief The name of the current rule being visited. */
+  std::string cur_rule_name_;
 };
 
 /*!
- * \brief Unwrap the rules containing nested expressions. After unwrapping, each rule will be in
- * the form: `rule_name ::= ("" | (element1_1 element1_2 ...) | (element2_1 element2_2 ...) | ...)`.
- *
- * I.e. a list of choices, each choice is a sequence of elements. Elements can be a character class
- * or a rule reference. And if the rule can be empty, the first choice will be an empty string.
- *
- * \example The rule `A ::= ((a) (((b)) (c)) "")` will be replaced by `A ::= ((a b c))`. One choice
- * containing a sequence of three elements. The empty string is removed.
- * \example The rule `A ::= (a | (b | (c | "")))` will be replaced by
- * `A ::= ("" | (a) | (b) | (c))`. The first choice is an empty string, and each of the other three
- * choices is a sequence containing a single element.
- * \example The rule `A ::= (a | (b (c | d)))` will be replaced by
- * `A ::= ((a) | (b B)), B ::= ((c) | (d))`. A new rule B is created to represent the nested
- * choices.
+ * \brief Visitor of BNFGrammar.
+ * \tparam ReturnType The return type of the Apply() function. Denotes the collected information.
  */
-class NestedRuleUnwrapper : public BNFGrammarMutator<int32_t, BNFGrammar> {
+template <typename ReturnType>
+using BNFGrammarVisitor = BNFGrammarFunctor<void, ReturnType>;
+
+/*!
+ * \brief Mutator of BNFGrammar. The Apply() function returns the updated grammar.
+ */
+using BNFGrammarMutator = BNFGrammarFunctor<int32_t, BNFGrammar>;
+
+/*!
+ * \brief Normalize a BNFGrammar: expand the nested rules, combine consequent sequences and strings,
+ * etc.
+ */
+class BNFGrammarNormalizer : public BNFGrammarMutator {
  public:
   using BNFGrammarMutator::BNFGrammarMutator;
 
-  BNFGrammar Apply() final;
+  BNFGrammar Apply(const BNFGrammar& grammar) final;
+
+ private:
+  std::vector<std::unique_ptr<BNFGrammarMutator>> GetNormalizerList();
 };
 
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SIMPLIFIER_H_
+#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_

@@ -130,14 +130,13 @@ class GrammarStateMatcher : public ObjectRef {
 };
 
 /*!
- * \brief Helper class to get the grammar state init context for grammars or schemas. This class
- * maintains cache internally, so the same grammar or schema will not be preprocessed multiple
- * times.
+ * \brief A cache to get the grammar state init context for grammar or schema. This class avoids
+ * redundant preprocessing of the grammar or schema when constructing a GrammarStateInitContext.
  * \note This class is associated with a token table when constructed. The token table is used to
  * create every grammar state init context. If multiple toke tables are used to create init
  * contexts, an instance of this class for each token table should be created.
  */
-class GrammarInitContextStorageNode : public Object {
+class GrammarInitContextCacheNode : public Object {
  public:
   /*! \brief Get the init context for pure JSON. */
   virtual std::shared_ptr<GrammarStateInitContext> GetInitContextForJSON() = 0;
@@ -147,25 +146,25 @@ class GrammarInitContextStorageNode : public Object {
       const std::string& schema) = 0;
 
   /*! \brief Clear the interal cache of init contexts. */
-  virtual void ClearCache() = 0;
+  virtual void Clear() = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.GrammarInitContextStorageNode";
+  static constexpr const char* _type_key = "mlc.serve.GrammarInitContextCacheNode";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(GrammarInitContextStorageNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(GrammarInitContextCacheNode, Object);
 };
 
-class GrammarInitContextStorage : public ObjectRef {
+class GrammarInitContextCache : public ObjectRef {
  public:
   /*!
-   * \brief Construct a GrammarInitContextStorage with a token table. This class will always create
+   * \brief Construct a GrammarInitContextCache with a token table. This class will always create
    * grammar state init contexts with this token table.
    * \param token_table The token table that the grammar will use.
    */
-  GrammarInitContextStorage(const std::vector<std::string>& token_table);
+  GrammarInitContextCache(const std::vector<std::string>& token_table);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(GrammarInitContextStorage, ObjectRef,
-                                        GrammarInitContextStorageNode);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(GrammarInitContextCache, ObjectRef,
+                                        GrammarInitContextCacheNode);
 };
 
 }  // namespace serve

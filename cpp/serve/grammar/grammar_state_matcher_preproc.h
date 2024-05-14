@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "../../support/encoding.h"
+#include "../../support/utils.h"
 #include "grammar.h"
 #include "grammar_state_matcher_base.h"
 
@@ -18,34 +19,47 @@ namespace serve {
 
 using namespace tvm::runtime;
 
-/*! \brief A token and its id. */
-struct TokenAndId {
-  std::vector<TCodepoint> token;
-  int32_t id;
-  /*! \brief Compare tokens by their unicode codepoint sequence. */
-  bool operator<(const TokenAndId& other) const;
-};
-
 /*!
- * \brief Preprocessed information, for a given specific rule and position, divides the token set
+ * \brief Preprocessed information, for a given specific RulePosition, divides the token set
  * into three categories: accepted, rejected, and uncertain.
- * \note Since the union of these three sets is the whole token set, we only need to store the
- * smaller two sets. The unsaved set is specified by not_saved_index.
- * \note These indices are the indices of sorted_token_codepoints in the GrammarStateInitContext
+ * Accepted: tokens that can be determined by the current RulePosition to be acceptable
+ * Rejected: tokens that can be determined by the current RulePosition to be unacceptable
+ * Uncertain: tokens that need the state of the parent RulePositions to determine if acceptable
+ *
+ * \note uncertain indices are stored directly. Accepted / rejected indices have three ways to
+ * store to reduce memory and computation usage. See SaveType.
+ * \note These indices are the indices of sorted_token_table in the GrammarStateInitContext
  * object, instead of the token ids. That helps the matching process.
  */
 struct CatagorizedTokens {
+  enum class SaveType {
+    // Only store all accepted token indices. Then rejected indices = all_indices - accepted_indices
+    // - uncertain_indices. This is useful when |accepted_indices| < |rejected_indices|.
+    kAccepted = 0,
+    // Only store all accepted token indices. Then accepted indices = all_indices - rejected_indices
+    // - uncertain_indices. This is useful when |accepted_indices| > |rejected_indices|.
+    kRejected = 1,
+    // Store all accepted token indices in a bitset. This is useful when both |accepted_indices| and
+    // |rejected_indices| are large.
+    kAcceptedBitset = 2
+  };
+  SaveType save_type;
+
+  static constexpr int USE_BITSET_THRESHOLD = 200;
+
   std::vector<int32_t> accepted_indices;
   std::vector<int32_t> rejected_indices;
+  DynamicBitset accepted_bitset;
+
   std::vector<int32_t> uncertain_indices;
-  enum class NotSavedIndex { kAccepted = 0, kRejected = 1, kUncertain = 2 };
-  NotSavedIndex not_saved_index;
 
   CatagorizedTokens() = default;
 
-  CatagorizedTokens(std::vector<int32_t>&& accepted_indices,
-                    std::vector<int32_t>&& rejected_indices,
-                    std::vector<int32_t>&& uncertain_indices);
+  CatagorizedTokens(int vocab_size,
+                    const std::vector<std::pair<int32_t, std::string>>& sorted_token_table,
+                    const std::vector<int32_t>& accepted_indices,
+                    const std::vector<int32_t>& rejected_indices,
+                    const std::vector<int32_t>& uncertain_indices);
 };
 
 /*!
@@ -57,189 +71,227 @@ class GrammarStateInitContext {
  public:
   /******************* Information about the tokenizer *******************/
 
-  /*! \brief The token table. Now only used for debug purpose. */
-  std::vector<std::string> token_table;
-  /*! \brief The vocabulary size of the tokenizer. */
+  /*! \brief The vocabulary size of the tokenizer. Special tokens are included. */
   size_t vocab_size;
-  /*! \brief All tokens represented by the id and codepoints of each. The tokens are sorted by
-   * codepoint values to reuse the common prefix during matching. */
-  std::vector<TokenAndId> sorted_token_codepoints;
-  /*! \brief The mapping from token id to token represented by codepoints. Only contains
-   * non-special and non-stop tokens. */
-  std::unordered_map<int32_t, TokenAndId> id_to_token_codepoints;
-  /*! \brief The stop tokens. They can be accepted iff GramamrMatcher can reach the end of the
-   * grammar. */
+  /*! \brief The token table. Special tokens are included. */
+  std::vector<std::string> token_table;
+  /*! \brief All (id, token) pairs sorted in lexicographic order. This sorting is done to
+   * maximize prefix reuse during matching. Special tokens and stop tokens are not included. */
+  std::vector<std::pair<int32_t, std::string>> sorted_token_table;
+  /*! \brief The stop tokens. When the GrammarStateMatcher can reach the end of the= grammar,
+   * stop tokens can be accepted. */
   std::vector<int32_t> stop_token_ids;
-  /*! \brief The special tokens. Currently we will ignore these tokens during grammar-guided
-   * matching. */
-  std::vector<int32_t> special_token_ids;
+  /*! \brief The special tokens. These tokens are ignored (masked out) during the grammar-guided
+   * generation. */
+  std::unordered_set<int32_t> special_token_ids;
 
   /******************* Information about the grammar *******************/
 
+  /*! \brief The grammar for the GrammarStateMatcher. */
   BNFGrammar grammar;
 
   /******************* Grammar-specific tokenizer information *******************/
 
-  /*! \brief A sequence id and its position. */
-  struct SequenceIdAndPosition {
-    int32_t sequence_id;
-    int32_t element_id;
-    bool operator==(const SequenceIdAndPosition& other) const {
-      return sequence_id == other.sequence_id && element_id == other.element_id;
+  struct RulePositionEqual {
+    std::size_t operator()(const RulePosition& lhs, const RulePosition& rhs) const noexcept {
+      return lhs.sequence_id == rhs.sequence_id && lhs.element_id == rhs.element_id &&
+             lhs.left_utf8_bytes == rhs.left_utf8_bytes &&
+             lhs.element_in_string == rhs.element_in_string;
     }
   };
 
-  /*! \brief Hash function for SequenceIdAndPosition. */
-  struct SequenceIdAndPositionHash {
-    std::size_t operator()(const SequenceIdAndPosition& k) const {
-      return std::hash<int32_t>()(k.sequence_id) ^ (std::hash<int32_t>()(k.element_id) << 1);
+  struct RulePositionHash {
+    std::size_t operator()(const RulePosition& rule_position) const noexcept {
+      return HashCombine(rule_position.sequence_id, rule_position.element_id,
+                         rule_position.left_utf8_bytes, rule_position.element_in_string);
     }
   };
 
-  /*! \brief Mapping from sequence id and its position to the catagorized tokens. */
-  std::unordered_map<SequenceIdAndPosition, CatagorizedTokens, SequenceIdAndPositionHash>
+  /*! \brief Mapping from RulePositions to the catagorized tokens. */
+  std::unordered_map<RulePosition, CatagorizedTokens, RulePositionHash, RulePositionEqual>
       catagorized_tokens_for_grammar;
 };
 
-/* \brief The concrete implementation of GrammarStateMatcherNode. */
+/*! \brief The concrete implementation of GrammarStateMatcherNode. */
 class GrammarStateMatcherForInitContext : public GrammarStateMatcherBase {
  public:
+  // Do not expand the initial rule position: we want to find the accepted/rejected tokens
+  // that exactly start from the initial rule position.
   GrammarStateMatcherForInitContext(const BNFGrammar& grammar, RulePosition init_rule_position)
-      : GrammarStateMatcherBase(grammar, init_rule_position) {}
+      : GrammarStateMatcherBase(grammar, init_rule_position, false),
+        init_rule_id(init_rule_position.rule_id) {}
 
-  CatagorizedTokens GetCatagorizedTokens(const std::vector<TokenAndId>& sorted_token_codepoints,
-                                         bool is_main_rule);
+  /*!
+   * \brief Get the catagorized tokens for the given RulePosition.
+   * \param consider_parent_rule Whether to consider the parent rule. If false, there will be
+   * no uncertain tokens. Useful for the main rule.
+   */
+  CatagorizedTokens GetCatagorizedTokens(
+      int vocab_size, const std::vector<std::pair<int32_t, std::string>>& sorted_token_table,
+      bool consider_parent_rule);
 
  private:
   using RuleExpr = BNFGrammarNode::RuleExpr;
   using RuleExprType = BNFGrammarNode::RuleExprType;
 
+  /*! \brief Check if a token can pass the lookahead assertion. */
+  bool IsTokenPassLookaheadAssertion(const std::string& token,
+                                     const std::vector<bool>& can_reach_end_stack);
+
+  // The id of the initial rule.
+  int32_t init_rule_id;
+
   // Temporary data for GetCatagorizedTokens.
   std::vector<int32_t> tmp_accepted_indices_;
   std::vector<int32_t> tmp_rejected_indices_;
   std::vector<int32_t> tmp_uncertain_indices_;
-  std::vector<bool> tmp_can_see_end_stack_;
+  std::vector<bool> tmp_can_reach_end_stack_;
+  std::vector<bool> tmp_can_reach_end_prefix_or_stack_;
 };
 
-inline bool TokenAndId::operator<(const TokenAndId& other) const {
-  for (size_t i = 0; i < token.size(); ++i) {
-    if (i >= other.token.size()) {
-      return false;
-    }
-    if (token[i] < other.token[i]) {
-      return true;
-    } else if (token[i] > other.token[i]) {
-      return false;
-    }
-  }
-  return token.size() < other.token.size();
-}
-
-inline CatagorizedTokens::CatagorizedTokens(std::vector<int32_t>&& accepted_indices,
-                                            std::vector<int32_t>&& rejected_indices,
-                                            std::vector<int32_t>&& uncertain_indices) {
+inline CatagorizedTokens::CatagorizedTokens(
+    int vocab_size, const std::vector<std::pair<int32_t, std::string>>& sorted_token_table,
+    const std::vector<int32_t>& accepted_indices, const std::vector<int32_t>& rejected_indices,
+    const std::vector<int32_t>& uncertain_indices) {
   auto size_acc = accepted_indices.size();
   auto size_rej = rejected_indices.size();
-  auto size_unc = uncertain_indices.size();
-  not_saved_index =
-      (size_acc >= size_rej && size_acc >= size_unc)
-          ? NotSavedIndex::kAccepted
-          : (size_rej >= size_unc ? NotSavedIndex::kRejected : NotSavedIndex::kUncertain);
 
-  if (not_saved_index != NotSavedIndex::kAccepted) {
-    this->accepted_indices = std::move(accepted_indices);
+  save_type = size_acc >= USE_BITSET_THRESHOLD && size_rej >= USE_BITSET_THRESHOLD
+                  ? SaveType::kAcceptedBitset
+              : size_acc < size_rej ? SaveType::kAccepted
+                                    : SaveType::kRejected;
+
+  if (save_type == SaveType::kAcceptedBitset) {
+    accepted_bitset = DynamicBitset(vocab_size);
+    for (auto idx : accepted_indices) {
+      accepted_bitset.Set(sorted_token_table[idx].first, true);
+    }
+  } else if (save_type == SaveType::kAccepted) {
+    this->accepted_indices = accepted_indices;
+  } else {
+    this->rejected_indices = rejected_indices;
   }
-  if (not_saved_index != NotSavedIndex::kRejected) {
-    this->rejected_indices = std::move(rejected_indices);
+
+  this->uncertain_indices = uncertain_indices;
+}
+
+bool GrammarStateMatcherForInitContext::IsTokenPassLookaheadAssertion(
+    const std::string& token, const std::vector<bool>& can_reach_end_stack) {
+  auto lookahead_assertion_id = grammar_->GetRule(init_rule_id).lookahead_assertion_id;
+  if (lookahead_assertion_id == -1) {
+    return true;
   }
-  if (not_saved_index != NotSavedIndex::kUncertain) {
-    this->uncertain_indices = std::move(uncertain_indices);
+  auto lookahead_rule_position = RulePosition(-1, lookahead_assertion_id, 0);
+  PushInitialState(lookahead_rule_position, true);
+  int token_len = token.size();
+
+  // Find all positions that can come to and end. Then check if the suffix from that position
+  // can be accepted by the lookahead assertion.
+  for (int i = static_cast<int>(can_reach_end_stack.size()); i >= 0; --i) {
+    if (!can_reach_end_stack[i]) {
+      continue;
+    }
+    int last_accept_pos = i - 1;
+    for (int pos = i; pos < token_len; ++pos) {
+      if (!AcceptChar(token[pos])) {
+        break;
+      }
+      last_accept_pos = pos;
+      // Case 1. The whole rule is finished.
+      if (CanReachEnd()) {
+        // accepted chars: pos - i + 1
+        // we need to rollback the pushed initial state as well
+        RollbackChars(pos - i + 2);
+        return true;
+      }
+    }
+    // Case 2. The whole token is accepted
+    if (last_accept_pos == token_len - 1) {
+      RollbackChars(last_accept_pos - i + 2);
+      return true;
+    }
+    // Case 3. The token is not accepted. Check the next position.
+    RollbackChars(last_accept_pos - i + 1);
   }
+
+  RollbackChars(1);
+  return false;
 }
 
 inline CatagorizedTokens GrammarStateMatcherForInitContext::GetCatagorizedTokens(
-    const std::vector<TokenAndId>& sorted_token_codepoints, bool is_main_rule) {
-  // Support the current stack contains only one stack with one RulePosition.
-  // Iterate over all tokens. Split them into three categories:
-  // - accepted_indices: If a token is accepted by current rule
-  // - rejected_indices: If a token is rejected by current rule
-  // - uncertain_indices: If a prefix of a token is accepted by current rule and comes to the end
-  // of the rule.
-
-  // Note many tokens may contain the same prefix, so we will avoid unnecessary matching
-
+    int vocab_size, const std::vector<std::pair<int32_t, std::string>>& sorted_token_table,
+    bool consider_parent_rule) {
   tmp_accepted_indices_.clear();
   tmp_rejected_indices_.clear();
   tmp_uncertain_indices_.clear();
+
   // For every character in the current token, stores whether it is possible to reach the end of
-  // the rule when matching until this character. Useful for rollback.
-  tmp_can_see_end_stack_.assign({CanReachEnd()});
+  // the rule when matching until this character. Store it in a stack for later rollback.
+  tmp_can_reach_end_stack_.assign({CanReachEnd()});
+  tmp_can_reach_end_prefix_or_stack_.assign({tmp_can_reach_end_stack_.back()});
 
   int prev_matched_size = 0;
-  for (int i = 0; i < static_cast<int>(sorted_token_codepoints.size()); ++i) {
-    const auto& token = sorted_token_codepoints[i].token;
-    const auto* prev_token = i > 0 ? &sorted_token_codepoints[i - 1].token : nullptr;
+  for (int i = 0; i < static_cast<int>(sorted_token_table.size()); ++i) {
+    const auto& token = sorted_token_table[i].second;
 
-    // Find the longest common prefix with the accepted part of the previous token.
-    auto prev_useful_size = 0;
-    if (prev_token) {
-      prev_useful_size = std::min(prev_matched_size, static_cast<int>(token.size()));
-      for (int j = 0; j < prev_useful_size; ++j) {
-        if (token[j] != (*prev_token)[j]) {
-          prev_useful_size = j;
+    bool accepted = true;
+
+    // Many tokens may contain the same prefix, so we will avoid unnecessary matching
+    // by finding the longest common prefix with the previous token.
+    if (i > 0) {
+      const auto& prev_token = sorted_token_table[i - 1].second;
+      int lcp_len =
+          std::mismatch(token.begin(), token.end(), prev_token.begin(), prev_token.end()).first -
+          token.begin();
+      if (lcp_len > prev_matched_size) {
+        // Case 1. The common prefix is rejected by the matcher in the last token. Reject directly.
+        accepted = false;
+      } else if (lcp_len < prev_matched_size) {
+        // Case 2. The common prefix is shorter than the previous matched size. Rollback
+        // the non-common part.
+        RollbackChars(prev_matched_size - lcp_len);
+        tmp_can_reach_end_stack_.erase(
+            tmp_can_reach_end_stack_.end() - (prev_matched_size - lcp_len),
+            tmp_can_reach_end_stack_.end());
+        tmp_can_reach_end_prefix_or_stack_.erase(
+            tmp_can_reach_end_prefix_or_stack_.end() - (prev_matched_size - lcp_len),
+            tmp_can_reach_end_prefix_or_stack_.end());
+      }
+      prev_matched_size = std::min(prev_matched_size, lcp_len);
+    }
+
+    if (accepted) {
+      // Accept the rest chars one by one
+      for (int j = prev_matched_size; j < token.size(); ++j) {
+        if (!AcceptChar(token[j], false)) {
+          accepted = false;
           break;
         }
+        tmp_can_reach_end_stack_.push_back(CanReachEnd());
+        tmp_can_reach_end_prefix_or_stack_.push_back(tmp_can_reach_end_stack_.back() ||
+                                                     tmp_can_reach_end_prefix_or_stack_.back());
+        prev_matched_size = j + 1;
       }
-      RollbackCodepoints(prev_matched_size - prev_useful_size);
-      tmp_can_see_end_stack_.erase(
-          tmp_can_see_end_stack_.end() - (prev_matched_size - prev_useful_size),
-          tmp_can_see_end_stack_.end());
     }
 
-    // Find if the current token is accepted or rejected or uncertain.
-    bool accepted = true;
-    bool can_see_end = tmp_can_see_end_stack_.back();
-    prev_matched_size = prev_useful_size;
-    for (int j = prev_useful_size; j < token.size(); ++j) {
-      if (!AcceptCodepoint(token[j], false)) {
-        accepted = false;
-        break;
-      }
-      if (CanReachEnd()) {
-        can_see_end = true;
-      }
-      tmp_can_see_end_stack_.push_back(can_see_end);
-      prev_matched_size = j + 1;
-    }
+    bool can_reach_end = tmp_can_reach_end_prefix_or_stack_.back();
+
     if (accepted) {
       tmp_accepted_indices_.push_back(i);
-    } else if (can_see_end && !is_main_rule) {
-      // If the current rule is the main rule, there will be no uncertain indices since we will
-      // never consider its parent rule. Unaccepted tokens are just rejected.
+    } else if (can_reach_end && consider_parent_rule &&
+               IsTokenPassLookaheadAssertion(token, tmp_can_reach_end_stack_)) {
+      // 1. If the current rule is the main rule (consider_parent_rule=false), there are no
+      // uncertain tokens. Not accepted tokens are just rejected.
+      // 2. If a token cannot pass the lookahead assertion, it is rejected.
       tmp_uncertain_indices_.push_back(i);
     } else {
       tmp_rejected_indices_.push_back(i);
     }
   }
-  RollbackCodepoints(prev_matched_size);
-  return CatagorizedTokens(std::move(tmp_accepted_indices_), std::move(tmp_rejected_indices_),
-                           std::move(tmp_uncertain_indices_));
-}
-
-inline std::string ReplaceUnderscoreWithSpace(const std::string& str,
-                                              const std::string& kSpecialUnderscore) {
-  std::string res;
-  size_t pos = 0;
-  while (pos < str.size()) {
-    size_t found = str.find(kSpecialUnderscore, pos);
-    if (found == std::string::npos) {
-      res += str.substr(pos);
-      break;
-    }
-    res += str.substr(pos, found - pos) + " ";
-    pos = found + kSpecialUnderscore.size();
-  }
-  return res;
+  // Rollback the last matched part
+  RollbackChars(prev_matched_size);
+  return CatagorizedTokens(vocab_size, sorted_token_table, tmp_accepted_indices_,
+                           tmp_rejected_indices_, tmp_uncertain_indices_);
 }
 
 inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitContext(
@@ -248,87 +300,94 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
   auto ptr = std::make_shared<GrammarStateInitContext>();
 
   ptr->grammar = grammar;
-  ptr->token_table = token_table;
   ptr->vocab_size = token_table.size();
+  ptr->token_table = token_table;
 
   if (ptr->vocab_size == 0) {
     return ptr;
   }
 
   for (int i = 0; i < token_table.size(); ++i) {
-    auto token = token_table[i];
-    if (token == "<unk>" || token == "<pad>" || token == "<s>") {
-      ptr->special_token_ids.push_back(i);
-    } else if (token == "</s>") {
+    const auto& token = token_table[i];
+    // LLaMA2: </s>
+    // LLaMA3: <|end_of_text|>, <|eot_id|>
+    // Phi-2: <|endoftext|>
+    // Gemma: <eos>, <end_of_turn>
+    if (token == "</s>" || token == "<|end_of_text|>" || token == "<|eot_id|>" ||
+        token == "<|endoftext|>" || token == "<eos>" || token == "<end_of_turn>") {
       ptr->stop_token_ids.push_back(i);
-    } else if (token.size() == 1 &&
-               (static_cast<unsigned char>(token[0]) >= 128 || token[0] == 0)) {
-      // Currently we consider all tokens with one character that >= 128 as special tokens,
-      // and will ignore generating them during grammar-guided generation.
-      ptr->special_token_ids.push_back(i);
+    } else if ((token[0] == '<' && token[token.size() - 1] == '>' && token.size() >= 3) ||
+               token == "[@BOS@]") {
+      // gemma treats [@BOS@] as a special token
+      ptr->special_token_ids.insert(i);
     } else {
-      // First replace the special underscore with space.
-      auto codepoints = ParseUTF8(token.c_str());
-      DCHECK(!codepoints.empty() &&
-             codepoints[0] != static_cast<TCodepoint>(CharHandlingError::kInvalidUtf8))
-          << "Invalid token: " << token;
-      ptr->sorted_token_codepoints.push_back({codepoints, i});
-      ptr->id_to_token_codepoints[i] = {codepoints, i};
+      ptr->sorted_token_table.push_back({i, token});
     }
   }
-  std::sort(ptr->sorted_token_codepoints.begin(), ptr->sorted_token_codepoints.end());
+
+  auto f_compare_token = [](const std::pair<int32_t, std::string>& a,
+                            const std::pair<int32_t, std::string>& b) {
+    return a.second < b.second;
+  };
+  std::sort(ptr->sorted_token_table.begin(), ptr->sorted_token_table.end(), f_compare_token);
 
   // Find the corresponding catagorized tokens for:
-  // 1. All character elements in the grammar
-  // 2. All RuleRef elements that refers to a rule containing a CharacterClassStar RuleExpr.
-  for (int i = 0; i < static_cast<int>(grammar->NumRules()); ++i) {
-    auto rule = grammar->GetRule(i);
-    auto rule_expr = grammar->GetRuleExpr(rule.body_expr_id);
-    // Skip CharacterClassStar since we just handle it at the reference element during matching.
-    if (rule_expr.type == RuleExprType::kCharacterClassStar) {
-      continue;
-    }
-    DCHECK(rule_expr.type == RuleExprType::kChoices);
-    for (auto sequence_id : rule_expr) {
-      auto sequence_expr = grammar->GetRuleExpr(sequence_id);
-      if (sequence_expr.type == RuleExprType::kEmptyStr) {
+  // 1. All character class or character class star (with last_utf8_bytes=0, 1, 2, 3)
+  // 2. All byte strings (with element_in_string=0, 1, 2, ...)
+  auto main_rule_id = grammar->GetMainRuleId();
+  for (int rule_id = 0; rule_id < static_cast<int>(grammar->NumRules()); ++rule_id) {
+    auto rule = grammar->GetRule(rule_id);
+    auto rule_body = grammar->GetRuleExpr(rule.body_expr_id);
+    DCHECK(rule_body.type == RuleExprType::kChoices);
+    for (auto sequence_id : rule_body) {
+      auto sequence = grammar->GetRuleExpr(sequence_id);
+      if (sequence.type == RuleExprType::kEmptyStr) {
         continue;
       }
-      DCHECK(sequence_expr.type == RuleExprType::kSequence);
-      for (int element_id = 0; element_id < sequence_expr.size(); ++element_id) {
-        auto element_expr = grammar->GetRuleExpr(sequence_expr[element_id]);
-        auto cur_rule_position = RulePosition{i, sequence_id, element_id};
-        if (element_expr.type == RuleExprType::kRuleRef) {
-          auto ref_rule = grammar->GetRule(element_expr[0]);
-          auto ref_rule_expr = grammar->GetRuleExpr(ref_rule.body_expr_id);
-          if (ref_rule_expr.type == RuleExprType::kChoices) {
-            continue;
-          } else {
-            // Reference to a CharacterClassStar of a character class.
-            cur_rule_position.char_class_star_id = ref_rule_expr[0];
-          }
+      DCHECK(sequence.type == RuleExprType::kSequence);
+      for (int element_id = 0; element_id < sequence.size(); ++element_id) {
+        auto element = grammar->GetRuleExpr(sequence[element_id]);
+        if (element.type == RuleExprType::kRuleRef) {
+          continue;
         }
 
-        auto grammar_state_matcher = GrammarStateMatcherForInitContext(grammar, cur_rule_position);
-        auto cur_catagorized_tokens_for_grammar =
-            grammar_state_matcher.GetCatagorizedTokens(ptr->sorted_token_codepoints, i == 0);
-        ptr->catagorized_tokens_for_grammar[{sequence_id, element_id}] =
-            cur_catagorized_tokens_for_grammar;
+        auto add_catagorized_tokens = [&](const RulePosition& rule_position) {
+          auto grammar_state_matcher = GrammarStateMatcherForInitContext(grammar, rule_position);
+          auto cur_catagorized_tokens_for_grammar = grammar_state_matcher.GetCatagorizedTokens(
+              ptr->vocab_size, ptr->sorted_token_table, rule_id != main_rule_id);
+          ptr->catagorized_tokens_for_grammar[rule_position] = cur_catagorized_tokens_for_grammar;
+        };
+
+        auto cur_rule_position = RulePosition(rule_id, sequence_id, element_id);
+        if (element.type == RuleExprType::kByteString) {
+          for (int idx = 0; idx < element.size(); ++idx) {
+            cur_rule_position.element_in_string = idx;
+            add_catagorized_tokens(cur_rule_position);
+          }
+        } else {
+          DCHECK(element.type == RuleExprType::kCharacterClassStar ||
+                 element.type == RuleExprType::kCharacterClass);
+          for (int left_utf8_bytes = 0; left_utf8_bytes <= 3; ++left_utf8_bytes) {
+            cur_rule_position.left_utf8_bytes = left_utf8_bytes;
+            add_catagorized_tokens(cur_rule_position);
+          }
+        }
       }
     }
   }
   return ptr;
 }
 
-class GrammarInitContextStorageImpl : public GrammarInitContextStorageNode {
+class GrammarInitContextCacheImpl : public GrammarInitContextCacheNode {
  public:
-  GrammarInitContextStorageImpl(const std::vector<std::string>& token_table);
+  GrammarInitContextCacheImpl(const std::vector<std::string>& token_table);
 
-  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSONSchema(const std::string& schema);
+  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSONSchema(
+      const std::string& schema) final;
 
-  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSON();
+  std::shared_ptr<GrammarStateInitContext> GetInitContextForJSON() final;
 
-  void ClearCache();
+  void Clear() final;
 
  private:
   /*! \brief The token table associated with this storage class. */
@@ -340,7 +399,7 @@ class GrammarInitContextStorageImpl : public GrammarInitContextStorageNode {
   std::shared_ptr<GrammarStateInitContext> init_ctx_for_json_;
 };
 
-inline GrammarInitContextStorageImpl::GrammarInitContextStorageImpl(
+inline GrammarInitContextCacheImpl::GrammarInitContextCacheImpl(
     const std::vector<std::string>& token_table)
     : token_table_(token_table) {
   init_ctx_for_json_ =
@@ -348,7 +407,7 @@ inline GrammarInitContextStorageImpl::GrammarInitContextStorageImpl(
 }
 
 inline std::shared_ptr<GrammarStateInitContext>
-GrammarInitContextStorageImpl::GetInitContextForJSONSchema(const std::string& schema) {
+GrammarInitContextCacheImpl::GetInitContextForJSONSchema(const std::string& schema) {
   auto it = init_ctx_for_schema_cache_.find(schema);
   if (it != init_ctx_for_schema_cache_.end()) {
     return it->second;
@@ -360,14 +419,14 @@ GrammarInitContextStorageImpl::GetInitContextForJSONSchema(const std::string& sc
 }
 
 inline std::shared_ptr<GrammarStateInitContext>
-GrammarInitContextStorageImpl::GetInitContextForJSON() {
+GrammarInitContextCacheImpl::GetInitContextForJSON() {
   return init_ctx_for_json_;
 }
 
-inline void GrammarInitContextStorageImpl::ClearCache() { init_ctx_for_schema_cache_.clear(); }
+inline void GrammarInitContextCacheImpl::Clear() { init_ctx_for_schema_cache_.clear(); }
 
-GrammarInitContextStorage::GrammarInitContextStorage(const std::vector<std::string>& token_table)
-    : ObjectRef(make_object<GrammarInitContextStorageImpl>(token_table)) {}
+GrammarInitContextCache::GrammarInitContextCache(const std::vector<std::string>& token_table)
+    : ObjectRef(make_object<GrammarInitContextCacheImpl>(token_table)) {}
 
 }  // namespace serve
 }  // namespace llm

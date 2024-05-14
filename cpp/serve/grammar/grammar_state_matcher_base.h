@@ -32,95 +32,172 @@ class GrammarStateMatcherBase {
    * \param grammar The grammar to match.
    * \param init_rule_position The initial rule position. If not specified, the main rule will be
    * used.
+   * \param expand_init_rule_position Whether to expand the initial rule position to all possible
+   * locations. See ExpandRulePosition.
    */
-  GrammarStateMatcherBase(const BNFGrammar& grammar, RulePosition init_rule_position = {})
+  GrammarStateMatcherBase(const BNFGrammar& grammar,
+                          RulePosition init_rule_position = kInvalidRulePosition,
+                          bool expand_init_rule_position = true)
       : grammar_(grammar), tree_(grammar), stack_tops_history_(&tree_) {
-    InitStackState(init_rule_position);
+    PushInitialState(init_rule_position, expand_init_rule_position);
   }
 
-  /*! \brief Accept one codepoint. */
-  bool AcceptCodepoint(TCodepoint codepoint, bool verbose = false);
+  /*! \brief Accept one character. */
+  bool AcceptChar(uint8_t char_value, bool verbose = false);
 
   /*! \brief Check if the end of the main rule is reached. If so, the stop token can be accepted. */
   bool CanReachEnd() const;
 
-  /*! \brief Rollback the matcher to a previous state. */
-  void RollbackCodepoints(int rollback_codepoint_cnt);
+  /*! \brief Rollback the matcher to a previous state by the number of characters. */
+  void RollbackChars(int rollback_cnt);
 
-  /*! \brief Discard the earliest history. */
-  void DiscardEarliestCodepoints(int discard_codepoint_cnt);
+  /*! \brief Discard the earliest history by the number of characters. */
+  void DiscardEarliestChars(int discard_cnt);
 
   /*! \brief Print the stack state. */
   std::string PrintStackState(int steps_behind_latest = 0) const;
 
  protected:
-  // Init the stack state according to the given rule position.
-  // If init_rule_position is {}, init the stack with the main rule.
-  void InitStackState(RulePosition init_rule_position = {});
+  // Push an initial stack state according to the given rule position.
+  // If init_rule_position is kInvalidRulePosition, init the stack with the main rule.
+  void PushInitialState(RulePosition init_rule_position, bool expand_init_rule_position);
 
-  // Update the char_class_star_id field of the given rule_position, if it refers to a character
-  // class star rule.
-  void UpdateCharClassStarId(RulePosition* rule_position) const;
+  // Check if the character is accepted by the current rule position.
+  bool CheckIfAccepted(const RulePosition& rule_position, uint8_t char_value) const;
 
   /*!
    * \brief Find the next position in the rule. If the next position is at the end of the rule,
-   * the result depends on the consider_parent parameter:
-   * - false: kInvalidRulePosition will be returned.
-   * - true: the next position of the parent rule will be returned. If the current rule is the root
-   * rule, the RulePosition will be returned as is to indicate the end of the grammar.
+   * and consider_parent is true, will iteratively find the next position in the parent rule.
    * \param rule_position The current position.
-   * \param consider_parent Whether to consider the parent position if the current position is at
-   * the end of the rule.
+   * \param consider_parent Whether to consider the parent position if the current position is
+   * at the end of the rule.
+   * \returns (success, next_rule_position), indicating if the iteration is successful and the
+   * next rule position.
    */
-  RulePosition IterateToNextPosition(const RulePosition& rule_position, bool consider_parent) const;
+  std::pair<bool, RulePosition> GetNextPositionInSequence(const RulePosition& rule_position,
+                                                          bool consider_parent) const;
+
+  // Return the updated rule position after accepting the char
+  RulePosition UpdatePositionWithChar(const RulePosition& rule_position, uint8_t char_value) const;
 
   /*!
-   * \brief Expand the given rule position (may be a RuleRef element) s.t. every new position is a
-   * CharacterClass or refers to a CharacterClassStar rule. Push all new positions into
-   * new_stack_tops.
-   * \details This method will start from cur_rule_position and continuously iterate to the next
-   * position as long as the current position can be empty (e.g. the current position is a
-   * reference to an rule that can be empty, or to a character class star rule). If the current
-   * position can not be empty, stop expanding. All positions collected will be pushed into
-   * new_stack_tops.
+   * \brief Expand the given rule position to all possible positions approachable in the grammar.
+   * The expanded positions must refers to an element (CharacterClass or CharacterClassStar or
+   * ByteString) in a rule. Push all new positions into new_stack_tops.
+   * \example
+   * A ::= "a" B [a-z]* "c"
+   * B ::= "b" | ""
    *
-   * If the end of the current rule is reached:
-   * - If is_outmost_level is true, we can go to the next position in the parent rule.
-   * - Otherwise, stop iteration.
+   * Input position: (rule=A, position=B)
+   * Approachable positions: (rule=B, position="b"), (rule=A, position=[a-z]*),
+   * (rule=A, position="c"), since B and [a-z]* can be empty.
    * \param cur_rule_position The current rule position.
    * \param new_stack_tops The vector to store the new stack tops.
-   * \param is_outmost_level Whether the current position is the outmost level of the rule.
-   * \param first_id_if_inserted Being not -1 means the first node is already inserted. This is the
-   * id of the first node. This is used to avoid inserting the same node twice.
-   * \return Whether the end of the rule can be reached. Used as the condition of recursion.
+   * \param consider_parent Whether consider expanding the elements in the parent rule. Useful for
+   * inner recursion.
+   * \param first_id_if_inserted An optimization. When cur_rule_position is already inserted to
+   * the state tree, pass its id to avoid inserting it again. -1 (ignore it) by default.
+   * \return Whether the end of the rule can be reached. Useful for inner recursion.
    */
   bool ExpandRulePosition(RulePosition cur_rule_position, std::vector<int32_t>* new_stack_tops,
-                          bool is_outmost_level, int32_t first_id_if_inserted = -1);
+                          bool consider_parent = true, int32_t first_id_if_inserted = -1);
 
+  // The matched grammar.
   BNFGrammar grammar_;
+  // The tree storing all states
   RulePositionTree tree_;
+  // The tracked history of stack tops (each stack top refers to a node in the tree).
+  // We store the stack tops in different steps in the history to support rollback.
   StackTopsHistory stack_tops_history_;
 
-  // Temporary data for AcceptCodepoint.
+  // Temporary data for AcceptChar.
   std::vector<int32_t> tmp_new_stack_tops_;
 };
 
 /*! \brief Check the codepoint is contained in the character class. */
-inline bool CharacterClassContains(const BNFGrammarNode::RuleExpr& rule_expr,
-                                   TCodepoint codepoint) {
-  DCHECK(rule_expr.type == BNFGrammarNode::RuleExprType::kCharacterClass ||
-         rule_expr.type == BNFGrammarNode::RuleExprType::kNegCharacterClass);
-  for (int i = 0; i < rule_expr.size(); i += 2) {
-    if (rule_expr.data[i] <= codepoint && codepoint <= rule_expr.data[i + 1]) {
-      return rule_expr.type == BNFGrammarNode::RuleExprType::kCharacterClass;
+inline bool GrammarStateMatcherBase::CheckIfAccepted(const RulePosition& rule_position,
+                                                     uint8_t char_value) const {
+  auto current_sequence = grammar_->GetRuleExpr(rule_position.sequence_id);
+  auto current_element = grammar_->GetRuleExpr(current_sequence[rule_position.element_id]);
+  if (current_element.type == RuleExprType::kCharacterClass ||
+      current_element.type == RuleExprType::kCharacterClassStar) {
+    if (rule_position.left_utf8_bytes > 0) {
+      return (char_value & 0xC0) == 0x80;
     }
+    auto [accepted, num_bytes, codepoint] = HandleUTF8FirstByte(char_value);
+    if (!accepted) {
+      return false;
+    }
+    bool is_negative = static_cast<bool>(current_element[0]);
+    if (num_bytes > 1) {
+      return is_negative;
+    }
+    for (int i = 1; i < current_element.size(); i += 2) {
+      if (current_element[i] <= char_value && char_value <= current_element[i + 1]) {
+        return !is_negative;
+      }
+    }
+    return is_negative;
+  } else if (current_element.type == RuleExprType::kByteString) {
+    return current_element[rule_position.element_in_string] == char_value;
+  } else {
+    LOG(FATAL) << "Unexpected RuleExprType in CheckIfAccepted: "
+               << static_cast<int>(current_element.type);
   }
-  return rule_expr.type == BNFGrammarNode::RuleExprType::kNegCharacterClass;
 }
 
-inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool verbose) {
+inline RulePosition GrammarStateMatcherBase::UpdatePositionWithChar(
+    const RulePosition& rule_position, uint8_t char_value) const {
+  auto current_sequence = grammar_->GetRuleExpr(rule_position.sequence_id);
+  auto current_element = grammar_->GetRuleExpr(current_sequence[rule_position.element_id]);
+  RulePosition new_rule_position = rule_position;
+  switch (current_element.type) {
+    case RuleExprType::kCharacterClass: {
+      if (rule_position.left_utf8_bytes > 1) {
+        new_rule_position.left_utf8_bytes -= 1;
+        return new_rule_position;
+      } else if (rule_position.left_utf8_bytes == 1) {
+        return GetNextPositionInSequence(rule_position, true).second;
+      }
+      // If no left utf8 bytes, check the first byte to find the left bytes needed.
+      DCHECK(rule_position.left_utf8_bytes == 0);
+      auto [accepted, num_bytes, codepoint] = HandleUTF8FirstByte(char_value);
+      DCHECK(accepted);
+      if (num_bytes > 1) {
+        new_rule_position.left_utf8_bytes = num_bytes - 1;
+        return new_rule_position;
+      }
+      return GetNextPositionInSequence(rule_position, true).second;
+    }
+    case RuleExprType::kCharacterClassStar: {
+      if (rule_position.left_utf8_bytes >= 1) {
+        new_rule_position.left_utf8_bytes -= 1;
+      } else {
+        DCHECK(rule_position.left_utf8_bytes == 0);
+        auto [accepted, num_bytes, codepoint] = HandleUTF8FirstByte(char_value);
+        DCHECK(accepted);
+        new_rule_position.left_utf8_bytes = num_bytes - 1;
+      }
+      return new_rule_position;
+    }
+    case RuleExprType::kByteString: {
+      if (rule_position.element_in_string + 1 < current_element.size()) {
+        new_rule_position.element_in_string += 1;
+        return new_rule_position;
+      }
+      return GetNextPositionInSequence(rule_position, true).second;
+    }
+    default:
+      LOG(FATAL) << "Unexpected RuleExprType in UpdatePositionWithChar: "
+                 << static_cast<int>(current_element.type);
+  }
+}
+
+inline bool GrammarStateMatcherBase::AcceptChar(uint8_t char_value, bool verbose) {
   if (verbose) {
-    std::cout << "Stack before accepting: " << PrintStackState() << std::endl;
+    LOG(INFO) << "Matching char: " << static_cast<int>(char_value) << " \""
+              << PrintAsEscaped(char_value) << "\"";
+    LOG(INFO) << "Previous stack: " << PrintStackState();
   }
   const auto& prev_stack_tops = stack_tops_history_.GetLatest();
 
@@ -135,37 +212,31 @@ inline bool GrammarStateMatcherBase::AcceptCodepoint(TCodepoint codepoint, bool 
       continue;
     }
 
-    auto current_char_class =
-        cur_rule_position.char_class_star_id != -1
-            ? grammar_->GetRuleExpr(cur_rule_position.char_class_star_id)
-            : grammar_->GetRuleExpr(current_sequence[cur_rule_position.element_id]);
-    DCHECK(current_char_class.type == RuleExprType::kCharacterClass ||
-           current_char_class.type == RuleExprType::kNegCharacterClass);
-    auto ok = CharacterClassContains(current_char_class, codepoint);
-    if (!ok) {
+    auto accepted = CheckIfAccepted(cur_rule_position, char_value);
+    if (!accepted) {
       continue;
     }
 
-    if (cur_rule_position.char_class_star_id == -1) {
-      auto next_rule_position = IterateToNextPosition(cur_rule_position, true);
-      DCHECK(next_rule_position != kInvalidRulePosition);
-      ExpandRulePosition(next_rule_position, &tmp_new_stack_tops_, true);
+    auto new_rule_position = UpdatePositionWithChar(cur_rule_position, char_value);
+
+    if (new_rule_position == cur_rule_position) {
+      ExpandRulePosition(new_rule_position, &tmp_new_stack_tops_, true, prev_top);
     } else {
-      ExpandRulePosition(cur_rule_position, &tmp_new_stack_tops_, true, prev_top);
+      ExpandRulePosition(new_rule_position, &tmp_new_stack_tops_, true);
     }
   }
   if (tmp_new_stack_tops_.empty()) {
     if (verbose) {
-      std::cout << "Codepoint: " << codepoint << " \"" << PrintAsEscaped(codepoint) << "\" Rejected"
-                << std::endl;
+      LOG(INFO) << "Character " << static_cast<int>(char_value) << " \""
+                << PrintAsEscaped(char_value) << "\" Rejected";
     }
     return false;
   }
   stack_tops_history_.PushHistory(tmp_new_stack_tops_);
   if (verbose) {
-    std::cout << "Codepoint: " << codepoint << " \"" << PrintAsEscaped(codepoint) << "\" Accepted"
-              << std::endl;
-    std::cout << "Stack after accepting: " << PrintStackState() << std::endl;
+    LOG(INFO) << "Character: " << static_cast<int>(char_value) << " \""
+              << PrintAsEscaped(char_value) << "\" Accepted";
+    LOG(INFO) << "New stack after acceptance: " << PrintStackState();
   }
 #if TVM_LOG_DEBUG
   stack_tops_history_.CheckWellFormed();
@@ -179,80 +250,92 @@ inline bool GrammarStateMatcherBase::CanReachEnd() const {
                      [&](int32_t id) { return tree_.IsEndPosition(tree_[id]); });
 }
 
-inline void GrammarStateMatcherBase::RollbackCodepoints(int rollback_codepoint_cnt) {
-  stack_tops_history_.Rollback(rollback_codepoint_cnt);
+inline void GrammarStateMatcherBase::RollbackChars(int rollback_cnt) {
+  stack_tops_history_.Rollback(rollback_cnt);
 }
 
-inline void GrammarStateMatcherBase::DiscardEarliestCodepoints(int discard_codepoint_cnt) {
-  stack_tops_history_.DiscardEarliest(discard_codepoint_cnt);
+inline void GrammarStateMatcherBase::DiscardEarliestChars(int discard_cnt) {
+  stack_tops_history_.DiscardEarliest(discard_cnt);
 }
 
 inline std::string GrammarStateMatcherBase::PrintStackState(int steps_behind_latest) const {
   return stack_tops_history_.PrintHistory(steps_behind_latest);
 }
 
-inline void GrammarStateMatcherBase::InitStackState(RulePosition init_rule_position) {
+inline void GrammarStateMatcherBase::PushInitialState(RulePosition init_rule_position,
+                                                      bool expand_init_rule_position) {
   if (init_rule_position == kInvalidRulePosition) {
     // Initialize the stack with the main rule.
     auto main_rule = grammar_->GetMainRule();
     auto main_rule_body = grammar_->GetRuleExpr(main_rule.body_expr_id);
-    std::vector<int32_t> new_stack_tops;
+    std::vector<int32_t> stack_tops;
     for (auto i : main_rule_body) {
       auto init_rule_position = RulePosition(0, i, 0, RulePosition::kNoParent);
-      UpdateCharClassStarId(&init_rule_position);
-      ExpandRulePosition(init_rule_position, &new_stack_tops, true);
+      if (expand_init_rule_position) {
+        ExpandRulePosition(init_rule_position, &stack_tops, true);
+      } else {
+        stack_tops.push_back(tree_.NewNode(init_rule_position));
+      }
     }
-    stack_tops_history_.PushHistory(new_stack_tops);
+    stack_tops_history_.PushHistory(stack_tops);
   } else {
-    stack_tops_history_.PushHistory({tree_.NewNode(init_rule_position)});
-  }
-}
-
-inline void GrammarStateMatcherBase::UpdateCharClassStarId(RulePosition* rule_position) const {
-  auto rule_expr = grammar_->GetRuleExpr(rule_position->sequence_id);
-  auto element = grammar_->GetRuleExpr(rule_expr[rule_position->element_id]);
-  if (element.type == RuleExprType::kRuleRef) {
-    auto sub_rule_body = grammar_->GetRuleExpr(grammar_->GetRule(element[0]).body_expr_id);
-    if (sub_rule_body.type == RuleExprType::kCharacterClassStar) {
-      rule_position->char_class_star_id = sub_rule_body[0];
+    if (expand_init_rule_position) {
+      std::vector<int32_t> stack_tops;
+      ExpandRulePosition(init_rule_position, &stack_tops, true);
+      stack_tops_history_.PushHistory(stack_tops);
+    } else {
+      stack_tops_history_.PushHistory({tree_.NewNode(init_rule_position)});
     }
   }
 }
 
-inline RulePosition GrammarStateMatcherBase::IterateToNextPosition(
+inline std::pair<bool, RulePosition> GrammarStateMatcherBase::GetNextPositionInSequence(
     const RulePosition& rule_position, bool consider_parent) const {
-  auto next_position = RulePosition(rule_position.rule_id, rule_position.sequence_id,
-                                    rule_position.element_id + 1, rule_position.parent_id);
-  auto rule_expr = grammar_->GetRuleExpr(rule_position.sequence_id);
-  auto current_sequence_length = rule_expr.size();
-  DCHECK(next_position.element_id <= current_sequence_length);
+  auto sequence = grammar_->GetRuleExpr(rule_position.sequence_id);
 
-  if (next_position.element_id < current_sequence_length) {
-    // Update char_class_star_id if the position refers to a character class star rule.
-    UpdateCharClassStarId(&next_position);
-    return next_position;
+  auto next_position = rule_position;
+  next_position.element_id += 1;
+  next_position.element_in_string = 0;
+  next_position.left_utf8_bytes = 0;
+
+  DCHECK(next_position.element_id <= sequence.size());
+
+  if (next_position.element_id < sequence.size()) {
+    return {true, next_position};
   }
 
   if (!consider_parent) {
-    return kInvalidRulePosition;
+    return {false, kInvalidRulePosition};
   }
 
-  if (next_position.parent_id == RulePosition::kNoParent) {
-    return next_position;
-  } else {
-    auto parent_rule_position = tree_[next_position.parent_id];
-    return IterateToNextPosition(parent_rule_position, true);
+  // Find the next position in the parent rule
+  while (next_position.parent_id != RulePosition::kNoParent) {
+    next_position = tree_[next_position.parent_id];
+    next_position.element_id += 1;
+    DCHECK(next_position.element_in_string == 0);
+    DCHECK(next_position.left_utf8_bytes == 0);
+
+    sequence = grammar_->GetRuleExpr(next_position.sequence_id);
+    DCHECK(next_position.element_id <= sequence.size());
+
+    if (next_position.element_id < sequence.size()) {
+      break;
+    }
   }
+
+  return {true, next_position};
 }
 
 inline bool GrammarStateMatcherBase::ExpandRulePosition(RulePosition cur_rule_position,
                                                         std::vector<int32_t>* new_stack_tops,
-                                                        bool is_outmost_level,
+                                                        bool consider_parent,
                                                         int32_t first_id_if_inserted) {
   bool is_first = false;
+  bool is_iteration_successful = true;
 
-  for (; cur_rule_position != kInvalidRulePosition;
-       cur_rule_position = IterateToNextPosition(cur_rule_position, is_outmost_level)) {
+  for (; is_iteration_successful;
+       std::tie(is_iteration_successful, cur_rule_position) =
+           GetNextPositionInSequence(cur_rule_position, consider_parent)) {
     // Insert the node to the tree, if not inserted before.
     int32_t new_node_id;
     if (is_first && first_id_if_inserted != -1) {
@@ -263,7 +346,7 @@ inline bool GrammarStateMatcherBase::ExpandRulePosition(RulePosition cur_rule_po
     is_first = false;
 
     // Case 1. The current position points to the end of the grammar.
-    if (is_outmost_level) {
+    if (consider_parent) {
       if (tree_.IsEndPosition(cur_rule_position)) {
         new_stack_tops->push_back(new_node_id);
         return true;
@@ -272,42 +355,39 @@ inline bool GrammarStateMatcherBase::ExpandRulePosition(RulePosition cur_rule_po
       DCHECK(!tree_.IsEndPosition(cur_rule_position));
     }
 
-    // Case 2. The current position refers to a character class star rule. It can be empty.
-    if (cur_rule_position.char_class_star_id != -1) {
-      new_stack_tops->push_back(new_node_id);
-      continue;
-    }
-
-    // Case 3. Character class: cannot be empty.
     auto sequence = grammar_->GetRuleExpr(cur_rule_position.sequence_id);
     auto element = grammar_->GetRuleExpr(sequence[cur_rule_position.element_id]);
-    if (element.type == RuleExprType::kCharacterClass ||
-        element.type == RuleExprType::kNegCharacterClass) {
-      new_stack_tops->push_back(new_node_id);
-      return false;
-    }
+    bool can_be_empty = false;
 
-    // Case 4. The current position refers to a normal rule, i.e. a rule of choices of sequences.
-    DCHECK(element.type == RuleExprType::kRuleRef);
-    auto sub_rule_id = element[0];
-    auto sub_rule = grammar_->GetRule(sub_rule_id);
-    auto sub_rule_body = grammar_->GetRuleExpr(sub_rule.body_expr_id);
-    DCHECK(sub_rule_body.type == RuleExprType::kChoices);
+    if (element.type == RuleExprType::kRuleRef) {
+      // Case 2. The current position refers to another rule.
+      auto ref_rule = grammar_->GetRule(element[0]);
+      auto ref_rule_body = grammar_->GetRuleExpr(ref_rule.body_expr_id);
+      DCHECK(ref_rule_body.type == RuleExprType::kChoices);
 
-    bool contain_empty = false;
-
-    for (auto sequence_id : sub_rule_body) {
-      auto sequence = grammar_->GetRuleExpr(sequence_id);
-      if (sequence.type == RuleExprType::kEmptyStr) {
-        contain_empty = true;
-        continue;
+      for (auto sequence_id : ref_rule_body) {
+        auto ref_rule_sequence = grammar_->GetRuleExpr(sequence_id);
+        if (ref_rule_sequence.type == RuleExprType::kEmptyStr) {
+          can_be_empty = true;
+          continue;
+        }
+        auto ref_rule_position = RulePosition(element[0], sequence_id, 0, new_node_id);
+        // Find the positions in every choice of the referred rule
+        can_be_empty |= ExpandRulePosition(ref_rule_position, new_stack_tops, false);
       }
-      auto sub_rule_position = RulePosition(sub_rule_id, sequence_id, 0, new_node_id);
-      UpdateCharClassStarId(&sub_rule_position);
-      contain_empty |= ExpandRulePosition(sub_rule_position, new_stack_tops, false);
+    } else if (element.type == RuleExprType::kCharacterClass ||
+               element.type == RuleExprType::kByteString) {
+      // Case 3. Character class or byte string. cannot be empty.
+      new_stack_tops->push_back(new_node_id);
+      can_be_empty = false;
+    } else {
+      DCHECK(element.type == RuleExprType::kCharacterClassStar);
+      // Case 4. Character class star. Might be empty.
+      new_stack_tops->push_back(new_node_id);
+      can_be_empty = cur_rule_position.left_utf8_bytes == 0;
     }
 
-    if (!contain_empty) {
+    if (!can_be_empty) {
       return false;
     }
   }

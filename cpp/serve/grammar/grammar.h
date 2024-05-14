@@ -44,16 +44,15 @@ using namespace tvm::runtime;
  * #### Types of RuleExprs
  * Every RuleExpr is represented by a type as well as a variable-length array containing its data.
  * RuleExpr has several types:
+ * - Byte string: a string of bytes (0~255). Supports UTF-8 strings.
  * - Character class: a range of characters (each character is a unicode codepoint), e.g. [a-z],
- *   [ac-z].
- *   A single character is represented by a character class with the same lower and upper bound.
- *   A string is represented by a sequence of character classes.
- * - Negated character class: all characters that are not in the range, e.g. [^a-z], [^ac-z]
+ *   [ac-z]. Can be negated: [^a-z], [^ac-z]. Now only ascii chars is allowed in [], but this
+ *   expression can accept/reject unicode chars.
+ * - Character class star: a star quantifier of a character class. e.g. [a-z]*, [^a-z]*.
  * - EmptyStr: an empty string, i.e. ""
  * - Rule reference: a reference to another rule
  * - Sequence: a sequence of rule_exprs, e.g. ("a" "b"). These rule_exprs are concatenated together.
  * - Choices: a choice of rule_exprs, e.g. ("a" "b") | "c". Each rule_expr can be matched.
- * - Character class star: special support for a repetition of a character class. e.g. [a-z]*
  *
  * #### Storage of RuleExprs
  * Each type of RuleExpr has a different data format. For the format of each type of RuleExpr, see
@@ -76,6 +75,9 @@ class BNFGrammarNode : public Object {
     std::string name;
     /*! \brief The RuleExpr id of the body of the rule. */
     int32_t body_expr_id;
+    /*! \brief The id of the associated lookahead assertion expr. For now it must be a id of a
+     * sequence RuleExpr. -1 if not exists. */
+    int32_t lookahead_assertion_id = -1;
   };
 
   /*! \brief Get the number of rules. */
@@ -86,6 +88,8 @@ class BNFGrammarNode : public Object {
         << "rule_id " << rule_id << " is out of bound";
     return rules_[rule_id];
   }
+  /*! \brief Get the main rule id of the grammar. */
+  int32_t GetMainRuleId() const { return main_rule_id_; }
   /*! \brief Get the main rule of the grammar. */
   const Rule& GetMainRule() const {
     DCHECK(main_rule_id_ >= 0 && main_rule_id_ < static_cast<int32_t>(rules_.size()))
@@ -95,10 +99,11 @@ class BNFGrammarNode : public Object {
 
   /*! \brief The type of the rule expr. */
   enum class RuleExprType : int32_t {
-    // data format: [lower0, upper0, lower1, upper1, ...]
+    // data format: [byte0, byte1, ...]
+    kByteString,
+    // data format: [is_negative, lower0, upper0, lower1, upper1, ...]
     kCharacterClass,
-    // data format: [lower0, upper0, lower1, upper1, ...]
-    kNegCharacterClass,
+    kCharacterClassStar,
     // data format: []
     kEmptyStr,
     // data format: [rule_id]
@@ -107,8 +112,6 @@ class BNFGrammarNode : public Object {
     kSequence,
     // data format: [rule_expr_id0, rule_expr_id1, ...]
     kChoices,
-    // data format: [rule_expr_id]
-    kCharacterClassStar,
   };
 
   /*! \brief The object representing a rule expr. */
@@ -154,8 +157,8 @@ class BNFGrammarNode : public Object {
   std::vector<Rule> rules_;
   /*! \brief The data of all rule_exprs. */
   std::vector<int32_t> rule_expr_data_;
-  /*! \brief The start index of every rule_expr in rule_expr_data_. rule_expr_id corresponds the
-   * index of this vector. */
+  /*! \brief The start index of every rule_expr in rule_expr_data_. rule_expr_id is the index
+   * to the elements in this vector. */
   std::vector<int32_t> rule_expr_indptr_;
   /*! \brief The id of the main rule. */
   int32_t main_rule_id_ = -1;
@@ -168,25 +171,13 @@ class BNFGrammarNode : public Object {
 class BNFGrammar : public ObjectRef {
  public:
   /*!
-   * \brief Construct a BNF grammar with a EBNF-formatted string. Will parse the string and
-   * transform it into BNF AST.
+   * \brief Construct a BNF grammar with a EBNF-formatted string. The grammar will be normalized
+   * (simplified) by default.
    * \param ebnf_string The EBNF-formatted string.
    * \param main_rule The name of the main rule.
-   * \param normalize Whether to normalize the grammar. Default: true. Only set to false for the
-   * purpose of testing.
-   *
-   * \note In The normalized form of a BNF grammar, every rule is in the form:
-   * `rule_name ::= ("" | (element1_1 element1_2 ...) | (element2_1 element2_2 ...) | ...)`.
-   *
-   * I.e. a list of choices, each choice is a sequence of elements. Elements can be a character
-   * class or a rule reference. And if the rule can be empty, the first choice will be an empty
-   * string.
-   * \param simplify Whether to simplify the grammar to make matching more efficient. Default: true.
-   * Not implemented yet.
    */
   static BNFGrammar FromEBNFString(const std::string& ebnf_string,
-                                   const std::string& main_rule = "main", bool normalize = true,
-                                   bool simplify = true);
+                                   const std::string& main_rule = "main");
 
   /*!
    * \brief Construct a BNF grammar from the dumped JSON string.

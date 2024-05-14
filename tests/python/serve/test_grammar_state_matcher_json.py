@@ -2,7 +2,7 @@
 # pylint: disable=redefined-outer-name,unbalanced-tuple-unpacking
 """This test uses the optimized JSON grammar provided by the grammar library."""
 import sys
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import pytest
 import tvm
@@ -213,19 +213,40 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
     assert GrammarStateMatcher(json_grammar).debug_match_complete_string(json_input_pressure)
 
 
-(input_find_rejected_tokens, expected_rejected_sizes) = tvm.testing.parameters(
+(
+    tokenizer_path,
+    input_find_rejected_tokens,
+    expected_rejected_sizes,
+    token_table_postproc_method,
+) = tvm.testing.parameters(
     (
         # short test
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
         '{"id": 1,"name": "Example"}',
         [
             # fmt: off
-            31989, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 299, 299, 299, 299,
-            299, 31973, 31846, 31846, 292, 292, 292, 292, 292, 292, 292, 292, 31974, 31999
+            31989, 31912, 272, 272, 272, 31973, 31846, 31846, 31948, 31915, 272, 272, 272, 272,
+            272, 31973, 31846, 31846, 265, 265, 265, 265, 265, 265, 265, 265, 31974, 31999
             # fmt: on
         ],
+        "byte_fallback",
+    ),
+    (
+        # short test
+        "dist/Meta-Llama-3-8B-Instruct-q4f16_1-MLC",
+        '{"id": 1,"name": "Example哈哈"}',
+        [
+            # fmt: off
+            128235, 127497, 5002, 5002, 5002, 127849, 126399, 126399, 126760, 127499, 5002, 5002,
+            5002, 5002, 5002, 127849, 126399, 126399, 4952, 4952, 4952, 4952, 4952, 4952, 4952,
+            4952, 128066, 128111, 4952, 128066, 128111, 4952, 127873, 128254
+            # fmt: on
+        ],
+        "byte_level",
     ),
     (
         # long test
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
         """{
 "id": 1,
 "na": "ex",
@@ -236,40 +257,51 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
 }""",
         [
             # fmt: off
-            31989, 31912, 31912, 299, 299, 299, 31973, 31846, 31846, 31948, 31915, 31915, 299, 299,
-            299, 31973, 31846, 31846, 292, 292, 292, 31974, 31915, 31915, 299, 299, 299, 31973,
-            31846, 31846, 31997, 31997, 31998, 31974, 31915, 31915, 299, 299, 31973, 31846, 31846,
-            31840, 291, 291, 291, 31969, 31846, 31846, 291, 291, 291, 31969, 31974, 31915, 31915,
-            299, 299, 299, 31973, 31846, 31846, 31908, 299, 299, 299, 299, 31973, 31846, 31846,
-            31906, 299, 299, 299, 299, 31973, 31846, 31846, 291, 291, 291, 31968, 31970, 31915,
-            31915, 299, 299, 299, 299, 31973, 31846, 31846, 31840, 31943, 31846, 31846, 31943,
-            31846, 31846, 31943, 31970, 31974, 31915, 31915, 299, 299, 299, 299, 31973, 31846,
-            31846, 292, 292, 292, 292, 31974, 31974, 31999
+            31989, 31912, 31912, 272, 272, 272, 31973, 31846, 31846, 31948, 31915, 31915, 272, 272,
+            272, 31973, 31846, 31846, 265, 265, 265, 31974, 31915, 31915, 272, 272, 272, 31973,
+            31846, 31846, 31997, 31997, 31998, 31974, 31915, 31915, 272, 272, 31973, 31846, 31846,
+            31840, 264, 264, 264, 31969, 31846, 31846, 264, 264, 264, 31969, 31974, 31915, 31915,
+            272, 272, 272, 31973, 31846, 31846, 31908, 272, 272, 272, 272, 31973, 31846, 31846,
+            31906, 272, 272, 272, 272, 31973, 31846, 31846, 264, 264, 264, 31968, 31970, 31915,
+            31915, 272, 272, 272, 272, 31973, 31846, 31846, 31840, 31943, 31846, 31846, 31943,
+            31846, 31846, 31943, 31970, 31974, 31915, 31915, 272, 272, 272, 272, 31973, 31846,
+            31846, 265, 265, 265, 265, 31974, 31974, 31999
             # fmt: on
         ],
+        "byte_fallback",
     ),
 )
 
 
 def test_find_next_rejected_tokens(
     json_grammar: BNFGrammar,
+    tokenizer_path: str,
     input_find_rejected_tokens: str,
-    expected_rejected_sizes: Optional[List[int]] = None,
+    expected_rejected_sizes: Optional[List[int]],
+    token_table_postproc_method: Literal["byte_fallback", "byte_level"],
 ):
-    tokenizer_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
     tokenizer = Tokenizer(tokenizer_path)
-    grammar_state_matcher = GrammarStateMatcher(json_grammar, tokenizer)
+    grammar_state_matcher = GrammarStateMatcher(
+        json_grammar, tokenizer, token_table_postproc_method=token_table_postproc_method
+    )
+    input_bytes = input_find_rejected_tokens.encode("utf-8")
+    rejected_sizes = []
 
-    real_sizes = []
-    for c in input_find_rejected_tokens:
+    for i, c in enumerate(input_bytes):
         rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
-        real_sizes.append(len(rejected_token_ids))
-        print("Accepting char:", c, file=sys.stderr)
-        assert grammar_state_matcher.debug_accept_char(ord(c))
+        rejected_sizes.append(len(rejected_token_ids))
+        if expected_rejected_sizes is not None:
+            assert rejected_sizes[-1] == expected_rejected_sizes[i], (
+                len(rejected_token_ids),
+                expected_rejected_sizes[i],
+            )
+        print("Accepting char:", c, bytes([c]), file=sys.stderr)
+        assert grammar_state_matcher.debug_accept_char(c)
+
     rejected_token_ids = grammar_state_matcher.find_next_rejected_tokens(True)
-    real_sizes.append(len(rejected_token_ids))
+    rejected_sizes.append(len(rejected_token_ids))
     if expected_rejected_sizes is not None:
-        assert real_sizes == expected_rejected_sizes
+        assert rejected_sizes[-1] == expected_rejected_sizes[-1]
 
 
 def test_token_based_operations(json_grammar: BNFGrammar):
@@ -305,7 +337,7 @@ def test_token_based_operations(json_grammar: BNFGrammar):
         accepted = list(set(range(len(token_table))) - set(rejected))
         accepted_tokens = [token_table[i] for i in accepted]
         result.append(accepted_tokens)
-        assert id in accepted
+        assert id in accepted, token_table[id]
         assert grammar_state_matcher.accept_token(id)
 
     rejected = grammar_state_matcher.find_next_rejected_tokens()
@@ -407,6 +439,20 @@ def test_termination(json_grammar: BNFGrammar):
 
 if __name__ == "__main__":
     # Run a benchmark to show the performance before running tests
-    test_find_next_rejected_tokens(BNFGrammar.get_grammar_of_json(), '{"id": 1,"name": "Example"}')
+    test_find_next_rejected_tokens(
+        BNFGrammar.get_grammar_of_json(),
+        "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
+        '{"id": 1,"name": "Example"}',
+        None,
+        "byte_fallback",
+    )
+
+    test_find_next_rejected_tokens(
+        BNFGrammar.get_grammar_of_json(),
+        "dist/Meta-Llama-3-8B-Instruct-q4f16_1-MLC",
+        '{"id": 1,"name": "Example哈哈"}',
+        None,
+        "byte_level",
+    )
 
     tvm.testing.main()

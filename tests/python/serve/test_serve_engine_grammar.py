@@ -13,7 +13,7 @@ from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
-    "Generate a JSON containing a list:",
+    "Generate a JSON containing a non-empty list:",
     "Generate a JSON with 5 elements:",
 ]
 model_path = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"

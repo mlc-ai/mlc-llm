@@ -36,9 +36,9 @@
 
 // Grammar related
 #include "serve/grammar/grammar.cc"
+#include "serve/grammar/grammar_functor.cc"
 #include "serve/grammar/grammar_parser.cc"
 #include "serve/grammar/grammar_serializer.cc"
-#include "serve/grammar/grammar_simplifier.cc"
 #include "serve/grammar/grammar_state_matcher.cc"
 #include "serve/grammar/json_schema_converter.cc"
 #include "support/encoding.cc"
