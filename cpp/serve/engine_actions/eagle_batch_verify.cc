@@ -179,7 +179,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // - Slice and save hidden_states_for_sample
       last_accepted_hidden_positions.push_back(cum_verify_lengths[i] + accept_length - 1);
     }
-    if (!fully_accepted_rsentries.empty()) {
+    if (!fully_accepted_rsentries.empty() &&
+        engine_config_->speculative_mode == SpeculativeMode::kEagle) {
       // - Run a step of batch decode for requests whose drafts are fully accepted.
       // When a request's draft is fully accepted, there is an extra token proposed
       // by the draft model but not added into the draft model's KV cache.
@@ -239,9 +240,10 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // One step draft for the following steps
 
       // Gather hidden states for the last accepted tokens.
-      hidden_states = models_[draft_model_id_]->GatherHiddenStates(
-          hidden_states, last_accepted_hidden_positions,
-          &model_workspaces_[draft_model_id_].hidden_states);
+      // Use the function and the workspace of the verify model because the information about the
+      // hidden states is not available in the draft model for medusa.
+      hidden_states = models_[0]->GatherHiddenStates(hidden_states, last_accepted_hidden_positions,
+                                                     &model_workspaces_[0].hidden_states);
 
       std::vector<int> input_tokens;
       Array<RequestModelState> mstates;
@@ -255,61 +257,50 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         input_tokens.push_back(mstates[i]->committed_tokens.back().sampled_token_id.first);
       }
 
-      // - Compute embeddings.
-      RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
-      embeddings = models_[draft_model_id_]->TokenEmbed(
-          {IntTuple{input_tokens.begin(), input_tokens.end()}});
-      RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
+      Array<NDArray> multi_step_logits{nullptr};  // for medusa output
+      if (engine_config_->speculative_mode == SpeculativeMode::kEagle) {
+        // - Compute embeddings.
+        RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
+        embeddings = models_[draft_model_id_]->TokenEmbed(
+            {IntTuple{input_tokens.begin(), input_tokens.end()}});
+        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
 
-      // - Invoke model decode.
-      RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
-      ObjectRef fused_embedding_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
-          embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
-      hidden_states = models_[draft_model_id_]->BatchDecodeToLastHidden(
-          fused_embedding_hidden_states, request_internal_ids);
+        // - Invoke model decode.
+        RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
+        ObjectRef fused_embedding_hidden_states = models_[draft_model_id_]->FuseEmbedHidden(
+            embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
+        hidden_states = models_[draft_model_id_]->BatchDecodeToLastHidden(
+            fused_embedding_hidden_states, request_internal_ids);
 
-      if (models_[draft_model_id_]->CanGetLogits()) {
-        logits = models_[draft_model_id_]->GetLogits(hidden_states);
-      } else {
-        // - Use base model's head.
-        logits = models_[0]->GetLogits(hidden_states);
+        int lm_head_model_id = models_[draft_model_id_]->CanGetLogits() ? draft_model_id_ : 0;
+        logits = models_[lm_head_model_id]->GetLogits(hidden_states);
+        RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
+        ICHECK_EQ(logits->ndim, 2);
+        ICHECK_EQ(logits->shape[0], num_rsentries);
+      } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
+        multi_step_logits = models_[draft_model_id_]->GetMultiStepLogits(hidden_states);
       }
-      RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-      ICHECK_EQ(logits->ndim, 2);
-      ICHECK_EQ(logits->shape[0], num_rsentries);
 
-      // - Update logits.
-      logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
-
-      // - Compute probability distributions.
-      probs_on_device =
-          logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
-
-      // - Sample tokens.
       // Fill range [0, num_rsentries) into `sample_indices`.
       std::vector<int> sample_indices(num_rsentries);
       std::iota(sample_indices.begin(), sample_indices.end(), 0);
-      NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
-          probs_on_device, sample_indices, request_ids, generation_cfg);
-      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
-          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
-      ICHECK_EQ(sample_results.size(), num_rsentries);
 
-      // - Slice and save hidden_states_for_sample
-      draft_token_workspace_manager_->AllocSlots(num_rsentries, &draft_token_slots_);
-      models_[draft_model_id_]->ScatterDraftProbs(
-          renormalized_probs, draft_token_slots_,
-          &model_workspaces_[verify_model_id_].draft_probs_storage);
-      models_[draft_model_id_]->ScatterHiddenStates(
-          hidden_states, draft_token_slots_,
-          &model_workspaces_[verify_model_id_].draft_hidden_states_storage);
-      // - Add draft token to the state.
-      for (int i = 0; i < num_rsentries; ++i) {
-        mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
-        estate->stats.total_draft_length += 1;
+      if (engine_config_->speculative_mode == SpeculativeMode::kEagle) {
+        const auto& [renormalized_probs, sample_results] =
+            ApplyLogitProcessorAndSample(logit_processor_, sampler_, logits, generation_cfg,
+                                         request_ids, mstates, rngs, sample_indices);
+        UpdateRequestStatesWithDraftProposals(mstates, sample_results, draft_model_id_,
+                                              renormalized_probs, hidden_states, estate);
+      } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
+        for (int draft_id = 0; draft_id < engine_config_->spec_draft_length; draft_id++) {
+          const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
+              logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,
+              mstates, rngs, sample_indices);
+          UpdateRequestStatesWithDraftProposals(mstates, sample_results, draft_model_id_,
+                                                renormalized_probs, hidden_states, estate);
+        }
       }
     }
-
     auto tend = std::chrono::high_resolution_clock::now();
     estate->stats.engine_total_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
@@ -371,6 +362,24 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     return num_required_pages <= num_available_pages;
   }
 
+  void UpdateRequestStatesWithDraftProposals(const Array<RequestModelState>& mstates,
+                                             const std::vector<SampleResult>& sample_results,
+                                             int model_id, const NDArray& renormalized_probs,
+                                             const ObjectRef& hidden_states_for_sample,
+                                             EngineState estate) {
+    draft_token_workspace_manager_->AllocSlots(mstates.size(), &draft_token_slots_);
+    models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
+                                  &model_workspaces_[0].draft_probs_storage);
+    if (engine_config_->speculative_mode == SpeculativeMode::kEagle &&
+        engine_config_->spec_draft_length > 1) {
+      models_[0]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
+                                      &model_workspaces_[0].draft_hidden_states_storage);
+    }
+    for (int i = 0; i < static_cast<int>(mstates.size()); ++i) {
+      mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
+      estate->stats.total_draft_length += 1;
+    }
+  }
   /*!
    * \brief The model to run decode in. When there are multiple
    * models, the `Step` function of the created action will not take effect.

@@ -19,6 +19,7 @@ from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .llava import llava_loader, llava_model, llava_quantization
+from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .orion import orion_loader, orion_model, orion_quantization
@@ -383,6 +384,18 @@ MODELS: Dict[str, Model] = {
             "no-quant": bert_quantization.no_quant,
             "group-quant": bert_quantization.group_quant,
             "ft-quant": bert_quantization.ft_quant,
+        },
+    ),
+    "medusa": Model(
+        name="medusa",
+        model=medusa_model.MedusaModel,
+        config=medusa_model.MedusaConfig,
+        source={
+            "huggingface-torch": medusa_loader.huggingface,
+            "huggingface-safetensor": medusa_loader.huggingface,
+        },
+        quantize={
+            "no-quant": medusa_quantization.no_quant,
         },
     ),
 }

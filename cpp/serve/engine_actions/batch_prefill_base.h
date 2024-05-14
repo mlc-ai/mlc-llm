@@ -40,7 +40,7 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   /*! \brief Check if the input requests can be prefilled under conditions. */
   bool CanPrefill(EngineState estate, int num_prefill_rsentries, int total_input_length,
                   int num_required_pages, int num_available_pages, int current_total_seq_len,
-                  int num_running_rsentries);
+                  int num_running_rsentries, KVStateKind kv_state_kind);
 
   /*!
    * \brief Chunk the input of the given RequestModelState for prefill

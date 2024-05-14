@@ -16,6 +16,36 @@
 namespace mlc {
 namespace llm {
 
+/*! \brief The kind of cache. */
+enum class KVStateKind : int {
+  kKVCache = 0,
+  kRNNState = 1,
+  kNone = 2,
+};
+
+inline std::string KVStateKindToString(KVStateKind kv_state_kind) {
+  if (kv_state_kind == KVStateKind::kKVCache) {
+    return "kv_cache";
+  } else if (kv_state_kind == KVStateKind::kRNNState) {
+    return "rnn_state";
+  } else if (kv_state_kind == KVStateKind::kNone) {
+    return "none";
+  } else {
+    LOG(FATAL) << "Invalid kv state kind: " << static_cast<int>(kv_state_kind);
+  }
+}
+
+inline KVStateKind KVStateKindFromString(const std::string& kv_state_kind) {
+  if (kv_state_kind == "kv_cache") {
+    return KVStateKind::kKVCache;
+  } else if (kv_state_kind == "rnn_state") {
+    return KVStateKind::kRNNState;
+  } else if (kv_state_kind == "none") {
+    return KVStateKind::kNone;
+  } else {
+    LOG(FATAL) << "Invalid kv state kind string: " << kv_state_kind;
+  }
+}
 struct ModelMetadata {
   struct Param {
     struct Preproc {
@@ -49,6 +79,7 @@ struct ModelMetadata {
   int64_t attention_sink_size;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
+  KVStateKind kv_state_kind;
   KVCacheMetadata kv_cache_metadata;
 
   static ModelMetadata FromJSON(const picojson::object& json_str,

@@ -111,6 +111,11 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           }
         }
         request_internal_ids.push_back(mstate->internal_id);
+
+        if (engine_config_->speculative_mode == SpeculativeMode::kMedusa && model_id > 0) {
+          // Embedding is only needed for the base model in Medusa.
+          continue;
+        }
         RECORD_EVENT(trace_recorder_, prefill_inputs[i].rsentry->request->id, "start embedding");
         // Speculative models shift left the input tokens by 1 when base model has committed tokens.
         // Note: for n > 1 cases Eagle doesn't work because parent entry doesn't shift input tokens.
@@ -125,59 +130,56 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      ObjectRef embedding_or_hidden_states{nullptr};
-      if (model_id == 0) {
-        embedding_or_hidden_states = embeddings;
-      } else {
-        embedding_or_hidden_states = models_[model_id]->FuseEmbedHidden(
-            embeddings, hidden_states_for_input, /*batch_size*/ 1, /*seq_len*/ cum_prefill_length);
-      }
-      // hidden_states: (b * s, h)
-      ObjectRef hidden_states = models_[model_id]->BatchPrefillToLastHidden(
-          embedding_or_hidden_states, request_internal_ids, prefill_lengths);
-      RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
 
-      if (model_id == 0) {
-        // We only need to sample for model 0 in prefill.
-        hidden_states_for_input = hidden_states;
-      }
+      Array<NDArray> multi_step_logits{nullptr};
 
-      // Whether to use base model to get logits.
-      int sample_model_id = !models_[model_id]->CanGetLogits() ? 0 : model_id;
-
-      std::vector<int> logit_positions;
-      {
-        // Prepare the logit positions
-        logit_positions.reserve(prefill_lengths.size());
-        int total_len = 0;
-        for (int i = 0; i < prefill_lengths.size(); ++i) {
-          total_len += prefill_lengths[i];
-          logit_positions.push_back(total_len - 1);
+      if (model_id == 0 || engine_config_->speculative_mode == SpeculativeMode::kEagle) {
+        ObjectRef embedding_or_hidden_states{nullptr};
+        if (model_id == 0) {
+          embedding_or_hidden_states = embeddings;
+        } else {
+          embedding_or_hidden_states =
+              models_[model_id]->FuseEmbedHidden(embeddings, hidden_states_for_input,
+                                                 /*batch_size*/ 1, /*seq_len*/ cum_prefill_length);
         }
-      }
-      // hidden_states_for_sample: (b * s, h)
-      hidden_states_for_sample = models_[sample_model_id]->GatherHiddenStates(
-          hidden_states, logit_positions, &model_workspaces_[model_id].hidden_states);
-      // logits_for_sample: (b * s, v)
-      logits_for_sample = models_[sample_model_id]->GetLogits(hidden_states_for_sample);
-      // - Update logits.
-      ICHECK(logits_for_sample.defined());
-      Array<GenerationConfig> generation_cfg;
-      Array<RequestModelState> mstates_for_logitproc;
-      generation_cfg.reserve(num_rsentries);
-      mstates_for_logitproc.reserve(num_rsentries);
-      for (int i = 0; i < num_rsentries; ++i) {
-        generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
-        mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[sample_model_id]);
-      }
-      logit_processor_->InplaceUpdateLogits(logits_for_sample, generation_cfg,
-                                            mstates_for_logitproc, request_ids);
+        // hidden_states: (b * s, h)
+        ObjectRef hidden_states = models_[model_id]->BatchPrefillToLastHidden(
+            embedding_or_hidden_states, request_internal_ids, prefill_lengths);
+        RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
 
-      // - Compute probability distributions.
-      NDArray probs_on_device =
-          logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
+        if (model_id == 0) {
+          // We only need to sample for model 0 in prefill.
+          hidden_states_for_input = hidden_states;
+        }
 
-      // - Sample tokens.
+        // Whether to use base model to get logits.
+        int sample_model_id = !models_[model_id]->CanGetLogits() ? 0 : model_id;
+
+        std::vector<int> logit_positions;
+        {
+          // Prepare the logit positions
+          logit_positions.reserve(prefill_lengths.size());
+          int total_len = 0;
+          for (int i = 0; i < prefill_lengths.size(); ++i) {
+            total_len += prefill_lengths[i];
+            logit_positions.push_back(total_len - 1);
+          }
+        }
+        // hidden_states_for_sample: (b * s, h)
+        hidden_states_for_sample = models_[sample_model_id]->GatherHiddenStates(
+            hidden_states, logit_positions, &model_workspaces_[model_id].hidden_states);
+        // logits_for_sample: (b * s, v)
+        logits_for_sample = models_[sample_model_id]->GetLogits(hidden_states_for_sample);
+      } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
+        // Note: spec_draft_length in engine config has to be match the model config in Medusa.
+        multi_step_logits = models_[model_id]->GetMultiStepLogits(hidden_states_for_sample);
+      } else {
+        LOG(FATAL) << "unreachable";
+      }
+
+      Array<String> request_ids_for_logitproc = request_ids;
+
+      // - Prepare the configurations for the sampler.
       //   For prefill_inputs which have children, sample
       //   one token for each rstate that is depending.
       //   Otherwise, sample a token for the current rstate.
@@ -185,12 +187,12 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       std::vector<RequestStateEntry> rsentries_for_sample;
       std::vector<RandomGenerator*> rngs;
       std::vector<bool> rsentry_activated;
+      Array<GenerationConfig> generation_cfg;
       sample_indices.reserve(num_rsentries);
       rsentries_for_sample.reserve(num_rsentries);
       rngs.reserve(num_rsentries);
       rsentry_activated.reserve(num_rsentries);
       request_ids.clear();
-      generation_cfg.clear();
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         // No sample for rsentries with remaining inputs.
@@ -251,45 +253,51 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         }
       }
 
-      NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
-          probs_on_device, sample_indices, request_ids, generation_cfg);
-      std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
-          renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
-      ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
-
-      // - Update the committed tokens of states.
-      // - If a request is first-time prefilled, set the prefill finish time.
-      auto tnow = std::chrono::high_resolution_clock::now();
-      if (model_id == 0) {
-        UpdateRequestStateEntriesWithSampleResults(rsentries_for_sample, rsentry_activated,
-                                                   sample_results);
-        // Add the sampled token as an input of the eagle models.
-        for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-          for (int mid = 1; mid < static_cast<int>(models_.size()); ++mid) {
-            TokenData token_data =
-                Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
-            std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
-                                              token_data->token_ids.end()};
-            token_ids.push_back(sample_results[i].sampled_token_id.first);
-            int ninputs = static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
-            rsentries_for_sample[i]->mstates[mid]->inputs.Set(
-                ninputs - 1, TokenData(IntTuple(token_ids.begin(), token_ids.end())));
+      // - Prepare input for logit processor.
+      ICHECK(logits_for_sample.defined());
+      Array<GenerationConfig> generation_cfg_for_logitproc;
+      Array<RequestModelState> mstates_for_logitproc;
+      generation_cfg_for_logitproc.reserve(num_rsentries);
+      mstates_for_logitproc.reserve(num_rsentries);
+      for (int i = 0; i < num_rsentries; ++i) {
+        generation_cfg_for_logitproc.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
+        mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[model_id]);
+      }
+      if (model_id == 0 || engine_config_->speculative_mode == SpeculativeMode::kEagle) {
+        const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
+            logit_processor_, sampler_, logits_for_sample, generation_cfg_for_logitproc,
+            request_ids_for_logitproc, mstates_for_logitproc, rngs, sample_indices);
+        if (model_id == 0) {
+          UpdateRequestStateEntriesWithSampleResults(rsentries_for_sample, rsentry_activated,
+                                                     sample_results);
+          // Add the sampled token as an input of the eagle models.
+          for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+            for (int mid = 1; mid < static_cast<int>(models_.size()); ++mid) {
+              TokenData token_data =
+                  Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
+              std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
+                                                token_data->token_ids.end()};
+              token_ids.push_back(sample_results[i].sampled_token_id.first);
+              int ninputs = static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
+              rsentries_for_sample[i]->mstates[mid]->inputs.Set(
+                  ninputs - 1, TokenData(IntTuple(token_ids.begin(), token_ids.end())));
+            }
           }
+        } else {
+          // - Slice and save hidden_states_for_sample
+          UpdateRequestStatesWithDraftProposals(rsentries_for_sample, sample_results, model_id,
+                                                renormalized_probs, hidden_states_for_sample,
+                                                estate);
         }
-      } else {
-        // - Slice and save hidden_states_for_sample
-        draft_token_workspace_manager_->AllocSlots(rsentries_for_sample.size(),
-                                                   &draft_token_slots_);
-        models_[model_id]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
-                                             &model_workspaces_[0].draft_probs_storage);
-        if (engine_config_->spec_draft_length > 1) {
-          models_[model_id]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
-                                                 &model_workspaces_[0].draft_hidden_states_storage);
-        }
-        for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-          rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
-                                                                    draft_token_slots_[i]);
-          estate->stats.total_draft_length += 1;
+      } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
+        for (int draft_id = 0; draft_id < engine_config_->spec_draft_length; ++draft_id) {
+          const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
+              logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg_for_logitproc,
+              request_ids_for_logitproc, mstates_for_logitproc, rngs, sample_indices);
+
+          UpdateRequestStatesWithDraftProposals(rsentries_for_sample, sample_results, model_id,
+                                                renormalized_probs,
+                                                /*hidden_states=*/ObjectRef{nullptr}, estate);
         }
       }
     }
@@ -300,6 +308,26 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     std::vector<Request> processed_requests =
         RemoveProcessedRequests(prefill_inputs, estate, rstates_of_entries);
     return processed_requests;
+  }
+
+  void UpdateRequestStatesWithDraftProposals(
+      const std::vector<RequestStateEntry>& rsentries_for_sample,
+      const std::vector<SampleResult>& sample_results, int model_id,
+      const NDArray& renormalized_probs, const ObjectRef& hidden_states_for_sample,
+      EngineState estate) {
+    draft_token_workspace_manager_->AllocSlots(rsentries_for_sample.size(), &draft_token_slots_);
+    models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
+                                  &model_workspaces_[0].draft_probs_storage);
+    if (engine_config_->speculative_mode == SpeculativeMode::kEagle &&
+        engine_config_->spec_draft_length > 1) {
+      models_[0]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
+                                      &model_workspaces_[0].draft_hidden_states_storage);
+    }
+    for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+      rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
+                                                                draft_token_slots_[i]);
+      estate->stats.total_draft_length += 1;
+    }
   }
 
  private:

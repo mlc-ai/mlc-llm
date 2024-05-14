@@ -85,6 +85,14 @@ def _apply_preproc_to_params(
     return extra_tirs
 
 
+def _infer_kv_state_kind(model_type) -> str:
+    if "rwkv" in model_type:
+        return "rnn_state"
+    if "medusa" in model_type:
+        return "none"
+    return "kv_cache"
+
+
 def _compile(args: CompileArgs, model_config: ConfigBase):
     def _get_variable_bounds(model_config) -> Dict[str, int]:
         if hasattr(model_config, "sliding_window_size"):
@@ -178,6 +186,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
             "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
             "kv_cache_bytes": kv_cache_bytes,
+            "kv_state_kind": _infer_kv_state_kind(args.model.name),
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]

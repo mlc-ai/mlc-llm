@@ -425,7 +425,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         prefill_chunk_size: Optional[int],
         max_history_size: Optional[int],
         gpu_memory_utilization: Optional[float],
-        speculative_mode: Literal["disable", "small_draft", "eagle"],
+        speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"],
         spec_draft_length: int,
         enable_tracing: bool,
         verbose: bool,

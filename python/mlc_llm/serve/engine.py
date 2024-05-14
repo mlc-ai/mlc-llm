@@ -827,11 +827,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         significantly smaller than this number. Under mode "server", the actual
         memory usage may be slightly larger than this number.
 
-    speculative_mode : Literal["disable", "small_draft", "eagle"]
+    speculative_mode : Literal["disable", "small_draft", "eagle", "medusa"]
         The speculative mode.
         "disable" means speculative decoding is disabled.
         "small_draft" means the normal speculative decoding (small draft) mode.
         "eagle" means the eagle-style speculative decoding.
+        "medusa" means the medusa-style speculative decoding.
 
     spec_draft_length : int
         The number of tokens to generate in speculative proposal (draft).
@@ -856,7 +857,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         prefill_chunk_size: Optional[int] = None,
         max_history_size: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
+        speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable",
         spec_draft_length: int = 4,
         enable_tracing: bool = False,
         verbose: bool = True,
