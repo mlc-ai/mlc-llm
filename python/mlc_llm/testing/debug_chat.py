@@ -352,8 +352,8 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             self._apply_presence_and_freq_penalty(logits_np, presence_penalty, frequency_penalty)
 
         logits_np = self._softmax_with_temperature(logits_np, temperature)
-        np.savez(self.instrument.debug_out / f"logits.npz", logits_np)
-        
+        np.savez(self.instrument.debug_out / "logits.npz", logits_np)
+
         logits = logits.copyfrom(logits_np)
         next_token = self.sample_topp_from_prob_func(logits, top_p, random.random())
         return next_token
