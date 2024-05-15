@@ -270,7 +270,7 @@ ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) 
   Device null_device{DLDeviceType(0), 0};
   if (this->use_disco) {
     DRef empty_func = sess->GetGlobalFunc("runtime.disco.empty");
-    return sess->CallPacked(empty_func, shape, dtype, null_device);
+    return sess->CallPacked(empty_func, shape, dtype, null_device, false);
   } else {
     return NDArray::Empty(shape, dtype, device);
   }
