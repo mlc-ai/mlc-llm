@@ -83,7 +83,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
                                   /*repetition_penalty=*/std::nullopt, request.logprobs,
                                   request.top_logprobs, request.logit_bias, request.seed,
                                   request.ignore_eos, request.max_tokens, std::move(stop_strs),
-                                  conv_template.stop_token_ids, /*response_format=*/std::nullopt,
+                                  conv_template_.stop_token_ids, /*response_format=*/std::nullopt,
                                   request.pinned, this->default_generation_cfg_json_str_);
 
   Request engine_request(request_id, inputs, generation_cfg);

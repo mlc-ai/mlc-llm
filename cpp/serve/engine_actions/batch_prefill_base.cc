@@ -62,7 +62,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
            --num_child_to_activate) {
         while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                            total_input_length, total_required_pages, num_available_pages,
-                           current_total_seq_len, num_running_rsentries)) {
+                           current_total_seq_len, num_running_rsentries, kv_state_kind)) {
           if (!estate->prefix_cache->TryFreeMemory()) break;
         }
         if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
