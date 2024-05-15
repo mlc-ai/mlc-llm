@@ -7,6 +7,8 @@
 
 #include <tvm/runtime/container/string.h>
 
+#include "config.h"
+#include "prefix_cache.h"
 #include "request.h"
 #include "request_state.h"
 
@@ -105,6 +107,8 @@ class EngineStateObj : public Object {
   EngineInternalIDManager id_manager;
   /*! \brief Runtime statistics. */
   EngineStats stats;
+  /*! \brief The prefix cache. */
+  PrefixCache prefix_cache;
 
   /*! \brief Reset the engine state and clear the statistics. */
   void Reset();

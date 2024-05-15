@@ -3,13 +3,7 @@
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
-#include <tvm/runtime/nvtx.h>
-
-#include "../config.h"
-#include "../model.h"
 #include "../sampler/sampler.h"
-#include "action.h"
-#include "action_commons.h"
 #include "batch_prefill_base.h"
 
 namespace mlc {
@@ -77,8 +71,11 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
         ICHECK(mstate->draft_output_tokens.empty());
         ICHECK(mstate->draft_token_slots.empty());
-        if (status_before_prefill[i] == RequestStateStatus::kPending) {
+        if (status_before_prefill[i] == RequestStateStatus::kPending &&
+            !estate->prefix_cache->HasSequence(mstate->internal_id)) {
           // Add the sequence to the model, or fork the sequence from its parent.
+          // If the sequence is already in prefix cache, it has also been added/forked in the
+          // KVCache.
           if (rsentry->parent_idx == -1) {
             models_[model_id]->AddNewSequence(mstate->internal_id);
           } else {
@@ -94,6 +91,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "start embedding");
         for (int i = 0; i < static_cast<int>(input_data.size()); ++i) {
+          if (!model_id) {
+            mstate->prefilled_inputs.push_back(input_data[i]);
+          }
           embeddings = input_data[i]->GetEmbedding(models_[model_id],
                                                    /*dst=*/!single_input ? &embeddings : nullptr,
                                                    /*offset=*/cum_prefill_length);

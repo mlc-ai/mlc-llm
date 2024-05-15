@@ -53,6 +53,10 @@ class RequestNode : public Object {
    * top_p, repetition_penalty, max_gen_len, etc.
    */
   GenerationConfig generation_cfg;
+  /*!
+   * \brief The flag if request data is pinned in KVCache. Used for system prompt cache.
+   */
+  bool pinned = false;
 
   static constexpr const char* _type_key = "mlc.serve.Request";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -62,7 +66,8 @@ class RequestNode : public Object {
 
 class Request : public ObjectRef {
  public:
-  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg);
+  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg,
+                   bool pinned = false);
 
   /*!
    * \brief Return a request object with all text data tokenized,

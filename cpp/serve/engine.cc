@@ -97,6 +97,10 @@ class EngineImpl : public Engine {
       return TResult::Error(engine_config_res.UnwrapErr());
     }
     EngineConfig engine_config = engine_config_res.Unwrap();
+    n->estate_->prefix_cache = PrefixCache::Init(
+        engine_config->max_total_sequence_length / engine_config->kv_cache_page_size,
+        engine_config->kv_cache_page_size * 16, engine_config->max_num_sequence,
+        n->models_[0]->GetSlidingWindowSize(), n->models_[0]->GetAttentionSinkSize());
     // - Load model weights, create KV cache and workspace.
     n->model_workspaces_.clear();
     for (const Model& model : n->models_) {
@@ -287,19 +291,29 @@ class EngineImpl : public Engine {
     auto it_waiting =
         std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
 
-    for (const RequestStateEntry& rsentry : rstate->entries) {
-      estate_->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-    }
     estate_->request_states.erase(request->id);
     if (it_running != estate_->running_queue.end()) {
       // The request to abort is in running queue
       estate_->running_queue.erase(it_running);
 
       for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
-        if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
-          continue;
+        if (estate_->prefix_cache->HasSequence(rstate->entries[i]->mstates[0]->internal_id)) {
+          estate_->prefix_cache->RecycleSequence(
+              rstate->entries[i]->mstates[0]->internal_id,
+              TypedPackedFunc<void()>([this, rstate, i]() {
+                RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id,
+                                       models_);
+                estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
+              }),
+              /*lazy=*/false);
+        } else {
+          if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
+            estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
+            continue;
+          }
+          RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
+          estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
         }
-        RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
       }
     }
     if (it_waiting != estate_->waiting_queue.end()) {
@@ -340,7 +354,7 @@ class EngineImpl : public Engine {
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_.value(),
-                              engine_config_->max_single_sequence_length);
+                              engine_config_->max_single_sequence_length, trace_recorder_);
         return;
       }
     }

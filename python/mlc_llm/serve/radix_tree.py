@@ -88,6 +88,19 @@ class PagedRadixTree(Object):
             tokens = ShapeTuple(tokens)
         _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
 
+    def rollback(self, seq_id: int, num_tokens: int) -> None:
+        """
+        Roll back a sequence by number of tokens.
+
+        Parameters
+        ----------
+        seq_id : int
+            The sequence ID for index.
+        num_tokens : int
+            The number of tokens to be rolled back.
+        """
+        _ffi_api.PagedRadixTreeRollBackSequence(self, seq_id, num_tokens)  # type: ignore  # pylint: disable=no-member
+
     def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int) -> None:
         """
         Fork a sequence from parent sequence at given position.

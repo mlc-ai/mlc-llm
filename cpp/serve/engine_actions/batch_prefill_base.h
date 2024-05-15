@@ -100,6 +100,16 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
+
+ private:
+  /*!
+   * \brief Match the request state entry with prefix cache, to skip prefilling common prefix
+   * tokens. If the request state entry is not added to KVCache yet, this method will add/fork the
+   * request in the KVCache, depending on the matching result from prefix cache.
+   * \param estate The engine state.
+   * \param rsentry The request state entry to be matched. their input lengths.
+   */
+  void MatchPrefixCache(EngineState estate, RequestStateEntry rsentry);
 };
 
 }  // namespace serve

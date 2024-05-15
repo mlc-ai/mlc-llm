@@ -23,14 +23,14 @@ struct SequenceIDNode {
 };
 
 /*!
- * \brief The sequence Id node pool.
+ * \brief The sequence ID node pool.
  *
- * The sequence Id node pool allocates all sequence ID nodes when construction and frees when
+ * The sequence ID node pool allocates all sequence ID nodes when construction and frees when
  * destruction, to avoid frequent memory operation.
  */
 class SequenceIDNodePool {
  public:
-  /*! \brief The constructor of sequence Id node pool, allocating memory for each node. */
+  /*! \brief The constructor of sequence ID node pool, allocating memory for each node. */
   SequenceIDNodePool(size_t num_nodes) : num_nodes_(num_nodes) {
     nodes_.reserve(num_nodes);
     free_node_indicess_.reserve(num_nodes);
@@ -70,7 +70,20 @@ class SequenceIDNodePool {
     used_nodes_.erase(node);
   }
 
-  /*! \brief The destructor of sequence Id node pool, freeing memory for each node. */
+  /*!
+   * \brief Reset the sequence ID node pool to initial status.
+   */
+  void Reset() {
+    used_nodes_.clear();
+    free_node_indicess_.reserve(nodes_.size());
+    for (size_t i = 0; i < nodes_.size(); ++i) {
+      nodes_[i]->id = 0;
+      nodes_[i]->next = nullptr;
+      free_node_indicess_[i] = i;
+    }
+  }
+
+  /*! \brief The destructor of sequence ID node pool, freeing memory for each node. */
   ~SequenceIDNodePool() { delete[] raw_pool_; }
 
  private:
@@ -178,6 +191,8 @@ struct RedixPage {
           pool->Free(cur);
           return;
         }
+        last = cur;
+        cur = cur->next;
       }
       LOG(FATAL) << "Sequence ID = " << id << " not found.";
     }
@@ -325,6 +340,7 @@ class RadixPagePool {
  public:
   /*! \brief The constructor of paged radix tree page pool, allocating memory for each page. */
   RadixPagePool(size_t page_size, size_t num_pages) : page_size_(page_size), num_pages_(num_pages) {
+    CHECK_GT(page_size_ / sizeof(int32_t), RedixPage::DATA_OFFSET);
     pages_.reserve(num_pages);
     free_page_indices_.reserve(num_pages);
     raw_pool_ = new int32_t[num_pages * page_size / sizeof(int32_t)];
@@ -370,6 +386,21 @@ class RadixPagePool {
    */
   size_t FreeCapacity() {
     return free_page_indices_.size() * (page_size_ / sizeof(int32_t) - RedixPage::DATA_OFFSET);
+  }
+
+  /*!
+   * \brief Reset the paged radix tree page pool to initial status.
+   */
+  void Reset() {
+    used_pages_.clear();
+    free_page_indices_.reserve(num_pages_);
+    for (int i = 0; i < num_pages_; ++i) {
+      pages_[i]->parent = pages_[i]->first_child = pages_[i]->next_sibiling = nullptr;
+      pages_[i]->capacity = page_size_ / sizeof(int32_t) - RedixPage::DATA_OFFSET;
+      pages_[i]->offset = pages_[i]->length = 0;
+      pages_[i]->seq_ids = nullptr;
+      free_page_indices_[i] = i;
+    }
   }
 
   /*! \brief The destructor of paged radix tree page pool, freeing memory for each page. */
@@ -425,6 +456,14 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     root->offset = root->length = root->capacity = 0;
     root->seq_ids = nullptr;
   }
+
+  /*!
+   * \brief Check if a sequence exists.
+   * \param seq_id The sequence ID for index.
+   * \return The sequence existence.
+   * \throw Error if sequence ID is not valid.
+   */
+  bool HasSequence(int64_t seq_id) { return seq2page.find(seq_id) != seq2page.end(); }
 
   /*!
    * \brief Get a sequence's all tokens.
@@ -510,7 +549,8 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \throw Error if sequence ID is not valid.
    */
   void AddSequence(int64_t seq_id) {
-    CHECK(seq2page.find(seq_id) == seq2page.end());
+    CHECK(seq2page.find(seq_id) == seq2page.end())
+        << "Sequence ID = " << seq_id << " has been added.";
     root->AddSequence(seq_id_node_pool, seq_id);
     seq2page[seq_id] = root;
   }
@@ -556,6 +596,50 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
   }
 
   /*!
+   * \brief Roll back a sequence by number of tokens.
+   * \param seq_id The sequence ID for index.
+   * \param num_tokens The number of tokens to be rolled back.
+   * \throw Error if sequence ID is not valid.
+   */
+  void RollBackSequence(int64_t seq_id, size_t num_tokens) {
+    size_t length = GetSequenceLength(seq_id);
+    CHECK_GT(num_tokens, 0);
+    CHECK_LE(num_tokens, length);
+    if (num_tokens == length) {
+      RemoveSequence(seq_id);
+      AddSequence(seq_id);
+      return;
+    }
+    RedixPage* page = seq2page[seq_id];
+    page->PopSequence(seq_id_node_pool, seq_id);
+    seq2page.erase(seq_id);
+    while (page->length <= num_tokens) {
+      // Roll back entire page
+      num_tokens -= page->length;
+      RedixPage* parent = page->parent;
+      if (!page->seq_ids && !page->first_child) {
+        // The leaf page is removable
+        parent->RemoveChild(page);
+        radix_page_pool->Free(page);
+      }
+      page = parent;
+    }
+    if (!page->seq_ids && !page->first_child) {
+      // The page is leaf page, directly roll back in page length
+      page->AddSequence(seq_id_node_pool, seq_id);
+      page->length -= num_tokens;
+      seq2page[seq_id] = page;
+      return;
+    }
+    // Split page for rolled back seuqence
+    if (num_tokens) {
+      page = SplitPage(page, page->length - num_tokens);
+    }
+    page->AddSequence(seq_id_node_pool, seq_id);
+    seq2page[seq_id] = page;
+  }
+
+  /*!
    * \brief Remove a sequence.
    * \param seq_id The sequence ID to remove.
    * \throw Error if sequence ID is not valid.
@@ -581,6 +665,15 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \return The the remaining token capacity of the paged radix tree.
    */
   size_t FreeCapacity() { return radix_page_pool->FreeCapacity(); }
+
+  void Reset() {
+    radix_page_pool->Reset();
+    seq_id_node_pool->Reset();
+    seq2page.clear();
+    root->parent = root->first_child = root->next_sibiling = nullptr;
+    root->offset = root->length = root->capacity = 0;
+    root->seq_ids = nullptr;
+  }
 
   /*! \brief The destructor to free root page. */
   ~PagedRadixTreeImpl() {
@@ -636,6 +729,10 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     }
     child->length = page->length - offset;
     page->length = offset;
+    child->seq_ids = page->seq_ids;
+    std::vector<int64_t> seq_ids = page->GetLocalSequence();
+    for (int64_t id : seq_ids) seq2page[id] = child;
+    page->seq_ids = nullptr;
     if (child->Mergeable()) {
       // The child page may be mergeable
       MergePage(child);
@@ -694,11 +791,17 @@ TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeMatchPrefix")
     });
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeExtendSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::ExtendSequence);
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRollBackSequence")
+    .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t num_tokens) {
+      paged_radix_tree->RollBackSequence(seq_id, num_tokens);
+    });
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeForkSequence")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t parent_seq_id,
                        uint64_t forked_offset) {
       paged_radix_tree->ForkSequence(seq_id, parent_seq_id, forked_offset);
     });
+TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeHasSequence")
+    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::HasSequence);
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeAddSequence")
     .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::AddSequence);
 TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRemoveSequence")

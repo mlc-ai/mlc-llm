@@ -52,6 +52,10 @@ class RequestModelStateNode : public Object {
   std::vector<SampleResult> committed_tokens;
   /*! \brief The list of input data yet for the model to prefill. */
   Array<Data> inputs;
+  /*! \brief The list of prefilled input data, used to notify prefix cache. */
+  Array<Data> prefilled_inputs;
+  /*! \brief The number of tokens already cached in prefix cache. */
+  size_t cached_committed_tokens = 0;
 
   // NOTE: The following fields are reserved for future speculative inference
   // settings, and are produced by the speculative small models.

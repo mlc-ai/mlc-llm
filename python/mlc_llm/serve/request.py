@@ -33,6 +33,9 @@ class Request(Object):
         The JSON string of the default generation config.
         When a field in the input generation_config is not defined,
         we use the value in the default generation config.
+
+    pinned : bool
+        The flag if request data is pinned in KVCache. Used for system prompt cache.
     """
 
     def __init__(
@@ -41,6 +44,7 @@ class Request(Object):
         inputs: Union[Data, List[Data]],
         generation_config: GenerationConfig,
         default_generation_config_json_str: Optional[str] = None,
+        pinned: bool = False,
     ):
         if not isinstance(inputs, list):
             inputs = [inputs]
@@ -50,6 +54,7 @@ class Request(Object):
             inputs,
             generation_config.asjson(),
             default_generation_config_json_str,
+            pinned,
         )
 
     @property

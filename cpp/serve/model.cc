@@ -702,6 +702,10 @@ class ModelImpl : public ModelObj {
     return num_shards_ > 1 ? num_shards_ : 0;
   }
 
+  int GetSlidingWindowSize() const final { return sliding_window_size_; }
+
+  int GetAttentionSinkSize() const final { return attention_sink_size_; }
+
   ObjectRef AllocEmbeddingTensor() final {
     if (!ft_.alloc_embedding_tensor_func_.defined()) {
       return ObjectRef{nullptr};

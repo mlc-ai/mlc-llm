@@ -60,6 +60,11 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
       bool can_prefill = false;
       for (int num_child_to_activate = rsentry->child_indices.size(); num_child_to_activate >= 0;
            --num_child_to_activate) {
+        while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                           total_input_length, total_required_pages, num_available_pages,
+                           current_total_seq_len, num_running_rsentries)) {
+          if (!estate->prefix_cache->TryFreeMemory()) break;
+        }
         if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                        total_input_length, total_required_pages, num_available_pages,
                        current_total_seq_len, num_running_rsentries, kv_state_kind)) {
@@ -109,10 +114,16 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     }
   }
 
+  for (int i = 0; i < prefill_inputs.size(); ++i) {
+    MatchPrefixCache(estate, prefill_inputs[i].rsentry);
+    prefill_inputs[i].max_prefill_length =
+        std::min(prefill_inputs[i].max_prefill_length,
+                 prefill_inputs[i].rsentry->mstates[0]->GetInputLength());
+  }
+
   return prefill_inputs;
 }
 
-/*! \brief Check if the input requests can be prefilled under conditions. */
 bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_rsentries,
                                            int total_input_length, int num_required_pages,
                                            int num_available_pages, int current_total_seq_len,
@@ -307,6 +318,101 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
     }
     if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
       rsentries_for_sample[i]->tprefill_finish = tnow;
+    }
+  }
+}
+
+/*!
+ * \brief Concatenate the array of TokenData into one IntTuple, return empty IntTuple if there
+ * is untokenized data. \param inputs The array of TokenData. \return The concatenate
+ * IntTuple.
+ */
+IntTuple GetConcatTokens(Array<Data> inputs) {
+  std::vector<int64_t> tokens;
+  for (Data data : inputs) {
+    if (const TokenDataNode* token_data = data.as<TokenDataNode>()) {
+      tokens.reserve(tokens.size() + token_data->GetLength());
+      for (int i = 0; i < token_data->GetLength(); ++i) {
+        tokens.push_back(token_data->token_ids[i]);
+      }
+    } else {
+      return IntTuple({});
+    }
+  }
+  return IntTuple(tokens);
+}
+
+/*!
+ * \brief Pop the prefix tokens of the RequestModelState input data array.
+ * \param mstate The RequestModelState to be popped.
+ * \param num_tokens The number of prefix tokens to be popped.
+ */
+void PopPrefixTokens(RequestModelState mstate, size_t num_tokens) {
+  while (mstate->inputs[0]->GetLength() <= num_tokens) {
+    num_tokens -= mstate->inputs[0]->GetLength();
+    mstate->inputs.erase(mstate->inputs.begin());
+  }
+  if (num_tokens) {
+    const TokenDataNode* token_data = mstate->inputs[0].as<TokenDataNode>();
+    std::vector<int32_t> tokens(token_data->GetLength() - num_tokens);
+    for (int i = num_tokens; i < token_data->GetLength(); ++i) {
+      tokens.push_back(token_data->token_ids[i]);
+    }
+    mstate->inputs.erase(mstate->inputs.begin());
+    mstate->inputs.insert(mstate->inputs.begin(), TokenData(tokens));
+  }
+}
+
+void BatchPrefillBaseActionObj::MatchPrefixCache(EngineState estate, RequestStateEntry rsentry) {
+  if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
+      !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+    IntTuple tokens = GetConcatTokens(rsentry->mstates[0]->inputs);
+    if (!tokens.size()) {
+      // If the RequestStateEntry is of empty input data, or not fully tokenized, do nothing
+      // and return.
+      return;
+    }
+    MatchedResult result =
+        estate->prefix_cache->InsertSequence(rsentry->mstates[0]->internal_id, tokens);
+
+    RECORD_EVENT(trace_recorder_, rsentry->request->id,
+                 "prefix cache matched result: NewSeqID=" + std::to_string(result.new_seq_id) +
+                     " ,ParentSeqID=" + std::to_string(result.parent_seq_id) +
+                     " ,MatchedOffset=" + std::to_string(result.matched_offset) +
+                     " ,PopLastTokens=" + std::to_string(result.pop_last_tokens));
+    if (result.new_seq_id == rsentry->mstates[0]->internal_id) {
+      CHECK_EQ(result.pop_last_tokens, 0);
+      if (result.parent_seq_id == -1) {
+        // Add new sequence
+        CHECK_EQ(result.matched_offset, 0);
+        for (Model model : models_) {
+          model->AddNewSequence(rsentry->mstates[0]->internal_id);
+          model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+        }
+      } else {
+        // Fork from active sequence
+        for (Model model : models_) {
+          model->ForkSequence(result.parent_seq_id, rsentry->mstates[0]->internal_id,
+                              result.matched_offset);
+          model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+        }
+      }
+    } else {
+      // Reuse recycling sequence
+      CHECK_EQ(result.parent_seq_id, -1);
+      estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+      for (int i = 0; i < rsentry->mstates.size(); ++i) {
+        rsentry->mstates[i]->internal_id = result.new_seq_id;
+      }
+      if (result.pop_last_tokens) {
+        for (Model model : models_) {
+          model->PopNFromKVCache(rsentry->mstates[0]->internal_id, result.pop_last_tokens);
+        }
+      }
+    }
+    // Pop matched prefix
+    for (int i = 0; i < rsentry->mstates.size(); ++i) {
+      PopPrefixTokens(rsentry->mstates[i], result.matched_offset);
     }
   }
 }
