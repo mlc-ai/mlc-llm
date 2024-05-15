@@ -1,5 +1,6 @@
 # pylint: disable=chained-comparison,missing-docstring,too-few-public-methods,too-many-instance-attributes
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
+import json
 import queue
 import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
@@ -23,14 +24,14 @@ class EngineState:
     def get_request_stream_callback(self) -> Callable[[str], None]:
         # ChatCompletionStreamResponse
 
-        def _callback(chat_completion_stream_response_json_str: str) -> None:
-            self._sync_request_stream_callback(chat_completion_stream_response_json_str)
+        def _callback(chat_completion_stream_responses_json_str: str) -> None:
+            self._sync_request_stream_callback(chat_completion_stream_responses_json_str)
 
         return _callback
 
-    def _sync_request_stream_callback(self, chat_completion_stream_response_json_str: str) -> None:
+    def _sync_request_stream_callback(self, chat_completion_stream_responses_json_str: str) -> None:
         # Put the delta outputs to the queue in the unblocking way.
-        self.sync_queue.put_nowait(chat_completion_stream_response_json_str)
+        self.sync_queue.put_nowait(chat_completion_stream_responses_json_str)
 
 
 class JSONFFIEngine:
@@ -210,19 +211,18 @@ class JSONFFIEngine:
 
         try:
             while num_unfinished_requests > 0:
-                chat_completion_response_json_str = self.state.sync_queue.get()
-                # Currently returns a tvm array in case of error
-                if isinstance(chat_completion_response_json_str, tvm.ir.container.Array):
-                    chat_completion_response_json_str = chat_completion_response_json_str[0]
-                chat_completion_response = (
-                    openai_api_protocol.ChatCompletionStreamResponse.model_validate_json(
-                        chat_completion_response_json_str
+                chat_completion_responses_json_str = self.state.sync_queue.get()
+                chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
+                for chat_completion_response_json_dict in chat_completion_responses_list:
+                    chat_completion_response = (
+                        openai_api_protocol.ChatCompletionStreamResponse.model_validate(
+                            chat_completion_response_json_dict
+                        )
                     )
-                )
-                for choice in chat_completion_response.choices:
-                    if choice.finish_reason is not None:
-                        num_unfinished_requests -= 1
-                yield chat_completion_response
+                    for choice in chat_completion_response.choices:
+                        if choice.finish_reason is not None:
+                            num_unfinished_requests -= 1
+                    yield chat_completion_response
         except Exception as exception:  # pylint: disable=broad-exception-caught
             self._ffi["abort"](request_id)
             raise exception

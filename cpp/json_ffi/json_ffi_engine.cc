@@ -44,7 +44,9 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
   response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
   response.system_fingerprint = "";
 
-  this->request_stream_callback_(picojson::value(response.AsJSON()).serialize());
+  picojson::array response_arr;
+  response_arr.push_back(picojson::value(response.AsJSON()));
+  this->request_stream_callback_(picojson::value(response_arr).serialize());
 }
 
 bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
@@ -128,10 +130,8 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
       ICHECK_EQ(args.size(), 1);
       Array<RequestStreamOutput> delta_outputs = args[0];
-      Array<String> responses = this->GetResponseFromStreamOutput(delta_outputs);
-      for (const String response : responses) {
-        this->request_stream_callback_(static_cast<std::string>(response));
-      }
+      String responses = this->GetResponseFromStreamOutput(delta_outputs);
+      this->request_stream_callback_(responses);
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
@@ -171,7 +171,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
   void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
-  Array<String> GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
+  String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
     std::unordered_map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
@@ -213,16 +213,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       response_map[request_id].push_back(choice);
     }
 
-    Array<String> response_arr;
+    picojson::array response_arr;
     for (const auto& [request_id, choices] : response_map) {
       ChatCompletionStreamResponse response;
       response.id = request_id;
       response.choices = choices;
       response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
       response.system_fingerprint = "";
-      response_arr.push_back(picojson::value(response.AsJSON()).serialize());
+      response_arr.push_back(picojson::value(response.AsJSON()));
     }
-    return response_arr;
+    return picojson::value(response_arr).serialize();
   }
 };
 
