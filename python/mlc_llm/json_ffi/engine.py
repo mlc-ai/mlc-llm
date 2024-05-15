@@ -1,5 +1,6 @@
 # pylint: disable=chained-comparison,missing-docstring,too-few-public-methods,too-many-instance-attributes
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
+import json
 import queue
 import threading
 from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
@@ -20,17 +21,15 @@ from mlc_llm.tokenizer import Tokenizer
 class EngineState:
     sync_queue: queue.Queue
 
-    def get_request_stream_callback(self) -> Callable[[List[str]], None]:
+    def get_request_stream_callback(self) -> Callable[[str], None]:
         # ChatCompletionStreamResponse
 
-        def _callback(chat_completion_stream_responses_json_str: List[str]) -> None:
+        def _callback(chat_completion_stream_responses_json_str: str) -> None:
             self._sync_request_stream_callback(chat_completion_stream_responses_json_str)
 
         return _callback
 
-    def _sync_request_stream_callback(
-        self, chat_completion_stream_responses_json_str: List[str]
-    ) -> None:
+    def _sync_request_stream_callback(self, chat_completion_stream_responses_json_str: str) -> None:
         # Put the delta outputs to the queue in the unblocking way.
         self.sync_queue.put_nowait(chat_completion_stream_responses_json_str)
 
@@ -125,7 +124,9 @@ class JSONFFIEngine:
             verbose=False,
         )
 
-        self._ffi["init_background_engine"](device, self.state.get_request_stream_callback(), None)
+        self._ffi["init_background_engine"](
+            device.device_type, device.device_id, self.state.get_request_stream_callback()
+        )
         self._ffi["reload"](self.engine_config.asjson())
 
     def terminate(self):
@@ -210,11 +211,12 @@ class JSONFFIEngine:
 
         try:
             while num_unfinished_requests > 0:
-                chat_completion_stream_responses_json_str = self.state.sync_queue.get()
-                for chat_completion_response_json_str in chat_completion_stream_responses_json_str:
+                chat_completion_responses_json_str = self.state.sync_queue.get()
+                chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
+                for chat_completion_response_json_dict in chat_completion_responses_list:
                     chat_completion_response = (
-                        openai_api_protocol.ChatCompletionStreamResponse.model_validate_json(
-                            chat_completion_response_json_str
+                        openai_api_protocol.ChatCompletionStreamResponse.model_validate(
+                            chat_completion_response_json_dict
                         )
                     )
                     for choice in chat_completion_response.choices:
