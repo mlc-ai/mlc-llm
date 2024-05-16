@@ -374,6 +374,7 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("get_complete_engine_config",
                           &ThreadedEngineImpl::GetCompleteEngineConfigJSONString);
   TVM_MODULE_VTABLE_ENTRY("stats", &ThreadedEngineImpl::Stats);
+  TVM_MODULE_VTABLE_ENTRY("reset", &ThreadedEngineImpl::Reset);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
   TVM_MODULE_VTABLE_END();

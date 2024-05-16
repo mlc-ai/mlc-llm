@@ -34,7 +34,7 @@ async def debug_dump_event_trace(request: fastapi.Request):
             HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
         )
 
-    # - Check the requested model.
+    # Check the requested model.
     model = request_dict["model"]
 
     server_context: ServerContext = ServerContext.current()
@@ -99,7 +99,7 @@ async def debug_dump_engine_stats(request: fastapi.Request):
             HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
         )
 
-    # - Check the requested model.
+    # Check the requested model.
     model = request_dict["model"]
 
     server_context: ServerContext = ServerContext.current()
@@ -107,3 +107,29 @@ async def debug_dump_engine_stats(request: fastapi.Request):
     res = async_engine.stats()
     print(res)
     return json.loads(res)
+
+
+@app.post("/debug/reset_engine")
+async def debug_reset_engine_stats(request: fastapi.Request):
+    """Reset the engine, clean up all running data and statistics."""
+    # Get the raw request body as bytes
+    request_raw_data = await request.body()
+    request_json_str = request_raw_data.decode("utf-8")
+    try:
+        # Parse the JSON string
+        request_dict = json.loads(request_json_str)
+    except json.JSONDecodeError:
+        return error_protocol.create_error_response(
+            HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
+        )
+    if "model" not in request_dict:
+        return error_protocol.create_error_response(
+            HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
+        )
+
+    # Check the requested model.
+    model = request_dict["model"]
+
+    server_context: ServerContext = ServerContext.current()
+    async_engine = server_context.get_engine(model)
+    async_engine.reset()

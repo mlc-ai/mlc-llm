@@ -468,6 +468,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "get_default_generation_config",
                 "get_complete_engine_config",
                 "stats",
+                "reset",
                 "debug_call_func_on_all_worker",
             ]
         }
@@ -532,6 +533,10 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
     def stats(self):
         """Get the engine stats."""
         return self._ffi["stats"]()
+
+    def reset(self):
+        """Reset the engine, clear the running data and statistics."""
+        return self._ffi["reset"]()
 
 
 def process_chat_completion_request(  # pylint: disable=too-many-arguments

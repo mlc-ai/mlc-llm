@@ -43,6 +43,8 @@ void EngineStats::Reset() {
   total_decode_length = 0;
   total_accepted_length = 0;
   total_draft_length = 0;
+  accept_count.clear();
+  draft_count.clear();
 }
 
 TVM_REGISTER_OBJECT_TYPE(EngineStateObj);
