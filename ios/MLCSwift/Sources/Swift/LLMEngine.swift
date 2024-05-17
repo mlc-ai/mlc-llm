@@ -131,8 +131,7 @@ public actor MLCEngine {
 
         let decoder = JSONDecoder()
         do {
-            let msg = try decoder.decode(ChatCompletionStreamResponse.self, from: result!.data(using: .utf8)!)
-            responses.append(msg)
+            responses = try decoder.decode([ChatCompletionStreamResponse].self, from: result!.data(using: .utf8)!)
         } catch let lastError {
             logger.error("Swift json parsing error: error=\(lastError), jsonsrc=\(result!)")
          }
