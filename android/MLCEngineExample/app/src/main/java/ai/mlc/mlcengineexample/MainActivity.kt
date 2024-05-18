@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -36,6 +37,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val responseText = remember { mutableStateOf("") }
+            val coroutineScope = rememberCoroutineScope()
             val engine = MLCEngine()
             engine.reload(modelPath, modelLib)
             val messages=listOf(
@@ -53,7 +55,7 @@ class MainActivity : ComponentActivity() {
                 ),
                 model=modelPath,
             )
-            GlobalScope.launch {
+            coroutineScope.launch {
                 for (it in response) {
                     responseText.value += it.choices[0].delta.content?.asText()
                 }
