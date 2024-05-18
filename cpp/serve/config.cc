@@ -394,7 +394,8 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     int64_t runtime_context_window_size =
         json::LookupOptional<int64_t>(model_configs[i], "context_window_size").value_or(-1);
     int64_t compile_time_context_window_size =
-        json::LookupOptional<int64_t>(compile_time_model_config, "context_window_size").value_or(-1);
+        json::LookupOptional<int64_t>(compile_time_model_config, "context_window_size")
+            .value_or(-1);
     if (runtime_context_window_size > compile_time_context_window_size) {
       return Result<ModelConfigLimits>::Error(
           "Model " + std::to_string(i) + "'s runtime context window size (" +

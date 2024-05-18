@@ -202,7 +202,8 @@ class RequestStateEntryNode : public Object {
    * \return The delta token ids to return, the logprob JSON strings of each delta token id, and
    * the optional finish reason.
    */
-  DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer, int64_t max_single_sequence_length);
+  DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer,
+                                       int64_t max_single_sequence_length);
 
   static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
   static constexpr const bool _type_has_method_sequal_reduce = false;
