@@ -1,0 +1,10 @@
+{
+    "device": "android",
+    "model_list": [
+        {
+            "model": "HF://mlc-ai/phi-2-q4f16_1-MLC",
+            "estimated_vram_bytes": 2036816936,
+            "model_id": "phi-2-q4f16_1"
+        }
+    ]
+}

@@ -131,7 +131,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       ICHECK_EQ(args.size(), 1);
       Array<RequestStreamOutput> delta_outputs = args[0];
       String responses = this->GetResponseFromStreamOutput(delta_outputs);
-      this->request_stream_callback_(responses);
+      this->request_stream_callback_(static_cast<std::string>(responses));
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
