@@ -46,7 +46,8 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
 
   picojson::array response_arr;
   response_arr.push_back(picojson::value(response.AsJSON()));
-  this->request_stream_callback_(picojson::value(response_arr).serialize());
+  std::string stream_back_json = picojson::value(response_arr).serialize();
+  this->request_stream_callback_(stream_back_json);
 }
 
 bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
@@ -130,8 +131,8 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
       ICHECK_EQ(args.size(), 1);
       Array<RequestStreamOutput> delta_outputs = args[0];
-      String responses = this->GetResponseFromStreamOutput(delta_outputs);
-      this->request_stream_callback_(static_cast<std::string>(responses));
+      std::string responses = this->GetResponseFromStreamOutput(delta_outputs);
+      this->request_stream_callback_(responses);
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);

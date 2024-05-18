@@ -63,14 +63,12 @@ using namespace tvm::runtime;
 }
 
 - (void)initBackgroundEngine:(void (^)(NSString*))streamCallback {
-  TypedPackedFunc<void(Array<String>)> internal_stream_callback(
-      [streamCallback](Array<String> res) {
-        for (String value : res) {
-          streamCallback([NSString stringWithUTF8String:value.c_str()]);
-        }
-      });
-  DLDevice metal_device{kDLMetal, 0};
-  init_background_engine_func_(metal_device, internal_stream_callback, nullptr);
+  TypedPackedFunc<void(String)> internal_stream_callback([streamCallback](String value) {
+    streamCallback([NSString stringWithUTF8String:value.c_str()]);
+  });
+  int device_type = kDLMetal;
+  int device_id = 0;
+  init_background_engine_func_(device_type, device_id, internal_stream_callback);
 }
 
 - (void)reload:(NSString*)engineConfigJson {
