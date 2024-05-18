@@ -44,7 +44,7 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
-                           int max_single_sequence_length);
+                           int64_t max_single_sequence_length);
 
 /*!
  * \brief Preempt the last running request state entry from `running_queue`.

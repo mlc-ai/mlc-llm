@@ -179,11 +179,11 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         processed by the KV cache at any time.
 
     max_total_sequence_length : Optional[int]
-        The maximum length allowed for a single sequence in the engine.
-
-    max_single_sequence_length : Optional[int]
         The maximum total number of tokens whose KV data are allowed
         to exist in the KV cache at any time.
+
+    max_single_sequence_length : Optional[int]
+        The maximum length allowed for a single sequence in the engine.
 
     prefill_chunk_size : Optional[int]
         The maximum total sequence length in a prefill.

@@ -573,8 +573,8 @@ class ModelImpl : public ModelObj {
 
   /*********************** KV Cache Management  ***********************/
 
-  void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                     int prefill_chunk_size, int max_history_size) final {
+  void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
+                     int64_t prefill_chunk_size, int max_history_size) final {
     //  KVStateKind kv_state_kind) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
