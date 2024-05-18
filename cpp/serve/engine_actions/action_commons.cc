@@ -85,7 +85,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
-                           int max_single_sequence_length) {
+                           int64_t max_single_sequence_length) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
   std::vector<RequestStateEntry> finished_rsentries;
   finished_rsentries.reserve(requests.size());

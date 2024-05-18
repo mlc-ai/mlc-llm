@@ -227,8 +227,8 @@ class ModelObj : public Object {
    * \param max_history_size The maximum history size for RNN state to roll back.
    * The KV cache does not need this.
    */
-  virtual void CreateKVCache(int page_size, int max_num_sequence, int max_total_sequence_length,
-                             int prefill_chunk_size, int max_history_size) = 0;
+  virtual void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
+                             int64_t prefill_chunk_size, int max_history_size) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;

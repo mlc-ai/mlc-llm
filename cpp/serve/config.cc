@@ -392,9 +392,9 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
         json::Lookup<picojson::object>(model_configs[i], "model_config");
     // - The maximum single sequence length is the minimum context window size among all models.
     int64_t runtime_context_window_size =
-        json::Lookup<int64_t>(model_configs[i], "context_window_size");
+        json::LookupOptional<int64_t>(model_configs[i], "context_window_size").value_or(-1);
     int64_t compile_time_context_window_size =
-        json::Lookup<int64_t>(compile_time_model_config, "context_window_size");
+        json::LookupOptional<int64_t>(compile_time_model_config, "context_window_size").value_or(-1);
     if (runtime_context_window_size > compile_time_context_window_size) {
       return Result<ModelConfigLimits>::Error(
           "Model " + std::to_string(i) + "'s runtime context window size (" +
@@ -458,7 +458,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     InferrableEngineConfig init_config, bool verbose) {
   std::ostringstream os;
   InferrableEngineConfig inferred_config = init_config;
-  // - 1. max_mum_sequence
+  // - 1. max_num_sequence
   if (!init_config.max_num_sequence.has_value()) {
     if (mode == EngineMode::kLocal) {
       inferred_config.max_num_sequence =

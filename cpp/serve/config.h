@@ -158,14 +158,14 @@ class EngineConfigNode : public Object {
    */
   int max_num_sequence = 4;
   /*! \brief The maximum length allowed for a single sequence in the engine. */
-  int max_total_sequence_length = 4096;
+  int64_t max_total_sequence_length = 4096;
   /*!
    * \brief The maximum total number of tokens whose KV data are allowed
    * to exist in the KV cache at any time.
    */
-  int max_single_sequence_length = 4096;
+  int64_t max_single_sequence_length = 4096;
   /*! \brief The maximum total sequence length in a prefill. */
-  int prefill_chunk_size = 1024;
+  int64_t prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
 

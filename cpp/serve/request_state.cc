@@ -118,7 +118,7 @@ RequestStateEntry::RequestStateEntry(
 }
 
 DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tokenizer,
-                                                            int max_single_sequence_length) {
+                                                            int64_t max_single_sequence_length) {
   std::vector<int32_t> return_token_ids;
   std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
