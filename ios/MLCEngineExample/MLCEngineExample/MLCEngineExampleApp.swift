@@ -36,10 +36,10 @@ class AppState: ObservableObject {
         Task {
             let modelLocalPath = bundleURL.appending(path: modelPath).path()
             // Step 0: load the engine
-            await engine.reload(modelPath: modelLocalPath, modelLib: modelLib)
+            engine.reload(modelPath: modelLocalPath, modelLib: modelLib)
 
             // run chat completion as in OpenAI API style
-            for await res in await engine.chatCompletion(
+            for await res in await engine.chat.completions.create(
                 messages: [
                     ChatCompletionMessage(
                         role: .user,
