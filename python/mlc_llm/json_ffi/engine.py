@@ -139,7 +139,7 @@ class JSONFFIEngine:
         self,
         *,
         messages: List[Dict[str, Any]],
-        model: str,
+        model: str = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
