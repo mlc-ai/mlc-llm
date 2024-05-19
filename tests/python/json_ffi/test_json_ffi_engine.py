@@ -1,4 +1,7 @@
+import json
 from typing import Dict, List, Optional
+
+from pydantic import BaseModel
 
 from mlc_llm.json_ffi import JSONFFIEngine
 
@@ -80,6 +83,65 @@ def run_chat_completion(
                 print(f"Output {req_id}({i}):{output}\n")
 
 
+def run_json_schema_function_calling(
+    engine: JSONFFIEngine,
+    model: str,
+    prompts: List[str] = function_calling_prompts,
+    tools: Optional[List[Dict]] = None,
+):
+    num_requests = 2
+    max_tokens = 64
+    n = 1
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+
+    class ToolCall(BaseModel):
+        name: str
+        arguments: Dict[str, str]
+
+    class Schema(BaseModel):
+        tool_calls: List[ToolCall]
+
+    schema_str = json.dumps(Schema.model_json_schema())
+    print("Schema str", schema_str)
+
+    for rid in range(num_requests):
+        print(f"chat completion for request {rid}")
+        for response in engine.chat_completion(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a function calling AI model. You are provided with function signatures within "
+                    "<tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make "
+                    f"assumptions about what values to plug into functions. Here are the available tools: <tools> {json.dumps(tools)} </tools> "
+                    "Do not stop calling functions until the task has been accomplished or you've reached max iteration of 10. "
+                    "Calling multiple functions at once can overload the system and increase cost so call one function at a time please. "
+                    "If you plan to continue with analysis, always call another function. Return a valid json object (using double "
+                    f"quotes) in the following schema: {schema_str}",
+                },
+                {"role": "user", "content": [{"type": "text", "text": prompts[rid]}]},
+            ],
+            model=model,
+            max_tokens=max_tokens,
+            n=n,
+            request_id=str(rid),
+            response_format={"type": "json_object", "schema": schema_str},
+        ):
+            for choice in response.choices:
+                assert choice.delta.role == "assistant"
+                assert isinstance(choice.delta.content, str)
+                output_texts[rid][choice.index] += choice.delta.content
+
+    # Print output.
+    print("Chat completion all finished")
+    for req_id, outputs in enumerate(output_texts):
+        print(f"Prompt {req_id}: {prompts[req_id]}")
+        if len(outputs) == 1:
+            print(f"Output {req_id}:{outputs[0]}\n")
+        else:
+            for i, output in enumerate(outputs):
+                print(f"Output {req_id}({i}):{output}\n")
+
+
 def test_chat_completion():
     # Create engine.
     model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
@@ -117,17 +179,15 @@ def test_reload_reset_unload():
     engine.terminate()
 
 
-def test_function_calling():
-    model = "dist/gorilla-openfunctions-v1-q4f16_1-MLC"
-    model_lib = "dist/gorilla-openfunctions-v1-q4f16_1-MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so"
+def test_json_schema_with_system_prompt():
+    model = "HF://mlc-ai/Hermes-2-Pro-Mistral-7B-q4f16_1-MLC"
     engine = JSONFFIEngine(
         model,
-        model_lib=model_lib,
         max_total_sequence_length=1024,
     )
 
     # run function calling
-    run_chat_completion(engine, model, function_calling_prompts, tools)
+    run_json_schema_function_calling(engine, model, function_calling_prompts, tools)
 
     engine.terminate()
 
@@ -135,4 +195,4 @@ def test_function_calling():
 if __name__ == "__main__":
     test_chat_completion()
     test_reload_reset_unload()
-    # test_function_calling()
+    test_json_schema_with_system_prompt()
