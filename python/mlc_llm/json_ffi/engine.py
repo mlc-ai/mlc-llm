@@ -33,65 +33,45 @@ class EngineState:
         # Put the delta outputs to the queue in the unblocking way.
         self.sync_queue.put_nowait(chat_completion_stream_responses_json_str)
 
+    def handle_chat_completion(
+        self, ffi: dict, request_json_str: str, n: int, request_id: str
+    ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
+        """Helper class to handle chat completion
 
-class JSONFFIEngine:
-    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
-        self,
-        model: str,
-        device: Union[str, tvm.runtime.Device] = "auto",
-        *,
-        model_lib: Optional[str] = None,
-        mode: Literal["local", "interactive", "server"] = "local",
-        additional_models: Optional[List[str]] = None,
-        max_batch_size: Optional[int] = None,
-        max_total_sequence_length: Optional[int] = None,
-        max_history_size: Optional[int] = None,
-        prefill_chunk_size: Optional[int] = None,
-        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
-        spec_draft_length: int = 4,
-        gpu_memory_utilization: Optional[float] = None,
-    ) -> None:
-        # - Initialize model loading info.
-        models = _parse_models(model, model_lib, additional_models)
-        if isinstance(device, str):
-            device = detect_device(device)
-        assert isinstance(device, tvm.runtime.Device)
-        model_args = _process_model_args(models, device)[0]
+        Note
+        ----
+        ffi is explicitly passed in to avoid cylic dependency
+        as ffi will capture EngineState
+        """
+        self.sync_queue = queue.Queue()
+        num_unfinished_requests = n
 
-        # TODO(mlc-team) Remove the model config parsing, estimation below
-        # in favor of a simple direct passing of parameters into backend.
-        # JSONFFIEngine do not have to support automatic mode
-        #
-        # Instead, its config should default to interactive mode always
-        # and allow overrides of parameters through json config via reload
-        #
-        # This is to simplify the logic of users of JSONFFI
-        # since we won't have similar logics in android/iOS
-        #
-        # - Load the raw model config into dict
-        for i, model_info in enumerate(models):
-            model_info.model_lib = model_args[i][1]
+        success = bool(ffi["chat_completion"](request_json_str, request_id))
 
-        # - Initialize engine state and engine.
-        self.state = EngineState()
-        module = tvm.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
-        self._ffi = {
-            key: module[key]
-            for key in [
-                "init_background_engine",
-                "reload",
-                "unload",
-                "reset",
-                "chat_completion",
-                "abort",
-                "get_last_error",
-                "run_background_loop",
-                "run_background_stream_back_loop",
-                "exit_background_loop",
-            ]
-        }
-        self.tokenizer = Tokenizer(model_args[0][0])
+        try:
+            while num_unfinished_requests > 0:
+                chat_completion_responses_json_str = self.sync_queue.get()
+                chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
+                for chat_completion_response_json_dict in chat_completion_responses_list:
+                    chat_completion_response = (
+                        openai_api_protocol.ChatCompletionStreamResponse.model_validate(
+                            chat_completion_response_json_dict
+                        )
+                    )
+                    for choice in chat_completion_response.choices:
+                        if choice.finish_reason is not None:
+                            num_unfinished_requests -= 1
+                    yield chat_completion_response
+        except Exception as exception:  # pylint: disable=broad-exception-caught
+            ffi["abort"](request_id)
+            raise exception
 
+
+class BackgroundLoops:
+    """Helper class to keep track of background loops"""
+
+    def __init__(self, ffi: dict):
+        self._ffi = ffi
         # important: avoid self reference in closure
         background_loop = self._ffi["run_background_loop"]
         background_stream_back_loop = self._ffi["run_background_stream_back_loop"]
@@ -105,28 +85,6 @@ class JSONFFIEngine:
         self._background_stream_back_loop_thread.start()
         self._terminated = False
 
-        self.engine_config = EngineConfig(
-            model=model_args[0][0],
-            model_lib=model_args[0][1],
-            additional_models=[model_arg[0] for model_arg in model_args[1:]],
-            additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
-            mode=mode,
-            gpu_memory_utilization=gpu_memory_utilization,
-            kv_cache_page_size=16,
-            max_num_sequence=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-            max_history_size=max_history_size,
-            speculative_mode=speculative_mode,
-            spec_draft_length=spec_draft_length,
-            verbose=False,
-        )
-
-        self._ffi["init_background_engine"](
-            device.device_type, device.device_id, self.state.get_request_stream_callback()
-        )
-        self._ffi["reload"](self.engine_config.asjson())
-
     def __del__(self):
         self.terminate()
 
@@ -138,7 +96,20 @@ class JSONFFIEngine:
         self._background_loop_thread.join()
         self._background_stream_back_loop_thread.join()
 
-    def chat_completion(  # pylint: disable=too-many-arguments,too-many-locals
+
+class Completions:
+    """Completions class to be compatible with OpenAI API"""
+
+    _ffi: dict
+    _state: EngineState
+    _background_loops: BackgroundLoops
+
+    def __init__(self, ffi: dict, state: EngineState, background_loops: BackgroundLoops):
+        self._ffi = ffi
+        self._state = state
+        self._background_loops = background_loops
+
+    def create(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         *,
         messages: List[Dict[str, Any]],
@@ -165,7 +136,8 @@ class JSONFFIEngine:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
 
-        chatcmpl_generator = self._handle_chat_completion(
+        chatcmpl_generator = self._state.handle_chat_completion(
+            self._ffi,
             openai_api_protocol.ChatCompletionRequest(
                 messages=[
                     openai_api_protocol.ChatCompletionMessage.model_validate(message)
@@ -204,31 +176,109 @@ class JSONFFIEngine:
         for response in chatcmpl_generator:
             yield response
 
-    def _handle_chat_completion(
+
+class Chat:
+    """Chat class to be compatible with OpenAI API"""
+
+    compltetions: Completions
+
+    def __init__(self, ffi: dict, state: EngineState, background_loops: BackgroundLoops):
+        self.completions = Completions(ffi, state, background_loops)
+
+
+class JSONFFIEngine:
+    chat: Chat
+
+    def __init__(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        model: str,
+        device: Union[str, tvm.runtime.Device] = "auto",
+        *,
+        model_lib: Optional[str] = None,
+        mode: Literal["local", "interactive", "server"] = "local",
+        additional_models: Optional[List[str]] = None,
+        max_batch_size: Optional[int] = None,
+        max_total_sequence_length: Optional[int] = None,
+        max_history_size: Optional[int] = None,
+        prefill_chunk_size: Optional[int] = None,
+        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
+        spec_draft_length: int = 4,
+        gpu_memory_utilization: Optional[float] = None,
+    ) -> None:
+        # - Initialize model loading info.
+        models = _parse_models(model, model_lib, additional_models)
+        if isinstance(device, str):
+            device = detect_device(device)
+        assert isinstance(device, tvm.runtime.Device)
+        model_args = _process_model_args(models, device)[0]
+
+        # TODO(mlc-team) Remove the model config parsing, estimation below
+        # in favor of a simple direct passing of parameters into backend.
+        # JSONFFIEngine do not have to support automatic mode
+        #
+        # Instead, its config should default to interactive mode always
+        # and allow overrides of parameters through json config via reload
+        #
+        # This is to simplify the logic of users of JSONFFI
+        # since we won't have similar logics in android/iOS
+        #
+        # - Load the raw model config into dict
+        for i, model_info in enumerate(models):
+            model_info.model_lib = model_args[i][1]
+
+        # - Initialize engine state and engine.
+        self._state = EngineState()
+        module = tvm.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
+        self._ffi = {
+            key: module[key]
+            for key in [
+                "init_background_engine",
+                "reload",
+                "unload",
+                "reset",
+                "chat_completion",
+                "abort",
+                "run_background_loop",
+                "run_background_stream_back_loop",
+                "exit_background_loop",
+            ]
+        }
+        self.tokenizer = Tokenizer(model_args[0][0])
+        self._background_loops = BackgroundLoops(self._ffi)
+
+        self.engine_config = EngineConfig(
+            model=model_args[0][0],
+            model_lib=model_args[0][1],
+            additional_models=[model_arg[0] for model_arg in model_args[1:]],
+            additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
+            mode=mode,
+            gpu_memory_utilization=gpu_memory_utilization,
+            kv_cache_page_size=16,
+            max_num_sequence=max_batch_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            max_history_size=max_history_size,
+            speculative_mode=speculative_mode,
+            spec_draft_length=spec_draft_length,
+            verbose=False,
+        )
+
+        self._ffi["init_background_engine"](
+            device.device_type, device.device_id, self._state.get_request_stream_callback()
+        )
+        self._ffi["reload"](self.engine_config.asjson())
+
+        self.chat = Chat(self._ffi, self._state, self._background_loops)
+
+    def _raw_chat_completion(
         self, request_json_str: str, n: int, request_id: str
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
-        self.state.sync_queue = queue.Queue()
-        num_unfinished_requests = n
+        """Raw chat completion API"""
+        return self._state.handle_chat_completion(self._ffi, request_json_str, n, request_id)
 
-        success = bool(self._ffi["chat_completion"](request_json_str, request_id))
-
-        try:
-            while num_unfinished_requests > 0:
-                chat_completion_responses_json_str = self.state.sync_queue.get()
-                chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
-                for chat_completion_response_json_dict in chat_completion_responses_list:
-                    chat_completion_response = (
-                        openai_api_protocol.ChatCompletionStreamResponse.model_validate(
-                            chat_completion_response_json_dict
-                        )
-                    )
-                    for choice in chat_completion_response.choices:
-                        if choice.finish_reason is not None:
-                            num_unfinished_requests -= 1
-                    yield chat_completion_response
-        except Exception as exception:  # pylint: disable=broad-exception-caught
-            self._ffi["abort"](request_id)
-            raise exception
+    def terminate(self):
+        """Explicitly terminate the engine"""
+        self._background_loops.terminate()
 
     def _test_reload(self):
         self._ffi["reload"](self.engine_config.asjson())
