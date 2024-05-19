@@ -13,20 +13,11 @@ from . import _ffi_api
 class PagedRadixTree(Object):
     """The paged radix tree to manage prefix and sequence."""
 
-    def __init__(self, num_pages: int, page_size: int, num_seqs: int):
+    def __init__(self):
         """
         Constructor of paged radix tree.
-
-        Parameters
-        ----------
-        num_pages : int
-            The number of radix tree pages.
-        page_size : int
-            The page size of each radix tree page.
-        num_seqs : int
-            The maximum number of sequence ID.
         """
-        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree, num_pages, page_size, num_seqs)  # type: ignore  # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree)  # type: ignore  # pylint: disable=no-member
 
     def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:
         """

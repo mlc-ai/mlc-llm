@@ -16,15 +16,12 @@ class PrefixCacheImpl : public PrefixCacheObj {
  public:
   /*!
    * \brief Contructor of paged radix tree.
-   * \param num_pages The number of radix tree pages.
-   * \param page_size The page size of each radix tree page.
-   * \param num_seqs The maximum number of sequence ID.
+   * \param max_num_seqs The maximum number of sequence ID.
    * \param sliding_window_size The sliding window size, -1 for disabled sliding window.
    * \param attention_sink_size The attention sink position for sliding window.
    */
-  explicit PrefixCacheImpl(size_t num_pages, size_t page_size, size_t num_seqs,
-                           int sliding_window_size, int attention_sink_size)
-      : radix_tree(PagedRadixTree(num_pages, page_size, num_seqs)), max_recycling_seqs(num_seqs) {
+  explicit PrefixCacheImpl(size_t max_num_seqs, int sliding_window_size, int attention_sink_size)
+      : radix_tree(PagedRadixTree::Create()), max_recycling_seqs(max_num_seqs) {
     latest_visit.clear();
     recycle_callbacks.clear();
     recycling_seqs.clear();
@@ -248,10 +245,10 @@ class PrefixCacheImpl : public PrefixCacheObj {
 
 TVM_REGISTER_OBJECT_TYPE(PrefixCacheImpl);
 
-PrefixCache PrefixCache::Init(size_t num_pages, size_t page_size, size_t num_seqs,
-                              int sliding_window_size, int attention_sink_size) {
-  ObjectPtr<PrefixCacheImpl> n = make_object<PrefixCacheImpl>(
-      num_pages, page_size, num_seqs, sliding_window_size, attention_sink_size);
+PrefixCache PrefixCache::Init(size_t max_num_seqs, int sliding_window_size,
+                              int attention_sink_size) {
+  ObjectPtr<PrefixCacheImpl> n =
+      make_object<PrefixCacheImpl>(max_num_seqs, sliding_window_size, attention_sink_size);
   return PrefixCache(std::move(n));
 }
 

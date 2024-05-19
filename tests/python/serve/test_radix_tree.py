@@ -2,7 +2,7 @@ from mlc_llm.serve import PagedRadixTree
 
 
 def test_add():
-    prt = PagedRadixTree(16, 128, 16)
+    prt = PagedRadixTree()
     prt.add(0)
     assert prt.get(0) == []
     prt.add(1)
@@ -10,7 +10,7 @@ def test_add():
 
 
 def test_remove():
-    prt = PagedRadixTree(32, 128, 16)
+    prt = PagedRadixTree()
     capacity = prt.free_capacity()
     prt.add(0)
     prt.remove(0)
@@ -45,8 +45,8 @@ def test_remove():
 
 
 def test_extend():
-    prt = PagedRadixTree(1024, 256, 256)
-    L = prt.free_capacity() // 1024
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
     H = L // 2
     Q = L // 4
     seq_id = 0
@@ -66,8 +66,8 @@ def test_extend():
 
 
 def test_fork():
-    prt = PagedRadixTree(1024, 256, 256)
-    L = prt.free_capacity() // 1024
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
     H = L // 2
     Q = L // 4
     seq_id = 0
@@ -83,8 +83,8 @@ def test_fork():
 
 
 def test_rollback():
-    prt = PagedRadixTree(1024, 256, 256)
-    L = prt.free_capacity() // 1024
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
     H = L // 2
     Q = L // 4
     seq_id = 0

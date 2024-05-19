@@ -115,12 +115,9 @@ TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeObj);
 class PagedRadixTree : public ObjectRef {
  public:
   /*!
-   * \brief Constructor of paged radix tree.
-   * \param num_pages The number of radix tree pages.
-   * \param page_size The page size of each radix tree page.
-   * \param num_seqs The maximum number of sequence ID.
-   */
-  PagedRadixTree(size_t num_pages, size_t page_size, size_t num_seqs);
+   * \brief Construct a paged radix tree.
+   * \return The constructed paged radix tree.   */
+  static PagedRadixTree Create();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PagedRadixTree, ObjectRef, PagedRadixTreeObj);
 };

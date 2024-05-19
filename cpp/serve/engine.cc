@@ -97,10 +97,9 @@ class EngineImpl : public Engine {
       return TResult::Error(engine_config_res.UnwrapErr());
     }
     EngineConfig engine_config = engine_config_res.Unwrap();
-    n->estate_->prefix_cache = PrefixCache::Init(
-        engine_config->max_total_sequence_length / engine_config->kv_cache_page_size,
-        engine_config->kv_cache_page_size * 16, engine_config->max_num_sequence,
-        n->models_[0]->GetSlidingWindowSize(), n->models_[0]->GetAttentionSinkSize());
+    n->estate_->prefix_cache =
+        PrefixCache::Init(engine_config->max_num_sequence, n->models_[0]->GetSlidingWindowSize(),
+                          n->models_[0]->GetAttentionSinkSize());
     // - Load model weights, create KV cache and workspace.
     n->model_workspaces_.clear();
     for (const Model& model : n->models_) {
