@@ -30,7 +30,7 @@ GenerationConfig::GenerationConfig(
     std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
     std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
     std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-    std::optional<ResponseFormat> response_format, std::optional<bool> pinned,
+    std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
     Optional<String> default_config_json_str) {
   ObjectPtr<GenerationConfigNode> obj = make_object<GenerationConfigNode>();
   GenerationConfig default_config;
@@ -74,8 +74,8 @@ GenerationConfig::GenerationConfig(
   obj->stop_strs = stop_strs.value_or(default_config->stop_strs);
   obj->stop_token_ids = stop_token_ids.value_or(default_config->stop_token_ids);
   obj->response_format = response_format.value_or(default_config->response_format);
-  // "pinned" is for internal usage. Not the part of OpenAI API spec.
-  obj->pinned = pinned.value_or(default_config->pinned);
+  // "debug_config" is for internal usage. Not the part of OpenAI API spec.
+  obj->debug_config = debug_config.value_or(default_config->debug_config);
 
   data_ = std::move(obj);
 }
@@ -180,8 +180,15 @@ GenerationConfig::GenerationConfig(String config_json_str,
   } else {
     n->response_format = default_config->response_format;
   }
-  // "pinned" is for internal usage. Not the part of OpenAI API spec.
-  n->pinned = json::LookupOrDefault<bool>(config, "pinned", default_config->pinned);
+  // "debug_config" is for internal usage. Not the part of OpenAI API spec.
+  std::optional<picojson::object> debug_config_obj =
+      json::LookupOptional<picojson::object>(config, "debug_config");
+  if (debug_config_obj.has_value()) {
+    bool pinned_system_prompt =
+        json::LookupOrDefault<bool>(debug_config_obj.value(), "pinned_system_prompt",
+                                    default_config->debug_config.pinned_system_prompt);
+    n->debug_config = {pinned_system_prompt};
+  }
 
   data_ = std::move(n);
 }
@@ -240,7 +247,10 @@ String GenerationConfigNode::AsJSONString() const {
   config["response_format"] = picojson::value(response_format);
 
   // Params for internal usage. Not the part of OpenAI API spec.
-  config["pinned"] = picojson::value(this->pinned);
+  picojson::object debug_config_obj;
+  debug_config_obj["pinned_system_prompt"] =
+      picojson::value(this->debug_config.pinned_system_prompt);
+  config["debug_config"] = picojson::value(debug_config_obj);
 
   return picojson::value(config).serialize(true);
 }

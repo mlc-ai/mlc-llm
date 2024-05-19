@@ -30,6 +30,11 @@ struct ResponseFormat {
   Optional<String> schema = NullOpt;
 };
 
+/*! \brief The debug configuration of a request. */
+struct DebugConfig {
+  bool pinned_system_prompt = false;
+};
+
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
@@ -50,7 +55,7 @@ class GenerationConfigNode : public Object {
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
-  bool pinned = false;
+  DebugConfig debug_config = {false};
 
   String AsJSONString() const;
 
@@ -69,7 +74,7 @@ class GenerationConfig : public ObjectRef {
       std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
       std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
       std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-      std::optional<ResponseFormat> response_format, std::optional<bool> pinned,
+      std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
       Optional<String> default_config_json_str);
 
   TVM_DLL explicit GenerationConfig(String config_json_str,

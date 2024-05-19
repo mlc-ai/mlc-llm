@@ -4,7 +4,13 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
+from mlc_llm.serve import (
+    DebugConfig,
+    GenerationConfig,
+    Request,
+    RequestStreamOutput,
+    data,
+)
 from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts = [
@@ -26,7 +32,12 @@ def test_engine_system_prompt(engine):
     system_prompt_tokens = len(engine.tokenizer.encode(system_prompt))
     max_tokens = 8
     _, _ = engine.generate(
-        system_prompt, GenerationConfig(temperature=0, max_tokens=max_tokens, pinned=True)
+        system_prompt,
+        GenerationConfig(
+            temperature=0,
+            max_tokens=max_tokens,
+            debug_config=DebugConfig(pinned_system_prompt=True),
+        ),
     )
     stats = engine.stats()
     print(stats)

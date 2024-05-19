@@ -30,6 +30,20 @@ class ResponseFormat:
 
 
 @dataclass
+class DebugConfig:
+    """The debug configuration dataclass.Parameters
+    ----------
+
+    pinned_system_prompt : bool
+        Whether the input and generated data pinned in engine. Default is set to False.
+        This can be used for system prompt or other purpose, if the data is aimed to be
+        kept all the time.
+    """
+
+    pinned_system_prompt: bool = False
+
+
+@dataclass
 class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     """The generation configuration dataclass.
 
@@ -94,10 +108,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     response_format : ResponseFormat
         The response format of the generation output.
 
-    pinned : bool
-        Whether the input and generated data pinned in engine. Default is set to False.
-        This can be used for system prompt or other purpose, if the data is aimed to be
-        kept all the time.
+    debug_config : Optional[DebugConfig]
+        The optional debug configuration.
     """
 
     n: int = 1
@@ -118,7 +130,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     response_format: ResponseFormat = field(default_factory=ResponseFormat)
 
-    pinned: bool = False
+    debug_config: Optional[DebugConfig] = field(default_factory=DebugConfig)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
