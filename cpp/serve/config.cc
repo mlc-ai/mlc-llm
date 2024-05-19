@@ -423,20 +423,15 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     int64_t runtime_context_window_size =
         json::LookupOptional<int64_t>(model_configs[i], "context_window_size").value_or(-1);
     int64_t compile_time_context_window_size = model_metadata[i].context_window_size;
-    if (runtime_context_window_size > compile_time_context_window_size) {
-      return Result<ModelConfigLimits>::Error(
-          "Model " + std::to_string(i) + "'s runtime context window size (" +
-          std::to_string(runtime_context_window_size) +
-          ") is larger than the context window size used at compile time (" +
-          std::to_string(compile_time_context_window_size) + ").");
+
+    // limit runtime setting by compile time setting
+    if (compile_time_context_window_size != -1) {
+      if (runtime_context_window_size == -1 ||
+          runtime_context_window_size > compile_time_context_window_size) {
+        runtime_context_window_size = compile_time_context_window_size;
+      }
     }
-    if (runtime_context_window_size == -1 && compile_time_context_window_size != -1) {
-      return Result<ModelConfigLimits>::Error(
-          "Model " + std::to_string(i) +
-          "'s runtime context window size (infinite) is larger than the context "
-          "window size used at compile time (" +
-          std::to_string(compile_time_context_window_size) + ").");
-    }
+
     if (runtime_context_window_size != -1) {
       model_max_single_sequence_length =
           std::min(model_max_single_sequence_length, runtime_context_window_size);
@@ -445,13 +440,15 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     int64_t runtime_prefill_chunk_size =
         json::Lookup<int64_t>(model_configs[i], "prefill_chunk_size");
     int64_t compile_time_prefill_chunk_size = model_metadata[i].prefill_chunk_size;
-    if (runtime_prefill_chunk_size > compile_time_prefill_chunk_size) {
-      return Result<ModelConfigLimits>::Error(
-          "Model " + std::to_string(i) + "'s runtime prefill chunk size (" +
-          std::to_string(runtime_prefill_chunk_size) +
-          ") is larger than the prefill chunk size used at compile time (" +
-          std::to_string(compile_time_prefill_chunk_size) + ").");
+
+    // limit runtime setting by compile time setting
+    if (compile_time_prefill_chunk_size != -1) {
+      if (runtime_prefill_chunk_size == -1 ||
+          runtime_prefill_chunk_size > compile_time_prefill_chunk_size) {
+        runtime_prefill_chunk_size = compile_time_prefill_chunk_size;
+      }
     }
+
     if (runtime_prefill_chunk_size != -1) {
       model_max_prefill_chunk_size =
           std::min(model_max_prefill_chunk_size, runtime_prefill_chunk_size);
@@ -459,11 +456,12 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     // - The maximum batch size is the minimum max batch size among all models.
     model_max_batch_size = std::min(
         model_max_batch_size,
-        json::Lookup<int64_t>(json::Lookup<picojson::object>(model_configs[i], "model_config"),
-                              "max_batch_size"));
+        json::LookupOptional<int64_t>(
+            json::Lookup<picojson::object>(model_configs[i], "model_config"), "max_batch_size")
+            .value_or(128));
     // - The maximum sliding window size is the minimum among all models.
     int64_t runtime_sliding_window_size =
-        json::Lookup<int64_t>(model_configs[i], "sliding_window_size");
+        json::LookupOptional<int64_t>(model_configs[i], "sliding_window_size").value_or(-1);
     if (runtime_sliding_window_size != -1) {
       model_max_sliding_window_size =
           std::min(model_max_sliding_window_size, runtime_sliding_window_size);
@@ -664,6 +662,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
   // from model config.
   Result<ModelConfigLimits> model_config_limits_res =
       GetModelConfigLimits(model_configs, model_metadata);
+
   if (model_config_limits_res.IsErr()) {
     return Result<InferrableEngineConfig>::Error(model_config_limits_res.UnwrapErr());
   }
@@ -714,6 +713,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
   // - Print log message.
   MemUsageEstimationResult final_estimation = final_estimation_result.Unwrap();
   InferrableEngineConfig inferred_config = std::move(final_estimation.inferred_config);
+
   if (verbose) {
     LOG(INFO) << "The actual engine mode is \"" << EngineModeToString(mode)
               << "\". So max batch size is " << inferred_config.max_num_sequence.value()

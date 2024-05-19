@@ -8,7 +8,7 @@ import MLCSwift
 
 enum MessageRole {
     case user
-    case bot
+    case assistant
 }
 
 extension MessageRole {
@@ -33,23 +33,29 @@ final class ChatState: ObservableObject {
         case processingImage
     }
 
-    @Published var messages = [MessageData]()
+    @Published var displayMessages = [MessageData]()
     @Published var infoText = ""
     @Published var displayName = ""
-    @Published var useVision = false
+    // this is a legacy UI option for upload image
+    // TODO(mlc-team) support new UI for image processing
+    @Published var legacyUseImage = false
 
     private let modelChatStateLock = NSLock()
     private var modelChatState: ModelChatState = .ready
 
-    private let threadWorker = ThreadWorker()
-    private let chatModule = ChatModule()
+    // the new mlc engine
+    private let engine = MLCEngine()
+    // history messages
+    private var historyMessages = [ChatCompletionMessage]()
+
+    // streaming text that get updated
+    private var streamingText = ""
+
     private var modelLib = ""
     private var modelPath = ""
     var modelID = ""
 
     init() {
-        threadWorker.qualityOfService = QualityOfService.userInteractive
-        threadWorker.start()
     }
 
     var isInterruptible: Bool {
@@ -106,53 +112,76 @@ final class ChatState: ObservableObject {
         })
     }
 
+
     func requestGenerate(prompt: String) {
         assert(isChattable)
         switchToGenerating()
         appendMessage(role: .user, message: prompt)
-        appendMessage(role: .bot, message: "")
-        threadWorker.push {[weak self] in
-            guard let self else { return }
-            chatModule.prefill(prompt)
-            while !chatModule.stopped() {
-                chatModule.decode()
-                if let newText = chatModule.getMessage() {
-                    DispatchQueue.main.async {
-                        self.updateMessage(role: .bot, message: newText)
+        appendMessage(role: .assistant, message: "")
+
+        Task {
+            self.historyMessages.append(
+                ChatCompletionMessage(role: .user, content: prompt)
+            )
+            var finishReasonLength = false
+
+            for await res in await engine.chat.completions.create(
+                messages: self.historyMessages
+            ) {
+                for choice in res.choices {
+                    if let content = choice.delta.content {
+                        self.streamingText += content.asText()
+                    }
+                    if let finish_reason = choice.finish_reason {
+                        if finish_reason == "length" {
+                            finishReasonLength = true
+                        }
                     }
                 }
-
                 if getModelChatState() != .generating {
                     break
                 }
-            }
-            if getModelChatState() == .generating {
-                if let runtimeStats = chatModule.runtimeStatsText(useVision) {
-                    DispatchQueue.main.async {
-                        self.infoText = runtimeStats
-                        self.switchToReady()
-                    }
+
+                var updateText = self.streamingText
+                if finishReasonLength {
+                    updateText += " [output truncated due to context length limit...]"
+                }
+
+                let newText = updateText
+                DispatchQueue.main.async {
+                    self.updateMessage(role: .assistant, message: newText)
                 }
             }
-        }
-    }
 
-    func requestProcessImage(image: UIImage) {
-        assert(getModelChatState() == .pendingImageUpload)
-        switchToProcessingImage()
-        threadWorker.push {[weak self] in
-            guard let self else { return }
-            assert(messages.count > 0)
-            DispatchQueue.main.async {
-                self.updateMessage(role: .bot, message: "[System] Processing image")
+            // record history messages
+            if !self.streamingText.isEmpty {
+                self.historyMessages.append(
+                    ChatCompletionMessage(role: .assistant, content: self.streamingText)
+                )
+                // stream text can be cleared
+                self.streamingText = ""
+            } else {
+                self.historyMessages.removeLast()
             }
-            // step 1. resize image
-            let new_image = resizeImage(image: image, width: 112, height: 112)
-            // step 2. prefill image by chatModule.prefillImage()
-            chatModule.prefillImage(new_image, prevPlaceholder: "<Img>", postPlaceholder: "</Img> ")
-            DispatchQueue.main.async {
-                self.updateMessage(role: .bot, message: "[System] Ready to chat")
-                self.switchToReady()
+
+            // if we exceed history
+            // we can try to reduce the history and see if it can fit
+            if (finishReasonLength) {
+                let windowSize = self.historyMessages.count
+                assert(windowSize % 2 == 0)
+                let removeEnd = ((windowSize + 3) / 4) * 2
+                self.historyMessages.removeSubrange(0..<removeEnd)
+            }
+
+            if getModelChatState() == .generating {
+                // TODO(mlc-team) add stats
+                let runtimStats = ""
+
+                DispatchQueue.main.async {
+                    self.infoText = runtimStats
+                    self.switchToReady()
+
+                }
             }
         }
     }
@@ -176,16 +205,18 @@ private extension ChatState {
     }
 
     func appendMessage(role: MessageRole, message: String) {
-        messages.append(MessageData(role: role, message: message))
+        displayMessages.append(MessageData(role: role, message: message))
     }
 
     func updateMessage(role: MessageRole, message: String) {
-        messages[messages.count - 1] = MessageData(role: role, message: message)
+        displayMessages[displayMessages.count - 1] = MessageData(role: role, message: message)
     }
 
     func clearHistory() {
-        messages.removeAll()
+        displayMessages.removeAll()
         infoText = ""
+        historyMessages.removeAll()
+        streamingText = ""
     }
 
     func switchToResetting() {
@@ -229,10 +260,8 @@ private extension ChatState {
             epilogue()
         } else if getModelChatState() == .generating {
             prologue()
-            threadWorker.push {
-                DispatchQueue.main.async {
-                    epilogue()
-                }
+            DispatchQueue.main.async {
+                epilogue()
             }
         } else {
             assert(false)
@@ -240,38 +269,28 @@ private extension ChatState {
     }
 
     func mainResetChat() {
-        threadWorker.push {[weak self] in
-            guard let self else { return }
-            chatModule.resetChat()
-            if useVision {
-                chatModule.resetImageModule()
-            }
+        Task {
+            engine.reset()
+            self.historyMessages = []
+            self.streamingText = ""
+
             DispatchQueue.main.async {
                 self.clearHistory()
-                if self.useVision {
-                    self.appendMessage(role: .bot, message: "[System] Upload an image to chat")
-                    self.switchToPendingImageUpload()
-                } else {
-                    self.switchToReady()
-                }
+                self.switchToReady()
             }
         }
     }
 
     func mainTerminateChat(callback: @escaping () -> Void) {
-        threadWorker.push {[weak self] in
-            guard let self else { return }
-            if useVision {
-                chatModule.unloadImageModule()
-            }
-            chatModule.unload()
+        Task {
+            engine.unload()
             DispatchQueue.main.async {
                 self.clearHistory()
                 self.modelID = ""
                 self.modelLib = ""
                 self.modelPath = ""
                 self.displayName = ""
-                self.useVision = false
+                self.legacyUseImage = false
                 self.switchToReady()
                 callback()
             }
@@ -280,21 +299,17 @@ private extension ChatState {
 
     func mainReloadChat(modelID: String, modelLib: String, modelPath: String, estimatedVRAMReq: Int, displayName: String) {
         clearHistory()
-        let prevUseVision = useVision
         self.modelID = modelID
         self.modelLib = modelLib
         self.modelPath = modelPath
         self.displayName = displayName
-        self.useVision = displayName.hasPrefix("minigpt")
-        threadWorker.push {[weak self] in
-            guard let self else { return }
+
+        Task {
             DispatchQueue.main.async {
-                self.appendMessage(role: .bot, message: "[System] Initalize...")
+                self.appendMessage(role: .assistant, message: "[System] Initalize...")
             }
-            if prevUseVision {
-                chatModule.unloadImageModule()
-            }
-            chatModule.unload()
+
+            engine.unload()
             let vRAM = os_proc_available_memory()
             if (vRAM < estimatedVRAMReq) {
                 let requiredMemory = String (
@@ -305,34 +320,24 @@ private extension ChatState {
                     "so we cannot initialize this model on this device."
                 )
                 DispatchQueue.main.sync {
-                    self.messages.append(MessageData(role: MessageRole.bot, message: errorMessage))
+                    self.displayMessages.append(MessageData(role: MessageRole.assistant, message: errorMessage))
                     self.switchToFailed()
                 }
                 return
             }
+            engine.reload(modelPath: modelPath, modelLib: modelLib)
 
-            if useVision {
-                // load vicuna model
-                let dir = (modelPath as NSString).deletingLastPathComponent
-                let vicunaModelLib = "vicuna-7b-v1.3-q3f16_0"
-                let vicunaModelPath = dir + "/" + vicunaModelLib
-                let appConfigJSONData = try? JSONSerialization.data(withJSONObject: ["conv_template": "minigpt"], options: [])
-                let appConfigJSON = String(data: appConfigJSONData!, encoding: .utf8)
-                chatModule.reload(vicunaModelLib, modelPath: vicunaModelPath, appConfigJson: appConfigJSON)
-                // load image model
-                chatModule.reloadImageModule(modelLib, modelPath: modelPath)
-            } else {
-                chatModule.reload(modelLib, modelPath: modelPath, appConfigJson: "")
-            }
+            // run a simple prompt with empty content to warm up system prompt
+            // helps to start things before user start typing
+            for await res in await engine.chat.completions.create(
+                messages: [ChatCompletionMessage(role: .user, content: "")],
+                max_tokens: 1
+            ) {}
 
+            // TODO(mlc-team) run a system message prefill
             DispatchQueue.main.async {
-                if self.useVision {
-                    self.updateMessage(role: .bot, message: "[System] Upload an image to chat")
-                    self.switchToPendingImageUpload()
-                } else {
-                    self.updateMessage(role: .bot, message: "[System] Ready to chat")
-                    self.switchToReady()
-                }
+                self.updateMessage(role: .assistant, message: "[System] Ready to chat")
+                self.switchToReady()
             }
         }
     }

@@ -34,7 +34,7 @@ class ChatState:
         """Slide history to fit into context window"""
         history_window_size = len(self.history) - self.history_window_begin
         assert history_window_size % 2 == 0
-        self.history_window_begin += (history_window_size // 4) * 2
+        self.history_window_begin += ((history_window_size + 3) // 4) * 2
 
     def generate(self, prompt: str):
         """Run one generatiohn with the prompt"""

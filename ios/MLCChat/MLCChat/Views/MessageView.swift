@@ -57,7 +57,7 @@ struct MessageView_Previews: PreviewProvider {
             VStack (spacing: 0){
                 ScrollView {
                     MessageView(role: MessageRole.user, message: "Message 1")
-                    MessageView(role: MessageRole.bot, message: "Message 2")
+                    MessageView(role: MessageRole.assistant, message: "Message 2")
                     MessageView(role: MessageRole.user, message: "Message 3")
                 }
             }
