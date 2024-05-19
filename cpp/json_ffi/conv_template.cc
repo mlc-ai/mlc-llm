@@ -264,13 +264,14 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
       [&](const std::vector<ChatCompletionMessage>& msg_vec) -> std::optional<TResult> {
     for (size_t i = 0; i < msg_vec.size(); ++i) {
       const ChatCompletionMessage& msg = msg_vec[i];
+      // skip system message as it is already processed
+      if (msg.role == "system") continue;
+
       auto role_it = conv.roles.find(msg.role);
       if (role_it == conv.roles.end()) {
         return TResult::Error("Role \"" + msg.role + "\" is not supported");
       }
       const std::string& role_name = role_it->second;
-      // skip system message as it is already processed
-      if (msg.role == "system") continue;
       // skip when content is empty
       if (msg.content.IsNull()) {
         pending_text += role_name + conv.role_empty_sep;
@@ -447,25 +448,27 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
     return TResult::Error(messages_arr_res.UnwrapErr());
   }
   for (const auto& message : messages_arr_res.Unwrap()) {
-    if (!message.is<picojson::object>()) {
-      return TResult::Error("A message in the conversation template is not a JSON object.");
+    if (!message.is<picojson::array>() || message.get<picojson::array>().size() != 2) {
+      return TResult::Error(
+          "A message in the conversation template is not an array of [role, content].");
     }
-    picojson::object message_obj = message.get<picojson::object>();
-    Result<std::string> role_res = json::LookupWithResultReturn<std::string>(message_obj, "role");
-    if (role_res.IsErr()) {
-      return TResult::Error(role_res.UnwrapErr());
+    picojson::array message_arr = message.get<picojson::array>();
+    if (!message_arr[0].is<std::string>()) {
+      return TResult::Error("The role of a message in the conversation template is not a string.");
     }
-    Result<std::optional<picojson::array>> content_arr_res =
-        json::LookupOptionalWithResultReturn<picojson::array>(message_obj, "content");
-    if (content_arr_res.IsErr()) {
-      return TResult::Error(content_arr_res.UnwrapErr());
-    }
-    std::optional<picojson::array> content_arr = content_arr_res.Unwrap();
-    std::vector<std::unordered_map<std::string, std::string>> content;
-    if (content_arr.has_value()) {
-      content.reserve(content_arr.value().size());
-      for (const auto& item : content_arr.value()) {
-        // Todo(mlc-team): allow content item to be a single string.
+    std::string role = message_arr[0].get<std::string>();
+    // content can be a string or an array of objects
+    if (message_arr[1].is<std::string>()) {
+      ChatCompletionMessage msg;
+      msg.role = role;
+      msg.content = message_arr[1].get<std::string>();
+      conv.messages.push_back(msg);
+      continue;
+    } else if (message_arr[1].is<picojson::array>()) {
+      picojson::array content_arr = message_arr[1].get<picojson::array>();
+      std::vector<std::unordered_map<std::string, std::string>> content;
+      content.reserve(content_arr.size());
+      for (const auto& item : content_arr) {
         if (!item.is<picojson::object>()) {
           return TResult::Error("The content of conversation template message is not an object");
         }
@@ -475,11 +478,15 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
         }
         content.push_back(std::move(item_map));
       }
+      ChatCompletionMessage msg;
+      msg.role = role;
+      msg.content = content;
+      conv.messages.push_back(msg);
+      continue;
+    } else {
+      return TResult::Error(
+          "The content of a message in the conversation template is not a string or an array.");
     }
-    ChatCompletionMessage msg;
-    msg.role = role_res.Unwrap();
-    msg.content = content;
-    conv.messages.push_back(msg);
   }
 
   Result<picojson::array> seps_arr_res =
