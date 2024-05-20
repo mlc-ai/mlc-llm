@@ -67,7 +67,10 @@ inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const Engine
   std::vector<RequestStateEntry> rsentries;
   for (const Request& request : estate->running_queue) {
     for (const RequestStateEntry& rsentry : estate->GetRequestState(request)->entries) {
-      if (rsentry->status == RequestStateStatus::kAlive && rsentry->child_indices.empty()) {
+      // One request entry is considered as running for decode if it is a leaf and has
+      // finished all input prefill.
+      if (rsentry->status == RequestStateStatus::kAlive && rsentry->child_indices.empty() &&
+          rsentry->mstates[0]->inputs.empty()) {
         rsentries.push_back(rsentry);
       }
     }

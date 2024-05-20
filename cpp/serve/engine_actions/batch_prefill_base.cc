@@ -93,11 +93,10 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
                           engine_config_->kv_cache_page_size;
       total_input_length += input_length;
       total_required_pages += num_require_pages;
-      if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length, total_required_pages,
+      if (CanPrefill(estate, num_prefill_rsentries, total_input_length, total_required_pages,
                      num_available_pages, current_total_seq_len, num_running_rsentries,
                      kv_state_kind)) {
         prefill_inputs.push_back({rsentry, input_length, 0});
-        num_prefill_rsentries += 1;
       }
 
       // - Prefill stops here.
