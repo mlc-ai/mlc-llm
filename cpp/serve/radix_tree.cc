@@ -89,7 +89,7 @@ class SequenceIDNodePool {
 
  private:
   /*! \brief The size of each node pool block. */
-  static constexpr size_t NODE_BLOCK_SIZE_ = 64;
+  static constexpr size_t kNodeBlockSize_ = 64;
   /*! \brief The raw sequence ID node block pool, each element is a sequence ID node array. */
   std::vector<SequenceIDNode*> node_blocks_;
   /*! \brief The sequence ID node pool, each element is a sequence ID node pointer. */
@@ -101,11 +101,11 @@ class SequenceIDNodePool {
 
   /*! \brief Allocate a new node pool block. */
   void NewNodeBlock_() {
-    size_t node_id_offset = node_blocks_.size() * NODE_BLOCK_SIZE_;
-    node_blocks_.push_back(new SequenceIDNode[NODE_BLOCK_SIZE_]);
-    nodes_.reserve(nodes_.size() + NODE_BLOCK_SIZE_);
-    free_node_indicess_.reserve(free_node_indicess_.size() + NODE_BLOCK_SIZE_);
-    for (size_t i = 0; i < NODE_BLOCK_SIZE_; ++i) {
+    size_t node_id_offset = node_blocks_.size() * kNodeBlockSize_;
+    node_blocks_.push_back(new SequenceIDNode[kNodeBlockSize_]);
+    nodes_.reserve(nodes_.size() + kNodeBlockSize_);
+    free_node_indicess_.reserve(free_node_indicess_.size() + kNodeBlockSize_);
+    for (size_t i = 0; i < kNodeBlockSize_; ++i) {
       nodes_.push_back(&node_blocks_.back()[i]);
       free_node_indicess_.push_back(i + node_id_offset);
     }
@@ -146,7 +146,7 @@ struct RedixPage {
   /*! \brief The length of stored prefix tokens. The legal value is of [0, capacity). */
   size_t length;
   /*! \brief The offset of first prefix token in memory layout. */
-  static constexpr int DATA_OFFSET = (sizeof(RedixPage*) * 3 + sizeof(SequenceIDNode*) +
+  static constexpr int kDataOffset = (sizeof(RedixPage*) * 3 + sizeof(SequenceIDNode*) +
                                       sizeof(size_t) * 3 + sizeof(int32_t) - 1) /
                                      sizeof(int32_t);
 
@@ -156,7 +156,7 @@ struct RedixPage {
    * \return The value of i-th prefix token.
    */
   int32_t& operator[](size_t i) {
-    return reinterpret_cast<int32_t*>(this)[DATA_OFFSET + (i + offset) % capacity];
+    return reinterpret_cast<int32_t*>(this)[kDataOffset + (i + offset) % capacity];
   }
 
   /*!
@@ -372,7 +372,7 @@ class RadixPagePool {
     RedixPage* page = pages_[id];
     used_pages_[page] = id;
     page->parent = page->first_child = page->next_sibiling = nullptr;
-    page->capacity = PAGE_CAPACITY_;
+    page->capacity = kPageCapacity_;
     page->offset = page->length = 0;
     page->seq_ids = nullptr;
     return page;
@@ -393,7 +393,7 @@ class RadixPagePool {
    * \brief Get the token capacity of free pages.
    * \return The the token capacity of free pages.
    */
-  size_t FreeCapacity() { return free_page_indices_.size() * PAGE_CAPACITY_; }
+  size_t FreeCapacity() { return free_page_indices_.size() * kPageCapacity_; }
 
   /*!
    * \brief Reset the paged radix tree page pool to initial status.
@@ -403,7 +403,7 @@ class RadixPagePool {
     free_page_indices_.reserve(pages_.size());
     for (int i = 0; i < pages_.size(); ++i) {
       pages_[i]->parent = pages_[i]->first_child = pages_[i]->next_sibiling = nullptr;
-      pages_[i]->capacity = PAGE_CAPACITY_;
+      pages_[i]->capacity = kPageCapacity_;
       pages_[i]->offset = pages_[i]->length = 0;
       pages_[i]->seq_ids = nullptr;
       free_page_indices_[i] = i;
@@ -419,11 +419,11 @@ class RadixPagePool {
 
  private:
   /*! \brief The size of each page pool block. */
-  static constexpr size_t PAGE_BLOCK_SIZE_ = 64;
+  static constexpr size_t kPageBlockSize_ = 64;
   /*! \brief The page capacity of each paged radix tree page. */
-  static constexpr size_t PAGE_CAPACITY_ = 64;
+  static constexpr size_t kPageCapacity_ = 64;
   /*! \brief The page size of each paged radix tree page. */
-  static constexpr size_t PAGE_SIZE_ = PAGE_CAPACITY_ + RedixPage::DATA_OFFSET;
+  static constexpr size_t kPageSize_ = kPageCapacity_ + RedixPage::kDataOffset;
   /*! \brief The raw paged radix tree page block pool,
   each element is a raw paged radix tree page array. */
   std::vector<int32_t*> page_blocks_;
@@ -437,12 +437,12 @@ class RadixPagePool {
 
   /*! \brief Allocate a new page pool block. */
   void NewPageBlock_() {
-    size_t page_id_offset = page_blocks_.size() * PAGE_BLOCK_SIZE_;
-    page_blocks_.push_back(new int32_t[PAGE_BLOCK_SIZE_ * PAGE_SIZE_]);
-    pages_.reserve(pages_.size() + PAGE_BLOCK_SIZE_);
-    free_page_indices_.reserve(free_page_indices_.size() + PAGE_BLOCK_SIZE_);
-    for (size_t i = 0; i < PAGE_BLOCK_SIZE_; ++i) {
-      pages_.push_back(reinterpret_cast<RedixPage*>(page_blocks_.back() + i * PAGE_SIZE_));
+    size_t page_id_offset = page_blocks_.size() * kPageBlockSize_;
+    page_blocks_.push_back(new int32_t[kPageBlockSize_ * kPageSize_]);
+    pages_.reserve(pages_.size() + kPageBlockSize_);
+    free_page_indices_.reserve(free_page_indices_.size() + kPageBlockSize_);
+    for (size_t i = 0; i < kPageBlockSize_; ++i) {
+      pages_.push_back(reinterpret_cast<RedixPage*>(page_blocks_.back() + i * kPageSize_));
       free_page_indices_.push_back(i + page_id_offset);
     }
   }
@@ -468,7 +468,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     seq_id_node_pool = new SequenceIDNodePool();
     radix_page_pool = new RadixPagePool();
 
-    root = reinterpret_cast<RedixPage*>(new int32_t[RedixPage::DATA_OFFSET]);
+    root = reinterpret_cast<RedixPage*>(new int32_t[RedixPage::kDataOffset]);
     root->parent = root->first_child = root->next_sibiling = nullptr;
     root->offset = root->length = root->capacity = 0;
     root->seq_ids = nullptr;

@@ -75,7 +75,7 @@ GenerationConfig::GenerationConfig(
   obj->stop_token_ids = stop_token_ids.value_or(default_config->stop_token_ids);
   obj->response_format = response_format.value_or(default_config->response_format);
   // "debug_config" is for internal usage. Not the part of OpenAI API spec.
-  obj->debug_config = debug_config.value_or(default_config->debug_config);
+  obj->debug_config = debug_config;
 
   data_ = std::move(obj);
 }
@@ -184,10 +184,13 @@ GenerationConfig::GenerationConfig(String config_json_str,
   std::optional<picojson::object> debug_config_obj =
       json::LookupOptional<picojson::object>(config, "debug_config");
   if (debug_config_obj.has_value()) {
-    bool pinned_system_prompt =
-        json::LookupOrDefault<bool>(debug_config_obj.value(), "pinned_system_prompt",
-                                    default_config->debug_config.pinned_system_prompt);
-    n->debug_config = {pinned_system_prompt};
+    bool effecive_debug_config = false;
+    std::optional<bool> pinned_system_prompt =
+        json::LookupOptional<bool>(debug_config_obj.value(), "pinned_system_prompt");
+    effecive_debug_config |= (pinned_system_prompt.has_value() && pinned_system_prompt.value());
+    if (effecive_debug_config) {
+      n->debug_config = DebugConfig(pinned_system_prompt.value_or(false));
+    }
   }
 
   data_ = std::move(n);
@@ -247,10 +250,12 @@ String GenerationConfigNode::AsJSONString() const {
   config["response_format"] = picojson::value(response_format);
 
   // Params for internal usage. Not the part of OpenAI API spec.
-  picojson::object debug_config_obj;
-  debug_config_obj["pinned_system_prompt"] =
-      picojson::value(this->debug_config.pinned_system_prompt);
-  config["debug_config"] = picojson::value(debug_config_obj);
+  if (this->debug_config.has_value()) {
+    picojson::object debug_config_obj;
+    debug_config_obj["pinned_system_prompt"] =
+        picojson::value(this->debug_config.value().pinned_system_prompt);
+    config["debug_config"] = picojson::value(debug_config_obj);
+  }
 
   return picojson::value(config).serialize(true);
 }

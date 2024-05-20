@@ -30,7 +30,8 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
     if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-      if (!rsentry->request->generation_cfg->debug_config.pinned_system_prompt) {
+      if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
+            rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
         // If the request is not pinned, recycle the request.
         estate->prefix_cache->RecycleSequence(
             rsentry->mstates[0]->internal_id, TypedPackedFunc<void()>([estate, models, rsentry]() {
@@ -65,7 +66,8 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
       if (estate->prefix_cache->HasSequence(rstate->entries[parent_idx]->mstates[0]->internal_id)) {
-        if (!rsentry->request->generation_cfg->debug_config.pinned_system_prompt) {
+        if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
+              rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
           // If the request is not pinned, recycle the request.
           estate->prefix_cache->RecycleSequence(
               rstate->entries[parent_idx]->mstates[0]->internal_id,

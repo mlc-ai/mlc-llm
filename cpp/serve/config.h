@@ -31,8 +31,11 @@ struct ResponseFormat {
 };
 
 /*! \brief The debug configuration of a request. */
-struct DebugConfig {
+class DebugConfig {
+ public:
   bool pinned_system_prompt = false;
+
+  DebugConfig(bool pinned_system_prompt) : pinned_system_prompt(pinned_system_prompt) {}
 };
 
 /*! \brief The generation configuration of a request. */
@@ -55,7 +58,7 @@ class GenerationConfigNode : public Object {
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
-  DebugConfig debug_config = {false};
+  std::optional<DebugConfig> debug_config = std::nullopt;
 
   String AsJSONString() const;
 
