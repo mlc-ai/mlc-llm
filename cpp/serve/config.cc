@@ -367,6 +367,7 @@ String EngineConfigNode::AsJSONString() const {
 struct ModelConfigLimits {
   int64_t model_max_single_sequence_length;
   int64_t model_max_prefill_chunk_size;
+  int64_t model_max_sliding_window_size;
   int64_t model_max_batch_size;
 };
 
@@ -383,19 +384,18 @@ inline std::string BytesToMegabytesString(double bytes) {
  * \brief Get the upper bound of single sequence length, prefill size and batch size
  * from model config.
  */
-Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::object>& model_configs) {
+Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::object>& model_configs,
+                                               const std::vector<ModelMetadata>& model_metadata) {
+  ICHECK_EQ(model_configs.size(), model_metadata.size());
   int64_t model_max_single_sequence_length = std::numeric_limits<int64_t>::max();
   int64_t model_max_prefill_chunk_size = std::numeric_limits<int64_t>::max();
   int64_t model_max_batch_size = std::numeric_limits<int64_t>::max();
+  int64_t model_max_sliding_window_size = std::numeric_limits<int64_t>::max();
   for (int i = 0; i < static_cast<int>(model_configs.size()); ++i) {
-    picojson::object compile_time_model_config =
-        json::Lookup<picojson::object>(model_configs[i], "model_config");
     // - The maximum single sequence length is the minimum context window size among all models.
     int64_t runtime_context_window_size =
         json::LookupOptional<int64_t>(model_configs[i], "context_window_size").value_or(-1);
-    int64_t compile_time_context_window_size =
-        json::LookupOptional<int64_t>(compile_time_model_config, "context_window_size")
-            .value_or(-1);
+    int64_t compile_time_context_window_size = model_metadata[i].context_window_size;
     if (runtime_context_window_size > compile_time_context_window_size) {
       return Result<ModelConfigLimits>::Error(
           "Model " + std::to_string(i) + "'s runtime context window size (" +
@@ -417,8 +417,7 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     // - The maximum prefill chunk size is the minimum prefill chunk size among all models.
     int64_t runtime_prefill_chunk_size =
         json::Lookup<int64_t>(model_configs[i], "prefill_chunk_size");
-    int64_t compile_time_prefill_chunk_size =
-        json::Lookup<int64_t>(compile_time_model_config, "prefill_chunk_size");
+    int64_t compile_time_prefill_chunk_size = model_metadata[i].prefill_chunk_size;
     if (runtime_prefill_chunk_size > compile_time_prefill_chunk_size) {
       return Result<ModelConfigLimits>::Error(
           "Model " + std::to_string(i) + "'s runtime prefill chunk size (" +
@@ -432,14 +431,24 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
     }
     // - The maximum batch size is the minimum max batch size among all models.
     model_max_batch_size = std::min(
-        model_max_batch_size, json::Lookup<int64_t>(compile_time_model_config, "max_batch_size"));
+        model_max_batch_size,
+        json::Lookup<int64_t>(json::Lookup<picojson::object>(model_configs[i], "model_config"),
+                              "max_batch_size"));
+    // - The maximum sliding window size is the minimum among all models.
+    int64_t runtime_sliding_window_size =
+        json::Lookup<int64_t>(model_configs[i], "sliding_window_size");
+    if (runtime_sliding_window_size != -1) {
+      model_max_sliding_window_size =
+          std::min(model_max_sliding_window_size, runtime_sliding_window_size);
+    }
   }
   ICHECK_NE(model_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
   ICHECK_NE(model_max_batch_size, std::numeric_limits<int64_t>::max());
   ICHECK_GT(model_max_prefill_chunk_size, 0);
   ICHECK_GT(model_max_batch_size, 0);
-  return Result<ModelConfigLimits>::Ok(
-      {model_max_single_sequence_length, model_max_prefill_chunk_size, model_max_batch_size});
+  return Result<ModelConfigLimits>::Ok({model_max_single_sequence_length,
+                                        model_max_prefill_chunk_size, model_max_sliding_window_size,
+                                        model_max_batch_size});
 }
 
 /*! \brief The class for memory usage estimation result. */
@@ -569,7 +578,8 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
            static_cast<int64_t>(8192)});
     } else if (mode == EngineMode::kInteractive) {
       inferred_config.max_total_sequence_length = std::min(
-          model_max_total_sequence_length, model_config_limits.model_max_single_sequence_length);
+          {model_max_total_sequence_length, model_config_limits.model_max_single_sequence_length,
+           model_config_limits.model_max_sliding_window_size});
     } else {
       inferred_config.max_total_sequence_length =
           std::min(model_max_total_sequence_length,
@@ -625,7 +635,8 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
   }
   // - Get the upper bound of single sequence length, prefill size and batch size
   // from model config.
-  Result<ModelConfigLimits> model_config_limits_res = GetModelConfigLimits(model_configs);
+  Result<ModelConfigLimits> model_config_limits_res =
+      GetModelConfigLimits(model_configs, model_metadata);
   if (model_config_limits_res.IsErr()) {
     return Result<InferrableEngineConfig>::Error(model_config_limits_res.UnwrapErr());
   }
@@ -709,7 +720,8 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
   }
   // - Get the upper bound of single sequence length, prefill size and batch size
   // from model config.
-  Result<ModelConfigLimits> model_config_limits_res = GetModelConfigLimits(model_configs);
+  Result<ModelConfigLimits> model_config_limits_res =
+      GetModelConfigLimits(model_configs, model_metadata);
   if (model_config_limits_res.IsErr()) {
     return Result<InferrableEngineConfig>::Error(model_config_limits_res.UnwrapErr());
   }
