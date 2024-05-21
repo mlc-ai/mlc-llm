@@ -22,8 +22,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \param max_num_seqs The maximum number of sequences in prefix cache.
    * \param remove_callback The optional callback function to call when removing a sequence.
    */
-  explicit PrefixCacheImpl(size_t max_num_seqs,
-                           std::optional<TypedPackedFunc<void(int64_t)>> remove_callback)
+  explicit PrefixCacheImpl(size_t max_num_seqs, PrefixCacheRemoveCallback remove_callback)
       : radix_tree_(PagedRadixTree::Create()),
         max_num_seqs_(max_num_seqs),
         remove_callback_(remove_callback) {
@@ -199,8 +198,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
     } else {
       // Remove the sequence intermediately.
       radix_tree_->RemoveSequence(seq_id);
-      if (remove_callback_.has_value()) {
-        remove_callback_.value()(seq_id);
+      if (remove_callback_ != nullptr) {
+        remove_callback_(seq_id);
       }
       CHECK(seq_states_.erase(seq_id));
       CHECK(seq_sliding_window_infos_.erase(seq_id));
@@ -223,8 +222,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
     CHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
     CHECK_EQ(recycling_seq_lrus_.at(seq_id), lru);
     radix_tree_->RemoveSequence(seq_id);
-    if (remove_callback_.has_value()) {
-      remove_callback_.value()(seq_id);
+    if (remove_callback_ != nullptr) {
+      remove_callback_(seq_id);
     }
     CHECK(seq_states_.erase(seq_id));
     CHECK(recycling_seq_lrus_.erase(seq_id));
@@ -292,7 +291,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   std::unordered_map<size_t, int64_t> reversed_recycling_seq_lrus_;
   /*!
-   * \brief The maximum number of sequences in prefix cache.
+   * \brief The maximum number of sequences in prefix cache. Set -1 as infinite prefix cache.
    */
   int max_num_seqs_ = -1;
   /*!
@@ -300,10 +299,10 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   size_t lru_counter_ = 0;
   /*!
-   * \brief The optional callback function to call when removing a sequence. This can be used to
+   * \brief The callback function to call when removing a sequence. This can be used to
    * removing sequence in KVCache and return sequence ID to ID manager lazily
    */
-  std::optional<TypedPackedFunc<void(int64_t)>> remove_callback_ = std::nullopt;
+  PrefixCacheRemoveCallback remove_callback_ = nullptr;
   /*!
    * \brief The map from sequence to its sequence states.
    */
@@ -397,8 +396,7 @@ class NoPrefixCache : public PrefixCacheObj {
 
 TVM_REGISTER_OBJECT_TYPE(NoPrefixCache);
 
-PrefixCache PrefixCache::Create(size_t max_num_seqs,
-                                std::optional<TypedPackedFunc<void(int64_t)>> remove_callback) {
+PrefixCache PrefixCache::Create(size_t max_num_seqs, PrefixCacheRemoveCallback remove_callback) {
   if (max_num_seqs == 0) {
     // If maximum number of sequence in prefix cache is 0, prefix cache is not enabled and return a
     // dummy one.

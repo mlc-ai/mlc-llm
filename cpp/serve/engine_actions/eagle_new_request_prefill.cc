@@ -359,7 +359,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    * tokens. If the request state entry is not added to KVCache yet, this method will add/fork the
    * request in the KVCache, depending on the matching result from prefix cache.
    * \param estate The engine state.
-   * \param[out] input The prefill input to be matched and updated.
+   * \param[in, out] input The prefill input to be matched and updated.
    */
   void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
     RequestStateEntry rsentry = input->rsentry;

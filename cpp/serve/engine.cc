@@ -12,6 +12,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <functional>
 #include <numeric>
 #include <optional>
 #include <tuple>
@@ -100,10 +101,9 @@ class EngineImpl : public Engine {
     {
       EngineState estate = n->estate_;
       Array<Model> models = n->models_;
-      CHECK_NE(engine_config->prefix_cache_max_num_seqs, -1);
       n->estate_->prefix_cache =
           PrefixCache::Create(static_cast<size_t>(engine_config->prefix_cache_max_num_seqs),
-                              TypedPackedFunc<void(int64_t)>([estate, models](int64_t seq_id) {
+                              std::function<void(int64_t)>([estate, models](int64_t seq_id) {
                                 RemoveRequestFromModel(estate, seq_id, models);
                                 estate->id_manager.RecycleId(seq_id);
                               }));

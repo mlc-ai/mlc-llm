@@ -820,8 +820,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         The maximum history for RNN state.
 
     prefix_cache_max_num_seqs: Optional[int]
-        The maximum number of sequences in prefix cache, default as max_batch_size,
-        and set 0 to disable prefix cache.
+        The maximum number of sequences in prefix cache, default as max_batch_size.
+        And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.

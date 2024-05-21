@@ -8,6 +8,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <functional>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -21,6 +22,11 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+
+/*!
+ * \brief The signature of callback removing function.
+ */
+using PrefixCacheRemoveCallback = std::function<void(int64_t)>;
 
 /*!
  * \brief The matched result from prefix cache. This result describes how to pre-process the new
@@ -124,9 +130,8 @@ class PrefixCache : public ObjectRef {
    * \param max_num_seqs The maximum number of sequences in prefix cache.
    * \param remove_callback The optional callback function to call when removing a sequence.
    */
-  static PrefixCache Create(
-      size_t max_num_seqs,
-      std::optional<TypedPackedFunc<void(int64_t)>> remove_callback = std::nullopt);
+  static PrefixCache Create(size_t max_num_seqs,
+                            PrefixCacheRemoveCallback remove_callback = nullptr);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PrefixCache, ObjectRef, PrefixCacheObj);
 };

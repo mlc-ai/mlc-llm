@@ -214,8 +214,8 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         The kind of cache.
 
     prefix_cache_max_num_seqs: Optional[int]
-        The maximum number of sequences in prefix cache, default as max_num_sequence,
-        and set 0 to disable prefix cache.
+        The maximum number of sequences in prefix cache, default as max_num_sequence.
+        And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 
     speculative_mode : Literal["disable", "small_draft", "eagle", "medusa"]
         The speculative mode.

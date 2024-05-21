@@ -159,7 +159,8 @@ If unspecified, the default value is 1.
 KV cache does not need this. 
 """.strip(),
     "prefix_cache_max_num_seqs_serve": """
-The maximum number of sequences in prefix cache, default as max_batch_size, and set 0 to disable prefix cache.
+The maximum number of sequences in prefix cache, default as max_batch_size.
+And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 """.strip(),
     "enable_tracing_serve": """
 Enable Chrome Tracing for the server.

@@ -373,6 +373,8 @@ String EngineConfigNode::AsJSONString() const {
   config["gpu_memory_utilization"] = picojson::value(this->gpu_memory_utilization);
   config["kv_cache_page_size"] = picojson::value(static_cast<int64_t>(this->kv_cache_page_size));
   config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
+  config["prefix_cache_max_num_seqs"] =
+      picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_seqs));
   config["max_total_sequence_length"] =
       picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
   config["max_single_sequence_length"] =

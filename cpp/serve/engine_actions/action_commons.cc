@@ -102,6 +102,40 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
   }
 }
 
+void UpdatePrefixCache(Array<Request> requests, EngineState estate) {
+  for (Request request : requests) {
+    RequestState rstate = estate->GetRequestState(request);
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+        if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+          // Notify the prefix cache of the newly prefilled data.
+          for (Data data : rsentry->mstates[0]->prefilled_inputs) {
+            const TokenDataNode* token_data = data.as<TokenDataNode>();
+            estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id,
+                                                 token_data->token_ids);
+          }
+          rsentry->mstates[0]->prefilled_inputs.clear();
+        }
+        if (rsentry->mstates[0]->cached_committed_tokens <
+            rsentry->mstates[0]->committed_tokens.size() - 1) {
+          // Notify the prefix cache of the newly decoded data, except the last token as it is not
+          // in KVCache yet.
+          std::vector<int64_t> tokens;
+          tokens.reserve((rsentry->mstates[0]->committed_tokens.size() -
+                          rsentry->mstates[0]->cached_committed_tokens));
+          for (int i = rsentry->mstates[0]->cached_committed_tokens;
+               i < rsentry->mstates[0]->committed_tokens.size() - 1; ++i) {
+            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
+          }
+          estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
+          rsentry->mstates[0]->cached_committed_tokens =
+              rsentry->mstates[0]->committed_tokens.size() - 1;
+        }
+      }
+    }
+  }
+}
+
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
@@ -124,41 +158,10 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
       }
     }
   }
-  for (Request request : requests) {
-    RequestState rstate = estate->GetRequestState(request);
-    for (const RequestStateEntry& rsentry : rstate->entries) {
-      if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-        if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
-          // Notify the prefix cache of the newly prefilled data.
-          for (Data data : rsentry->mstates[0]->prefilled_inputs) {
-            const TokenDataNode* token_data = data.as<TokenDataNode>();
-            RECORD_EVENT(trace_recorder, rsentry->request->id,
-                         "prefix cache extend " + std::to_string(token_data->token_ids.size()) +
-                             " prefilled tokens.");
-            estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id,
-                                                 token_data->token_ids);
-          }
-          rsentry->mstates[0]->prefilled_inputs.clear();
-        }
-        if (rsentry->mstates[0]->cached_committed_tokens <
-            rsentry->mstates[0]->committed_tokens.size() - 1) {
-          // Notify the prefix cache of the newly decoded data, except the last token as it is not
-          // in KVCache yet.
-          std::vector<int64_t> tokens;
-          tokens.reserve((rsentry->mstates[0]->committed_tokens.size() -
-                          rsentry->mstates[0]->cached_committed_tokens));
-          for (int i = rsentry->mstates[0]->cached_committed_tokens;
-               i < rsentry->mstates[0]->committed_tokens.size() - 1; ++i) {
-            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
-          }
-          RECORD_EVENT(trace_recorder, rsentry->request->id,
-                       "prefix cache extend " + std::to_string(tokens.size()) + " decoded tokens.");
-          estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
-          rsentry->mstates[0]->cached_committed_tokens =
-              rsentry->mstates[0]->committed_tokens.size() - 1;
-        }
-      }
-    }
+
+  {
+    NVTXScopedRange nvtx_scope("ActionStepPostProcess updating prefix cache");
+    UpdatePrefixCache(requests, estate);
   }
 
   // - Collect new generated tokens and finish reasons for requests.
