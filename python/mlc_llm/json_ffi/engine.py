@@ -92,16 +92,14 @@ class JSONFFIEngine:
         }
         self.tokenizer = Tokenizer(model_args[0][0])
 
-        def _background_loop():
-            self._ffi["run_background_loop"]()
-
-        def _background_stream_back_loop():
-            self._ffi["run_background_stream_back_loop"]()
+        # important: avoid self reference in closure
+        background_loop = self._ffi["run_background_loop"]
+        background_stream_back_loop = self._ffi["run_background_stream_back_loop"]
 
         # Create the background engine-driving thread and start the loop.
-        self._background_loop_thread: threading.Thread = threading.Thread(target=_background_loop)
+        self._background_loop_thread: threading.Thread = threading.Thread(target=background_loop)
         self._background_stream_back_loop_thread: threading.Thread = threading.Thread(
-            target=_background_stream_back_loop
+            target=background_stream_back_loop
         )
         self._background_loop_thread.start()
         self._background_stream_back_loop_thread.start()
@@ -129,7 +127,12 @@ class JSONFFIEngine:
         )
         self._ffi["reload"](self.engine_config.asjson())
 
+    def __del__(self):
+        self.terminate()
+
     def terminate(self):
+        if self._terminated:
+            return
         self._terminated = True
         self._ffi["exit_background_loop"]()
         self._background_loop_thread.join()
@@ -139,7 +142,7 @@ class JSONFFIEngine:
         self,
         *,
         messages: List[Dict[str, Any]],
-        model: str,
+        model: str = None,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
         logprobs: bool = False,
