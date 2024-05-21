@@ -72,7 +72,7 @@ class RulePositionBuffer {
     int32_t id;
     if (free_nodes_.empty()) {
       buffer_.emplace_back();
-      id = buffer_.size() - 1;
+      id = static_cast<int32_t>(buffer_.size()) - 1;
     } else {
       id = free_nodes_.back();
       DCHECK(buffer_[id].IsInvalid());
@@ -419,8 +419,8 @@ inline void RulePositionTree::CheckWellFormed(const std::vector<int32_t>& outsid
 }
 
 inline std::string StackTopsHistory::PrintHistory(int history_position_to_latest) const {
-  const auto& latest_tops =
-      stack_tops_history_[stack_tops_history_.size() - 1 - history_position_to_latest];
+  const auto& latest_tops = stack_tops_history_[static_cast<int64_t>(stack_tops_history_.size()) -
+                                                1 - history_position_to_latest];
   std::stringstream ss;
   ss << "Stacks tops size: " << latest_tops.size() << std::endl;
   int cnt = 0;

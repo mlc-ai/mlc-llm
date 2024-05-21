@@ -786,7 +786,8 @@ std::string JSONSchemaToEBNFConverter::GetPartialRuleForPropertiesAllOptional(
     additional_prop_pattern =
         GetOtherPropertyPattern(kBasicString, additional, rule_name, additional_suffix);
     std::string last_rule_body = "(" + mid_sep + " " + additional_prop_pattern + ")*";
-    std::string last_rule_name = rule_name + "_part_" + std::to_string(properties.size() - 1);
+    std::string last_rule_name =
+        rule_name + "_part_" + std::to_string(static_cast<int>(properties.size()) - 1);
     rules_.push_back(std::make_pair(last_rule_name, last_rule_body));
     rule_names.back() = last_rule_name;
   } else {

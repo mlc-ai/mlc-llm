@@ -316,7 +316,7 @@ inline std::shared_ptr<GrammarStateInitContext> GrammarStateMatcher::CreateInitC
     if (token == "</s>" || token == "<|end_of_text|>" || token == "<|eot_id|>" ||
         token == "<|endoftext|>" || token == "<eos>" || token == "<end_of_turn>") {
       ptr->stop_token_ids.push_back(i);
-    } else if ((token[0] == '<' && token[token.size() - 1] == '>' && token.size() >= 3) ||
+    } else if ((token[0] == '<' && token.back() == '>' && token.size() >= 3) ||
                token == "[@BOS@]") {
       // gemma treats [@BOS@] as a special token
       ptr->special_token_ids.insert(i);
