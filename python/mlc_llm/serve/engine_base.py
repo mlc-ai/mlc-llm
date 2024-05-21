@@ -479,16 +479,13 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
             self.state.trace_recorder,
         )
 
-        def _background_loop():
-            self._ffi["run_background_loop"]()
-
-        def _background_stream_back_loop():
-            self._ffi["run_background_stream_back_loop"]()
+        background_loop = self._ffi["run_background_loop"]
+        background_stream_back_loop = self._ffi["run_background_stream_back_loop"]
 
         # - Create the background engine-driving thread and start the loop.
-        self._background_loop_thread: threading.Thread = threading.Thread(target=_background_loop)
+        self._background_loop_thread: threading.Thread = threading.Thread(target=background_loop)
         self._background_stream_back_loop_thread: threading.Thread = threading.Thread(
-            target=_background_stream_back_loop
+            target=background_stream_back_loop
         )
         self._background_loop_thread.start()
         self._background_stream_back_loop_thread.start()
@@ -519,8 +516,14 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
             self.engine_config.max_total_sequence_length,
         )
 
+    def __del__(self):
+        """deleter, auto terminate"""
+        self.terminate()
+
     def terminate(self):
         """Terminate the engine."""
+        if self._terminated:
+            return
         self._terminated = True
         self._ffi["exit_background_loop"]()
         self._background_loop_thread.join()
