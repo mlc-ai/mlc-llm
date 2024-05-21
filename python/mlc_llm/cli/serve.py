@@ -45,6 +45,9 @@ def main(argv):
     parser.add_argument("--prefill-chunk-size", type=int, help=HELP["prefill_chunk_size_serve"])
     parser.add_argument("--max-history-size", type=int, help=HELP["max_history_size_serve"])
     parser.add_argument(
+        "--prefix-cache-max-num-seqs", type=int, help=HELP["prefix_cache_max_num_seqs_serve"]
+    )
+    parser.add_argument(
         "--gpu-memory-utilization", type=float, help=HELP["gpu_memory_utilization_serve"]
     )
     parser.add_argument(

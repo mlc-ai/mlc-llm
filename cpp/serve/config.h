@@ -178,7 +178,8 @@ class EngineConfigNode : public Object {
   int64_t prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
-  /*! \brief The maximum number of sequence in prefix cache, set 0 to disable prefix cache. */
+  /*! \brief The maximum number of sequences in prefix cache, default as max_num_sequence, and set 0
+   * to disable prefix cache. */
   int prefix_cache_max_num_seqs = -1;
 
   /*************** Speculative decoding ***************/
