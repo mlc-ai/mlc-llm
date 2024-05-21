@@ -163,6 +163,7 @@ class EngineImpl : public Engine {
                                                    n->model_workspaces_,           //
                                                    draft_token_workspace_manager,  //
                                                    engine_config,                  //
+                                                   model_configs,                  //
                                                    n->trace_recorder_),
               EngineAction::EagleBatchDraft(n->models_, logit_processor, sampler,
                                             n->model_workspaces_, draft_token_workspace_manager,
@@ -178,6 +179,7 @@ class EngineImpl : public Engine {
                                                               n->model_workspaces_,           //
                                                               draft_token_workspace_manager,  //
                                                               engine_config,                  //
+                                                              model_configs,                  //
                                                               n->trace_recorder_),
                          EngineAction::EagleBatchVerify(
                              n->models_, logit_processor, sampler, n->model_workspaces_,
@@ -190,6 +192,7 @@ class EngineImpl : public Engine {
                                               sampler,               //
                                               n->model_workspaces_,  //
                                               engine_config,         //
+                                              model_configs,         //
                                               n->trace_recorder_),
               EngineAction::BatchDraft(n->models_, logit_processor, sampler, n->model_workspaces_,
                                        draft_token_workspace_manager, n->trace_recorder_,
@@ -205,6 +208,7 @@ class EngineImpl : public Engine {
                                           sampler,               //
                                           n->model_workspaces_,  //
                                           engine_config,         //
+                                          model_configs,         //
                                           n->trace_recorder_),
           EngineAction::BatchDecode(n->models_, logit_processor, sampler, n->trace_recorder_)};
     }

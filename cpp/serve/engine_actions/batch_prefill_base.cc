@@ -5,14 +5,29 @@
 
 #include "batch_prefill_base.h"
 
+#include <numeric>
+
+#include "../../support/json_parser.h"
+
 namespace mlc {
 namespace llm {
 namespace serve {
 
 BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
                                                      EngineConfig engine_config,
+                                                     std::vector<picojson::object> model_configs,
                                                      Optional<EventTraceRecorder> trace_recorder)
-    : models_(models), engine_config_(engine_config), trace_recorder_(trace_recorder) {}
+    : models_(std::move(models)),
+      engine_config_(std::move(engine_config)),
+      trace_recorder_(std::move(trace_recorder)) {
+  ICHECK_EQ(models_.size(), model_configs.size());
+  sliding_window_sizes_.reserve(models_.size());
+  for (const picojson::object& model_config : model_configs) {
+    // "-1" means the sliding window is disabled.
+    sliding_window_sizes_.push_back(
+        json::LookupOrDefault<int64_t>(model_config, "sliding_window_size", -1));
+  }
+}
 
 /*!
  * \brief Find one or multiple request state entries to run prefill.
@@ -26,91 +41,162 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     return {};
   }
 
-  std::vector<PrefillInput> prefill_inputs;
+  std::vector<std::vector<PrefillInput>> prefill_inputs_for_all_models;
+  prefill_inputs_for_all_models.reserve(models_.size());
 
-  // - Try to prefill pending requests.
-  int total_input_length = 0;
-  int total_required_pages = 0;
-  int num_available_pages = models_[0]->GetNumAvailablePages();
-  int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
-  int current_total_seq_len = models_[0]->GetCurrentTotalSequenceLength();
-  KVStateKind kv_state_kind = models_[0]->GetMetadata().kv_state_kind;
+  // We first collect the inputs that can be prefilled for each model.
+  // Then we make a reduction to return the maximum common inputs.
+  for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
+    std::vector<PrefillInput> prefill_inputs;
+    // - Try to prefill pending requests.
+    int total_input_length = 0;
+    int total_required_pages = 0;
+    int num_available_pages = models_[i]->GetNumAvailablePages();
+    int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
+    int current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
+    KVStateKind kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
 
-  int num_prefill_rsentries = 0;
-  for (const Request& request : estate->waiting_queue) {
-    RequestState rstate = estate->GetRequestState(request);
-    bool prefill_stops = false;
-    for (const RequestStateEntry& rsentry : rstate->entries) {
-      // A request state entry can be prefilled only when:
-      // - it has inputs, and
-      // - it has no parent or its parent is alive and has no remaining input.
-      if (rsentry->mstates[0]->inputs.empty() ||
-          (rsentry->parent_idx != -1 &&
-           (rstate->entries[rsentry->parent_idx]->status == RequestStateStatus::kPending ||
-            !rstate->entries[rsentry->parent_idx]->mstates[0]->inputs.empty()))) {
-        continue;
-      }
-
-      int input_length = rsentry->mstates[0]->GetInputLength();
-      int num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
-                              engine_config_->kv_cache_page_size;
-      total_input_length += input_length;
-      total_required_pages += num_require_pages;
-      // - Attempt 1. Check if the entire request state entry can fit for prefill.
-      bool can_prefill = false;
-      for (int num_child_to_activate = rsentry->child_indices.size(); num_child_to_activate >= 0;
-           --num_child_to_activate) {
-        while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
-                           total_input_length, total_required_pages, num_available_pages,
-                           current_total_seq_len, num_running_rsentries, kv_state_kind)) {
-          if (!estate->prefix_cache->TryFreeMemory()) break;
+    int num_prefill_rsentries = 0;
+    for (const Request& request : estate->waiting_queue) {
+      RequestState rstate = estate->GetRequestState(request);
+      bool prefill_stops = false;
+      for (const RequestStateEntry& rsentry : rstate->entries) {
+        // A request state entry can be prefilled only when:
+        // - it has inputs, and
+        // - it has no parent or its parent is alive and has no remaining input.
+        if (rsentry->mstates[i]->inputs.empty() ||
+            (rsentry->parent_idx != -1 &&
+             (rstate->entries[rsentry->parent_idx]->status == RequestStateStatus::kPending ||
+              !rstate->entries[rsentry->parent_idx]->mstates[i]->inputs.empty()))) {
+          continue;
         }
-        if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
-                       total_input_length, total_required_pages, num_available_pages,
-                       current_total_seq_len, num_running_rsentries, kv_state_kind)) {
-          prefill_inputs.push_back({rsentry, input_length, num_child_to_activate});
-          num_prefill_rsentries += 1 + num_child_to_activate;
-          can_prefill = true;
+
+        int input_length = rsentry->mstates[i]->GetInputLength();
+        int num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
+                                engine_config_->kv_cache_page_size;
+        bool sliding_window_enabled = sliding_window_sizes_[i] != -1;
+        int num_required_pages_under_sliding_window = std::numeric_limits<int>::max();
+        if (sliding_window_enabled) {
+          // Sliding window for model i is enabled.
+          int max_single_request_page_requirement =
+              1 + (sliding_window_sizes_[i] + engine_config_->kv_cache_page_size - 1) /
+                      engine_config_->kv_cache_page_size;
+          int num_total_prefilled_tokens = rsentry->mstates[i]->num_prefilled_tokens;
+          int parent_ptr = rsentry->parent_idx;
+          while (parent_ptr != -1) {
+            num_total_prefilled_tokens +=
+                rstate->entries[parent_ptr]->mstates[i]->num_prefilled_tokens;
+            parent_ptr = rstate->entries[parent_ptr]->parent_idx;
+          }
+
+          int num_pages_in_use = (std::min(num_total_prefilled_tokens, sliding_window_sizes_[i]) +
+                                  engine_config_->kv_cache_page_size - 1) /
+                                 engine_config_->kv_cache_page_size;
+          num_required_pages_under_sliding_window =
+              max_single_request_page_requirement - num_pages_in_use;
+          num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
+          ICHECK_GE(num_require_pages, 0);
+        }
+
+        total_input_length += input_length;
+        total_required_pages += num_require_pages;
+        // - Attempt 1. Check if the entire request state entry can fit for prefill.
+        bool can_prefill = false;
+        for (int num_child_to_activate = rsentry->child_indices.size(); num_child_to_activate >= 0;
+             --num_child_to_activate) {
+          while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                             total_input_length, total_required_pages, num_available_pages,
+                             current_total_seq_len, num_running_rsentries, kv_state_kind,
+                             sliding_window_enabled)) {
+            if (!estate->prefix_cache->TryFreeMemory()) break;
+          }
+          if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                         total_input_length, total_required_pages, num_available_pages,
+                         current_total_seq_len, num_running_rsentries, kv_state_kind,
+                         sliding_window_enabled)) {
+            prefill_inputs.push_back({rsentry, input_length, num_child_to_activate});
+            num_prefill_rsentries += 1 + num_child_to_activate;
+            can_prefill = true;
+            break;
+          }
+        }
+        if (can_prefill) {
+          continue;
+        }
+        total_input_length -= input_length;
+        total_required_pages -= num_require_pages;
+
+        // - Attempt 2. Check if the request state entry can partially fit by input chunking.
+        ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
+        if (engine_config_->prefill_chunk_size - total_input_length >= input_length ||
+            engine_config_->prefill_chunk_size == total_input_length) {
+          // 1. If the input length can fit the remaining prefill chunk size,
+          // it means the failure of attempt 1 is not because of the input
+          // length being too long, and thus chunking does not help.
+          // 2. If the total input length already reaches the prefill chunk size,
+          // the current request state entry will not be able to be processed.
+          // So we can safely return in either case.
+          prefill_stops = true;
           break;
         }
-      }
-      if (can_prefill) {
-        continue;
-      }
-      total_input_length -= input_length;
-      total_required_pages -= num_require_pages;
+        input_length = engine_config_->prefill_chunk_size - total_input_length;
+        num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
+                            engine_config_->kv_cache_page_size;
+        if (sliding_window_enabled) {
+          // Sliding window for model i is enabled.
+          num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
+          ICHECK_GE(num_require_pages, 0);
+        }
 
-      // - Attempt 2. Check if the request state entry can partially fit by input chunking.
-      ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
-      if (engine_config_->prefill_chunk_size - total_input_length >= input_length ||
-          engine_config_->prefill_chunk_size == total_input_length) {
-        // 1. If the input length can fit the remaining prefill chunk size,
-        // it means the failure of attempt 1 is not because of the input
-        // length being too long, and thus chunking does not help.
-        // 2. If the total input length already reaches the prefill chunk size,
-        // the current request state entry will not be able to be processed.
-        // So we can safely return in either case.
+        total_input_length += input_length;
+        total_required_pages += num_require_pages;
+        if (CanPrefill(estate, num_prefill_rsentries, total_input_length, total_required_pages,
+                       num_available_pages, current_total_seq_len, num_running_rsentries,
+                       kv_state_kind, sliding_window_enabled)) {
+          prefill_inputs.push_back({rsentry, input_length, 0});
+        }
+
+        // - Prefill stops here.
         prefill_stops = true;
         break;
       }
-      input_length = engine_config_->prefill_chunk_size - total_input_length;
-      num_require_pages = (input_length + engine_config_->kv_cache_page_size - 1) /
-                          engine_config_->kv_cache_page_size;
-      total_input_length += input_length;
-      total_required_pages += num_require_pages;
-      if (CanPrefill(estate, num_prefill_rsentries, total_input_length, total_required_pages,
-                     num_available_pages, current_total_seq_len, num_running_rsentries,
-                     kv_state_kind)) {
-        prefill_inputs.push_back({rsentry, input_length, 0});
+      if (prefill_stops) {
+        break;
       }
+    }
+    prefill_inputs_for_all_models.push_back(prefill_inputs);
+  }
 
-      // - Prefill stops here.
-      prefill_stops = true;
-      break;
+  // Reduce over the prefill inputs of all models.
+  ICHECK(!prefill_inputs_for_all_models.empty());
+  int num_prefill_inputs = prefill_inputs_for_all_models[0].size();
+  for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
+    num_prefill_inputs =
+        std::min(num_prefill_inputs, static_cast<int>(prefill_inputs_for_all_models[i].size()));
+  }
+
+  std::vector<PrefillInput> prefill_inputs(
+      prefill_inputs_for_all_models[0].begin(),
+      prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
+  for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
+    // Prefill input lengths except the last one are supposed to be the same for all models.
+    for (int j = 0; j < num_prefill_inputs - 1; ++j) {
+      ICHECK(prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
+      ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
+                prefill_inputs[j].max_prefill_length);
+      prefill_inputs[j].num_child_to_activate =
+          std::min(prefill_inputs[j].num_child_to_activate,
+                   prefill_inputs_for_all_models[i][j].num_child_to_activate);
     }
-    if (prefill_stops) {
-      break;
-    }
+    // The input length of the last input is the minimum among all models.
+    ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
+        prefill_inputs[num_prefill_inputs - 1].rsentry));
+    prefill_inputs[num_prefill_inputs - 1].max_prefill_length =
+        std::min(prefill_inputs[num_prefill_inputs - 1].max_prefill_length,
+                 prefill_inputs_for_all_models[i][num_prefill_inputs - 1].max_prefill_length);
+    prefill_inputs[num_prefill_inputs - 1].num_child_to_activate =
+        std::min(prefill_inputs[num_prefill_inputs - 1].num_child_to_activate,
+                 prefill_inputs_for_all_models[i][num_prefill_inputs - 1].num_child_to_activate);
   }
 
   return prefill_inputs;
@@ -119,7 +205,8 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
 bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_rsentries,
                                            int total_input_length, int num_required_pages,
                                            int num_available_pages, int current_total_seq_len,
-                                           int num_running_rsentries, KVStateKind kv_state_kind) {
+                                           int num_running_rsentries, KVStateKind kv_state_kind,
+                                           bool sliding_window_enabled) {
   ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
   // For RNN State, it can prefill as long as it can be instantiated.
@@ -146,9 +233,11 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
   // be configured and adjusted in the future.
   int new_batch_size = num_running_rsentries + num_prefill_rsentries;
   return total_input_length <= engine_config_->prefill_chunk_size &&
-         num_required_pages + new_batch_size <= num_available_pages &&
-         current_total_seq_len + total_input_length + 8 * new_batch_size <=
-             engine_config_->max_total_sequence_length;
+         num_required_pages + (!sliding_window_enabled ? new_batch_size : 0) <=
+             num_available_pages &&
+         (sliding_window_enabled ||
+          current_total_seq_len + total_input_length + 8 * new_batch_size <=
+              engine_config_->max_total_sequence_length);
 }
 
 /*!

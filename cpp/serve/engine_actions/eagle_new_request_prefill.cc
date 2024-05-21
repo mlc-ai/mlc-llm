@@ -21,9 +21,10 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                            std::vector<ModelWorkspace> model_workspaces,
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
+                                           std::vector<picojson::object> model_configs,
                                            Optional<EventTraceRecorder> trace_recorder)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
-                                  std::move(trace_recorder)),
+                                  std::move(model_configs), std::move(trace_recorder)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
@@ -86,6 +87,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         } else {
           ICHECK_EQ(prefill_lengths[i], input_length);
         }
+        mstate->num_prefilled_tokens += input_length;
 
         ICHECK(mstate->draft_output_tokens.empty());
         ICHECK(mstate->draft_token_slots.empty());
@@ -445,11 +447,11 @@ EngineAction EngineAction::EagleNewRequestPrefill(
     Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
     std::vector<ModelWorkspace> model_workspaces,
     DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
-    Optional<EventTraceRecorder> trace_recorder) {
+    std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
-      std::move(engine_config), std::move(trace_recorder)));
+      std::move(engine_config), std::move(model_configs), std::move(trace_recorder)));
 }
 
 }  // namespace serve
