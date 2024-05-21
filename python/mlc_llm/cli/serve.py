@@ -104,6 +104,7 @@ def main(argv):
         max_total_sequence_length=parsed.max_total_seq_length,
         prefill_chunk_size=parsed.prefill_chunk_size,
         max_history_size=parsed.max_history_size,
+        prefix_cache_max_num_seqs=parsed.prefix_cache_max_num_seqs,
         gpu_memory_utilization=parsed.gpu_memory_utilization,
         speculative_mode=parsed.speculative_mode,
         spec_draft_length=parsed.spec_draft_length,
