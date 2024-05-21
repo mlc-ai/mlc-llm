@@ -30,7 +30,8 @@ GenerationConfig::GenerationConfig(
     std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
     std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
     std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-    std::optional<ResponseFormat> response_format, Optional<String> default_config_json_str) {
+    std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
+    Optional<String> default_config_json_str) {
   ObjectPtr<GenerationConfigNode> obj = make_object<GenerationConfigNode>();
   GenerationConfig default_config;
   if (default_config_json_str.defined()) {
@@ -73,6 +74,8 @@ GenerationConfig::GenerationConfig(
   obj->stop_strs = stop_strs.value_or(default_config->stop_strs);
   obj->stop_token_ids = stop_token_ids.value_or(default_config->stop_token_ids);
   obj->response_format = response_format.value_or(default_config->response_format);
+  // "debug_config" is for internal usage. Not the part of OpenAI API spec.
+  obj->debug_config = debug_config;
 
   data_ = std::move(obj);
 }
@@ -177,6 +180,18 @@ GenerationConfig::GenerationConfig(String config_json_str,
   } else {
     n->response_format = default_config->response_format;
   }
+  // "debug_config" is for internal usage. Not the part of OpenAI API spec.
+  std::optional<picojson::object> debug_config_obj =
+      json::LookupOptional<picojson::object>(config, "debug_config");
+  if (debug_config_obj.has_value()) {
+    bool effecive_debug_config = false;
+    std::optional<bool> pinned_system_prompt =
+        json::LookupOptional<bool>(debug_config_obj.value(), "pinned_system_prompt");
+    effecive_debug_config |= (pinned_system_prompt.has_value() && pinned_system_prompt.value());
+    if (effecive_debug_config) {
+      n->debug_config = DebugConfig(pinned_system_prompt.value_or(false));
+    }
+  }
 
   data_ = std::move(n);
 }
@@ -234,6 +249,14 @@ String GenerationConfigNode::AsJSONString() const {
                                   : picojson::value();
   config["response_format"] = picojson::value(response_format);
 
+  // Params for internal usage. Not the part of OpenAI API spec.
+  if (this->debug_config.has_value()) {
+    picojson::object debug_config_obj;
+    debug_config_obj["pinned_system_prompt"] =
+        picojson::value(this->debug_config.value().pinned_system_prompt);
+    config["debug_config"] = picojson::value(debug_config_obj);
+  }
+
   return picojson::value(config).serialize(true);
 }
 
@@ -289,6 +312,8 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
   n->prefill_chunk_size = inferred_config.prefill_chunk_size.value();
   n->max_history_size = inferred_config.max_history_size.value();
+  n->prefix_cache_max_num_seqs =
+      json::LookupOrDefault<int64_t>(json, "prefix_cache_max_num_seqs", n->max_num_sequence);
 
   return EngineConfig(n);
 }
@@ -348,6 +373,8 @@ String EngineConfigNode::AsJSONString() const {
   config["gpu_memory_utilization"] = picojson::value(this->gpu_memory_utilization);
   config["kv_cache_page_size"] = picojson::value(static_cast<int64_t>(this->kv_cache_page_size));
   config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
+  config["prefix_cache_max_num_seqs"] =
+      picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_seqs));
   config["max_total_sequence_length"] =
       picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
   config["max_single_sequence_length"] =

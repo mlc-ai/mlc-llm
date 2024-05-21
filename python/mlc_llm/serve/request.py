@@ -35,7 +35,7 @@ class Request(Object):
         we use the value in the default generation config.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         request_id: str,
         inputs: Union[Data, List[Data]],

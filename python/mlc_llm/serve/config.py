@@ -30,6 +30,20 @@ class ResponseFormat:
 
 
 @dataclass
+class DebugConfig:
+    """The debug configuration dataclass.Parameters
+    ----------
+
+    pinned_system_prompt : bool
+        Whether the input and generated data pinned in engine. Default is set to False.
+        This can be used for system prompt or other purpose, if the data is aimed to be
+        kept all the time.
+    """
+
+    pinned_system_prompt: bool = False
+
+
+@dataclass
 class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     """The generation configuration dataclass.
 
@@ -93,6 +107,9 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
 
     response_format : ResponseFormat
         The response format of the generation output.
+
+    debug_config : Optional[DebugConfig]
+        The optional debug configuration.
     """
 
     n: int = 1
@@ -112,6 +129,8 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     ignore_eos: bool = False
 
     response_format: ResponseFormat = field(default_factory=ResponseFormat)
+
+    debug_config: Optional[DebugConfig] = field(default_factory=DebugConfig)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
@@ -194,6 +213,10 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]]
         The kind of cache.
 
+    prefix_cache_max_num_seqs: Optional[int]
+        The maximum number of sequences in prefix cache, default as max_num_sequence.
+        And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
+
     speculative_mode : Literal["disable", "small_draft", "eagle", "medusa"]
         The speculative mode.
         "disable" means speculative decoding is disabled.
@@ -221,6 +244,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: Optional[int] = None
     max_history_size: Optional[int] = None
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]] = None
+    prefix_cache_max_num_seqs: Optional[int] = None
     speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable"
     spec_draft_length: int = 4
     verbose: bool = True

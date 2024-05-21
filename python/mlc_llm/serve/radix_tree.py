@@ -13,20 +13,11 @@ from . import _ffi_api
 class PagedRadixTree(Object):
     """The paged radix tree to manage prefix and sequence."""
 
-    def __init__(self, num_pages: int, page_size: int, num_seqs: int):
+    def __init__(self):
         """
         Constructor of paged radix tree.
-
-        Parameters
-        ----------
-        num_pages : int
-            The number of radix tree pages.
-        page_size : int
-            The page size of each radix tree page.
-        num_seqs : int
-            The maximum number of sequence ID.
         """
-        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree, num_pages, page_size, num_seqs)  # type: ignore  # pylint: disable=no-member
+        self.__init_handle_by_constructor__(_ffi_api.PagedRadixTree)  # type: ignore  # pylint: disable=no-member
 
     def match(self, tokens: Union[ShapeTuple, List, Tuple]) -> Tuple[int, ShapeTuple]:
         """
@@ -87,6 +78,19 @@ class PagedRadixTree(Object):
         if isinstance(tokens, (list, tuple)):
             tokens = ShapeTuple(tokens)
         _ffi_api.PagedRadixTreeExtendSequence(self, seq_id, tokens)  # type: ignore  # pylint: disable=no-member
+
+    def rollback(self, seq_id: int, num_tokens: int) -> None:
+        """
+        Roll back a sequence by number of tokens.
+
+        Parameters
+        ----------
+        seq_id : int
+            The sequence ID for index.
+        num_tokens : int
+            The number of tokens to be rolled back.
+        """
+        _ffi_api.PagedRadixTreeRollBackSequence(self, seq_id, num_tokens)  # type: ignore  # pylint: disable=no-member
 
     def fork(self, seq_id: int, parent_seq_id: int, forked_offset: int) -> None:
         """

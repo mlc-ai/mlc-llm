@@ -47,6 +47,7 @@ class BatchDecodeActionObj : public EngineActionObj {
       NVTXScopedRange nvtx_scope("BatchDecode getting requests");
       running_rsentries = GetRunningRequestStateEntries(estate);
       while (!CanDecode(running_rsentries.size())) {
+        if (estate->prefix_cache->TryFreeMemory()) continue;
         RequestStateEntry preempted =
             PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
         if (preempted.same_as(running_rsentries.back())) {

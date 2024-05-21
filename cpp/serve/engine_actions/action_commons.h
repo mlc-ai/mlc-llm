@@ -39,12 +39,14 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
  * \param tokenizer The tokenizer for logprob process.
  * \param request_stream_callback The request stream callback function.
  * \param max_single_sequence_length The max single sequence length to help decide
+ * \param trace_recorder The event trace recorder for requests.
  * if a request is finished.
  */
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
-                           int64_t max_single_sequence_length);
+                           int64_t max_single_sequence_length,
+                           Optional<EventTraceRecorder> trace_recorder);
 
 /*!
  * \brief Preempt the last running request state entry from `running_queue`.
@@ -54,8 +56,9 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
  * \param estate The engine state to update due to preemption.
  * \param models The models to remove preempted requests from.
  * \param draft_token_workspace_manager The draft token workspace manager for requests. Must be
- * provided if speculative decoding is enabled. \param trace_recorder The event trace recorder for
- * requests. \return The preempted request state.
+ * provided if speculative decoding is enabled.
+ * \param trace_recorder The event trace recorder for requests.
+ * \return The preempted request state.
  */
 RequestStateEntry PreemptLastRunningRequestStateEntry(
     EngineState estate, const Array<Model>& models,

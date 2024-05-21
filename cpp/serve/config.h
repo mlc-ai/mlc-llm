@@ -30,6 +30,14 @@ struct ResponseFormat {
   Optional<String> schema = NullOpt;
 };
 
+/*! \brief The debug configuration of a request. */
+class DebugConfig {
+ public:
+  bool pinned_system_prompt = false;
+
+  DebugConfig(bool pinned_system_prompt) : pinned_system_prompt(pinned_system_prompt) {}
+};
+
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
@@ -50,6 +58,7 @@ class GenerationConfigNode : public Object {
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
+  std::optional<DebugConfig> debug_config = std::nullopt;
 
   String AsJSONString() const;
 
@@ -68,7 +77,8 @@ class GenerationConfig : public ObjectRef {
       std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
       std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
       std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-      std::optional<ResponseFormat> response_format, Optional<String> default_config_json_str);
+      std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
+      Optional<String> default_config_json_str);
 
   TVM_DLL explicit GenerationConfig(String config_json_str,
                                     Optional<String> default_config_json_str);
@@ -168,6 +178,9 @@ class EngineConfigNode : public Object {
   int64_t prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
+  /*! \brief The maximum number of sequences in prefix cache, default as max_num_sequence. And set 0
+   * to disable prefix cache, set -1 to have infinite capacity prefix cache. */
+  int prefix_cache_max_num_seqs = -1;
 
   /*************** Speculative decoding ***************/
 

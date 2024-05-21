@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../serve/config.h"
 #include "../support/result.h"
 #include "picojson.h"
 
@@ -127,6 +128,8 @@ class RequestResponseFormat {
   std::optional<std::string> json_schema = std::nullopt;
 };
 
+using serve::DebugConfig;
+
 class ChatCompletionRequest {
  public:
   std::vector<ChatCompletionMessage> messages;
@@ -148,6 +151,7 @@ class ChatCompletionRequest {
   std::optional<std::string> user = std::nullopt;
   bool ignore_eos = false;
   //   RequestResponseFormat response_format; //TODO: implement this
+  std::optional<DebugConfig> debug_config = std::nullopt;
 
   /*! \brief Parse and create a ChatCompletionRequest instance from the given JSON string. */
   static Result<ChatCompletionRequest> FromJSON(const std::string& json_str);

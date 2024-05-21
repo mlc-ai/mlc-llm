@@ -22,6 +22,14 @@ using namespace tvm::runtime;
 class PagedRadixTreeObj : public Object {
  public:
   /*!
+   * \brief Check if a sequence exists.
+   * \param seq_id The sequence ID for index.
+   * \return The sequence existence.
+   * \throw Error if sequence ID is not valid.
+   */
+  virtual bool HasSequence(int64_t seq_id) = 0;
+
+  /*!
    * \brief Get a sequence's all tokens.
    * \param seq_id The sequence ID for index.
    * \return The sequence tokens.
@@ -72,6 +80,14 @@ class PagedRadixTreeObj : public Object {
   virtual void ExtendSequence(int64_t seq_id, IntTuple tokens) = 0;
 
   /*!
+   * \brief Roll back a sequence by number of tokens.
+   * \param seq_id The sequence ID for index.
+   * \param num_tokens The number of tokens to be rolled back.
+   * \throw Error if sequence ID is not valid.
+   */
+  virtual void RollBackSequence(int64_t seq_id, size_t num_tokens) = 0;
+
+  /*!
    * \brief Remove a sequence.
    * \param seq_id The sequence ID to remove.
    * \throw Error if sequence ID is not valid.
@@ -84,6 +100,11 @@ class PagedRadixTreeObj : public Object {
    */
   virtual size_t FreeCapacity() = 0;
 
+  /*!
+   * \brief Reset the paged radix tree to initial status.
+   */
+  virtual void Reset() = 0;
+
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "mlc.serve.PagedRadixTree";
   TVM_DECLARE_BASE_OBJECT_INFO(PagedRadixTreeObj, Object)
@@ -94,12 +115,9 @@ TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeObj);
 class PagedRadixTree : public ObjectRef {
  public:
   /*!
-   * \brief Constructor of paged radix tree.
-   * \param num_pages The number of radix tree pages.
-   * \param page_size The page size of each radix tree page.
-   * \param num_seqs The maximum number of sequence ID.
-   */
-  PagedRadixTree(size_t num_pages, size_t page_size, size_t num_seqs);
+   * \brief Construct a paged radix tree.
+   * \return The constructed paged radix tree.   */
+  static PagedRadixTree Create();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PagedRadixTree, ObjectRef, PagedRadixTreeObj);
 };

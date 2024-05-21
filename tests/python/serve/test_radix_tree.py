@@ -2,13 +2,15 @@ from mlc_llm.serve import PagedRadixTree
 
 
 def test_add():
-    prt = PagedRadixTree(16, 128, 16)
+    prt = PagedRadixTree()
     prt.add(0)
     assert prt.get(0) == []
+    prt.add(1)
+    assert prt.get(1) == []
 
 
 def test_remove():
-    prt = PagedRadixTree(32, 128, 16)
+    prt = PagedRadixTree()
     capacity = prt.free_capacity()
     prt.add(0)
     prt.remove(0)
@@ -30,10 +32,21 @@ def test_remove():
     prt.remove(3)
     assert prt.free_capacity() == capacity
 
+    prt.add(4)
+    prt.add(5)
+    prt.add(6)
+    assert prt.free_capacity() == capacity
+    prt.remove(4)
+    assert prt.free_capacity() == capacity
+    prt.remove(5)
+    assert prt.free_capacity() == capacity
+    prt.remove(6)
+    assert prt.free_capacity() == capacity
+
 
 def test_extend():
-    prt = PagedRadixTree(1024, 256, 256)
-    L = prt.free_capacity() // 1024
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
     H = L // 2
     Q = L // 4
     seq_id = 0
@@ -53,8 +66,8 @@ def test_extend():
 
 
 def test_fork():
-    prt = PagedRadixTree(1024, 256, 256)
-    L = prt.free_capacity() // 1024
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
     H = L // 2
     Q = L // 4
     seq_id = 0
@@ -69,8 +82,39 @@ def test_fork():
             seq_id += 2
 
 
+def test_rollback():
+    prt = PagedRadixTree()
+    L = prt.free_capacity() // 64
+    H = L // 2
+    Q = L // 4
+    seq_id = 0
+    for start_pos in [H, L, L + H, 2 * L, 3 * L + H]:
+        for length in [Q, H, L + Q, 2 * L, 2 * L + Q]:
+            if length > start_pos:
+                continue
+            prt.add(seq_id)
+            tokens = [seq_id for _ in range(start_pos)]
+            prt.extend(seq_id, tokens)
+            prt.rollback(seq_id, length)
+            assert prt.get(seq_id) == tokens[:-length]
+            seq_id += 1
+
+    for start_pos in [H, L, L + H, 2 * L, 3 * L + H]:
+        for length in [Q, H, L + Q, 2 * L, 2 * L + Q]:
+            if length > start_pos:
+                continue
+            prt.add(seq_id)
+            tokens = [seq_id for _ in range(start_pos)]
+            prt.extend(seq_id, tokens)
+            prt.fork(seq_id + 1, seq_id, start_pos)
+            prt.rollback(seq_id + 1, length)
+            assert prt.get(seq_id + 1) == tokens[:-length]
+            seq_id += 2
+
+
 if __name__ == "__main__":
     test_add()
     test_remove()
     test_extend()
     test_fork()
+    test_rollback()

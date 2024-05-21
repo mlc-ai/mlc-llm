@@ -296,6 +296,12 @@ class ModelObj : public Object {
    */
   virtual int EstimateHostCPURequirement() const = 0;
 
+  /*! \brief Get the sliding window size of the model. "-1" means sliding window is not enabled. */
+  virtual int GetSlidingWindowSize() const = 0;
+
+  /*! \brief Get the attention sink size of the model. */
+  virtual int GetAttentionSinkSize() const = 0;
+
   /*! \brief Allocate an embedding tensor with the prefill chunk size. */
   virtual ObjectRef AllocEmbeddingTensor() = 0;
 

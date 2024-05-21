@@ -13,6 +13,7 @@ import shortuuid
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .conversation_protocol import Conversation
+from .debug_protocol import DebugConfig
 from .error_protocol import BadRequestError
 
 ################ Commons ################
@@ -104,6 +105,7 @@ class CompletionRequest(BaseModel):
     user: Optional[str] = None
     ignore_eos: bool = False
     response_format: Optional[RequestResponseFormat] = None
+    debug_config: Optional[DebugConfig] = None
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -218,6 +220,7 @@ class ChatCompletionRequest(BaseModel):
     user: Optional[str] = None
     ignore_eos: bool = False
     response_format: Optional[RequestResponseFormat] = None
+    debug_config: Optional[DebugConfig] = None
 
     @field_validator("frequency_penalty", "presence_penalty")
     @classmethod
@@ -404,6 +407,7 @@ def openai_api_get_generation_config(
         "logit_bias",
         "seed",
         "ignore_eos",
+        "debug_config",
     ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)

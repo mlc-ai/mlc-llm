@@ -18,6 +18,28 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
   }
 }
 
+/*!
+ * \brief Remove the given request state entry.
+ * \param estate The engine state to update after removal.
+ * \param models The models to remove the given request from.
+ * \param rsentry The request state entry to remove.
+ */
+void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestStateEntry rsentry) {
+  if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+    // If the sequence is stored in prefix cache, call prefix cache to remove.
+    if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
+          rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
+      // If the request is not pinned, recycle the request.
+      estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/true);
+    }
+    // If the request is pinned, do nothing over the prefix cache and KVCache.
+  } else {
+    // If the sequence is not stored in prefix cache, remove it directly.
+    RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+    estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+  }
+}
+
 void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
                                         EngineState estate, Array<Model> models,
                                         int max_single_sequence_length) {
@@ -29,8 +51,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
     // Mark the status of this entry as finished.
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
-    RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
-    estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+    RemoveRequestStateEntry(estate, models, rsentry);
 
     RequestState rstate = estate->GetRequestState(rsentry->request);
     int parent_idx = rsentry->parent_idx;
@@ -50,8 +71,8 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       // So we mark the parent entry as finished.
       rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
-      RemoveRequestFromModel(estate, rstate->entries[parent_idx]->mstates[0]->internal_id, models);
-      estate->id_manager.RecycleId(rstate->entries[parent_idx]->mstates[0]->internal_id);
+
+      RemoveRequestStateEntry(estate, models, rstate->entries[parent_idx]);
       // Climb up to the parent.
       parent_idx = rstate->entries[parent_idx]->parent_idx;
     }
@@ -69,7 +90,6 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       auto trequest_finish = std::chrono::high_resolution_clock::now();
       estate->stats.request_total_prefill_time +=
           static_cast<double>((root_rsentry->tprefill_finish - root_rsentry->tadd).count()) / 1e9;
-      estate->stats.total_prefill_length += rsentry->request->input_total_length;
       estate->stats.request_total_decode_time +=
           static_cast<double>((trequest_finish - root_rsentry->tprefill_finish).count()) / 1e9;
       for (const RequestStateEntry& entry : rstate->entries) {
@@ -82,16 +102,67 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
   }
 }
 
+void UpdatePrefixCache(Array<Request> requests, EngineState estate) {
+  for (Request request : requests) {
+    RequestState rstate = estate->GetRequestState(request);
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+        if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+          // Notify the prefix cache of the newly prefilled data.
+          for (Data data : rsentry->mstates[0]->prefilled_inputs) {
+            const TokenDataNode* token_data = data.as<TokenDataNode>();
+            estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id,
+                                                 token_data->token_ids);
+          }
+          rsentry->mstates[0]->prefilled_inputs.clear();
+        }
+        if (rsentry->mstates[0]->cached_committed_tokens <
+            rsentry->mstates[0]->committed_tokens.size() - 1) {
+          // Notify the prefix cache of the newly decoded data, except the last token as it is not
+          // in KVCache yet.
+          std::vector<int64_t> tokens;
+          tokens.reserve((rsentry->mstates[0]->committed_tokens.size() -
+                          rsentry->mstates[0]->cached_committed_tokens));
+          for (int i = rsentry->mstates[0]->cached_committed_tokens;
+               i < rsentry->mstates[0]->committed_tokens.size() - 1; ++i) {
+            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
+          }
+          estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
+          rsentry->mstates[0]->cached_committed_tokens =
+              rsentry->mstates[0]->committed_tokens.size() - 1;
+        }
+      }
+    }
+  }
+}
+
 void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
-                           int64_t max_single_sequence_length) {
+                           int64_t max_single_sequence_length,
+                           Optional<EventTraceRecorder> trace_recorder) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
   std::vector<RequestStateEntry> finished_rsentries;
   finished_rsentries.reserve(requests.size());
 
   Array<RequestStreamOutput> callback_delta_outputs;
   callback_delta_outputs.reserve(requests.size());
+
+  for (Request request : requests) {
+    RequestState rstate = estate->GetRequestState(request);
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+        for (Data data : rsentry->mstates[0]->prefilled_inputs) {
+          estate->stats.total_prefill_length += data->GetLength();
+        }
+      }
+    }
+  }
+
+  {
+    NVTXScopedRange nvtx_scope("ActionStepPostProcess updating prefix cache");
+    UpdatePrefixCache(requests, estate);
+  }
 
   // - Collect new generated tokens and finish reasons for requests.
   for (Request request : requests) {
@@ -140,7 +211,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
 
   ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
                                      std::move(models), max_single_sequence_length);
-}
+}  // namespace serve
 
 RequestStateEntry PreemptLastRunningRequestStateEntry(
     EngineState estate, const Array<Model>& models,
@@ -197,8 +268,19 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
       inputs.push_back(TokenData(committed_token_ids));
     }
     mstate->inputs = std::move(inputs);
+    mstate->prefilled_inputs.clear();
+    mstate->cached_committed_tokens = 0;
   }
-  RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+  if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+    estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/false);
+  } else {
+    RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+  }
+  // Since the sequence has been removed from model, assign a new sequence ID.
+  int64_t new_seq_id = estate->id_manager.GetNewId();
+  for (RequestModelState mstate : rsentry->mstates) {
+    mstate->internal_id = new_seq_id;
+  }
 
   if (preempt_rstate_idx == 0) {
     // Remove from running queue.

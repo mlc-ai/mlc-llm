@@ -60,6 +60,11 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
       bool can_prefill = false;
       for (int num_child_to_activate = rsentry->child_indices.size(); num_child_to_activate >= 0;
            --num_child_to_activate) {
+        while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                           total_input_length, total_required_pages, num_available_pages,
+                           current_total_seq_len, num_running_rsentries, kv_state_kind)) {
+          if (!estate->prefix_cache->TryFreeMemory()) break;
+        }
         if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                        total_input_length, total_required_pages, num_available_pages,
                        current_total_seq_len, num_running_rsentries, kv_state_kind)) {
@@ -111,7 +116,6 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   return prefill_inputs;
 }
 
-/*! \brief Check if the input requests can be prefilled under conditions. */
 bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_rsentries,
                                            int total_input_length, int num_required_pages,
                                            int num_available_pages, int current_total_seq_len,
@@ -307,6 +311,36 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
     if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
       rsentries_for_sample[i]->tprefill_finish = tnow;
     }
+  }
+}
+
+IntTuple BatchPrefillBaseActionObj::GetConcatPrefillInputData(const RequestModelState& mstate) {
+  std::vector<int64_t> tokens;
+  for (Data data : mstate->inputs) {
+    if (const TokenDataNode* token_data = data.as<TokenDataNode>()) {
+      tokens.reserve(tokens.size() + token_data->GetLength());
+      tokens.insert(tokens.end(), token_data->token_ids.begin(), token_data->token_ids.end());
+    } else {
+      return IntTuple({});
+    }
+  }
+  return IntTuple(tokens);
+}
+
+void BatchPrefillBaseActionObj::PopPrefillInputData(const RequestModelState& mstate,
+                                                    size_t num_tokens) {
+  while (mstate->inputs[0]->GetLength() <= num_tokens) {
+    num_tokens -= mstate->inputs[0]->GetLength();
+    mstate->inputs.erase(mstate->inputs.begin());
+  }
+  if (num_tokens) {
+    const TokenDataNode* token_data = mstate->inputs[0].as<TokenDataNode>();
+    std::vector<int32_t> tokens;
+    tokens.reserve(token_data->GetLength() - num_tokens);
+    tokens.insert(tokens.begin(), token_data->token_ids.begin() + num_tokens,
+                  token_data->token_ids.end());
+    mstate->inputs.erase(mstate->inputs.begin());
+    mstate->inputs.insert(mstate->inputs.begin(), TokenData(tokens));
   }
 }
 
