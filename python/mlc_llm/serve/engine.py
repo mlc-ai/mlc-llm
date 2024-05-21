@@ -819,6 +819,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
     max_history_size : Optional[int]
         The maximum history for RNN state.
 
+    prefix_cache_max_num_seqs: Optional[int]
+        The maximum number of sequence in prefix cache, set 0 to disable prefix cache.
+
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
@@ -856,6 +859,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         max_history_size: Optional[int] = None,
+        prefix_cache_max_num_seqs: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable",
         spec_draft_length: int = 4,
@@ -873,6 +877,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
             max_history_size=max_history_size,
+            prefix_cache_max_num_seqs=prefix_cache_max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,
@@ -1434,6 +1439,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         max_total_sequence_length: Optional[int] = None,
         prefill_chunk_size: Optional[int] = None,
         max_history_size: Optional[int] = None,
+        prefix_cache_max_num_seqs: Optional[int] = None,
         gpu_memory_utilization: Optional[float] = None,
         speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
         spec_draft_length: int = 4,
@@ -1451,6 +1457,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             max_total_sequence_length=max_total_sequence_length,
             prefill_chunk_size=prefill_chunk_size,
             max_history_size=max_history_size,
+            prefix_cache_max_num_seqs=prefix_cache_max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
             speculative_mode=speculative_mode,
             spec_draft_length=spec_draft_length,

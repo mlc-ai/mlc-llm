@@ -213,6 +213,9 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]]
         The kind of cache.
 
+    prefix_cache_max_num_seqs: Optional[int]
+        The maximum number of sequence in prefix cache, set 0 to disable prefix cache.
+
     speculative_mode : Literal["disable", "small_draft", "eagle", "medusa"]
         The speculative mode.
         "disable" means speculative decoding is disabled.
@@ -240,6 +243,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: Optional[int] = None
     max_history_size: Optional[int] = None
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]] = None
+    prefix_cache_max_num_seqs: Optional[int] = None
     speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable"
     spec_draft_length: int = 4
     verbose: bool = True

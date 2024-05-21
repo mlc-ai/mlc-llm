@@ -100,6 +100,7 @@ def test_basic_engine_system_prompt():
         model_lib=model_lib,
         mode="local",
         max_total_sequence_length=4096,
+        prefix_cache_max_num_seqs=5,
     )
     test_engine_system_prompt(engine)
 

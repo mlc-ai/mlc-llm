@@ -312,6 +312,8 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
   n->prefill_chunk_size = inferred_config.prefill_chunk_size.value();
   n->max_history_size = inferred_config.max_history_size.value();
+  n->prefix_cache_max_num_seqs =
+      json::LookupOrDefault<int64_t>(json, "prefix_cache_max_num_seqs", n->max_num_sequence);
 
   return EngineConfig(n);
 }
