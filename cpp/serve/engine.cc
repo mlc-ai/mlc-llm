@@ -101,7 +101,7 @@ class EngineImpl : public Engine {
       EngineState estate = n->estate_;
       Array<Model> models = n->models_;
       n->estate_->prefix_cache =
-          PrefixCache::Create(engine_config->max_num_sequence + 1,
+          PrefixCache::Create(static_cast<size_t>(engine_config->prefix_cache_max_num_seqs),
                               TypedPackedFunc<void(int64_t)>([estate, models](int64_t seq_id) {
                                 RemoveRequestFromModel(estate, seq_id, models);
                                 estate->id_manager.RecycleId(seq_id);

@@ -41,8 +41,11 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     int num_rsentries = prefill_inputs.size();
-    for (int i = 0; i < num_rsentries; ++i) {
-      MatchPrefixCache(estate, prefill_inputs[i]);
+    {
+      NVTXScopedRange nvtx_scope("NewRequestPrefill matching prefix");
+      for (int i = 0; i < num_rsentries; ++i) {
+        MatchPrefixCache(estate, &prefill_inputs[i]);
+      }
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();
@@ -358,8 +361,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    * \param estate The engine state.
    * \param[out] input The prefill input to be matched and updated.
    */
-  void MatchPrefixCache(EngineState estate, PrefillInput& input) final {
-    RequestStateEntry rsentry = input.rsentry;
+  void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
+    RequestStateEntry rsentry = input->rsentry;
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
         !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
       IntTuple tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
@@ -371,72 +374,69 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       PrefixCacheMatchedResult result = estate->prefix_cache->InsertSequence(
           rsentry->mstates[0]->internal_id, tokens, models_[0]->GetSlidingWindowSize(),
           models_[0]->GetAttentionSinkSize());
-      RECORD_EVENT(trace_recorder_, rsentry->request->id,
-                   "prefix cache matched result: NewSeqID=" + std::to_string(result.new_seq_id) +
-                       " ,ParentSeqID=" + std::to_string(result.parent_seq_id) +
-                       " ,MatchedOffset=" + std::to_string(result.matched_offset) +
-                       " ,PopLastTokens=" + std::to_string(result.pop_last_tokens));
-      if (result.new_seq_id == rsentry->mstates[0]->internal_id) {
-        CHECK_EQ(result.pop_last_tokens, 0);
-        if (result.parent_seq_id == -1) {
-          // Add new sequence.
-          // Note: Almost same as without eagle speculative decoding. But in prefill step, the
-          // prefill embedding input in draft model will be shifted one token, compared to the base
-          // model. Just the new sequence without prefix cache. Here we merely add the new sequence
-          // in advance of prefill step.
-          CHECK_EQ(result.matched_offset, 0);
-          for (int i = 0; i < models_.size(); ++i) {
-            models_[i]->AddNewSequence(rsentry->mstates[0]->internal_id);
-            models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
-          }
-        } else {
+      if (result.prefilled_offset == 0) {
+        // Add new sequence.
+        // Note: Almost same as without eagle speculative decoding. But in prefill step, the
+        // prefill embedding input in draft model will be shifted one token, compared to the base
+        // model. Just the new sequence without prefix cache. Here we merely add the new sequence
+        // in advance of prefill step.
+        CHECK_EQ(result.forked_seq_id, -1);
+        CHECK_EQ(result.reused_seq_id, -1);
+        CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+        for (int i = 0; i < models_.size(); ++i) {
+          models_[i]->AddNewSequence(rsentry->mstates[0]->internal_id);
+          models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+        }
+      } else {
+        if (result.forked_seq_id != -1) {
           // Fork from active sequence
           // Note: Due to the shifted KVCache between base model and draft model, we do a trick
           // over forking sequence:
           // For example. we have a sequence of [0, 1, 2] in base model KVCache, and the
-          // corresponding sequence of [1, 2, 3] in draft model KVCache, where token [3] was sampled
-          // from base model, but not appended in base model KVCache.
-          // Then we get a new sequence [0, 1, 4] to prefill. Although the new sequence matches
-          // first two tokens with the sequence [0, 1, 2], we have to fork from the first token 0,
-          // not the second token 1.
-          // Because if we fork from the second token, we will prefill like:
-          // Base model: [0, 1] + prefill([4]) => [5]
-          // Draft model: [1] + prefill([4, 5])
-          // The lengths to prefill is different between base model and draft model, which is
-          // illegal. So we roll back one token in prefix cache to fork from the first token. Then
-          // the prefill will be like:
-          // Base model: [0] + prefill([1, 4]) => [5]
-          // Draft model: [1] + prefill([4, 5])
-          // And we shift the input prefill data as other new sequence, to avoid double prefilling
+          // corresponding sequence of [1, 2, 3] in draft model KVCache, where token [3] was
+          // sampled from base model, but not appended in base model KVCache. Then we get a new
+          // sequence [0, 1, 4] to prefill. Although the new sequence matches first two tokens
+          // with the sequence [0, 1, 2], we have to fork from the first token 0, not the second
+          // token 1. Because if we fork from the second token, we will prefill like: Base model:
+          // [0, 1] + prefill([4]) => [5] Draft model: [1] + prefill([4, 5]) The lengths to
+          // prefill is different between base model and draft model, which is illegal. So we roll
+          // back one token in prefix cache to fork from the first token. Then the prefill will be
+          // like: Base model: [0] + prefill([1, 4]) => [5] Draft model: [1] + prefill([4, 5]) And
+          // we shift the input prefill data as other new sequence, to avoid double prefilling
           // token 1, and make the prefill length aligned between base model and draft model.
+          CHECK_EQ(result.reused_seq_id, -1);
+          CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
           estate->prefix_cache->RollBackSequence(rsentry->mstates[0]->internal_id, 1);
           for (int i = 0; i < models_.size(); ++i) {
-            models_[i]->ForkSequence(result.parent_seq_id, rsentry->mstates[0]->internal_id,
-                                     result.matched_offset - 1);
+            models_[i]->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
+                                     result.prefilled_offset - 1);
             models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
           }
-        }
-      } else {
-        // Reuse recycling sequence
-        // Note: The processing for reusing recycling sequence is like forking sequence. And we also
-        // roll back one token due to the reason mentioned above.
-        CHECK_EQ(result.parent_seq_id, -1);
-        estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-        for (int i = 0; i < rsentry->mstates.size(); ++i) {
-          rsentry->mstates[i]->internal_id = result.new_seq_id;
-        }
-        estate->prefix_cache->RollBackSequence(rsentry->mstates[0]->internal_id, 1);
-        for (int i = 0; i < models_.size(); ++i) {
-          models_[i]->PopNFromKVCache(rsentry->mstates[0]->internal_id, result.pop_last_tokens + 1);
+        } else {
+          // Reuse recycling sequence
+          // Note: The processing for reusing recycling sequence is like forking sequence. And we
+          // also roll back one token due to the reason mentioned above.
+          CHECK_EQ(result.forked_seq_id, -1);
+          estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+          for (int i = 0; i < rsentry->mstates.size(); ++i) {
+            rsentry->mstates[i]->internal_id = result.reused_seq_id;
+          }
+          estate->prefix_cache->RollBackSequence(rsentry->mstates[0]->internal_id, 1);
+          for (int i = 0; i < models_.size(); ++i) {
+            models_[i]->PopNFromKVCache(rsentry->mstates[0]->internal_id,
+                                        result.reused_seq_pop_last_tokens + 1);
+          }
         }
       }
       // Pop matched prefix
-      for (int i = 0; i < rsentry->mstates.size(); ++i) {
-        PopPrefillInputData(rsentry->mstates[i], result.matched_offset);
+      if (result.prefilled_offset > 0) {
+        for (int i = 0; i < rsentry->mstates.size(); ++i) {
+          PopPrefillInputData(rsentry->mstates[i], result.prefilled_offset);
+        }
       }
       // Update max prefill length
-      input.max_prefill_length =
-          std::min(input.max_prefill_length, rsentry->mstates[0]->GetInputLength());
+      input->max_prefill_length =
+          std::min(input->max_prefill_length, rsentry->mstates[0]->GetInputLength());
     }
   }
 };

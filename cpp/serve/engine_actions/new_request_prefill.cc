@@ -38,8 +38,11 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     int num_rsentries = prefill_inputs.size();
-    for (int i = 0; i < num_rsentries; ++i) {
-      MatchPrefixCache(estate, prefill_inputs[i]);
+    {
+      NVTXScopedRange nvtx_scope("NewRequestPrefill matching prefix");
+      for (int i = 0; i < num_rsentries; ++i) {
+        MatchPrefixCache(estate, &prefill_inputs[i]);
+      }
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();
@@ -243,8 +246,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    * \param estate The engine state.
    * \param[out] input The prefill input to be matched and updated.
    */
-  void MatchPrefixCache(EngineState estate, PrefillInput& input) final {
-    RequestStateEntry rsentry = input.rsentry;
+  void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
+    RequestStateEntry rsentry = input->rsentry;
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
         !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
       IntTuple tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
@@ -257,51 +260,52 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           rsentry->mstates[0]->internal_id, tokens, models_[0]->GetSlidingWindowSize(),
           models_[0]->GetAttentionSinkSize());
 
-      RECORD_EVENT(trace_recorder_, rsentry->request->id,
-                   "prefix cache matched result: NewSeqID=" + std::to_string(result.new_seq_id) +
-                       " ,ParentSeqID=" + std::to_string(result.parent_seq_id) +
-                       " ,MatchedOffset=" + std::to_string(result.matched_offset) +
-                       " ,PopLastTokens=" + std::to_string(result.pop_last_tokens));
-      if (result.new_seq_id == rsentry->mstates[0]->internal_id) {
-        CHECK_EQ(result.pop_last_tokens, 0);
-        if (result.parent_seq_id == -1) {
-          // Add new sequence
-          CHECK_EQ(result.matched_offset, 0);
+      if (result.prefilled_offset == 0) {
+        // Add new sequence
+        CHECK_EQ(result.forked_seq_id, -1);
+        CHECK_EQ(result.reused_seq_id, -1);
+        CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+        for (Model model : models_) {
+          model->AddNewSequence(rsentry->mstates[0]->internal_id);
+          model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+        }
+      } else {
+        if (result.forked_seq_id != -1) {
+          CHECK_EQ(result.reused_seq_id, -1);
+          CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+          // Fork from active sequence
           for (Model model : models_) {
-            model->AddNewSequence(rsentry->mstates[0]->internal_id);
+            model->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
+                                result.prefilled_offset);
             model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
           }
         } else {
-          // Fork from active sequence
-          for (Model model : models_) {
-            model->ForkSequence(result.parent_seq_id, rsentry->mstates[0]->internal_id,
-                                result.matched_offset);
-            model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          // Reuse recycling sequence
+          CHECK_EQ(result.forked_seq_id, -1);
+          estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+          for (int i = 0; i < rsentry->mstates.size(); ++i) {
+            rsentry->mstates[i]->internal_id = result.reused_seq_id;
           }
-        }
-      } else {
-        // Reuse recycling sequence
-        CHECK_EQ(result.parent_seq_id, -1);
-        estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-        for (int i = 0; i < rsentry->mstates.size(); ++i) {
-          rsentry->mstates[i]->internal_id = result.new_seq_id;
-        }
-        if (result.pop_last_tokens) {
-          for (Model model : models_) {
-            model->PopNFromKVCache(rsentry->mstates[0]->internal_id, result.pop_last_tokens);
+          if (result.reused_seq_pop_last_tokens > 0) {
+            for (Model model : models_) {
+              model->PopNFromKVCache(rsentry->mstates[0]->internal_id,
+                                     result.reused_seq_pop_last_tokens);
+            }
           }
         }
       }
       // Pop matched prefix
-      for (int i = 0; i < rsentry->mstates.size(); ++i) {
-        PopPrefillInputData(rsentry->mstates[i], result.matched_offset);
+      if (result.prefilled_offset) {
+        for (int i = 0; i < rsentry->mstates.size(); ++i) {
+          PopPrefillInputData(rsentry->mstates[i], result.prefilled_offset);
+        }
       }
       // Update max prefill length
-      input.max_prefill_length =
-          std::min(input.max_prefill_length, rsentry->mstates[0]->GetInputLength());
+      input->max_prefill_length =
+          std::min(input->max_prefill_length, rsentry->mstates[0]->GetInputLength());
     }
   }
-};
+};  // namespace serve
 
 EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor logit_processor,
                                              Sampler sampler,

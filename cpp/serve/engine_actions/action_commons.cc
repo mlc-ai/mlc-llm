@@ -18,6 +18,28 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
   }
 }
 
+/*!
+ * \brief Remove the given request state entry.
+ * \param estate The engine state to update after removal.
+ * \param models The models to remove the given request from.
+ * \param rsentry The request state entry to remove.
+ */
+void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestStateEntry rsentry) {
+  if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
+    // If the sequence is stored in prefix cache, call prefix cache to remove.
+    if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
+          rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
+      // If the request is not pinned, recycle the request.
+      estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/true);
+    }
+    // If the request is pinned, do nothing over the prefix cache and KVCache.
+  } else {
+    // If the sequence is not stored in prefix cache, remove it directly.
+    RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+    estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
+  }
+}
+
 void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
                                         EngineState estate, Array<Model> models,
                                         int max_single_sequence_length) {
@@ -29,18 +51,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
     // Mark the status of this entry as finished.
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
-    if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-      if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
-            rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
-        // If the request is not pinned, recycle the request.
-        estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/true);
-      }
-      // If the request is pinned, do nothing over the prefix cache and KVCache. Let the data be
-      // orphan data.
-    } else {
-      RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
-      estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-    }
+    RemoveRequestStateEntry(estate, models, rsentry);
 
     RequestState rstate = estate->GetRequestState(rsentry->request);
     int parent_idx = rsentry->parent_idx;
@@ -60,20 +71,8 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       // So we mark the parent entry as finished.
       rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
-      if (estate->prefix_cache->HasSequence(rstate->entries[parent_idx]->mstates[0]->internal_id)) {
-        if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
-              rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
-          // If the request is not pinned, recycle the request.
-          estate->prefix_cache->RecycleSequence(
-              rstate->entries[parent_idx]->mstates[0]->internal_id, /*lazy=*/true);
-        }
-        // If the request is pinned, do nothing over the prefix cache and KVCache. Let the data be
-        // orphan data.
-      } else {
-        RemoveRequestFromModel(estate, rstate->entries[parent_idx]->mstates[0]->internal_id,
-                               models);
-        estate->id_manager.RecycleId(rstate->entries[parent_idx]->mstates[0]->internal_id);
-      }
+
+      RemoveRequestStateEntry(estate, models, rstate->entries[parent_idx]);
       // Climb up to the parent.
       parent_idx = rstate->entries[parent_idx]->parent_idx;
     }
@@ -274,6 +273,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
   } else {
     RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
   }
+  // Since the sequence has been removed from model, assign a new sequence ID.
   int64_t new_seq_id = estate->id_manager.GetNewId();
   for (RequestModelState mstate : rsentry->mstates) {
     mstate->internal_id = new_seq_id;

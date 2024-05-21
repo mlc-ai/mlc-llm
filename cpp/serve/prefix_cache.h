@@ -23,36 +23,39 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*!
- * \brief The matched result from prefix cache.
+ * \brief The matched result from prefix cache. This result describes how to pre-process the new
+ * sequence, to leverage the existing data in KVCache by reusing past sequences or forking from
+ * other sequences.
  */
-struct PrefixCacheMatchedResult {
+class PrefixCacheMatchedResult {
+ public:
   /*!
-   * \brief The new sequence ID.
-   * If it is the same as original, do nothing. Otherwise, it is different, which means reusing an
-   * exsisting recycling sequence ID.
+   * \brief The matched and prefilled prefix offset.
    */
-  int64_t new_seq_id = -1;
+  size_t prefilled_offset = 0;
   /*!
-   * \brief The parent sequence ID to fork in KVCache. The default value if -1, which means no
-   * forking operation needed.
+   * \brief The sequence ID to fork from.
    */
-  int64_t parent_seq_id = -1;
+  int64_t forked_seq_id = -1;
   /*!
-   * \brief The matched prefix offset, which should be skipped when prefilling.
+   * \brief The finished sequence ID to reuse.
    */
-  size_t matched_offset = 0;
+  int64_t reused_seq_id = -1;
   /*!
-   * \brief The number of tailing tokens to be popped in KVCache. Used when stripping the reused
-   * recycling sequence to the matched offset.
+   * \brief The number of tailing tokens to be popped from the reused sequence.
    */
-  size_t pop_last_tokens = 0;
+  size_t reused_seq_pop_last_tokens = 0;
 };
 
 class PrefixCacheObj : public Object {
  public:
   /*!
    * \brief Insert a new tokenized sequence into Prefix Cache.
+   * \param seq_id The sequence ID.
    * \param tokens The tokens of tokenized sequence.
+   * \param sliding_window_size The sliding window size for the sequence, -1 as sliding window
+   * disabled.
+   * \param attention_sink_size The attention sink size for the sequence, 0 by default.
    * \return The matched result.
    */
   virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens,
@@ -77,7 +80,8 @@ class PrefixCacheObj : public Object {
 
   /*!
    * \brief Recycle a sequence. The recycled sequence will not be removed immediately, as long as
-   memory is sufficient. And it will be reused again in the future request.
+   * memory is sufficient and the number of sequence in prefix cache belows the maximum number of
+   * sequence. And it will be reused again in the future request.
    * \param seq_id The sequence to be recycled.
    * \param lazy The flag if the sequence should be removed lazily or intermediary.
    * \throw Error if the given sequence id is not valid.
@@ -116,10 +120,9 @@ TVM_REGISTER_OBJECT_TYPE(PrefixCacheObj);
 class PrefixCache : public ObjectRef {
  public:
   /*!
-   * \brief Initialization of paged radix tree.
-   * \param max_num_seqs The maximum number of sequence ID.
-   * \param sliding_window_size The sliding window size, -1 for disabled sliding window.
-   * \param attention_sink_size The attention sink position for sliding window.
+   * \brief Initialization of prefix cache.
+   * \param max_num_seqs The maximum number of sequences in prefix cache.
+   * \param remove_callback The optional callback function to call when removing a sequence.
    */
   static PrefixCache Create(
       size_t max_num_seqs,
