@@ -97,9 +97,16 @@ class EngineImpl : public Engine {
       return TResult::Error(engine_config_res.UnwrapErr());
     }
     EngineConfig engine_config = engine_config_res.Unwrap();
-    n->estate_->prefix_cache =
-        PrefixCache::Init(engine_config->max_num_sequence, n->models_[0]->GetSlidingWindowSize(),
-                          n->models_[0]->GetAttentionSinkSize());
+    {
+      EngineState estate = n->estate_;
+      Array<Model> models = n->models_;
+      n->estate_->prefix_cache =
+          PrefixCache::Create(engine_config->max_num_sequence + 1,
+                              TypedPackedFunc<void(int64_t)>([estate, models](int64_t seq_id) {
+                                RemoveRequestFromModel(estate, seq_id, models);
+                                estate->id_manager.RecycleId(seq_id);
+                              }));
+    }
     // - Load model weights, create KV cache and workspace.
     n->model_workspaces_.clear();
     for (const Model& model : n->models_) {
@@ -297,14 +304,8 @@ class EngineImpl : public Engine {
 
       for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
         if (estate_->prefix_cache->HasSequence(rstate->entries[i]->mstates[0]->internal_id)) {
-          estate_->prefix_cache->RecycleSequence(
-              rstate->entries[i]->mstates[0]->internal_id,
-              TypedPackedFunc<void()>([this, rstate, i]() {
-                RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id,
-                                       models_);
-                estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
-              }),
-              /*lazy=*/false);
+          estate_->prefix_cache->RecycleSequence(rstate->entries[i]->mstates[0]->internal_id,
+                                                 /*lazy=*/false);
         } else {
           if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
             estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);

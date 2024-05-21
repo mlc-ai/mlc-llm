@@ -8,6 +8,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -54,7 +55,9 @@ class PrefixCacheObj : public Object {
    * \param tokens The tokens of tokenized sequence.
    * \return The matched result.
    */
-  virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens) = 0;
+  virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens,
+                                                  int sliding_window_size = -1,
+                                                  int attention_sink_size = 0) = 0;
 
   /*!
    * \brief Extend a sequence with new tokenized sequence suffix.
@@ -76,11 +79,10 @@ class PrefixCacheObj : public Object {
    * \brief Recycle a sequence. The recycled sequence will not be removed immediately, as long as
    memory is sufficient. And it will be reused again in the future request.
    * \param seq_id The sequence to be recycled.
-   * \param callback The callback function to be invoked when removing the sequence.
    * \param lazy The flag if the sequence should be removed lazily or intermediary.
    * \throw Error if the given sequence id is not valid.
    */
-  virtual void RecycleSequence(int64_t seq_id, PackedFunc callback, bool lazy = true) = 0;
+  virtual void RecycleSequence(int64_t seq_id, bool lazy = true) = 0;
 
   /*!
    * \brief Try to remove recycling sequence to free up memory. It will remove the oldest recycling
@@ -119,7 +121,9 @@ class PrefixCache : public ObjectRef {
    * \param sliding_window_size The sliding window size, -1 for disabled sliding window.
    * \param attention_sink_size The attention sink position for sliding window.
    */
-  static PrefixCache Init(size_t max_num_seqs, int sliding_window_size, int attention_sink_size);
+  static PrefixCache Create(
+      size_t max_num_seqs,
+      std::optional<TypedPackedFunc<void(int64_t)>> remove_callback = std::nullopt);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PrefixCache, ObjectRef, PrefixCacheObj);
 };

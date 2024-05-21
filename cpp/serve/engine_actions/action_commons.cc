@@ -33,12 +33,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
             rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
         // If the request is not pinned, recycle the request.
-        estate->prefix_cache->RecycleSequence(
-            rsentry->mstates[0]->internal_id, TypedPackedFunc<void()>([estate, models, rsentry]() {
-              RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
-              estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
-            }),
-            /*lazy=*/true);
+        estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/true);
       }
       // If the request is pinned, do nothing over the prefix cache and KVCache. Let the data be
       // orphan data.
@@ -70,13 +65,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
               rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
           // If the request is not pinned, recycle the request.
           estate->prefix_cache->RecycleSequence(
-              rstate->entries[parent_idx]->mstates[0]->internal_id,
-              TypedPackedFunc<void()>([estate, models, rstate, parent_idx]() {
-                RemoveRequestFromModel(estate, rstate->entries[parent_idx]->mstates[0]->internal_id,
-                                       models);
-                estate->id_manager.RecycleId(rstate->entries[parent_idx]->mstates[0]->internal_id);
-              }),
-              /*lazy=*/true);
+              rstate->entries[parent_idx]->mstates[0]->internal_id, /*lazy=*/true);
         }
         // If the request is pinned, do nothing over the prefix cache and KVCache. Let the data be
         // orphan data.
@@ -281,13 +270,13 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     mstate->cached_committed_tokens = 0;
   }
   if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-    estate->prefix_cache->RecycleSequence(
-        rsentry->mstates[0]->internal_id, TypedPackedFunc<void()>([estate, models, rsentry]() {
-          RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
-        }),
-        /*lazy=*/false);
+    estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/false);
   } else {
     RemoveRequestFromModel(estate, rsentry->mstates[0]->internal_id, models);
+  }
+  int64_t new_seq_id = estate->id_manager.GetNewId();
+  for (RequestModelState mstate : rsentry->mstates) {
+    mstate->internal_id = new_seq_id;
   }
 
   if (preempt_rstate_idx == 0) {

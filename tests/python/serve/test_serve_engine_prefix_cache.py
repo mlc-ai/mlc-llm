@@ -15,13 +15,13 @@ from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts = [
     "The meaning of life is",
-    "In the history of Pittsburgh,",
+    "According to the history of Pittsburgh,",
     "I have a three-day Seattle travel plan. On the first day,",
-    "Alaska is one of the most beautiful places on Earth,",
-    "The difference between Lambda calculus and Turing machine is",
+    "Undoubtedly, Alaska is one of the most beautiful places on Earth,",
+    "Explain difference between Lambda calculus and Turing machine is",
     "To assemble a desktop computer, we need the necessary components of",
     "Vitamin D is important to human beings, because",
-    "The milk tea is originated from",
+    "Refer to history, the milk tea is originated from",
     "In the southernmost place in United States,",
     "AlphaGo has the capabilities of",
 ]
@@ -65,9 +65,7 @@ def test_engine_system_prompt(engine):
     print(stats)
     print(total_prefill_tokens, input_token_lens[:4])
     # first 4 prompts are removed and need to prefill again
-    # but token "The", "In", "the" and "Al" are reused from last batch
-    # so the total prefill tokens deduct 4
-    assert stats["total_prefill_tokens"] == total_prefill_tokens + sum(input_token_lens[:4]) - 4
+    assert stats["total_prefill_tokens"] == total_prefill_tokens + sum(input_token_lens[:4])
 
 
 def test_engine_multi_round(engine):

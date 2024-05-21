@@ -253,8 +253,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         // and return.
         return;
       }
-      PrefixCacheMatchedResult result =
-          estate->prefix_cache->InsertSequence(rsentry->mstates[0]->internal_id, tokens);
+      PrefixCacheMatchedResult result = estate->prefix_cache->InsertSequence(
+          rsentry->mstates[0]->internal_id, tokens, models_[0]->GetSlidingWindowSize(),
+          models_[0]->GetAttentionSinkSize());
 
       RECORD_EVENT(trace_recorder_, rsentry->request->id,
                    "prefix cache matched result: NewSeqID=" + std::to_string(result.new_seq_id) +
