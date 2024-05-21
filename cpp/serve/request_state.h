@@ -55,7 +55,7 @@ class RequestModelStateNode : public Object {
   /*! \brief The list of prefilled input data, used to notify prefix cache. */
   Array<Data> prefilled_inputs;
   /*! \brief The number of tokens already cached in prefix cache. */
-  size_t cached_committed_tokens = 0;
+  int64_t cached_committed_tokens = 0;
 
   // NOTE: The following fields are reserved for future speculative inference
   // settings, and are produced by the speculative small models.

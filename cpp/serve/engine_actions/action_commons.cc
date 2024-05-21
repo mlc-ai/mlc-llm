@@ -117,19 +117,19 @@ void UpdatePrefixCache(Array<Request> requests, EngineState estate) {
           rsentry->mstates[0]->prefilled_inputs.clear();
         }
         if (rsentry->mstates[0]->cached_committed_tokens <
-            rsentry->mstates[0]->committed_tokens.size() - 1) {
+            static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1) {
           // Notify the prefix cache of the newly decoded data, except the last token as it is not
           // in KVCache yet.
           std::vector<int64_t> tokens;
-          tokens.reserve((rsentry->mstates[0]->committed_tokens.size() -
+          tokens.reserve((static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) -
                           rsentry->mstates[0]->cached_committed_tokens));
           for (int i = rsentry->mstates[0]->cached_committed_tokens;
-               i < rsentry->mstates[0]->committed_tokens.size() - 1; ++i) {
+               i < static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1; ++i) {
             tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
           }
           estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
           rsentry->mstates[0]->cached_committed_tokens =
-              rsentry->mstates[0]->committed_tokens.size() - 1;
+              static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1;
         }
       }
     }
@@ -260,7 +260,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
         std::vector<int> token_ids{token_input->token_ids->data,
                                    token_input->token_ids->data + token_input->token_ids.size()};
         token_ids.insert(token_ids.end(), committed_token_ids.begin(), committed_token_ids.end());
-        inputs.Set(inputs.size() - 1, TokenData(token_ids));
+        inputs.Set(static_cast<int64_t>(inputs.size()) - 1, TokenData(token_ids));
       } else if (!committed_token_ids.empty()) {
         inputs.push_back(TokenData(committed_token_ids));
       }
