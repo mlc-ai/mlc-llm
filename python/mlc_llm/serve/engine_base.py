@@ -424,10 +424,11 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         max_total_sequence_length: Optional[int],
         prefill_chunk_size: Optional[int],
         max_history_size: Optional[int],
-        prefix_cache_max_num_seqs: Optional[int],
         gpu_memory_utilization: Optional[float],
         speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"],
         spec_draft_length: int,
+        prefix_cache_mode: Literal["disable", "radix"],
+        prefix_cache_max_num_recycling_seqs: Optional[int],
         enable_tracing: bool,
         verbose: bool,
     ) -> None:
@@ -505,9 +506,10 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 max_total_sequence_length=max_total_sequence_length,
                 prefill_chunk_size=prefill_chunk_size,
                 max_history_size=max_history_size,
-                prefix_cache_max_num_seqs=prefix_cache_max_num_seqs,
                 speculative_mode=speculative_mode,
                 spec_draft_length=spec_draft_length,
+                prefix_cache_mode=prefix_cache_mode,
+                prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
                 verbose=verbose,
             ).asjson()
         )

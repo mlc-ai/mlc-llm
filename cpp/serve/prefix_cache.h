@@ -127,11 +127,15 @@ class PrefixCache : public ObjectRef {
  public:
   /*!
    * \brief Initialization of prefix cache.
-   * \param max_num_seqs The maximum number of sequences in prefix cache.
+   * \param max_recycling_seqs The maximum number of recycling sequences in prefix cache.
    * \param remove_callback The optional callback function to call when removing a sequence.
    */
-  static PrefixCache Create(size_t max_num_seqs,
-                            PrefixCacheRemoveCallback remove_callback = nullptr);
+  static PrefixCache CreateRadixPrefixCache(size_t max_recycling_seqs,
+                                            PrefixCacheRemoveCallback remove_callback = nullptr);
+  /*!
+   * \brief Initialization of no prefix cache.
+   */
+  static PrefixCache CreateNoPrefixCache();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PrefixCache, ObjectRef, PrefixCacheObj);
 };

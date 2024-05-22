@@ -312,8 +312,11 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
   n->prefill_chunk_size = inferred_config.prefill_chunk_size.value();
   n->max_history_size = inferred_config.max_history_size.value();
-  n->prefix_cache_max_num_seqs =
-      json::LookupOrDefault<int64_t>(json, "prefix_cache_max_num_seqs", n->max_num_sequence);
+
+  n->prefix_cache_mode = PrefixCacheModeFromString(json::LookupOrDefault<std::string>(
+      json, "prefix_cache_mode", PrefixCacheModeToString(n->prefix_cache_mode)));
+  n->prefix_cache_max_num_recycling_seqs =
+      json::LookupOrDefault<int64_t>(json, "prefix_cache_max_recycling_seqs", n->max_num_sequence);
 
   return EngineConfig(n);
 }
@@ -373,14 +376,15 @@ String EngineConfigNode::AsJSONString() const {
   config["gpu_memory_utilization"] = picojson::value(this->gpu_memory_utilization);
   config["kv_cache_page_size"] = picojson::value(static_cast<int64_t>(this->kv_cache_page_size));
   config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
-  config["prefix_cache_max_num_seqs"] =
-      picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_seqs));
   config["max_total_sequence_length"] =
       picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
   config["max_single_sequence_length"] =
       picojson::value(static_cast<int64_t>(this->max_single_sequence_length));
   config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
   config["max_history_size"] = picojson::value(static_cast<int64_t>(this->max_history_size));
+  config["prefix_cache_mode"] = picojson::value(PrefixCacheModeToString(this->prefix_cache_mode));
+  config["prefix_cache_max_recycling_seqs"] =
+      picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_recycling_seqs));
   config["speculative_mode"] = picojson::value(SpeculativeModeToString(this->speculative_mode));
   config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
   config["verbose"] = picojson::value(static_cast<bool>(this->verbose));
