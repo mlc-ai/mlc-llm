@@ -216,8 +216,8 @@ There are two ways to do so:
 
        .. code-tab :: bash Install via environment variable
 
-          export MLC_LLM_HOME=/path-to-mlc-llm
-          export PYTHONPATH=$MLC_LLM_HOME/python:$PYTHONPATH
+          export MLC_LLM_SOURCE_DIR=/path-to-mlc-llm
+          export PYTHONPATH=$MLC_LLM_SOURCE_DIR/python:$PYTHONPATH
           alias mlc_llm="python -m mlc_llm"
 
        .. code-tab :: bash Install via pip local project

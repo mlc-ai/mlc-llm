@@ -307,7 +307,7 @@ and <a class="reference external" href="https://llm.mlc.ai/docs/install/mlc_llm.
 Depending on the app we build, there might be some other dependencies, which are described in
 corresponding <a class="reference internal" href="../deploy/ios.html#deploy-ios"><span class="std std-ref">iOS</span></a> and <a class="reference internal" href="../deploy/android.html#deploy-android"><span class="std std-ref">Android</span></a> tutorials.</p>
 <p>After cloning, the basic usage of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> is as the following.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_HOME</span><span class="o">=</span>/path/to/mlc-llm
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_SOURCE_DIR</span><span class="o">=</span>/path/to/mlc-llm
 <span class="nb">cd</span><span class="w"> </span>/path/to/app<span class="w">  </span><span class="c1"># The app root directory which contains &quot;mlc-package-config.json&quot;.</span>
 <span class="w">                 </span><span class="c1"># E.g., &quot;ios/MLCChat&quot; or &quot;android/MLCChat&quot;</span>
 mlc_llm<span class="w"> </span>package
@@ -463,8 +463,8 @@ You can do so by setting the environment variable <code class="docutils literal 
 By default, it is the <code class="docutils literal notranslate"><span class="pre">mlc-package-config.json</span></code> under the current directory.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">--mlc-llm-home</span></code></dt><dd><p>The path to MLC LLM source code (cloned from <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">https://github.com/mlc-ai/mlc-llm</a>).
-By default, it is the <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_HOME</span></code> environment variable.
-If neither <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_HOME</span></code> or <code class="docutils literal notranslate"><span class="pre">--mlc-llm-home</span></code> is specified, error will be reported.</p>
+By default, it is the <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_SOURCE_DIR</span></code> environment variable.
+If neither <code class="docutils literal notranslate"><span class="pre">$MLC_LLM_SOURCE_DIR</span></code> or <code class="docutils literal notranslate"><span class="pre">--mlc-llm-home</span></code> is specified, error will be reported.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">--output</span></code> / <code class="docutils literal notranslate"><span class="pre">-o</span></code></dt><dd><p>The output directory of <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">package</span></code> command.
 By default, it is <code class="docutils literal notranslate"><span class="pre">dist/</span></code> under the current directory.</p>
