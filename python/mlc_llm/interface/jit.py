@@ -18,9 +18,9 @@ from mlc_llm.model import MODELS
 from mlc_llm.support import logging
 from mlc_llm.support.auto_device import device2str
 from mlc_llm.support.constants import (
-    MLC_CACHE_DIR,
     MLC_DSO_SUFFIX,
     MLC_JIT_POLICY,
+    MLC_LLM_HOME,
     MLC_TEMP_DIR,
 )
 from mlc_llm.support.style import blue, bold
@@ -155,7 +155,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
             indent=2,
         ).encode("utf-8")
     ).hexdigest()
-    dst = MLC_CACHE_DIR / "model_lib" / f"{hash_value}.{lib_suffix}"
+    dst = MLC_LLM_HOME / "model_lib" / f"{hash_value}.{lib_suffix}"
     if dst.is_file() and MLC_JIT_POLICY in ["ON", "READONLY"]:
         logger.info("Using cached model lib: %s", bold(str(dst)))
         return JITResult(str(dst), system_lib_prefix)

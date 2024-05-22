@@ -13,7 +13,7 @@ from typing import List, Optional, Tuple
 import requests  # pylint: disable=import-error
 
 from . import logging, tqdm
-from .constants import MLC_CACHE_DIR, MLC_TEMP_DIR
+from .constants import MLC_LLM_HOME, MLC_TEMP_DIR
 from .style import bold
 
 logger = logging.getLogger(__name__)
@@ -126,7 +126,7 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
         raise ValueError(f"Invalid model URL: {model_url}")
     user, repo = model_url[len(mlc_prefix) :].split("/")
-    git_dir = MLC_CACHE_DIR / "model_weights" / user / repo
+    git_dir = MLC_LLM_HOME / "model_weights" / user / repo
     try:
         _ensure_directory_not_exist(git_dir, force_redo=force_redo)
     except ValueError:
