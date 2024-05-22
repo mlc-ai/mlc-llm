@@ -61,7 +61,8 @@ class BatchDecodeActionObj : public EngineActionObj {
     // NOTE: Right now we only support decode all the running request states at a time.
     int num_rsentries = running_rsentries.size();
     ICHECK_GT(num_rsentries, 0)
-        << "There should be at least one request state entry that can run decode";
+        << "There should be at least one request state entry that can run decode. "
+           "Possible failure reason: none of the prefill phase of the running requests is finished";
     // Collect
     // - the last committed token,
     // - the request id,

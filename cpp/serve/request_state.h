@@ -56,6 +56,8 @@ class RequestModelStateNode : public Object {
   Array<Data> prefilled_inputs;
   /*! \brief The number of tokens already cached in prefix cache. */
   int64_t cached_committed_tokens = 0;
+  /*! \brief The number of tokens that is already prefilled from the inputs. */
+  int64_t num_prefilled_tokens = 0;
 
   // NOTE: The following fields are reserved for future speculative inference
   // settings, and are produced by the speculative small models.

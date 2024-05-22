@@ -28,6 +28,7 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   };
 
   BatchPrefillBaseActionObj(Array<Model> models, EngineConfig engine_config,
+                            std::vector<picojson::object> model_configs,
                             Optional<EventTraceRecorder> trace_recorder);
 
   /*!
@@ -40,7 +41,8 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   /*! \brief Check if the input requests can be prefilled under conditions. */
   bool CanPrefill(EngineState estate, int num_prefill_rsentries, int total_input_length,
                   int num_required_pages, int num_available_pages, int current_total_seq_len,
-                  int num_running_rsentries, KVStateKind kv_state_kind);
+                  int num_running_rsentries, KVStateKind kv_state_kind,
+                  bool sliding_window_enabled);
 
   /*!
    * \brief Chunk the input of the given RequestModelState for prefill
@@ -121,6 +123,8 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   Array<Model> models_;
   /*! \brief The engine config. */
   EngineConfig engine_config_;
+  /*! \brief The sliding window size of each model. */
+  std::vector<int> sliding_window_sizes_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };

@@ -251,6 +251,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     for (const SampleResult& committed_token : mstate->committed_tokens) {
       committed_token_ids.push_back(committed_token.sampled_token_id.first);
     }
+    mstate->num_prefilled_tokens = 0;
 
     Array<Data> inputs;
     if (rsentry->parent_idx == -1) {
