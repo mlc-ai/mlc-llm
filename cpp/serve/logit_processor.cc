@@ -195,6 +195,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
  private:
   void UpdateWithLogitBias(NDArray logits, const Array<GenerationConfig>& generation_cfg,
                            const std::vector<int>* cum_num_token) {
+    NVTXScopedRange nvtx_scope("UpdateWithLogitBias");
     // Construct:
     // - pos2seq_id (max_num_token * vocab_size,) int32
     // - token_ids (max_num_token * vocab_size,) int32
@@ -253,6 +254,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
                          const Array<RequestModelState>& mstates,
                          const std::vector<int>* cum_num_token,
                          const std::vector<std::vector<SampleResult>>* draft_tokens) {
+    NVTXScopedRange nvtx_scope("UpdateWithPenalty");
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - pos2seq_id (max_num_token * vocab_size,) int32
@@ -336,6 +338,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
   void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
                       const std::vector<std::vector<SampleResult>>* draft_tokens) {
+    NVTXScopedRange nvtx_scope("UpdateWithMask");
     // Construct:
     // - seq_ids (max_num_token,) int32
     // - bitmask (max_num_token, ceildiv(vocab_size, 32)), int32
