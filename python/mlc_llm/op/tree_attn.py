@@ -1,10 +1,10 @@
+import math
 from typing import Tuple
 
-import math
 from tvm import tir
+from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
-from tvm.runtime import DataType
 
 from mlc_llm.op.position_embedding import rope_freq
 
@@ -35,6 +35,9 @@ def _rope(
 
 def _tree_mask(row, col, mask_ptr, offset, stride):
     return tir.EQ(mask_ptr[offset + row * stride + col], 1)
+
+
+# mypy: disable-error-code="attr-defined,valid-type,no-redef"
 
 
 def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
