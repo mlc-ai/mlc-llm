@@ -147,14 +147,14 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         if (
             args.quantization.kind == "ft-quant"
             and hasattr(model_config, "tensor_parallel_shards")
-            and model_config.tensor_parallel_shards > 1
+            and model_config.tensor_parallel_shards > 1  # type: ignore
         ):
             raise NotImplementedError
         if (
             hasattr(args.quantization, "linear_weight_layout")
             and args.quantization.linear_weight_layout == "KN"
             and hasattr(model_config, "tensor_parallel_shards")
-            and model_config.tensor_parallel_shards > 1
+            and model_config.tensor_parallel_shards > 1  # type: ignore
         ):
             raise NotImplementedError(
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
