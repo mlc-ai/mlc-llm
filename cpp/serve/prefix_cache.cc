@@ -85,10 +85,6 @@ class PrefixCacheImpl : public PrefixCacheObj {
           }
         }
       }
-      // If no sequence reused, we fallback to forking matched sequence. Due to the sliding window,
-      // we have to align the matched offset to attention sink size, to avoid forking beyond
-      // attention sink size.
-      matched_offset = std::min(matched_offset, static_cast<size_t>(attention_sink_size));
     } else {
       // If sliding window is not enabled, we can greedily reuse the shortest recycling sequence
       // without sliding window, so that the loss or roll back of trailing tokens will be minimum.
@@ -117,37 +113,29 @@ class PrefixCacheImpl : public PrefixCacheObj {
         return PrefixCacheMatchedResult{matched_offset, -1, shortest_recycling_seq_id,
                                         shortest_recycling_seq_length - matched_offset};
       }
-    }
-    // No reusage of recycling sequence, fallback to forking matched sequence. However, due to some
-    // sequence enabled with sliding window, we can fork them within the first attention sink size.
-    // So we fork from the sequence whose fork-able offset is longest.
-    size_t longest_forking_offset = 0;
-    int64_t longest_forking_seq_id = -1;
-    for (int64_t matched_seq_id : matched_seqs) {
-      auto [matched_seq_sliding_window_size, matched_seq_attention_sink_size] =
-          seq_sliding_window_infos_.at(matched_seq_id);
-      if (matched_seq_sliding_window_size == -1) {
+      // No reusage of recycling sequence, fallback to forking matched sequence. Currently, we only
+      // fork from sequence without sliding window, due to current paged KVCache implmentation.
+      size_t longest_forking_offset = 0;
+      int64_t longest_forking_seq_id = -1;
+      for (int64_t matched_seq_id : matched_seqs) {
+        auto [matched_seq_sliding_window_size, matched_seq_attention_sink_size] =
+            seq_sliding_window_infos_.at(matched_seq_id);
+        if (matched_seq_sliding_window_size != -1) {
+          continue;
+        }
         // If the matched is not enabled with sliding window, we can fork within matched offset
         // tokens arbitrarily.
         if (matched_offset > longest_forking_offset) {
           longest_forking_offset = matched_offset;
           longest_forking_seq_id = matched_seq_id;
         }
-      } else {
-        // If the matched is enabled with sliding window, we can fork within effective matched
-        // offset tokens, which is the minimum between matched offset and its attention sink size.
-        size_t effective_matched_offset = std::min(matched_offset, matched_seq_attention_sink_size);
-        if (effective_matched_offset > longest_forking_offset) {
-          longest_forking_offset = effective_matched_offset;
-          longest_forking_seq_id = matched_seq_id;
-        }
       }
-    }
-    if (longest_forking_offset > 0) {
-      radix_tree_->ForkSequence(seq_id, longest_forking_seq_id, longest_forking_offset);
-      seq_states_.emplace(seq_id, SequenceState::kActive);
-      seq_sliding_window_infos_.emplace(seq_id, sliding_window_info);
-      return PrefixCacheMatchedResult{longest_forking_offset, longest_forking_seq_id, -1, 0};
+      if (longest_forking_offset > 0) {
+        radix_tree_->ForkSequence(seq_id, longest_forking_seq_id, longest_forking_offset);
+        seq_states_.emplace(seq_id, SequenceState::kActive);
+        seq_sliding_window_infos_.emplace(seq_id, sliding_window_info);
+        return PrefixCacheMatchedResult{longest_forking_offset, longest_forking_seq_id, -1, 0};
+      }
     }
     // No forking from matched sequence, fallback to adding new sequence.
     radix_tree_->AddSequence(seq_id);
@@ -392,6 +380,11 @@ class NoPrefixCache : public PrefixCacheObj {
     // Since there is no prefix cache, always return false.
     return false;
   }
+
+  /*!
+   * \brief Reset the prefix cache to initial status. Do nothing and return.
+   */
+  void Reset() {}
 };
 
 TVM_REGISTER_OBJECT_TYPE(NoPrefixCache);
