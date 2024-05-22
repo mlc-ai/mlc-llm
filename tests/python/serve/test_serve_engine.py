@@ -1,6 +1,6 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
-from typing import List
+from typing import List, Optional
 
 import pytest
 
@@ -21,8 +21,8 @@ prompts = [
 
 test_models = [
     (
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC",
-        "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so",
+        "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC",
+        None,
     ),
     (
         "dist/rwkv-6-world-1b6-q0f16-MLC",
@@ -31,7 +31,7 @@ test_models = [
 ]
 
 
-def create_engine(model: str, model_lib: str):
+def create_engine(model: str, model_lib: Optional[str]):
     if "rwkv" in model:
         return MLCEngine(
             model=model,
@@ -50,7 +50,7 @@ def create_engine(model: str, model_lib: str):
 
 
 @pytest.mark.parametrize("model,model_lib", test_models)
-def test_engine_generate(model: str, model_lib: str):
+def test_engine_generate(model: str, model_lib: Optional[str]):
     engine = create_engine(model, model_lib)
 
     num_requests = 10

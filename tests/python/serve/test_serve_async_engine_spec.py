@@ -21,15 +21,12 @@ prompts = [
 
 async def test_engine_generate():
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         speculative_mode="small_draft",
     )
 

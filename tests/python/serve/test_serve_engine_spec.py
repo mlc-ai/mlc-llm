@@ -78,16 +78,13 @@ def test_engine_basic():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         speculative_mode="small_draft",
         request_stream_callback=fcallback,
     )
@@ -144,13 +141,11 @@ def test_engine_eagle_basic():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
     small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib],
@@ -225,17 +220,14 @@ def test_engine_continuous_batching_1():
             self.timer += 1
 
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     timer = CallbackTimer()
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         speculative_mode="small_draft",
         request_stream_callback=timer.callback_getter(),
     )
@@ -309,8 +301,7 @@ def test_engine_eagle_continuous_batching_1():
             self.timer += 1
 
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
     small_model_lib = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
@@ -318,7 +309,6 @@ def test_engine_eagle_continuous_batching_1():
     timer = CallbackTimer()
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib],
@@ -366,17 +356,14 @@ def compare_output_text(output_text1, output_text2):
 
 def test_engine_generate(compare_precision=False):
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
-    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
 
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         speculative_mode="small_draft",
     )
 
@@ -426,15 +413,13 @@ def test_engine_generate(compare_precision=False):
 
 def test_engine_eagle_generate():
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q0f16-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q0f16-MLC/Llama-2-7b-chat-hf-q0f16-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     small_model = "dist/Eagle-llama2-7b-chat-q4f16_1-MLC"
     small_model_lib = (
         "dist/Eagle-llama2-7b-chat-q4f16_1-MLC/Eagle-llama2-7b-chat-q4f16_1-MLC-cuda.so"
     )
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib],
@@ -478,11 +463,9 @@ def test_engine_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
-    model_lib = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-13b-chat-hf-q4f16_1-MLC"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         request_stream_callback=fcallback,
@@ -541,10 +524,8 @@ def test_engine_spec_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    model = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC"
-    model_lib = "dist/Llama-2-13b-chat-hf-q4f16_1-MLC/Llama-2-13b-chat-hf-q4f16_1-MLC-cuda.so"
-    small_model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    small_model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-13b-chat-hf-q4f16_1-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     # If Flashinfer allows head_dim < 128, we can test this model
     # small_model = "dist/TinyLlama-1.1B-Chat-v1.0-q0f16-MLC"
     # small_model_lib = (
@@ -552,10 +533,9 @@ def test_engine_spec_efficiency():
     # )
     spec_engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         spec_draft_length=6,
         speculative_mode="small_draft",
         request_stream_callback=fcallback,
@@ -614,13 +594,11 @@ def test_engine_eagle_spec_efficiency():
             outputs[int(request_id)] += stream_outputs[0].delta_token_ids
 
     # Create engine
-    model = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC"
-    model_lib = "dist/Llama-2-7b-chat-hf-q4f16_1-MLC/Llama-2-7b-chat-hf-q4f16_1-MLC-cuda.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
     small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     spec_engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib],
