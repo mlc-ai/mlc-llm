@@ -1,16 +1,4 @@
-# pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals
-from typing import Callable, List, Optional
-
-import numpy as np
-
-from mlc_llm.serve import (
-    DebugConfig,
-    GenerationConfig,
-    Request,
-    RequestStreamOutput,
-    data,
-)
+from mlc_llm.serve import DebugConfig, GenerationConfig
 from mlc_llm.serve.sync_engine import SyncMLCEngine
 
 prompts = [
@@ -93,11 +81,9 @@ def test_engine_multi_round(engine):
 
 def test_basic_engine_system_prompt():
     # Create engine
-    model = "dist/q0f16"
-    model_lib = "dist/q0f16/q0f16.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="local",
         max_total_sequence_length=4096,
         prefix_cache_max_num_seqs=5,
@@ -107,11 +93,9 @@ def test_basic_engine_system_prompt():
 
 def test_basic_engine_multi_round():
     # Create engine
-    model = "dist/q0f16"
-    model_lib = "dist/q0f16/q0f16.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
     )
@@ -120,17 +104,14 @@ def test_basic_engine_multi_round():
 
 def test_engine_spec_multi_round():
     # Create engine
-    model = "dist/q0f16"
-    model_lib = "dist/q0f16/q0f16.so"
-    small_model = "dist/q4f16_1"
-    small_model_lib = "dist/q4f16_1/q4f16_1.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
 
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
+        additional_models=[small_model],
         speculative_mode="small_draft",
     )
 
@@ -139,13 +120,11 @@ def test_engine_spec_multi_round():
 
 def test_engine_eagle_multi_round():
     # Create engine
-    model = "dist/q0f16"
-    model_lib = "dist/q0f16/q0f16.so"
-    small_model = "dist/eagle"
-    small_model_lib = "dist/eagle/eagle.so"
+    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
+    small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
+    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(
         model=model,
-        model_lib=model_lib,
         mode="server",
         max_total_sequence_length=4096,
         additional_models=[small_model + ":" + small_model_lib],
