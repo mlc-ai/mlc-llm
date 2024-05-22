@@ -1,9 +1,10 @@
 """Command line entrypoint of configuration generation."""
+
 from pathlib import Path
 from typing import Union
 
-from mlc_llm.help import HELP
 from mlc_llm.interface.gen_config import CONV_TEMPLATES, gen_config
+from mlc_llm.interface.help import HELP
 from mlc_llm.model import MODELS
 from mlc_llm.quantization import QUANTIZATION
 from mlc_llm.support.argparse import ArgumentParser

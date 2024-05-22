@@ -2,7 +2,7 @@
 
 import json
 
-from mlc_llm.help import HELP
+from mlc_llm.interface.help import HELP
 from mlc_llm.interface.serve import serve
 from mlc_llm.support.argparse import ArgumentParser
 

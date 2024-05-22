@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <cmath>
 
-#include "../../random.h"
+#include "../../support/random.h"
 #include "sampler.h"
 
 namespace mlc {

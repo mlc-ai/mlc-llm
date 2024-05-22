@@ -12,8 +12,8 @@
 
 #include <optional>
 
-#include "../random.h"
 #include "../streamer.h"
+#include "../support/random.h"
 #include "config.h"
 #include "grammar/grammar_state_matcher.h"
 #include "request.h"

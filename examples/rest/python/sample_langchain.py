@@ -12,7 +12,7 @@ from langchain.vectorstores import Chroma
 # Note that Langchain support for embedding documents using MLC is currently blocked on
 # https://github.com/langchain-ai/langchain/pull/7815
 # We have subclassed `OpenAIEmbeddings` in the meantime to get around this dependency.
-from mlc_llm.embeddings.openai import MLCEmbeddings
+from mlc_llm.contrib.embeddings.openai import MLCEmbeddings
 
 
 # First set the following in your environment:

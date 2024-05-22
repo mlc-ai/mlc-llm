@@ -8,7 +8,7 @@
 #include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 
-#include "../../random.h"
+#include "../../support/random.h"
 #include "sampler.h"
 
 namespace mlc {
