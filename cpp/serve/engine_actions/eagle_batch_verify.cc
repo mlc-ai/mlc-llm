@@ -9,7 +9,7 @@
 #include <exception>
 #include <numeric>
 
-#include "../../random.h"
+#include "../../support/random.h"
 #include "../config.h"
 #include "../model.h"
 #include "../sampler/sampler.h"

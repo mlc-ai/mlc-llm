@@ -26,8 +26,8 @@
 #include "./metadata/model.h"
 #include "./serve/config.h"
 #include "./support/load_bytes_from_file.h"
+#include "./support/random.h"
 #include "conversation.h"
-#include "random.h"
 #include "tokenizers.h"
 
 namespace mlc {

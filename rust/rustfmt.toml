@@ -1,9 +1,0 @@
-edition = "2021"
-unstable_features = true
-max_width = 120
-binop_separator = "Back"
-inline_attribute_width = 100
-fn_params_layout = "Compressed"
-hard_tabs = false
-tab_spaces = 4
-trailing_semicolon = false

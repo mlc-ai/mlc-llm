@@ -20,7 +20,7 @@ from mlc_llm.chat_module import (
     _get_model_path,
 )
 from mlc_llm.conversation_template import ConvTemplateRegistry
-from mlc_llm.help import HELP
+from mlc_llm.interface.help import HELP
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.auto_device import detect_device

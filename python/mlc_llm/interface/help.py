@@ -27,7 +27,7 @@ It can also be a link to a HF repository pointing to an MLC compiled model.
 """.strip(),
     "model_lib": """
 The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
-the provided ``model`` to search over possible paths. It the model lib is not found, it will be 
+the provided ``model`` to search over possible paths. It the model lib is not found, it will be
 compiled in a JIT manner.
 """.strip(),
     "model_type": """
@@ -154,9 +154,9 @@ It should not exceed the prefill chunk size in model config.
 If not specified, this defaults to the prefill chunk size in model config.
 """.strip(),
     "max_history_size_serve": """
-The maximum history length for rolling back the RNN state. 
+The maximum history length for rolling back the RNN state.
 If unspecified, the default value is 1.
-KV cache does not need this. 
+KV cache does not need this.
 """.strip(),
     "prefix_cache_max_num_seqs_serve": """
 The maximum number of sequences in prefix cache, default as max_batch_size.
@@ -222,7 +222,7 @@ Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specifica
 The path to "mlc-package-config.json" which is used for package build.
 See "https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/mlc-package-config.json" as an example.
 """.strip(),
-    "mlc_llm_home": """
+    "mlc_source_dir": """
 The source code path to MLC LLM.
 """.strip(),
     "output_package": """

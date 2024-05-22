@@ -1,7 +1,7 @@
 """Command line entrypoint of chat."""
 
-from mlc_llm.help import HELP
 from mlc_llm.interface.chat import chat
+from mlc_llm.interface.help import HELP
 from mlc_llm.support.argparse import ArgumentParser
 
 

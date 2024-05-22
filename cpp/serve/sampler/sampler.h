@@ -11,7 +11,7 @@
 #include <tvm/runtime/module.h>
 
 #include "../../base.h"
-#include "../../random.h"
+#include "../../support/random.h"
 #include "../data.h"
 #include "../event_trace_recorder.h"
 #include "../model.h"

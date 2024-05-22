@@ -8,7 +8,7 @@ import tvm
 from tvm import rpc, runtime
 from tvm.relax.testing.lib_comparator import LibCompareVMInstrument
 
-from mlc_llm.help import HELP
+from mlc_llm.interface.help import HELP
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.testing.debug_chat import DebugChat
 
