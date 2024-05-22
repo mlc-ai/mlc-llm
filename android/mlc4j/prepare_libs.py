@@ -81,10 +81,10 @@ def main(mlc_llm_home: Path):
     logger.info('Entering "%s" for MLC LLM and tvm4j build.', os.path.abspath(build_path))
     os.chdir(build_path)
     # Generate config.cmake if TVM Home is set.
-    if "TVM_HOME" in os.environ:
-        logger.info('Set TVM_HOME to "%s"', os.environ["TVM_HOME"])
+    if "TVM_SOURCE_DIR" in os.environ:
+        logger.info('Set TVM_SOURCE_DIR to "%s"', os.environ["TVM_SOURCE_DIR"])
         with open("config.cmake", "w", encoding="utf-8") as file:
-            print("set(TVM_HOME ${%s})" % os.environ["TVM_HOME"], file=file)
+            print("set(TVM_SOURCE_DIR ${%s})" % os.environ["TVM_SOURCE_DIR"], file=file)
 
     # - Run cmake, build and install
     run_cmake(mlc_llm_home / "android" / "mlc4j")

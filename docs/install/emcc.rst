@@ -21,7 +21,7 @@ Validate that emcc is accessible in shell
 
     emcc --version
 
-Step 2: Set TVM_HOME and MLC_LLM_SOURCE_DIR
+Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR
 -------------------------------------
 
 We need to set a path to a tvm source in order to build tvm runtime.
@@ -33,7 +33,7 @@ Besides, we also need to set ``MLC_LLM_SOURCE_DIR`` so that we can locate ``mlc_
 
 .. code:: bash
 
-    export TVM_HOME=/path/to/3rdparty/tvm
+    export TVM_SOURCE_DIR=/path/to/3rdparty/tvm
     export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm
 
 
@@ -57,11 +57,11 @@ We can then validate the outcome
 
 .. code:: bash
 
-    >>> echo ${TVM_HOME}
+    >>> echo ${TVM_SOURCE_DIR}
 
     /path/set/in/step2
 
-    >>> ls -l ${TVM_HOME}/web/dist/wasm/*.bc
+    >>> ls -l ${TVM_SOURCE_DIR}/web/dist/wasm/*.bc
 
     tvmjs_support.bc
     wasm_runtime.bc

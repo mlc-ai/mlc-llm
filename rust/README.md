@@ -9,7 +9,7 @@ To set up the MLC-LLM Rust package, please follow these steps:
 
 **Step 2:** Define the environment variables for TVM and MLC-LLM by running the following commands in your terminal:
 ```bash
-export TVM_HOME=/path/to/tvm
+export TVM_SOURCE_DIR=/path/to/tvm
 export MLC_HOME=/path/to/mlc-llm
 ```
 

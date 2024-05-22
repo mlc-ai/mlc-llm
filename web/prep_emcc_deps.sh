@@ -5,20 +5,22 @@ set -euxo pipefail
 emcc --version
 npm --version
 
-TVM_HOME_SET="${TVM_HOME:-}"
+TVM_SOURCE_DIR_SET="${TVM_SOURCE_DIR:-}"
 
 git submodule update --init --recursive
+
+CURR_DIR=`pwd`
+
+if [[ -z "${TVM_SOURCE_DIR_SET}" ]]; then
+    echo "Do not find TVM_SOURCE_DIR env variable, use 3rdparty/tvm".
+    echo "Make sure you set TVM_SOURCE_DIR in your env variable to use emcc build correctly"
+    export TVM_SOURCE_DIR="${TVM_SOURCE_DIR:-${CURR_DIR}/3rdparty/tvm}"
+fi
 
 # Build mlc_wasm_runtime
 cd web && make
 cd -
 
 # Build tvm's web runtime
-if [[ -z ${TVM_HOME_SET} ]]; then
-    echo "Do not find TVM_HOME env variable, use 3rdparty/tvm".
-    echo "Make sure you set TVM_HOME in your env variable to use emcc build correctly"
-    export TVM_HOME="${TVM_HOME:-3rdparty/tvm}"
-fi
-
-cd ${TVM_HOME}/web && make
+cd ${TVM_SOURCE_DIR}/web && TVM_HOME=${TVM_SOURCE_DIR} make
 cd -
