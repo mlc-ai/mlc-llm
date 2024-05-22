@@ -14,8 +14,8 @@ def _check():
 
 
 def _get_cache_dir() -> Path:
-    if "MLC_CACHE_DIR" in os.environ:
-        result = Path(os.environ["MLC_CACHE_DIR"])
+    if "MLC_LLM_HOME" in os.environ:
+        result = Path(os.environ["MLC_LLM_HOME"])
     elif sys.platform == "win32":
         result = Path(os.environ["LOCALAPPDATA"])
         result = result / "mlc_llm"
@@ -29,7 +29,7 @@ def _get_cache_dir() -> Path:
     if not result.is_dir():
         raise ValueError(
             f"The default cache directory is not a directory: {result}. "
-            "Use environment variable MLC_CACHE_DIR to specify a valid cache directory."
+            "Use environment variable MLC_LLM_HOME to specify a valid cache directory."
         )
     (result / "model_weights").mkdir(parents=True, exist_ok=True)
     (result / "model_lib").mkdir(parents=True, exist_ok=True)
@@ -57,7 +57,7 @@ def _get_test_model_path() -> List[Path]:
 
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 MLC_MULTI_ARCH = os.environ.get("MLC_MULTI_ARCH", None)
-MLC_CACHE_DIR: Path = _get_cache_dir()
+MLC_LLM_HOME: Path = _get_cache_dir()
 MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
 MLC_DSO_SUFFIX = _get_dso_suffix()
 MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
