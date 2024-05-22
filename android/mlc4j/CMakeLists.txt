@@ -10,10 +10,10 @@ set(MLC_LLM_BINARY_DIR mlc_llm)
 set(MLC_LLM_COMPILE_DEFS TVM_LOG_CUSTOMIZE=1)
 add_subdirectory(${MLC_LLM_DIR} ${MLC_LLM_BINARY_DIR} EXCLUDE_FROM_ALL)
 
-if (NOT DEFINED TVM_HOME)
-  set(TVM_HOME ${MLC_LLM_DIR}/3rdparty/tvm)
-endif (NOT DEFINED TVM_HOME)
-message(STATUS "TVM_HOME: ${TVM_HOME}")
+if (NOT DEFINED TVM_SOURCE_DIR)
+  set(TVM_SOURCE_DIR ${MLC_LLM_DIR}/3rdparty/tvm)
+endif (NOT DEFINED TVM_SOURCE_DIR)
+message(STATUS "TVM_SOURCE_DIR: ${TVM_SOURCE_DIR}")
 
 find_package(Java REQUIRED)
 find_package(JNI REQUIRED)
@@ -25,29 +25,29 @@ include(UseJava)
 
 
 file(GLOB_RECURSE javasources
-    ${TVM_HOME}/jvm/core/src/main/java/org/apache/tvm/*.java
+    ${TVM_SOURCE_DIR}/jvm/core/src/main/java/org/apache/tvm/*.java
     ${ANDROID_DIR}/src/java/*.java
 )
 set(JNI_HEADER ${CMAKE_BINARY_DIR}/jni_header)
 add_jar(tvm4j_core ${javasources} GENERATE_NATIVE_HEADERS tvm4jheaders DESTINATION ${JNI_HEADER})
 
 add_custom_command(
-  TARGET tvm4j_core POST_BUILD 
+  TARGET tvm4j_core POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy ${JNI_HEADER}/org_apache_tvm_LibInfo.h ${JNI_HEADER}/org_apache_tvm_native_c_api.h
 )
 
 add_library(model_android STATIC IMPORTED)
 set_target_properties(model_android PROPERTIES IMPORTED_LOCATION ${ANDROID_BIN_DIR}/lib/libmodel_android.a)
 
-add_library(tvm4j_runtime_packed SHARED ${TVM_HOME}/jvm/native/src/main/native/org_apache_tvm_native_c_api.cc)
+add_library(tvm4j_runtime_packed SHARED ${TVM_SOURCE_DIR}/jvm/native/src/main/native/org_apache_tvm_native_c_api.cc)
 
 target_include_directories(tvm4j_runtime_packed PUBLIC
   ${JNI_INCLUDE_DIRS}
   ${JNI_HEADER}
   ${ANDROID_DIR}/src/cpp
-  ${TVM_HOME}/3rdparty/dlpack/include
-  ${TVM_HOME}/3rdparty/dmlc-core/include
-  ${TVM_HOME}/include
+  ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
+  ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
+  ${TVM_SOURCE_DIR}/include
 )
 
 target_link_libraries(tvm4j_runtime_packed

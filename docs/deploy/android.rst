@@ -48,7 +48,7 @@ Please ensure that the JDK versions for Android Studio and JAVA_HOME are the sam
 
 **TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
-- ``export TVM_HOME=/path/to/mlc-llm/3rdparty/tvm``.
+- ``export TVM_SOURCE_DIR=/path/to/mlc-llm/3rdparty/tvm``.
 
 (Optional) **TVM Unity compiler** Python package (:ref:`install <tvm-unity-prebuilt-package>` or :ref:`build from source <tvm-unity-build-from-source>`). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
 
@@ -63,7 +63,7 @@ Check if **environment variable** are properly set as the last check. One way to
   export ANDROID_NDK=...  # Android NDK toolchain
   export TVM_NDK_CC=...   # Android NDK clang
   export JAVA_HOME=...    # Java
-  export TVM_HOME=...     # TVM Unity runtime
+  export TVM_SOURCE_DIR=...     # TVM Unity runtime
 
 
 Build Android App from Source
@@ -105,7 +105,7 @@ We have a one-line command to build and prepare all the model libraries:
 .. code:: bash
 
    cd /path/to/MLCChat  # e.g., "android/MLCChat"
-   export MLC_LLM_HOME=/path/to/mlc-llm  # e.g., "../.."
+   export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm  # e.g., "../.."
    mlc_llm package
 
 This command mainly executes the following two steps:

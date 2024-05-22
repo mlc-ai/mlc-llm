@@ -26,7 +26,7 @@ After cloning, the basic usage of ``mlc_llm package`` is as the following.
 
 .. code:: bash
 
-    export MLC_LLM_HOME=/path/to/mlc-llm
+    export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm
     cd /path/to/app  # The app root directory which contains "mlc-package-config.json".
                      # E.g., "ios/MLCChat" or "android/MLCChat"
     mlc_llm package
@@ -200,8 +200,8 @@ Command ``mlc_llm package`` can optionally take the arguments below:
 
 ``--mlc-llm-home``
     The path to MLC LLM source code (cloned from https://github.com/mlc-ai/mlc-llm).
-    By default, it is the ``$MLC_LLM_HOME`` environment variable.
-    If neither ``$MLC_LLM_HOME`` or ``--mlc-llm-home`` is specified, error will be reported.
+    By default, it is the ``$MLC_LLM_SOURCE_DIR`` environment variable.
+    If neither ``$MLC_LLM_SOURCE_DIR`` or ``--mlc-llm-home`` is specified, error will be reported.
 
 ``--output`` / ``-o``
     The output directory of ``mlc_llm package`` command.

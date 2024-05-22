@@ -6,12 +6,12 @@ if __name__ == "__main__":
     tvm_home = ""  # pylint: disable=invalid-name
 
     tvm_home = input(
-        "Enter TVM_HOME in absolute path. If not specified, 3rdparty/tvm will be used by default: "
+        "Enter TVM_SOURCE_DIR in absolute path. If not specified, 3rdparty/tvm will be used by default: "
     )
     if len(tvm_home) == 0:
         tvm_home = "3rdparty/tvm"  # pylint: disable=invalid-name
 
-    cmake_config_str = f"set(TVM_HOME {tvm_home})\n"
+    cmake_config_str = f"set(TVM_SOURCE_DIR {tvm_home})\n"
     cmake_config_str += "set(CMAKE_BUILD_TYPE RelWithDebInfo)\n"
     backends = [
         Backend("CUDA", "USE_CUDA", "Use CUDA? (y/n): "),

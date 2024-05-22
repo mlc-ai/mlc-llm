@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-TVM_ROOT=$(TVM_HOME)
+TVM_ROOT=$(TVM_SOURCE_DIR)
 MLC_LLM_ROOT=$(shell cd ..; pwd)
 
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\

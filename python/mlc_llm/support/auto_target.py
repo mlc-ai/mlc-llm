@@ -220,15 +220,15 @@ def _build_webgpu():
         # Try to locate `mlc_wasm_runtime.bc`
         bc_path = None
         bc_candidates = ["web/dist/wasm/mlc_wasm_runtime.bc"]
-        if os.environ.get("MLC_LLM_HOME", None):
-            mlc_source_home_dir = os.environ["MLC_LLM_HOME"]
+        if os.environ.get("MLC_LLM_SOURCE_DIR", None):
+            mlc_source_home_dir = os.environ["MLC_LLM_SOURCE_DIR"]
             bc_candidates.append(
                 os.path.join(mlc_source_home_dir, "web", "dist", "wasm", "mlc_wasm_runtime.bc")
             )
         error_info = (
             "Cannot find library: mlc_wasm_runtime.bc\n"
             + "Make sure you have run `./web/prep_emcc_deps.sh` and "
-            + "`export MLC_LLM_HOME=/path/to/mlc-llm` so that we can locate the file. "
+            + "`export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm` so that we can locate the file. "
             + "We tried to look at candidate paths:\n"
         )
         for candidate in bc_candidates:

@@ -54,15 +54,15 @@ set(USE_PROFILER OFF)
 set(USE_GTEST OFF)
 set(USE_LIBBACKTRACE OFF)
 set(BUILD_DUMMY_LIBTVM ON)
-if (NOT DEFINED TVM_HOME)
-  if(DEFINED ENV{TVM_HOME})
-    set(TVM_HOME "$ENV{TVM_HOME}")
+if (NOT DEFINED TVM_SOURCE_DIR)
+  if(DEFINED ENV{TVM_SOURCE_DIR})
+    set(TVM_SOURCE_DIR "$ENV{TVM_SOURCE_DIR}")
   else()
-    set(TVM_HOME 3rdparty/tvm)
-  endif(DEFINED ENV{TVM_HOME})
-endif (NOT DEFINED TVM_HOME)
-message(STATUS "TVM_HOME: ${TVM_HOME}")
-add_subdirectory(${TVM_HOME} tvm EXCLUDE_FROM_ALL)
+    set(TVM_SOURCE_DIR 3rdparty/tvm)
+  endif(DEFINED ENV{TVM_SOURCE_DIR})
+endif (NOT DEFINED TVM_SOURCE_DIR)
+message(STATUS "TVM_SOURCE_DIR: ${TVM_SOURCE_DIR}")
+add_subdirectory(${TVM_SOURCE_DIR} tvm EXCLUDE_FROM_ALL)
 
 set(MLC_LLM_RUNTIME_LINKER_LIB "")
 set(TOKENZIER_CPP_PATH 3rdparty/tokenizers-cpp)
@@ -74,10 +74,10 @@ add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
 set(
   MLC_LLM_INCLUDES
-  ${TVM_HOME}/include
-  ${TVM_HOME}/3rdparty/dlpack/include
-  ${TVM_HOME}/3rdparty/dmlc-core/include
-  ${TVM_HOME}/3rdparty/picojson
+  ${TVM_SOURCE_DIR}/include
+  ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
+  ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
+  ${TVM_SOURCE_DIR}/3rdparty/picojson
 )
 
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
@@ -100,7 +100,7 @@ target_link_libraries(mlc_llm PRIVATE tokenizers_cpp)
 
 find_library(
   FLASH_ATTN_LIBRARY flash_attn
-  HINTS ${TVM_HOME}/*/3rdparty/libflash_attn/src
+  HINTS ${TVM_SOURCE_DIR}/*/3rdparty/libflash_attn/src
 )
 
 if (FLASH_ATTN_LIBRARY STREQUAL "FLASH_ATTN_LIBRARY-NOTFOUND")

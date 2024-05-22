@@ -20,10 +20,10 @@ elif [[ ${GPU} == metal ]]; then
 elif [[ ${GPU} == wasm* ]]; then
 	TARGET=wasm
 	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
-	export TVM_HOME=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
-	export MLC_LLM_HOME=$(pwd)
-	cd $TVM_HOME/web/ && make -j${NUM_THREADS} && cd -
-	cd $MLC_LLM_HOME/web/ && make -j${NUM_THREADS} && cd -
+	export TVM_SOURCE_DIR=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
+	export MLC_LLM_SOURCE_DIR=$(pwd)
+	cd $TVM_SOURCE_DIR/web/ && make -j${NUM_THREADS} && cd -
+	cd $MLC_LLM_SOURCE_DIR/web/ && make -j${NUM_THREADS} && cd -
 elif [[ ${GPU} == ios ]]; then
 	TARGET=ios
 	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly
