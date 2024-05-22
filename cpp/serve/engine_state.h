@@ -108,7 +108,7 @@ class EngineStateObj : public Object {
   /*! \brief Runtime statistics. */
   EngineStats stats;
   /*! \brief The prefix cache. */
-  PrefixCache prefix_cache;
+  PrefixCache prefix_cache{nullptr};
 
   /*! \brief Reset the engine state and clear the statistics. */
   void Reset();
