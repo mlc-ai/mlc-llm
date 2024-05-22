@@ -98,11 +98,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--mlc-llm-home",
         type=Path,
-        default=os.environ.get("MLC_LLM_HOME", None),
+        default=os.environ.get("MLC_LLM_SOURCE_DIR", None),
         help="The path to MLC LLM source",
     )
     parsed = parser.parse_args()
     if parsed.mlc_llm_home is None:
         parsed.mlc_llm_home = Path(os.path.abspath(os.path.curdir)).parent.parent
-    os.environ["MLC_LLM_HOME"] = str(parsed.mlc_llm_home)
+    os.environ["MLC_LLM_SOURCE_DIR"] = str(parsed.mlc_llm_home)
     main(parsed.mlc_llm_home)

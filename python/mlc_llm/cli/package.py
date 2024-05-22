@@ -24,7 +24,7 @@ def main(argv):
         return path
 
     def _parse_mlc_llm_home(path: str) -> Path:
-        os.environ["MLC_LLM_HOME"] = path
+        os.environ["MLC_LLM_SOURCE_DIR"] = path
         return Path(path)
 
     def _parse_output(path: Union[str, Path]) -> Path:
@@ -42,8 +42,8 @@ def main(argv):
     parser.add_argument(
         "--mlc-llm-home",
         type=_parse_mlc_llm_home,
-        default=os.environ.get("MLC_LLM_HOME", None),
-        help=HELP["mlc_llm_home"] + " (default: the $MLC_LLM_HOME environment variable)",
+        default=os.environ.get("MLC_LLM_SOURCE_DIR", None),
+        help=HELP["mlc_llm_home"] + " (default: the $MLC_LLM_SOURCE_DIR environment variable)",
     )
     parser.add_argument(
         "--output",
@@ -58,7 +58,7 @@ def main(argv):
             "MLC LLM home is not specified. "
             "Please obtain a copy of MLC LLM source code by "
             "cloning https://github.com/mlc-ai/mlc-llm, and set environment variable "
-            '"MLC_LLM_HOME=path/to/mlc-llm"'
+            '"MLC_LLM_SOURCE_DIR=path/to/mlc-llm"'
         )
     package(
         package_config_path=parsed.package_config,
