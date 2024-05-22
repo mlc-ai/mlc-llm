@@ -4,8 +4,8 @@
         {
             "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC",
             "model_id": "Mistral-7B-Instruct-v0.2-q3f16_1",
-            "estimated_vram_bytes": 3316000000,
             "bundle_weight": true,
+            "estimated_vram_bytes": 3316000000,
             "overrides": {
                 "context_window_size": 512
             }
@@ -15,13 +15,17 @@
             "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
             "estimated_vram_bytes": 2960000000,
             "overrides": {
-                "prefill_chunk_size": 128
+                "prefill_chunk_size": 128,
+                "context_window_size": 2048
             }
         },
         {
             "model": "HF://mlc-ai/phi-2-q4f16_1-MLC",
             "model_id": "phi-2-q4f16_1",
-            "estimated_vram_bytes": 3043000000
+            "estimated_vram_bytes": 3043000000,
+            "overrides": {
+                "prefill_chunk_size": 128
+            }
         },
         {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",

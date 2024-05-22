@@ -1,4 +1,5 @@
 """Extra utilities to mark tests"""
+
 import functools
 from typing import Callable
 
