@@ -2,6 +2,7 @@
 import os
 import sys
 from pathlib import Path
+from typing import List
 
 
 def _check():
@@ -45,11 +46,21 @@ def _get_dso_suffix() -> str:
     return "so"
 
 
+def _get_test_model_path() -> List[Path]:
+    if "MLC_TEST_MODEL_PATH" in os.environ:
+        return [Path(p) for p in os.environ["MLC_TEST_MODEL_PATH"].split(os.pathsep)]
+    # by default, we reuse the cache dir via mlc_llm chat
+    # note that we do not auto download for testcase
+    # to avoid networking dependencies
+    return [_get_cache_dir() / "model_weights" / "mlc-ai"]
+
+
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 MLC_MULTI_ARCH = os.environ.get("MLC_MULTI_ARCH", None)
 MLC_CACHE_DIR: Path = _get_cache_dir()
 MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
 MLC_DSO_SUFFIX = _get_dso_suffix()
+MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
 
 
 _check()

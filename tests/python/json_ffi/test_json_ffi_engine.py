@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 from mlc_llm.json_ffi import JSONFFIEngine
+from mlc_llm.testing import require_test_model
 
 chat_completion_prompts = [
     "What is the meaning of life?",
@@ -142,9 +143,9 @@ def run_json_schema_function_calling(
                 print(f"Output {req_id}({i}):{output}\n")
 
 
-def test_chat_completion():
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
+def test_chat_completion(model):
     # Create engine.
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     engine = JSONFFIEngine(
         model,
         max_total_sequence_length=1024,
@@ -160,9 +161,9 @@ def test_chat_completion():
     engine.terminate()
 
 
-def test_reload_reset_unload():
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
+def test_reload_reset_unload(model):
     # Create engine.
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
     engine = JSONFFIEngine(
         model,
         max_total_sequence_length=1024,
@@ -179,8 +180,8 @@ def test_reload_reset_unload():
     engine.terminate()
 
 
-def test_json_schema_with_system_prompt():
-    model = "HF://mlc-ai/Hermes-2-Pro-Mistral-7B-q4f16_1-MLC"
+@require_test_model("Hermes-2-Pro-Mistral-7B-q4f16_1-MLC")
+def test_json_schema_with_system_prompt(model):
     engine = JSONFFIEngine(
         model,
         max_total_sequence_length=1024,
