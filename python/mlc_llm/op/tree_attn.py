@@ -237,7 +237,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                     for j in T.serial(tile_z):
                                                         if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
                                                                 col=L_kv_start + j,
-                                                                mask=mask,
+                                                                mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
                                                                 stride=n_indptr[b_idx + 1]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
@@ -251,7 +251,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                     if row < tile_x:
                                                         if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
                                                                 col=L_kv_start + j,
-                                                                mask=mask,
+                                                                mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
                                                                 stride=n_indptr[b_idx + 1]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
