@@ -38,9 +38,30 @@ def _tree_mask(row, col, mask_ptr, offset, stride):
 
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
+# pylint: disable=too-many-statements,too-many-locals,too-many-arguments
 
 
 def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
+    """Generate tree attention kernel for batched tree attention.
+
+    Parameters
+    ----------
+    h_kv : int
+        Number of heads for key and value.
+    h_q : int
+        Number of heads for query.
+    d : int
+        Hidden dimension.
+    dtype : str
+        Data type.
+    target : Target
+        The target device.
+
+    Returns
+    -------
+    mod : tvm.IRModule
+        The generated IR module.
+    """
     # pylint: disable=invalid-name,line-too-long
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -48,7 +69,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     bdx = 32
-    num_warps = 4
+    num_warps = 1  ######################################################################################################
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
 
@@ -67,11 +88,9 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         var_q_indptr: T.handle, # [batch_size + 1]
         var_k: T.handle, # [total_len, h_kv, d]
         var_v: T.handle, # [total_len, h_kv, d]
-        var_kv_indptr: T.handle, # [batch_size + 1]
+        var_kv_indptr: T.handle, # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
         var_q_rope_position: T.handle, # [total_q_len]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_m_indptr: T.handle, # [batch_size + 1]
-        var_n_indptr: T.handle, # [batch_size + 1]
+        var_m: T.handle, # [batch_size]
         var_mn_indptr: T.handle, # [batch_size + 1]
         var_mask: T.handle, # [mn_indptr[batch_size]]
         var_output: T.handle, # [total_len, h_q, d]
@@ -87,7 +106,6 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         q_indptr_elem_offset = T.int32(is_size_var=True)
         kv_indptr_elem_offset = T.int32(is_size_var=True)
         q_rope_position_elem_offset = T.int32(is_size_var=True)
-        k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
         tree_size = T.int32(is_size_var=True)
 
         q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
@@ -96,9 +114,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
         kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
         q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        m_indptr = T.match_buffer(var_m_indptr, (batch_size + 1,), "int32")
-        n_indptr = T.match_buffer(var_n_indptr, (batch_size + 1,), "int32")
+        m_array = T.match_buffer(var_m, (batch_size,), "int32")
         mn_indptr = T.match_buffer(var_mn_indptr, (batch_size + 1,), "int32")
         mask = T.match_buffer(var_mask, (tree_size,), "int32")
         output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
@@ -198,14 +214,14 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                 i, j = T.axis.remap("SS", [lz, ly])
                                                 T.reads()
                                                 T.writes()
-                                                cur_L = L_kv_start + i
-                                                if cur_L < kv_chunk_len[0]:
+                                                cur_L = L_kv_base + L_kv_start + i
+                                                if L_kv_start + i < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype),
-                                                        k[L_kv_base + cur_L, by, j]
+                                                        _rope(k, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, by, j), dtype),
+                                                        k[cur_L, by, j]
                                                     )
-                                                    V_smem[i, j] = v[L_kv_base + cur_L, by, j]
+                                                    V_smem[i, j] = v[cur_L, by, j]
                                                 else:
                                                     K_smem[i, j] = 0.0
                                                     V_smem[i, j] = 0.0
@@ -239,7 +255,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=n_indptr[b_idx + 1]):
+                                                                stride=m_array[b_idx]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
@@ -253,7 +269,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=n_indptr[b_idx + 1]):
+                                                                stride=m_array[b_idx]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
