@@ -158,10 +158,6 @@ The maximum history length for rolling back the RNN state.
 If unspecified, the default value is 1.
 KV cache does not need this.
 """.strip(),
-    "prefix_cache_max_num_seqs_serve": """
-The maximum number of sequences in prefix cache, default as max_batch_size.
-And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
-""".strip(),
     "enable_tracing_serve": """
 Enable Chrome Tracing for the server.
 After enabling, you can send POST request to the "debug/dump_event_trace" entrypoint
@@ -210,6 +206,16 @@ The default mode is "disable".
 """.strip(),
     "spec_draft_length_serve": """
 The number of draft tokens to generate in speculative proposal. The default values is 4.
+""".strip(),
+    "prefix_cache_mode_serve": """
+The prefix cache mode. Right now two options are supported:
+ - "disable", where prefix cache is not enabled,
+ - "radix", denoting the normal paged radix tree based prefix cache,
+The default mode is "radix".
+""".strip(),
+    "prefix_cache_max_num_recycling_seqs_serve": """
+The maximum number of sequences in prefix cache, default as max_batch_size.
+And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 """.strip(),
     "engine_config_serve": """
 The MLCEngine execution configuration.

@@ -101,12 +101,19 @@ class EngineImpl : public Engine {
     {
       EngineState estate = n->estate_;
       Array<Model> models = n->models_;
-      n->estate_->prefix_cache =
-          PrefixCache::Create(static_cast<size_t>(engine_config->prefix_cache_max_num_seqs),
-                              std::function<void(int64_t)>([estate, models](int64_t seq_id) {
-                                RemoveRequestFromModel(estate, seq_id, models);
-                                estate->id_manager.RecycleId(seq_id);
-                              }));
+      if (engine_config->prefix_cache_mode == PrefixCacheMode::kRadix) {
+        n->estate_->prefix_cache = PrefixCache::CreateRadixPrefixCache(
+            static_cast<size_t>(engine_config->prefix_cache_max_num_recycling_seqs),
+            std::function<void(int64_t)>([estate, models](int64_t seq_id) {
+              RemoveRequestFromModel(estate, seq_id, models);
+              estate->id_manager.RecycleId(seq_id);
+            }));
+      } else if (engine_config->prefix_cache_mode == PrefixCacheMode::kDisable) {
+        n->estate_->prefix_cache = PrefixCache::CreateNoPrefixCache();
+      } else {
+        LOG(FATAL) << "Unsupported prefix cache mode: "
+                   << static_cast<int>(engine_config->prefix_cache_mode);
+      }
     }
     // - Load model weights, create KV cache and workspace.
     n->model_workspaces_.clear();

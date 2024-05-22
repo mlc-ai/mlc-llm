@@ -116,6 +116,14 @@ enum class EngineMode : int {
   kServer = 2,
 };
 
+/*! \brief The prefix cache mode. */
+enum class PrefixCacheMode : int {
+  /*! \brief Disable prefix cache. */
+  kDisable = 0,
+  /*! \brief The paged radix tree based prefix cache mode. */
+  kRadix = 1,
+};
+
 /*! \brief The speculative mode. */
 enum class SpeculativeMode : int {
   /*! \brief Disable speculative decoding. */
@@ -178,9 +186,14 @@ class EngineConfigNode : public Object {
   int64_t prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
-  /*! \brief The maximum number of sequences in prefix cache, default as max_num_sequence. And set 0
-   * to disable prefix cache, set -1 to have infinite capacity prefix cache. */
-  int prefix_cache_max_num_seqs = -1;
+
+  /*************** Prefix cache ***************/
+
+  /*! \brief The prefix cache mode. */
+  PrefixCacheMode prefix_cache_mode = PrefixCacheMode::kRadix;
+  /*! \brief The maximum number of recycling sequences in prefix cache, default as max_num_sequence.
+   * And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache. */
+  int prefix_cache_max_num_recycling_seqs = -1;
 
   /*************** Speculative decoding ***************/
 
@@ -265,6 +278,27 @@ inline EngineMode EngineModeFromString(const std::string& mode) {
     return EngineMode::kServer;
   } else {
     LOG(FATAL) << "Invalid engine mode string: " << mode;
+    throw;
+  }
+}
+
+inline std::string PrefixCacheModeToString(PrefixCacheMode prefix_cache_mode) {
+  if (prefix_cache_mode == PrefixCacheMode::kDisable) {
+    return "disable";
+  } else if (prefix_cache_mode == PrefixCacheMode::kRadix) {
+    return "radix";
+  } else {
+    LOG(FATAL) << "Invalid prefix cache mode: " << static_cast<int>(prefix_cache_mode);
+  }
+}
+
+inline PrefixCacheMode PrefixCacheModeFromString(const std::string& prefix_cache_mode) {
+  if (prefix_cache_mode == "disable") {
+    return PrefixCacheMode::kDisable;
+  } else if (prefix_cache_mode == "radix") {
+    return PrefixCacheMode::kRadix;
+  } else {
+    LOG(FATAL) << "Invalid prefix cache mode string: " << prefix_cache_mode;
     throw;
   }
 }
