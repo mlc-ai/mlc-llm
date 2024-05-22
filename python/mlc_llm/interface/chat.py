@@ -1,6 +1,6 @@
 """Python entrypoint of chat."""
 
-from typing import Optional, List
+from typing import List, Optional
 
 from prompt_toolkit import prompt as get_prompt  # pylint: disable=import-error
 from prompt_toolkit.key_binding import KeyBindings  # pylint: disable=import-error
