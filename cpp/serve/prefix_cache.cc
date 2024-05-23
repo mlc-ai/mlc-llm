@@ -18,14 +18,14 @@ using namespace tvm::runtime;
 class PrefixCacheImpl : public PrefixCacheObj {
  public:
   /*!
-   * \brief Contructor of paged radix tree.
+   * \brief Constructor of paged radix tree.
    * \param max_num_recycling_seqs The maximum number of sequences in prefix cache.
    * \param remove_callback The optional callback function to call when removing a sequence.
    */
   explicit PrefixCacheImpl(size_t max_num_recycling_seqs, PrefixCacheRemoveCallback remove_callback)
       : radix_tree_(PagedRadixTree::Create()),
         max_num_recycling_seqs_(max_num_recycling_seqs),
-        remove_callback_(remove_callback) {
+        remove_callback_(std::move(remove_callback)) {
     recycling_seq_lrus_.clear();
     reversed_recycling_seq_lrus_.clear();
     seq_states_.clear();
@@ -64,7 +64,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
     // The reusage of recycling sequences logic is different between with/without sliding window
     // enabled.
     if (sliding_window_size != -1) {
-      // If sliding window enabled, the reusage of recycling sequences should be limitted to exactly
+      // If sliding window enabled, the reusage of recycling sequences should be limited to exactly
       // matched. And no rolling back is allowed due to the sliding window.
       for (int64_t matched_seq_id : matched_seqs) {
         if (seq_states_.at(matched_seq_id) == SequenceState::kRecycling &&
@@ -105,7 +105,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
                                         shortest_recycling_seq_length - matched_offset};
       }
       // No reusage of recycling sequence, fallback to forking matched sequence. Currently, we only
-      // fork from sequence without sliding window, due to current paged KVCache implmentation.
+      // fork from sequence without sliding window, due to current paged KVCache implementation.
       size_t longest_forking_offset = 0;
       int64_t longest_forking_seq_id = -1;
       for (int64_t matched_seq_id : matched_seqs) {
@@ -137,7 +137,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
 
   /*!
    * \brief Extend a sequence with new tokenized sequence suffix.
-   * \param seq_id The sequence to be extneded.
+   * \param seq_id The sequence to be extended.
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if the given sequence id is not valid or active.
    */
@@ -271,7 +271,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   std::unordered_map<int64_t, size_t> recycling_seq_lrus_;
   /*!
-   * \brief The map from LRU time stamps to sequence, used to find the sequence with earlist LRU
+   * \brief The map from LRU time stamps to sequence, used to find the sequence with earliest LRU
    * time stamp.
    */
   std::unordered_map<size_t, int64_t> reversed_recycling_seq_lrus_;
@@ -326,7 +326,7 @@ class NoPrefixCache : public PrefixCacheObj {
 
   /*!
    * \brief Extend a sequence with new tokenized sequence suffix.
-   * \param seq_id The sequence to be extneded.
+   * \param seq_id The sequence to be extended.
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if called since this should never be called.
    */
@@ -390,7 +390,7 @@ TVM_REGISTER_OBJECT_TYPE(NoPrefixCache);
 PrefixCache PrefixCache::CreateRadixPrefixCache(size_t max_num_recycling_seqs,
                                                 PrefixCacheRemoveCallback remove_callback) {
   ObjectPtr<PrefixCacheImpl> n =
-      make_object<PrefixCacheImpl>(max_num_recycling_seqs, remove_callback);
+      make_object<PrefixCacheImpl>(max_num_recycling_seqs, std::move(remove_callback));
   return PrefixCache(std::move(n));
 }
 
