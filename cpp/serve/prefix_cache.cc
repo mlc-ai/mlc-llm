@@ -168,7 +168,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
   void RecycleSequence(int64_t seq_id, bool lazy = true) final {
     CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
     CHECK(recycling_seq_lrus_.find(seq_id) == recycling_seq_lrus_.end());
-    if (lazy) {
+    if (lazy && max_num_recycling_seqs_ != 0) {
       // Remove the sequence lazily.
       if (recycling_seq_lrus_.size() == max_num_recycling_seqs_) {
         // If prefix cache has reached maximum number of recycling sequences, try to pop one

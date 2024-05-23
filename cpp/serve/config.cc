@@ -383,7 +383,7 @@ String EngineConfigNode::AsJSONString() const {
   config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
   config["max_history_size"] = picojson::value(static_cast<int64_t>(this->max_history_size));
   config["prefix_cache_mode"] = picojson::value(PrefixCacheModeToString(this->prefix_cache_mode));
-  config["prefix_cache_max_recycling_seqs"] =
+  config["prefix_cache_max_num_recycling_seqs"] =
       picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_recycling_seqs));
   config["speculative_mode"] = picojson::value(SpeculativeModeToString(this->speculative_mode));
   config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
