@@ -264,9 +264,9 @@ def validate_model_lib(  # pylint: disable=too-many-locals
         sys.exit(255)
 
 
-def build_android_binding(mlc_source_dir: Path, output: Path) -> None:
+def build_android_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     """Build android binding in MLC LLM"""
-    mlc4j_path = mlc_source_dir / "android" / "mlc4j"
+    mlc4j_path = mlc_llm_source_dir / "android" / "mlc4j"
 
     # Move the model libraries to "build/lib/" for linking
     os.makedirs(Path("build") / "lib", exist_ok=True)
@@ -308,11 +308,13 @@ def build_android_binding(mlc_source_dir: Path, output: Path) -> None:
     shutil.move(src_path, dst_path)
 
 
-def build_iphone_binding(mlc_source_dir: Path, output: Path) -> None:
+def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     """Build iOS binding in MLC LLM"""
     # Build iphone binding
     logger.info("Build iphone binding")
-    subprocess.run(["bash", mlc_source_dir / "ios" / "prepare_libs.sh"], check=True, env=os.environ)
+    subprocess.run(
+        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"], check=True, env=os.environ
+    )
 
     # Copy built libraries back to output directory.
     for static_library in (Path("build") / "lib").iterdir():
@@ -323,11 +325,11 @@ def build_iphone_binding(mlc_source_dir: Path, output: Path) -> None:
 
 def package(
     package_config_path: Path,
-    mlc_source_dir: Path,
+    mlc_llm_source_dir: Path,
     output: Path,
 ) -> None:
     """Python entrypoint of package."""
-    logger.info('MLC LLM HOME: "%s"', mlc_source_dir)
+    logger.info('MLC LLM HOME: "%s"', mlc_llm_source_dir)
 
     # - Read package config.
     with open(package_config_path, "r", encoding="utf-8") as file:
@@ -361,9 +363,9 @@ def package(
 
     # - Copy model libraries
     if device == "android":
-        build_android_binding(mlc_source_dir, output)
+        build_android_binding(mlc_llm_source_dir, output)
     elif device == "iphone":
-        build_iphone_binding(mlc_source_dir, output)
+        build_iphone_binding(mlc_llm_source_dir, output)
     else:
         assert False, "Cannot reach here"
 

@@ -198,10 +198,10 @@ Command ``mlc_llm package`` can optionally take the arguments below:
     A path to ``mlc-package-config.json`` which contains the device and model specification.
     By default, it is the ``mlc-package-config.json`` under the current directory.
 
-``--mlc-llm-home``
+``--mlc-llm-source-dir``
     The path to MLC LLM source code (cloned from https://github.com/mlc-ai/mlc-llm).
     By default, it is the ``$MLC_LLM_SOURCE_DIR`` environment variable.
-    If neither ``$MLC_LLM_SOURCE_DIR`` or ``--mlc-llm-home`` is specified, error will be reported.
+    If neither ``$MLC_LLM_SOURCE_DIR`` or ``--mlc-llm-source-dir`` is specified, error will be reported.
 
 ``--output`` / ``-o``
     The output directory of ``mlc_llm package`` command.
