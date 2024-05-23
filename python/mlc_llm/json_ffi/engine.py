@@ -180,7 +180,7 @@ class Completions:
 class Chat:
     """Chat class to be compatible with OpenAI API"""
 
-    compltetions: Completions
+    completions: Completions
 
     def __init__(self, ffi: dict, state: EngineState, background_loops: BackgroundLoops):
         self.completions = Completions(ffi, state, background_loops)
