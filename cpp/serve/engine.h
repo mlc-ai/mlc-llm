@@ -6,7 +6,6 @@
 #ifndef MLC_LLM_SERVE_ENGINE_H_
 #define MLC_LLM_SERVE_ENGINE_H_
 
-#include <picojson.h>
 #include <tvm/runtime/packed_func.h>
 
 #include "data.h"
@@ -80,8 +79,11 @@ class Engine {
   /*! \brief Check if the engine has no request to process. */
   virtual bool Empty() = 0;
 
-  /*! \brief Get the metrics of the Engine in JSON object. */
-  virtual picojson::value Metrics() = 0;
+  /*!
+   * \brief Get the metrics of the Engine in JSON string.
+   * \return the metrics
+   */
+  virtual String JSONMetrics() = 0;
 
   /*! \brief Get the request stream callback function of the engine. */
   virtual Optional<PackedFunc> GetRequestStreamCallback() = 0;

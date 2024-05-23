@@ -238,7 +238,7 @@ class EngineImpl : public Engine {
 
   bool Empty() final { return estate_->request_states.empty(); }
 
-  picojson::value Metrics() final { return estate_->metrics.AsJSON(); }
+  String JSONMetrics() final { return estate_->metrics.AsJSON().serialize(true); }
 
   Optional<PackedFunc> GetRequestStreamCallback() final { return request_stream_callback_; }
 
@@ -573,7 +573,7 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("add_request", &EngineModule::AddRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &EngineModule::Abort);
   TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
-  TVM_MODULE_VTABLE_ENTRY("metrics", &EngineModule::Metrics);
+  TVM_MODULE_VTABLE_ENTRY("json_metrics", &EngineModule::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
   TVM_MODULE_VTABLE_ENTRY("get_request_stream_callback", &EngineModule::GetRequestStreamCallback);
   TVM_MODULE_VTABLE_ENTRY("set_request_stream_callback", &EngineModule::SetRequestStreamCallback);
@@ -612,7 +612,7 @@ class EngineModule : public ModuleNode {
   /*! \brief Redirection to `Engine::Reset`. */
   void Reset() { return GetEngine()->Reset(); }
   /*! \brief Redirection to `Engine::Metrics` */
-  String Metrics() { return GetEngine()->Metrics().serialize(/*prettify=*/true); }
+  String JSONMetrics() { return GetEngine()->JSONMetrics(); }
   /*! \brief Return the default generation config string. */
   String GetDefaultGenerationConfigJSONString() {
     CHECK(!default_generation_cfg_json_str_.empty())

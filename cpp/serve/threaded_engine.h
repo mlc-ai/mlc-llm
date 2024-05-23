@@ -83,7 +83,7 @@ class ThreadedEngine {
   virtual String GetCompleteEngineConfigJSONString() const = 0;
 
   /*! \brief Print the metrics of the engine. */
-  virtual picojson::value Metrics() = 0;
+  virtual String JSONMetrics() = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;

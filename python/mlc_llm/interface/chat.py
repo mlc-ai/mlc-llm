@@ -13,6 +13,8 @@ class ChatState:
 
     history: List[dict]
     history_begin: int
+    # kwargs passed to completions
+    overrides: dict
     # we use JSON ffi engine to ensure broader coverage
     engine: JSONFFIEngine
 
@@ -20,6 +22,7 @@ class ChatState:
         self.engine = engine
         self.history = []
         self.history_window_begin = 0
+        self.overrides = {}
 
     def process_system_prompts(self):
         """Process system prompts"""
@@ -42,7 +45,9 @@ class ChatState:
         output_text = ""
         finish_reason_length = False
         messages = self.history[self.history_window_begin :]
-        for response in self.engine.chat.completions.create(messages=messages, stream=True):
+        for response in self.engine.chat.completions.create(
+            messages=messages, stream=True, **self.overrides
+        ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
                 if isinstance(choice.delta.content, str):
