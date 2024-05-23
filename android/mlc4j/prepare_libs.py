@@ -71,7 +71,7 @@ def run_cmake_install():
     subprocess.run(cmd, check=True, env=os.environ)
 
 
-def main(mlc_source_dir: Path):
+def main(mlc_llm_source_dir: Path):
     # - Setup rust.
     subprocess.run(["rustup", "target", "add", "aarch64-linux-android"], check=True, env=os.environ)
 
@@ -87,7 +87,7 @@ def main(mlc_source_dir: Path):
             print("set(TVM_SOURCE_DIR ${%s})" % os.environ["TVM_SOURCE_DIR"], file=file)
 
     # - Run cmake, build and install
-    run_cmake(mlc_source_dir / "android" / "mlc4j")
+    run_cmake(mlc_llm_source_dir / "android" / "mlc4j")
     run_cmake_build()
     run_cmake_install()
 
@@ -96,13 +96,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("MLC LLM Android Lib Preparation")
 
     parser.add_argument(
-        "--mlc-llm-home",
+        "--mlc-llm-source-dir",
         type=Path,
         default=os.environ.get("MLC_LLM_SOURCE_DIR", None),
         help="The path to MLC LLM source",
     )
     parsed = parser.parse_args()
-    if parsed.mlc_source_dir is None:
-        parsed.mlc_source_dir = Path(os.path.abspath(os.path.curdir)).parent.parent
-    os.environ["MLC_LLM_SOURCE_DIR"] = str(parsed.mlc_source_dir)
-    main(parsed.mlc_source_dir)
+    if parsed.mlc_llm_source_dir is None:
+        parsed.mlc_llm_source_dir = Path(os.path.abspath(os.path.curdir)).parent.parent
+    os.environ["MLC_LLM_SOURCE_DIR"] = str(parsed.mlc_llm_source_dir)
+    main(parsed.mlc_llm_source_dir)

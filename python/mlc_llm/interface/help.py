@@ -228,7 +228,7 @@ Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specifica
 The path to "mlc-package-config.json" which is used for package build.
 See "https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCChat/mlc-package-config.json" as an example.
 """.strip(),
-    "mlc_source_dir": """
+    "mlc_llm_source_dir": """
 The source code path to MLC LLM.
 """.strip(),
     "output_package": """
