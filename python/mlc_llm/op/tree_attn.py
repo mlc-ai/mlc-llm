@@ -1,3 +1,5 @@
+"""Operators for tree attention."""
+
 import math
 from typing import Tuple
 
@@ -7,6 +9,9 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 from mlc_llm.op.position_embedding import rope_freq
+
+# mypy: disable-error-code="attr-defined,valid-type,no-redef"
+# pylint: disable=too-many-statements,too-many-locals,too-many-arguments
 
 
 def _var(dtype):
@@ -35,10 +40,6 @@ def _rope(
 
 def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):
     return tir.all(col < kv_len, mask_ptr[offset + row * stride + col] == 1)
-
-
-# mypy: disable-error-code="attr-defined,valid-type,no-redef"
-# pylint: disable=too-many-statements,too-many-locals,too-many-arguments
 
 
 def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
