@@ -19,19 +19,17 @@ namespace serve {
 // Conceptually, these statistics are derived from engine/request behaviors.
 
 /*!
- * \brief The class for metric tracking in MLC.
- * - Each metric has a label string which can be empty.
+ * \brief The class for tracking mean time cost.
  * - We maintain the number of updates (`count`) and the sum of updated values (`sum`).
  * - We support warmup. When `warmup` is false, the first update will be discarded.
  */
-struct Metric {
-  std::string label;
+struct TimeCost {
+  /*! \brief the total amount of cost excluding warm up time */
   double sum = 0.0;
+  /*! \brief the total count of events excluding warmup */
   int64_t count = 0;
+  /*! \brief Whether we warmed up already, assuming one hit is enough */
   bool warmed_up = false;
-
-  explicit Metric(bool warmed_up = false, std::string label = "")
-      : label(std::move(label)), warmed_up(warmed_up) {}
 
   /*! \brief Update the metric with given value. */
   void Update(double value) {
@@ -43,89 +41,123 @@ struct Metric {
     }
   }
 
-  /*! \brief Set the metric with the given value. */
-  void Set(double value) {
-    if (warmed_up) {
-      sum = value;
-      count = 1;
-    } else {
-      warmed_up = true;
-    }
-  }
-
   /*! \brief Reset the metric. */
-  void Reset(bool warmed_up = false) {
+  void Reset() {
+    // NOTE: no need to redo warmup
+    // assuming we are measuring the same thing
     this->sum = 0.0;
     this->count = 0;
-    this->warmed_up = warmed_up;
-  }
-
-  /*! \brief Overloading "+=" for quick update. */
-  Metric& operator+=(double value) {
-    this->Update(value);
-    return *this;
   }
 
   /*! \brief Dump the metric as JSON. */
-  picojson::value AsJSON() const {
-    picojson::object config;
-    config["label"] = picojson::value(label);
-    config["sum"] = picojson::value(sum);
-    config["count"] = picojson::value(count);
-    config["warmed_up"] = picojson::value(warmed_up);
-    return picojson::value(config);
+  picojson::value AsJSON() const;
+};
+
+/*! \brief Runtime metrics for speculative decoding */
+struct SpecDecodeMetrics {
+  /*! \brief The number of draft tokens in speculative decoding, per step */
+  std::vector<int64_t> draft_count;
+  /*! \brief The number of accepted tokens in speculative decoding, per step */
+  std::vector<int64_t> accept_count;
+
+  /*!
+   * \brief Update the metrics of speculative decoding.
+   * \param draft_length The number of draft tokens (including the last prediction by the base
+   * model)
+   * \param accept_length The number of accepted tokens in the speculative decoding.
+   */
+  void Update(int draft_length, int accept_length) {
+    if (accept_count.size() < draft_length) {
+      this->accept_count.resize(draft_length, 0);
+      this->draft_count.resize(draft_length, 0);
+    }
+    for (int j = 0; j < draft_length; ++j) {
+      if (j < accept_length) {
+        ++this->accept_count[j];
+      }
+      ++this->draft_count[j];
+    }
   }
+
+  void Reset() {
+    accept_count.clear();
+    draft_count.clear();
+  }
+  picojson::value AsJSON() const;
 };
 
 /*! \brief Runtime metrics of engine. */
 struct EngineMetrics {
-  /*! \brief The sum of "prefill time of each request". */
-  Metric sum_request_prefill_time = Metric(/*warmed_up=*/true);
-  /*! \brief The sum of "decode time of each request". */
-  Metric sum_request_decode_time = Metric(/*warmed_up=*/true);
-  /*! \brief The total engine time on prefill. */
-  Metric sum_engine_prefill_time = Metric(/*warmed_up=*/true);
-  /*! \brief The total engine time on decode. */
-  Metric sum_engine_decode_time = Metric(/*warmed_up=*/true);
+  /*! \brief The total engine time on prefill, including warmup */
+  double sum_engine_prefill_time = 0;
+  /*! \brief The total engine time on decode/draft/verify, including warmup */
+  double sum_engine_decode_time = 0;
   /*! \brief The total number of request input tokens. */
-  Metric sum_num_input_tokens = Metric(/*warmed_up=*/true);
+  int64_t sum_num_input_tokens = 0;
   /*! \brief The total number of processed tokens (excluding the prefix-cached length) in prefill */
-  Metric sum_num_prefill_tokens = Metric(/*warmed_up=*/true);
+  int64_t sum_num_prefill_tokens = 0;
   /*! \brief The total number of request output tokens */
-  Metric sum_num_output_tokens = Metric(/*warmed_up=*/true);
-  /*! \brief The total number of accepted tokens in speculation verification. */
-  Metric sum_num_accepted_tokens = Metric(/*warmed_up=*/true);
-  /*! \brief The total number of speculated draft tokens. */
-  Metric sum_num_draft_tokens = Metric(/*warmed_up=*/true);
+  int64_t sum_num_output_tokens = 0;
 
   /*! \brief The prefill time of the latest finished request. */
-  Metric last_finished_req_prefill_time = Metric(/*warmed_up=*/true);
+  double last_finished_req_prefill_time = 0.0;
   /*! \brief The decode time of the latest finished request. */
-  Metric last_finished_req_decode_time = Metric(/*warmed_up=*/true);
+  double last_finished_req_decode_time = 0.0;
   /*! \brief The number of input tokens of the latest finished request. */
-  Metric num_last_finished_req_input_tokens = Metric(/*warmed_up=*/true);
+  double last_finished_req_num_input_tokens = 0.0;
   /*!
    * \brief The number of prefilled tokens (excluding the prefix-cached length) of the latest
    * finished request.
    */
-  Metric num_last_finished_req_prefill_tokens = Metric(/*warmed_up=*/true);
+  double last_finished_req_num_prefill_tokens = 0.0;
   /*! \brief The number of output tokens of the latest finished request. */
-  Metric num_last_finished_req_output_tokens = Metric(/*warmed_up=*/true);
+  double last_finished_req_num_output_tokens = 0.0;
 
-  /*! \brief The maximum batch size we record for batch decode time. */
-  static constexpr const int64_t kMaxEffectiveBatchSize = 64;
+  /*! \brief speculative decoding metrics */
+  SpecDecodeMetrics spec_decode;
+
+  /*! \brief The maximum batch size we track for batch decode time. */
+  static constexpr const int64_t kEndFineGrainedTrackingBatchSize = 65;
   /*! \brief The list of batch decode time under different batch size. */
-  std::vector<Metric> batch_decode_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+  std::vector<TimeCost> decode_time_by_batch_size =
+      std::vector<TimeCost>(kEndFineGrainedTrackingBatchSize);
   /*! \brief The list of batch draft time (a single decode step) under different batch size. */
-  std::vector<Metric> batch_draft_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+  std::vector<TimeCost> draft_time_by_batch_size =
+      std::vector<TimeCost>(kEndFineGrainedTrackingBatchSize);
   /*! \brief The list of batch verification time under different effective batch size. */
-  std::vector<Metric> batch_verification_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+  std::vector<TimeCost> verify_time_by_batch_size =
+      std::vector<TimeCost>(kEndFineGrainedTrackingBatchSize);
 
-  /*! \brief The number of accepted tokens in speculative decoding. */
-  std::vector<int64_t> accept_count;
-  /*! \brief The number of draft tokens in speculative decoding. */
-  std::vector<int64_t> draft_count;
-
+  // NOTE: we keep most update function in header
+  // so they can be inlined effectively
+  /*!
+   * \brief Update the batch decode time for the given batch size.
+   * The time will be ignored if the batch size is greater than `kMaxBatchSizeForTracking`.
+   */
+  void UpdateDecodeTimeByBatchSize(int batch_size, double time) {
+    if (batch_size < kEndFineGrainedTrackingBatchSize) {
+      decode_time_by_batch_size[batch_size].Update(time);
+    }
+  }
+  /*!
+   * \brief Update the single-step batch draft time for the given batch size.
+   * The time will be ignored if the batch size is greater than `kMaxBatchSizeForTracking`.
+   */
+  void UpdateDraftTimeByBatchSize(int batch_size, double time) {
+    if (batch_size < kEndFineGrainedTrackingBatchSize) {
+      draft_time_by_batch_size[batch_size].Update(time);
+    }
+  }
+  /*!
+   * \brief Update the batch decode time for the given effective batch sizPe.
+   * The time will be ignored if the effective batch size is greater than
+   * `kMaxBatchSizeForTracking`.
+   */
+  void UpdateVerifyTimeByBatchSize(int effective_batch_size, double time) {
+    if (effective_batch_size < kEndFineGrainedTrackingBatchSize) {
+      verify_time_by_batch_size[effective_batch_size].Update(time);
+    }
+  }
   /*!
    * \brief Return the engine runtime metrics in JSON.
    * \return The metrics in JSON
@@ -133,31 +165,6 @@ struct EngineMetrics {
   picojson::value AsJSON() const;
   /*! \brief Reset all the metrics. */
   void Reset();
-
-  // NOTE: we keep most update function in header
-  // so they can be inlined effectively
-  /*!
-   * \brief Update the batch decode time for the given batch size.
-   * The time will be ignored if the batch size is greater than `kMaxEffectiveBatchSize`.
-   */
-  void UpdateBatchDecodeTime(int batch_size, double time);
-  /*!
-   * \brief Update the single-step batch draft time for the given batch size.
-   * The time will be ignored if the batch size is greater than `kMaxEffectiveBatchSize`.
-   */
-  void UpdateBatchDraftTime(int batch_size, double time);
-  /*!
-   * \brief Update the batch decode time for the given effective batch size.
-   * The time will be ignored if the effective batch size is greater than `kMaxEffectiveBatchSize`.
-   */
-  void UpdateBatchVerificationTime(int effective_batch_size, double time);
-  /*!
-   * \brief Update the metrics of speculative decoding.
-   * \param draft_length The number of draft tokens (including the last prediction by the base
-   * model)
-   * \param accept_length The number of accepted tokens in the speculative decoding.
-   */
-  void UpdateSpecDecodingStats(int draft_length, int accept_length);
 };
 
 }  // namespace serve

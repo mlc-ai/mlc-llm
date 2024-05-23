@@ -147,9 +147,8 @@ class BatchVerifyActionObj : public EngineActionObj {
         rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
-      estate->metrics.sum_num_accepted_tokens += accept_length;
-      estate->metrics.UpdateSpecDecodingStats(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
-                                              accept_length);
+      estate->metrics.spec_decode.Update(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
+                                         accept_length);
       int rollback_length =
           std::max(cum_verify_lengths[i + 1] - cum_verify_lengths[i] - accept_length, 0);
       // rollback kv cache
@@ -210,7 +209,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     auto tend = std::chrono::high_resolution_clock::now();
     double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
     estate->metrics.sum_engine_decode_time += elapsed_time;
-    estate->metrics.UpdateBatchVerificationTime(total_verify_length, elapsed_time);
+    estate->metrics.UpdateVerifyTimeByBatchSize(total_verify_length, elapsed_time);
 
     return estate->running_queue;
   }

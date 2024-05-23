@@ -5,56 +5,25 @@
  */
 #include "metrics.h"
 
+#include <tvm/runtime/logging.h>
+
+#include <sstream>
+
 namespace mlc {
 namespace llm {
 namespace serve {
 
-picojson::value EngineMetrics::AsJSON() const {
+picojson::value TimeCost::AsJSON() const {
+  picojson::object config;
+  config["count"] = picojson::value(count);
+  if (count != 0) {
+    config["mean"] = picojson::value(sum / count);
+  }
+  return picojson::value(config);
+}
+
+picojson::value SpecDecodeMetrics::AsJSON() const {
   picojson::object metrics;
-  metrics["sum_request_prefill_time"] = sum_request_prefill_time.AsJSON();
-  metrics["sum_request_decode_time"] = sum_request_decode_time.AsJSON();
-  metrics["sum_engine_prefill_time"] = sum_engine_prefill_time.AsJSON();
-  metrics["sum_engine_decode_time"] = sum_engine_decode_time.AsJSON();
-  metrics["sum_num_input_tokens"] = sum_num_input_tokens.AsJSON();
-  metrics["sum_num_prefill_tokens"] = sum_num_prefill_tokens.AsJSON();
-  metrics["sum_num_output_tokens"] = sum_num_output_tokens.AsJSON();
-  metrics["sum_num_accepted_tokens"] = sum_num_accepted_tokens.AsJSON();
-  metrics["sum_num_draft_tokens"] = sum_num_draft_tokens.AsJSON();
-
-  metrics["last_finished_req_prefill_time"] = last_finished_req_prefill_time.AsJSON();
-  metrics["last_finished_req_decode_time"] = last_finished_req_decode_time.AsJSON();
-  metrics["num_last_finished_req_input_tokens"] = num_last_finished_req_input_tokens.AsJSON();
-  metrics["num_last_finished_req_prefill_tokens"] = num_last_finished_req_prefill_tokens.AsJSON();
-  metrics["num_last_finished_req_output_tokens"] = num_last_finished_req_output_tokens.AsJSON();
-
-  picojson::array batch_decode_time_obj;
-  picojson::array batch_draft_time_obj;
-  picojson::array batch_verification_time_obj;
-  batch_decode_time_obj.reserve(batch_decode_time_list.size());
-  batch_draft_time_obj.reserve(batch_draft_time_list.size());
-  batch_verification_time_obj.reserve(batch_verification_time_list.size());
-  for (const Metric& batch_decode_time : batch_decode_time_list) {
-    if (batch_decode_time.label.empty()) {
-      continue;
-    }
-    batch_decode_time_obj.push_back(batch_decode_time.AsJSON());
-  }
-  for (const Metric& batch_draft_time : batch_draft_time_list) {
-    if (batch_draft_time.label.empty()) {
-      continue;
-    }
-    batch_draft_time_obj.push_back(batch_draft_time.AsJSON());
-  }
-  for (const Metric& batch_verification_time : batch_verification_time_list) {
-    if (batch_verification_time.label.empty()) {
-      continue;
-    }
-    batch_verification_time_obj.push_back(batch_verification_time.AsJSON());
-  }
-  metrics["batch_decode_time_per_batch_size"] = picojson::value(batch_decode_time_obj);
-  metrics["batch_draft_time_per_batch_size"] = picojson::value(batch_draft_time_obj);
-  metrics["batch_verification_time_per_batch_size"] = picojson::value(batch_verification_time_obj);
-
   auto f_vector_to_array = [](const std::vector<int64_t>& vec) {
     picojson::array arr;
     for (int64_t v : vec) {
@@ -62,77 +31,108 @@ picojson::value EngineMetrics::AsJSON() const {
     }
     return picojson::value(arr);
   };
-  metrics["accept_count"] = f_vector_to_array(accept_count);
   metrics["draft_count"] = f_vector_to_array(draft_count);
+  metrics["accept_count"] = f_vector_to_array(accept_count);
+
+  ICHECK_EQ(draft_count.size(), accept_count.size());
+  // NOTE: label follows prometheus with full context
+  // so it can be flattened and used in metrics reoorting end point
+  picojson::object accept_prob_metrics;
+  picojson::object accept_rate_metrics;
+  picojson::object accept_len_metrics;
+
+  double accept_len_value = 0;
+
+  for (size_t i = 0; draft_count.size(); ++i) {
+    std::ostringstream accept_prob_label;
+    accept_prob_label << "accept_prob{step=" << i << "}";
+    double accept_prob_value =
+        (static_cast<double>(accept_count[i]) / static_cast<double>(draft_count[i]));
+    accept_prob_metrics[accept_prob_label.str()] = picojson::value(accept_prob_value);
+    accept_len_value += accept_prob_value;
+
+    std::ostringstream accept_len_label;
+    accept_len_label << "accept_len{step=" << i << "}";
+    accept_len_metrics[accept_len_label.str()] = picojson::value(accept_len_value);
+
+    if (i != 0) {
+      std::ostringstream accept_rate_label;
+      accept_rate_label << "accept_rate{step=" << i << "}";
+      double accept_rate_value =
+          (static_cast<double>(accept_count[i]) / static_cast<double>(accept_count[i - 1]));
+      accept_rate_metrics[accept_rate_label.str()] = picojson::value(accept_rate_value);
+    }
+  }
+  metrics["accept_prob"] = picojson::value(accept_prob_metrics);
+  metrics["accept_rate"] = picojson::value(accept_rate_metrics);
+  metrics["accept_len"] = picojson::value(accept_len_metrics);
+
+  return picojson::value(metrics);
+}
+
+picojson::value EngineMetrics::AsJSON() const {
+  picojson::object metrics;
+  metrics["sum_engine_prefill_time"] = picojson::value(sum_engine_prefill_time);
+  metrics["sum_engine_decode_time"] = picojson::value(sum_engine_decode_time);
+  metrics["sum_num_input_tokens"] = picojson::value(sum_num_input_tokens);
+  metrics["sum_num_prefill_tokens"] = picojson::value(sum_num_prefill_tokens);
+  metrics["sum_num_output_tokens"] = picojson::value(sum_num_output_tokens);
+
+  metrics["last_finished_req_prefill_time"] = picojson::value(last_finished_req_prefill_time);
+  metrics["last_finished_req_decode_time"] = picojson::value(last_finished_req_decode_time);
+  metrics["last_finished_req_num_input_tokens"] =
+      picojson::value(last_finished_req_num_input_tokens);
+  metrics["last_finished_req_num_prefill_tokens"] =
+      picojson::value(last_finished_req_num_prefill_tokens);
+  metrics["last_finished_req_num_output_tokens"] =
+      picojson::value(last_finished_req_num_output_tokens);
+
+  metrics["spec_decode"] = spec_decode.AsJSON();
+
+  auto f_create_time_list = [](const std::string& label_name,
+                               const std::vector<TimeCost>& time_list) {
+    picojson::object result;
+    for (size_t i = 1; i < time_list.size(); ++i) {
+      const TimeCost& item = time_list[i];
+      if (item.count == 0) continue;
+      std::ostringstream label_mean;
+      label_mean << "mean_" << label_name << "{batch_size=" << i << "}";
+      double mean = item.sum / item.count;
+      result[label_mean.str()] = picojson::value(mean);
+      std::ostringstream label_count;
+      label_count << "count_" << label_name << "{batch_size=" << i << "}";
+      result[label_count.str()] = picojson::value(item.count);
+    }
+    return picojson::value(result);
+  };
+
+  metrics["decode_time_by_batch_size"] =
+      f_create_time_list("decode_time", decode_time_by_batch_size);
+  metrics["draft_time_by_batch_size"] = f_create_time_list("draft_time", draft_time_by_batch_size);
+  metrics["verify_time_by_batch_size"] =
+      f_create_time_list("verify_time", verify_time_by_batch_size);
+
   return picojson::value(metrics);
 }
 
 void EngineMetrics::Reset() {
-  sum_request_prefill_time.Reset(/*warmed_up=*/true);
-  sum_request_decode_time.Reset(/*warmed_up=*/true);
-  sum_engine_prefill_time.Reset(/*warmed_up=*/true);
-  sum_engine_decode_time.Reset(/*warmed_up=*/true);
-  sum_num_input_tokens.Reset(/*warmed_up=*/true);
-  sum_num_prefill_tokens.Reset(/*warmed_up=*/true);
-  sum_num_output_tokens.Reset(/*warmed_up=*/true);
-  sum_num_accepted_tokens.Reset(/*warmed_up=*/true);
-  sum_num_draft_tokens.Reset(/*warmed_up=*/true);
-  last_finished_req_prefill_time.Reset(/*warmed_up=*/true);
-  last_finished_req_decode_time.Reset(/*warmed_up=*/true);
-  num_last_finished_req_input_tokens.Reset(/*warmed_up=*/true);
-  num_last_finished_req_prefill_tokens.Reset(/*warmed_up=*/true);
-  num_last_finished_req_output_tokens.Reset(/*warmed_up=*/true);
-  batch_decode_time_list.clear();
-  batch_draft_time_list.clear();
-  batch_verification_time_list.clear();
-  batch_decode_time_list.resize(kMaxEffectiveBatchSize);
-  batch_draft_time_list.resize(kMaxEffectiveBatchSize);
-  batch_verification_time_list.resize(kMaxEffectiveBatchSize);
-  accept_count.clear();
-  draft_count.clear();
-}
-
-void EngineMetrics::UpdateBatchDecodeTime(int batch_size, double time) {
-  if (batch_size > kMaxEffectiveBatchSize) {
-    return;
-  }
-  if (batch_decode_time_list[batch_size].label.empty()) {
-    batch_decode_time_list[batch_size].label = std::to_string(batch_size);
-  }
-  batch_decode_time_list[batch_size].Update(time);
-}
-
-void EngineMetrics::UpdateBatchDraftTime(int batch_size, double time) {
-  if (batch_size > kMaxEffectiveBatchSize) {
-    return;
-  }
-  if (batch_draft_time_list[batch_size].label.empty()) {
-    batch_draft_time_list[batch_size].label = std::to_string(batch_size);
-  }
-  batch_draft_time_list[batch_size].Update(time);
-}
-
-void EngineMetrics::UpdateBatchVerificationTime(int batch_size, double time) {
-  if (batch_size > kMaxEffectiveBatchSize) {
-    return;
-  }
-  if (batch_verification_time_list[batch_size].label.empty()) {
-    batch_verification_time_list[batch_size].label = std::to_string(batch_size);
-  }
-  batch_verification_time_list[batch_size].Update(time);
-}
-
-void EngineMetrics::UpdateSpecDecodingStats(int draft_length, int accept_length) {
-  if (accept_count.size() < draft_length) {
-    this->accept_count.resize(draft_length, 0);
-    this->draft_count.resize(draft_length, 0);
-  }
-  for (int j = 0; j < draft_length; ++j) {
-    if (j < accept_length) {
-      this->accept_count[j]++;
-    }
-    this->draft_count[j]++;
-  }
+  sum_engine_prefill_time = 0.0;
+  sum_engine_decode_time = 0.0;
+  sum_num_input_tokens = 0;
+  sum_num_prefill_tokens = 0;
+  sum_num_output_tokens = 0;
+  last_finished_req_prefill_time = 0.0;
+  last_finished_req_decode_time = 0.0;
+  last_finished_req_num_input_tokens = 0.0;
+  last_finished_req_num_prefill_tokens = 0.0;
+  last_finished_req_num_output_tokens = 0.0;
+  spec_decode.Reset();
+  decode_time_by_batch_size.clear();
+  draft_time_by_batch_size.clear();
+  verify_time_by_batch_size.clear();
+  decode_time_by_batch_size.resize(kEndFineGrainedTrackingBatchSize);
+  draft_time_by_batch_size.resize(kEndFineGrainedTrackingBatchSize);
+  verify_time_by_batch_size.resize(kEndFineGrainedTrackingBatchSize);
 }
 
 }  // namespace serve

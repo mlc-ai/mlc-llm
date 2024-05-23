@@ -153,9 +153,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
-      estate->metrics.UpdateSpecDecodingStats(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
-                                              accept_length);
-      estate->metrics.sum_num_accepted_tokens += accept_length - 1;
+      estate->metrics.spec_decode.Update(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
+                                         accept_length);
       // - Minus one because the last draft token has no kv cache entry
       // - Take max with 0 in case of all accepted.
       int rollback_length =
@@ -304,7 +303,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     auto tend = std::chrono::high_resolution_clock::now();
     double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
     estate->metrics.sum_engine_decode_time += elapsed_time;
-    estate->metrics.UpdateBatchVerificationTime(cum_verify_lengths.back(), elapsed_time);
+    estate->metrics.UpdateVerifyTimeByBatchSize(cum_verify_lengths.back(), elapsed_time);
 
     return estate->running_queue;
   }
@@ -380,7 +379,6 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     }
     for (int i = 0; i < static_cast<int>(mstates.size()); ++i) {
       mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
-      estate->metrics.sum_num_draft_tokens += 1;
     }
   }
   /*!

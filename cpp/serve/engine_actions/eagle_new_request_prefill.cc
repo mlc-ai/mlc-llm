@@ -340,7 +340,6 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
       rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
                                                                 draft_token_slots_[i]);
-      estate->metrics.sum_num_draft_tokens += 1;
     }
   }
 
