@@ -67,20 +67,18 @@ class ChatState:
     def stats(self) -> str:
         """Return the statistics of the prefill and decode speed."""
         metrics = self.engine.metrics()
-        num_last_finished_req_prefill_tokens = metrics["num_last_finished_req_prefill_tokens"][
-            "sum"
-        ]
-        num_last_finished_req_output_tokens = metrics["num_last_finished_req_output_tokens"]["sum"]
-        last_finished_req_prefill_time = metrics["last_finished_req_prefill_time"]["sum"]
-        last_finished_req_decode_time = metrics["last_finished_req_decode_time"]["sum"]
+        last_finished_req_num_prefill_tokens = metrics["last_finished_req_num_prefill_tokens"]
+        last_finished_req_num_output_tokens = metrics["last_finished_req_num_output_tokens"]
+        last_finished_req_prefill_time = metrics["last_finished_req_prefill_time"]
+        last_finished_req_decode_time = metrics["last_finished_req_decode_time"]
 
         prefill_speed = (
-            f"{num_last_finished_req_prefill_tokens / last_finished_req_prefill_time:.3f}"
+            f"{last_finished_req_num_prefill_tokens / last_finished_req_prefill_time:.3f}"
             if last_finished_req_prefill_time > 0
             else "N/A"
         )
         decode_speed = (
-            f"{num_last_finished_req_output_tokens / last_finished_req_decode_time:.3f}"
+            f"{last_finished_req_num_output_tokens / last_finished_req_decode_time:.3f}"
             if last_finished_req_decode_time > 0
             else "N/A"
         )

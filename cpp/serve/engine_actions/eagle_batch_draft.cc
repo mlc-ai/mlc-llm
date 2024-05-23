@@ -151,11 +151,10 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         // No need to save hidden states as they are not used by subsequent engine actions
         for (int i = 0; i < num_rsentries; ++i) {
           mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
-          estate->metrics.sum_num_draft_tokens += 1;
         }
 
         auto tdraft_end = std::chrono::high_resolution_clock::now();
-        estate->metrics.UpdateBatchDraftTime(
+        estate->metrics.UpdateDraftTimeByBatchSize(
             num_rsentries, static_cast<double>((tdraft_end - tdraft_start).count()) / 1e9);
       }
     }

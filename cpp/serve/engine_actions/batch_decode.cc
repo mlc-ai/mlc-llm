@@ -130,7 +130,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     auto tend = std::chrono::high_resolution_clock::now();
     double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
     estate->metrics.sum_engine_decode_time += elapsed_time;
-    estate->metrics.UpdateBatchDecodeTime(num_rsentries, elapsed_time);
+    estate->metrics.UpdateDecodeTimeByBatchSize(num_rsentries, elapsed_time);
 
     return estate->running_queue;
   }

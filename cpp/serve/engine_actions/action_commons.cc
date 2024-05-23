@@ -94,8 +94,6 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
           static_cast<double>((trequest_finish - rstate->tprefill_finish).count()) / 1e9;
       estate->metrics.sum_num_input_tokens += rsentry->request->num_input_tokens;
       estate->metrics.sum_num_prefill_tokens += root_rsentry->num_prefill_tokens;
-      estate->metrics.sum_request_prefill_time += prefill_elapsed_time;
-      estate->metrics.sum_request_decode_time += decode_elapsed_time;
       int64_t num_output_tokens = 0;
       for (const RequestStateEntry& entry : rstate->entries) {
         num_output_tokens += entry->mstates[0]->committed_tokens.size();
@@ -105,11 +103,11 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       num_output_tokens -= rsentry->request->generation_cfg->n;
       estate->metrics.sum_num_output_tokens += num_output_tokens;
 
-      estate->metrics.num_last_finished_req_input_tokens.Set(rsentry->request->num_input_tokens);
-      estate->metrics.num_last_finished_req_prefill_tokens.Set(root_rsentry->num_prefill_tokens);
-      estate->metrics.num_last_finished_req_output_tokens.Set(num_output_tokens);
-      estate->metrics.last_finished_req_prefill_time.Set(prefill_elapsed_time);
-      estate->metrics.last_finished_req_decode_time.Set(decode_elapsed_time);
+      estate->metrics.last_finished_req_num_input_tokens = rsentry->request->num_input_tokens;
+      estate->metrics.last_finished_req_num_prefill_tokens = root_rsentry->num_prefill_tokens;
+      estate->metrics.last_finished_req_num_output_tokens = num_output_tokens;
+      estate->metrics.last_finished_req_prefill_time = prefill_elapsed_time;
+      estate->metrics.last_finished_req_decode_time = decode_elapsed_time;
     }
   }
 }
