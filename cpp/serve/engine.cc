@@ -238,7 +238,7 @@ class EngineImpl : public Engine {
 
   bool Empty() final { return estate_->request_states.empty(); }
 
-  String Stats() final { return estate_->stats.AsJSON(); }
+  picojson::value Metrics() final { return estate_->metrics.AsJSON(); }
 
   Optional<PackedFunc> GetRequestStreamCallback() final { return request_stream_callback_; }
 
@@ -252,9 +252,9 @@ class EngineImpl : public Engine {
     RECORD_EVENT(trace_recorder_, request->id, "request added to engine");
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
-    ICHECK_NE(request->input_total_length, -1);
+    ICHECK_NE(request->num_input_tokens, -1);
 
-    if (request->input_total_length >= engine_config_->max_single_sequence_length &&
+    if (request->num_input_tokens >= engine_config_->max_single_sequence_length &&
         request_stream_callback_.defined()) {
       // If the request input length exceeds the maximum allowed single sequence length,
       // invoke callback and do not process the request.
@@ -290,7 +290,12 @@ class EngineImpl : public Engine {
                                /*parent_idx=*/0);
       }
     }
-    estate_->request_states.emplace(request->id, RequestState(std::move(rsentries)));
+    RequestState rstate = RequestState(std::move(rsentries));
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      // Set the back reference.
+      rsentry->rstate = rstate;
+    }
+    estate_->request_states.emplace(request->id, rstate);
   }
 
   void AbortRequest(const String& request_id) final {
@@ -568,7 +573,7 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("add_request", &EngineModule::AddRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &EngineModule::Abort);
   TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
-  TVM_MODULE_VTABLE_ENTRY("stats", &EngineModule::Stats);
+  TVM_MODULE_VTABLE_ENTRY("metrics", &EngineModule::Metrics);
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
   TVM_MODULE_VTABLE_ENTRY("get_request_stream_callback", &EngineModule::GetRequestStreamCallback);
   TVM_MODULE_VTABLE_ENTRY("set_request_stream_callback", &EngineModule::SetRequestStreamCallback);
@@ -606,8 +611,8 @@ class EngineModule : public ModuleNode {
   }
   /*! \brief Redirection to `Engine::Reset`. */
   void Reset() { return GetEngine()->Reset(); }
-  /*! \brief Redirection to `Engine::Stats` */
-  String Stats() { return GetEngine()->Stats(); }
+  /*! \brief Redirection to `Engine::Metrics` */
+  String Metrics() { return GetEngine()->Metrics().serialize(/*prettify=*/true); }
   /*! \brief Return the default generation config string. */
   String GetDefaultGenerationConfigJSONString() {
     CHECK(!default_generation_cfg_json_str_.empty())

@@ -378,7 +378,6 @@ def test_engine_generate(compare_precision=False):
         )
         engine_single_model = SyncMLCEngine(
             model=model,
-            model_lib=model_lib,
             mode="server",
             max_total_sequence_length=4096,
         )
@@ -490,16 +489,17 @@ def test_engine_efficiency():
         engine.step()
 
     for eg, name in zip([engine], ["Normal Deconding"]):
-        stats = eg.stats()
+        metrics = eg.metrics()
         print("engine name:", name)
         if name == "Speculative Decoding":
-            print("total draft tokens:", stats["total_draft_tokens"])
-            print("total accepted tokens:", stats["total_accepted_tokens"])
+            print("total draft tokens:", metrics["sum_num_draft_tokens"]["sum"])
+            print("total accepted tokens:", metrics["sum_num_accepted_tokens"]["sum"])
             print(
                 "Accept rate:",
-                stats["total_accepted_tokens"] / (1e-10 + stats["total_draft_tokens"]),
+                metrics["sum_num_accepted_tokens"]["sum"]
+                / (1e-10 + metrics["sum_num_draft_tokens"]["sum"]),
             )
-        print("engine total decode time:", stats["engine_total_decode_time"])
+        print("engine total decode time:", metrics["sum_engine_decode_time"]["sum"])
         print()
 
 
@@ -560,16 +560,17 @@ def test_engine_spec_efficiency():
         spec_engine.step()
 
     for eg, name in zip([spec_engine], ["Speculative Decoding"]):
-        stats = eg.stats()
+        metrics = eg.metrics()
         print("engine name:", name)
         if name == "Speculative Decoding":
-            print("total draft tokens:", stats["total_draft_tokens"])
-            print("total accepted tokens:", stats["total_accepted_tokens"])
+            print("total draft tokens:", metrics["sum_num_draft_tokens"]["sum"])
+            print("total accepted tokens:", metrics["sum_num_accepted_tokens"]["sum"])
             print(
                 "Accept rate:",
-                stats["total_accepted_tokens"] / (1e-10 + stats["total_draft_tokens"]),
+                metrics["sum_num_accepted_tokens"]["sum"]
+                / (1e-10 + metrics["sum_num_draft_tokens"]["sum"]),
             )
-        print("engine total decode time:", stats["engine_total_decode_time"])
+        print("engine total decode time:", metrics["sum_engine_decode_time"]["sum"])
         print()
 
 
@@ -626,16 +627,17 @@ def test_engine_eagle_spec_efficiency():
         spec_engine.step()
 
     for eg, name in zip([spec_engine], ["Speculative Decoding"]):
-        stats = eg.stats()
+        metrics = eg.metrics()
         print("engine name:", name)
         if name == "Speculative Decoding":
-            print("total draft tokens:", stats["total_draft_tokens"])
-            print("total accepted tokens:", stats["total_accepted_tokens"])
+            print("total draft tokens:", metrics["sum_num_draft_tokens"]["sum"])
+            print("total accepted tokens:", metrics["sum_num_accepted_tokens"]["sum"])
             print(
                 "Accept rate:",
-                stats["total_accepted_tokens"] / (1e-10 + stats["total_draft_tokens"]),
+                metrics["sum_num_accepted_tokens"]["sum"]
+                / (1e-10 + metrics["sum_num_draft_tokens"]["sum"]),
             )
-        print("engine total decode time:", stats["engine_total_decode_time"])
+        print("engine total decode time:", metrics["sum_engine_decode_time"]["sum"])
         print()
 
 

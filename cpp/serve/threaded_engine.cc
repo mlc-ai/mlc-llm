@@ -224,9 +224,9 @@ class ThreadedEngineImpl : public ThreadedEngine {
     return complete_engine_config_json_str_;
   };
 
-  String Stats() final {
+  picojson::value Metrics() final {
     std::lock_guard<std::mutex> lock(background_loop_mutex_);
-    return background_engine_->Stats();
+    return background_engine_->Metrics();
   }
 
   void DebugCallFuncOnAllAllWorker(const String& func_name) final {
@@ -373,11 +373,14 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
                           &ThreadedEngineImpl::GetDefaultGenerationConfigJSONString);
   TVM_MODULE_VTABLE_ENTRY("get_complete_engine_config",
                           &ThreadedEngineImpl::GetCompleteEngineConfigJSONString);
-  TVM_MODULE_VTABLE_ENTRY("stats", &ThreadedEngineImpl::Stats);
+  TVM_MODULE_VTABLE_ENTRY("metrics", &ThreadedEngineModule::MetricsString);
   TVM_MODULE_VTABLE_ENTRY("reset", &ThreadedEngineImpl::Reset);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);
   TVM_MODULE_VTABLE_END();
+
+  /*! \brief Redirection to `ThreadedEngine::Metrics` */
+  String MetricsString() { return Metrics().serialize(/*prettify=*/true); }
 };
 
 TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {

@@ -398,7 +398,8 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
       }
     }
     if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
-      rsentries_for_sample[i]->tprefill_finish = tnow;
+      ICHECK(rsentries_for_sample[i]->rstate.defined());
+      Downcast<RequestState>(rsentries_for_sample[i]->rstate)->tprefill_finish = tnow;
     }
   }
 }

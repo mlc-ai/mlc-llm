@@ -16,6 +16,7 @@
 #include "../support/random.h"
 #include "config.h"
 #include "grammar/grammar_state_matcher.h"
+#include "metric.h"
 #include "request.h"
 
 namespace mlc {
@@ -166,6 +167,12 @@ enum class RequestStateStatus : int {
  */
 class RequestStateEntryNode : public Object {
  public:
+  /*!
+   * \brief Back reference to the request state.
+   * Use ObjectRef to avoid circulate reference.
+   */
+  ObjectRef rstate;
+
   /*! \brief The status of the request state entry. */
   RequestStateStatus status;
   /*! \brief The request that this state corresponds to. */
@@ -194,11 +201,8 @@ class RequestStateEntryNode : public Object {
    */
   int next_callback_token_pos;
 
-  /*! \brief The time of adding the request to engine. */
-  std::chrono::high_resolution_clock::time_point tadd;
-  /*! \brief The time of finishing prefill stage. */
-  std::chrono::high_resolution_clock::time_point tprefill_finish;
-
+  /*! \brief The number of prefilled tokens for this request. */
+  int num_prefill_tokens = 0;
   /*!
    * \brief Get the delta token ids and the logprob JSON strings for this request to return since
    * the last time calling into this function, and return the finish reason if the request
@@ -232,6 +236,11 @@ class RequestStateEntry : public ObjectRef {
 class RequestStateNode : public Object {
  public:
   std::vector<RequestStateEntry> entries;
+
+  /*! \brief The time of adding the request to engine. */
+  std::chrono::high_resolution_clock::time_point tadd;
+  /*! \brief The time of finishing prefill stage. */
+  std::chrono::high_resolution_clock::time_point tprefill_finish;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;

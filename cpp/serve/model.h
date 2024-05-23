@@ -308,7 +308,7 @@ class ModelObj : public Object {
   /*! \brief Allocate an hidden_states tensor with the prefill chunk size. */
   virtual ObjectRef AllocHiddenStatesTensor() = 0;
 
-  /*! \brief Reset the model KV cache and other statistics. */
+  /*! \brief Reset the model KV cache and other metrics. */
   virtual void Reset() = 0;
 
   /*********************** Utilities for speculative decoding. ***********************/

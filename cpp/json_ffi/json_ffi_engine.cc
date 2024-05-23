@@ -100,6 +100,10 @@ bool JSONFFIEngine::Abort(std::string request_id) {
 
 std::string JSONFFIEngine::GetLastError() { return err_; }
 
+std::string JSONFFIEngine::Metrics() {
+  return this->engine_->Metrics().serialize(/*prettify=*/true);
+}
+
 void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); }
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
@@ -114,6 +118,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
+  TVM_MODULE_VTABLE_ENTRY("metrics", &JSONFFIEngineImpl::Metrics);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);

@@ -81,9 +81,9 @@ async def debug_cuda_profiler_stop(_request: fastapi.Request):
         break
 
 
-@app.post("/debug/dump_engine_stats")
-async def debug_dump_engine_stats(request: fastapi.Request):
-    """Dump the engine stats for the engine. Only for debug purpose."""
+@app.post("/debug/dump_engine_metrics")
+async def debug_dump_engine_metrics(request: fastapi.Request):
+    """Dump the engine metrics for the engine. Only for debug purpose."""
     # Get the raw request body as bytes
     request_raw_data = await request.body()
     request_json_str = request_raw_data.decode("utf-8")
@@ -104,14 +104,13 @@ async def debug_dump_engine_stats(request: fastapi.Request):
 
     server_context: ServerContext = ServerContext.current()
     async_engine = server_context.get_engine(model)
-    res = async_engine.stats()
-    print(res)
-    return json.loads(res)
+    res = async_engine.metrics()
+    return res
 
 
 @app.post("/debug/reset_engine")
 async def debug_reset_engine_stats(request: fastapi.Request):
-    """Reset the engine, clean up all running data and statistics."""
+    """Reset the engine, clean up all running data and metrics."""
     # Get the raw request body as bytes
     request_raw_data = await request.body()
     request_json_str = request_raw_data.decode("utf-8")

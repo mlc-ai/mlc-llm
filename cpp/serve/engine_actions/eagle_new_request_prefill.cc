@@ -317,7 +317,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
-    estate->stats.engine_total_prefill_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    estate->metrics.sum_engine_prefill_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
     std::vector<Request> processed_requests =
         RemoveProcessedRequests(prefill_inputs, estate, rstates_of_entries);
@@ -340,7 +340,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
       rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
                                                                 draft_token_slots_[i]);
-      estate->stats.total_draft_length += 1;
+      estate->metrics.sum_num_draft_tokens += 1;
     }
   }
 
