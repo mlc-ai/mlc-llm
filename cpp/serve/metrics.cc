@@ -43,7 +43,7 @@ picojson::value SpecDecodeMetrics::AsJSON() const {
 
   double accept_len_value = 0;
 
-  for (size_t i = 0; draft_count.size(); ++i) {
+  for (size_t i = 0; i < draft_count.size(); ++i) {
     std::ostringstream accept_prob_label;
     accept_prob_label << "accept_prob{step=" << i << "}";
     double accept_prob_value =
