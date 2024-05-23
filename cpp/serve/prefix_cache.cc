@@ -237,6 +237,11 @@ class PrefixCacheImpl : public PrefixCacheObj {
     lru_counter_ = 0;
   }
 
+  /*!
+   * \brief The prefix cache mode.
+   */
+  static const PrefixCacheMode mode = PrefixCacheMode::kRadix;
+
  private:
   void ReuseRecyclingSequence(int64_t seq_id) {
     CHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
@@ -383,6 +388,11 @@ class NoPrefixCache : public PrefixCacheObj {
    * \brief Reset the prefix cache to initial status. Do nothing and return.
    */
   void Reset() final {}
+
+  /*!
+   * \brief The prefix cache mode.
+   */
+  static const PrefixCacheMode mode = PrefixCacheMode::kDisable;
 };
 
 TVM_REGISTER_OBJECT_TYPE(NoPrefixCache);
