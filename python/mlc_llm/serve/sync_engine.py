@@ -130,7 +130,7 @@ class SyncMLCEngine:
                 "add_request",
                 "abort_request",
                 "step",
-                "metrics",
+                "json_metrics",
                 "reset",
                 "get_request_stream_callback",
                 "set_request_stream_callback",
