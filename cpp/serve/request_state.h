@@ -16,7 +16,6 @@
 #include "../support/random.h"
 #include "config.h"
 #include "grammar/grammar_state_matcher.h"
-#include "metric.h"
 #include "request.h"
 
 namespace mlc {

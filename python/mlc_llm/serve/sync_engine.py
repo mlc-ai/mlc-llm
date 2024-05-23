@@ -338,4 +338,4 @@ class SyncMLCEngine:
 
     def metrics(self) -> Dict[str, float]:
         """The engine runtime metrics."""
-        return json.loads(self._ffi["metrics"]())
+        return json.loads(self._ffi["json_metrics"]())

@@ -238,7 +238,7 @@ class JSONFFIEngine:
                 "reset",
                 "chat_completion",
                 "abort",
-                "metrics",
+                "json_metrics",
                 "run_background_loop",
                 "run_background_stream_back_loop",
                 "exit_background_loop",
@@ -273,7 +273,7 @@ class JSONFFIEngine:
 
     def metrics(self) -> Dict[str, Any]:
         """Get the engine metrics."""
-        return json.loads(self._ffi["metrics"]())
+        return json.loads(self._ffi["json_metrics"]())
 
     def _raw_chat_completion(
         self, request_json_str: str, n: int, request_id: str

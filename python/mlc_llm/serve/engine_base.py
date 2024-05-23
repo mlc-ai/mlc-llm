@@ -469,7 +469,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "exit_background_loop",
                 "get_default_generation_config",
                 "get_complete_engine_config",
-                "metrics",
+                "json_metrics",
                 "reset",
                 "debug_call_func_on_all_worker",
             ]
@@ -539,7 +539,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
 
     def metrics(self) -> Dict[str, Any]:
         """Get the engine metrics."""
-        return json.loads(self._ffi["metrics"]())
+        return json.loads(self._ffi["json_metrics"]())
 
     def reset(self):
         """Reset the engine, clear the running data and metrics."""
