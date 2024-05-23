@@ -6,6 +6,7 @@
 #ifndef MLC_LLM_SERVE_THREADED_ENGINE_H_
 #define MLC_LLM_SERVE_THREADED_ENGINE_H_
 
+#include <picojson.h>
 #include <tvm/runtime/packed_func.h>
 
 #include "data.h"
@@ -81,8 +82,8 @@ class ThreadedEngine {
   /*! \brief Return the complete engine config JSON string. */
   virtual String GetCompleteEngineConfigJSONString() const = 0;
 
-  /*! \brief Print the statistics of the engine. */
-  virtual String Stats() = 0;
+  /*! \brief Print the metrics of the engine. */
+  virtual picojson::value Metrics() = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;

@@ -27,33 +27,30 @@ def test_engine_system_prompt(engine):
             debug_config=DebugConfig(pinned_system_prompt=True),
         ),
     )
-    stats = engine.stats()
-    print(stats)
-    assert stats["total_prefill_tokens"] == system_prompt_tokens
-    total_prefill_tokens = system_prompt_tokens
+    metrics = engine.metrics()
+    assert metrics["sum_num_prefill_tokens"]["sum"] == system_prompt_tokens
+    sum_prefill_tokens = system_prompt_tokens
 
     input_token_lens = [len(engine.tokenizer.encode(prompt)) for prompt in prompts]
 
     generation_config = GenerationConfig(temperature=0, max_tokens=max_tokens)
     _, _ = engine.generate(prompts, generation_config)
-    stats = engine.stats()
-    print(stats)
-    assert stats["total_prefill_tokens"] == total_prefill_tokens + sum(input_token_lens)
-    total_prefill_tokens = stats["total_prefill_tokens"]
+    metrics = engine.metrics()
+    assert metrics["sum_num_prefill_tokens"]["sum"] == sum_prefill_tokens + sum(input_token_lens)
+    sum_prefill_tokens = metrics["sum_num_prefill_tokens"]["sum"]
 
     _, _ = engine.generate(system_prompt + " and why ?", generation_config)
-    stats = engine.stats()
-    print(stats)
+    metrics = engine.metrics()
     # system prompt is reused entirely
-    assert stats["total_prefill_tokens"] == total_prefill_tokens + 3
-    total_prefill_tokens = stats["total_prefill_tokens"]
+    assert metrics["sum_num_prefill_tokens"]["sum"] == sum_prefill_tokens + 3
+    sum_prefill_tokens = metrics["sum_num_prefill_tokens"]["sum"]
 
     _, _ = engine.generate(prompts[:4], generation_config)
-    stats = engine.stats()
-    print(stats)
-    print(total_prefill_tokens, input_token_lens[:4])
+    metrics = engine.metrics()
     # first 4 prompts are removed and need to prefill again
-    assert stats["total_prefill_tokens"] == total_prefill_tokens + sum(input_token_lens[:4])
+    assert metrics["sum_num_prefill_tokens"]["sum"] == sum_prefill_tokens + sum(
+        input_token_lens[:4]
+    )
 
 
 def test_engine_multi_round(engine):
@@ -61,22 +58,17 @@ def test_engine_multi_round(engine):
     max_tokens = 8
     generation_config = GenerationConfig(temperature=0, max_tokens=max_tokens)
     input_token_lens = [len(engine.tokenizer.encode(prompt)) for prompt in prompts[:num_requests]]
-    print(input_token_lens)
 
     output_texts, _ = engine.generate(prompts[:num_requests], generation_config)
-    stats = engine.stats()
-    print(stats)
-    assert stats["total_prefill_tokens"] == sum(input_token_lens)
-    total_prefill_tokens = stats["total_prefill_tokens"]
+    metrics = engine.metrics()
+    assert metrics["sum_num_prefill_tokens"]["sum"] == sum(input_token_lens)
+    sum_prefill_tokens = metrics["sum_num_prefill_tokens"]["sum"]
     concat_prompt = []
     for i, output in enumerate(output_texts):
-        print(output[0])
         concat_prompt.append(prompts[i] + " " + output[0] + " ?")
-    print(concat_prompt)
     output_texts, _ = engine.generate(concat_prompt[:num_requests], generation_config)
-    stats = engine.stats()
-    print(stats)
-    assert stats["total_prefill_tokens"] == total_prefill_tokens + 2 * num_requests
+    metrics = engine.metrics()
+    assert metrics["sum_num_prefill_tokens"]["sum"] == sum_prefill_tokens + 2 * num_requests
 
 
 def test_basic_engine_system_prompt():

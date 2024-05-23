@@ -130,7 +130,7 @@ class SyncMLCEngine:
                 "add_request",
                 "abort_request",
                 "step",
-                "stats",
+                "metrics",
                 "reset",
                 "get_request_stream_callback",
                 "set_request_stream_callback",
@@ -333,18 +333,9 @@ class SyncMLCEngine:
         self._ffi["step"]()
 
     def reset(self) -> None:
-        """Reset the engine, clean up all running data and statistics."""
+        """Reset the engine, clean up all running data and metrics."""
         self._ffi["reset"]()
 
-    def stats(self) -> Dict[str, float]:
-        """The engine runtime statistics.
-        We collect the following entries:
-        - single token prefill latency (s/tok): avg latency of processing one token in prefill
-        - single token decode latency (s/tok): avg latency of processing one token in decode
-        - engine time for prefill (sec)
-        - engine time for decode (sec)
-        - total number of processed tokens in prefill.
-        - total number of processed tokens in decode.
-        """
-        stats_json_str = self._ffi["stats"]()
-        return json.loads(stats_json_str)
+    def metrics(self) -> Dict[str, float]:
+        """The engine runtime metrics."""
+        return json.loads(self._ffi["metrics"]())

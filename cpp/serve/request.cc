@@ -22,14 +22,14 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   CHECK(!inputs.empty()) << "No input data is given.";
   // Compute the total input length, or fall back to "-1" which means
   // unknown due to the existence of untokenized data.
-  int input_total_length = 0;
+  int num_input_tokens = 0;
   for (Data input : inputs) {
     if (const auto* token_data = input.as<TokenDataNode>()) {
-      input_total_length += token_data->token_ids.size();
+      num_input_tokens += token_data->token_ids.size();
     } else if (const auto* image_data = input.as<ImageDataNode>()) {
-      input_total_length += image_data->GetLength();
+      num_input_tokens += image_data->GetLength();
     } else {
-      input_total_length = -1;
+      num_input_tokens = -1;
       break;
     }
   }
@@ -37,7 +37,7 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   ObjectPtr<RequestNode> n = make_object<RequestNode>();
   n->id = std::move(id);
   n->inputs = std::move(inputs);
-  n->input_total_length = input_total_length;
+  n->num_input_tokens = num_input_tokens;
   n->generation_cfg = std::move(generation_cfg);
   data_ = std::move(n);
 }
@@ -59,7 +59,7 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
 
   // If there is no untokenized input, we don't need to create a new request.
   if (!has_untokenized_input) {
-    ICHECK_NE(request->input_total_length, -1);
+    ICHECK_NE(request->num_input_tokens, -1);
     return request;
   } else {
     return Request(request->id, std::move(inputs), request->generation_cfg);

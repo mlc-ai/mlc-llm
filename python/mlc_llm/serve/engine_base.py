@@ -469,7 +469,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "exit_background_loop",
                 "get_default_generation_config",
                 "get_complete_engine_config",
-                "stats",
+                "metrics",
                 "reset",
                 "debug_call_func_on_all_worker",
             ]
@@ -537,12 +537,12 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         """Call the given global function on all workers. Only for debug purpose."""
         self._ffi["debug_call_func_on_all_worker"](func_name)
 
-    def stats(self):
-        """Get the engine stats."""
-        return self._ffi["stats"]()
+    def metrics(self) -> Dict[str, Any]:
+        """Get the engine metrics."""
+        return json.loads(self._ffi["metrics"]())
 
     def reset(self):
-        """Reset the engine, clear the running data and statistics."""
+        """Reset the engine, clear the running data and metrics."""
         return self._ffi["reset"]()
 
 

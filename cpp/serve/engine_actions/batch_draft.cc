@@ -85,6 +85,7 @@ class BatchDraftActionObj : public EngineActionObj {
       }
       // draft_length_ rounds of draft proposal.
       for (int draft_id = 0; draft_id < draft_length_; ++draft_id) {
+        auto tdraft_start = std::chrono::high_resolution_clock::now();
         // prepare new input tokens
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
@@ -133,13 +134,17 @@ class BatchDraftActionObj : public EngineActionObj {
                                              &model_workspaces_[0].draft_probs_storage);
         for (int i = 0; i < num_rsentries; ++i) {
           mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
-          estate->stats.total_draft_length += 1;
+          estate->metrics.sum_num_draft_tokens += 1;
         }
+
+        auto tdraft_end = std::chrono::high_resolution_clock::now();
+        estate->metrics.UpdateBatchDraftTime(
+            num_rsentries, static_cast<double>((tdraft_end - tdraft_start).count()) / 1e9);
       }
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
-    estate->stats.engine_total_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    estate->metrics.sum_engine_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
 
     return {};
   }

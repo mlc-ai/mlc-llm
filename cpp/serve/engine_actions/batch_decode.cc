@@ -128,7 +128,9 @@ class BatchDecodeActionObj : public EngineActionObj {
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
-    estate->stats.engine_total_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
+    estate->metrics.sum_engine_decode_time += elapsed_time;
+    estate->metrics.UpdateBatchDecodeTime(num_rsentries, elapsed_time);
 
     return estate->running_queue;
   }

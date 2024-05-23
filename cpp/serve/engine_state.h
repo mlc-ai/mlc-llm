@@ -5,9 +5,11 @@
 #ifndef MLC_LLM_SERVE_ENGINE_STATE_H_
 #define MLC_LLM_SERVE_ENGINE_STATE_H_
 
+#include <picojson.h>
 #include <tvm/runtime/container/string.h>
 
 #include "config.h"
+#include "metric.h"
 #include "prefix_cache.h"
 #include "request.h"
 #include "request_state.h"
@@ -18,46 +20,80 @@ namespace serve {
 
 using namespace tvm::runtime;
 
-/*! \brief Runtime statistics of engine. */
-struct EngineStats {
+/*! \brief Runtime metrics of engine. */
+struct EngineMetrics {
   /*! \brief The sum of "prefill time of each request". */
-  double request_total_prefill_time = 0.0f;
+  Metric sum_request_prefill_time = Metric(/*warmed_up=*/true);
   /*! \brief The sum of "decode time of each request". */
-  double request_total_decode_time = 0.0f;
+  Metric sum_request_decode_time = Metric(/*warmed_up=*/true);
   /*! \brief The total engine time on prefill. */
-  double engine_total_prefill_time = 0.0f;
+  Metric sum_engine_prefill_time = Metric(/*warmed_up=*/true);
   /*! \brief The total engine time on decode. */
-  double engine_total_decode_time = 0.0f;
-  /*! \brief The total number of processed tokens in prefill. */
-  int64_t total_prefill_length = 0;
-  /*! \brief The total number of processed tokens in decode. */
-  int64_t total_decode_length = 0;
+  Metric sum_engine_decode_time = Metric(/*warmed_up=*/true);
+  /*! \brief The total number of request input tokens. */
+  Metric sum_num_input_tokens = Metric(/*warmed_up=*/true);
+  /*! \brief The total number of processed tokens (excluding the prefix-cached length) in prefill */
+  Metric sum_num_prefill_tokens = Metric(/*warmed_up=*/true);
+  /*! \brief The total number of request output tokens */
+  Metric sum_num_output_tokens = Metric(/*warmed_up=*/true);
   /*! \brief The total number of accepted tokens in speculation verification. */
-  int64_t total_accepted_length = 0;
+  Metric sum_num_accepted_tokens = Metric(/*warmed_up=*/true);
   /*! \brief The total number of speculated draft tokens. */
-  int64_t total_draft_length = 0;
+  Metric sum_num_draft_tokens = Metric(/*warmed_up=*/true);
+
+  /*! \brief The prefill time of the latest finished request. */
+  Metric last_finished_req_prefill_time = Metric(/*warmed_up=*/true);
+  /*! \brief The decode time of the latest finished request. */
+  Metric last_finished_req_decode_time = Metric(/*warmed_up=*/true);
+  /*! \brief The number of input tokens of the latest finished request. */
+  Metric num_last_finished_req_input_tokens = Metric(/*warmed_up=*/true);
+  /*!
+   * \brief The number of prefilled tokens (excluding the prefix-cached length) of the latest
+   * finished request.
+   */
+  Metric num_last_finished_req_prefill_tokens = Metric(/*warmed_up=*/true);
+  /*! \brief The number of output tokens of the latest finished request. */
+  Metric num_last_finished_req_output_tokens = Metric(/*warmed_up=*/true);
+
+  /*! \brief The maximum batch size we record for batch decode time. */
+  static constexpr const int64_t kMaxEffectiveBatchSize = 64;
+  /*! \brief The list of batch decode time under different batch size. */
+  std::vector<Metric> batch_decode_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+  /*! \brief The list of batch draft time (a single decode step) under different batch size. */
+  std::vector<Metric> batch_draft_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+  /*! \brief The list of batch verification time under different effective batch size. */
+  std::vector<Metric> batch_verification_time_list = std::vector<Metric>(kMaxEffectiveBatchSize);
+
   /*! \brief The number of accepted tokens in speculative decoding. */
   std::vector<int64_t> accept_count;
   /*! \brief The number of draft tokens in speculative decoding. */
   std::vector<int64_t> draft_count;
 
   /*!
-   * \brief Return the engine runtime statistics in JSON string.
-   * We collect the following entries:
-   * - single token prefill latency (s/tok): avg latency of processing one token in prefill
-   * - single token decode latency (s/tok): avg latency of processing one token in decode
-   * - engine time for prefill (sec)
-   * - engine time for decode (sec)
-   * - total number of processed tokens in prefill.
-   * - total number of processed tokens in decode.
-   * \return The statistics in JSON string.
+   * \brief Return the engine runtime metrics in JSON string.
+   * \return The metrics in JSON.
    */
-  String AsJSON() const;
-  /*! \brief Reset all the statistics. */
+  picojson::value AsJSON() const;
+  /*! \brief Reset all the metrics. */
   void Reset();
 
   /*!
-   * \brief Update the statistics of speculative decoding.
+   * \brief Update the batch decode time for the given batch size.
+   * The time will be ignored if the batch size is greater than `kMaxEffectiveBatchSize`.
+   */
+  void UpdateBatchDecodeTime(int batch_size, double time);
+  /*!
+   * \brief Update the single-step batch draft time for the given batch size.
+   * The time will be ignored if the batch size is greater than `kMaxEffectiveBatchSize`.
+   */
+  void UpdateBatchDraftTime(int batch_size, double time);
+  /*!
+   * \brief Update the batch decode time for the given effective batch size.
+   * The time will be ignored if the effective batch size is greater than `kMaxEffectiveBatchSize`.
+   */
+  void UpdateBatchVerificationTime(int effective_batch_size, double time);
+  /*!
+   * \brief Update the metrics of speculative decoding.
    * \param draft_length The number of draft tokens (including the last prediction by the base
    * model)
    * \param accept_length The number of accepted tokens in the speculative decoding.
@@ -105,12 +141,12 @@ class EngineStateObj : public Object {
   std::unordered_map<String, RequestState> request_states;
   /*! \brief The internal id manager. */
   EngineInternalIDManager id_manager;
-  /*! \brief Runtime statistics. */
-  EngineStats stats;
+  /*! \brief Runtime metrics. */
+  EngineMetrics metrics;
   /*! \brief The prefix cache. */
   PrefixCache prefix_cache{nullptr};
 
-  /*! \brief Reset the engine state and clear the statistics. */
+  /*! \brief Reset the engine state and clear the metrics. */
   void Reset();
   /*! \brief Get the request state of the given request. */
   RequestState GetRequestState(Request request);

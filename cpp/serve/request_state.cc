@@ -113,7 +113,6 @@ RequestStateEntry::RequestStateEntry(
   n->parent_idx = parent_idx;
   n->mstates = std::move(mstates);
   n->next_callback_token_pos = 0;
-  n->tadd = std::chrono::high_resolution_clock::now();
   data_ = std::move(n);
 }
 
@@ -186,7 +185,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     return {return_token_ids, logprob_json_strs, String("length")};
   }
   // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
-  if (request->input_total_length + num_committed_tokens >= max_single_sequence_length) {
+  if (request->num_input_tokens + num_committed_tokens >= max_single_sequence_length) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
     return {return_token_ids, logprob_json_strs, String("length")};
@@ -201,6 +200,7 @@ TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 RequestState::RequestState(std::vector<RequestStateEntry> entries) {
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   n->entries = std::move(entries);
+  n->tadd = std::chrono::high_resolution_clock::now();
   data_ = std::move(n);
 }
 

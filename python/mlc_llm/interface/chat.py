@@ -59,17 +59,39 @@ class ChatState:
         if finish_reason_length:
             self.slide_history()
 
+    def stats(self) -> str:
+        """Return the statistics of the prefill and decode speed."""
+        metrics = self.engine.metrics()
+        num_last_finished_req_prefill_tokens = metrics["num_last_finished_req_prefill_tokens"][
+            "sum"
+        ]
+        num_last_finished_req_output_tokens = metrics["num_last_finished_req_output_tokens"]["sum"]
+        last_finished_req_prefill_time = metrics["last_finished_req_prefill_time"]["sum"]
+        last_finished_req_decode_time = metrics["last_finished_req_decode_time"]["sum"]
+
+        prefill_speed = (
+            f"{num_last_finished_req_prefill_tokens / last_finished_req_prefill_time:.3f}"
+            if last_finished_req_prefill_time > 0
+            else "N/A"
+        )
+        decode_speed = (
+            f"{num_last_finished_req_output_tokens / last_finished_req_decode_time:.3f}"
+            if last_finished_req_decode_time > 0
+            else "N/A"
+        )
+        return f"prefill: {prefill_speed} tok/s, decode: {decode_speed} tok/s"
+
     def reset_chat(self):
         """Reset the chat history"""
         self.history = []
         self.history_window_begin = 0
 
 
-# TODO(mlc-team): add back support for stats
 def _print_help_str():
     help_str = """You can use the following special commands:
   /help               print the special commands
   /exit               quit the cli
+  /stats              print out the latest stats (token/sec)
   /reset              restart a fresh chat
   Multi-line input: Use escape+enter to start a new line.
 """
@@ -113,7 +135,9 @@ def chat(
             key_bindings=kb,
             multiline=True,
         )
-        if prompt[:6] == "/reset":
+        if prompt[:6] == "/stats":
+            print(chat_state.stats(), flush=True)
+        elif prompt[:6] == "/reset":
             chat_state.reset_chat()
         elif prompt[:5] == "/exit":
             break
