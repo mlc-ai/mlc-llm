@@ -41,16 +41,6 @@ def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):
 # pylint: disable=too-many-statements,too-many-locals,too-many-arguments
 
 
-import tvm
-
-
-# @tvm.register_func("tvm_callback_cuda_postproc")
-# def f(code, target):
-#     with open("/home/bohan/mlc-llm/python/mlc_llm/op/test.cu", "r") as f:
-#         code = f.read()
-#     return code
-
-
 def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
     """Generate tree attention kernel for batched tree attention.
 
