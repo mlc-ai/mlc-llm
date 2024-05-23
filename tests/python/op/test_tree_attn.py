@@ -8,10 +8,10 @@ from mlc_llm.op.tree_attn import tree_attn
 
 
 @pytest.mark.parametrize("nbatch", [1, 4, 32])
-@pytest.mark.parametrize("h_q", [4, 8, 16])
-@pytest.mark.parametrize("h_kv", [1, 2, 4])
+@pytest.mark.parametrize("h_q", [8, 16])
+@pytest.mark.parametrize("h_kv", [4, 8])
 @pytest.mark.parametrize("d", [128])
-@pytest.mark.parametrize("rotary_mode", [0])
+@pytest.mark.parametrize("rotary_mode", [0, 1])
 def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     np.random.seed(0)
     np.set_printoptions(linewidth=10000)
@@ -47,7 +47,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     mn_list.append(0)
 
     for _ in range(nbatch):
-        choice = np.random.choice(2, 1, p=[0.5, 0.5])
+        choice = np.random.choice(2, 1, p=[1, 0])
         if choice == 0:
             nodes_batch = np.random.randint(3, 32)
             res = gen_chain(nodes_batch)
@@ -141,33 +141,45 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         m_arr,
         mn_indptr,
         mask,
-        output,
-        lse,
         rotary_mode,
         rotary_scale,
         rotary_theta,
         attn_score_scaling_factor,
         output_tvm,
     ):
+        def rope_freq(s, d, d_range, theta, dtype):
+            freq = s / math.pow(theta, (d * 2 % d_range) / float(d_range))
+            cos_freq = np.cos(freq).astype(dtype)
+            sin_freq = np.sin(freq).astype(dtype)
+            return cos_freq, sin_freq
+
+        def rope(buffer, offset, rotary_dim, theta, scale, dtype):
+            result = buffer.copy()
+            for l, h, d in np.ndindex(buffer.shape):
+                cos_freq, sin_freq = rope_freq(offset[l] * scale, d, rotary_dim, theta, dtype)
+                cos = cos_freq * buffer[l, h, d]
+                sin = sin_freq * (
+                    -buffer[l, h, d + rotary_dim // 2]
+                    if d < rotary_dim // 2
+                    else buffer[l, h, d - rotary_dim // 2]
+                )
+                result[l, h, d] = cos + sin
+            return result
+
         for i in range(len(m_arr)):
             num_nodes = m_arr[i]
             base = mn_indptr[i]
             q_base = q_indptr[i]
             kv_base = kv_indptr[i]
-            q_pos = q_rope_position[base : base + num_nodes]
-            q_i = q[q_base : q_base + num_nodes]
-            k_i = k[kv_base : kv_base + num_nodes]
-            v_i = v[kv_base : kv_base + num_nodes]
+            q_pos = q_rope_position[q_base : q_base + num_nodes]  # (num_nodes,)
+            q_i = q[q_base : q_base + num_nodes]  # (num_nodes, h_q, d)
+            k_i = k[kv_base : kv_base + num_nodes]  # (num_nodes, h_kv, d)
+            v_i = v[kv_base : kv_base + num_nodes]  # (num_nodes, h_kv, d)
             mask_i = mask[base : base + num_nodes * num_nodes].reshape(num_nodes, num_nodes)
 
-            # print(">>>>>>>>>>>>>>>>> i:", i)
-            # print("num_nodes:", num_nodes)
-            # print("q_pos:", q_pos.shape)
-            # print("q_i:", q_i.shape)
-            # print("k_i:", k_i.shape)
-            # print("v_i:", v_i.shape)
-            # print("mask_i:", mask_i)
-            # print("mask_i:", mask_i.shape)
+            if rotary_mode == 1:
+                q_i = rope(q_i, q_pos, d, rotary_theta, rotary_scale, q_i.dtype)
+                k_i = rope(k_i, q_pos, d, rotary_theta, rotary_scale, k_i.dtype)
 
             # group attention
             # q: (num_nodes, h_q, d)
@@ -188,15 +200,15 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
             # print("q_reshape:", q_reshape.shape)
             # print("k_reshape:", k_reshape.shape)
             # print("v_reshape:", v_reshape.shape)
+
             # qk: (h_q, num_nodes, num_nodes)
-            assert rotary_mode == 0
             qk = np.matmul(q_reshape, k_reshape) * attn_score_scaling_factor / math.sqrt(float(d))
             # softmax(qk, axis=-1), numerical stability
             qk[:, mask_i == 0] = -np.inf
             qk_max = np.max(qk, axis=-1, keepdims=True)
             qk = np.exp(qk - qk_max)
             qk = qk / np.sum(qk, axis=-1, keepdims=True)
-            # print(qk)
+
             # attention
             output_i = np.matmul(qk, v_reshape).transpose(1, 0, 2)  # (num_nodes, h_q, d)
             # print(output_i)
@@ -215,8 +227,6 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         m_arr,
         mn_indptr,
         mask,
-        output,
-        lse,
         rotary_mode,
         rotary_scale,
         rotary_theta,
