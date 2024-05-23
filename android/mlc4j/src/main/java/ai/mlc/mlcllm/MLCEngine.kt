@@ -1,83 +1,152 @@
 package ai.mlc.mlcllm
 
-import ai.mlc.mlcllm.JSONFFIEngine
 import ai.mlc.mlcllm.OpenAIProtocol.*
 import kotlinx.coroutines.GlobalScope
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.launch
-import java.lang.Exception
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlin.concurrent.thread
 import java.util.UUID
+import java.util.logging.Logger
 
-class MLCEngine () {
-    private val jsonFFIEngine = JSONFFIEngine()
-    private val channelMap = mutableMapOf<String, Channel<ChatCompletionStreamResponse>>()
+class BackgroundWorker(private val task: () -> Unit) {
+
+    fun start() {
+        thread(start = true) {
+            task()
+        }
+    }
+}
+
+class MLCEngine {
+
+    private val state: EngineState
+    private val jsonFFIEngine: JSONFFIEngine
+    val chat: Chat
+    private val threads = mutableListOf<BackgroundWorker>()
 
     init {
-        jsonFFIEngine.initBackgroundEngine(this::streamCallback)
-        GlobalScope.launch {
+        state = EngineState()
+        jsonFFIEngine = JSONFFIEngine()
+        chat = Chat(jsonFFIEngine, state)
+
+        jsonFFIEngine.initBackgroundEngine { result ->
+            state.streamCallback(result)
+        }
+
+        val backgroundWorker = BackgroundWorker {
+            Thread.currentThread().priority = Thread.MAX_PRIORITY
             jsonFFIEngine.runBackgroundLoop()
         }
-        GlobalScope.launch {
+
+        val backgroundStreamBackWorker = BackgroundWorker {
             jsonFFIEngine.runBackgroundStreamBackLoop()
         }
-    }
 
-    private fun streamCallback(result: String?) {
-        val responses = mutableListOf<ChatCompletionStreamResponse>()
-        val json = Json { ignoreUnknownKeys = true }
-        try {
-            val msg = json.decodeFromString<ChatCompletionStreamResponse>(result!!)
-            responses.add(msg)
-        } catch (lastError: Exception) {
-            println("Kotlin json parsing error: error=$lastError, jsonsrc=$result")
-        }
+        threads.add(backgroundWorker)
+        threads.add(backgroundStreamBackWorker)
 
-        // dispatch to right request ID
-        for (res in responses) {
-            val channel = channelMap[res.id]
-            if (channel != null) {
-                GlobalScope.launch {
-                    channel.send(res)
-                    // detect finished from result
-                    var finished = false
-                    for (choice in res.choices) {
-                        if (choice.finish_reason != "" && choice.finish_reason != null) {
-                            finished = true
-                        }
-                    }
-                    if (finished) {
-                        channel.close()
-                        channelMap.remove(res.id)
-                    }
-                }
-
-            }
-        }
-    }
-
-    private fun deinit() {
-        jsonFFIEngine.exitBackgroundLoop()
+        backgroundWorker.start()
+        backgroundStreamBackWorker.start()
     }
 
     fun reload(modelPath: String, modelLib: String) {
-        val engineConfigJSONStr = """
+        val engineConfig = """
             {
                 "model": "$modelPath",
                 "model_lib": "system://$modelLib",
                 "mode": "interactive"
             }
-        """.trimIndent()
-        jsonFFIEngine.reload(engineConfigJSONStr)
+        """
+        jsonFFIEngine.reload(engineConfig)
     }
 
-    private fun unload() {
+    fun reset() {
+        jsonFFIEngine.reset()
+    }
+
+    fun unload() {
         jsonFFIEngine.unload()
     }
+}
 
-    fun chatCompletion(
+data class RequestState(
+    val request: ChatCompletionRequest,
+    val continuation: Channel<ChatCompletionStreamResponse>
+)
+
+class EngineState {
+
+    private val logger = Logger.getLogger(EngineState::class.java.name)
+    private val requestStateMap = mutableMapOf<String, RequestState>()
+
+    suspend fun chatCompletion(
+        jsonFFIEngine: JSONFFIEngine,
+        request: ChatCompletionRequest
+    ): ReceiveChannel<ChatCompletionStreamResponse> {
+        val json = Json { encodeDefaults = true }
+        val jsonRequest = json.encodeToString(request)
+        val requestID = UUID.randomUUID().toString()
+        val channel = Channel<ChatCompletionStreamResponse>(Channel.UNLIMITED)
+
+        requestStateMap[requestID] = RequestState(request, channel)
+
+        jsonFFIEngine.chatCompletion(jsonRequest, requestID)
+
+        return channel
+    }
+
+    fun streamCallback(result: String?) {
+        val json = Json { ignoreUnknownKeys = true }
+        try {
+            val responses: List<ChatCompletionStreamResponse> = json.decodeFromString(result ?: return)
+
+            responses.forEach { res ->
+                val requestState = requestStateMap[res.id] ?: return@forEach
+                GlobalScope.launch {
+                    val sendResult = requestState.continuation.trySend(res)
+                    if (sendResult.isFailure) {
+                        // Handle the failure case if needed
+                        logger.severe("Failed to send response: ${sendResult.exceptionOrNull()}")
+                    }
+
+                    res.usage?.let { finalUsage ->
+                        requestState.request.stream_options?.include_usage?.let { includeUsage ->
+                            if (includeUsage) {
+                                requestState.continuation.send(res)
+                            }
+                        }
+                        requestState.continuation.close()
+                        requestStateMap.remove(res.id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.severe("Kotlin JSON parsing error: $e, jsonsrc=$result")
+        }
+    }
+}
+
+class Chat(
+    private val jsonFFIEngine: JSONFFIEngine,
+    private val state: EngineState
+) {
+    val completions = Completions(jsonFFIEngine, state)
+}
+
+class Completions(
+    private val jsonFFIEngine: JSONFFIEngine,
+    private val state: EngineState
+) {
+
+    suspend fun create(request: ChatCompletionRequest): ReceiveChannel<ChatCompletionStreamResponse> {
+        return state.chatCompletion(jsonFFIEngine, request)
+    }
+
+    suspend fun create(
         messages: List<ChatCompletionMessage>,
         model: String? = null,
         frequency_penalty: Float? = null,
@@ -89,13 +158,18 @@ class MLCEngine () {
         n: Int = 1,
         seed: Int? = null,
         stop: List<String>? = null,
-        stream: Boolean = false,
+        stream: Boolean = true,
+        stream_options: StreamOptions? = null,
         temperature: Float? = null,
         top_p: Float? = null,
         tools: List<ChatTool>? = null,
         user: String? = null,
         response_format: ResponseFormat? = null
     ): ReceiveChannel<ChatCompletionStreamResponse> {
+        if (!stream) {
+            throw IllegalArgumentException("Only stream=true is supported in MLCKotlin")
+        }
+
         val request = ChatCompletionRequest(
             messages = messages,
             model = model,
@@ -109,25 +183,14 @@ class MLCEngine () {
             seed = seed,
             stop = stop,
             stream = stream,
+            stream_options = stream_options,
             temperature = temperature,
             top_p = top_p,
             tools = tools,
             user = user,
             response_format = response_format
         )
-        return chatCompletion(request)
-    }
-
-    private fun chatCompletion(request: ChatCompletionRequest): ReceiveChannel<ChatCompletionStreamResponse> {
-        val channel = Channel<ChatCompletionStreamResponse>()
-        val jsonRequest = Json.encodeToString(request)
-        val requestId = UUID.randomUUID().toString()
-
-        // Store the channel in the map for further callbacks
-        channelMap[requestId] = channel
-
-        jsonFFIEngine.chatCompletion(jsonRequest, requestId)
-
-        return channel
+        return create(request)
     }
 }
+

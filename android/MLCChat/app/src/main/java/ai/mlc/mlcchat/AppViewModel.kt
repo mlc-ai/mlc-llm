@@ -1,6 +1,7 @@
 package ai.mlc.mlcchat
 
-import ai.mlc.mlcllm.ChatModule
+import ai.mlc.mlcllm.MLCEngine
+import ai.mlc.mlcllm.OpenAIProtocol
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -21,6 +22,8 @@ import java.nio.channels.Channels
 import java.util.UUID
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
+import ai.mlc.mlcllm.OpenAIProtocol.ChatCompletionMessage
+import kotlinx.coroutines.*
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     val modelList = emptyList<ModelState>().toMutableStateList()
@@ -502,14 +505,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private var modelChatState = mutableStateOf(ModelChatState.Ready)
             @Synchronized get
             @Synchronized set
-        private val backend = ChatModule()
+        private val engine = MLCEngine()
         private var modelLib = ""
         private var modelPath = ""
         private val executorService = Executors.newSingleThreadExecutor()
-
+        private val viewModelScope = CoroutineScope(Dispatchers.Main + Job())
         private fun mainResetChat() {
             executorService.submit {
-                callBackend { backend.resetChat() }
+                callBackend { engine.reset() }
                 viewModelScope.launch {
                     clearHistory()
                     switchToReady()
@@ -551,7 +554,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val stackTrace = e.stackTraceToString()
                     val errorMessage = e.localizedMessage
                     appendMessage(
-                        MessageRole.Bot,
+                        MessageRole.Assistant,
                         "MLCChat failed\n\nStack trace:\n$stackTrace\n\nError message:\n$errorMessage"
                     )
                     switchToFailed()
@@ -604,7 +607,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
         private fun mainTerminateChat(callback: () -> Unit) {
             executorService.submit {
-                callBackend { backend.unload() }
+                callBackend { engine.unload() }
                 viewModelScope.launch {
                     clearHistory()
                     switchToReady()
@@ -644,11 +647,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     Toast.makeText(application, "Initialize...", Toast.LENGTH_SHORT).show()
                 }
                 if (!callBackend {
-                        backend.unload()
-                        backend.reload(
-                            modelConfig.modelLib,
-                            modelPath
-                        )
+                        engine.unload()
+                        engine.reload(modelPath, modelConfig.modelLib)
                     }) return@submit
                 viewModelScope.launch {
                     Toast.makeText(application, "Ready to chat", Toast.LENGTH_SHORT).show()
@@ -662,19 +662,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             switchToGenerating()
             executorService.submit {
                 appendMessage(MessageRole.User, prompt)
-                appendMessage(MessageRole.Bot, "")
-                if (!callBackend { backend.prefill(prompt) }) return@submit
-                while (!backend.stopped()) {
-                    if (!callBackend {
-                            backend.decode()
-                            val newText = backend.message
-                            viewModelScope.launch { updateMessage(MessageRole.Bot, newText) }
-                        }) return@submit
-                    if (modelChatState.value != ModelChatState.Generating) return@submit
-                }
-                val runtimeStats = backend.runtimeStatsText()
+                appendMessage(MessageRole.Assistant, "")
                 viewModelScope.launch {
-                    report.value = runtimeStats
+                    val channel = engine.chat.completions.create(
+                        messages = listOf(
+                            ChatCompletionMessage(
+                                role = OpenAIProtocol.ChatCompletionRole.user,
+                                content = prompt
+                            )
+                        )
+                    )
+                    var texts = ""
+                    for (response in channel) {
+                        if (!callBackend {
+                            val finalsage = response.usage
+                            if (finalsage != null) {
+                                report.value = (finalsage.extra?.asTextLabel()?:"")
+                            } else {
+                                if (response.choices.size > 0) {
+                                    texts += response.choices[0].delta.content?.asText().orEmpty()
+                                }
+                            }
+                            updateMessage(MessageRole.Assistant, texts)
+                        });
+                    }
                     if (modelChatState.value == ModelChatState.Generating) switchToReady()
                 }
             }
@@ -722,7 +733,7 @@ enum class ModelChatState {
 }
 
 enum class MessageRole {
-    Bot,
+    Assistant,
     User
 }
 
