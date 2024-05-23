@@ -33,12 +33,22 @@ def _rope(
     return cos + sin
 
 
-def _tree_mask(row, col, mask_ptr, offset, stride):
-    return tir.EQ(mask_ptr[offset + row * stride + col], 1)
+def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):
+    return tir.all(col < kv_len, mask_ptr[offset + row * stride + col] == 1)
 
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
 # pylint: disable=too-many-statements,too-many-locals,too-many-arguments
+
+
+import tvm
+
+
+# @tvm.register_func("tvm_callback_cuda_postproc")
+# def f(code, target):
+#     with open("/home/bohan/mlc-llm/python/mlc_llm/op/test.cu", "r") as f:
+#         code = f.read()
+#     return code
 
 
 def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
@@ -69,7 +79,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     bdx = 32
-    num_warps = 1  ######################################################################################################
+    num_warps = 4
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
     L_per_cta = tile_x // group_size
 
@@ -255,7 +265,8 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=m_array[b_idx]):
+                                                                stride=m_array[b_idx],
+                                                                kv_len=kv_chunk_len[0]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
@@ -269,7 +280,8 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=m_array[b_idx]):
+                                                                stride=m_array[b_idx],
+                                                                kv_len=kv_chunk_len[0]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
