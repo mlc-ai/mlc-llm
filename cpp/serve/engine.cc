@@ -572,14 +572,13 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.engine");
   TVM_MODULE_VTABLE_ENTRY("init", &EngineModule::Init);
   TVM_MODULE_VTABLE_ENTRY("add_request", &EngineModule::AddRequest);
+  TVM_MODULE_VTABLE_ENTRY("create_request", &EngineModule::CreateRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &EngineModule::Abort);
   TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
   TVM_MODULE_VTABLE_ENTRY("json_metrics", &EngineModule::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
   TVM_MODULE_VTABLE_ENTRY("get_request_stream_callback", &EngineModule::GetRequestStreamCallback);
   TVM_MODULE_VTABLE_ENTRY("set_request_stream_callback", &EngineModule::SetRequestStreamCallback);
-  TVM_MODULE_VTABLE_ENTRY("get_default_generation_config",
-                          &EngineModule::GetDefaultGenerationConfigJSONString);
   TVM_MODULE_VTABLE_END();
 
   /*! \brief Initialize the engine with config and other fields. */
@@ -592,7 +591,7 @@ class EngineModule : public ModuleNode {
     CHECK(output_res.IsOk()) << output_res.UnwrapErr();
     EngineCreationOutput output = output_res.Unwrap();
     this->engine_ = std::move(output.reloaded_engine);
-    this->default_generation_cfg_json_str_ = output.default_generation_cfg->AsJSONString();
+    this->default_generation_config_ = output.default_generation_cfg;
   }
   /*! \brief Construct an EngineModule. */
   static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
@@ -600,6 +599,12 @@ class EngineModule : public ModuleNode {
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */
   void Abort(const String& request_id) { return GetEngine()->AbortRequest(request_id); }
+
+  Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) {
+    return Request(
+        std::move(id), std::move(inputs),
+        GenerationConfig(std::move(generation_cfg_json_str), default_generation_config_));
+  }
   /*! \brief Redirection to `Engine::Step`. */
   void Step() { return GetEngine()->Step(); }
   /*! \brief Redirection to `Engine::GetRequestStreamCallback`. */
@@ -614,12 +619,6 @@ class EngineModule : public ModuleNode {
   void Reset() { return GetEngine()->Reset(); }
   /*! \brief Redirection to `Engine::Metrics` */
   String JSONMetrics() { return GetEngine()->JSONMetrics(); }
-  /*! \brief Return the default generation config string. */
-  String GetDefaultGenerationConfigJSONString() {
-    CHECK(!default_generation_cfg_json_str_.empty())
-        << "The default generation config has not been set.";
-    return default_generation_cfg_json_str_;
-  }
 
  private:
   Engine* GetEngine() {
@@ -628,7 +627,7 @@ class EngineModule : public ModuleNode {
   }
 
   std::unique_ptr<Engine> engine_ = nullptr;
-  String default_generation_cfg_json_str_;
+  GenerationConfig default_generation_config_;
 };
 
 TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);

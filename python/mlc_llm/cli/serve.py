@@ -91,6 +91,11 @@ def main(argv):
         help=HELP["mode_serve"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--enable-debug",
+        action="store_true",
+        help="whether we enable debug end points and debug config when accepting requests",
+    )
+    parser.add_argument(
         "--additional-models", type=str, nargs="*", help=HELP["additional_models_serve"]
     )
     parser.add_argument(
@@ -161,6 +166,7 @@ def main(argv):
         device=parsed.device,
         model_lib=parsed.model_lib,
         mode=parsed.mode,
+        enable_debug=parsed.enable_debug,
         additional_models=additional_models,
         speculative_mode=parsed.speculative_mode,
         prefix_cache_mode=parsed.prefix_cache_mode,
