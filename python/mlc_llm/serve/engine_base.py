@@ -526,12 +526,14 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
 
     def terminate(self):
         """Terminate the engine."""
-        if self._terminated:
+        if hasattr(self, '_terminated') and self._terminated:
             return
         self._terminated = True
         self._ffi["exit_background_loop"]()
-        self._background_loop_thread.join()
-        self._background_stream_back_loop_thread.join()
+        if hasattr(self, '_background_loop_thread'):
+            self._background_loop_thread.join()
+        if hasattr(self, '_background_stream_back_loop_thread'):
+            self._background_stream_back_loop_thread.join()
 
     def _debug_call_func_on_all_worker(self, func_name: str) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
