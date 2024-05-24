@@ -20,10 +20,9 @@ from typing import (
 
 from tvm.runtime import Device
 
-from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
-from mlc_llm.serve.request import Request
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
 
@@ -77,9 +76,9 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any]:
         """Asynchronous streaming chat completion interface with OpenAI API compatibility.
         The method is a coroutine that streams ChatCompletionStreamResponse
@@ -92,6 +91,10 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Yields
         ------
@@ -127,9 +130,9 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> openai_api_protocol.ChatCompletionResponse:
         """Asynchronous non-streaming chat completion interface with OpenAI API compatibility.
         The method is a coroutine that streams ChatCompletionStreamResponse
@@ -142,6 +145,10 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Returns
         ------
@@ -176,9 +183,9 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any],
         openai_api_protocol.ChatCompletionResponse,
@@ -192,6 +199,10 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -216,9 +227,9 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
             tools=tools,
             tool_choice=tool_choice,
             user=user,
-            ignore_eos=ignore_eos,
             response_format=response_format,
             request_id=request_id,
+            debug_config=debug_config,
         )
 
 
@@ -254,9 +265,9 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         """Synchronous streaming chat completion interface with OpenAI API compatibility.
         The method streams back ChatCompletionStreamResponse that conforms to
@@ -269,6 +280,10 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Yields
         ------
@@ -304,9 +319,9 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> openai_api_protocol.ChatCompletionResponse:
         """Synchronous non-streaming chat completion interface with OpenAI API compatibility.
 
@@ -317,6 +332,10 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Returns
         ------
@@ -351,9 +370,9 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         Iterator[openai_api_protocol.ChatCompletionStreamResponse],
         openai_api_protocol.ChatCompletionResponse,
@@ -367,6 +386,10 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -391,9 +414,9 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
             tools=tools,
             tool_choice=tool_choice,
             user=user,
-            ignore_eos=ignore_eos,
             response_format=response_format,
             request_id=request_id,
+            debug_config=debug_config,
         )
 
 
@@ -422,7 +445,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -430,9 +453,9 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         """Asynchronous streaming completion interface with OpenAI API compatibility.
         The method is a coroutine that streams CompletionResponse
@@ -472,7 +495,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -481,9 +504,9 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> openai_api_protocol.CompletionResponse:
         """Asynchronous non-streaming completion interface with OpenAI API compatibility.
 
@@ -494,6 +517,10 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Returns
         ------
@@ -520,7 +547,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -529,9 +556,9 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
         openai_api_protocol.CompletionResponse,
@@ -545,6 +572,10 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -570,9 +601,9 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
             temperature=temperature,
             top_p=top_p,
             user=user,
-            ignore_eos=ignore_eos,
             response_format=response_format,
             request_id=request_id,
+            debug_config=debug_config,
         )
 
 
@@ -601,7 +632,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -609,9 +640,9 @@ class Completion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> openai_api_protocol.CompletionResponse:
         """Synchronous streaming completion interface with OpenAI API compatibility.
         The method streams back CompletionResponse that conforms to
@@ -624,6 +655,10 @@ class Completion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Yields
         ------
@@ -651,7 +686,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -660,9 +695,9 @@ class Completion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.CompletionResponse]:
         """Synchronous non-streaming completion interface with OpenAI API compatibility.
 
@@ -673,6 +708,10 @@ class Completion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Returns
         ------
@@ -699,7 +738,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -708,9 +747,9 @@ class Completion:  # pylint: disable=too-few-public-methods
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.CompletionResponse]:
         """Synchronous completion interface with OpenAI API compatibility.
 
@@ -721,6 +760,10 @@ class Completion:  # pylint: disable=too-few-public-methods
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -746,9 +789,9 @@ class Completion:  # pylint: disable=too-few-public-methods
             temperature=temperature,
             top_p=top_p,
             user=user,
-            ignore_eos=ignore_eos,
             response_format=response_format,
             request_id=request_id,
+            debug_config=debug_config,
         )
 
 
@@ -854,9 +897,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         AsyncGenerator[openai_api_protocol.ChatCompletionStreamResponse, Any],
         openai_api_protocol.ChatCompletionResponse,
@@ -870,6 +913,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -905,10 +952,14 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 ),
                 tool_choice=tool_choice,
                 user=user,
-                ignore_eos=ignore_eos,
                 response_format=(
                     openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                     if response_format is not None
+                    else None
+                ),
+                debug_config=(
+                    debug_protocol.DebugConfig.model_validate(debug_config)
+                    if debug_config is not None
                     else None
                 ),
             ),
@@ -974,7 +1025,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -983,9 +1034,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         AsyncGenerator[openai_api_protocol.CompletionResponse, Any],
         openai_api_protocol.CompletionResponse,
@@ -999,6 +1050,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -1027,14 +1082,18 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 temperature=temperature,
                 top_p=top_p,
                 user=user,
-                ignore_eos=ignore_eos,
                 response_format=(
                     openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                     if response_format is not None
                     else None
                 ),
+                debug_config=(
+                    debug_protocol.DebugConfig.model_validate(debug_config)
+                    if debug_config is not None
+                    else None
+                ),
             ),
-            request_id,
+            request_id=request_id,
         )
         if stream:
             # Stream response.
@@ -1234,9 +1293,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = Request(
-            request_id, input_data, generation_config, self.default_generation_cfg_json_str
-        )
+        request = self._ffi["create_request"](request_id, input_data, generation_config.asjson())
 
         # Create the unique async request stream of the request.
         stream = engine_base.AsyncRequestStream()
@@ -1378,9 +1435,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Union[
         Iterator[openai_api_protocol.ChatCompletionStreamResponse],
         openai_api_protocol.ChatCompletionResponse,
@@ -1394,6 +1451,10 @@ class MLCEngine(engine_base.MLCEngineBase):
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -1429,10 +1490,14 @@ class MLCEngine(engine_base.MLCEngineBase):
                 ),
                 tool_choice=tool_choice,
                 user=user,
-                ignore_eos=ignore_eos,
                 response_format=(
                     openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                     if response_format is not None
+                    else None
+                ),
+                debug_config=(
+                    debug_protocol.DebugConfig.model_validate(debug_config)
+                    if debug_config is not None
                     else None
                 ),
             ),
@@ -1491,7 +1556,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         logprobs: bool = False,
         top_logprobs: int = 0,
         logit_bias: Optional[Dict[int, float]] = None,
-        max_tokens: int = 16,
+        max_tokens: Optional[int] = None,
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
@@ -1500,9 +1565,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.CompletionResponse]:
         """Synchronous completion internal interface with OpenAI API compatibility.
 
@@ -1513,6 +1578,10 @@ class MLCEngine(engine_base.MLCEngineBase):
         request_id : Optional[str]
             The optional request id.
             A random one will be generated if it is not given.
+
+        debug_config: Optional[Dict[str, Any]]
+            The optional debug config
+            Extra debug options to pass to the request.
 
         Raises
         ------
@@ -1541,14 +1610,18 @@ class MLCEngine(engine_base.MLCEngineBase):
                 temperature=temperature,
                 top_p=top_p,
                 user=user,
-                ignore_eos=ignore_eos,
                 response_format=(
                     openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                     if response_format is not None
                     else None
                 ),
+                debug_config=(
+                    debug_protocol.DebugConfig.model_validate(debug_config)
+                    if debug_config is not None
+                    else None
+                ),
             ),
-            request_id,
+            request_id=request_id,
         )
         if stream:
             # Stream response.
@@ -1729,9 +1802,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = Request(
-            request_id, input_data, generation_config, self.default_generation_cfg_json_str
-        )
+        request = self._ffi["create_request"](request_id, input_data, generation_config.asjson())
 
         # Record the stream in the tracker
         self.state.sync_output_queue = queue.Queue()

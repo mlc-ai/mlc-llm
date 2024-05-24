@@ -146,10 +146,7 @@ def run_json_schema_function_calling(
 @require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_chat_completion(model):
     # Create engine.
-    engine = JSONFFIEngine(
-        model,
-        max_total_sequence_length=1024,
-    )
+    engine = JSONFFIEngine(model)
 
     run_chat_completion(engine, model)
 
@@ -164,10 +161,7 @@ def test_chat_completion(model):
 @require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
 def test_reload_reset_unload(model):
     # Create engine.
-    engine = JSONFFIEngine(
-        model,
-        max_total_sequence_length=1024,
-    )
+    engine = JSONFFIEngine(model)
 
     # Run chat completion before and after reload/reset.
     run_chat_completion(engine, model)
@@ -182,10 +176,7 @@ def test_reload_reset_unload(model):
 
 @require_test_model("Hermes-2-Pro-Mistral-7B-q4f16_1-MLC")
 def test_json_schema_with_system_prompt(model):
-    engine = JSONFFIEngine(
-        model,
-        max_total_sequence_length=1024,
-    )
+    engine = JSONFFIEngine(model)
 
     # run function calling
     run_json_schema_function_calling(engine, model, function_calling_prompts, tools)

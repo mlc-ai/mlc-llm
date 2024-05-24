@@ -132,7 +132,7 @@ class SyncMLCEngine:
                 "reset",
                 "get_request_stream_callback",
                 "set_request_stream_callback",
-                "get_default_generation_config",
+                "create_request",
             ],
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
@@ -147,7 +147,6 @@ class SyncMLCEngine:
             request_stream_callback,
             self.trace_recorder,
         )
-        self.default_generation_cfg_json_str: str = self._ffi["get_default_generation_config"]()
         self.tokenizer = Tokenizer(model_args[0][0])
 
     def generate(  # pylint: disable=too-many-locals
@@ -268,11 +267,10 @@ class SyncMLCEngine:
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
             input_data = convert_to_data(prompt)  # type: ignore
             self.add_request(
-                Request(
+                self.create_request(
                     request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
-                    default_generation_config_json_str=self.default_generation_cfg_json_str,
                 )
             )
 
@@ -282,6 +280,34 @@ class SyncMLCEngine:
         # Restore the callback function in engine.
         self._ffi["set_request_stream_callback"](original_callback)
         return output_texts, output_logprobs_str
+
+    def create_request(
+        self,
+        request_id: str,
+        inputs: Union[data.Data, List[data.Data]],
+        generation_config: GenerationConfig,
+    ):
+        """Create a new request that can be added to engine.
+
+        Parameters
+        ----------
+        request_id : str
+            The unique identifier of the request.
+            Different requests should have different ids.
+
+        inputs : List[Data]
+            The user inputs of a request. Input may have multi-modality.
+
+        generation_config : GenerationConfig
+            The generation configuration of the request.
+
+        Note
+        ----
+        engine may fill in default generation config of the model.
+        """
+        if not isinstance(inputs, list):
+            inputs = [inputs]
+        self._ffi["create_request"](request_id, inputs, generation_config.asjson())
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.

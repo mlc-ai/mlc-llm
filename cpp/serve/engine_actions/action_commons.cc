@@ -27,8 +27,7 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
 void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestStateEntry rsentry) {
   if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
     // If the sequence is stored in prefix cache, call prefix cache to remove.
-    if (!(rsentry->request->generation_cfg->debug_config.has_value() &&
-          rsentry->request->generation_cfg->debug_config.value().pinned_system_prompt)) {
+    if (!(rsentry->request->generation_cfg->debug_config.pinned_system_prompt)) {
       // If the request is not pinned, recycle the request.
       estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/true);
     }

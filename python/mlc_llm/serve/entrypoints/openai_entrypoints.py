@@ -41,6 +41,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     """
     # - Check the requested model.
     server_context: ServerContext = ServerContext.current()
+    # remove debug config if debug is not enabled
+    if not server_context.enable_debug:
+        request.debug_config = None
+
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
@@ -128,6 +132,10 @@ async def request_chat_completion(
     """
     # - Check the requested model.
     server_context: ServerContext = ServerContext.current()
+    # remove debug config if debug is not enabled
+    if not server_context.enable_debug:
+        request.debug_config = None
+
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(

@@ -79,15 +79,25 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
     }
   }
 
-  GenerationConfig generation_cfg(request.n, request.temperature, request.top_p,
-                                  request.frequency_penalty, request.presence_penalty,
-                                  /*repetition_penalty=*/std::nullopt, request.logprobs,
-                                  request.top_logprobs, request.logit_bias, request.seed,
-                                  request.ignore_eos, request.max_tokens, std::move(stop_strs),
-                                  conv_template_.stop_token_ids, /*response_format=*/std::nullopt,
-                                  request.debug_config, this->default_generation_cfg_json_str_);
+  // create a generation config from request
+  const auto& default_gen_cfg = default_generation_config_;
+  auto gen_cfg = tvm::runtime::make_object<GenerationConfigNode>();
+  gen_cfg->n = request.n;
+  gen_cfg->temperature = request.temperature.value_or(default_gen_cfg->temperature);
+  gen_cfg->top_p = request.top_p.value_or(default_gen_cfg->top_p);
+  gen_cfg->frequency_penalty =
+      request.frequency_penalty.value_or(default_gen_cfg->frequency_penalty);
+  gen_cfg->presence_penalty = request.presence_penalty.value_or(default_gen_cfg->presence_penalty);
+  gen_cfg->logprobs = request.logprobs;
+  gen_cfg->top_logprobs = request.top_logprobs;
+  gen_cfg->logit_bias = request.logit_bias.value_or(default_gen_cfg->logit_bias);
+  gen_cfg->seed = request.seed.value_or(default_gen_cfg->seed);
+  gen_cfg->max_tokens = request.seed.value_or(default_gen_cfg->max_tokens);
+  gen_cfg->stop_strs = std::move(stop_strs);
+  gen_cfg->stop_token_ids = conv_template_.stop_token_ids;
+  gen_cfg->debug_config = request.debug_config.value_or(DebugConfig());
 
-  Request engine_request(request_id, inputs, generation_cfg);
+  Request engine_request(request_id, inputs, GenerationConfig(gen_cfg));
   this->engine_->AddRequest(engine_request);
 
   return true;
@@ -144,13 +154,12 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
   void Reload(String engine_config_json_str) {
     this->engine_->Reload(engine_config_json_str);
-    this->default_generation_cfg_json_str_ = this->engine_->GetDefaultGenerationConfigJSONString();
-    picojson::object engine_config_json =
-        json::ParseToJSONObject(this->engine_->GetCompleteEngineConfigJSONString());
+    this->default_generation_config_ = this->engine_->GetDefaultGenerationConfig();
+    auto engine_config = this->engine_->GetCompleteEngineConfig();
 
     // Load conversation template.
     Result<picojson::object> model_config_json =
-        serve::Model::LoadModelConfig(json::Lookup<std::string>(engine_config_json, "model"));
+        serve::Model::LoadModelConfig(engine_config->model);
     CHECK(model_config_json.IsOk()) << model_config_json.UnwrapErr();
     const picojson::object& model_config_json_unwrapped = model_config_json.Unwrap();
     Result<Conversation> conv_template = Conversation::FromJSON(
@@ -163,8 +172,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
     // Create streamer.
     // Todo(mlc-team): Create one streamer for each request, instead of a global one.
-    this->streamer_ =
-        TextStreamer(Tokenizer::FromPath(json::Lookup<std::string>(engine_config_json, "model")));
+    this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
   }
 
   void Unload() { this->engine_->Unload(); }

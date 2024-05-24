@@ -94,7 +94,7 @@ class CompletionRequest(BaseModel):
     logprobs: bool = False
     top_logprobs: int = 0
     logit_bias: Optional[Dict[int, float]] = None
-    max_tokens: int = 16
+    max_tokens: Optional[int] = None
     n: int = 1
     seed: Optional[int] = None
     stop: Optional[Union[str, List[str]]] = None
@@ -103,7 +103,6 @@ class CompletionRequest(BaseModel):
     temperature: Optional[float] = None
     top_p: Optional[float] = None
     user: Optional[str] = None
-    ignore_eos: bool = False
     response_format: Optional[RequestResponseFormat] = None
     debug_config: Optional[DebugConfig] = None
 
@@ -218,7 +217,6 @@ class ChatCompletionRequest(BaseModel):
     tools: Optional[List[ChatTool]] = None
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None
     user: Optional[str] = None
-    ignore_eos: bool = False
     response_format: Optional[RequestResponseFormat] = None
     debug_config: Optional[DebugConfig] = None
 
@@ -406,7 +404,6 @@ def openai_api_get_generation_config(
         "top_logprobs",
         "logit_bias",
         "seed",
-        "ignore_eos",
         "debug_config",
     ]
     for arg_name in arg_names:

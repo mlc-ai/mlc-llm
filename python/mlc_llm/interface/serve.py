@@ -8,8 +8,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.serve import engine
-from mlc_llm.serve.entrypoints import debug_entrypoints, openai_entrypoints
+from mlc_llm.serve.entrypoints import (
+    debug_entrypoints,
+    metrics_entrypoints,
+    openai_entrypoints,
+)
 from mlc_llm.serve.server import ServerContext
+from mlc_llm.support import logging
+
+logger = logging.getLogger(__name__)
 
 
 def serve(
@@ -17,6 +24,7 @@ def serve(
     device: str,
     model_lib: Optional[str],
     mode: Literal["local", "interactive", "server"],
+    enable_debug: bool,
     additional_models: List[Union[str, Tuple[str, str]]],
     max_num_sequence: Optional[int],
     max_total_sequence_length: Optional[int],
@@ -70,7 +78,14 @@ def serve(
         )
 
         app.include_router(openai_entrypoints.app)
-        app.include_router(debug_entrypoints.app)
+        app.include_router(metrics_entrypoints.app)
+
+        server_context.enable_debug = enable_debug
+
+        if enable_debug:
+            app.include_router(debug_entrypoints.app)
+            logger.info("Enable debug endpoint and debug_config in requests...")
+
         app.exception_handler(error_protocol.BadRequestError)(
             error_protocol.bad_request_error_handler
         )

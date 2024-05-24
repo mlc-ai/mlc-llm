@@ -7,7 +7,7 @@ from typing import Any, Callable, Dict, Iterator, List, Literal, Optional, Union
 
 import tvm
 
-from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
     EngineConfig,
@@ -131,9 +131,9 @@ class Completions:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[Literal["none", "auto"], Dict]] = None,
         user: Optional[str] = None,
-        ignore_eos: bool = False,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        debug_config: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
@@ -165,10 +165,14 @@ class Completions:
                 ),
                 tool_choice=tool_choice,
                 user=user,
-                ignore_eos=ignore_eos,
                 response_format=(
                     openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                     if response_format is not None
+                    else None
+                ),
+                debug_config=(
+                    debug_protocol.DebugConfig.model_validate(debug_config)
+                    if debug_config is not None
                     else None
                 ),
             ).model_dump_json(),

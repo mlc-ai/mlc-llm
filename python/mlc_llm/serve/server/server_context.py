@@ -11,6 +11,7 @@ class ServerContext:
     """
 
     server_context: Optional["ServerContext"] = None
+    enable_debug: bool = False
 
     def __init__(self):
         self._models: Dict[str, AsyncMLCEngine] = {}

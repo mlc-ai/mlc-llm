@@ -76,11 +76,11 @@ class ThreadedEngine {
 
   /************** Query/Profile/Debug **************/
 
-  /*! \brief Return the default generation config JSON string. */
-  virtual String GetDefaultGenerationConfigJSONString() const = 0;
+  /*! \brief Return the default generation config. */
+  virtual GenerationConfig GetDefaultGenerationConfig() const = 0;
 
-  /*! \brief Return the complete engine config JSON string. */
-  virtual String GetCompleteEngineConfigJSONString() const = 0;
+  /*! \brief Return the complete engine config. */
+  virtual EngineConfig GetCompleteEngineConfig() const = 0;
 
   /*! \brief Print the metrics of the engine. */
   virtual String JSONMetrics() = 0;

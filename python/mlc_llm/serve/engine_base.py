@@ -548,7 +548,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "reload",
                 "init_threaded_engine",
                 "exit_background_loop",
-                "get_default_generation_config",
+                "create_request",
                 "get_complete_engine_config",
                 "json_metrics",
                 "reset",
@@ -579,7 +579,6 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         engine_config.additional_models = model_args[1:]  # type: ignore
         engine_config.mode = mode
         self._ffi["reload"](engine_config.asjson())
-        self.default_generation_cfg_json_str: str = self._ffi["get_default_generation_config"]()
         self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
         self.max_input_sequence_length = min(
             self.engine_config.max_single_sequence_length,

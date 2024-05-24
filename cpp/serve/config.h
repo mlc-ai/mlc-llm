@@ -33,9 +33,8 @@ struct ResponseFormat {
 /*! \brief The debug configuration of a request. */
 class DebugConfig {
  public:
+  bool ignore_eos = false;
   bool pinned_system_prompt = false;
-
-  DebugConfig(bool pinned_system_prompt) : pinned_system_prompt(pinned_system_prompt) {}
 };
 
 /*! \brief The generation configuration of a request. */
@@ -51,14 +50,13 @@ class GenerationConfigNode : public Object {
   int top_logprobs = 0;
   std::vector<std::pair<int, float>> logit_bias;
   int seed;
-  bool ignore_eos = false;
 
   int max_tokens = 128;
   Array<String> stop_strs;
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
-  std::optional<DebugConfig> debug_config = std::nullopt;
+  DebugConfig debug_config;
 
   String AsJSONString() const;
 
@@ -70,21 +68,10 @@ class GenerationConfigNode : public Object {
 
 class GenerationConfig : public ObjectRef {
  public:
-  TVM_DLL explicit GenerationConfig(
-      std::optional<int> n, std::optional<double> temperature, std::optional<double> top_p,
-      std::optional<double> frequency_penalty, std::optional<double> presense_penalty,
-      std::optional<double> repetition_penalty, std::optional<bool> logprobs,
-      std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
-      std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
-      std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-      std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
-      Optional<String> default_config_json_str);
-
-  TVM_DLL explicit GenerationConfig(String config_json_str,
-                                    Optional<String> default_config_json_str);
+  explicit GenerationConfig(String config_json_str, const GenerationConfig& default_config);
 
   /*! \brief Get the default generation config from the model config. */
-  TVM_DLL static GenerationConfig GetDefaultFromModelConfig(const picojson::object& json);
+  static GenerationConfig GetDefaultFromModelConfig(const picojson::object& json);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
 };

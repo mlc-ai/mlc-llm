@@ -23,73 +23,9 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
 
-GenerationConfig::GenerationConfig(
-    std::optional<int> n, std::optional<double> temperature, std::optional<double> top_p,
-    std::optional<double> frequency_penalty, std::optional<double> presense_penalty,
-    std::optional<double> repetition_penalty, std::optional<bool> logprobs,
-    std::optional<int> top_logprobs, std::optional<std::vector<std::pair<int, float>>> logit_bias,
-    std::optional<int> seed, std::optional<bool> ignore_eos, std::optional<int> max_tokens,
-    std::optional<Array<String>> stop_strs, std::optional<std::vector<int>> stop_token_ids,
-    std::optional<ResponseFormat> response_format, std::optional<DebugConfig> debug_config,
-    Optional<String> default_config_json_str) {
-  ObjectPtr<GenerationConfigNode> obj = make_object<GenerationConfigNode>();
-  GenerationConfig default_config;
-  if (default_config_json_str.defined()) {
-    default_config = GenerationConfig(default_config_json_str.value(), NullOpt);
-  } else {
-    default_config = GenerationConfig(obj);
-  }
-
-  obj->n = n.value_or(default_config->n);
-  CHECK_GT(obj->n, 0) << "\"n\" should be at least 1";
-  obj->temperature = temperature.value_or(default_config->temperature);
-  CHECK_GE(obj->temperature, 0) << "\"temperature\" should be non-negative";
-  obj->top_p = top_p.value_or(default_config->top_p);
-  CHECK(obj->top_p >= 0 && obj->top_p <= 1) << "\"top_p\" should be in range [0, 1]";
-  obj->frequency_penalty = frequency_penalty.value_or(default_config->frequency_penalty);
-  CHECK(std::fabs(obj->frequency_penalty) <= 2.0) << "Frequency penalty must be in [-2, 2]!";
-  obj->presence_penalty = presense_penalty.value_or(default_config->presence_penalty);
-  CHECK(std::fabs(obj->presence_penalty) <= 2.0) << "Presence penalty must be in [-2, 2]!";
-  obj->repetition_penalty = repetition_penalty.value_or(default_config->repetition_penalty);
-  CHECK(obj->repetition_penalty > 0) << "Repetition penalty must be a positive number!";
-  obj->logprobs = logprobs.value_or(default_config->logprobs);
-  obj->top_logprobs = top_logprobs.value_or(default_config->top_logprobs);
-  CHECK(obj->top_logprobs >= 0 && obj->top_logprobs <= 5)
-      << "At most 5 top logprob tokens are supported";
-  CHECK(obj->top_logprobs == 0 || obj->logprobs)
-      << "\"logprobs\" must be true to support \"top_logprobs\"";
-
-  obj->logit_bias = logit_bias.value_or(default_config->logit_bias);
-  for (auto [token_id_str, bias] : obj->logit_bias) {
-    CHECK_LE(std::fabs(bias), 100.0) << "Logit bias value should be in range [-100, 100].";
-  }
-
-  obj->seed = seed.value_or(std::random_device{}());
-  // "ignore_eos" is for benchmarking. Not the part of OpenAI API spec.
-  obj->ignore_eos = ignore_eos.value_or(default_config->ignore_eos);
-  // "-1" means the generation will not stop until exceeding
-  // model capability or hit any stop criteria.
-  obj->max_tokens = max_tokens.value_or(-1);
-
-  obj->stop_strs = stop_strs.value_or(default_config->stop_strs);
-  obj->stop_token_ids = stop_token_ids.value_or(default_config->stop_token_ids);
-  obj->response_format = response_format.value_or(default_config->response_format);
-  // "debug_config" is for internal usage. Not the part of OpenAI API spec.
-  obj->debug_config = debug_config;
-
-  data_ = std::move(obj);
-}
-
-GenerationConfig::GenerationConfig(String config_json_str,
-                                   Optional<String> default_config_json_str) {
+GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfig& default_config) {
   picojson::object config = json::ParseToJSONObject(config_json_str);
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
-  GenerationConfig default_config;
-  if (default_config_json_str.defined()) {
-    default_config = GenerationConfig(default_config_json_str.value(), NullOpt);
-  } else {
-    default_config = GenerationConfig(n);
-  }
 
   n->n = json::LookupOrDefault<int64_t>(config, "n", default_config->n);
   CHECK_GT(n->n, 0) << "\"n\" should be at least 1";
@@ -132,8 +68,6 @@ GenerationConfig::GenerationConfig(String config_json_str,
   }
 
   n->seed = json::LookupOrDefault<int64_t>(config, "seed", std::random_device{}());
-  // "ignore_eos" is for benchmarking. Not the part of OpenAI API spec.
-  n->ignore_eos = json::LookupOrDefault<bool>(config, "ignore_eos", default_config->ignore_eos);
   // "-1" means the generation will not stop until exceeding
   // model capability or hit any stop criteria.
   n->max_tokens = json::LookupOrDefault<int64_t>(config, "max_tokens", -1);
@@ -184,13 +118,10 @@ GenerationConfig::GenerationConfig(String config_json_str,
   std::optional<picojson::object> debug_config_obj =
       json::LookupOptional<picojson::object>(config, "debug_config");
   if (debug_config_obj.has_value()) {
-    bool effecive_debug_config = false;
-    std::optional<bool> pinned_system_prompt =
-        json::LookupOptional<bool>(debug_config_obj.value(), "pinned_system_prompt");
-    effecive_debug_config |= (pinned_system_prompt.has_value() && pinned_system_prompt.value());
-    if (effecive_debug_config) {
-      n->debug_config = DebugConfig(pinned_system_prompt.value_or(false));
-    }
+    n->debug_config.pinned_system_prompt =
+        json::LookupOrDefault<bool>(debug_config_obj.value(), "pinned_system_prompt", false);
+    n->debug_config.ignore_eos =
+        json::LookupOrDefault<bool>(debug_config_obj.value(), "ignore_eos", false);
   }
 
   data_ = std::move(n);
@@ -239,9 +170,6 @@ String GenerationConfigNode::AsJSONString() const {
   }
   config["stop_token_ids"] = picojson::value(stop_token_ids_arr);
 
-  // Params for benchmarking. Not the part of openai spec.
-  config["ignore_eos"] = picojson::value(this->ignore_eos);
-
   picojson::object response_format;
   response_format["type"] = picojson::value(this->response_format.type);
   response_format["schema"] = this->response_format.schema
@@ -250,10 +178,11 @@ String GenerationConfigNode::AsJSONString() const {
   config["response_format"] = picojson::value(response_format);
 
   // Params for internal usage. Not the part of OpenAI API spec.
-  if (this->debug_config.has_value()) {
+  {
     picojson::object debug_config_obj;
     debug_config_obj["pinned_system_prompt"] =
-        picojson::value(this->debug_config.value().pinned_system_prompt);
+        picojson::value(this->debug_config.pinned_system_prompt);
+    debug_config_obj["ignore_eos"] = picojson::value(this->debug_config.ignore_eos);
     config["debug_config"] = picojson::value(debug_config_obj);
   }
 
