@@ -364,7 +364,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    */
   void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
     RequestStateEntry rsentry = input->rsentry;
-    if (estate->prefix_cache->mode == PrefixCacheMode::kDisable) {
+    if (estate->prefix_cache->Mode() == PrefixCacheMode::kDisable) {
       return;
     }
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&

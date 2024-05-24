@@ -507,7 +507,7 @@ def test_engine_efficiency():
         print("engine name:", name)
         if name == "Speculative Decoding":
             print("spec decode metrics:", metrics["spec_decode"])
-        print("engine total decode time:", metrics["sum_engine_decode_time"])
+        print("engine total decode time:", metrics["engine_decode_time_sum"])
         print()
 
 
@@ -579,7 +579,7 @@ def test_engine_spec_efficiency():
                 "Accept rate:",
                 metrics["sum_num_accepted_tokens"] / (1e-10 + metrics["sum_num_draft_tokens"]),
             )
-        print("engine total decode time:", metrics["sum_engine_decode_time"])
+        print("engine total decode time:", metrics["engine_decode_time_sum"])
         print()
 
 
@@ -642,7 +642,7 @@ def test_engine_eagle_spec_efficiency():
         print("engine name:", name)
         if name == "Speculative Decoding":
             print("spec decode:", metrics["spec_decode"])
-        print("engine total decode time:", metrics["sum_engine_decode_time"])
+        print("engine total decode time:", metrics["engine_decode_time_sum"])
         print()
 
 

@@ -8,6 +8,7 @@
 
 #include <picojson.h>
 
+#include <chrono>
 #include <string>
 
 namespace mlc {
