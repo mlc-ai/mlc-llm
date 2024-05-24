@@ -116,10 +116,8 @@ class PrefixCacheObj : public Object {
    */
   virtual void Reset() = 0;
 
-  /*!
-   * \brief The prefix cache mode.
-   */
-  static const PrefixCacheMode mode = PrefixCacheMode::kDisable;
+  /*! \brief Return the prefix cache mode. */
+  virtual PrefixCacheMode Mode() = 0;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "mlc.serve.PrefixCache";
