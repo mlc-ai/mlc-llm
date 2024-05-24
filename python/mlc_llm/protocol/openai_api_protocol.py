@@ -391,6 +391,9 @@ def openai_api_get_generation_config(
 ) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     from ..serve.config import ResponseFormat  # pylint: disable=import-outside-toplevel
+    from ..serve.config import (  # pylint: disable=import-outside-toplevel,redefined-outer-name
+        DebugConfig,
+    )
 
     kwargs: Dict[str, Any] = {}
     arg_names = [
@@ -404,7 +407,6 @@ def openai_api_get_generation_config(
         "top_logprobs",
         "logit_bias",
         "seed",
-        "debug_config",
     ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
@@ -418,4 +420,6 @@ def openai_api_get_generation_config(
         kwargs["response_format"] = ResponseFormat(
             **request.response_format.model_dump(by_alias=True)
         )
+    if request.debug_config is not None:
+        kwargs["debug_config"] = DebugConfig(**request.debug_config.model_dump())
     return kwargs

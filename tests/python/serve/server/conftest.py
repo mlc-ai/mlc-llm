@@ -4,7 +4,7 @@ from typing import Tuple
 
 import pytest
 
-from mlc_llm.serve import EngineConfig, PopenServer
+from mlc_llm.serve import PopenServer
 
 
 @pytest.fixture(scope="session")
@@ -27,6 +27,7 @@ def launch_server(served_model):  # pylint: disable=redefined-outer-name
         model=served_model[0],
         model_lib=served_model[1],
         enable_tracing=True,
+        enable_debug=True,
     )
 
     with server:

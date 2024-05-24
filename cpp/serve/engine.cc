@@ -599,7 +599,7 @@ class EngineModule : public ModuleNode {
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */
   void Abort(const String& request_id) { return GetEngine()->AbortRequest(request_id); }
-
+  /*! \brief Create request with given arguments and the engine default generation config. */
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) {
     auto gen_config =
         GenerationConfig::FromJSON(std::move(generation_cfg_json_str), default_generation_config_);
