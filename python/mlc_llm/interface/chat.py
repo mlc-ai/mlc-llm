@@ -1,19 +1,58 @@
 """Python entrypoint of chat."""
-from typing import List, Optional
+
+import dataclasses
+from typing import Dict, List, Optional, Union
 
 from prompt_toolkit import prompt as get_prompt  # pylint: disable=import-error
 from prompt_toolkit.key_binding import KeyBindings  # pylint: disable=import-error
 
 from mlc_llm.json_ffi import JSONFFIEngine
+from mlc_llm.support import argparse
+from mlc_llm.support.config import ConfigOverrideBase
+
+
+@dataclasses.dataclass
+class ChatCompletionOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+    """Flags for overriding chat completions."""
+
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    frequency_penalty: Optional[float] = None
+    presence_penalty: Optional[float] = None
+    max_tokens: Optional[int] = None
+    seed: Optional[int] = None
+    stop: Optional[Union[str, List[str]]] = None
+
+    @staticmethod
+    def from_str(source: str) -> "ChatCompletionOverride":
+        """Parse model config override values from a string."""
+        parser = argparse.ArgumentParser(description="chat completion override values")
+        parser.add_argument("--temperature", type=float, default=None)
+        parser.add_argument("--top_p", type=float, default=None)
+        parser.add_argument("--frequency_penalty", type=float, default=None)
+        parser.add_argument("--presence_penalty", type=float, default=None)
+        parser.add_argument("--max_tokens", type=int, default=None)
+        parser.add_argument("--seed", type=int, default=None)
+        parser.add_argument("--stop", type=str, default=None)
+        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
+        return ChatCompletionOverride(
+            temperature=results.temperature,
+            top_p=results.top_p,
+            frequency_penalty=results.frequency_penalty,
+            presence_penalty=results.presence_penalty,
+            max_tokens=results.max_tokens,
+            seed=results.seed,
+            stop=results.stop.split(",") if results.stop is not None else None,
+        )
 
 
 class ChatState:
     """Helper class to manage chat state"""
 
-    history: List[dict]
+    history: List[Dict]
     history_begin: int
     # kwargs passed to completions
-    overrides: dict
+    overrides: ChatCompletionOverride
     # we use JSON ffi engine to ensure broader coverage
     engine: JSONFFIEngine
 
@@ -21,7 +60,7 @@ class ChatState:
         self.engine = engine
         self.history = []
         self.history_window_begin = 0
-        self.overrides = {}
+        self.overrides = ChatCompletionOverride()
 
     def process_system_prompts(self):
         """Process system prompts"""
@@ -45,7 +84,9 @@ class ChatState:
         finish_reason_length = False
         messages = self.history[self.history_window_begin :]
         for response in self.engine.chat.completions.create(
-            messages=messages, stream=True, **self.overrides
+            messages=messages,
+            stream=True,
+            **dataclasses.asdict(self.overrides),
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
@@ -90,6 +131,9 @@ def _print_help_str():
   /stats              print out stats of last request (token/sec)
   /metrics            print out full engine metrics
   /reset              restart a fresh chat
+  /set [overrides]    override settings in the generation config. For example,
+                      `/set temperature=0.5;top_p=0.8;seed=23;max_tokens=100;stop=str1,str2`
+                      Note: Separate stop words in the `stop` option with commas (,).
   Multi-line input: Use escape+enter to start a new line.
 """
     print(help_str)
@@ -132,7 +176,12 @@ def chat(
             key_bindings=kb,
             multiline=True,
         )
-        if prompt[:6] == "/stats":
+        if prompt[:4] == "/set":
+            overrides = ChatCompletionOverride.from_str(prompt.split()[1])
+            for key, value in dataclasses.asdict(overrides).items():
+                if value is not None:
+                    setattr(chat_state.overrides, key, value)
+        elif prompt[:6] == "/stats":
             print(chat_state.stats(), flush=True)
         elif prompt[:8] == "/metrics":
             print(chat_state.metrics(), flush=True)
@@ -140,8 +189,6 @@ def chat(
             chat_state.reset_chat()
         elif prompt[:5] == "/exit":
             break
-        # elif prompt[:6] == "/stats":
-        #     print(cm.stats(), flush=True)
         elif prompt[:5] == "/help":
             _print_help_str()
         else:
