@@ -175,6 +175,10 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         std::min(num_prefill_inputs, static_cast<int>(prefill_inputs_for_all_models[i].size()));
   }
 
+  if (num_prefill_inputs == 0) {
+    return {};
+  }
+
   std::vector<PrefillInput> prefill_inputs(
       prefill_inputs_for_all_models[0].begin(),
       prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
