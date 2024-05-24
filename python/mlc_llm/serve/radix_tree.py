@@ -44,7 +44,7 @@ class PagedRadixTree(Object):
 
     def add(self, seq_id: int) -> None:
         """
-        Get all sequences with longest common prefix with give prefix tokens.
+        Add an empty sequence.
 
         Parameters
         ----------
@@ -66,7 +66,7 @@ class PagedRadixTree(Object):
 
     def extend(self, seq_id: int, tokens: Union[ShapeTuple, List, Tuple]) -> None:
         """
-        Get all sequences with longest common prefix with give prefix tokens.
+        Extend a sequence with given tokens.
 
         Parameters
         ----------
