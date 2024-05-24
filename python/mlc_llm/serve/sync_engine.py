@@ -16,6 +16,7 @@ import tvm
 from mlc_llm.serve import data
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.engine_base import (
+    EngineMetrics,
     _check_engine_config,
     _parse_models,
     _print_engine_mode_logging_msg,
@@ -320,6 +321,6 @@ class SyncMLCEngine:
         """Reset the engine, clean up all running data and metrics."""
         self._ffi["reset"]()
 
-    def metrics(self) -> Dict[str, float]:
+    def metrics(self) -> EngineMetrics:
         """The engine runtime metrics."""
-        return json.loads(self._ffi["json_metrics"]())
+        return EngineMetrics(json.loads(self._ffi["json_metrics"]()))

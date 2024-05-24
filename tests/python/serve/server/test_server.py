@@ -35,6 +35,7 @@ OPENAI_V1_MODELS_URL = "http://127.0.0.1:8000/v1/models"
 OPENAI_V1_COMPLETION_URL = "http://127.0.0.1:8000/v1/completions"
 OPENAI_V1_CHAT_COMPLETION_URL = "http://127.0.0.1:8000/v1/chat/completions"
 DEBUG_DUMP_EVENT_TRACE_URL = "http://127.0.0.1:8000/debug/dump_event_trace"
+METRICS_URL = "http://127.0.0.1:8000/metrics"
 
 
 JSON_TOKEN_PATTERN = (
@@ -1284,6 +1285,17 @@ def test_debug_dump_event_trace(
     payload = {"model": served_model[0]}
     response = requests.post(DEBUG_DUMP_EVENT_TRACE_URL, json=payload, timeout=180)
     assert response.status_code == HTTPStatus.OK
+
+
+def test_metrics(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+    # We only check that the request does not fail.
+    metrics_text = requests.get(METRICS_URL, timeout=180).text
+    assert "engine_prefill_time_sum" in metrics_text
 
 
 if __name__ == "__main__":

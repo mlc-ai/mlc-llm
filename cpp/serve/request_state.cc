@@ -197,10 +197,13 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
 
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
-RequestState::RequestState(std::vector<RequestStateEntry> entries) {
+RequestState::RequestState(std::vector<RequestStateEntry> entries,
+                           std::chrono::high_resolution_clock::time_point add_time_point) {
+  ICHECK(!entries.empty());
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   n->entries = std::move(entries);
-  n->tadd = std::chrono::high_resolution_clock::now();
+  n->metrics.num_input_tokens = n->entries[0]->request->num_input_tokens;
+  n->metrics.add_time_point = add_time_point;
   data_ = std::move(n);
 }
 

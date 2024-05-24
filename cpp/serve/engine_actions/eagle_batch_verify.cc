@@ -153,6 +153,9 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
       }
+      // Metrics update
+      // live update the output metrics
+      rsentries[i]->rstate->metrics.num_output_tokens += accept_length;
       estate->metrics.spec_decode.Update(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
                                          accept_length);
       // - Minus one because the last draft token has no kv cache entry
@@ -302,7 +305,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     }
     auto tend = std::chrono::high_resolution_clock::now();
     double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
-    estate->metrics.sum_engine_decode_time += elapsed_time;
+    estate->metrics.engine_decode_time_sum += elapsed_time;
     estate->metrics.UpdateVerifyTimeByBatchSize(cum_verify_lengths.back(), elapsed_time);
 
     return estate->running_queue;

@@ -11,6 +11,7 @@ from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
     EngineConfig,
+    EngineMetrics,
     _check_engine_config,
     _parse_models,
     _process_model_args,
@@ -249,9 +250,9 @@ class JSONFFIEngine:
 
         self.chat = Chat(self._ffi, self._state, self._background_loops)
 
-    def metrics(self) -> Dict[str, Any]:
+    def metrics(self) -> EngineMetrics:
         """Get the engine metrics."""
-        return json.loads(self._ffi["json_metrics"]())
+        return EngineMetrics(json.loads(self._ffi["json_metrics"]()))
 
     def _raw_chat_completion(
         self, request_json_str: str, n: int, request_id: str

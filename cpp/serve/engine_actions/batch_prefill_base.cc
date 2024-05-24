@@ -397,9 +397,10 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
             TokenData(std::vector<int64_t>{sample_results[i].sampled_token_id.first}));
       }
     }
+    // prefill has finished
     if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
-      ICHECK(rsentries_for_sample[i]->rstate.defined());
-      Downcast<RequestState>(rsentries_for_sample[i]->rstate)->tprefill_finish = tnow;
+      ICHECK(rsentries_for_sample[i]->rstate != nullptr);
+      rsentries_for_sample[i]->rstate->metrics.prefill_end_time_point = tnow;
     }
   }
 }

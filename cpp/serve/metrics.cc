@@ -70,62 +70,66 @@ picojson::value SpecDecodeMetrics::AsJSON() const {
   return picojson::value(metrics);
 }
 
+picojson::value RequestMetrics::AsJSON() const {
+  picojson::object metrics;
+  metrics["num_input_tokens"] = picojson::value(num_input_tokens);
+  metrics["num_prefill_tokens"] = picojson::value(num_prefill_tokens);
+  metrics["num_output_tokens"] = picojson::value(num_output_tokens);
+
+  if (num_output_tokens != 0) {
+    metrics["decode_tokens_per_s"] = picojson::value(num_output_tokens / this->GetDecodeTime());
+  }
+  if (num_prefill_tokens != 0) {
+    metrics["prefill_tokens_per_s"] = picojson::value(num_prefill_tokens / this->GetPrefillTime());
+  }
+  metrics["end_to_end_latency_s"] = picojson::value(this->GetTotalTime());
+  return picojson::value(metrics);
+}
+
 picojson::value EngineMetrics::AsJSON() const {
   picojson::object metrics;
-  metrics["sum_engine_prefill_time"] = picojson::value(sum_engine_prefill_time);
-  metrics["sum_engine_decode_time"] = picojson::value(sum_engine_decode_time);
-  metrics["sum_num_input_tokens"] = picojson::value(sum_num_input_tokens);
-  metrics["sum_num_prefill_tokens"] = picojson::value(sum_num_prefill_tokens);
-  metrics["sum_num_output_tokens"] = picojson::value(sum_num_output_tokens);
+  metrics["engine_prefill_time_sum"] = picojson::value(engine_prefill_time_sum);
+  metrics["engine_decode_time_sum"] = picojson::value(engine_decode_time_sum);
+  metrics["num_input_tokens_sum"] = picojson::value(num_input_tokens_sum);
+  metrics["num_prefill_tokens_sum"] = picojson::value(num_prefill_tokens_sum);
+  metrics["num_output_tokens_sum"] = picojson::value(num_output_tokens_sum);
+  metrics["last_finished_request"] = last_finished_request.AsJSON();
+  if (!spec_decode.IsEmpty()) {
+    metrics["spec_decode"] = spec_decode.AsJSON();
+  }
 
-  metrics["last_finished_req_prefill_time"] = picojson::value(last_finished_req_prefill_time);
-  metrics["last_finished_req_decode_time"] = picojson::value(last_finished_req_decode_time);
-  metrics["last_finished_req_num_input_tokens"] =
-      picojson::value(last_finished_req_num_input_tokens);
-  metrics["last_finished_req_num_prefill_tokens"] =
-      picojson::value(last_finished_req_num_prefill_tokens);
-  metrics["last_finished_req_num_output_tokens"] =
-      picojson::value(last_finished_req_num_output_tokens);
-
-  metrics["spec_decode"] = spec_decode.AsJSON();
-
-  auto f_create_time_list = [](const std::string& label_name,
-                               const std::vector<TimeCost>& time_list) {
+  auto f_create_time_list = [](const std::vector<TimeCost>& time_list) {
     picojson::object result;
     for (size_t i = 1; i < time_list.size(); ++i) {
       const TimeCost& item = time_list[i];
       if (item.count == 0) continue;
       std::ostringstream label_mean;
-      label_mean << "mean_" << label_name << "{batch_size=" << i << "}";
+      label_mean << "mean"
+                 << "{batch_size=" << i << "}";
       double mean = item.sum / item.count;
       result[label_mean.str()] = picojson::value(mean);
       std::ostringstream label_count;
-      label_count << "count_" << label_name << "{batch_size=" << i << "}";
+      label_count << "count"
+                  << "{batch_size=" << i << "}";
       result[label_count.str()] = picojson::value(item.count);
     }
     return picojson::value(result);
   };
 
-  metrics["decode_time_by_batch_size"] =
-      f_create_time_list("decode_time", decode_time_by_batch_size);
-  metrics["draft_time_by_batch_size"] = f_create_time_list("draft_time", draft_time_by_batch_size);
-  metrics["verify_time_by_batch_size"] =
-      f_create_time_list("verify_time", verify_time_by_batch_size);
+  metrics["decode_time_by_batch_size"] = f_create_time_list(decode_time_by_batch_size);
+  metrics["draft_time_by_batch_size"] = f_create_time_list(draft_time_by_batch_size);
+  metrics["verify_time_by_batch_size"] = f_create_time_list(verify_time_by_batch_size);
 
   return picojson::value(metrics);
 }
 
 void EngineMetrics::Reset() {
-  sum_engine_prefill_time = 0.0;
-  sum_engine_decode_time = 0.0;
-  sum_num_input_tokens = 0;
-  sum_num_prefill_tokens = 0;
-  sum_num_output_tokens = 0;
-  last_finished_req_prefill_time = 0.0;
-  last_finished_req_decode_time = 0.0;
-  last_finished_req_num_input_tokens = 0.0;
-  last_finished_req_num_prefill_tokens = 0.0;
-  last_finished_req_num_output_tokens = 0.0;
+  engine_prefill_time_sum = 0.0;
+  engine_decode_time_sum = 0.0;
+  num_input_tokens_sum = 0;
+  num_prefill_tokens_sum = 0;
+  num_output_tokens_sum = 0;
+  last_finished_request.Reset();
   spec_decode.Reset();
   decode_time_by_batch_size.clear();
   draft_time_by_batch_size.clear();

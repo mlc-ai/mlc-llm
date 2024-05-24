@@ -226,7 +226,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                                sample_results);
 
     auto tend = std::chrono::high_resolution_clock::now();
-    estate->metrics.sum_engine_prefill_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    estate->metrics.engine_prefill_time_sum += static_cast<double>((tend - tstart).count()) / 1e9;
 
     std::vector<Request> processed_requests =
         RemoveProcessedRequests(prefill_inputs, estate, rstates_of_entries);

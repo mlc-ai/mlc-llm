@@ -248,6 +248,8 @@ class EngineImpl : public Engine {
 
   void AddRequest(Request request) final {
     RECORD_EVENT(trace_recorder_, request->id, "request added to engine");
+    auto add_time_point = std::chrono::high_resolution_clock::now();
+
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
     ICHECK_NE(request->num_input_tokens, -1);
@@ -288,10 +290,11 @@ class EngineImpl : public Engine {
                                /*parent_idx=*/0);
       }
     }
-    RequestState rstate = RequestState(std::move(rsentries));
+    RequestState rstate = RequestState(std::move(rsentries), add_time_point);
     for (const RequestStateEntry& rsentry : rstate->entries) {
       // Set the back reference.
-      rsentry->rstate = rstate;
+      // note, we avoid cyclic reference and use raw ptr.
+      rsentry->rstate = rstate.operator->();
     }
     estate_->request_states.emplace(request->id, rstate);
   }

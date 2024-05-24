@@ -143,7 +143,7 @@ class BatchDraftActionObj : public EngineActionObj {
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
-    estate->metrics.sum_engine_decode_time += static_cast<double>((tend - tstart).count()) / 1e9;
+    estate->metrics.engine_decode_time_sum += static_cast<double>((tend - tstart).count()) / 1e9;
 
     return {};
   }
