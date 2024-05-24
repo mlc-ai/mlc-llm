@@ -232,8 +232,6 @@ The REST API provides the following endpoints:
 
 - **user** (*Optional[str]*): An optional identifier for the user initiating the request.
 
-- **ignore_eos** (*bool*, optional, default=False): If `True`, the model will ignore the end-of-sequence token for generating responses.
-
 - **response_format** (*RequestResponseFormat*, optional): Specifies the format of the response. Can be either "text" or "json_object", with optional schema definition for JSON responses.
 
 **Returns**
