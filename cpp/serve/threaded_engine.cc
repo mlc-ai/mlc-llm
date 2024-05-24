@@ -220,9 +220,10 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) const {
-    return Request(
-        std::move(id), std::move(inputs),
-        GenerationConfig(std::move(generation_cfg_json_str), GetDefaultGenerationConfig()));
+    auto gen_config = GenerationConfig::FromJSON(std::move(generation_cfg_json_str),
+                                                 GetDefaultGenerationConfig());
+    CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
+    return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
   }
 
   EngineConfig GetCompleteEngineConfig() const final {

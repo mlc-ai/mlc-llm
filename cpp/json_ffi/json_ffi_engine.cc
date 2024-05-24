@@ -97,9 +97,14 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   gen_cfg->stop_token_ids = conv_template_.stop_token_ids;
   gen_cfg->debug_config = request.debug_config.value_or(DebugConfig());
 
-  Request engine_request(request_id, inputs, GenerationConfig(gen_cfg));
-  this->engine_->AddRequest(engine_request);
+  Result<GenerationConfig> res_gen_config = GenerationConfig::Validate(GenerationConfig(gen_cfg));
+  if (res_gen_config.IsErr()) {
+    err_ = res_gen_config.UnwrapErr();
+    return false;
+  }
 
+  Request engine_request(request_id, inputs, res_gen_config.Unwrap());
+  this->engine_->AddRequest(engine_request);
   return true;
 }
 

@@ -23,33 +23,57 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
 
-GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfig& default_config) {
+Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
+  using TResult = Result<GenerationConfig>;
+  if (cfg->n <= 0) {
+    return TResult::Error("\"n\" should be at least 1");
+  }
+  if (cfg->temperature < 0) {
+    return TResult::Error("\"temperature\" should be non-negative");
+  }
+  if (cfg->top_p < 0 || cfg->top_p > 1) {
+    return TResult::Error("\"top_p\" should be in range [0, 1]");
+  }
+  if (std::fabs(cfg->frequency_penalty) > 2.0) {
+    return TResult::Error("frequency_penalty must be in [-2, 2]!");
+  }
+  if (cfg->repetition_penalty <= 0) {
+    return TResult::Error("\"repetition_penalty\" must be positive");
+  }
+  if (cfg->top_logprobs < 0 || cfg->top_logprobs > 5) {
+    return TResult::Error("At most 5 top logprob tokens are supported");
+  }
+  if (cfg->top_logprobs != 0 && !(cfg->logprobs)) {
+    return TResult::Error("\"logprobs\" must be true to support \"top_logprobs\"");
+  }
+  for (const auto& item : cfg->logit_bias) {
+    double bias_value = item.second;
+    if (std::fabs(bias_value) > 100.0) {
+      return TResult::Error("Logit bias value should be in range [-100, 100].");
+    }
+  }
+  return TResult::Ok(cfg);
+}
+
+Result<GenerationConfig> GenerationConfig::FromJSON(String config_json_str,
+                                                    const GenerationConfig& default_config) {
+  using TResult = Result<GenerationConfig>;
   picojson::object config = json::ParseToJSONObject(config_json_str);
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
 
   n->n = json::LookupOrDefault<int64_t>(config, "n", default_config->n);
-  CHECK_GT(n->n, 0) << "\"n\" should be at least 1";
   n->temperature =
       json::LookupOrDefault<double>(config, "temperature", default_config->temperature);
-  CHECK_GE(n->temperature, 0) << "\"temperature\" should be non-negative";
   n->top_p = json::LookupOrDefault<double>(config, "top_p", default_config->top_p);
-  CHECK(n->top_p >= 0 && n->top_p <= 1) << "\"top_p\" should be in range [0, 1]";
   n->frequency_penalty =
       json::LookupOrDefault<double>(config, "frequency_penalty", default_config->frequency_penalty);
-  CHECK(std::fabs(n->frequency_penalty) <= 2.0) << "Frequency penalty must be in [-2, 2]!";
   n->presence_penalty =
       json::LookupOrDefault<double>(config, "presence_penalty", default_config->presence_penalty);
-  CHECK(std::fabs(n->presence_penalty) <= 2.0) << "Presence penalty must be in [-2, 2]!";
   n->repetition_penalty = json::LookupOrDefault<double>(config, "repetition_penalty",
                                                         default_config->repetition_penalty);
-  CHECK(n->repetition_penalty > 0) << "Repetition penalty must be a positive number!";
   n->logprobs = json::LookupOrDefault<bool>(config, "logprobs", default_config->logprobs);
   n->top_logprobs =
       json::LookupOrDefault<int64_t>(config, "top_logprobs", default_config->top_logprobs);
-  CHECK(n->top_logprobs >= 0 && n->top_logprobs <= 5)
-      << "At most 5 top logprob tokens are supported";
-  CHECK(n->top_logprobs == 0 || n->logprobs)
-      << "\"logprobs\" must be true to support \"top_logprobs\"";
 
   std::optional<picojson::object> logit_bias_obj =
       json::LookupOptional<picojson::object>(config, "logit_bias");
@@ -59,7 +83,6 @@ GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfi
     for (auto [token_id_str, bias] : logit_bias_obj.value()) {
       CHECK(bias.is<double>());
       double bias_value = bias.get<double>();
-      CHECK_LE(std::fabs(bias_value), 100.0) << "Logit bias value should be in range [-100, 100].";
       logit_bias.emplace_back(std::stoi(token_id_str), bias_value);
     }
     n->logit_bias = std::move(logit_bias);
@@ -78,7 +101,9 @@ GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfi
     Array<String> stop_strs;
     stop_strs.reserve(stop_strs_arr.value().size());
     for (const picojson::value& v : stop_strs_arr.value()) {
-      CHECK(v.is<std::string>()) << "Invalid stop string in stop_strs";
+      if (!v.is<std::string>()) {
+        return TResult::Error("Invalid stop string in stop_strs");
+      }
       stop_strs.push_back(v.get<std::string>());
     }
     n->stop_strs = std::move(stop_strs);
@@ -91,7 +116,9 @@ GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfi
     std::vector<int> stop_token_ids;
     stop_token_ids.reserve(stop_token_ids_arr.value().size());
     for (const picojson::value& v : stop_token_ids_arr.value()) {
-      CHECK(v.is<int64_t>()) << "Invalid stop token in stop_token_ids";
+      if (!v.is<int64_t>()) {
+        return TResult::Error("Invalid stop token in stop_token_ids");
+      }
       stop_token_ids.push_back(v.get<int64_t>());
     }
     n->stop_token_ids = std::move(stop_token_ids);
@@ -123,8 +150,7 @@ GenerationConfig::GenerationConfig(String config_json_str, const GenerationConfi
     n->debug_config.ignore_eos =
         json::LookupOrDefault<bool>(debug_config_obj.value(), "ignore_eos", false);
   }
-
-  data_ = std::move(n);
+  return Validate(GenerationConfig(n));
 }
 
 GenerationConfig GenerationConfig::GetDefaultFromModelConfig(

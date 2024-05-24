@@ -68,7 +68,19 @@ class GenerationConfigNode : public Object {
 
 class GenerationConfig : public ObjectRef {
  public:
-  explicit GenerationConfig(String config_json_str, const GenerationConfig& default_config);
+  /*!
+   * \brief Run validation of generation config and ensure values are in bound.
+   * \return The validtaed Generation config or error.
+   */
+  static Result<GenerationConfig> Validate(GenerationConfig cfg);
+
+  /*!
+   * \brief Create generation config from JSON.
+   * \param config_json_str The json string for generation config
+   * \param default_config The default config
+   */
+  static Result<GenerationConfig> FromJSON(String config_json_str,
+                                           const GenerationConfig& default_config);
 
   /*! \brief Get the default generation config from the model config. */
   static GenerationConfig GetDefaultFromModelConfig(const picojson::object& json);
@@ -192,7 +204,7 @@ class EngineConfigNode : public Object {
   /*************** Debug ***************/
   bool verbose = false;
 
-  TVM_DLL String AsJSONString() const;
+  String AsJSONString() const;
 
   static constexpr const char* _type_key = "mlc.serve.EngineConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -203,14 +215,14 @@ class EngineConfigNode : public Object {
 class EngineConfig : public ObjectRef {
  public:
   /*! \brief Create EngineConfig from JSON object and inferred config. */
-  TVM_DLL static EngineConfig FromJSONAndInferredConfig(
-      const picojson::object& json, const InferrableEngineConfig& inferred_config);
+  static EngineConfig FromJSONAndInferredConfig(const picojson::object& json,
+                                                const InferrableEngineConfig& inferred_config);
 
   /*!
    * \brief Get all the models and model libs from the JSON string for engine initialization.
    * \return The parsed models/model libs from config or error message.
    */
-  TVM_DLL static Result<std::vector<std::pair<std::string, std::string>>>
+  static Result<std::vector<std::pair<std::string, std::string>>>
   GetModelsAndModelLibsFromJSONString(const std::string& json_str);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
@@ -225,13 +237,13 @@ struct InferrableEngineConfig {
   std::optional<int64_t> max_history_size;
 
   /*! \brief Infer the config for KV cache from a given initial config. */
-  TVM_DLL static Result<InferrableEngineConfig> InferForKVCache(
+  static Result<InferrableEngineConfig> InferForKVCache(
       EngineMode mode, Device device, double gpu_memory_utilization,
       const std::vector<picojson::object>& model_configs,
       const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
       bool verbose);
   /*! \brief Infer the config for RNN state from a given initial config. */
-  TVM_DLL static Result<InferrableEngineConfig> InferForRNNState(
+  static Result<InferrableEngineConfig> InferForRNNState(
       EngineMode mode, Device device, double gpu_memory_utilization,
       const std::vector<picojson::object>& model_configs,
       const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
