@@ -126,7 +126,7 @@ class SamplerObj : public Object {
 class Sampler : public ObjectRef {
  public:
   /*! * \brief Create a CPU sampler. */
-  TVM_DLL static Sampler CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder);
+  static Sampler CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create a GPU sampler.
    * \param max_num_sample The max number of samples to sample at a time.
@@ -135,9 +135,8 @@ class Sampler : public ObjectRef {
    * \param device The device that the model runs on.
    * \param trace_recorder The event trace recorder.
    */
-  TVM_DLL static Sampler CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
-                                          DLDevice device,
-                                          Optional<EventTraceRecorder> trace_recorder);
+  static Sampler CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
+                                  DLDevice device, Optional<EventTraceRecorder> trace_recorder);
 
   /*! \brief Check if the given device supports GPU sampling. */
   static bool SupportGPUSampler(Device device) {
