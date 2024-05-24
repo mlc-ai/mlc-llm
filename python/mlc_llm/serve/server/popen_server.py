@@ -28,6 +28,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
+        enable_debug: bool = False,
         host: str = "127.0.0.1",
         port: int = 8000,
     ) -> None:
@@ -43,6 +44,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.mode = mode
         self.engine_config = engine_config
         self.enable_tracing = enable_tracing
+        self.enable_debug = enable_debug
         self.host = host
         self.port = port
         self._proc: Optional[subprocess.Popen] = None
@@ -96,6 +98,8 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
 
         if self.enable_tracing:
             cmd += ["--enable-tracing"]
+        if self.enable_debug:
+            cmd += ["--enable-debug"]
 
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]

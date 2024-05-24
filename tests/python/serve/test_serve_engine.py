@@ -175,9 +175,9 @@ def test_completion(model: str, model_lib: str):
             model=model,
             max_tokens=max_tokens,
             n=n,
-            ignore_eos=True,
             request_id=str(rid),
             stream=True,
+            debug_config={"ignore_eos": True},
         ):
             for choice in response.choices:
                 output_texts[rid][choice.index] += choice.text
@@ -212,8 +212,8 @@ def test_completion_non_stream(model: str, model_lib: str):
             model=model,
             max_tokens=max_tokens,
             n=n,
-            ignore_eos=True,
             request_id=str(rid),
+            debug_config={"ignore_eos": True},
         )
         for choice in response.choices:
             output_texts[rid][choice.index] += choice.text

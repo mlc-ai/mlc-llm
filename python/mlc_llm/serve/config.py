@@ -33,6 +33,9 @@ class ResponseFormat:
 class DebugConfig:
     """The debug configuration dataclass.Parameters
     ----------
+    ignore_eos : bool
+        When it is true, ignore the eos token and generate tokens until `max_tokens`.
+        Default is set to False.
 
     pinned_system_prompt : bool
         Whether the input and generated data pinned in engine. Default is set to False.
@@ -40,6 +43,7 @@ class DebugConfig:
         kept all the time.
     """
 
+    ignore_eos: bool = False
     pinned_system_prompt: bool = False
 
 
