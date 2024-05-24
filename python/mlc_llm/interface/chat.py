@@ -1,5 +1,4 @@
 """Python entrypoint of chat."""
-
 from typing import List, Optional
 
 from prompt_toolkit import prompt as get_prompt  # pylint: disable=import-error
@@ -29,7 +28,7 @@ class ChatState:
         # TODO(mlc-team): possibly leverage debug option
         # pass a simple prompt to warm up
         for _ in self.engine.chat.completions.create(
-            messages=[{"role": "user", "content": "hello"}], max_tokens=1, stream=True
+            messages=[{"role": "user", "content": ""}], max_tokens=1, stream=True
         ):
             pass
 
@@ -67,22 +66,16 @@ class ChatState:
     def stats(self) -> str:
         """Return the statistics of the prefill and decode speed."""
         metrics = self.engine.metrics()
-        last_finished_req_num_prefill_tokens = metrics["last_finished_req_num_prefill_tokens"]
-        last_finished_req_num_output_tokens = metrics["last_finished_req_num_output_tokens"]
-        last_finished_req_prefill_time = metrics["last_finished_req_prefill_time"]
-        last_finished_req_decode_time = metrics["last_finished_req_decode_time"]
-
-        prefill_speed = (
-            f"{last_finished_req_num_prefill_tokens / last_finished_req_prefill_time:.3f}"
-            if last_finished_req_prefill_time > 0
-            else "N/A"
-        )
-        decode_speed = (
-            f"{last_finished_req_num_output_tokens / last_finished_req_decode_time:.3f}"
-            if last_finished_req_decode_time > 0
-            else "N/A"
-        )
+        last_finished_request = metrics["last_finished_request"]
+        prefill_speed = last_finished_request.get("prefill_tokens_per_s", None)
+        decode_speed = last_finished_request.get("decode_tokens_per_s", None)
+        prefill_speed = f"{prefill_speed:.1f}" if prefill_speed is not None else "N/A"
+        decode_speed = f"{decode_speed:.1f}" if decode_speed is not None else "N/A"
         return f"prefill: {prefill_speed} tok/s, decode: {decode_speed} tok/s"
+
+    def metrics(self) -> str:
+        """Return metrics as prometheus text"""
+        return self.engine.metrics().prometheus_text()
 
     def reset_chat(self):
         """Reset the chat history"""
@@ -94,7 +87,8 @@ def _print_help_str():
     help_str = """You can use the following special commands:
   /help               print the special commands
   /exit               quit the cli
-  /stats              print out the latest stats (token/sec)
+  /stats              print out stats of last request (token/sec)
+  /metrics            print out full engine metrics
   /reset              restart a fresh chat
   Multi-line input: Use escape+enter to start a new line.
 """
@@ -140,6 +134,8 @@ def chat(
         )
         if prompt[:6] == "/stats":
             print(chat_state.stats(), flush=True)
+        elif prompt[:8] == "/metrics":
+            print(chat_state.metrics(), flush=True)
         elif prompt[:6] == "/reset":
             chat_state.reset_chat()
         elif prompt[:5] == "/exit":

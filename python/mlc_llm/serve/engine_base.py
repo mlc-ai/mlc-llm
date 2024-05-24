@@ -5,6 +5,7 @@
 import ast
 import asyncio
 import json
+import numbers
 import queue
 import sys
 import threading
@@ -192,6 +193,54 @@ def _print_engine_mode_logging_msg(mode: Literal["local", "interactive", "server
             "If you have high concurrent requests and want to maximize the GPU memory utilization, "
             'please select mode "server".'
         )
+
+
+class EngineMetrics:
+    """Class to store the result returned by engine metrics"""
+
+    metrics: dict
+
+    def __init__(self, metrics):
+        self.metrics = metrics
+
+    def __str__(self):
+        return self.metrics.__str__()
+
+    def __repr__(self):
+        return self.metrics.__repr__()
+
+    def __getitem__(self, key):
+        return self.metrics[key]
+
+    def prometheus_text(self) -> str:
+        """Convert engine metrics into prometheus text format
+
+        Returns
+        -------
+        text: str
+            The metrics in prometheus text format
+        """
+        output_lines = [
+            "# NOTE: these metrics count token in the unit of serving model's tokenization",
+            "# be careful when comparing them to client-side metrics that may use",
+            "# different tokenization to standardize across models.\n",
+        ]
+
+        def traverse(comment_scope, key_prefix, curr_value):
+            if isinstance(curr_value, dict):
+                if comment_scope:
+                    output_lines.append(f"\n# {comment_scope}")
+                # first prioritize metrics in current scope
+                for key, value in curr_value.items():
+                    if isinstance(value, numbers.Number):
+                        output_lines.append(f"{key_prefix}{key}\t{value}")
+                # then look into nested scopes if any
+                for key, value in curr_value.items():
+                    if isinstance(value, dict) and len(value) != 0:
+                        traverse(f"{comment_scope}/{key}", f"{key_prefix}{key}_", value)
+
+        traverse("", "", self.metrics)
+        return "\n".join(output_lines)
 
 
 @dataclass
@@ -543,22 +592,22 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
 
     def terminate(self):
         """Terminate the engine."""
-        if hasattr(self, '_terminated') and self._terminated:
+        if hasattr(self, "_terminated") and self._terminated:
             return
         self._terminated = True
         self._ffi["exit_background_loop"]()
-        if hasattr(self, '_background_loop_thread'):
+        if hasattr(self, "_background_loop_thread"):
             self._background_loop_thread.join()
-        if hasattr(self, '_background_stream_back_loop_thread'):
+        if hasattr(self, "_background_stream_back_loop_thread"):
             self._background_stream_back_loop_thread.join()
 
     def _debug_call_func_on_all_worker(self, func_name: str) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
         self._ffi["debug_call_func_on_all_worker"](func_name)
 
-    def metrics(self) -> Dict[str, Any]:
+    def metrics(self) -> EngineMetrics:
         """Get the engine metrics."""
-        return json.loads(self._ffi["json_metrics"]())
+        return EngineMetrics(json.loads(self._ffi["json_metrics"]()))
 
     def reset(self):
         """Reset the engine, clear the running data and metrics."""
