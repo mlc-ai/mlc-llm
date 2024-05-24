@@ -3,7 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncMLCEngine, GenerationConfig
+from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
 
 prompts = [
     "What is the meaning of life?",
@@ -26,8 +26,10 @@ async def test_engine_generate():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        additional_models=[small_model],
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            additional_models=[small_model],
+            speculative_mode="small_draft",
+        ),
     )
 
     num_requests = 10

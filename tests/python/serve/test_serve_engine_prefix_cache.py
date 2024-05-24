@@ -1,5 +1,5 @@
 from mlc_llm.serve import DebugConfig, GenerationConfig
-from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 prompts = [
     "The meaning of life is",
@@ -75,8 +75,10 @@ def test_basic_engine_system_prompt():
     engine = SyncMLCEngine(
         model=model,
         mode="local",
-        max_total_sequence_length=4096,
-        prefix_cache_max_num_recycling_seqs=5,
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            prefix_cache_max_num_recycling_seqs=5,
+        ),
     )
     test_engine_system_prompt(engine)
 
@@ -87,7 +89,7 @@ def test_basic_engine_multi_round():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
     test_engine_multi_round(engine)
 
@@ -100,9 +102,11 @@ def test_engine_spec_multi_round():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model],
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[small_model],
+            speculative_mode="small_draft",
+        ),
     )
 
     test_engine_multi_round(engine)
@@ -116,10 +120,12 @@ def test_engine_eagle_multi_round():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
-        speculative_mode="eagle",
-        max_batch_size=80,
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[(small_model, small_model_lib)],
+            speculative_mode="eagle",
+            max_num_sequence=80,
+        ),
     )
 
     test_engine_multi_round(engine)

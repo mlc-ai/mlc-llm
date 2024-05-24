@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
-from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -359,7 +359,7 @@ def test_engine_generate():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 10

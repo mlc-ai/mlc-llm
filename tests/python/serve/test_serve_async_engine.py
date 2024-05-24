@@ -3,7 +3,7 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncMLCEngine, GenerationConfig
+from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
 
 prompts = [
     "What is the meaning of life?",
@@ -25,7 +25,7 @@ async def test_engine_generate():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 10
@@ -80,7 +80,7 @@ async def test_chat_completion():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 2
@@ -130,7 +130,7 @@ async def test_chat_completion_non_stream():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 2
@@ -179,7 +179,7 @@ async def test_completion():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 2
@@ -229,7 +229,7 @@ async def test_completion_non_stream():
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
 
     num_requests = 2

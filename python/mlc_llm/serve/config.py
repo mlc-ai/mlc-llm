@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import asdict, dataclass, field
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 
 @dataclass
@@ -154,17 +154,16 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     model_lib : str
         The path to the model library.
 
-    additional_models : List[str]
-        The path to the additional models' directories.
-
-    additional_model_libs : List[str]
-        The path to the additional models' libraries.
+    additional_models : List[Union[str, Tuple[str, str]]]
+        The paths to the additional models' directories (and model libraries).
+        Each element is a single string (denoting the model directory)
+        or a tuple of two strings (denoting the model directory and model lib path).
 
     mode : Literal["local", "interactive", "server"]
         The engine mode in MLC LLM.
         We provide three preset modes: "local", "interactive" and "server".
         The default mode is "local".
-        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        The choice of mode decides the values of "max_num_sequence", "max_total_sequence_length"
         and "prefill_chunk_size" when they are not explicitly specified.
         1. Mode "local" refers to the local server deployment which has low
         request concurrency. So the max batch size will be set to 4, and max
@@ -179,7 +178,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         In this mode, we will automatically infer the largest possible max batch
         size and max total sequence length.
 
-        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        You can manually specify arguments "max_num_sequence", "max_total_sequence_length" and
         "prefill_chunk_size" to override the automatic inferred values.
 
     gpu_memory_utilization : float
@@ -236,11 +235,10 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         A boolean indicating whether to print logging info in engine.
     """
 
-    model: str
-    model_lib: str
-    additional_models: List[str] = field(default_factory=list)
-    additional_model_libs: List[str] = field(default_factory=list)
-    mode: Literal["local", "interactive", "server"] = "local"
+    model: Optional[str] = None
+    model_lib: Optional[str] = None
+    additional_models: List[Union[str, Tuple[str, str]]] = field(default_factory=list)
+    mode: Optional[Literal["local", "interactive", "server"]] = None
     gpu_memory_utilization: Optional[float] = None
     kv_cache_page_size: int = 16
     max_num_sequence: Optional[int] = None

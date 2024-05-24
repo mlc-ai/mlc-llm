@@ -52,23 +52,60 @@ class ModelInfo:
     model_lib: Optional[str] = None
 
 
+def _check_engine_config(
+    model: str,
+    model_lib: Optional[str],
+    mode: Literal["local", "interactive", "server"],
+    engine_config: EngineConfig,
+) -> None:
+    """Check if the given engine config is valid."""
+    if engine_config.model is not None and engine_config.model != model:
+        raise ValueError(
+            f'The argument "model" of engine constructor is "{model}", while the "model" '
+            f'field in argument "engine_config" is "{engine_config.model}". '
+            'Please set the "engine_config.model" to None or set it to the same as the '
+            'argument "model".'
+        )
+    if (
+        engine_config.model_lib is not None
+        and model_lib is not None
+        and engine_config.model_lib != model_lib
+    ):
+        raise ValueError(
+            f'The argument "model_lib" of engine constructor is "{model_lib}", while the '
+            f'"model_lib" field in argument "engine_config" is "{engine_config.model_lib}". '
+            'Please set the "engine_config.model_lib" to None or set it to the same as the '
+            'argument "model_lib".'
+        )
+    if engine_config.mode is not None and engine_config.mode != mode:
+        raise ValueError(
+            f'The argument "mode" of engine constructor is "{mode}", while the '
+            f'"mode" field in argument "engine_config" is "{engine_config.mode}". '
+            'Please set the "engine_config.mode" to None or set it to the same as the '
+            'argument "mode".'
+        )
+    if engine_config.kv_cache_page_size != 16:
+        raise ValueError(
+            'KV cache only supports page size 16, while the "kv_cache_page_size" field in '
+            f'argument "engine_config" is "{engine_config.kv_cache_page_size}". '
+            'Please set "engine_config.kv_cache_page_size" to 16.'
+        )
+
+
 def _parse_models(
-    model: str, model_lib: Optional[str], additional_models: Optional[List[str]]
+    model: str,
+    model_lib: Optional[str],
+    additional_models: List[Union[str, Tuple[str, str]]],
 ) -> List[ModelInfo]:
     """Parse the specified model paths and model libs.
     Return a list of ModelInfo, which is a wrapper class of the model path + lib path.
-
-    Each additional model is expected to follow the format of either
-    "{MODEL_PATH}" or "{MODEL_PATH}:{MODEL_LIB}".
     """
     models = [ModelInfo(model, model_lib)]
-    if additional_models is not None:
-        for additional_model in additional_models:
-            splits = additional_model.split(":", maxsplit=1)
-            if len(splits) == 2:
-                models.append(ModelInfo(splits[0], splits[1]))
-            else:
-                models.append(ModelInfo(splits[0]))
+    for additional_model in additional_models:
+        if isinstance(additional_model, str):
+            models.append(ModelInfo(additional_model))
+        else:
+            models.append(ModelInfo(additional_model[0], additional_model[1]))
     return models
 
 
@@ -419,21 +456,16 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         device: Union[str, tvm.runtime.Device],
         model_lib: Optional[str],
         mode: Literal["local", "interactive", "server"],
-        additional_models: Optional[List[str]],
-        max_batch_size: Optional[int],
-        max_total_sequence_length: Optional[int],
-        prefill_chunk_size: Optional[int],
-        max_history_size: Optional[int],
-        gpu_memory_utilization: Optional[float],
-        speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"],
-        spec_draft_length: int,
-        prefix_cache_mode: Literal["disable", "radix"],
-        prefix_cache_max_num_recycling_seqs: Optional[int],
+        engine_config: Optional[EngineConfig],
         enable_tracing: bool,
-        verbose: bool,
     ) -> None:
+        # - Check the fields fields of `engine_config`.
+        if engine_config is None:
+            engine_config = EngineConfig()
+        _check_engine_config(model, model_lib, mode, engine_config)
+
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib, additional_models)
+        models = _parse_models(model, model_lib, engine_config.additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, Device)
@@ -451,7 +483,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 self.model_config_dicts.append(json.load(file))
 
         # - Print logging info for regarding the mode selection.
-        if verbose:
+        if engine_config.verbose:
             _print_engine_mode_logging_msg(mode)
 
         # - Initialize engine state and engine.
@@ -493,26 +525,11 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         self._background_stream_back_loop_thread.start()
         self._terminated = False
 
-        self._ffi["reload"](
-            EngineConfig(
-                model=model_args[0][0],
-                model_lib=model_args[0][1],
-                additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
-                mode=mode,
-                gpu_memory_utilization=gpu_memory_utilization,
-                kv_cache_page_size=16,
-                max_num_sequence=max_batch_size,
-                max_total_sequence_length=max_total_sequence_length,
-                prefill_chunk_size=prefill_chunk_size,
-                max_history_size=max_history_size,
-                speculative_mode=speculative_mode,
-                spec_draft_length=spec_draft_length,
-                prefix_cache_mode=prefix_cache_mode,
-                prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
-                verbose=verbose,
-            ).asjson()
-        )
+        engine_config.model = model_args[0][0]
+        engine_config.model_lib = model_args[0][1]
+        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.mode = mode
+        self._ffi["reload"](engine_config.asjson())
         self.default_generation_cfg_json_str: str = self._ffi["get_default_generation_config"]()
         self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
         self.max_input_sequence_length = min(

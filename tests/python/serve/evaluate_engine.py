@@ -5,7 +5,7 @@ import random
 from typing import List, Tuple
 
 from mlc_llm.serve import GenerationConfig
-from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 
 def _parse_args():
@@ -46,8 +46,10 @@ def benchmark(args: argparse.Namespace):
         device=args.device,
         model_lib=args.model_lib,
         mode="server",
-        max_batch_size=args.batch_size,
-        max_total_sequence_length=args.max_total_seq_length,
+        engine_config=EngineConfig(
+            max_num_sequence=args.batch_size,
+            max_total_sequence_length=args.max_total_seq_length,
+        ),
     )
 
     print(args)

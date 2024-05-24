@@ -11,6 +11,7 @@ from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import engine_utils
 from mlc_llm.serve.engine_base import (
     EngineConfig,
+    _check_engine_config,
     _parse_models,
     _process_model_args,
     detect_device,
@@ -196,32 +197,20 @@ class JSONFFIEngine:
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
-        additional_models: Optional[List[str]] = None,
-        max_batch_size: Optional[int] = None,
-        max_total_sequence_length: Optional[int] = None,
-        max_history_size: Optional[int] = None,
-        prefill_chunk_size: Optional[int] = None,
-        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
-        spec_draft_length: int = 4,
-        gpu_memory_utilization: Optional[float] = None,
+        engine_config: Optional[EngineConfig] = None,
     ) -> None:
+        # - Check the fields fields of `engine_config`.
+        if engine_config is None:
+            engine_config = EngineConfig()
+        _check_engine_config(model, model_lib, mode, engine_config)
+
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib, additional_models)
+        models = _parse_models(model, model_lib, engine_config.additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, tvm.runtime.Device)
         model_args = _process_model_args(models, device)[0]
 
-        # TODO(mlc-team) Remove the model config parsing, estimation below
-        # in favor of a simple direct passing of parameters into backend.
-        # JSONFFIEngine do not have to support automatic mode
-        #
-        # Instead, its config should default to interactive mode always
-        # and allow overrides of parameters through json config via reload
-        #
-        # This is to simplify the logic of users of JSONFFI
-        # since we won't have similar logics in android/iOS
-        #
         # - Load the raw model config into dict
         for i, model_info in enumerate(models):
             model_info.model_lib = model_args[i][1]
@@ -247,22 +236,11 @@ class JSONFFIEngine:
         self.tokenizer = Tokenizer(model_args[0][0])
         self._background_loops = BackgroundLoops(self._ffi)
 
-        self.engine_config = EngineConfig(
-            model=model_args[0][0],
-            model_lib=model_args[0][1],
-            additional_models=[model_arg[0] for model_arg in model_args[1:]],
-            additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
-            mode=mode,
-            gpu_memory_utilization=gpu_memory_utilization,
-            kv_cache_page_size=16,
-            max_num_sequence=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-            max_history_size=max_history_size,
-            speculative_mode=speculative_mode,
-            spec_draft_length=spec_draft_length,
-            verbose=False,
-        )
+        engine_config.model = model_args[0][0]
+        engine_config.model_lib = model_args[0][1]
+        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.mode = mode
+        self.engine_config = engine_config
 
         self._ffi["init_background_engine"](
             device.device_type, device.device_id, self._state.get_request_stream_callback()

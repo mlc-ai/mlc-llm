@@ -66,7 +66,18 @@ To launch the MLC Server for MLC-LLM, run the following command in your terminal
 
 .. code:: bash
 
-   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--max-batch-size MAX_BATCH_SIZE] [--max-total-seq-length MAX_TOTAL_SEQ_LENGTH] [--prefill-chunk-size PREFILL_CHUNK_SIZE] [--enable-tracing] [--host HOST] [--port PORT] [--allow-credentials] [--allowed-origins ALLOWED_ORIGINS] [--allowed-methods ALLOWED_METHODS] [--allowed-headers ALLOWED_HEADERS]
+   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--mode MODE] \
+       [--additional-models ADDITIONAL-MODELS] \
+       [--speculative-mode SPECULATIVE-MODE] \
+       [--overrides OVERRIDES] \
+       [--enable-tracing] \
+       [--host HOST] \
+       [--port PORT] \
+       [--allow-credentials] \
+       [--allowed-origins ALLOWED_ORIGINS] \
+       [--allowed-methods ALLOWED_METHODS] \
+       [--allowed-headers ALLOWED_HEADERS]
+
 
 MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
@@ -76,10 +87,64 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
 
 --model-lib            A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
 --device               The description of the device to run on. User should provide a string in the
-                       form of 'device_name:device_id' or 'device_name', where 'device_name' is one of
-                       'cuda', 'metal', 'vulkan', 'rocm', 'opencl', 'auto' (automatically detect the
-                       local device), and 'device_id' is the device id to run on. The default value is ``auto``,
+                       form of ``device_name:device_id`` or ``device_name``, where ``device_name`` is one of
+                       ``cuda``, ``metal``, ``vulkan``, ``rocm``, ``opencl``, ``auto`` (automatically detect the
+                       local device), and ``device_id`` is the device id to run on. The default value is ``auto``,
                        with the device id set to 0 for default.
+--mode                 The engine mode in MLC LLM.
+                       We provide three preset modes: ``local``, ``interactive`` and ``server``.
+                       The default mode is ``local``.
+
+                       The choice of mode decides the values of "max_num_sequence", "max_total_sequence_length"
+                       and "prefill_chunk_size" when they are not explicitly specified.
+
+                       1. Mode "local" refers to the local server deployment which has low
+                       request concurrency. So the max batch size will be set to 4, and max
+                       total sequence length and prefill chunk size are set to the context
+                       window size (or sliding window size) of the model.
+
+                       2. Mode "interactive" refers to the interactive use of server, which
+                       has at most 1 concurrent request. So the max batch size will be set to 1,
+                       and max total sequence length and prefill chunk size are set to the context
+                       window size (or sliding window size) of the model.
+
+                       3. Mode "server" refers to the large server use case which may handle
+                       many concurrent request and want to use GPU memory as much as possible.
+                       In this mode, we will automatically infer the largest possible max batch
+                       size and max total sequence length.
+
+                       You can manually specify arguments "max_num_sequence", "max_total_seq_length" and
+                       "prefill_chunk_size" via ``--overrides`` to override the automatic inferred values.
+                       For example: ``--overrides "max_num_sequence=32;max_total_seq_length=4096"``.
+--additional-models    The model paths and (optional) model library paths of additional models (other
+                       than the main model).
+
+                       When engine is enabled with speculative decoding, additional models are needed.
+                       The way of specifying additional models is:
+                       ``--additional-models model_path_1 model_path_2 ...`` or
+                       ``--additional-models model_path_1,model_lib_1 model_path_2 ...``.
+
+                       When the model lib of a model is not given, JIT model compilation will be activated
+                       to compile the model automatically.
+--speculative-mode     The speculative decoding mode. Right now four options are supported:
+
+                       - ``disable``, where speculative decoding is not enabled,
+
+                       - ``small_draft``, denoting the normal speculative decoding (small draft) style,
+
+                       - ``eagle``, denoting the eagle-style speculative decoding.
+
+                       - ``medusa``, denoting the medusa-style speculative decoding.
+--overrides            Overriding extra configurable fields of EngineConfig.
+
+                       Supporting fields that can be be overridden: ``max_num_sequence``, ``max_total_seq_length``,
+                       ``prefill_chunk_size``, ``max_history_size``, ``gpu_memory_utilization``,
+                       ``spec_draft_length``, ``prefix_cache_max_num_recycling_seqs``.
+
+                       Please check out the documentation of EngineConfig in ``mlc_llm/serve/config.py``
+                       for detailed docstring of each field.
+                       Example: ``--overrides "max_num_sequence=32;max_total_seq_length=4096;gpu_memory_utilization=0.8"``
+--enable-tracing       A boolean indicating if to enable event logging for requests.
 --host                 The host at which the server should be started, defaults to ``127.0.0.1``.
 --port                 The port on which the server should be started, defaults to ``8000``.
 --allow-credentials    A flag to indicate whether the server should allow credentials. If set, the server will
@@ -87,10 +152,6 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
 --allowed-origins      Specifies the allowed origins. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all origins.
 --allowed-methods      Specifies the allowed methods. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all methods.
 --allowed-headers      Specifies the allowed headers. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all headers.
---max-batch-size       The maximum batch size for processing.
---max-total-seq-length   The maximum total number of tokens whose KV data are allowed to exist in the KV cache at any time. Set it to None to enable automatic computation of the max total sequence length.
---prefill-chunk-size   The maximum total sequence length in a prefill. If not specified, it will be automatically inferred from model config.
---enable-tracing       A boolean indicating if to enable event logging for requests.
 
 You can access ``http://127.0.0.1:PORT/docs`` (replace ``PORT`` with the port number you specified) to see the list of
 supported endpoints.

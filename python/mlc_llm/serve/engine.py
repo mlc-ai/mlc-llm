@@ -22,7 +22,7 @@ from tvm.runtime import Device
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import GenerationConfig
+from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.request import Request
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
@@ -776,7 +776,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         The engine mode in MLC LLM.
         We provide three preset modes: "local", "interactive" and "server".
         The default mode is "local".
-        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        The choice of mode decides the values of "max_num_sequence", "max_total_sequence_length"
         and "prefill_chunk_size" when they are not explicitly specified.
         1. Mode "local" refers to the local server deployment which has low
         request concurrency. So the max batch size will be set to 4, and max
@@ -791,66 +791,15 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         In this mode, we will automatically infer the largest possible max batch
         size and max total sequence length.
 
-        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        You can manually specify arguments "max_num_sequence", "max_total_sequence_length" and
         "prefill_chunk_size" to override the automatic inferred values.
 
-    additional_models : Optional[List[str]]
-        The model paths and (optional) model library paths of additional models
-        (other than the main model).
-        When engine is enabled with speculative decoding, additional models are needed.
-        Each string in the list is either in form "model_path" or "model_path:model_lib".
-        When the model lib of a model is not given, JIT model compilation will
-        be activated to compile the model automatically.
-
-    max_batch_size : Optional[int]
-        The maximum allowed batch size set for the KV cache to concurrently support.
-
-    max_total_sequence_length : Optional[int]
-        The KV cache total token capacity, i.e., the maximum total number of tokens that
-        the KV cache support. This decides the GPU memory size that the KV cache consumes.
-        If not specified, system will automatically estimate the maximum capacity based
-        on the vRAM size on GPU.
-
-    prefill_chunk_size : Optional[int]
-        The maximum number of tokens the model passes for prefill each time.
-        It should not exceed the prefill chunk size in model config.
-        If not specified, this defaults to the prefill chunk size in model config.
-
-    max_history_size : Optional[int]
-        The maximum history for RNN state.
-
-    gpu_memory_utilization : Optional[float]
-        A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
-        It is used to infer to maximum possible KV cache capacity.
-        When it is unspecified, it defaults to 0.85.
-        Under mode "local" or "interactive", the actual memory usage may be
-        significantly smaller than this number. Under mode "server", the actual
-        memory usage may be slightly larger than this number.
-
-    speculative_mode : Literal["disable", "small_draft", "eagle", "medusa"]
-        The speculative mode.
-        "disable" means speculative decoding is disabled.
-        "small_draft" means the normal speculative decoding (small draft) mode.
-        "eagle" means the eagle-style speculative decoding.
-        "medusa" means the medusa-style speculative decoding.
-
-    spec_draft_length : int
-        The number of tokens to generate in speculative proposal (draft).
-
-    prefix_cache_mode : Literal["disable", "radix"]
-        The prefix cache mode.
-        "disable" means no prefix cache is disabled.
-        "radix" means the paged radix tree based prefix cache mode.
-
-    prefix_cache_max_num_recycling_seqs: Optional[int]
-        The maximum number of recycling sequences in prefix cache, default as max_num_sequence.
-        And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
+    engine_config : Optional[EngineConfig]
+        Additional configurable arguments of MLC engine.
+        See class "EngineConfig" for more detail.
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
-
-    verbose : bool
-        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
@@ -860,18 +809,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
-        additional_models: Optional[List[str]] = None,
-        max_batch_size: Optional[int] = None,
-        max_total_sequence_length: Optional[int] = None,
-        prefill_chunk_size: Optional[int] = None,
-        max_history_size: Optional[int] = None,
-        gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable",
-        spec_draft_length: int = 4,
-        prefix_cache_mode: Literal["disable", "radix"] = "radix",
-        prefix_cache_max_num_recycling_seqs: Optional[int] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
-        verbose: bool = True,
     ) -> None:
         super().__init__(
             "async",
@@ -879,18 +818,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             device=device,
             model_lib=model_lib,
             mode=mode,
-            additional_models=additional_models,
-            max_batch_size=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-            max_history_size=max_history_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            speculative_mode=speculative_mode,
-            spec_draft_length=spec_draft_length,
-            prefix_cache_mode=prefix_cache_mode,
-            prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
+            engine_config=engine_config,
             enable_tracing=enable_tracing,
-            verbose=verbose,
         )
         self.chat = Chat(weakref.ref(self))
         self.completions = AsyncCompletion(weakref.ref(self))
@@ -1371,7 +1300,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         The engine mode in MLC LLM.
         We provide three preset modes: "local", "interactive" and "server".
         The default mode is "local".
-        The choice of mode decides the values of "max_batch_size", "max_total_sequence_length"
+        The choice of mode decides the values of "max_num_sequence", "max_total_sequence_length"
         and "prefill_chunk_size" when they are not explicitly specified.
         1. Mode "local" refers to the local server deployment which has low
         request concurrency. So the max batch size will be set to 4, and max
@@ -1386,62 +1315,15 @@ class MLCEngine(engine_base.MLCEngineBase):
         In this mode, we will automatically infer the largest possible max batch
         size and max total sequence length.
 
-        You can manually specify arguments "max_batch_size", "max_total_sequence_length" and
+        You can manually specify arguments "max_num_sequence", "max_total_sequence_length" and
         "prefill_chunk_size" to override the automatic inferred values.
 
-    additional_models : Optional[List[str]]
-        The model paths and (optional) model library paths of additional models
-        (other than the main model).
-        When engine is enabled with speculative decoding, additional models are needed.
-        Each string in the list is either in form "model_path" or "model_path:model_lib".
-        When the model lib of a model is not given, JIT model compilation will
-        be activated to compile the model automatically.
-
-    max_batch_size : Optional[int]
-        The maximum allowed batch size set for the KV cache to concurrently support.
-
-    max_total_sequence_length : Optional[int]
-        The KV cache total token capacity, i.e., the maximum total number of tokens that
-        the KV cache support. This decides the GPU memory size that the KV cache consumes.
-        If not specified, system will automatically estimate the maximum capacity based
-        on the vRAM size on GPU.
-
-    prefill_chunk_size : Optional[int]
-        The maximum number of tokens the model passes for prefill each time.
-        It should not exceed the prefill chunk size in model config.
-        If not specified, this defaults to the prefill chunk size in model config.
-
-    gpu_memory_utilization : Optional[float]
-        A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
-        It is used to infer to maximum possible KV cache capacity.
-        When it is unspecified, it defaults to 0.85.
-        Under mode "local" or "interactive", the actual memory usage may be
-        significantly smaller than this number. Under mode "server", the actual
-        memory usage may be slightly larger than this number.
-
-    speculative_mode : Literal["disable", "small_draft", "eagle"]
-        The speculative mode.
-        "disable" means speculative decoding is disabled.
-        "small_draft" means the normal speculative decoding (small draft) mode.
-        "eagle" means the eagle-style speculative decoding.
-
-    spec_draft_length : int
-        The number of tokens to generate in speculative proposal (draft).
-
-    prefix_cache_mode : Literal["disable", "radix"]
-        The prefix cache mode.
-        "disable" means no prefix cache is disabled.
-        "radix" means the paged radix tree based prefix cache mode.
-
-    prefix_cache_max_num_recycling_seqs: Optional[int]
-        The maximum number of recycling sequences in prefix cache, default as max_num_sequence.
-        And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
+    engine_config : Optional[EngineConfig]
+        Additional configurable arguments of MLC engine.
+        See class "EngineConfig" for more detail.
 
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
-
-    verbose : bool
-        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
@@ -1451,18 +1333,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
-        additional_models: Optional[List[str]] = None,
-        max_batch_size: Optional[int] = None,
-        max_total_sequence_length: Optional[int] = None,
-        prefill_chunk_size: Optional[int] = None,
-        max_history_size: Optional[int] = None,
-        gpu_memory_utilization: Optional[float] = None,
-        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
-        spec_draft_length: int = 4,
-        prefix_cache_mode: Literal["disable", "radix"] = "radix",
-        prefix_cache_max_num_recycling_seqs: Optional[int] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
-        verbose: bool = True,
     ) -> None:
         super().__init__(
             "sync",
@@ -1470,18 +1342,8 @@ class MLCEngine(engine_base.MLCEngineBase):
             device=device,
             model_lib=model_lib,
             mode=mode,
-            additional_models=additional_models,
-            max_batch_size=max_batch_size,
-            max_total_sequence_length=max_total_sequence_length,
-            prefill_chunk_size=prefill_chunk_size,
-            max_history_size=max_history_size,
-            gpu_memory_utilization=gpu_memory_utilization,
-            speculative_mode=speculative_mode,
-            spec_draft_length=spec_draft_length,
-            prefix_cache_mode=prefix_cache_mode,
-            prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
+            engine_config=engine_config,
             enable_tracing=enable_tracing,
-            verbose=verbose,
         )
         self.chat = Chat(weakref.ref(self))
         self.completions = Completion(weakref.ref(self))

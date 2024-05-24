@@ -4,7 +4,7 @@ from typing import Tuple
 
 import pytest
 
-from mlc_llm.serve import PopenServer
+from mlc_llm.serve import EngineConfig, PopenServer
 
 
 @pytest.fixture(scope="session")
