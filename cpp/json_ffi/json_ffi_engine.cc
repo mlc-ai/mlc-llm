@@ -91,8 +91,8 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   gen_cfg->logprobs = request.logprobs;
   gen_cfg->top_logprobs = request.top_logprobs;
   gen_cfg->logit_bias = request.logit_bias.value_or(default_gen_cfg->logit_bias);
-  gen_cfg->seed = request.seed.value_or(default_gen_cfg->seed);
-  gen_cfg->max_tokens = request.seed.value_or(default_gen_cfg->max_tokens);
+  gen_cfg->seed = request.seed.value_or(std::random_device{}());
+  gen_cfg->max_tokens = request.max_tokens.value_or(default_gen_cfg->max_tokens);
   gen_cfg->stop_strs = std::move(stop_strs);
   gen_cfg->stop_token_ids = conv_template_.stop_token_ids;
   gen_cfg->debug_config = request.debug_config.value_or(DebugConfig());
