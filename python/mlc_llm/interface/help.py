@@ -167,8 +167,8 @@ to get the Chrome Trace. For example,
     "mode_serve": """
 The engine mode in MLC LLM. We provide three preset modes: "local", "interactive" and "server".
 The default mode is "local".
-The choice of mode decides the values of "--max-batch-size", "--max-total-seq-length" and
-"--prefill-chunk-size" when they are not explicitly specified.
+The choice of mode decides the values of "max_num_sequence", "max_total_seq_length" and
+"prefill_chunk_size" when they are not explicitly specified.
 1. Mode "local" refers to the local server deployment which has low request concurrency.
    So the max batch size will be set to 4, and max total sequence length and prefill chunk size
    are set to the context window size (or sliding window size) of the model.
@@ -178,15 +178,16 @@ The choice of mode decides the values of "--max-batch-size", "--max-total-seq-le
 3. Mode "server" refers to the large server use case which may handle many concurrent request
    and want to use GPU memory as much as possible. In this mode, we will automatically infer
    the largest possible max batch size and max total sequence length.
-You can manually specify arguments "--max-batch-size", "--max-total-seq-length" and
-"--prefill-chunk-size" to override the automatic inferred values.
+You can manually specify arguments "max_num_sequence", "max_total_seq_length" and
+"prefill_chunk_size" via "--overrides" to override the automatic inferred values.
+For example: --overrides "max_num_sequence=32;max_total_seq_length=4096"
 """.strip(),
     "additional_models_serve": """
 The model paths and (optional) model library paths of additional models (other than the main model).
 When engine is enabled with speculative decoding, additional models are needed.
 The way of specifying additional models is:
 "--additional-models model_path_1 model_path_2 ..." or
-"--additional-models model_path_1:model_lib_1 model_path_2 ...".
+"--additional-models model_path_1,model_lib_1 model_path_2 ...".
 When the model lib of a model is not given, JIT model compilation will be activated
 to compile the model automatically.
 """.strip(),
@@ -198,10 +199,11 @@ Under mode "local" or "interactive", the actual memory usage may be significantl
 this number. Under mode "server", the actual memory usage may be slightly larger than this number.
 """.strip(),
     "speculative_mode_serve": """
-The speculative decoding mode. Right now three options are supported:
+The speculative decoding mode. Right now four options are supported:
  - "disable", where speculative decoding is not enabled,
  - "small_draft", denoting the normal speculative decoding (small draft) style,
  - "eagle", denoting the eagle-style speculative decoding.
+ - "medusa", denoting the medusa-style speculative decoding.
 The default mode is "disable".
 """.strip(),
     "spec_draft_length_serve": """
@@ -217,12 +219,14 @@ The default mode is "radix".
 The maximum number of sequences in prefix cache, default as max_batch_size.
 And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 """.strip(),
-    "engine_config_serve": """
-The MLCEngine execution configuration.
-Currently speculative decoding mode is specified via engine config.
-For example, you can use "--engine-config='spec_draft_length=4;speculative_mode=eagle'" to
-specify the eagle-style speculative decoding.
-Check out class `EngineConfig` in mlc_llm/serve/config.py for detailed specification.
+    "overrides_serve": """
+Overriding extra configurable fields of EngineConfig.
+Supporting fields that can be be overridden: "max_num_sequence", "max_total_seq_length",
+"prefill_chunk_size", "max_history_size", "gpu_memory_utilization", "spec_draft_length",
+"prefix_cache_max_num_recycling_seqs".
+Please check out the documentation of EngineConfig in mlc_llm/serve/config.py for detailed docstring
+of each field.
+Example: --overrides "max_num_sequence=32;max_total_seq_length=4096;gpu_memory_utilization=0.8"
 """.strip(),
     "config_package": """
 The path to "mlc-package-config.json" which is used for package build.

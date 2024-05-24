@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from mlc_llm.serve import GenerationConfig, data
-from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 
 def get_test_image(config) -> data.ImageData:
@@ -17,7 +17,7 @@ def test_engine_generate():
         model=model,
         model_lib=model_lib,
         mode="server",
-        max_total_sequence_length=4096,
+        engine_config=EngineConfig(max_total_sequence_length=4096),
     )
     max_tokens = 256
 

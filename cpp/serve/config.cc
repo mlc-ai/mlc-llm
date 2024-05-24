@@ -280,16 +280,13 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   std::vector<String> additional_model_libs;
   picojson::array additional_models_arr =
       json::LookupOrDefault<picojson::array>(json, "additional_models", picojson::array());
-  picojson::array additional_model_libs_arr =
-      json::LookupOrDefault<picojson::array>(json, "additional_model_libs", picojson::array());
-  CHECK_EQ(additional_models_arr.size(), additional_model_libs_arr.size())
-      << "The number of additional model libs does not match the number of additional models";
   int num_additional_models = additional_models_arr.size();
   additional_models.reserve(num_additional_models);
   additional_model_libs.reserve(num_additional_models);
   for (int i = 0; i < num_additional_models; ++i) {
-    additional_models.push_back(json::Lookup<std::string>(additional_models_arr, i));
-    additional_model_libs.push_back(json::Lookup<std::string>(additional_model_libs_arr, i));
+    picojson::array additional_model_pair = json::Lookup<picojson::array>(additional_models_arr, i);
+    additional_models.push_back(json::Lookup<std::string>(additional_model_pair, 0));
+    additional_model_libs.push_back(json::Lookup<std::string>(additional_model_pair, 1));
   }
   n->additional_models = additional_models;
   n->additional_model_libs = additional_model_libs;
@@ -336,20 +333,15 @@ EngineConfig::GetModelsAndModelLibsFromJSONString(const std::string& json_str) {
   String model_lib = json::Lookup<std::string>(config, "model_lib");
   picojson::array additional_models_arr =
       json::LookupOrDefault<picojson::array>(config, "additional_models", picojson::array());
-  picojson::array additional_model_libs_arr =
-      json::LookupOrDefault<picojson::array>(config, "additional_model_libs", picojson::array());
-  if (additional_models_arr.size() != additional_model_libs_arr.size()) {
-    return TResult::Error(
-        "The number of additional model libs does not match the number of additional models");
-  }
 
   int num_additional_models = additional_models_arr.size();
   std::vector<std::pair<std::string, std::string>> models_and_model_libs;
   models_and_model_libs.reserve(num_additional_models + 1);
   models_and_model_libs.emplace_back(model, model_lib);
   for (int i = 0; i < num_additional_models; ++i) {
-    models_and_model_libs.emplace_back(json::Lookup<std::string>(additional_models_arr, i),
-                                       json::Lookup<std::string>(additional_model_libs_arr, i));
+    picojson::array additional_model_pair = json::Lookup<picojson::array>(additional_models_arr, i);
+    models_and_model_libs.emplace_back(json::Lookup<std::string>(additional_model_pair, 0),
+                                       json::Lookup<std::string>(additional_model_pair, 1));
   }
   return TResult::Ok(models_and_model_libs);
 }
@@ -361,15 +353,13 @@ String EngineConfigNode::AsJSONString() const {
   config["model"] = picojson::value(this->model);
   config["model_lib"] = picojson::value(this->model_lib);
   picojson::array additional_models_arr;
-  picojson::array additional_model_libs_arr;
   additional_models_arr.reserve(this->additional_models.size());
-  additional_model_libs_arr.reserve(this->additional_models.size());
   for (int i = 0; i < static_cast<int>(this->additional_models.size()); ++i) {
-    additional_models_arr.push_back(picojson::value(this->additional_models[i]));
-    additional_model_libs_arr.push_back(picojson::value(this->additional_model_libs[i]));
+    additional_models_arr.push_back(
+        picojson::value(picojson::array{picojson::value(this->additional_models[i]),
+                                        picojson::value(this->additional_model_libs[i])}));
   }
   config["additional_models"] = picojson::value(additional_models_arr);
-  config["additional_model_libs"] = picojson::value(additional_model_libs_arr);
 
   // - Other fields
   config["mode"] = picojson::value(EngineModeToString(this->mode));

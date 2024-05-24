@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import pytest
 
-from mlc_llm.serve import GenerationConfig, MLCEngine
+from mlc_llm.serve import EngineConfig, GenerationConfig, MLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -37,15 +37,19 @@ def create_engine(model: str, model_lib: Optional[str]):
             model=model,
             model_lib=model_lib,
             mode="server",
-            max_batch_size=8,
-            max_history_size=1,
+            engine_config=EngineConfig(
+                max_num_sequence=8,
+                max_history_size=1,
+            ),
         )
     else:
         return MLCEngine(
             model=model,
             model_lib=model_lib,
             mode="server",
-            max_total_sequence_length=4096,
+            engine_config=EngineConfig(
+                max_total_sequence_length=4096,
+            ),
         )
 
 

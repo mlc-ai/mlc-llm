@@ -5,7 +5,7 @@ from typing import Callable, List, Optional
 import numpy as np
 
 from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
-from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -83,9 +83,11 @@ def test_engine_basic():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model],
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[small_model],
+            speculative_mode="small_draft",
+        ),
         request_stream_callback=fcallback,
     )
 
@@ -147,10 +149,12 @@ def test_engine_eagle_basic():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
-        speculative_mode="eagle",
-        spec_draft_length=2,
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[(small_model, small_model_lib)],
+            speculative_mode="eagle",
+            spec_draft_length=2,
+        ),
         request_stream_callback=fcallback,
     )
 
@@ -226,9 +230,11 @@ def test_engine_continuous_batching_1():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model],
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[small_model],
+            speculative_mode="small_draft",
+        ),
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -310,9 +316,11 @@ def test_engine_eagle_continuous_batching_1():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
-        speculative_mode="eagle",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[(small_model, small_model_lib)],
+            speculative_mode="eagle",
+        ),
         request_stream_callback=timer.callback_getter(),
     )
 
@@ -362,9 +370,11 @@ def test_engine_generate(compare_precision=False):
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model],
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[small_model],
+            speculative_mode="small_draft",
+        ),
     )
 
     num_requests = 10
@@ -379,7 +389,9 @@ def test_engine_generate(compare_precision=False):
         engine_single_model = SyncMLCEngine(
             model=model,
             mode="server",
-            max_total_sequence_length=4096,
+            engine_config=EngineConfig(
+                max_total_sequence_length=4096,
+            ),
         )
         output_texts_single_model, _ = engine_single_model.generate(
             prompts[:num_requests], generation_config
@@ -420,9 +432,11 @@ def test_engine_eagle_generate():
     engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
-        speculative_mode="eagle",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[(small_model, small_model_lib)],
+            speculative_mode="eagle",
+        ),
     )
 
     num_requests = 10
@@ -528,10 +542,12 @@ def test_engine_spec_efficiency():
     spec_engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model],
-        spec_draft_length=6,
-        speculative_mode="small_draft",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[small_model],
+            spec_draft_length=6,
+            speculative_mode="small_draft",
+        ),
         request_stream_callback=fcallback,
     )
 
@@ -594,10 +610,12 @@ def test_engine_eagle_spec_efficiency():
     spec_engine = SyncMLCEngine(
         model=model,
         mode="server",
-        max_total_sequence_length=4096,
-        additional_models=[small_model + ":" + small_model_lib],
-        spec_draft_length=6,
-        speculative_mode="eagle",
+        engine_config=EngineConfig(
+            max_total_sequence_length=4096,
+            additional_models=[(small_model, small_model_lib)],
+            spec_draft_length=6,
+            speculative_mode="eagle",
+        ),
         request_stream_callback=fcallback,
     )
 

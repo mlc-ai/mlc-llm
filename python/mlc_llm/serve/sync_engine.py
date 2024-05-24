@@ -16,6 +16,7 @@ import tvm
 from mlc_llm.serve import data
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.engine_base import (
+    _check_engine_config,
     _parse_models,
     _print_engine_mode_logging_msg,
     _process_model_args,
@@ -58,6 +59,13 @@ class SyncMLCEngine:
 
     Parameters
     ----------
+    engine_config : Optional[EngineConfig]
+        Additional configurable arguments of MLC engine.
+        See class "EngineConfig" for more detail.
+
+    enable_tracing : bool
+        A boolean indicating if to enable event logging for requests.
+
     request_stream_callback : Optional[Callable[[str, data.TokenData, Optional[str]], None]]
         The provided callback function to handle the generation
         output. It has the signature of `(str, data.TokenData, bool) -> None`,
@@ -72,12 +80,6 @@ class SyncMLCEngine:
         be set before the engine executing requests. This can be done via
         the `set_request_stream_callback` method. Otherwise, the engine will raise
         exception.
-
-    enable_tracing : bool
-        A boolean indicating if to enable event logging for requests.
-
-    verbose : bool
-        A boolean indicating whether to print logging info in engine.
     """
 
     def __init__(  # pylint: disable=too-many-arguments,too-many-locals
@@ -87,22 +89,17 @@ class SyncMLCEngine:
         *,
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
-        additional_models: Optional[List[str]] = None,
-        max_batch_size: Optional[int] = None,
-        max_total_sequence_length: Optional[int] = None,
-        prefill_chunk_size: Optional[int] = None,
-        max_history_size: Optional[int] = None,
-        gpu_memory_utilization: Optional[float] = None,
+        engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
-        speculative_mode: Literal["disable", "small_draft", "eagle"] = "disable",
-        spec_draft_length: int = 4,
-        prefix_cache_mode: Literal["disable", "radix"] = "radix",
-        prefix_cache_max_num_recycling_seqs: Optional[int] = None,
-        verbose: bool = True,
         request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
+        # - Check the fields fields of `engine_config`.
+        if engine_config is None:
+            engine_config = EngineConfig()
+        _check_engine_config(model, model_lib, mode, engine_config)
+
         # - Initialize model loading info.
-        models = _parse_models(model, model_lib, additional_models)
+        models = _parse_models(model, model_lib, engine_config.additional_models)
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, tvm.runtime.Device)
@@ -120,7 +117,7 @@ class SyncMLCEngine:
                 self.model_config_dicts.append(json.load(file))
 
         # - Print logging info for regarding the mode selection.
-        if verbose:
+        if engine_config.verbose:
             _print_engine_mode_logging_msg(mode)
 
         self._ffi = _create_tvm_module(
@@ -139,25 +136,12 @@ class SyncMLCEngine:
         )
         self.trace_recorder = EventTraceRecorder() if enable_tracing else None
 
+        engine_config.model = model_args[0][0]
+        engine_config.model_lib = model_args[0][1]
+        engine_config.additional_models = model_args[1:]  # type: ignore
+        engine_config.mode = mode
         self._ffi["init"](
-            EngineConfig(
-                model=model_args[0][0],
-                model_lib=model_args[0][1],
-                additional_models=[model_arg[0] for model_arg in model_args[1:]],
-                additional_model_libs=[model_arg[1] for model_arg in model_args[1:]],
-                mode=mode,
-                gpu_memory_utilization=gpu_memory_utilization,
-                kv_cache_page_size=16,
-                max_num_sequence=max_batch_size,
-                max_total_sequence_length=max_total_sequence_length,
-                prefill_chunk_size=prefill_chunk_size,
-                max_history_size=max_history_size,
-                speculative_mode=speculative_mode,
-                spec_draft_length=spec_draft_length,
-                prefix_cache_mode=prefix_cache_mode,
-                prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
-                verbose=verbose,
-            ).asjson(),
+            engine_config.asjson(),
             device,
             request_stream_callback,
             self.trace_recorder,
