@@ -22,7 +22,7 @@ Validate that emcc is accessible in shell
     emcc --version
 
 Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR
--------------------------------------
+-------------------------------------------------
 
 We need to set a path to a tvm source in order to build tvm runtime.
 Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
