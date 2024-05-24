@@ -116,6 +116,11 @@ class PrefixCacheObj : public Object {
    */
   virtual void Reset() = 0;
 
+  /*!
+   * \brief The prefix cache mode.
+   */
+  static const PrefixCacheMode mode = PrefixCacheMode::kDisable;
+
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "mlc.serve.PrefixCache";
   TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object)

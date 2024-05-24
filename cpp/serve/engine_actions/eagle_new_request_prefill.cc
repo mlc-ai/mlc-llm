@@ -364,6 +364,9 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    */
   void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
     RequestStateEntry rsentry = input->rsentry;
+    if (estate->prefix_cache->mode == PrefixCacheMode::kDisable) {
+      return;
+    }
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
         !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
       IntTuple tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
