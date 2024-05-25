@@ -545,7 +545,8 @@ class GPUSampler : public SamplerObj {
     if (!need_top_p && !need_prob_values) {
       // - Short path: If top_p and prob values are not needed, we directly sample from multinomial.
       SyncCopyStream(device_, compute_stream_, copy_stream_);
-      if (flashinfer_multinomial_sample_func_ != nullptr) {
+      if (device_.device_type == DLDeviceType::kDLCUDA &&
+          flashinfer_multinomial_sample_func_ != nullptr) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
         (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
@@ -588,7 +589,8 @@ class GPUSampler : public SamplerObj {
                                       uniform_samples_device, sample_indices_device, top_p_device);
     } else {
       // - Sample without top_p.
-      if (flashinfer_multinomial_sample_func_ != nullptr) {
+      if (device_.device_type == DLDeviceType::kDLCUDA &&
+          flashinfer_multinomial_sample_func_ != nullptr) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
         (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,

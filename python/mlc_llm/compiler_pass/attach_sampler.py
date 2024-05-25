@@ -28,7 +28,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        if str(self.target.kind) != "cuda":
+        if str(self.target.kind) not in ["cuda", "vulkan"]:
             # Only enable GPU sampling for CUDA.
             return mod
 
@@ -87,7 +87,11 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
                 name="sample_indices",
             )
             result_tensor = nn.multinomial_from_uniform(  # pylint:disable=too-many-function-args
-                probs_tensor, uniform_samples_tensor, sample_indices_tensor, "int32"
+                probs_tensor,
+                uniform_samples_tensor,
+                sample_indices_tensor,
+                "int32",
+                name="nn_multinomial_from_uniform",
             )
             result = bb.emit(
                 relax.call_pure_packed(
@@ -97,7 +101,8 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
                     sinfo_args=sample_indices.struct_info,  # pylint: disable=no-member
                 )
             )
-        gv = bb.emit_func_output(result)
+            output = bb.emit_output(result)
+        gv = bb.emit_func_output(output)
     return gv
 
 

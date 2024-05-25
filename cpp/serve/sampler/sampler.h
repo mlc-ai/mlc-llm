@@ -140,7 +140,8 @@ class Sampler : public ObjectRef {
 
   /*! \brief Check if the given device supports GPU sampling. */
   static bool SupportGPUSampler(Device device) {
-    return device.device_type == DLDeviceType::kDLCUDA;
+    return device.device_type == DLDeviceType::kDLCUDA ||
+           device.device_type == DLDeviceType::kDLVulkan;
   }
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Sampler, ObjectRef, SamplerObj);
