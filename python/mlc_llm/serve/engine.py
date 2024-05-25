@@ -32,16 +32,21 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
+# Note: we define both AsyncChat and Chat for Python type analysis.
+class AsyncChat:  # pylint: disable=too-few-public-methods
+    """The proxy class to direct to async chat completions."""
+
+    def __init__(self, engine: weakref.ReferenceType) -> None:
+        assert isinstance(engine(), AsyncMLCEngine)
+        self.completions = AsyncChatCompletion(engine)
+
+
 class Chat:  # pylint: disable=too-few-public-methods
     """The proxy class to direct to chat completions."""
 
     def __init__(self, engine: weakref.ReferenceType) -> None:
-        assert isinstance(engine(), (AsyncMLCEngine, MLCEngine))
-        self.completions = (
-            AsyncChatCompletion(engine)  # type: ignore
-            if isinstance(engine(), AsyncMLCEngine)
-            else ChatCompletion(engine)  # type: ignore
-        )
+        assert isinstance(engine(), MLCEngine)
+        self.completions = ChatCompletion(engine)
 
 
 class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
@@ -151,7 +156,7 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
             Extra debug options to pass to the request.
 
         Returns
-        ------
+        -------
         response : ChatCompletionResponse
             The chat completion response conforming to OpenAI API.
             See mlc_llm/protocol/openai_api_protocol.py or
@@ -643,7 +648,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         debug_config: Optional[Dict[str, Any]] = None,
-    ) -> openai_api_protocol.CompletionResponse:
+    ) -> Iterator[openai_api_protocol.CompletionResponse]:
         """Synchronous streaming completion interface with OpenAI API compatibility.
         The method streams back CompletionResponse that conforms to
         OpenAI API one at a time via yield.
@@ -698,7 +703,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         debug_config: Optional[Dict[str, Any]] = None,
-    ) -> Iterator[openai_api_protocol.CompletionResponse]:
+    ) -> openai_api_protocol.CompletionResponse:
         """Synchronous non-streaming completion interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/completions/create for specification.
@@ -714,7 +719,7 @@ class Completion:  # pylint: disable=too-few-public-methods
             Extra debug options to pass to the request.
 
         Returns
-        ------
+        -------
         response : CompletionResponse
             The completion response conforming to OpenAI API.
             See mlc_llm/protocol/openai_api_protocol.py or
@@ -750,7 +755,10 @@ class Completion:  # pylint: disable=too-few-public-methods
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         debug_config: Optional[Dict[str, Any]] = None,
-    ) -> Iterator[openai_api_protocol.CompletionResponse]:
+    ) -> Union[
+        Iterator[openai_api_protocol.CompletionResponse],
+        openai_api_protocol.CompletionResponse,
+    ]:
         """Synchronous completion interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/completions/create for specification.
@@ -864,7 +872,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             engine_config=engine_config,
             enable_tracing=enable_tracing,
         )
-        self.chat = Chat(weakref.ref(self))
+        self.chat = AsyncChat(weakref.ref(self))
         self.completions = AsyncCompletion(weakref.ref(self))
 
     async def abort(self, request_id: str) -> None:
@@ -1568,7 +1576,10 @@ class MLCEngine(engine_base.MLCEngineBase):
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
         debug_config: Optional[Dict[str, Any]] = None,
-    ) -> Iterator[openai_api_protocol.CompletionResponse]:
+    ) -> Union[
+        Iterator[openai_api_protocol.CompletionResponse],
+        openai_api_protocol.CompletionResponse,
+    ]:
         """Synchronous completion internal interface with OpenAI API compatibility.
 
         See https://platform.openai.com/docs/api-reference/completions/create for specification.

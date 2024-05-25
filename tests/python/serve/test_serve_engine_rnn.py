@@ -1,10 +1,8 @@
 # pylint: disable=chained-comparison,line-too-long,missing-docstring,
-# pylint: disable=too-many-arguments,too-many-locals
-import asyncio
+# pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 from typing import List
 
-from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
-from mlc_llm.testing import require_test_model
+from mlc_llm.serve import EngineConfig, GenerationConfig, MLCEngine
 
 prompts = [
     "What is the meaning of life?",
@@ -20,52 +18,30 @@ prompts = [
 ]
 
 
-@require_test_model(
-    "Llama-2-7b-chat-hf-q0f16-MLC",
-    "Llama-2-7b-chat-hf-q4f16_1-MLC",
-)
-async def test_engine_generate(model: str, small_model: str):
-    # Create engine
-    async_engine = AsyncMLCEngine(
-        model=model,
+def test_engine_generate():
+    engine = MLCEngine(
+        model="dist/rwkv-6-world-1b6-q0f16-MLC",
+        model_lib="dist/rwkv-6-world-1b6-q0f16-MLC/rwkv-6-world-1b6-q0f16-MLC-cuda.so",
         mode="server",
         engine_config=EngineConfig(
-            additional_models=[small_model],
-            speculative_mode="small_draft",
+            max_num_sequence=8,
+            max_history_size=1,
         ),
     )
 
     num_requests = 10
     max_tokens = 256
-    generation_cfg = GenerationConfig(max_tokens=max_tokens)
+    generation_cfg = GenerationConfig(max_tokens=max_tokens, n=7)
 
     output_texts: List[List[str]] = [
         ["" for _ in range(generation_cfg.n)] for _ in range(num_requests)
     ]
-
-    async def generate_task(
-        async_engine: AsyncMLCEngine,
-        prompt: str,
-        generation_cfg: GenerationConfig,
-        request_id: str,
-    ):
-        print(f"generate task for request {request_id}")
-        rid = int(request_id)
-        async for delta_outputs in async_engine._generate(
-            prompt, generation_cfg, request_id=request_id
-        ):
+    for rid in range(num_requests):
+        print(f"generating for request {rid}")
+        for delta_outputs in engine._generate(prompts[rid], generation_cfg, request_id=str(rid)):
             assert len(delta_outputs) == generation_cfg.n
             for i, delta_output in enumerate(delta_outputs):
                 output_texts[rid][i] += delta_output.delta_text
-
-    tasks = [
-        asyncio.create_task(
-            generate_task(async_engine, prompts[i], generation_cfg, request_id=str(i))
-        )
-        for i in range(num_requests)
-    ]
-
-    await asyncio.gather(*tasks)
 
     # Print output.
     print("All finished")
@@ -77,9 +53,9 @@ async def test_engine_generate(model: str, small_model: str):
             for i, output in enumerate(outputs):
                 print(f"Output {req_id}({i}):{output}\n")
 
-    async_engine.terminate()
-    del async_engine
+    engine.terminate()
+    del engine
 
 
 if __name__ == "__main__":
-    asyncio.run(test_engine_generate())
+    test_engine_generate()

@@ -10,19 +10,20 @@ from pydantic import BaseModel
 from mlc_llm.serve import AsyncMLCEngine, GenerationConfig
 from mlc_llm.serve.config import ResponseFormat
 from mlc_llm.serve.sync_engine import SyncMLCEngine
+from mlc_llm.testing import require_test_model
 
 prompts_list = [
     "Generate a JSON string containing 20 objects:",
     "Generate a JSON containing a non-empty list:",
     "Generate a JSON with 5 elements:",
 ]
-model_path = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
 
 
-def test_batch_generation_with_grammar():
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
+def test_batch_generation_with_grammar(model: str):
     # Create engine
     engine = SyncMLCEngine(
-        model=model_path,
+        model=model,
         mode="server",
     )
 
@@ -69,9 +70,10 @@ def test_batch_generation_with_grammar():
                 print(f"Output {req_id}({i}):{output}\n")
 
 
-def test_batch_generation_with_schema():
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
+def test_batch_generation_with_schema(model: str):
     # Create engine
-    engine = SyncMLCEngine(model=model_path, mode="server")
+    engine = SyncMLCEngine(model=model, mode="server")
 
     prompt = (
         "Generate a json containing three fields: an integer field named size, a "
@@ -121,9 +123,10 @@ def test_batch_generation_with_schema():
                 print(f"Output {req_id}({i}): {output}\n")
 
 
-async def run_async_engine():
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
+async def run_async_engine(model: str):
     # Create engine
-    async_engine = AsyncMLCEngine(model=model_path, mode="server")
+    async_engine = AsyncMLCEngine(model=model, mode="server")
 
     prompts = prompts_list * 20
 
