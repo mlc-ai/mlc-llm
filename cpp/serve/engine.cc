@@ -126,17 +126,8 @@ class EngineImpl : public Engine {
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
     // - Initialize tokenizer and grammar
-    n->tokenizer_ = Tokenizer::FromPath(engine_config->model);
-    std::string token_table_postproc_method;
-    if (model_configs[0].count("token_table_postproc_method") == 0) {
-      // Backward compatibility: use "byte_fallback" by default
-      token_table_postproc_method = "byte_fallback";
-    } else {
-      token_table_postproc_method =
-          model_configs[0].at("token_table_postproc_method").get<std::string>();
-    }
-    n->token_table_ =
-        Tokenizer::PostProcessTokenTable(n->tokenizer_->TokenTable(), token_table_postproc_method);
+    n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
+    n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
     n->grammar_init_context_cache_ = GrammarInitContextCache(n->token_table_);
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
@@ -527,6 +518,28 @@ class EngineImpl : public Engine {
       return grammar_init_context_cache_->GetInitContextForJSONSchema(
           response_format.schema.value());
     }
+  }
+
+  static std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& model_config) {
+    if (model_config.count("tokenizer_info") == 0) {
+      LOG(WARNING) << "Tokenizer info not found in mlc-chat-config.json. "
+                   << "Trying to automatically detect the tokenizer info";
+      return std::nullopt;
+    }
+    const picojson::object& tokenizer_info_obj =
+        model_config.at("tokenizer_info").get<picojson::object>();
+    auto info = make_object<TokenizerInfoNode>();
+    if (tokenizer_info_obj.count("token_postproc_method")) {
+      info->token_postproc_method =
+          tokenizer_info_obj.at("token_postproc_method").get<std::string>();
+    }
+    if (tokenizer_info_obj.count("prepend_space_in_encode")) {
+      info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").get<bool>();
+    }
+    if (tokenizer_info_obj.count("strip_space_in_decode")) {
+      info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
+    }
+    return TokenizerInfo(info);
   }
 
   // Engine state, managing requests and request states.

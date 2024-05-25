@@ -1,6 +1,6 @@
 """Classes handling the grammar guided generation of MLC LLM serving"""
 
-from typing import List, Literal, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import tvm
 import tvm._ffi
@@ -246,11 +246,6 @@ class GrammarStateMatcher(Object):
 
     max_rollback_steps : int
         The maximum number of steps to rollback when backtracking. Default: 0.
-
-    token_table_postproc_method : Literal["byte_fallback", "byte_level"]
-        A helper parameter for the tokenizer. Only useful when the tokenizer is specified.
-        The method to postprocess the token table. For LLaMA and LLaMA-2 tokenizer, use
-        "byte_fallback"; for LLaMA-3 tokenizer, use "byte_level". Default: "byte_fallback".
     """
 
     def __init__(
@@ -258,7 +253,6 @@ class GrammarStateMatcher(Object):
         grammar: BNFGrammar,
         tokenizer: Union[None, Tokenizer, List[str]] = None,
         max_rollback_steps: int = 0,
-        token_table_postproc_method: Literal["byte_fallback", "byte_level"] = "byte_fallback",
     ):
         if isinstance(tokenizer, list):
             self.__init_handle_by_constructor__(
@@ -273,7 +267,6 @@ class GrammarStateMatcher(Object):
                 grammar,
                 tokenizer,
                 max_rollback_steps,
-                token_table_postproc_method,
             )
 
     def accept_token(self, token_id: int) -> bool:

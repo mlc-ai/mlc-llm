@@ -483,14 +483,12 @@ GrammarStateMatcher::GrammarStateMatcher(std::shared_ptr<GrammarStateInitContext
 #ifndef COMPILE_MLC_WASM_RUNTIME
 // This creates tokenizer dependency issue in WASM building for web, hence skipped
 TVM_REGISTER_GLOBAL("mlc.serve.GrammarStateMatcherFromTokenizer")
-    .set_body_typed([](BNFGrammar grammar, Optional<Tokenizer> tokenizer, int max_rollback_steps,
-                       String token_table_postproc_method) {
+    .set_body_typed([](BNFGrammar grammar, Optional<Tokenizer> tokenizer, int max_rollback_steps) {
       auto preproc_start = std::chrono::high_resolution_clock::now();
       std::shared_ptr<mlc::llm::serve::GrammarStateInitContext> init_ctx;
       if (tokenizer) {
-        auto token_table = Tokenizer::PostProcessTokenTable(tokenizer.value()->TokenTable(),
-                                                            token_table_postproc_method);
-        init_ctx = GrammarStateMatcher::CreateInitContext(grammar, token_table);
+        init_ctx = GrammarStateMatcher::CreateInitContext(
+            grammar, tokenizer.value()->PostProcessedTokenTable());
       } else {
         init_ctx = GrammarStateMatcher::CreateInitContext(grammar, {});
       }
