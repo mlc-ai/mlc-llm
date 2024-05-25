@@ -50,7 +50,7 @@ class EngineImpl : public Engine {
 
   static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
                                              DLDevice device,
-                                             Optional<PackedFunc> request_stream_callback,
+                                             FRequestStreamCallback request_stream_callback,
                                              Optional<EventTraceRecorder> trace_recorder) {
     using TResult = Result<EngineCreationOutput>;
     std::unique_ptr<EngineImpl> n = std::make_unique<EngineImpl>();
@@ -236,17 +236,37 @@ class EngineImpl : public Engine {
 
   bool Empty() final { return estate_->request_states.empty(); }
 
-  String JSONMetrics() final { return estate_->metrics.AsJSON().serialize(true); }
+  String JSONMetrics() final { return picojson::value(estate_->metrics.AsJSON()).serialize(true); }
 
-  Optional<PackedFunc> GetRequestStreamCallback() final { return request_stream_callback_; }
+  FRequestStreamCallback GetRequestStreamCallback() final { return request_stream_callback_; }
 
-  void SetRequestStreamCallback(Optional<PackedFunc> request_stream_callback) final {
+  void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) final {
     request_stream_callback_ = std::move(request_stream_callback);
   }
 
   /***************** High-level Request Management *****************/
 
+  void HandleSpecialRequests(Request request) {
+    auto special_request = request->generation_cfg->debug_config.special_request;
+    switch (special_request) {
+      case SpecialRequestKind::kQueryEngineMetrics: {
+        Array<RequestStreamOutput> output = {
+            RequestStreamOutput::Usage(request->id, estate_->metrics.AsUsageJSONStr())};
+        request_stream_callback_(output);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   void AddRequest(Request request) final {
+    // special requests do not involve generation
+    if (request->generation_cfg->debug_config.special_request != SpecialRequestKind::kNone) {
+      this->HandleSpecialRequests(request);
+      return;
+    }
+
     RECORD_EVENT(trace_recorder_, request->id, "request added to engine");
     auto add_time_point = std::chrono::high_resolution_clock::now();
 
@@ -255,14 +275,14 @@ class EngineImpl : public Engine {
     ICHECK_NE(request->num_input_tokens, -1);
 
     if (request->num_input_tokens >= engine_config_->max_single_sequence_length &&
-        request_stream_callback_.defined()) {
+        request_stream_callback_ != nullptr) {
       // If the request input length exceeds the maximum allowed single sequence length,
       // invoke callback and do not process the request.
       Array<RequestStreamOutput> output{RequestStreamOutput(
           request->id, std::vector<IntTuple>(request->generation_cfg->n),
           Optional<Array<Array<String>>>(),
           std::vector<Optional<String>>(request->generation_cfg->n, String("length")))};
-      request_stream_callback_.value()(std::move(output));
+      request_stream_callback_(output);
       return;
     }
 
@@ -340,12 +360,12 @@ class EngineImpl : public Engine {
     }
 
     // Send a callback to notice the abortion.
-    if (request_stream_callback_.defined()) {
+    if (request_stream_callback_ != nullptr) {
       Array<RequestStreamOutput> output{RequestStreamOutput(
           request_id, std::vector<IntTuple>(request->generation_cfg->n),
           Optional<Array<Array<String>>>(),
           std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
-      request_stream_callback_.value()(std::move(output));
+      request_stream_callback_(output);
     }
   }
 
@@ -365,14 +385,14 @@ class EngineImpl : public Engine {
   /*********************** Engine Action ***********************/
 
   void Step() final {
-    CHECK(request_stream_callback_.defined())
+    CHECK(request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
       Array<Request> processed_requests = action->Step(estate_);
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
-                              request_stream_callback_.value(),
-                              engine_config_->max_single_sequence_length, trace_recorder_);
+                              request_stream_callback_, engine_config_->max_single_sequence_length,
+                              trace_recorder_);
         return;
       }
     }
@@ -544,7 +564,7 @@ class EngineImpl : public Engine {
   // Workspace of each model.
   std::vector<ModelWorkspace> model_workspaces_;
   // Request stream callback function
-  Optional<PackedFunc> request_stream_callback_;
+  FRequestStreamCallback request_stream_callback_;
   // Engine actions.
   Array<EngineAction> actions_;
   // Event trace recorder.
@@ -553,9 +573,9 @@ class EngineImpl : public Engine {
 
 Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_json_str,
                                             Device device,
-                                            Optional<PackedFunc> request_stream_callback,
+                                            FRequestStreamCallback request_stream_callback,
                                             Optional<EventTraceRecorder> trace_recorder) {
-  return EngineImpl::Create(engine_config_json_str, device, std::move(request_stream_callback),
+  return EngineImpl::Create(engine_config_json_str, device, request_stream_callback,
                             std::move(trace_recorder));
 }
 
@@ -575,19 +595,18 @@ class EngineModule : public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("create_request", &EngineModule::CreateRequest);
   TVM_MODULE_VTABLE_ENTRY("abort_request", &EngineModule::Abort);
   TVM_MODULE_VTABLE_ENTRY("step", &EngineModule::Step);
-  TVM_MODULE_VTABLE_ENTRY("json_metrics", &EngineModule::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("reset", &EngineModule::Reset);
+  TVM_MODULE_VTABLE_ENTRY("json_metrics", &EngineModule::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("get_request_stream_callback", &EngineModule::GetRequestStreamCallback);
   TVM_MODULE_VTABLE_ENTRY("set_request_stream_callback", &EngineModule::SetRequestStreamCallback);
   TVM_MODULE_VTABLE_END();
 
   /*! \brief Initialize the engine with config and other fields. */
   void Init(const std::string& engine_config_json_str, Device device,
-            Optional<PackedFunc> request_stream_callback,
+            FRequestStreamCallback request_stream_callback,
             Optional<EventTraceRecorder> trace_recorder) {
-    Result<EngineCreationOutput> output_res =
-        Engine::Create(engine_config_json_str, device, std::move(request_stream_callback),
-                       std::move(trace_recorder));
+    Result<EngineCreationOutput> output_res = Engine::Create(
+        engine_config_json_str, device, request_stream_callback, std::move(trace_recorder));
     CHECK(output_res.IsOk()) << output_res.UnwrapErr();
     EngineCreationOutput output = output_res.Unwrap();
     this->engine_ = std::move(output.reloaded_engine);
@@ -601,24 +620,25 @@ class EngineModule : public ModuleNode {
   void Abort(const String& request_id) { return GetEngine()->AbortRequest(request_id); }
   /*! \brief Create request with given arguments and the engine default generation config. */
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) {
-    auto gen_config =
-        GenerationConfig::FromJSON(std::move(generation_cfg_json_str), default_generation_config_);
+    auto config = json::ParseToJSONObject(generation_cfg_json_str);
+    auto gen_config = GenerationConfig::FromJSON(config, default_generation_config_);
     CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
     return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
   }
   /*! \brief Redirection to `Engine::Step`. */
   void Step() { return GetEngine()->Step(); }
   /*! \brief Redirection to `Engine::GetRequestStreamCallback`. */
-  Optional<PackedFunc> GetRequestStreamCallback() {
+  FRequestStreamCallback GetRequestStreamCallback() {
     return GetEngine()->GetRequestStreamCallback();
   }
   /*! \brief Redirection to `Engine::SetRequestStreamCallback` */
-  void SetRequestStreamCallback(Optional<PackedFunc> request_stream_callback) {
-    GetEngine()->SetRequestStreamCallback(std::move(request_stream_callback));
+  void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) {
+    GetEngine()->SetRequestStreamCallback(request_stream_callback);
   }
   /*! \brief Redirection to `Engine::Reset`. */
   void Reset() { return GetEngine()->Reset(); }
-  /*! \brief Redirection to `Engine::Metrics` */
+
+  /*! \brief Redirection to `Engine::JSONMetrics`. */
   String JSONMetrics() { return GetEngine()->JSONMetrics(); }
 
  private:

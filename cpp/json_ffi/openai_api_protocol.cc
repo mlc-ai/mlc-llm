@@ -387,6 +387,21 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
     request.tools = tools;
   }
 
+  // debug_config
+  Result<std::optional<picojson::object>> debug_config_opt_res =
+      json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "debug_config");
+  if (debug_config_opt_res.IsErr()) {
+    return TResult::Error(debug_config_opt_res.UnwrapErr());
+  }
+  auto debug_config_opt = debug_config_opt_res.Unwrap();
+  if (debug_config_opt.has_value()) {
+    Result<DebugConfig> debug_config_res = DebugConfig::FromJSON(debug_config_opt.value());
+    if (debug_config_res.IsErr()) {
+      return TResult::Error(debug_config_res.UnwrapErr());
+    }
+    request.debug_config = debug_config_res.Unwrap();
+  }
+
   // TODO: Other parameters
   return TResult::Ok(request);
 }
@@ -485,15 +500,20 @@ picojson::object ChatCompletionResponse::AsJSON() const {
 picojson::object ChatCompletionStreamResponse::AsJSON() const {
   picojson::object obj;
   obj["id"] = picojson::value(this->id);
+
   picojson::array choices_arr;
   for (const auto& choice : this->choices) {
     choices_arr.push_back(picojson::value(choice.AsJSON()));
   }
   obj["choices"] = picojson::value(choices_arr);
+
   obj["created"] = picojson::value((int64_t)this->created);
   obj["model"] = picojson::value(this->model);
   obj["system_fingerprint"] = picojson::value(this->system_fingerprint);
   obj["object"] = picojson::value(this->object);
+  if (usage.has_value()) {
+    obj["usage"] = usage.value();
+  }
   return obj;
 }
 

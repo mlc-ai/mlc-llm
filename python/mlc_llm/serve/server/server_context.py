@@ -13,7 +13,7 @@ class ServerContext:
     server_context: Optional["ServerContext"] = None
     enable_debug: bool = False
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._models: Dict[str, AsyncMLCEngine] = {}
 
     def __enter__(self):

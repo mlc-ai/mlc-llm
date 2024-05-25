@@ -18,7 +18,7 @@ prompts = [
 ]
 
 
-def test_engine_generate():
+def test_engine_generate() -> None:
     engine = MLCEngine(
         model="dist/rwkv-6-world-1b6-q0f16-MLC",
         model_lib="dist/rwkv-6-world-1b6-q0f16-MLC/rwkv-6-world-1b6-q0f16-MLC-cuda.so",

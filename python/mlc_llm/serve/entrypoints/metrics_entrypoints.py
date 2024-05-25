@@ -20,4 +20,4 @@ async def metrics(_request: fastapi.Request):
     # We need to work within the internal engine instead.
     for model in server_context.get_model_list():
         async_engine = server_context.get_engine(model)
-        return async_engine.metrics().prometheus_text()
+        return (await async_engine.metrics()).prometheus_text()

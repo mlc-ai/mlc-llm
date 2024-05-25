@@ -172,7 +172,7 @@ def test_completion(model: str):
             n=n,
             request_id=str(rid),
             stream=True,
-            debug_config={"ignore_eos": True},
+            extra_body={"debug_config": {"ignore_eos": True}},
         ):
             for choice in response.choices:
                 output_texts[rid][choice.index] += choice.text
@@ -215,7 +215,7 @@ def test_completion_non_stream(model: str):
             max_tokens=max_tokens,
             n=n,
             request_id=str(rid),
-            debug_config={"ignore_eos": True},
+            extra_body={"debug_config": {"ignore_eos": True}},
         )
         for choice in response.choices:
             output_texts[rid][choice.index] += choice.text

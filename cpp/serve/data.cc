@@ -180,10 +180,19 @@ RequestStreamOutput::RequestStreamOutput(
   data_ = std::move(n);
 }
 
+RequestStreamOutput RequestStreamOutput::Usage(String request_id,
+                                               String request_final_usage_json_str) {
+  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
+  n->request_id = std::move(request_id);
+  n->request_final_usage_json_str = std::move(request_final_usage_json_str);
+  return RequestStreamOutput(n);
+}
+
 TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
     .set_body_typed([](RequestStreamOutput output) {
       return Array<ObjectRef>{output->request_id, output->group_delta_token_ids,
-                              output->group_delta_logprob_json_strs, output->group_finish_reason};
+                              output->group_delta_logprob_json_strs, output->group_finish_reason,
+                              output->request_final_usage_json_str};
     });
 
 }  // namespace serve

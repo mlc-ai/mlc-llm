@@ -51,7 +51,11 @@ class AppState: ObservableObject {
                 DispatchQueue.main.async {
                     // parse the result content in structured form
                     // and stream back to the display
-                    self.displayText += res.choices[0].delta.content!.asText()
+                    if let finalUsage = res.usage {
+                        self.displayText += "\n" + (finalUsage.extra?.asTextLabel() ?? "")
+                    } else {
+                        self.displayText += res.choices[0].delta.content!.asText()
+                    }
                 }
             }
         }

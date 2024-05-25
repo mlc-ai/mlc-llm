@@ -57,28 +57,33 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
     return false;
   }
   ChatCompletionRequest request = request_res.Unwrap();
-  // get prompt: note, assistant was appended in the end.
-  Result<std::vector<Data>> inputs_obj =
-      CreatePrompt(this->conv_template_, request, this->model_config_, this->device_);
-  if (inputs_obj.IsErr()) {
-    err_ = inputs_obj.UnwrapErr();
-    return false;
-  }
-  Array<Data> inputs = inputs_obj.Unwrap();
-
-  // generation_cfg
+  Array<Data> inputs;
   Array<String> stop_strs;
-  stop_strs.reserve(this->conv_template_.stop_str.size());
-  for (const std::string& stop_str : this->conv_template_.stop_str) {
-    stop_strs.push_back(stop_str);
-  }
-  if (request.stop.has_value()) {
-    stop_strs.reserve(stop_strs.size() + request.stop.value().size());
-    for (const std::string& stop_str : request.stop.value()) {
+  bool is_special_request =
+      (request.debug_config.has_value() &&
+       request.debug_config.value().special_request != SpecialRequestKind::kNone);
+  // special request does not have to go through prompt construction
+  if (!is_special_request) {
+    // get prompt: note, assistant was appended in the end.
+    Result<std::vector<Data>> inputs_obj =
+        CreatePrompt(this->conv_template_, request, this->model_config_, this->device_);
+    if (inputs_obj.IsErr()) {
+      err_ = inputs_obj.UnwrapErr();
+      return false;
+    }
+    inputs = inputs_obj.Unwrap();
+
+    stop_strs.reserve(this->conv_template_.stop_str.size());
+    for (const std::string& stop_str : this->conv_template_.stop_str) {
       stop_strs.push_back(stop_str);
     }
+    if (request.stop.has_value()) {
+      stop_strs.reserve(stop_strs.size() + request.stop.value().size());
+      for (const std::string& stop_str : request.stop.value()) {
+        stop_strs.push_back(stop_str);
+      }
+    }
   }
-
   // create a generation config from request
   const auto& default_gen_cfg = default_generation_config_;
   auto gen_cfg = tvm::runtime::make_object<GenerationConfigNode>();
@@ -115,8 +120,6 @@ bool JSONFFIEngine::Abort(std::string request_id) {
 
 std::string JSONFFIEngine::GetLastError() { return err_; }
 
-std::string JSONFFIEngine::JSONMetrics() { return this->engine_->JSONMetrics(); }
-
 void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); }
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
@@ -131,7 +134,6 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
   TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
   TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
-  TVM_MODULE_VTABLE_ENTRY("json_metrics", &JSONFFIEngineImpl::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
                           &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
@@ -190,11 +192,35 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
   String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
     std::unordered_map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
+    std::vector<picojson::value> request_final_usage_messages;
+    std::string model = "json_ffi";
+
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
       if (response_map.find(request_id) == response_map.end()) {
         response_map[request_id] = std::vector<ChatCompletionStreamResponseChoice>();
       }
+
+      // build the final usage messages
+      // invariant, we can always let other messages to come first
+      // then the final usage messages, as final usage is always last
+      if (delta_output->request_final_usage_json_str.defined()) {
+        ChatCompletionStreamResponse response;
+        response.id = request_id;
+        response.model = model;
+        response.system_fingerprint = "";
+        std::string usage_json_str = delta_output->request_final_usage_json_str.value();
+        picojson::value usage_json;
+        std::string err = picojson::parse(usage_json, usage_json_str);
+        if (!err.empty()) {
+          err_ = err;
+        } else {
+          response.usage = usage_json;
+        }
+        request_final_usage_messages.push_back(picojson::value(response.AsJSON()));
+        continue;
+      }
+      ICHECK_NE(delta_output->group_finish_reason.size(), 0);
       ChatCompletionStreamResponseChoice choice;
 
       if (delta_output->group_finish_reason.size() != 1) {
@@ -232,12 +258,16 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 
     picojson::array response_arr;
     for (const auto& [request_id, choices] : response_map) {
+      if (choices.size() == 0) continue;
       ChatCompletionStreamResponse response;
       response.id = request_id;
       response.choices = choices;
       response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
       response.system_fingerprint = "";
       response_arr.push_back(picojson::value(response.AsJSON()));
+    }
+    for (auto&& item : request_final_usage_messages) {
+      response_arr.emplace_back(std::move(item));
     }
     return picojson::value(response_arr).serialize();
   }

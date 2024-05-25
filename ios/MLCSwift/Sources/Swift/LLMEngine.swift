@@ -16,6 +16,19 @@ class BackgroundWorker : Thread {
 
 @available(iOS 14.0.0, *)
 public class MLCEngine {
+    struct RequestState {
+        let request: ChatCompletionRequest
+        let continuation: AsyncStream<ChatCompletionStreamResponse>.Continuation
+        
+        init(
+            request: ChatCompletionRequest,
+            continuation: AsyncStream<ChatCompletionStreamResponse>.Continuation
+        ) {
+            self.request = request
+            self.continuation = continuation
+        }
+    }
+    
     // internal engine state
     // that maintains logger and continuations
     // we decouple it from MLCEngine
@@ -24,7 +37,7 @@ public class MLCEngine {
     // when we capture things
     actor EngineState {
         public let logger = Logger()
-        private var continuationMap = Dictionary<String, AsyncStream<ChatCompletionStreamResponse>.Continuation>()
+        private var requestStateMap = Dictionary<String, RequestState>()
 
         // completion function
         func chatCompletion(
@@ -43,7 +56,9 @@ public class MLCEngine {
                     }
                 }
                 // store continuation map for further callbacks
-                self.continuationMap[requestID] = continuation
+                self.requestStateMap[requestID] = RequestState(
+                    request: request, continuation: continuation
+                )
                 // start invoking engine for completion
                 jsonFFIEngine.chatCompletion(jsonRequest, requestID: requestID)
             }
@@ -62,18 +77,17 @@ public class MLCEngine {
 
             // dispatch to right request ID
             for res in responses {
-                if let continuation = self.continuationMap[res.id] {
-                    continuation.yield(res)
-                    // detect finished from result
-                    var finished = false
-                    for choice in res.choices {
-                        if choice.finish_reason != "" && choice.finish_reason != nil {
-                            finished = true;
+                if let requestState = self.requestStateMap[res.id] {
+                    requestState.continuation.yield(res)
+                    // final chunk always come with usage
+                    if let finalUsage = res.usage {
+                        if let include_usage = requestState.request.stream_options?.include_usage {
+                            if include_usage {
+                                requestState.continuation.yield(res)
+                            }
                         }
-                    }
-                    if finished {
-                        continuation.finish()
-                        self.continuationMap.removeValue(forKey: res.id)
+                        requestState.continuation.finish()
+                        self.requestStateMap.removeValue(forKey: res.id)
                     }
                 }
             }
@@ -108,13 +122,17 @@ public class MLCEngine {
             n: Int = 1,
             seed: Optional<Int> = nil,
             stop: Optional<[String]> = nil,
-            stream: Bool = false,
+            stream: Bool = true,
+            stream_options: Optional<StreamOptions> = nil,
             temperature: Optional<Float> = nil,
             top_p: Optional<Float> = nil,
             tools: Optional<[ChatTool]> = nil,
             user: Optional<String> = nil,
             response_format: Optional<ResponseFormat> = nil
         ) async -> AsyncStream<ChatCompletionStreamResponse> {
+            if !stream {
+                state.logger.error("Only stream=true is supported in MLCSwift")
+            }
             let request = ChatCompletionRequest(
                 messages: messages,
                 model: model,
@@ -128,6 +146,7 @@ public class MLCEngine {
                 seed: seed,
                 stop: stop,
                 stream: stream,
+                stream_options: stream_options,
                 temperature: temperature,
                 top_p: top_p,
                 tools: tools,

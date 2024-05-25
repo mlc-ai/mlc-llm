@@ -19,6 +19,42 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+/****************** DebugConfig ******************/
+
+Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
+  using TResult = Result<DebugConfig>;
+  DebugConfig res;
+  res.ignore_eos = json::LookupOrDefault<bool>(config, "ignore_eos", false);
+  res.pinned_system_prompt = json::LookupOrDefault<bool>(config, "pinned_system_prompt", false);
+  std::string special_request = json::LookupOrDefault<std::string>(config, "special_request", "");
+  if (special_request.length() != 0) {
+    if (special_request == "query_engine_metrics") {
+      res.special_request = SpecialRequestKind::kQueryEngineMetrics;
+    } else {
+      return TResult::Error("Uknown special request " + special_request);
+    }
+  }
+  return TResult::Ok(res);
+}
+
+/**
+ * \return serialized json value of the config.
+ */
+picojson::object DebugConfig::AsJSON() const {
+  picojson::object config;
+  config["ignore_eos"] = picojson::value(ignore_eos);
+  config["pinned_system_prompt"] = picojson::value(pinned_system_prompt);
+  switch (special_request) {
+    case SpecialRequestKind::kQueryEngineMetrics: {
+      config["special_request"] = picojson::value("query_engine_metrics");
+      break;
+    }
+    case SpecialRequestKind::kNone:
+      break;
+  }
+  return config;
+}
+
 /****************** GenerationConfig ******************/
 
 TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
@@ -55,12 +91,10 @@ Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   return TResult::Ok(cfg);
 }
 
-Result<GenerationConfig> GenerationConfig::FromJSON(String config_json_str,
+Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& config,
                                                     const GenerationConfig& default_config) {
   using TResult = Result<GenerationConfig>;
-  picojson::object config = json::ParseToJSONObject(config_json_str);
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
-
   n->n = json::LookupOrDefault<int64_t>(config, "n", default_config->n);
   n->temperature =
       json::LookupOrDefault<double>(config, "temperature", default_config->temperature);
@@ -144,11 +178,13 @@ Result<GenerationConfig> GenerationConfig::FromJSON(String config_json_str,
   // "debug_config" is for internal usage. Not the part of OpenAI API spec.
   std::optional<picojson::object> debug_config_obj =
       json::LookupOptional<picojson::object>(config, "debug_config");
+
   if (debug_config_obj.has_value()) {
-    n->debug_config.pinned_system_prompt =
-        json::LookupOrDefault<bool>(debug_config_obj.value(), "pinned_system_prompt", false);
-    n->debug_config.ignore_eos =
-        json::LookupOrDefault<bool>(debug_config_obj.value(), "ignore_eos", false);
+    Result<DebugConfig> debug_config_res = DebugConfig::FromJSON(debug_config_obj.value());
+    if (debug_config_res.IsErr()) {
+      return TResult::Error(debug_config_res.UnwrapErr());
+    }
+    n->debug_config = debug_config_res.Unwrap();
   }
   return Validate(GenerationConfig(n));
 }
@@ -156,6 +192,7 @@ Result<GenerationConfig> GenerationConfig::FromJSON(String config_json_str,
 GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
     const picojson::object& model_config_json) {
   ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  n->max_tokens = -1;
   n->temperature = json::LookupOrDefault<double>(model_config_json, "temperature", n->temperature);
   n->top_p = json::LookupOrDefault<double>(model_config_json, "top_p", n->top_p);
   n->frequency_penalty =
@@ -165,7 +202,7 @@ GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
   return GenerationConfig(n);
 }
 
-String GenerationConfigNode::AsJSONString() const {
+picojson::object GenerationConfigNode::AsJSON() const {
   picojson::object config;
   config["n"] = picojson::value(static_cast<int64_t>(this->n));
   config["temperature"] = picojson::value(this->temperature);
@@ -202,17 +239,8 @@ String GenerationConfigNode::AsJSONString() const {
                                   ? picojson::value(this->response_format.schema.value())
                                   : picojson::value();
   config["response_format"] = picojson::value(response_format);
-
-  // Params for internal usage. Not the part of OpenAI API spec.
-  {
-    picojson::object debug_config_obj;
-    debug_config_obj["pinned_system_prompt"] =
-        picojson::value(this->debug_config.pinned_system_prompt);
-    debug_config_obj["ignore_eos"] = picojson::value(this->debug_config.ignore_eos);
-    config["debug_config"] = picojson::value(debug_config_obj);
-  }
-
-  return picojson::value(config).serialize(true);
+  config["debug_config"] = picojson::value(debug_config.AsJSON());
+  return config;
 }
 
 /****************** EngineConfig ******************/
@@ -349,11 +377,9 @@ struct ModelConfigLimits {
 
 /*! \brief Convert the bytes to megabytes, keeping 3 decimals. */
 inline std::string BytesToMegabytesString(double bytes) {
-  std::string str;
-  str.resize(20);
-  std::sprintf(&str[0], "%.3f", bytes / 1024 / 1024);
-  str.resize(std::strlen(str.c_str()));
-  return str;
+  std::ostringstream os;
+  os << std::setprecision(3) << std::fixed << (bytes / 1024 / 1024);
+  return os.str();
 }
 
 /*!

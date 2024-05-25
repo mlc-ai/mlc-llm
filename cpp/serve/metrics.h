@@ -51,7 +51,7 @@ struct TimeCost {
   }
 
   /*! \brief Dump the metric as JSON. */
-  picojson::value AsJSON() const;
+  picojson::object AsJSON() const;
 };
 
 /*! \brief Runtime metrics for speculative decoding */
@@ -86,7 +86,7 @@ struct SpecDecodeMetrics {
     accept_count.clear();
     draft_count.clear();
   }
-  picojson::value AsJSON() const;
+  picojson::object AsJSON() const;
 };
 
 /*!
@@ -138,12 +138,14 @@ struct RequestMetrics {
    * \brief Return the request metrics in JSON.
    * \return The metrics in JSON
    */
-  picojson::value AsJSON() const;
+  picojson::object AsJSON() const;
   /*!
    * \brief Return OpenAI compatible usage metrics
+   * \param include_extra Whether to include extra set of metrics
+   *
    * \return The usage metrics in json.
    */
-  picojson::value GetUsage() const;
+  std::string AsUsageJSONStr(bool include_extra) const;
 };
 
 /*! \brief Runtime metrics of engine. */
@@ -220,7 +222,14 @@ struct EngineMetrics {
    * \brief Return the engine runtime metrics in JSON.
    * \return The metrics in JSON
    */
-  picojson::value AsJSON() const;
+  picojson::object AsJSON() const;
+
+  /*!
+   * \brief return engine metrics as usage json string.
+   * \return The resulting usage json string.
+   */
+  std::string AsUsageJSONStr() const;
+
   /*! \brief Reset all the metrics. */
   void Reset();
 };

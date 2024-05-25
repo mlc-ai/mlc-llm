@@ -41,7 +41,8 @@ void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestSta
 
 void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
                                         EngineState estate, Array<Model> models,
-                                        int max_single_sequence_length) {
+                                        int max_single_sequence_length,
+                                        Array<RequestStreamOutput>* callback_delta_outputs) {
   NVTXScopedRange nvtx_scope("Process finished requests");
   // - Remove the finished request state entries.
   for (const RequestStateEntry& rsentry : finished_rsentries) {
@@ -90,6 +91,10 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
 
       rstate->metrics.finish_time_point = trequest_finish;
       estate->metrics.RequestFinishUpdate(rstate->metrics);
+
+      // always stream back usage in backend
+      callback_delta_outputs->push_back(RequestStreamOutput::Usage(
+          root_rsentry->request->id, rstate->metrics.AsUsageJSONStr(true)));
     }
   }
 }
@@ -194,14 +199,15 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     }
   }
 
-  {
+  ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
+                                     std::move(models), max_single_sequence_length,
+                                     &callback_delta_outputs);
+
+  if (!callback_delta_outputs.empty()) {
     NVTXScopedRange nvtx_scope("Call request stream callback");
     // - Invoke the stream callback function once for all collected requests.
     request_stream_callback(callback_delta_outputs);
   }
-
-  ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
-                                     std::move(models), max_single_sequence_length);
 }  // namespace serve
 
 RequestStateEntry PreemptLastRunningRequestStateEntry(

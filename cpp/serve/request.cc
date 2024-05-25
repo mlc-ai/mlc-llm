@@ -19,7 +19,9 @@ namespace serve {
 TVM_REGISTER_OBJECT_TYPE(RequestNode);
 
 Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
-  CHECK(!inputs.empty()) << "No input data is given.";
+  if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
+    CHECK(!inputs.empty()) << "No input data is given.";
+  }
   // Compute the total input length, or fall back to "-1" which means
   // unknown due to the existence of untokenized data.
   int num_input_tokens = 0;
@@ -71,7 +73,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request requ
 });
 
 TVM_REGISTER_GLOBAL("mlc.serve.RequestGetGenerationConfigJSON").set_body_typed([](Request request) {
-  return request->generation_cfg->AsJSONString();
+  return picojson::value(request->generation_cfg->AsJSON()).serialize();
 });
 
 }  // namespace serve
