@@ -1,5 +1,6 @@
 from mlc_llm.serve import DebugConfig, GenerationConfig
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
+from mlc_llm.testing import require_test_model
 
 prompts = [
     "The meaning of life is",
@@ -69,9 +70,9 @@ def test_engine_multi_round(engine):
     assert metrics["num_prefill_tokens_sum"] == sum_prefill_tokens + 2 * num_requests
 
 
-def test_basic_engine_system_prompt():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+def test_basic_engine_system_prompt(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     engine = SyncMLCEngine(
         model=model,
         mode="local",
@@ -83,9 +84,9 @@ def test_basic_engine_system_prompt():
     test_engine_system_prompt(engine)
 
 
-def test_basic_engine_multi_round():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+def test_basic_engine_multi_round(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     engine = SyncMLCEngine(
         model=model,
         mode="server",
@@ -94,11 +95,12 @@ def test_basic_engine_multi_round():
     test_engine_multi_round(engine)
 
 
-def test_engine_spec_multi_round():
+@require_test_model(
+    "Llama-2-7b-chat-hf-q0f16-MLC",
+    "Llama-2-7b-chat-hf-q4f16_1-MLC",
+)
+def test_engine_spec_multi_round(model: str, small_model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
-    small_model = "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC"
-
     engine = SyncMLCEngine(
         model=model,
         mode="server",
@@ -112,9 +114,9 @@ def test_engine_spec_multi_round():
     test_engine_multi_round(engine)
 
 
-def test_engine_eagle_multi_round():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+def test_engine_eagle_multi_round(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
     small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
     engine = SyncMLCEngine(

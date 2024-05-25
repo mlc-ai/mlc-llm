@@ -4,6 +4,7 @@ import asyncio
 from typing import List
 
 from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
+from mlc_llm.testing import require_test_model
 
 prompts = [
     "What is the meaning of life?",
@@ -19,9 +20,9 @@ prompts = [
 ]
 
 
-async def test_engine_generate():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+async def test_engine_generate(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
@@ -74,9 +75,9 @@ async def test_engine_generate():
     del async_engine
 
 
-async def test_chat_completion():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+async def test_chat_completion(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
@@ -101,6 +102,7 @@ async def test_chat_completion():
         ):
             for choice in response.choices:
                 assert choice.delta.role == "assistant"
+                assert isinstance(choice.delta.content, str)
                 output_texts[rid][choice.index] += choice.delta.content
 
     tasks = [
@@ -124,9 +126,9 @@ async def test_chat_completion():
     del async_engine
 
 
-async def test_chat_completion_non_stream():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+async def test_chat_completion_non_stream(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
@@ -150,6 +152,7 @@ async def test_chat_completion_non_stream():
         )
         for choice in response.choices:
             assert choice.message.role == "assistant"
+            assert isinstance(choice.message.content, str)
             output_texts[rid][choice.index] += choice.message.content
 
     tasks = [
@@ -173,9 +176,9 @@ async def test_chat_completion_non_stream():
     del async_engine
 
 
-async def test_completion():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+async def test_completion(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",
@@ -223,9 +226,9 @@ async def test_completion():
     del async_engine
 
 
-async def test_completion_non_stream():
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+async def test_completion_non_stream(model: str):
     # Create engine
-    model = "HF://mlc-ai/Llama-2-7b-chat-hf-q0f16-MLC"
     async_engine = AsyncMLCEngine(
         model=model,
         mode="server",

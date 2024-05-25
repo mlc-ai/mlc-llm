@@ -53,7 +53,10 @@ def _get_test_model_path() -> List[Path]:
     # by default, we reuse the cache dir via mlc_llm chat
     # note that we do not auto download for testcase
     # to avoid networking dependencies
-    return [_get_cache_dir() / "model_weights" / "mlc-ai"]
+    return [
+        _get_cache_dir() / "model_weights" / "mlc-ai",
+        Path(os.path.abspath(os.path.curdir)),
+    ]
 
 
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
