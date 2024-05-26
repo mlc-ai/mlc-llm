@@ -3,10 +3,13 @@
 import uuid
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from mlc_llm.protocol import RequestProtocol, error_protocol, openai_api_protocol
+from mlc_llm.protocol import error_protocol, openai_api_protocol
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data
 
-from .config import DebugConfig, GenerationConfig, ResponseFormat
+RequestProtocol = Union[
+    openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest
+]
 
 
 def get_unsupported_fields(request: RequestProtocol) -> List[str]:
@@ -20,9 +23,7 @@ def get_unsupported_fields(request: RequestProtocol) -> List[str]:
     raise RuntimeError("Cannot reach here")
 
 
-def openai_api_get_generation_config(
-    request: Union[openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest]
-) -> Dict[str, Any]:
+def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]:
     """Create the generation config from the given request."""
     kwargs: Dict[str, Any] = {}
     arg_names = [
@@ -36,6 +37,8 @@ def openai_api_get_generation_config(
         "top_logprobs",
         "logit_bias",
         "seed",
+        "response_format",
+        "debug_config",
     ]
     for arg_name in arg_names:
         kwargs[arg_name] = getattr(request, arg_name)
@@ -45,12 +48,6 @@ def openai_api_get_generation_config(
         kwargs["max_tokens"] = -1
     if request.stop is not None:
         kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
-    if request.response_format is not None:
-        kwargs["response_format"] = ResponseFormat(
-            **request.response_format.model_dump(by_alias=True)
-        )
-    if request.debug_config is not None:
-        kwargs["debug_config"] = DebugConfig(**request.debug_config.model_dump())
     return kwargs
 
 

@@ -22,8 +22,9 @@ from typing import (
 from tvm.runtime import Device
 
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, GenerationConfig
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
 
@@ -1372,7 +1373,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = self._ffi["create_request"](request_id, input_data, generation_config.asjson())
+        request = self._ffi["create_request"](
+            request_id, input_data, generation_config.model_dump_json()
+        )
 
         # Create the unique async request stream of the request.
         stream = engine_base.AsyncRequestStream()
@@ -1898,7 +1901,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         # Create the request with the given id, input data, generation
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
-        request = self._ffi["create_request"](request_id, input_data, generation_config.asjson())
+        request = self._ffi["create_request"](
+            request_id, input_data, generation_config.model_dump_json()
+        )
 
         # Record the stream in the tracker
         self.state.sync_output_queue = queue.Queue()

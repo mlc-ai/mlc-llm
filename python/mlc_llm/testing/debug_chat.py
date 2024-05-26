@@ -373,9 +373,6 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
         generate_length : int
             How many tokens to generate.
-
-        generation_config : Optional[GenerationConfig]
-            Will be used to override the GenerationConfig in ``mlc-chat-config.json``.
         """
         out_tokens = []
 

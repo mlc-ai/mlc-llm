@@ -3,7 +3,8 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.serve import AsyncMLCEngine, EngineConfig
 from mlc_llm.testing import require_test_model
 
 prompts = [

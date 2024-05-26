@@ -2,7 +2,8 @@
 # pylint: disable=too-many-arguments,too-many-locals,unused-argument,unused-variable
 from typing import List
 
-from mlc_llm.serve import EngineConfig, GenerationConfig, MLCEngine
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.serve import EngineConfig, MLCEngine
 
 prompts = [
     "What is the meaning of life?",

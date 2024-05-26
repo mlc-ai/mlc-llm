@@ -4,8 +4,9 @@ from typing import List
 import tvm._ffi
 from tvm.runtime import Object
 
+from mlc_llm.protocol.generation_config import GenerationConfig
+
 from . import _ffi_api
-from .config import GenerationConfig
 from .data import Data
 
 
@@ -29,6 +30,6 @@ class Request(Object):
     @property
     def generation_config(self) -> GenerationConfig:
         """The generation config of the request."""
-        return GenerationConfig.from_json(
+        return GenerationConfig.model_validate_json(
             _ffi_api.RequestGetGenerationConfigJSON(self)  # type: ignore  # pylint: disable=no-member
         )

@@ -4,7 +4,8 @@ from typing import Callable, List, Optional
 
 import numpy as np
 
-from mlc_llm.serve import GenerationConfig, Request, RequestStreamOutput, data
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.serve import Request, RequestStreamOutput, data
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 from mlc_llm.testing import require_test_model
 

@@ -1,4 +1,5 @@
-from mlc_llm.serve import DebugConfig, GenerationConfig
+from mlc_llm.protocol.debug_protocol import DebugConfig
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 from mlc_llm.testing import require_test_model
 

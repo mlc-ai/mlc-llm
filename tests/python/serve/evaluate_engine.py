@@ -4,7 +4,7 @@ import os
 import random
 from typing import List, Tuple
 
-from mlc_llm.serve import GenerationConfig
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 
