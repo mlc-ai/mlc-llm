@@ -16,7 +16,7 @@ from . import logging, tqdm
 from .constants import (
     MLC_DOWNLOAD_POLICY,
     MLC_LLM_HOME,
-    MLC_LLM_READONLY_WEIGHT_CACHES,
+    MLC_LLM_READONLY_WEIGHT_CACHE,
     MLC_TEMP_DIR,
 )
 from .style import bold
@@ -147,7 +147,7 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     domain = "hf"
 
     readonly_cache_dirs = []
-    for base in MLC_LLM_READONLY_WEIGHT_CACHES:
+    for base in MLC_LLM_READONLY_WEIGHT_CACHE:
         cache_dir = base / domain / user / repo
         readonly_cache_dirs.append(str(cache_dir))
         if (cache_dir / "mlc-chat-config.json").is_file():
@@ -170,7 +170,7 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
         raise RuntimeError(
             f"Cannot find cache for {model_url}, "
             "cannot proceed to download as MLC_DOWNLOAD_POLICY=READONLY, "
-            "please check settings MLC_LLM_READONLY_WEIGHT_CACHES, "
+            "please check settings MLC_LLM_READONLY_WEIGHT_CACHE, "
             f"local path candidates: {readonly_cache_dirs}"
         )
 
