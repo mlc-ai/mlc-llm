@@ -7,8 +7,9 @@ from typing import List
 import pytest
 from pydantic import BaseModel
 
-from mlc_llm.serve import AsyncMLCEngine, GenerationConfig
-from mlc_llm.serve.config import ResponseFormat
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.protocol.openai_api_protocol import RequestResponseFormat as ResponseFormat
+from mlc_llm.serve import AsyncMLCEngine
 from mlc_llm.serve.sync_engine import SyncMLCEngine
 from mlc_llm.testing import require_test_model
 

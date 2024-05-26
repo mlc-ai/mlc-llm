@@ -3,7 +3,8 @@
 import asyncio
 from typing import List
 
-from mlc_llm.serve import AsyncMLCEngine, EngineConfig, GenerationConfig
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.serve import AsyncMLCEngine, EngineConfig
 from mlc_llm.testing import require_test_model
 
 prompts = [
@@ -20,7 +21,7 @@ prompts = [
 ]
 
 
-@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
 async def test_engine_generate(model: str):
     # Create engine
     async_engine = AsyncMLCEngine(
@@ -48,9 +49,12 @@ async def test_engine_generate(model: str):
         async for delta_outputs in async_engine._generate(
             prompt, generation_cfg, request_id=request_id
         ):
-            assert len(delta_outputs) == generation_cfg.n
-            for i, delta_output in enumerate(delta_outputs):
-                output_texts[rid][i] += delta_output.delta_text
+            if len(delta_outputs) == generation_cfg.n:
+                for i, delta_output in enumerate(delta_outputs):
+                    output_texts[rid][i] += delta_output.delta_text
+            else:
+                assert len(delta_outputs) == 1
+                assert len(delta_outputs[0].request_final_usage_json_str) != 0
 
     tasks = [
         asyncio.create_task(
@@ -75,7 +79,7 @@ async def test_engine_generate(model: str):
     del async_engine
 
 
-@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
 async def test_chat_completion(model: str):
     # Create engine
     async_engine = AsyncMLCEngine(
@@ -126,7 +130,7 @@ async def test_chat_completion(model: str):
     del async_engine
 
 
-@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
+@require_test_model("Llama-2-7b-chat-hf-q4f16_1-MLC")
 async def test_chat_completion_non_stream(model: str):
     # Create engine
     async_engine = AsyncMLCEngine(

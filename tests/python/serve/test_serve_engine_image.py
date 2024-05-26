@@ -1,7 +1,8 @@
 import json
 from pathlib import Path
 
-from mlc_llm.serve import GenerationConfig, data
+from mlc_llm.protocol.generation_config import GenerationConfig
+from mlc_llm.serve import data
 from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 

@@ -13,8 +13,9 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 import tvm
 
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data
-from mlc_llm.serve.config import EngineConfig, GenerationConfig
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.engine_base import (
     EngineMetrics,
     _check_engine_config,
@@ -307,7 +308,7 @@ class SyncMLCEngine:
         """
         if not isinstance(inputs, list):
             inputs = [inputs]
-        return self._ffi["create_request"](request_id, inputs, generation_config.asjson())
+        return self._ffi["create_request"](request_id, inputs, generation_config.model_dump_json())
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.

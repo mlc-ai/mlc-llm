@@ -18,9 +18,10 @@ from tvm.runtime import Device
 
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
+from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, GenerationConfig
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import download_cache, logging
