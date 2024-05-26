@@ -67,8 +67,8 @@ def _get_test_model_path() -> List[Path]:
 
 
 def _get_read_only_weight_caches() -> List[Path]:
-    if "MLC_LLM_READONLY_WEIGHT_CACHES" in os.environ:
-        return [Path(p) for p in os.environ["MLC_LLM_READONLY_WEIGHT_CACHES"].split(os.pathsep)]
+    if "MLC_LLM_READONLY_WEIGHT_CACHE" in os.environ:
+        return [Path(p) for p in os.environ["MLC_LLM_READONLY_WEIGHT_CACHE"].split(os.pathsep)]
     return []
 
 
@@ -80,6 +80,6 @@ MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
 
 MLC_DOWNLOAD_POLICY = os.environ.get("MLC_DOWNLOAD_POLICY", "ON")
 MLC_LLM_HOME: Path = _get_cache_dir()
-MLC_LLM_READONLY_WEIGHT_CACHES = _get_read_only_weight_caches()
+MLC_LLM_READONLY_WEIGHT_CACHE = _get_read_only_weight_caches()
 
 _check()
