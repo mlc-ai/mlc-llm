@@ -35,12 +35,12 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
     # pylint: disable=import-outside-toplevel
     from mlc_llm.model import MODEL_PRESETS
 
-    from .download import download_mlc_weights
+    from .download import download_and_cache_mlc_weights
 
     # pylint: enable=import-outside-toplevel
 
     if mlc_chat_config.startswith("HF://") or mlc_chat_config.startswith("http"):
-        mlc_chat_config_path = Path(download_mlc_weights(model_url=mlc_chat_config))
+        mlc_chat_config_path = Path(download_and_cache_mlc_weights(model_url=mlc_chat_config))
     elif isinstance(mlc_chat_config, str) and mlc_chat_config in MODEL_PRESETS:
         logger.info("%s mlc preset model: %s", FOUND, mlc_chat_config)
         content = MODEL_PRESETS[mlc_chat_config].copy()

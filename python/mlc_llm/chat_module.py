@@ -356,11 +356,11 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     """
     if model.startswith("HF://"):
         from mlc_llm.support.download import (  # pylint: disable=import-outside-toplevel
-            download_mlc_weights,
+            download_and_cache_mlc_weights,
         )
 
         logger.info("Downloading model from HuggingFace: %s", model)
-        mlc_dir = download_mlc_weights(model)
+        mlc_dir = download_and_cache_mlc_weights(model)
         cfg_dir = mlc_dir / "mlc-chat-config.json"
         return str(mlc_dir), str(cfg_dir)
 
