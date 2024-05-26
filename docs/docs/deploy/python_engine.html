@@ -180,21 +180,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#run-asyncmlcengine">Run AsyncMLCEngine</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#engine-mode">Engine Mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#deploy-your-own-model-with-python-api">Deploy Your Own Model with Python API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#mlc_llm.MLCEngine"><code class="docutils literal notranslate"><span class="pre">MLCEngine</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.__init__"><code class="docutils literal notranslate"><span class="pre">MLCEngine.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.abort"><code class="docutils literal notranslate"><span class="pre">MLCEngine.abort()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.metrics"><code class="docutils literal notranslate"><span class="pre">MLCEngine.metrics()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine</span></code></a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.__init__"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.__init__()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.abort"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.abort()</span></code></a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.metrics"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.metrics()</span></code></a></li>
-</ul>
-</li>
-</ul>
-</li>
+<li class="toctree-l2"><a class="reference internal" href="#api-reference">API Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS Swift SDK</a></li>
@@ -323,7 +309,7 @@
 <li><p><a class="reference internal" href="#api-reference" id="id11">API Reference</a></p></li>
 </ul>
 </nav>
-<p>MLC LLM provides Python API through classes <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> and <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a>
+<p>MLC LLM provides Python API through classes <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code>
 which <strong>support full OpenAI API completeness</strong> for easy integration into other Python projects.</p>
 <p>This page introduces how to use the engines in MLC LLM.
 The Python API is a part of the MLC-LLM package, which we have prepared pre-built pip wheels via
@@ -339,11 +325,11 @@ packages or build MLC LLM from source.</p>
 </section>
 <section id="run-mlcengine">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">Run MLCEngine</a><a class="headerlink" href="#run-mlcengine" title="Permalink to this heading">¶</a></h2>
-<p><a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> provides the interface of OpenAI chat completion synchronously.
-<a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> does not batch concurrent request due to the synchronous design,
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> provides the interface of OpenAI chat completion synchronously.
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> does not batch concurrent request due to the synchronous design,
 and please use <a class="reference internal" href="#python-engine-async-llm-engine"><span class="std std-ref">AsyncMLCEngine</span></a> for request batching process.</p>
 <p><strong>Stream Response.</strong> In <a class="reference internal" href="../get_started/quick_start.html#quick-start"><span class="std std-ref">Quick Start</span></a> and <a class="reference internal" href="../get_started/introduction.html#introduction-to-mlc-llm"><span class="std std-ref">Introduction to MLC LLM</span></a>,
-we introduced the basic use of <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a>.</p>
+we introduced the basic use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">MLCEngine</span>
 
 <span class="c1"># Create engine</span>
@@ -363,9 +349,9 @@ we introduced the basic use of <a class="reference internal" href="#mlc_llm.MLCE
 <span class="n">engine</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>This code example first creates an <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> instance with the 8B Llama-3 model.
-<strong>We design the Python API</strong> <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> <strong>to align with OpenAI API</strong>,
-which means you can use <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> in the same way of using
+<p>This code example first creates an <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> instance with the 8B Llama-3 model.
+<strong>We design the Python API</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> <strong>to align with OpenAI API</strong>,
+which means you can use <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> in the same way of using
 <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
 for both synchronous and asynchronous generation.</p>
 <p><strong>Non-stream Response.</strong> The code example above uses the synchronous chat completion
@@ -385,10 +371,10 @@ for the complete chat completion interface.</p>
 </section>
 <section id="run-asyncmlcengine">
 <span id="python-engine-async-llm-engine"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Run AsyncMLCEngine</a><a class="headerlink" href="#run-asyncmlcengine" title="Permalink to this heading">¶</a></h2>
-<p><a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> provides the interface of OpenAI chat completion with
+<p><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> provides the interface of OpenAI chat completion with
 asynchronous features.
-<strong>We recommend using</strong> <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> <strong>to batch concurrent request for better throughput.</strong></p>
-<p><strong>Stream Response.</strong> The core use of <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> for stream responses is as follows.</p>
+<strong>We recommend using</strong> <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> <strong>to batch concurrent request for better throughput.</strong></p>
+<p><strong>Stream Response.</strong> The core use of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> for stream responses is as follows.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="k">await</span> <span class="n">engine</span><span class="o">.</span><span class="n">chat</span><span class="o">.</span><span class="n">completions</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
   <span class="n">messages</span><span class="o">=</span><span class="p">[{</span><span class="s2">&quot;role&quot;</span><span class="p">:</span> <span class="s2">&quot;user&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">:</span> <span class="s2">&quot;What is the meaning of life?&quot;</span><span class="p">}],</span>
   <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
@@ -460,8 +446,8 @@ for the complete chat completion interface.</p>
 </section>
 <section id="engine-mode">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink">Engine Mode</a><a class="headerlink" href="#engine-mode" title="Permalink to this heading">¶</a></h2>
-<p>To ease the engine configuration, the constructors of <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> and
-<a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> have an optional argument <code class="docutils literal notranslate"><span class="pre">mode</span></code>,
+<p>To ease the engine configuration, the constructors of <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> and
+<code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> have an optional argument <code class="docutils literal notranslate"><span class="pre">mode</span></code>,
 which falls into one of the three options <code class="docutils literal notranslate"><span class="pre">&quot;local&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;interactive&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;server&quot;</span></code>.
 The default mode is <code class="docutils literal notranslate"><span class="pre">&quot;local&quot;</span></code>.</p>
 <p>Each mode denotes a pre-defined configuration of the engine to satisfy different use cases.
@@ -483,10 +469,10 @@ Please refer to <a class="reference internal" href="#python-engine-api-reference
 <p>The <a class="reference internal" href="../get_started/introduction.html#introduction-deploy-your-own-model"><span class="std std-ref">introduction page</span></a> introduces how we can deploy our
 own models with MLC LLM.
 This section introduces how you can use the model weights you convert and the model library you build
-in <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> and <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a>.</p>
+in <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code>.</p>
 <p>We use the <a class="reference external" href="https://huggingface.co/microsoft/phi-2">Phi-2</a> as the example model.</p>
 <p><strong>Specify Model Weight Path.</strong> Assume you have converted the model weights for your own model,
-you can construct a <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> as follows:</p>
+you can construct a <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> as follows:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">MLCEngine</span>
 
 <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>  <span class="c1"># Assuming the converted phi-2 model weights are under &quot;models/phi-2&quot;</span>
@@ -494,7 +480,7 @@ you can construct a <a class="reference internal" href="#mlc_llm.MLCEngine" titl
 </pre></div>
 </div>
 <p><strong>Specify Model Library Path.</strong> Further, if you build the model library on your own,
-you can use it in <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> by passing the library path through argument <code class="docutils literal notranslate"><span class="pre">model_lib</span></code>.</p>
+you can use it in <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> by passing the library path through argument <code class="docutils literal notranslate"><span class="pre">model_lib</span></code>.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">MLCEngine</span>
 
 <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;models/phi-2&quot;</span>
@@ -502,163 +488,15 @@ you can use it in <a class="reference internal" href="#mlc_llm.MLCEngine" title=
 <span class="n">engine</span> <span class="o">=</span> <span class="n">MLCEngine</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">model_lib</span><span class="o">=</span><span class="n">model_lib</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>The same applies to <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a>.</p>
+<p>The same applies to <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code>.</p>
 </section>
 <section id="api-reference">
 <span id="python-engine-api-reference"></span><h2><a class="toc-backref" href="#id11" role="doc-backlink">API Reference</a><a class="headerlink" href="#api-reference" title="Permalink to this heading">¶</a></h2>
-<p>The <a class="reference internal" href="#mlc_llm.MLCEngine" title="mlc_llm.MLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code></a> and <a class="reference internal" href="#mlc_llm.AsyncMLCEngine" title="mlc_llm.AsyncMLCEngine"><code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code></a> classes provide the following constructors.</p>
+<p>The <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code> and <code class="xref py py-class docutils literal notranslate"><span class="pre">mlc_llm.AsyncMLCEngine</span></code> classes provide the following constructors.</p>
 <p>The MLCEngine and AsyncMLCEngine have full OpenAI API completeness.
 Please refer to <a class="reference external" href="https://github.com/openai/openai-python?tab=readme-ov-file#usage">OpenAI’s Python package</a>
 and <a class="reference external" href="https://platform.openai.com/docs/api-reference/chat/create">OpenAI chat completion API</a>
 for the complete chat completion interface.</p>
-<dl class="py class">
-<dt class="sig sig-object py" id="mlc_llm.MLCEngine">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">MLCEngine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Device</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'local'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'interactive'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'server'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'local'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">engine_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">EngineConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_tracing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.MLCEngine" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">MLCEngineBase</span></code></p>
-<p>The MLCEngine in MLC LLM that provides the synchronous
-interfaces with regard to OpenAI API.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model</strong> (<em>str</em>) – A path to <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, or an MLC model directory that contains
-<cite>mlc-chat-config.json</cite>.
-It can also be a link to a HF repository pointing to an MLC compiled model.</p></li>
-<li><p><strong>device</strong> (<em>Union</em><em>[</em><em>str</em><em>, </em><em>Device</em><em>]</em>) – The device used to deploy the model such as “cuda” or “cuda:0”.
-Will default to “auto” and detect from local available GPUs if not specified.</p></li>
-<li><p><strong>model_lib</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).
-If unspecified, we will use the provided <code class="docutils literal notranslate"><span class="pre">model</span></code> to search over possible paths.
-It the model lib is not found, it will be compiled in a JIT manner.</p></li>
-<li><p><strong>mode</strong> (<em>Literal</em><em>[</em><em>&quot;local&quot;</em><em>, </em><em>&quot;interactive&quot;</em><em>, </em><em>&quot;server&quot;</em><em>]</em>) – <p>The engine mode in MLC LLM.
-We provide three preset modes: “local”, “interactive” and “server”.
-The default mode is “local”.
-The choice of mode decides the values of “max_num_sequence”, “max_total_sequence_length”
-and “prefill_chunk_size” when they are not explicitly specified.
-1. Mode “local” refers to the local server deployment which has low
-request concurrency. So the max batch size will be set to 4, and max
-total sequence length and prefill chunk size are set to the context
-window size (or sliding window size) of the model.
-2. Mode “interactive” refers to the interactive use of server, which
-has at most 1 concurrent request. So the max batch size will be set to 1,
-and max total sequence length and prefill chunk size are set to the context
-window size (or sliding window size) of the model.
-3. Mode “server” refers to the large server use case which may handle
-many concurrent request and want to use GPU memory as much as possible.
-In this mode, we will automatically infer the largest possible max batch
-size and max total sequence length.</p>
-<p>You can manually specify arguments “max_num_sequence”, “max_total_sequence_length” and
-“prefill_chunk_size” to override the automatic inferred values.</p>
-</p></li>
-<li><p><strong>engine_config</strong> (<em>Optional</em><em>[</em><em>EngineConfig</em><em>]</em>) – Additional configurable arguments of MLC engine.
-See class “EngineConfig” for more detail.</p></li>
-<li><p><strong>enable_tracing</strong> (<em>bool</em>) – A boolean indicating if to enable event logging for requests.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.MLCEngine.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Device</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'local'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'interactive'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'server'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'local'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">engine_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">EngineConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_tracing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlc_llm.MLCEngine.__init__" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.MLCEngine.abort">
-<span class="sig-name descname"><span class="pre">abort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlc_llm.MLCEngine.abort" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generation abortion interface.</p>
-<dl class="simple">
-<dt>request_id<span class="classifier">str</span></dt><dd><p>The id of the request to abort.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.MLCEngine.metrics">
-<span class="sig-name descname"><span class="pre">metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">EngineMetrics</span></span></span><a class="headerlink" href="#mlc_llm.MLCEngine.metrics" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get engine metrics</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>metrics</strong> – The engine metrics</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>EngineMetrics</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="mlc_llm.AsyncMLCEngine">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">mlc_llm.</span></span><span class="sig-name descname"><span class="pre">AsyncMLCEngine</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Device</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'local'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'interactive'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'server'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'local'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">engine_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">EngineConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_tracing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#mlc_llm.AsyncMLCEngine" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">MLCEngineBase</span></code></p>
-<p>The AsyncMLCEngine in MLC LLM that provides the asynchronous
-interfaces with regard to OpenAI API.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>model</strong> (<em>str</em>) – A path to <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code>, or an MLC model directory that contains
-<cite>mlc-chat-config.json</cite>.
-It can also be a link to a HF repository pointing to an MLC compiled model.</p></li>
-<li><p><strong>device</strong> (<em>Union</em><em>[</em><em>str</em><em>, </em><em>Device</em><em>]</em>) – The device used to deploy the model such as “cuda” or “cuda:0”.
-Will default to “auto” and detect from local available GPUs if not specified.</p></li>
-<li><p><strong>model_lib</strong> (<em>Optional</em><em>[</em><em>str</em><em>]</em>) – The full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).
-If unspecified, we will use the provided <code class="docutils literal notranslate"><span class="pre">model</span></code> to search over possible paths.
-It the model lib is not found, it will be compiled in a JIT manner.</p></li>
-<li><p><strong>mode</strong> (<em>Literal</em><em>[</em><em>&quot;local&quot;</em><em>, </em><em>&quot;interactive&quot;</em><em>, </em><em>&quot;server&quot;</em><em>]</em>) – <p>The engine mode in MLC LLM.
-We provide three preset modes: “local”, “interactive” and “server”.
-The default mode is “local”.
-The choice of mode decides the values of “max_num_sequence”, “max_total_sequence_length”
-and “prefill_chunk_size” when they are not explicitly specified.
-1. Mode “local” refers to the local server deployment which has low
-request concurrency. So the max batch size will be set to 4, and max
-total sequence length and prefill chunk size are set to the context
-window size (or sliding window size) of the model.
-2. Mode “interactive” refers to the interactive use of server, which
-has at most 1 concurrent request. So the max batch size will be set to 1,
-and max total sequence length and prefill chunk size are set to the context
-window size (or sliding window size) of the model.
-3. Mode “server” refers to the large server use case which may handle
-many concurrent request and want to use GPU memory as much as possible.
-In this mode, we will automatically infer the largest possible max batch
-size and max total sequence length.</p>
-<p>You can manually specify arguments “max_num_sequence”, “max_total_sequence_length” and
-“prefill_chunk_size” to override the automatic inferred values.</p>
-</p></li>
-<li><p><strong>engine_config</strong> (<em>Optional</em><em>[</em><em>EngineConfig</em><em>]</em>) – Additional configurable arguments of MLC engine.
-See class “EngineConfig” for more detail.</p></li>
-<li><p><strong>enable_tracing</strong> (<em>bool</em>) – A boolean indicating if to enable event logging for requests.</p></li>
-</ul>
-</dd>
-</dl>
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.AsyncMLCEngine.__init__">
-<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">device</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Union</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Device</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'auto'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_lib</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Literal</span><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'local'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'interactive'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'server'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'local'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">engine_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">EngineConfig</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_tracing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlc_llm.AsyncMLCEngine.__init__" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.AsyncMLCEngine.abort">
-<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">abort</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#mlc_llm.AsyncMLCEngine.abort" title="Permalink to this definition">¶</a></dt>
-<dd><p>Generation abortion interface.</p>
-<dl class="simple">
-<dt>request_id<span class="classifier">str</span></dt><dd><p>The id of the request to abort.</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="mlc_llm.AsyncMLCEngine.metrics">
-<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">EngineMetrics</span></span></span><a class="headerlink" href="#mlc_llm.AsyncMLCEngine.metrics" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get engine metrics</p>
-<dl class="field-list simple">
-<dt class="field-odd">Returns<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>metrics</strong> – The engine metrics</p>
-</dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>EngineMetrics</p>
-</dd>
-</dl>
-</dd></dl>
-
-</dd></dl>
-
 </section>
 </section>
 
