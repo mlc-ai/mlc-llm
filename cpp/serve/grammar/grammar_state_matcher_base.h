@@ -8,7 +8,6 @@
 
 #include <vector>
 
-#include "../../tokenizers.h"
 #include "grammar.h"
 #include "grammar_state_matcher_state.h"
 

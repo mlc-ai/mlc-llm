@@ -5,6 +5,7 @@
 
 #include "tokenizers.h"
 
+#include <picojson.h>
 #include <tokenizers_cpp.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
@@ -20,11 +21,47 @@
 namespace mlc {
 namespace llm {
 
+TVM_REGISTER_OBJECT_TYPE(TokenizerInfoNode);
+
+String TokenizerInfoNode::AsJSONString() const {
+  picojson::object obj;
+  obj["token_postproc_method"] = picojson::value(token_postproc_method);
+  obj["prepend_space_in_encode"] = picojson::value(prepend_space_in_encode);
+  obj["strip_space_in_decode"] = picojson::value(strip_space_in_decode);
+  return picojson::value(obj).serialize(false);
+}
+
+TokenizerInfo TokenizerInfo::FromJSON(String json_string) {
+  picojson::value v;
+  std::string err = picojson::parse(v, json_string.operator std::string());
+  ICHECK(err.empty()) << "Failed to parse JSON: " << err;
+
+  ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
+  const picojson::object& obj = v.get<picojson::object>();
+
+  ObjectPtr<TokenizerInfoNode> n = make_object<TokenizerInfoNode>();
+  if (obj.count("token_postproc_method")) {
+    ICHECK(obj.at("token_postproc_method").is<std::string>());
+    n->token_postproc_method = obj.at("token_postproc_method").get<std::string>();
+  }
+  if (obj.count("prepend_space_in_encode")) {
+    ICHECK(obj.at("prepend_space_in_encode").is<bool>());
+    n->prepend_space_in_encode = obj.at("prepend_space_in_encode").get<bool>();
+  }
+  if (obj.count("strip_space_in_decode")) {
+    ICHECK(obj.at("strip_space_in_decode").is<bool>());
+    n->strip_space_in_decode = obj.at("strip_space_in_decode").get<bool>();
+  }
+
+  return TokenizerInfo(n);
+}
+
 TVM_REGISTER_OBJECT_TYPE(TokenizerObj);
 
-Tokenizer::Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer) {
+Tokenizer::Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer, TokenizerInfo info) {
   ObjectPtr<TokenizerObj> n = make_object<TokenizerObj>();
   n->tokenizer = std::move(tokenizer);
+  n->info_ = std::move(info);
   data_ = std::move(n);
 }
 
@@ -46,7 +83,8 @@ int32_t TokenizerObj::TokenToId(const std::string& token) const {
   return tokenizer->TokenToId(token);
 }
 
-Tokenizer Tokenizer::FromPath(const String& _path) {
+Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> info) {
+  TokenizerInfo info_value = info.value_or(DetectTokenizerInfo(_path));
   std::filesystem::path path(_path.operator std::string());
   std::filesystem::path sentencepiece;
   std::filesystem::path huggingface;
@@ -66,7 +104,8 @@ Tokenizer Tokenizer::FromPath(const String& _path) {
         std::string vocab = LoadBytesFromFile(vocab_path.string());
         std::string merges = LoadBytesFromFile(merges_path.string());
         std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
-        return Tokenizer(tokenizers::Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens));
+        return Tokenizer(tokenizers::Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens),
+                         info_value);
       }
     }
   } else {
@@ -75,7 +114,8 @@ Tokenizer Tokenizer::FromPath(const String& _path) {
     rwkvworld = path.parent_path() / "tokenizer_model";
   }
   if (std::filesystem::exists(huggingface)) {
-    return Tokenizer(tokenizers::Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string())));
+    return Tokenizer(tokenizers::Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string())),
+                     info_value);
   }
   if (std::filesystem::exists(sentencepiece)) {
     LOG(WARNING)
@@ -85,12 +125,157 @@ Tokenizer Tokenizer::FromPath(const String& _path) {
         << "Consider converting `tokenizer.model` to `tokenizer.json` by compiling the model "
         << "with MLC again, or see if MLC's huggingface provides this file.";
     return Tokenizer(
-        tokenizers::Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string())));
+        tokenizers::Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string())),
+        info_value);
   }
   if (std::filesystem::exists(rwkvworld)) {
-    return Tokenizer(tokenizers::Tokenizer::FromBlobRWKVWorld(rwkvworld.string()));
+    return Tokenizer(tokenizers::Tokenizer::FromBlobRWKVWorld(rwkvworld.string()), info_value);
   }
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
+}
+
+TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
+  std::filesystem::path path(path_str.operator std::string());
+  CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << path_str;
+  if (!std::filesystem::is_directory(path)) {
+    path = path.parent_path();
+  }
+  path = path / "tokenizer.json";
+  if (!std::filesystem::exists(path)) {
+    LOG(WARNING) << "Tokenizer info is not detected as tokenizer.json is not found. The default "
+                 << "tokenizer info will be used.";
+    return TokenizerInfo();
+  }
+
+  std::string tokenizer_json = LoadBytesFromFile(path.string());
+  picojson::value v;
+  std::string err = picojson::parse(v, tokenizer_json);
+  ICHECK(err.empty()) << "Failed to parse JSON: " << err;
+  ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
+  const picojson::object& obj = v.get<picojson::object>();
+
+  ObjectPtr<TokenizerInfoNode> n = make_object<TokenizerInfoNode>();
+
+  // Step 1. Detect token_postproc_method: byte_fallback or byte_level
+  // Detect {"type": "ByteLevel"} or {"type": "ByteFallback"} in "decoder" field of the tokenizer
+  if (!obj.count("decoder") || !obj.at("decoder").is<picojson::object>()) {
+    LOG(WARNING) << "Decoder field is not found in tokenizer.json. Use ByteFallback as default.";
+    n->token_postproc_method = "byte_fallback";
+  } else {
+    auto decoder_obj = obj.at("decoder").get<picojson::object>();
+    ICHECK(decoder_obj.count("type") && decoder_obj.at("type").is<std::string>());
+    auto type = decoder_obj.at("type").get<std::string>();
+
+    auto f_detect_decoder_type = [](ObjectPtr<TokenizerInfoNode> n,
+                                    const picojson::value& decoder_json) {
+      ICHECK(decoder_json.is<picojson::object>());
+      ICHECK(decoder_json.get<picojson::object>().count("type") &&
+             decoder_json.get<picojson::object>().at("type").is<std::string>());
+      auto type = decoder_json.get<picojson::object>().at("type").get<std::string>();
+      if (type == "ByteLevel") {
+        n->token_postproc_method = "byte_level";
+        return true;
+      } else if (type == "ByteFallback") {
+        n->token_postproc_method = "byte_fallback";
+        return true;
+      }
+      return false;
+    };
+
+    bool found = false;
+
+    // For sequence, examine every decoder
+    if (type == "Sequence") {
+      ICHECK(decoder_obj.count("decoders") && decoder_obj.at("decoders").is<picojson::array>());
+      for (const picojson::value& decoder : decoder_obj.at("decoders").get<picojson::array>()) {
+        if (f_detect_decoder_type(n, decoder)) {
+          found = true;
+        }
+      }
+    } else {
+      if (f_detect_decoder_type(n, obj.at("decoder"))) {
+        found = true;
+      }
+    }
+
+    if (!found) {
+      LOG(WARNING) << "Neither ByteLevel nor ByteFallback decoder is detected in tokenizer.json. "
+                   << "Use ByteFallback as default.";
+      n->token_postproc_method = "byte_fallback";
+    }
+  }
+
+  // Step 2. Detect prepend_space_in_encode
+  // Find {"type": "Prepend", "prepend": "▁"} in "normalizer" field of the tokenizer
+  if (obj.count("normalizer") && obj.at("normalizer").is<picojson::object>()) {
+    const picojson::value& normalizer_json = obj.at("normalizer");
+
+    auto f_handle_normalizer = [](ObjectPtr<TokenizerInfoNode> n,
+                                  const picojson::value& normalizer_json) {
+      ICHECK(normalizer_json.is<picojson::object>());
+      auto obj = normalizer_json.get<picojson::object>();
+      ICHECK(obj.count("type") && obj.at("type").is<std::string>());
+      if (obj.at("type").get<std::string>() == "Prepend" && obj.count("prepend") &&
+          obj.at("prepend").is<std::string>() && obj.at("prepend").get<std::string>() == "▁") {
+        n->prepend_space_in_encode = true;
+        return true;
+      }
+      return false;
+    };
+
+    auto type = normalizer_json.get<picojson::object>().at("type").get<std::string>();
+    if (type == "Sequence") {
+      ICHECK(normalizer_json.get<picojson::object>().count("normalizers") &&
+             normalizer_json.get<picojson::object>().at("normalizers").is<picojson::array>());
+      for (const picojson::value& normalizer :
+           normalizer_json.get<picojson::object>().at("normalizers").get<picojson::array>()) {
+        if (f_handle_normalizer(n, normalizer)) {
+          break;
+        }
+      }
+    } else {
+      f_handle_normalizer(n, normalizer_json);
+    }
+  }
+
+  // Step 3. Detect strip_space_in_decode
+  // Find {"type": "Strip", "content": " ", "start": 1, "stop": 0} in "decoder" field of the
+  // tokenizer
+  if (obj.count("decoder") && obj.at("decoder").is<picojson::object>()) {
+    const picojson::value& decoders_json = obj.at("decoder");
+
+    auto f_handle_decoder = [](ObjectPtr<TokenizerInfoNode> n,
+                               const picojson::value& decoder_json) {
+      ICHECK(decoder_json.is<picojson::object>());
+      auto obj = decoder_json.get<picojson::object>();
+      ICHECK(obj.count("type") && obj.at("type").is<std::string>());
+      if (obj.at("type").get<std::string>() == "Strip" && obj.count("content") &&
+          obj.at("content").is<std::string>() && obj.at("content").get<std::string>() == " " &&
+          obj.count("start") && obj.at("start").is<int64_t>() &&
+          obj.at("start").get<int64_t>() == 1 && obj.count("stop") &&
+          obj.at("stop").is<int64_t>() && obj.at("stop").get<int64_t>() == 0) {
+        n->strip_space_in_decode = true;
+        return true;
+      }
+      return false;
+    };
+
+    auto type = decoders_json.get<picojson::object>().at("type").get<std::string>();
+    if (type == "Sequence") {
+      ICHECK(decoders_json.get<picojson::object>().count("decoders") &&
+             decoders_json.get<picojson::object>().at("decoders").is<picojson::array>());
+      for (const picojson::value& decoder :
+           decoders_json.get<picojson::object>().at("decoders").get<picojson::array>()) {
+        if (f_handle_decoder(n, decoder)) {
+          break;
+        }
+      }
+    } else {
+      f_handle_decoder(n, decoders_json);
+    }
+  }
+
+  return TokenizerInfo(n);
 }
 
 /*! \brief ByteFallback decoder: transform tokens like <0x1B> to hex char byte 1B */
@@ -174,37 +359,41 @@ inline std::string ByteLevelDecoder(const std::string& token) {
 /*!
  * \brief Post-process a raw token to the actual token with the given post-processing method.
  */
-inline std::string PostProcessToken(const std::string& token, const std::string& postproc_method) {
-  if (postproc_method == "byte_fallback") {
+inline std::string PostProcessToken(const std::string& token,
+                                    const std::string& token_postproc_method) {
+  if (token_postproc_method == "byte_fallback") {
     return SpaceReplacerDecoder(ByteFallbackDecoder(token));
-  } else if (postproc_method == "byte_level") {
+  } else if (token_postproc_method == "byte_level") {
     return ByteLevelDecoder(token);
   } else {
-    LOG(FATAL) << "Unknown post-processing method: " << postproc_method;
+    LOG(FATAL) << "Unknown post-processing method: " << token_postproc_method;
   }
 }
 
-const std::vector<std::string>& TokenizerObj::TokenTable() {
-  if (!token_table_.empty()) {
-    return token_table_;
+const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
+  if (!post_processed_token_table_.empty()) {
+    return post_processed_token_table_;
   }
 
+  std::vector<std::string> raw_token_table;
   int vocab_size = tokenizer->GetVocabSize();
-  token_table_.reserve(vocab_size);
+  raw_token_table.reserve(vocab_size);
   for (int32_t token_id = 0; token_id < vocab_size; ++token_id) {
-    token_table_.push_back(tokenizer->IdToToken(token_id));
+    raw_token_table.push_back(tokenizer->IdToToken(token_id));
   }
-  return token_table_;
+  post_processed_token_table_ =
+      Tokenizer::PostProcessTokenTable(raw_token_table, info_->token_postproc_method);
+  return post_processed_token_table_;
 }
 
 std::vector<std::string> Tokenizer::PostProcessTokenTable(
-    const std::vector<std::string>& token_table, const std::string& postproc_method) {
-  std::vector<std::string> postprocessed_token_table;
-  postprocessed_token_table.reserve(token_table.size());
+    const std::vector<std::string>& token_table, const std::string& token_postproc_method) {
+  std::vector<std::string> post_processed_token_table;
+  post_processed_token_table.reserve(token_table.size());
   for (const std::string& token : token_table) {
-    postprocessed_token_table.push_back(PostProcessToken(token, postproc_method));
+    post_processed_token_table.push_back(PostProcessToken(token, token_postproc_method));
   }
-  return postprocessed_token_table;
+  return post_processed_token_table;
 }
 
 TVM_REGISTER_GLOBAL("mlc.Tokenizer").set_body_typed([](const String& path) {
@@ -221,6 +410,10 @@ TVM_REGISTER_GLOBAL("mlc.TokenizerDecode")
     .set_body_typed([](const Tokenizer& tokenizer, const IntTuple& token_ids) {
       return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
     });
+
+TVM_REGISTER_GLOBAL("mlc.DetectTokenizerInfo").set_body_typed([](const String& path) {
+  return Tokenizer::DetectTokenizerInfo(path)->AsJSONString();
+});
 
 }  // namespace llm
 }  // namespace mlc

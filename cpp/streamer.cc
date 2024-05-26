@@ -263,7 +263,7 @@ StopStrHandler::StopStrHandler(Array<String> stop_strs,
 
 TVM_REGISTER_GLOBAL("mlc.StopStrHandler")
     .set_body_typed([](Array<String> stop_strs, const Tokenizer& tokenizer) {
-      return StopStrHandler(std::move(stop_strs), tokenizer->TokenTable());
+      return StopStrHandler(std::move(stop_strs), tokenizer->PostProcessedTokenTable());
     });
 
 TVM_REGISTER_GLOBAL("mlc.StopStrHandlerPut")

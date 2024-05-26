@@ -2,7 +2,7 @@
 # pylint: disable=redefined-outer-name,unbalanced-tuple-unpacking
 """This test uses the optimized JSON grammar provided by the grammar library."""
 import sys
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 import pytest
 import tvm
@@ -213,12 +213,7 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
     assert GrammarStateMatcher(json_grammar).debug_match_complete_string(json_input_pressure)
 
 
-(
-    tokenizer_path,
-    input_find_rejected_tokens,
-    expected_rejected_sizes,
-    token_table_postproc_method,
-) = tvm.testing.parameters(
+(tokenizer_path, input_find_rejected_tokens, expected_rejected_sizes) = tvm.testing.parameters(
     (
         # short test
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
@@ -229,7 +224,6 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
             272, 31973, 31846, 31846, 265, 265, 265, 265, 265, 265, 265, 265, 31974, 31999
             # fmt: on
         ],
-        "byte_fallback",
     ),
     (
         # short test
@@ -242,7 +236,6 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
             4952, 128066, 128111, 4952, 128066, 128111, 4952, 127873, 128254
             # fmt: on
         ],
-        "byte_level",
     ),
     (
         # long test
@@ -268,7 +261,6 @@ def test_json_pressure(json_grammar: BNFGrammar, json_input_pressure):
             31846, 265, 265, 265, 265, 31974, 31974, 31999
             # fmt: on
         ],
-        "byte_fallback",
     ),
 )
 
@@ -278,12 +270,9 @@ def test_find_next_rejected_tokens(
     tokenizer_path: str,
     input_find_rejected_tokens: str,
     expected_rejected_sizes: Optional[List[int]],
-    token_table_postproc_method: Literal["byte_fallback", "byte_level"],
 ):
     tokenizer = Tokenizer(tokenizer_path)
-    grammar_state_matcher = GrammarStateMatcher(
-        json_grammar, tokenizer, token_table_postproc_method=token_table_postproc_method
-    )
+    grammar_state_matcher = GrammarStateMatcher(json_grammar, tokenizer)
     input_bytes = input_find_rejected_tokens.encode("utf-8")
     rejected_sizes = []
 
@@ -444,7 +433,6 @@ if __name__ == "__main__":
         "dist/Llama-2-7b-chat-hf-q4f16_1-MLC",
         '{"id": 1,"name": "Example"}',
         None,
-        "byte_fallback",
     )
 
     test_find_next_rejected_tokens(
@@ -452,7 +440,6 @@ if __name__ == "__main__":
         "dist/Meta-Llama-3-8B-Instruct-q4f16_1-MLC",
         '{"id": 1,"name": "Example哈哈"}',
         None,
-        "byte_level",
     )
 
     tvm.testing.main()

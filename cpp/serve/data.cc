@@ -109,7 +109,7 @@ TVM_REGISTER_GLOBAL("mlc.serve.ImageDataGetImage").set_body_typed([](ImageData d
 /*! \brief Convert a single token with probability to JSON string. */
 inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& token_prob,
                                std::ostringstream* os) {
-  const std::string& token = tokenizer->TokenTable()[token_prob.first];
+  const std::string& token = tokenizer->PostProcessedTokenTable()[token_prob.first];
 
   (*os) << "\"token\": \"";
   for (char ch : token) {

@@ -40,7 +40,8 @@ using namespace tvm::runtime;
  * \example
  * \code
  * Tokenizer tokenizer = ...;
- * auto init_ctx = GrammarStateMatcher::CreateInitContext(grammar, tokenizer->TokenTable());
+ * auto init_ctx = GrammarStateMatcher::CreateInitContext(grammar,
+ *                                                        tokenizer->PostProcessedTokenTable());
  * GrammarStateMatcher matcher(init_ctx, 10);
  * matcher->AcceptToken(67);
  *
