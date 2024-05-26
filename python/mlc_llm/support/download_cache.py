@@ -14,7 +14,7 @@ import requests  # pylint: disable=import-error
 
 from . import logging, tqdm
 from .constants import (
-    MLC_DOWNLOAD_POLICY,
+    MLC_DOWNLOAD_CACHE_POLICY,
     MLC_LLM_HOME,
     MLC_LLM_READONLY_WEIGHT_CACHE,
     MLC_TEMP_DIR,
@@ -24,12 +24,12 @@ from .style import bold
 logger = logging.getLogger(__name__)
 
 
-def log_download_policy():
+def log_download_cache_policy():
     """log current download policy"""
     logger.info(
         "%s = %s. Can be one of: ON, OFF, REDO, READONLY",
-        bold("MLC_DOWNLOAD_POLICY"),
-        MLC_DOWNLOAD_POLICY,
+        bold("MLC_DOWNLOAD_CACHE_POLICY"),
+        MLC_DOWNLOAD_CACHE_POLICY,
     )
 
 
@@ -130,9 +130,9 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     force_redo: Optional[bool] = None,
 ) -> Path:
     """Download weights for a model from the HuggingFace Git LFS repo."""
-    log_download_policy()
-    if MLC_DOWNLOAD_POLICY == "OFF":
-        raise RuntimeError(f"Cannot download {model_url} as MLC_DOWNLOAD_POLICY=OFF")
+    log_download_cache_policy()
+    if MLC_DOWNLOAD_CACHE_POLICY == "OFF":
+        raise RuntimeError(f"Cannot download {model_url} as MLC_DOWNLOAD_CACHE_POLICY=OFF")
 
     prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
     mlc_prefix = next(p for p in prefixes if model_url.startswith(p))
@@ -155,7 +155,7 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
             return cache_dir
 
     if force_redo is None:
-        force_redo = MLC_DOWNLOAD_POLICY == "REDO"
+        force_redo = MLC_DOWNLOAD_CACHE_POLICY == "REDO"
 
     git_dir = MLC_LLM_HOME / "model_weights" / domain / user / repo
     readonly_cache_dirs.append(str(git_dir))
@@ -166,10 +166,10 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
         logger.info("Weights already downloaded: %s", bold(str(git_dir)))
         return git_dir
 
-    if MLC_DOWNLOAD_POLICY == "READONLY":
+    if MLC_DOWNLOAD_CACHE_POLICY == "READONLY":
         raise RuntimeError(
             f"Cannot find cache for {model_url}, "
-            "cannot proceed to download as MLC_DOWNLOAD_POLICY=READONLY, "
+            "cannot proceed to download as MLC_DOWNLOAD_CACHE_POLICY=READONLY, "
             "please check settings MLC_LLM_READONLY_WEIGHT_CACHE, "
             f"local path candidates: {readonly_cache_dirs}"
         )

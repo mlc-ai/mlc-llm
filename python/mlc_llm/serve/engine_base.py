@@ -23,7 +23,7 @@ from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
-from mlc_llm.support import download, logging
+from mlc_llm.support import download_cache, logging
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green
 from mlc_llm.tokenizer import Tokenizer
@@ -120,7 +120,7 @@ def _process_model_args(
     def _convert_model_info(model: ModelInfo) -> Tuple[str, str]:
         nonlocal conversation
 
-        model_path = download.get_or_download_model(model.model)
+        model_path = download_cache.get_or_download_model(model.model)
         mlc_config_path = model_path / "mlc-chat-config.json"
         config_file_paths.append(str(mlc_config_path))
 

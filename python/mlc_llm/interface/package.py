@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal
 
 from mlc_llm.interface import jit
-from mlc_llm.support import download, logging, style
+from mlc_llm.support import download_cache, logging, style
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
             raise ValueError('The value of "model_lib" in "model_list" is expected to be string.')
 
         # - Load model config. Download happens when needed.
-        model_path = download.get_or_download_model(model)
+        model_path = download_cache.get_or_download_model(model)
 
         # - Jit compile if the model lib path is not specified.
         model_lib_path = (
