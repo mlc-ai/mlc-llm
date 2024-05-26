@@ -62,6 +62,7 @@ def _get_test_model_path() -> List[Path]:
 MLC_TEMP_DIR = os.getenv("MLC_TEMP_DIR", None)
 MLC_MULTI_ARCH = os.environ.get("MLC_MULTI_ARCH", None)
 MLC_LLM_HOME: Path = _get_cache_dir()
+MLC_LLM_READONLY_HF_CACHE = os.environ.get("MLC_LLM_READONLY_HF_CACHE", None)
 MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
 MLC_DSO_SUFFIX = _get_dso_suffix()
 MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
