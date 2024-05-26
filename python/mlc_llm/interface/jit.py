@@ -49,7 +49,7 @@ def log_jit_policy():
 
 def jit(  # pylint: disable=too-many-locals,too-many-statements
     model_path: Path,
-    chat_config: Dict[str, Any],
+    overrides: Dict[str, Any],
     device: Union[Device, str],
     system_lib_prefix: Optional[str] = None,
     *,
@@ -70,7 +70,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
     lib_suffix = MLC_DSO_SUFFIX if device not in ["iphone", "android"] else "tar"
 
     def _get_optimization_flags() -> str:
-        opt = chat_config.pop("opt", None)
+        opt = overrides.pop("opt", None)
         if opt is None:
             opt = "O2"
         return repr(OptimizationFlags.from_str(opt))
@@ -79,7 +79,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         forbid_list = ["context_window_size", "sliding_window_size", "attention_sink_size"]
         result = []
         for field in dataclasses.fields(ModelConfigOverride):
-            value = chat_config.get(field.name, None)
+            value = overrides.get(field.name, None)
             if value is not None:
                 if field.name in forbid_list and value == -1:
                     continue
@@ -92,7 +92,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         model_config = mlc_chat_config.pop("model_config")
         model_config.update(mlc_chat_config)
         for field in dataclasses.fields(ModelConfigOverride):
-            value = chat_config.get(field.name, None)
+            value = overrides.get(field.name, None)
             if value is not None:
                 model_config[field.name] = value
         return MODELS[model_type].config.from_dict(model_config).asdict()

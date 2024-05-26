@@ -176,7 +176,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
-    rotary_dim: int = None,
+    rotary_dim: Optional[int] = None,
 ):
     """Return the TIR function that computes Llama-style RoPE with q position map.
 

@@ -197,3 +197,41 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
         logger.info("Moving %s to %s", tmp_dir, bold(str(git_dir)))
         shutil.move(str(tmp_dir), str(git_dir))
     return git_dir
+
+
+def get_or_download_model(model: str) -> Path:
+    """Use user-provided argument ``model`` to get model_path
+
+    We define "valid" as having an ``mlc-chat-config.json`` right under the folder.
+
+    Parameters
+    ----------
+    model : str
+        User's input; may a path or url
+
+    Returns
+    ------
+    model_path : Path
+        A "valid" path to model folder, with
+        ``(model_path / "mlc-chat-config.json").is_file`` being True
+
+    Note
+    ----
+    This function may perform additional download and caching
+
+    Raises
+    ------
+    FileNotFoundError: if we cannot find a valid `model_path`.
+    """
+    if model.startswith("HF://"):
+        logger.info("Downloading model from HuggingFace: %s", model)
+        model_path = download_and_cache_mlc_weights(model)
+    else:
+        model_path = Path(model)
+
+    if not model_path.is_dir():
+        raise FileNotFoundError(f"Cannot find model {model}, directory does not exist")
+    mlc_config_path = model_path / "mlc-chat-config.json"
+    if mlc_config_path.is_file():
+        return model_path
+    raise FileNotFoundError(f"Cannot find {str(mlc_config_path)} in the model directory provided")

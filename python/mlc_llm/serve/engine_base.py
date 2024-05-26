@@ -9,21 +9,21 @@ import numbers
 import queue
 import sys
 import threading
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm
 from tvm.runtime import Device
 
-from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
 from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
+from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.streamer import TextStreamer
-from mlc_llm.support import logging
+from mlc_llm.support import download, logging
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green
 from mlc_llm.tokenizer import Tokenizer
@@ -120,35 +120,38 @@ def _process_model_args(
     def _convert_model_info(model: ModelInfo) -> Tuple[str, str]:
         nonlocal conversation
 
-        model_path, config_file_path = _get_model_path(model.model)
-        config_file_paths.append(config_file_path)
-        chat_config = _get_chat_config(config_file_path, user_chat_config=None)
+        model_path = download.get_or_download_model(model.model)
+        mlc_config_path = model_path / "mlc-chat-config.json"
+        config_file_paths.append(str(mlc_config_path))
+
+        with open(mlc_config_path, mode="rt", encoding="utf-8") as file:
+            mlc_chat_config = MLCChatConfig.model_validate_json(file.read())
+
         if conversation is None:
-            assert isinstance(chat_config.conv_template, Conversation)
-            conversation = chat_config.conv_template
+            conversation = mlc_chat_config.conv_template
 
         if model.model_lib is not None:
             # do model lib search if the model lib is provided
             # error out if file not found
-            model_lib = _get_lib_module_path(
-                model=model.model,
-                model_path=model_path,
-                chat_config=chat_config,
-                model_lib=model.model_lib,
-                device_name=device.MASK2STR[device.device_type],
-                config_file_path=config_file_path,
-            )
+            if Path(model.model_lib).is_file():
+                model_lib = model.model_lib
+                logger.info("Using library model: %s", model_lib)
+            else:
+                raise FileNotFoundError(
+                    f"The `model_lib` you passed in is not a file: {model.model_lib}.\n"
+                )
         else:
-            # TODO(mlc-team) add logging information
             # Run jit if model_lib is not provided
+            # NOTE: we only import jit when necessary
+            # so the engine do not have to depend on compilation
             from mlc_llm.interface import jit  # pylint: disable=import-outside-toplevel
 
             model_lib = jit.jit(
-                model_path=Path(model_path),
-                chat_config=asdict(chat_config),
+                model_path=model_path,
+                overrides={},
                 device=device,
             ).model_lib_path
-        return model_path, model_lib
+        return str(model_path), model_lib
 
     model_args: List[Tuple[str, str]] = [_convert_model_info(model) for model in models]
 

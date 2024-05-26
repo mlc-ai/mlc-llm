@@ -1,5 +1,5 @@
 """Debug compiled models with TVM instrument"""
-
+# pylint: disable=too-many-arguments
 import json
 import random
 from pathlib import Path
@@ -12,15 +12,9 @@ from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
 from tvm.runtime.relax_vm import VirtualMachine
 
-from mlc_llm.chat_module import (
-    ChatConfig,
-    GenerationConfig,
-    _get_chat_config,
-    _get_generation_config,
-    _get_model_path,
-)
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
+from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.auto_device import detect_device
@@ -155,7 +149,6 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         model_lib: str,
         debug_dir: Path,
         device: Optional[str] = "auto",
-        chat_config: Optional[ChatConfig] = None,
         debug_instrument: Optional[Any] = None,
     ):
         """_summary_
@@ -215,15 +208,19 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         self.mod, self.params, self.metadata = _get_tvm_module(
             model, model_lib, self.device, self.instrument
         )
-        self.model_path, self.config_file_path = _get_model_path(model)
-        self.chat_config = _get_chat_config(self.config_file_path, chat_config)
+        self.model_path = Path(model)
+        self.config_file_path = self.model_path / "mlc-chat-config.json"
+        with open(self.config_file_path, mode="rt", encoding="utf-8") as file:
+            self.chat_config = MLCChatConfig.model_validate_json(file.read())
+
         conv_template = self.chat_config.conv_template
+
         self.conversation = (
             ConvTemplateRegistry.get_conv_template(conv_template)
             if isinstance(conv_template, str)
             else conv_template
         )
-        self.tokenizer = Tokenizer(self.model_path)
+        self.tokenizer = Tokenizer(str(self.model_path))
 
         self.add_sequence_func = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
         self.begin_forward_func = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
@@ -340,13 +337,15 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             logits[:, :, token_id] -= freq * freq_penalty + presence_penalty
 
     def _sample_token_from_logits(
-        self, logits: tvm.nd.NDArray, generation_config: GenerationConfig
+        self,
+        logits: tvm.nd.NDArray,
+        *,
+        temperature=1.0,
+        top_p=1.0,
+        presence_penalty=0.0,
+        frequency_penalty=0.0,
     ):
         logits_np = logits.numpy()
-        temperature = generation_config.temperature if generation_config.temperature else 1.0
-        top_p = generation_config.top_p if generation_config.top_p else 0.95
-        presence_penalty = generation_config.presence_penalty
-        frequency_penalty = generation_config.frequency_penalty
 
         if presence_penalty != 0.0 or frequency_penalty != 0.0:
             self._apply_presence_and_freq_penalty(logits_np, presence_penalty, frequency_penalty)
@@ -362,7 +361,6 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         self,
         prompt: str,
         generate_length: int,
-        generation_config: Optional[GenerationConfig] = None,
     ):
         """Generates the response from the model given a user prompt. User will need to
         specify the generation length for debugging purpose. For example, a generation
@@ -385,8 +383,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         print(f"{green('Input tokens')}: {input_tokens.numpy()}")
         embedding, input_len = self._embed(input_tokens)
         logits, kv_caches = self._prefill(embedding, input_len)
-        generation_config = _get_generation_config(self.chat_config, generation_config)
-        next_token = self._sample_token_from_logits(logits, generation_config)
+        next_token = self._sample_token_from_logits(logits)
         out_tokens.append(next_token)
         path_str = (self.debug_dir / "prefill").as_posix()
         print(f"Debug instrument output dumped to {green(path_str)}")
@@ -395,8 +392,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         for i in range(generate_length - 1):
             self.instrument.reset(self.debug_dir / f"decode_{i}")
             logits = self._decode(next_token, kv_caches)
-            generation_config = _get_generation_config(self.chat_config, generation_config)
-            next_token = self._sample_token_from_logits(logits, generation_config)
+            next_token = self._sample_token_from_logits(logits)
             out_tokens.append(next_token)
             path_str = (self.debug_dir / f"decode_{i}").as_posix()
             print(f"Debug instrument output dumped to {green(path_str)}")

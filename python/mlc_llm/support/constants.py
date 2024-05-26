@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import List
 
+MLC_CHAT_CONFIG_VERSION = "0.1.0"
+
 
 def _check():
     if MLC_JIT_POLICY not in ["ON", "OFF", "REDO", "READONLY"]:
