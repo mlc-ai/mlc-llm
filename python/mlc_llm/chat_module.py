@@ -783,7 +783,7 @@ class ChatModule:  # pylint: disable=too-many-instance-attributes
 
             self.model_lib = jit.jit(
                 model_path=Path(self.model_path),
-                chat_config=asdict(self.chat_config),
+                overrides=asdict(self.chat_config),
                 device=self.device,
             ).model_lib_path
         _inspect_model_lib_metadata_memory_usage(self.model_lib, self.config_file_path)

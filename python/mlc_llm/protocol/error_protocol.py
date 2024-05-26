@@ -1,6 +1,7 @@
 """Error protocols in MLC LLM"""
 
 from http import HTTPStatus
+from typing import Optional
 
 import fastapi
 from pydantic import BaseModel
@@ -18,7 +19,7 @@ class ErrorResponse(BaseModel):
 
     object: str = "error"
     message: str
-    code: int = None
+    code: Optional[int] = None
 
 
 def create_error_response(status_code: HTTPStatus, message: str) -> fastapi.responses.JSONResponse:

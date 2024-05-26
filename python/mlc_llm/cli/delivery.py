@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from huggingface_hub import HfApi  # pylint: disable=import-error
 from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
@@ -43,11 +43,11 @@ class ModelInfo:  # pylint: disable=too-many-instance-attributes
     source_format: str = "auto"
     # If unspecified in CLI, remains to be None and will not be
     # passed to `gen_config` or `convert_weight`
-    context_window_size: int = None
-    sliding_window_size: int = None
-    prefill_chunk_size: int = None
-    attention_sink_size: int = None
-    tensor_parallel_shards: int = None
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
 
 
 class DeferredScope:

@@ -11,7 +11,6 @@ from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module
 from tvm.runtime.relax_vm import VirtualMachine
 
-from mlc_llm.chat_module import _get_model_path
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.tokenizer import Tokenizer
@@ -143,7 +142,7 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         self.mod, self.params, self.metadata = _get_tvm_module(
             model, model_lib_path, self.device, instrument
         )
-        self.model_path, _ = _get_model_path(model)
+        self.model_path = model
         self.tokenizer = Tokenizer(self.model_path)
         self.prefill_func = self.mod["prefill"]
 

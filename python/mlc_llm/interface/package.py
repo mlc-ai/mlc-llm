@@ -6,13 +6,11 @@ import os
 import shutil
 import subprocess
 import sys
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Literal
 
-from mlc_llm.chat_module import ChatConfig, _get_chat_config, _get_model_path
 from mlc_llm.interface import jit
-from mlc_llm.support import logging, style
+from mlc_llm.support import download, logging, style
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -56,6 +54,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
         bundle_weight = model_entry.get("bundle_weight", False)
         overrides = model_entry.get("overrides", {})
         model_lib = model_entry.get("model_lib", None)
+
         estimated_vram_bytes = model_entry["estimated_vram_bytes"]
         if not isinstance(model, str):
             raise ValueError('The value of "model" in "model_list" is expected to be a string.')
@@ -71,12 +70,8 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
             raise ValueError('The value of "model_lib" in "model_list" is expected to be string.')
 
         # - Load model config. Download happens when needed.
-        model_path_and_config_file_path = _get_model_path(model)
-        model_path = Path(model_path_and_config_file_path[0])
-        config_file_path = model_path_and_config_file_path[1]
-        chat_config = _get_chat_config(
-            config_file_path, user_chat_config=ChatConfig.from_dict(overrides)
-        )
+        model_path = download.get_or_download_model(model)
+
         # - Jit compile if the model lib path is not specified.
         model_lib_path = (
             model_lib_path_for_prepare_libs.get(model_lib, None) if model_lib is not None else None
@@ -96,7 +91,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
             model_lib_path, model_lib = dataclasses.astuple(
                 jit.jit(
                     model_path=model_path,
-                    chat_config=asdict(chat_config),
+                    overrides=overrides,
                     device=device,
                     system_lib_prefix=model_lib,
                     skip_log_jit_policy=True,
