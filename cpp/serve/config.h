@@ -30,19 +30,37 @@ struct ResponseFormat {
   Optional<String> schema = NullOpt;
 };
 
+enum class SpecialRequestKind : int {
+  kNone = 0,
+  kQueryEngineMetrics = 1,
+};
+
 /*! \brief The debug configuration of a request. */
 class DebugConfig {
  public:
   bool ignore_eos = false;
   bool pinned_system_prompt = false;
+  SpecialRequestKind special_request = SpecialRequestKind::kNone;
+
+  /*!
+   * \brief Create debug config from JSON.
+   * \param config_json The json string for generation config
+   * \returns The converted result.
+   */
+  static Result<DebugConfig> FromJSON(const picojson::object& config_json);
+
+  /**
+   * \return serialized json value of the config.
+   */
+  picojson::object AsJSON() const;
 };
 
 /*! \brief The generation configuration of a request. */
 class GenerationConfigNode : public Object {
  public:
   int n = 1;
-  double temperature = 0.8;
-  double top_p = 0.95;
+  double temperature = 1.0;
+  double top_p = 1.0;
   double frequency_penalty = 0.0;
   double presence_penalty = 0.0;
   double repetition_penalty = 1.0;
@@ -50,15 +68,15 @@ class GenerationConfigNode : public Object {
   int top_logprobs = 0;
   std::vector<std::pair<int, float>> logit_bias;
   int seed;
-
-  int max_tokens = 128;
+  // -1 means infinite
+  int max_tokens = -1;
   Array<String> stop_strs;
   std::vector<int> stop_token_ids;
 
   ResponseFormat response_format;
   DebugConfig debug_config;
 
-  String AsJSONString() const;
+  picojson::object AsJSON() const;
 
   static constexpr const char* _type_key = "mlc.serve.GenerationConfig";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -76,10 +94,10 @@ class GenerationConfig : public ObjectRef {
 
   /*!
    * \brief Create generation config from JSON.
-   * \param config_json_str The json string for generation config
+   * \param config_json The json string for generation config
    * \param default_config The default config
    */
-  static Result<GenerationConfig> FromJSON(String config_json_str,
+  static Result<GenerationConfig> FromJSON(const picojson::object& config_json,
                                            const GenerationConfig& default_config);
 
   /*! \brief Get the default generation config from the model config. */

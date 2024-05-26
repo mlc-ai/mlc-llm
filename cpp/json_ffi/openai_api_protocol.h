@@ -200,6 +200,7 @@ class ChatCompletionStreamResponse {
   std::string model;
   std::string system_fingerprint;
   std::string object = "chat.completion.chunk";
+  std::optional<picojson::value> usage;
 
   picojson::object AsJSON() const;
 };

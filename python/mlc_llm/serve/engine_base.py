@@ -17,7 +17,7 @@ import tvm
 from tvm.runtime import Device
 
 from mlc_llm.chat_module import _get_chat_config, _get_lib_module_path, _get_model_path
-from mlc_llm.protocol import openai_api_protocol, protocol_utils
+from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig, GenerationConfig
@@ -243,6 +243,36 @@ class EngineMetrics:
         return "\n".join(output_lines)
 
 
+def _query_engine_metrics(engine):
+    """Query engine metrics via debug options"""
+    dummy_message = {"role": "user", "context": ""}
+    for response in engine.chat.completions.create(
+        messages=[dummy_message],
+        model="model",
+        stream=True,
+        stream_options={"include_usage": True},
+        extra_body={"debug_config": {"special_request": "query_engine_metrics"}},
+    ):
+        if response.usage is not None:
+            return EngineMetrics(response.usage.extra)
+    raise RuntimeError("query_engine metrics did not get metrics back")
+
+
+async def _async_query_engine_metrics(engine):
+    """Query engine metrics via debug options"""
+    dummy_message = {"role": "user", "context": ""}
+    async for response in await engine.chat.completions.create(
+        messages=[dummy_message],
+        model="model",
+        stream=True,
+        stream_options={"include_usage": True},
+        extra_body={"debug_config": {"special_request": "query_engine_metrics"}},
+    ):
+        if response.usage is not None:
+            return EngineMetrics(response.usage.extra)
+    raise RuntimeError("query_engine metrics did not get metrics back")
+
+
 @dataclass
 class CallbackStreamOutput:
     """The output of MLCEngine._generate and AsyncMLCEngine._generate
@@ -252,21 +282,22 @@ class CallbackStreamOutput:
     delta_text : str
         The delta text generated since the last output.
 
-    num_delta_tokens : int
-        The number of delta tokens generated since the last output.
-
     delta_logprob_json_strs : Optional[List[str]]
         The list of logprob JSON strings since the last output,
         or None if the request does not require logprobs.
 
     finish_reason : Optional[str]
         The finish reason of the request, or None if unfinished.
+
+    request_final_usage_json_str: Optional[str]
+        The usage json which appears in last chunk,
+        when it appears all other fields will be empty
     """
 
     delta_text: str
-    num_delta_tokens: int
     delta_logprob_json_strs: Optional[List[str]]
     finish_reason: Optional[str]
+    request_final_usage_json_str: Optional[str]
 
 
 class AsyncRequestStream:
@@ -350,11 +381,9 @@ class EngineState:
     # States used for AsyncMLCEngine
     async_event_loop: Optional[asyncio.AbstractEventLoop] = None
     async_streamers: Dict[str, Tuple[AsyncRequestStream, List[TextStreamer]]] = {}
-    async_num_unfinished_generations: Dict[str, int] = {}
     # States used for MLCEngine
     sync_output_queue: queue.Queue = queue.Queue()
     sync_text_streamers: List[TextStreamer] = []
-    sync_num_unfinished_generations: int = 0
 
     def __init__(self, enable_tracing: bool) -> None:
         """Constructor."""
@@ -442,6 +471,25 @@ class EngineState:
 
             self.record_event(request_id, event="start callback")
             stream, text_streamers = streamers
+
+            # final chunk is now always indicated by a chunk
+            # where usage json is present
+            # the backend engine always streams back this chunk
+            # regardless of include_usage option
+            is_final_chunk = stream_outputs[0].request_final_usage_json_str is not None
+            if is_final_chunk:
+                # stream back this final usage chunk
+                output = CallbackStreamOutput(
+                    delta_text="",
+                    delta_logprob_json_strs=None,
+                    finish_reason=None,
+                    request_final_usage_json_str=stream_outputs[0].request_final_usage_json_str,
+                )
+                stream.push([output])
+                stream.finish()
+                self.async_streamers.pop(request_id, None)
+                continue
+
             outputs = []
             for stream_output, text_streamer in zip(stream_outputs, text_streamers):
                 self.record_event(request_id, event="start detokenization")
@@ -457,20 +505,14 @@ class EngineState:
                 outputs.append(
                     CallbackStreamOutput(
                         delta_text=delta_text,
-                        num_delta_tokens=len(stream_output.delta_token_ids),
                         delta_logprob_json_strs=stream_output.delta_logprob_json_strs,
                         finish_reason=stream_output.finish_reason,
+                        request_final_usage_json_str=None,
                     )
                 )
-                if stream_output.finish_reason is not None:
-                    self.async_num_unfinished_generations[request_id] -= 1
 
             # Push new delta text to the stream.
             stream.push(outputs)
-            if self.async_num_unfinished_generations[request_id] == 0:
-                stream.finish()
-                self.async_streamers.pop(request_id, None)
-                self.async_num_unfinished_generations.pop(request_id, None)
             self.record_event(request_id, event="finish callback")
 
     def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
@@ -550,7 +592,6 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
                 "exit_background_loop",
                 "create_request",
                 "get_complete_engine_config",
-                "json_metrics",
                 "reset",
                 "debug_call_func_on_all_worker",
             ]
@@ -603,10 +644,6 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
     def _debug_call_func_on_all_worker(self, func_name: str) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
         self._ffi["debug_call_func_on_all_worker"](func_name)
-
-    def metrics(self) -> EngineMetrics:
-        """Get the engine metrics."""
-        return EngineMetrics(json.loads(self._ffi["json_metrics"]()))
 
     def reset(self):
         """Reset the engine, clear the running data and metrics."""
@@ -702,7 +739,7 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     prompt_length = engine_utils.check_and_get_prompts_length(prompts, max_input_sequence_length)
 
     # Process generation config. Create request id.
-    generation_cfg = protocol_utils.get_generation_config(
+    generation_cfg = engine_utils.get_generation_config(
         request,
         extra_stop_token_ids=conv_template.stop_token_ids,
         extra_stop_str=conv_template.stop_str,
@@ -712,15 +749,12 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
 
 def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     delta_outputs: List[CallbackStreamOutput],
+    request: openai_api_protocol.ChatCompletionRequest,
     request_id: str,
     engine_state: EngineState,
-    model: str,
-    generation_cfg: GenerationConfig,
     use_function_calling: bool,
-    prompt_length: int,
     finish_reasons: List[Optional[str]],
-    num_completion_tokens: int,
-) -> Tuple[Optional[openai_api_protocol.ChatCompletionStreamResponse], int]:
+) -> Optional[openai_api_protocol.ChatCompletionStreamResponse]:
     """Process the delta outputs of a single request of ChatCompletion,
     convert the delta output to ChatCompletionStreamResponse and return.
 
@@ -737,43 +771,46 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
     engine_state : EngineState
         The state of the engine.
 
-    model : str
-        The requested model.
-
-    generation_cfg : GenerationConfig
-        The generation config of the request.
-
     use_function_calling : bool
         A boolean flag indicating if the request uses function call.
-
-    prompt_length : int
-        The total prompt length.
 
     finish_reasons : List[Optional[str]]
         The list of finish reasons of each generation.
         The list length is the number of parallel generation specified by "n".
         This list is updated in place.
 
-    num_completion_tokens : int
-        The number of total completion tokens so far.
-
     Returns
     -------
     response : Optional[openai_api_protocol.ChatCompletionStreamResponse]
         The converted OpenAI API ChatCompletionStreamResponse instance.
         It can be none when there is no content.
-
-    num_completion_tokens : int
-        The updated number of total completion tokens.
-        It is sum of the input number and the number of new completion tokens
-        from the given delta outputs.
     """
-    assert len(delta_outputs) == generation_cfg.n
+    # we always stream back the final chunk with usage
+    is_final_chunk = delta_outputs[0].request_final_usage_json_str is not None
+    if is_final_chunk:
+        assert len(delta_outputs) == 1
+        engine_state.record_event(request_id, event="yield final usage")
+        response = openai_api_protocol.ChatCompletionStreamResponse(
+            id=request_id,
+            choices=[],
+            model=request.model,
+            system_fingerprint="",
+            usage=openai_api_protocol.CompletionUsage.model_validate_json(
+                delta_outputs[0].request_final_usage_json_str
+            ),
+        )
+        # skip usage if stream option does not indicate include usage
+        if request.stream_options is None:
+            return None
+        if not request.stream_options.include_usage:
+            return None
+        return response
+
+    # normal chunk
+    assert len(delta_outputs) == request.n
     choices = []
-    num_new_completion_tokens = 0
     for i, delta_output in enumerate(delta_outputs):
         finish_reason_updated = False
-        num_new_completion_tokens += delta_output.num_delta_tokens
         if delta_output.finish_reason is not None and finish_reasons[i] is None:
             finish_reasons[i] = (
                 delta_output.finish_reason if not use_function_calling else "tool_calls"
@@ -806,22 +843,14 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
             )
         )
 
-    if len(choices) == 0 and num_new_completion_tokens == 0:
+    if len(choices) == 0:
         # Skip return when there is no delta output and no number of completion tokens.
-        return None, num_completion_tokens
-    num_completion_tokens += num_new_completion_tokens
+        return None
     response = openai_api_protocol.ChatCompletionStreamResponse(
-        id=request_id,
-        choices=choices,
-        model=model,
-        system_fingerprint="",
-        usage=openai_api_protocol.UsageInfo(
-            prompt_tokens=prompt_length,
-            completion_tokens=num_completion_tokens,
-        ),
+        id=request_id, choices=choices, model=request.model, system_fingerprint=""
     )
     engine_state.record_event(request_id, event="yield delta output")
-    return response, num_completion_tokens
+    return response
 
 
 def process_completion_request(
@@ -879,7 +908,7 @@ def process_completion_request(
     assert isinstance(prompt, list)
 
     # Process generation config. Create request id.
-    generation_cfg = protocol_utils.get_generation_config(request)
+    generation_cfg = engine_utils.get_generation_config(request)
 
     # - Echo back the prompt.
     echo_response = None
@@ -892,9 +921,10 @@ def process_completion_request(
                 for i in range(generation_cfg.n)
             ],
             model=request.model,
-            usage=openai_api_protocol.UsageInfo(
+            usage=openai_api_protocol.CompletionUsage(
                 prompt_tokens=prompt_length,
                 completion_tokens=0,
+                total_tokens=prompt_length,
             ),
         )
         echo_response = response
@@ -903,14 +933,11 @@ def process_completion_request(
 
 def process_completion_stream_output(  # pylint: disable=too-many-arguments
     delta_outputs: List[CallbackStreamOutput],
+    request: openai_api_protocol.CompletionRequest,
     request_id: str,
     engine_state: EngineState,
-    model: str,
-    generation_cfg: GenerationConfig,
-    prompt_length: int,
     finish_reasons: List[Optional[str]],
-    num_completion_tokens: int,
-) -> Tuple[Optional[openai_api_protocol.CompletionResponse], int]:
+) -> Optional[openai_api_protocol.CompletionResponse]:
     """Process the delta outputs of a single request of Completion,
     convert the delta output to CompletionResponse and return.
 
@@ -921,49 +948,54 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
         The list length is the number of parallel generation specified by "n".
         Each element corresponds to a generation.
 
+    request: openai_api_protocol.CompletionRequest
+        Information about the request
+
     request_id : str
         The id of the request.
 
     engine_state : EngineState
         The state of the engine.
 
-    model : str
-        The requested model.
-
-    generation_cfg : GenerationConfig
-        The generation config of the request.
-
-    prompt_length : int
-        The total prompt length.
-
     finish_reasons : List[Optional[str]]
         The list of finish reasons of each generation.
         The list length is the number of parallel generation specified by "n".
         This list is updated in place.
-
-    num_completion_tokens : int
-        The number of total completion tokens so far.
 
     Returns
     -------
     response : Optional[openai_api_protocol.CompletionResponse]
         The converted OpenAI API CompletionResponse instance.
         It can be none when there is no content.
-
-    num_completion_tokens : int
-        The updated number of total completion tokens.
-        It is sum of the input number and the number of new completion tokens
-        from the given delta outputs.
     """
-    assert len(delta_outputs) == generation_cfg.n
+    # we always stream back the final chunk with usage
+    is_final_chunk = delta_outputs[0].request_final_usage_json_str is not None
+    if is_final_chunk:
+        assert len(delta_outputs) == 1
+        engine_state.record_event(request_id, event="yield final usage")
+        response = openai_api_protocol.CompletionResponse(
+            id=request_id,
+            choices=None,
+            model=request.model,
+            system_fingerprint="",
+            usage=openai_api_protocol.CompletionUsage.model_validate_json(
+                delta_outputs[0].request_final_usage_json_str
+            ),
+        )
+        if request.stream_options is None:
+            return None
+        if not request.stream_options.include_usage:
+            return None
+        return response
+
+    # normal chunk
+    assert len(delta_outputs) == request.n
     choices = []
-    num_new_completion_tokens = 0
     for i, delta_output in enumerate(delta_outputs):
         finish_reason_updated = False
         if delta_output.finish_reason is not None and finish_reasons[i] is None:
             finish_reasons[i] = delta_output.finish_reason
             finish_reason_updated = True
-        num_new_completion_tokens += delta_output.num_delta_tokens
         if not finish_reason_updated and delta_output.delta_text == "":
             # Ignore empty delta text when finish reason is not updated.
             continue
@@ -988,29 +1020,23 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
             )
         )
 
-    if len(choices) == 0 and num_new_completion_tokens == 0:
+    if len(choices) == 0:
         # Skip return when there is no delta output and no number of completion tokens.
-        return None, num_completion_tokens
-    num_completion_tokens += num_new_completion_tokens
+        return None
     response = openai_api_protocol.CompletionResponse(
         id=request_id,
         choices=choices,
-        model=model,
-        usage=openai_api_protocol.UsageInfo(
-            prompt_tokens=prompt_length,
-            completion_tokens=num_completion_tokens,
-        ),
+        model=request.model,
+        usage=None,
     )
     engine_state.record_event(request_id, event="yield delta output")
-    return response, num_completion_tokens
+    return response
 
 
 def create_completion_suffix_response(
     request: openai_api_protocol.CompletionRequest,
     request_id: str,
-    prompt_length: int,
     finish_reasons: List[Optional[str]],
-    num_completion_tokens: int,
 ) -> Optional[openai_api_protocol.CompletionResponse]:
     """Create the suffix response of Completion request
     when the request requires suffix.
@@ -1023,16 +1049,10 @@ def create_completion_suffix_response(
     request_id : str
         The id of the request.
 
-    prompt_length : int
-        The total prompt length.
-
     finish_reasons : List[Optional[str]]
         The list of finish reasons of each generation.
         The list length is the number of parallel generation specified by "n".
         This list is updated in place.
-
-    num_completion_tokens : int
-        The number of total completion tokens so far.
 
     Returns
     -------
@@ -1055,10 +1075,7 @@ def create_completion_suffix_response(
             for i, finish_reason in enumerate(finish_reasons)
         ],
         model=request.model,
-        usage=openai_api_protocol.UsageInfo(
-            prompt_tokens=prompt_length,
-            completion_tokens=num_completion_tokens,
-        ),
+        usage=None,
     )
     return response
 
@@ -1132,8 +1149,7 @@ def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
     tool_calls_list: List[List[openai_api_protocol.ChatToolCall]],
     logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
     use_function_calling: bool,
-    num_prompt_tokens: int,
-    num_completion_tokens: int,
+    usage: Optional[Dict[str, Any]],
 ) -> openai_api_protocol.ChatCompletionResponse:
     """Wrap the non-streaming chat completion results to ChatCompletionResponse instance."""
     return openai_api_protocol.ChatCompletionResponse(
@@ -1161,9 +1177,7 @@ def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
         ],
         model=model,
         system_fingerprint="",
-        usage=openai_api_protocol.UsageInfo(
-            prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens
-        ),
+        usage=usage,
     )
 
 
@@ -1173,8 +1187,7 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
     output_texts: List[str],
     finish_reasons: List[str],
     logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
-    num_prompt_tokens: int,
-    num_completion_tokens: int,
+    usage: openai_api_protocol.CompletionUsage,
 ) -> openai_api_protocol.CompletionResponse:
     """Wrap the non-streaming completion results to CompletionResponse instance."""
     return openai_api_protocol.CompletionResponse(
@@ -1193,7 +1206,5 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
             for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
         ],
         model=model,
-        usage=openai_api_protocol.UsageInfo(
-            prompt_tokens=num_prompt_tokens, completion_tokens=num_completion_tokens
-        ),
+        usage=usage,
     )

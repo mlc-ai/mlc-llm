@@ -82,9 +82,6 @@ class ThreadedEngine {
   /*! \brief Return the complete engine config. */
   virtual EngineConfig GetCompleteEngineConfig() const = 0;
 
-  /*! \brief Print the metrics of the engine. */
-  virtual String JSONMetrics() = 0;
-
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
 };

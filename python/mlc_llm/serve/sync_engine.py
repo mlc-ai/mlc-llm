@@ -128,8 +128,8 @@ class SyncMLCEngine:
                 "add_request",
                 "abort_request",
                 "step",
-                "json_metrics",
                 "reset",
+                "json_metrics",
                 "get_request_stream_callback",
                 "set_request_stream_callback",
                 "create_request",
@@ -348,5 +348,5 @@ class SyncMLCEngine:
         self._ffi["reset"]()
 
     def metrics(self) -> EngineMetrics:
-        """The engine runtime metrics."""
+        """Reset the engine, clean up all running data and metrics."""
         return EngineMetrics(json.loads(self._ffi["json_metrics"]()))

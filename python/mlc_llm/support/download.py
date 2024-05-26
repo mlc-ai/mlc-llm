@@ -92,9 +92,9 @@ def download_file(
 ) -> Tuple[str, Path]:
     """Download a file from a URL to a destination file."""
     with requests.get(url, stream=True, timeout=30) as response:
-        response.raise_for_status()
+        response.raise_for_status()  # type: ignore
         with destination.open("wb") as file:
-            for chunk in response.iter_content(chunk_size=8192):
+            for chunk in response.iter_content(chunk_size=8192):  # type: ignore
                 file.write(chunk)
     if md5sum is not None:
         hash_md5 = hashlib.md5()

@@ -54,7 +54,7 @@ def check_schema_with_instance(
     check_schema_with_json(schema, instance_str, check_accepted, indent, separators, strict_mode)
 
 
-def test_basic():
+def test_basic() -> None:
     class MainModel(BaseModel):
         integer_field: int
         number_field: float
@@ -115,7 +115,7 @@ main ::= "{" "" "\"integer_field\"" ": " basic_integer ", " "\"number_field\"" "
     check_schema_with_instance(schema, instance_empty)
 
 
-def test_indent():
+def test_indent() -> None:
     class MainModel(BaseModel):
         array_field: List[str]
         tuple_field: Tuple[str, int, List[str]]
@@ -150,7 +150,7 @@ main ::= "{" "\n  " "\"array_field\"" ": " main_prop_0 ",\n  " "\"tuple_field\""
     check_schema_with_instance(schema, instance, indent=None, separators=(",", ":"))
 
 
-def test_non_strict():
+def test_non_strict() -> None:
     class Foo(BaseModel):
         pass
 
@@ -195,7 +195,7 @@ main ::= "{" "\n  " "\"tuple_field\"" ": " main_prop_0 ",\n  " "\"foo_field\"" "
     check_schema_with_json(schema, instance_json, indent=2, strict_mode=False)
 
 
-def test_enum_const():
+def test_enum_const() -> None:
     class Field(Enum):
         FOO = "foo"
         BAR = "bar"
@@ -231,7 +231,7 @@ main ::= "{" "" "\"bars\"" ": " main_prop_0 ", " "\"str_values\"" ": " main_prop
     check_schema_with_instance(schema, instance)
 
 
-def test_optional():
+def test_optional() -> None:
     class MainModel(BaseModel):
         num: int = 0
         opt_bool: Optional[bool] = None
@@ -267,7 +267,7 @@ main ::= "{" "" ("\"num\"" ": " basic_integer ", ")? ("\"opt_bool\"" ": " main_p
     check_schema_with_json(schema, '{"num": 1, "size": null, "name": "foo"}')
 
 
-def test_all_optional():
+def test_all_optional() -> None:
     class MainModel(BaseModel):
         size: int = 0
         state: bool = False
@@ -319,7 +319,7 @@ main ::= ("{" "" (("\"size\"" ": " basic_integer main_part_0) | ("\"state\"" ": 
     check_schema_with_json(schema, '{"other": false}', strict_mode=False)
 
 
-def test_empty():
+def test_empty() -> None:
     class MainModel(BaseModel):
         pass
 
@@ -345,7 +345,7 @@ main ::= "{" "}"
     check_schema_with_json(schema, '{"tmp": 123}', strict_mode=False)
 
 
-def test_reference():
+def test_reference() -> None:
     class Foo(BaseModel):
         count: int
         size: Optional[float] = None
@@ -386,7 +386,7 @@ main ::= "{" "" "\"foo\"" ": " main_prop_0 ", " "\"bars\"" ": " main_prop_1 "" "
     check_schema_with_instance(schema, instance)
 
 
-def test_union():
+def test_union() -> None:
     class Cat(BaseModel):
         name: str
         color: str
@@ -421,7 +421,7 @@ main ::= main_case_0 | main_case_1
     check_schema_with_json(model_schema, '{"name": "kitty", "test": "black"}', False)
 
 
-def test_alias():
+def test_alias() -> None:
     class MainModel(BaseModel):
         test: str = Field(..., alias="name")
 

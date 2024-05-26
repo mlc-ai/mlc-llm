@@ -7,7 +7,7 @@
             "bundle_weight": true,
             "estimated_vram_bytes": 3316000000,
             "overrides": {
-                "context_window_size": 512
+                "prefill_chunk_size": 128
             }
         },
         {

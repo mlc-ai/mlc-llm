@@ -70,7 +70,7 @@ class Engine {
    */
   static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
                                              Device device,
-                                             Optional<PackedFunc> request_stream_callback,
+                                             FRequestStreamCallback request_stream_callback,
                                              Optional<EventTraceRecorder> trace_recorder);
 
   /*! \brief Reset the engine, clean up all running data and metrics. */
@@ -79,17 +79,11 @@ class Engine {
   /*! \brief Check if the engine has no request to process. */
   virtual bool Empty() = 0;
 
-  /*!
-   * \brief Get the metrics of the Engine in JSON string.
-   * \return the metrics
-   */
-  virtual String JSONMetrics() = 0;
-
   /*! \brief Get the request stream callback function of the engine. */
-  virtual Optional<PackedFunc> GetRequestStreamCallback() = 0;
+  virtual FRequestStreamCallback GetRequestStreamCallback() = 0;
 
   /*! \brief Set the request stream callback function of the engine. */
-  virtual void SetRequestStreamCallback(Optional<PackedFunc> request_stream_callback) = 0;
+  virtual void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) = 0;
 
   /***************** High-level Request Management *****************/
 
@@ -117,6 +111,9 @@ class Engine {
   virtual void Step() = 0;
 
   /************** Debug/Profile **************/
+
+  /*! \brief Internal engine metrics. */
+  virtual String JSONMetrics() = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;

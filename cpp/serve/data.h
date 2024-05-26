@@ -153,6 +153,11 @@ struct SampleResult {
 /*!
  * \brief The generated delta request output that is streamed back
  * through callback stream function.
+ *
+ * \note: This output object corresponds to parallel generated outputs when n != 1.
+ *
+ * For example, if n=2, then group_delta_token_ids[0] matches to the output stream 0
+ * and group_delta_token_ids[1] matches to the output stream 1
  */
 class RequestStreamOutputObj : public Object {
  public:
@@ -170,6 +175,10 @@ class RequestStreamOutputObj : public Object {
    * of None if the request has not finished yet.
    */
   Array<Optional<String>> group_finish_reason;
+  /*!
+   * \brief The usage field of the response, this is global to all streams.
+   */
+  Optional<String> request_final_usage_json_str;
 
   static constexpr const char* _type_key = "mlc.serve.RequestStreamOutput";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -186,6 +195,8 @@ class RequestStreamOutput : public ObjectRef {
   explicit RequestStreamOutput(String request_id, Array<IntTuple> group_delta_token_ids,
                                Optional<Array<Array<String>>> group_delta_logprob_json_strs,
                                Array<Optional<String>> finish_reason);
+
+  static RequestStreamOutput Usage(String request_id, String request_final_usage_json_str);
 
   TVM_DEFINE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
 };

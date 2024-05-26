@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <mutex>
 
+#include "../support/json_parser.h"
 #include "../support/result.h"
 #include "engine.h"
 #include "request.h"
@@ -220,8 +221,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) const {
-    auto gen_config = GenerationConfig::FromJSON(std::move(generation_cfg_json_str),
-                                                 GetDefaultGenerationConfig());
+    picojson::object config = json::ParseToJSONObject(generation_cfg_json_str);
+    auto gen_config = GenerationConfig::FromJSON(config, GetDefaultGenerationConfig());
     CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
     return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
   }
@@ -233,13 +234,6 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
   String GetCompleteEngineConfigJSONString() const {
     return GetCompleteEngineConfig()->AsJSONString();
-  }
-
-  String JSONMetrics() final {
-    // TODO(mlc-team): think about thread safety
-    // background_loop_mutex is not sufficient as Step
-    // is not under this lock(and should not be for efficiency reasons)
-    return background_engine_->JSONMetrics();
   }
 
   void DebugCallFuncOnAllAllWorker(const String& func_name) final {
@@ -257,9 +251,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
  private:
   void EngineReloadImpl(const std::string& engine_config_json_str) {
-    auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
-      ICHECK_EQ(args.size(), 1);
-      Array<RequestStreamOutput> delta_outputs = args[0];
+    auto frequest_stream_callback_wrapper = [this](Array<RequestStreamOutput> delta_outputs) {
       bool need_notify = false;
       {
         std::lock_guard<std::mutex> lock(request_stream_callback_mutex_);
@@ -272,9 +264,9 @@ class ThreadedEngineImpl : public ThreadedEngine {
       }
     };
 
-    Optional<PackedFunc> request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    Result<EngineCreationOutput> output_res = Engine::Create(
-        engine_config_json_str, device_, std::move(request_stream_callback), trace_recorder_);
+    FRequestStreamCallback request_stream_callback(frequest_stream_callback_wrapper);
+    Result<EngineCreationOutput> output_res =
+        Engine::Create(engine_config_json_str, device_, request_stream_callback, trace_recorder_);
     CHECK(output_res.IsOk()) << output_res.UnwrapErr();
     EngineCreationOutput output = output_res.Unwrap();
     background_engine_ = std::move(output.reloaded_engine);
@@ -386,7 +378,6 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &ThreadedEngineImpl::ExitBackgroundLoop);
   TVM_MODULE_VTABLE_ENTRY("get_complete_engine_config",
                           &ThreadedEngineImpl::GetCompleteEngineConfigJSONString);
-  TVM_MODULE_VTABLE_ENTRY("json_metrics", &ThreadedEngineImpl::JSONMetrics);
   TVM_MODULE_VTABLE_ENTRY("reset", &ThreadedEngineImpl::Reset);
   TVM_MODULE_VTABLE_ENTRY("debug_call_func_on_all_worker",
                           &ThreadedEngineImpl::DebugCallFuncOnAllAllWorker);

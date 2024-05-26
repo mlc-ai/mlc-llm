@@ -353,7 +353,7 @@ def test_token_based_operations(json_grammar: BNFGrammar):
     assert result == expected
 
 
-def test_custom_main_rule():
+def test_custom_main_rule() -> None:
     json_grammar_ebnf = r"""
 main ::= basic_object
 basic_any ::= basic_string | basic_object
@@ -368,7 +368,7 @@ ws ::= [ \n\t]*
     assert not GrammarStateMatcher(grammar).debug_match_complete_string(r'{"name": "John" }')
 
 
-def test_find_next_rejected_tokens_schema():
+def test_find_next_rejected_tokens_schema() -> None:
     class MainModel(BaseModel):
         integer_field: int
         number_field: float

@@ -168,6 +168,37 @@ public struct ChatCompletionStreamResponseChoice: Codable {
     public var lobprobs: Optional<LogProbs> = nil
 }
 
+public struct CompletionUsageExtra: Codable {
+    public var prefill_tokens_per_s: Optional<Float> = nil
+    public var decode_tokens_per_s: Optional<Float> = nil
+    public var num_prefill_tokens: Optional<Int> = nil
+
+    public func asTextLabel() -> String {
+        var outputText = ""
+        if let prefill_tokens_per_s = self.prefill_tokens_per_s {
+            outputText += "prefill: "
+            outputText += String(format: "%.1f", prefill_tokens_per_s)
+            outputText += " tok/s"
+        }
+        if let decode_tokens_per_s = self.decode_tokens_per_s {
+            if !outputText.isEmpty {
+                outputText += ", "
+            }
+            outputText += "decode: "
+            outputText += String(format: "%.1f", decode_tokens_per_s)
+            outputText += " tok/s"
+        }
+        return outputText
+    }
+}
+
+public struct CompletionUsage: Codable {
+    public var prompt_tokens: Int
+    public var completion_tokens: Int
+    public var total_tokens: Int
+    public var extra: Optional<CompletionUsageExtra>
+}
+
 public struct ChatCompletionStreamResponse: Codable {
     public var id : String
     public var choices: [ChatCompletionStreamResponseChoice] = []
@@ -175,6 +206,7 @@ public struct ChatCompletionStreamResponse: Codable {
     public var model: Optional<String> = nil
     public var system_fingerprint: String
     public var object: Optional<String> = nil
+    public var usage: Optional<CompletionUsage> = nil
 }
 
 public struct ResponseFormat: Codable {
@@ -184,6 +216,14 @@ public struct ResponseFormat: Codable {
     public init(type: String, schema: Optional<String> = nil) {
         self.type = type
         self.schema = schema
+    }
+}
+
+public struct StreamOptions: Codable {
+    public var include_usage: Bool = false
+
+    public init(include_usage: Bool) {
+        self.include_usage = include_usage
     }
 }
 
@@ -199,7 +239,8 @@ public struct ChatCompletionRequest: Codable {
     public var n: Int = 1
     public var seed: Optional<Int> = nil
     public var stop: Optional<[String]> = nil
-    public var stream: Bool = false
+    public var stream: Bool = true
+    public var stream_options: Optional<StreamOptions> = nil
     public var temperature: Optional<Float> = nil
     public var top_p: Optional<Float> = nil
     public var tools: Optional<[ChatTool]> = nil
@@ -218,7 +259,8 @@ public struct ChatCompletionRequest: Codable {
         n: Int = 1,
         seed: Optional<Int> = nil,
         stop: Optional<[String]> = nil,
-        stream: Bool = false,
+        stream: Bool = true,
+        stream_options: Optional<StreamOptions> = nil,
         temperature: Optional<Float> = nil,
         top_p: Optional<Float> = nil,
         tools: Optional<[ChatTool]> = nil,
@@ -237,6 +279,7 @@ public struct ChatCompletionRequest: Codable {
         self.seed = seed
         self.stop = stop
         self.stream = stream
+        self.stream_options = stream_options
         self.temperature = temperature
         self.top_p = top_p
         self.tools = tools

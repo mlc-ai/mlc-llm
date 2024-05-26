@@ -15,6 +15,7 @@ from mlc_llm.serve.engine_base import (
     _check_engine_config,
     _parse_models,
     _process_model_args,
+    _query_engine_metrics,
     detect_device,
 )
 from mlc_llm.tokenizer import Tokenizer
@@ -36,7 +37,7 @@ class EngineState:
         self.sync_queue.put_nowait(chat_completion_stream_responses_json_str)
 
     def handle_chat_completion(
-        self, ffi: dict, request_json_str: str, n: int, request_id: str
+        self, ffi: dict, request_json_str: str, include_usage: bool, request_id: str
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         """Helper class to handle chat completion
 
@@ -46,12 +47,12 @@ class EngineState:
         as ffi will capture EngineState
         """
         self.sync_queue = queue.Queue()
-        num_unfinished_requests = n
 
         success = bool(ffi["chat_completion"](request_json_str, request_id))
 
         try:
-            while num_unfinished_requests > 0:
+            last_chunk_arrived = False
+            while not last_chunk_arrived:
                 chat_completion_responses_json_str = self.sync_queue.get()
                 chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
                 for chat_completion_response_json_dict in chat_completion_responses_list:
@@ -60,9 +61,12 @@ class EngineState:
                             chat_completion_response_json_dict
                         )
                     )
-                    for choice in chat_completion_response.choices:
-                        if choice.finish_reason is not None:
-                            num_unfinished_requests -= 1
+                    # the chunk with usage is always the last chunk
+                    if chat_completion_response.usage is not None:
+                        if include_usage:
+                            yield chat_completion_response
+                        last_chunk_arrived = True
+                        break
                     yield chat_completion_response
         except Exception as exception:  # pylint: disable=broad-exception-caught
             ffi["abort"](request_id)
@@ -126,6 +130,7 @@ class Completions:
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         stream: bool = False,
+        stream_options: Optional[Dict[str, Any]] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
@@ -133,50 +138,58 @@ class Completions:
         user: Optional[str] = None,
         response_format: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
-        debug_config: Optional[Dict[str, Any]] = None,
+        extra_body: Optional[Dict[str, Any]] = None,
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
-
+        debug_config = extra_body.get("debug_config", None) if extra_body is not None else None
+        request = openai_api_protocol.ChatCompletionRequest(
+            messages=[
+                openai_api_protocol.ChatCompletionMessage.model_validate(message)
+                for message in messages
+            ],
+            model=model,
+            frequency_penalty=frequency_penalty,
+            presence_penalty=presence_penalty,
+            logprobs=logprobs,
+            top_logprobs=top_logprobs,
+            logit_bias=logit_bias,
+            max_tokens=max_tokens,
+            n=n,
+            seed=seed,
+            stop=stop,
+            stream=stream,
+            stream_options=(
+                openai_api_protocol.StreamOptions.model_validate(stream_options)
+                if stream_options is not None
+                else None
+            ),
+            temperature=temperature,
+            top_p=top_p,
+            tools=(
+                [openai_api_protocol.ChatTool.model_validate(tool) for tool in tools]
+                if tools is not None
+                else None
+            ),
+            tool_choice=tool_choice,
+            user=user,
+            response_format=(
+                openai_api_protocol.RequestResponseFormat.model_validate(response_format)
+                if response_format is not None
+                else None
+            ),
+            debug_config=(
+                debug_protocol.DebugConfig.model_validate(debug_config)
+                if debug_config is not None
+                else None
+            ),
+        )
         chatcmpl_generator = self._state.handle_chat_completion(
             self._ffi,
-            openai_api_protocol.ChatCompletionRequest(
-                messages=[
-                    openai_api_protocol.ChatCompletionMessage.model_validate(message)
-                    for message in messages
-                ],
-                model=model,
-                frequency_penalty=frequency_penalty,
-                presence_penalty=presence_penalty,
-                logprobs=logprobs,
-                top_logprobs=top_logprobs,
-                logit_bias=logit_bias,
-                max_tokens=max_tokens,
-                n=n,
-                seed=seed,
-                stop=stop,
-                stream=stream,
-                temperature=temperature,
-                top_p=top_p,
-                tools=(
-                    [openai_api_protocol.ChatTool.model_validate(tool) for tool in tools]
-                    if tools is not None
-                    else None
-                ),
-                tool_choice=tool_choice,
-                user=user,
-                response_format=(
-                    openai_api_protocol.RequestResponseFormat.model_validate(response_format)
-                    if response_format is not None
-                    else None
-                ),
-                debug_config=(
-                    debug_protocol.DebugConfig.model_validate(debug_config)
-                    if debug_config is not None
-                    else None
-                ),
-            ).model_dump_json(),
-            n=n,
+            request.model_dump_json(),
+            include_usage=(
+                request.stream_options is not None and request.stream_options.include_usage
+            ),
             request_id=request_id,
         )
         for response in chatcmpl_generator:
@@ -232,7 +245,6 @@ class JSONFFIEngine:
                 "reset",
                 "chat_completion",
                 "abort",
-                "json_metrics",
                 "run_background_loop",
                 "run_background_stream_back_loop",
                 "exit_background_loop",
@@ -256,13 +268,15 @@ class JSONFFIEngine:
 
     def metrics(self) -> EngineMetrics:
         """Get the engine metrics."""
-        return EngineMetrics(json.loads(self._ffi["json_metrics"]()))
+        return _query_engine_metrics(self)
 
     def _raw_chat_completion(
-        self, request_json_str: str, n: int, request_id: str
+        self, request_json_str: str, include_usage: bool, request_id: str
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         """Raw chat completion API"""
-        return self._state.handle_chat_completion(self._ffi, request_json_str, n, request_id)
+        return self._state.handle_chat_completion(
+            self._ffi, request_json_str, include_usage, request_id
+        )
 
     def terminate(self):
         """Explicitly terminate the engine"""

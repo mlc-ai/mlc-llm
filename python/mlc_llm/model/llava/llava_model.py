@@ -74,7 +74,7 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     text_architecture: str = "LlamaForCausalLM"
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         vision_config_dict: Dict[str, Any]
         if isinstance(self.vision_config, LlavaVisionConfig):
             vision_config_dict = dataclasses.asdict(self.vision_config)
@@ -102,7 +102,9 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             for k, v in text_config_dict.pop("kwargs", {}).items():
                 text_config_dict[k] = v
 
-        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(text_config_dict)
+        self.text_config = CONFIG_MAP[self.text_architecture].from_dict(  # type: ignore
+            text_config_dict
+        )
 
         for k in ["context_window_size", "sliding_window_size", "prefill_chunk_size"]:
             if getattr(self, k) <= 0:

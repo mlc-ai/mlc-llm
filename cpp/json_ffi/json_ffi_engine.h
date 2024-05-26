@@ -41,8 +41,6 @@ class JSONFFIEngine {
 
   std::string GetLastError();
 
-  std::string JSONMetrics();
-
   void ExitBackgroundLoop();
 
  protected:

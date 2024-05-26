@@ -124,9 +124,11 @@ final class ChatState: ObservableObject {
                 ChatCompletionMessage(role: .user, content: prompt)
             )
             var finishReasonLength = false
+            var finalUsageTextLabel = ""
 
             for await res in await engine.chat.completions.create(
-                messages: self.historyMessages
+                messages: self.historyMessages,
+                stream_options: StreamOptions(include_usage: true)
             ) {
                 for choice in res.choices {
                     if let content = choice.delta.content {
@@ -137,6 +139,9 @@ final class ChatState: ObservableObject {
                             finishReasonLength = true
                         }
                     }
+                }
+                if let finalUsage = res.usage {
+                    finalUsageTextLabel = finalUsage.extra?.asTextLabel() ?? ""
                 }
                 if getModelChatState() != .generating {
                     break
@@ -174,8 +179,7 @@ final class ChatState: ObservableObject {
             }
 
             if getModelChatState() == .generating {
-                // TODO(mlc-team) add stats
-                let runtimStats = ""
+                let runtimStats = finalUsageTextLabel
 
                 DispatchQueue.main.async {
                     self.infoText = runtimStats

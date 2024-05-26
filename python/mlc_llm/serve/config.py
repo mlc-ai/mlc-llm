@@ -41,10 +41,14 @@ class DebugConfig:
         Whether the input and generated data pinned in engine. Default is set to False.
         This can be used for system prompt or other purpose, if the data is aimed to be
         kept all the time.
+
+    special_request: Optional[string]
+        Special requests to send to engine
     """
 
     ignore_eos: bool = False
     pinned_system_prompt: bool = False
+    special_request: Optional[Literal["query_engine_metrics"]] = None
 
 
 @dataclass
@@ -120,7 +124,7 @@ class GenerationConfig:  # pylint: disable=too-many-instance-attributes
     repetition_penalty: float = 1.0
     logprobs: bool = False
     top_logprobs: int = 0
-    logit_bias: Optional[Dict[int, float]] = field(default_factory=dict)
+    logit_bias: Optional[Dict[int, float]] = field(default_factory=dict)  # type: ignore
 
     max_tokens: Optional[int] = 128
     seed: Optional[int] = None
