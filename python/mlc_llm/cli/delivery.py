@@ -17,7 +17,7 @@ from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.constants import MLC_TEMP_DIR
-from mlc_llm.support.download import git_clone
+from mlc_llm.support.download_cache import git_clone
 from mlc_llm.support.style import bold, green, red
 
 logging.enable_logging()

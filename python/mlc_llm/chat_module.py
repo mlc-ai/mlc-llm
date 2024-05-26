@@ -355,7 +355,7 @@ def _get_model_path(model: str) -> Tuple[str, str]:
     FileNotFoundError: if we cannot find a valid `model_path`.
     """
     if model.startswith("HF://"):
-        from mlc_llm.support.download import (  # pylint: disable=import-outside-toplevel
+        from mlc_llm.support.download_cache import (  # pylint: disable=import-outside-toplevel
             download_and_cache_mlc_weights,
         )
 

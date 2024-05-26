@@ -15,11 +15,11 @@ def _check():
             f"but got {MLC_JIT_POLICY}."
         )
 
-    if MLC_DOWNLOAD_POLICY not in ["ON", "OFF", "REDO", "READONLY"]:
+    if MLC_DOWNLOAD_CACHE_POLICY not in ["ON", "OFF", "REDO", "READONLY"]:
         raise ValueError(
             "Invalid MLC_AUTO_DOWNLOAD_POLICY. "
             'It has to be one of "ON", "OFF", "REDO", "READONLY"'
-            f"but got {MLC_DOWNLOAD_POLICY}."
+            f"but got {MLC_DOWNLOAD_CACHE_POLICY}."
         )
 
 
@@ -80,7 +80,7 @@ MLC_JIT_POLICY = os.environ.get("MLC_JIT_POLICY", "ON")
 MLC_DSO_SUFFIX = _get_dso_suffix()
 MLC_TEST_MODEL_PATH: List[Path] = _get_test_model_path()
 
-MLC_DOWNLOAD_POLICY = os.environ.get("MLC_DOWNLOAD_POLICY", "ON")
+MLC_DOWNLOAD_CACHE_POLICY = os.environ.get("MLC_DOWNLOAD_CACHE_POLICY", "ON")
 MLC_LLM_HOME: Path = _get_cache_dir()
 MLC_LLM_READONLY_WEIGHT_CACHE = _get_read_only_weight_caches()
 

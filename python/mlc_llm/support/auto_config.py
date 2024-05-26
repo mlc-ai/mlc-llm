@@ -35,7 +35,7 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
     # pylint: disable=import-outside-toplevel
     from mlc_llm.model import MODEL_PRESETS
 
-    from .download import download_and_cache_mlc_weights
+    from .download_cache import download_and_cache_mlc_weights
 
     # pylint: enable=import-outside-toplevel
 
