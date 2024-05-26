@@ -184,11 +184,13 @@
 <li class="toctree-l3"><a class="reference internal" href="#mlc_llm.MLCEngine"><code class="docutils literal notranslate"><span class="pre">MLCEngine</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.__init__"><code class="docutils literal notranslate"><span class="pre">MLCEngine.__init__()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.abort"><code class="docutils literal notranslate"><span class="pre">MLCEngine.abort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.MLCEngine.metrics"><code class="docutils literal notranslate"><span class="pre">MLCEngine.metrics()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine</span></code></a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.__init__"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.__init__()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.abort"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.abort()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#mlc_llm.AsyncMLCEngine.metrics"><code class="docutils literal notranslate"><span class="pre">AsyncMLCEngine.metrics()</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -567,6 +569,20 @@ See class “EngineConfig” for more detail.</p></li>
 </dl>
 </dd></dl>
 
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.MLCEngine.metrics">
+<span class="sig-name descname"><span class="pre">metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">EngineMetrics</span></span></span><a class="headerlink" href="#mlc_llm.MLCEngine.metrics" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get engine metrics</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>metrics</strong> – The engine metrics</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>EngineMetrics</p>
+</dd>
+</dl>
+</dd></dl>
+
 </dd></dl>
 
 <dl class="py class">
@@ -623,6 +639,20 @@ See class “EngineConfig” for more detail.</p></li>
 <dd><p>Generation abortion interface.</p>
 <dl class="simple">
 <dt>request_id<span class="classifier">str</span></dt><dd><p>The id of the request to abort.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="mlc_llm.AsyncMLCEngine.metrics">
+<em class="property"><span class="pre">async</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">metrics</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">EngineMetrics</span></span></span><a class="headerlink" href="#mlc_llm.AsyncMLCEngine.metrics" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get engine metrics</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>metrics</strong> – The engine metrics</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>EngineMetrics</p>
 </dd>
 </dl>
 </dd></dl>
