@@ -13,10 +13,24 @@ from typing import List, Optional, Tuple
 import requests  # pylint: disable=import-error
 
 from . import logging, tqdm
-from .constants import MLC_LLM_HOME, MLC_TEMP_DIR
+from .constants import (
+    MLC_DOWNLOAD_POLICY,
+    MLC_LLM_HOME,
+    MLC_LLM_READONLY_WEIGHT_CACHES,
+    MLC_TEMP_DIR,
+)
 from .style import bold
 
 logger = logging.getLogger(__name__)
+
+
+def log_download_policy():
+    """log current download policy"""
+    logger.info(
+        "%s = %s. Can be one of: ON, OFF, REDO, READONLY",
+        bold("MLC_DOWNLOAD_POLICY"),
+        MLC_DOWNLOAD_POLICY,
+    )
 
 
 def _ensure_directory_not_exist(path: Path, force_redo: bool) -> None:
@@ -110,12 +124,16 @@ def download_file(
     return url, destination
 
 
-def download_mlc_weights(  # pylint: disable=too-many-locals
+def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     model_url: str,
     num_processes: int = 4,
-    force_redo: bool = False,
+    force_redo: Optional[bool] = None,
 ) -> Path:
     """Download weights for a model from the HuggingFace Git LFS repo."""
+    log_download_policy()
+    if MLC_DOWNLOAD_POLICY == "OFF":
+        raise RuntimeError(f"Cannot download {model_url} as MLC_DOWNLOAD_POLICY=OFF")
+
     prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
     mlc_prefix = next(p for p in prefixes if model_url.startswith(p))
     assert mlc_prefix
@@ -126,12 +144,36 @@ def download_mlc_weights(  # pylint: disable=too-many-locals
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
         raise ValueError(f"Invalid model URL: {model_url}")
     user, repo = model_url[len(mlc_prefix) :].split("/")
-    git_dir = MLC_LLM_HOME / "model_weights" / user / repo
+    domain = "hf"
+
+    readonly_cache_dirs = []
+    for base in MLC_LLM_READONLY_WEIGHT_CACHES:
+        cache_dir = base / domain / user / repo
+        readonly_cache_dirs.append(str(cache_dir))
+        if (cache_dir / "mlc-chat-config.json").is_file():
+            logger.info("Use cached weight: %s", bold(str(cache_dir)))
+            return cache_dir
+
+    if force_redo is None:
+        force_redo = MLC_DOWNLOAD_POLICY == "REDO"
+
+    git_dir = MLC_LLM_HOME / "model_weights" / domain / user / repo
+    readonly_cache_dirs.append(str(git_dir))
+
     try:
         _ensure_directory_not_exist(git_dir, force_redo=force_redo)
     except ValueError:
         logger.info("Weights already downloaded: %s", bold(str(git_dir)))
         return git_dir
+
+    if MLC_DOWNLOAD_POLICY == "READONLY":
+        raise RuntimeError(
+            f"Cannot find cache for {model_url}, "
+            "cannot proceed to download as MLC_DOWNLOAD_POLICY=READONLY, "
+            "please check settings MLC_LLM_READONLY_WEIGHT_CACHES, "
+            f"local path candidates: {readonly_cache_dirs}"
+        )
+
     with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir_prefix:
         tmp_dir = Path(tmp_dir_prefix) / "tmp"
         git_url = git_url_template.format(user=user, repo=repo)
