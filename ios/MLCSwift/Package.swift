@@ -8,13 +8,13 @@ let package = Package(
     products: [
         .library(
             name: "MLCSwift",
-            targets: ["LLMChatObjC", "MLCSwift"]
+            targets: ["MLCEngineObjC", "MLCSwift"]
         )
     ],
     dependencies: [],
     targets: [
         .target(
-            name: "LLMChatObjC",
+            name: "MLCEngineObjC",
             path: "Sources/ObjC",
             cxxSettings: [
                 .headerSearchPath("../../tvm_home/include"),
@@ -24,7 +24,7 @@ let package = Package(
         ),
         .target(
             name: "MLCSwift",
-            dependencies: ["LLMChatObjC"],
+            dependencies: ["MLCEngineObjC"],
             path: "Sources/Swift"
         )
     ],

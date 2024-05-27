@@ -45,7 +45,8 @@ class AppState: ObservableObject {
                         role: .user,
                         content: "What is the meaning of life?"
                     )
-                ]
+                ],
+                stream_options: StreamOptions(include_usage: true)
             ) {
                 // publish at main event loop
                 DispatchQueue.main.async {

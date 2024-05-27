@@ -1,5 +1,5 @@
 import Foundation
-import LLMChatObjC
+import MLCEngineObjC
 import os
 
 class BackgroundWorker : Thread {
@@ -78,7 +78,6 @@ public class MLCEngine {
             // dispatch to right request ID
             for res in responses {
                 if let requestState = self.requestStateMap[res.id] {
-                    requestState.continuation.yield(res)
                     // final chunk always come with usage
                     if let finalUsage = res.usage {
                         if let include_usage = requestState.request.stream_options?.include_usage {
@@ -88,6 +87,8 @@ public class MLCEngine {
                         }
                         requestState.continuation.finish()
                         self.requestStateMap.removeValue(forKey: res.id)
+                    } else {
+                        requestState.continuation.yield(res)
                     }
                 }
             }
