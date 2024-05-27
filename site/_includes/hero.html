@@ -1,0 +1,42 @@
+<section id="hero">
+  <div class="heading-container">
+    <h1>MLC LLM: High-Performance Universal LLM Engine for Cloud and Edge</h1>
+    <div class="link-container">
+      <a class="get-start-link" href="https://webllm.mlc.ai">
+        <span class="get-start-link-content">
+          <span>Check WebLLM</span>
+          <span class="arrow-container">{% include arrow.svg %}</span></span
+        >
+      </a>
+      <a class="chat-link moving-border" href="https://llm.mlc.ai/docs">
+        <span class="border"></span>
+        <span class="chat-link-content">
+          <span>Get Started</span>
+          <span class="arrow-container">{% include arrow.svg %}</span>
+          </span>
+      </a>
+    </div>
+  </div>
+  <div class="demo-container">
+    <!-- <img class="android" src="/assets/gif/android-demo.gif" alt="Android Demo" width="612" height="1334" />
+    <img class="linux" src="/assets/gif/linux-demo.gif" alt="Linux Demo" width="1089" height="667" />
+    <img class="ios" src="/assets/gif/ios-demo.gif" alt="iOS Demo" width="640" height="1394" /> -->
+    <!-- <img src="https://llm.mlc.ai/docs/_images/project-workflow.svg" alt="MLC LLM Architecture" /> -->
+    {% include project-workflow.svg %}
+  </div>
+</section>
+
+<script>
+  (function() {
+
+  function handlerIn(e) {
+    $(this).addClass("expanded");
+  }
+  function handlerOut(e) {
+    $(this).removeClass("expanded");
+  }
+
+  $(".chat-link").hover(handlerIn, handlerOut);
+  $(".github-link").hover(handlerIn, handlerOut);
+})()
+</script>

@@ -2,3 +2,4 @@ dist
 llm-chat-config.json
 _includes/stable_diffusion.html
 _site
+.jekyll-cache

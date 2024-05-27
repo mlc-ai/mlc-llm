@@ -4,15 +4,11 @@ title: Home
 notitle: true
 ---
 
-# MLC LLM
+{% include hero.html %}
 
-Documentation: [https://llm.mlc.ai/docs](https://llm.mlc.ai/docs)
+## Overview
 
 **M**achine **L**earning **C**ompilation for **L**arge **L**anguage **M**odels (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
-
-<p align="center">
-<img src="https://llm.mlc.ai/docs/_images/project-workflow.svg" height="300">
-</p>
 
 ## Installation
 
