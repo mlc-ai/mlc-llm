@@ -8,36 +8,17 @@ notitle: true
 
 ## Overview
 
-**M**achine **L**earning **C**ompilation for **L**arge **L**anguage **M**odels (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
+MLC LLM is a machine learning compiler and high-performance deployment engine for large language models.  The mission of this project is to enable everyone to develop, optimize, and deploy AI models natively on everyone's platforms. 
 
-## Installation
+MLC LLM compiles and runs code on MLCEngine -- a unified high-performance LLM inference engine across the above platforms. MLCEngine provides OpenAI-compatible API available through REST server, python, javascript, iOS, Android, all backed by the same engine and compiler that we keep improving with the community.
 
-MLC LLM is available via [pip](https://llm.mlc.ai/docs/install/mlc_llm.html#install-mlc-packages).
-It is always recommended to install it in an isolated conda virtual environment.
+## Get Started
 
-To verify the installation, activate your virtual environment, run
-
-```bash
-python -c "import mlc_llm; print(mlc_llm.__path__)"
-```
-
-You are expected to see the installation path of MLC LLM Python package.
-
-## Quick Start
-
-Please check out our documentation for the [quick start](https://llm.mlc.ai/docs/get_started/quick_start.html).
-
-## Introduction
-
-Please check out our documentation for the [introduction](https://llm.mlc.ai/docs/get_started/introduction.html).
+Please visit our [documentation](https://llm.mlc.ai/docs/) to get started with MLC LLM.
+- [Installation](https://llm.mlc.ai/docs/install/mlc_llm)
+- [Quick start](https://llm.mlc.ai/docs/get_started/quick_start)
+- [Introduction](https://llm.mlc.ai/docs/get_started/introduction)
 
 ## Links
-
-- You might want to check out our online public [Machine Learning Compilation course](https://mlc.ai) for a systematic
-walkthrough of our approaches.
-- [WebLLM](https://webllm.mlc.ai/) is a companion project using MLC LLM's WebGPU and WebAssembly backend.
-- [WebStableDiffusion](https://websd.mlc.ai/) is a companion project for diffusion models with the WebGPU backend.
-
-## Disclaimer
-
-The pre-packaged demos are subject to the model License.
+- [MLC LLM Github](https://github.com/mlc-ai/mlc-llm)
+- [WebLLM Project](https://github.com/mlc-ai/web-llm)
