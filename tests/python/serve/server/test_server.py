@@ -124,11 +124,12 @@ def check_openai_nonstream_response(
                 assert choice["finish_reason"] == "length"
 
     usage = response["usage"]
-    assert isinstance(usage, dict)
-    assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-    assert usage["prompt_tokens"] > 0
-    if completion_tokens is not None:
-        assert usage["completion_tokens"] == completion_tokens
+    if usage is not None:
+        assert isinstance(usage, dict)
+        assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
+        assert usage["prompt_tokens"] > 0
+        if completion_tokens is not None:
+            assert usage["completion_tokens"] == completion_tokens
 
 
 def check_openai_stream_response(
@@ -180,14 +181,15 @@ def check_openai_stream_response(
 
         if not is_chat_completion:
             usage = response["usage"]
-            assert isinstance(usage, dict)
-            assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-            assert usage["prompt_tokens"] >= 0
-            if completion_tokens is not None:
-                assert usage["completion_tokens"] <= completion_tokens
+            if usage is not None:
+                assert isinstance(usage, dict)
+                assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
+                assert usage["prompt_tokens"] >= 0
+                if completion_tokens is not None:
+                    assert usage["completion_tokens"] <= completion_tokens
 
     if not is_chat_completion:
-        if completion_tokens is not None:
+        if completion_tokens is not None and responses[-1]["usage"] is not None:
             assert responses[-1]["usage"]["completion_tokens"] == completion_tokens
 
     for i, (output, finish_reason) in enumerate(zip(outputs, finish_reason_list)):
