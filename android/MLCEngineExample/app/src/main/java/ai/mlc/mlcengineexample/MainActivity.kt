@@ -2,6 +2,7 @@ package ai.mlc.mlcengineexample
 
 import ai.mlc.mlcengineexample.ui.theme.MLCEngineExampleTheme
 import ai.mlc.mlcllm.MLCEngine
+import ai.mlc.mlcllm.OpenAIProtocol
 import ai.mlc.mlcllm.OpenAIProtocol.*
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -32,34 +33,41 @@ class MainActivity : ComponentActivity() {
         var modelPath = File(application.getExternalFilesDir(""), modelName).toString()
         Log.i("MLC", "model path: $modelPath")
         // need to be changed to the custom system lib prefix used while compiling the model
-        val modelLib = "phi_msft_q4f16_1_4aec0e0a2bf3cf16e8dc33c012538136"
+        val modelLib = "phi_msft_q4f16_1_686d8979c6ebf05d142d9081f1b87162"
         Log.i("MLC", "engine loaded")
 
         setContent {
             val responseText = remember { mutableStateOf("") }
             val coroutineScope = rememberCoroutineScope()
             val engine = MLCEngine()
+            engine.unload()
             engine.reload(modelPath, modelLib)
-            val messages=listOf(
-                ChatCompletionMessage(
-                    role=ChatCompletionRole.user,
-                    content="What is the meaning of life?"
-                )
-            )
-            val response: ReceiveChannel<ChatCompletionStreamResponse> = engine.chatCompletion(
-                messages=listOf(
-                    ChatCompletionMessage(
-                        role=ChatCompletionRole.user,
-                        content="What is the meaning of life?"
-                    )
-                ),
-                model=modelPath,
-            )
             coroutineScope.launch {
-                for (it in response) {
-                    responseText.value += it.choices[0].delta.content?.asText()
+                var channel = engine.chat.completions.create(
+                    messages = listOf(
+                        ChatCompletionMessage(
+                            role = OpenAIProtocol.ChatCompletionRole.user,
+                            content = "What is the meaning of life?"
+                        )
+                    ),
+                    stream_options = OpenAIProtocol.StreamOptions(include_usage = true)
+                )
+
+
+                for (response in channel) {
+                    val finalusage = response.usage
+                    if (finalusage != null) {
+                        responseText.value += "\n" + (finalusage.extra?.asTextLabel() ?: "")
+                    } else {
+                        if (response.choices.size > 0) {
+                            responseText.value += response.choices[0].delta.content?.asText()
+                                .orEmpty()
+                        }
+                    }
+
                 }
             }
+
             Surface(
                 modifier = Modifier
                     .fillMaxSize()

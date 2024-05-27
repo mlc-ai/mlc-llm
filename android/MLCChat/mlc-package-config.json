@@ -3,13 +3,13 @@
     "model_list": [
         {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2b-q4f16_1",
+            "model_id": "gemma-2b-q4f16_1-MLC",
             "estimated_vram_bytes": 3000000000
         },
         {
             "model": "HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC",
             "estimated_vram_bytes": 4348727787,
-            "model_id": "Llama-2-7b-chat-hf-q4f16_1",
+            "model_id": "Llama-2-7b-chat-hf-q4f16_1-MLC",
             "overrides": {
                 "context_window_size": 768,
                 "prefill_chunk_size": 256
@@ -18,12 +18,12 @@
         {
             "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
             "estimated_vram_bytes": 1948348579,
-            "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1"
+            "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC"
         },
         {
             "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
             "estimated_vram_bytes": 4275453296,
-            "model_id": "Mistral-7B-Instruct-v0.2-q4f16_1",
+            "model_id": "Mistral-7B-Instruct-v0.2-q4f16_1-MLC",
             "overrides": {
                 "sliding_window_size": 768,
                 "prefill_chunk_size": 256
@@ -32,7 +32,7 @@
         {
             "model": "HF://mlc-ai/phi-2-q4f16_1-MLC",
             "estimated_vram_bytes": 2036816936,
-            "model_id": "phi-2-q4f16_1"
+            "model_id": "phi-2-q4f16_1-MLC"
         }
     ]
 }
