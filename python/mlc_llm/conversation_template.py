@@ -43,7 +43,8 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-3",
         system_template=(
-            f"<|start_header_id|>system<|end_header_id|>\n\n{MessagePlaceholders.SYSTEM.value}<|eot_id|>\n"
+            "<|start_header_id|>system<|end_header_id|>\n\n"
+            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>\n"
         ),
         system_message="You are a helpful, respectful and honest assistant.",
         roles={"user": "<|start_header_id|>user", "assistant": "<|start_header_id|>assistant"},
