@@ -99,7 +99,8 @@ NDArray BroadcastOrShardAndScatter(NDArray param, const ModelMetadata::Param& pa
   ShapeTuple shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
   ICHECK(shape.size() >= 1 && shape[0] == num_shards)
-      << "ValueError: The first dimension of the " << "output shape must be equal to the "
+      << "ValueError: The first dimension of the "
+      << "output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
   NDArray result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
