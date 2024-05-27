@@ -7,7 +7,7 @@
 [![Related Repository: Web LLM](https://img.shields.io/badge/Related_Repo-Web_LLM-fafbfc?logo=github)](https://github.com/mlc-ai/web-llm/)
 [![License](https://img.shields.io/badge/license-apache_2-blue)](https://github.com/mlc-ai/mlc-llm/blob/main/LICENSE)
 
-**ML Compiler for Universal LLM Deployment**
+**Universal LLM Deployment Engine with ML Compilation**
 
 [Get Started](https://llm.mlc.ai/docs/get_started/quick_start) | [Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/)
 
