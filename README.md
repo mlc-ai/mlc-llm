@@ -1,8 +1,15 @@
-[discord-url]: https://discord.gg/9Xpy2HGBuD
+<div align="center">
 
 # MLC LLM
+[![Join Discoard](https://img.shields.io/badge/Join-Discord-7289DA?logo=discord&logoColor=white)]("https://discord.gg/9Xpy2HGBuD")
+[![Related Repository: MLC LLM](https://img.shields.io/badge/Related_Repo-Web_LLM-fafbfc?logo=github)](https://github.com/mlc-ai/web-llm/)
 
-[Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/) | [Discord][discord-url]
+**High-Performance Universal LLM Engine for Cloud and Edge.**
+
+[Documentation](https://llm.mlc.ai/docs) | [Blog](https://blog.mlc.ai/)
+
+</div>
+
 
 **M**achine **L**earning **C**ompilation for **L**arge **L**anguage **M**odels (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
 
