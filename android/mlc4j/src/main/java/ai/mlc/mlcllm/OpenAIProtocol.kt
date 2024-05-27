@@ -1,6 +1,5 @@
 package ai.mlc.mlcllm
 
-import android.util.Log
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -107,9 +106,8 @@ class OpenAIProtocol {
         override fun serialize(encoder: Encoder, value: ChatCompletionMessageContent) {
             if (value.isText()) {
                 encoder.encodeString(value.text!!)
-            }
-            else {
-                encoder.encodeSerializableValue(ListSerializer(MapSerializer(String.serializer(), String.serializer())), value.parts?: listOf())
+            } else {
+                encoder.encodeSerializableValue(ListSerializer(MapSerializer(String.serializer(), String.serializer())), value.parts ?: listOf())
             }
         }
 
@@ -145,6 +143,40 @@ class OpenAIProtocol {
     }
 
     @Serializable
+    data class CompletionUsageExtra(
+        val prefill_tokens_per_s: Float? = null,
+        val decode_tokens_per_s: Float? = null,
+        val num_prefill_tokens: Int? = null
+    ) {
+        fun asTextLabel(): String {
+            var outputText = ""
+            if (prefill_tokens_per_s != null) {
+                outputText += "prefill: ${String.format("%.1f", prefill_tokens_per_s)} tok/s"
+            }
+            if (decode_tokens_per_s != null) {
+                if (outputText.isNotEmpty()) {
+                    outputText += ", "
+                }
+                outputText += "decode: ${String.format("%.1f", decode_tokens_per_s)} tok/s"
+            }
+            return outputText
+        }
+    }
+
+    @Serializable
+    data class CompletionUsage(
+        val prompt_tokens: Int,
+        val completion_tokens: Int,
+        val total_tokens: Int,
+        val extra: CompletionUsageExtra? = null
+    )
+
+    @Serializable
+    data class StreamOptions(
+        val include_usage: Boolean = false
+    )
+
+    @Serializable
     data class ChatCompletionStreamResponseChoice(
         var finish_reason: String? = null,
         val index: Int,
@@ -159,7 +191,8 @@ class OpenAIProtocol {
         var created: Int? = null,
         var model: String? = null,
         val system_fingerprint: String,
-        var `object`: String? = null
+        var `object`: String? = null,
+        val usage: CompletionUsage? = null
     )
 
     @Serializable
@@ -175,7 +208,8 @@ class OpenAIProtocol {
         val n: Int = 1,
         val seed: Int? = null,
         val stop: List<String>? = null,
-        val stream: Boolean = false,
+        val stream: Boolean = true,
+        val stream_options: StreamOptions? = null,
         val temperature: Float? = null,
         val top_p: Float? = null,
         val tools: List<ChatTool>? = null,
@@ -189,3 +223,4 @@ class OpenAIProtocol {
         val schema: String? = null
     )
 }
+

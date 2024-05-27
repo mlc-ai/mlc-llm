@@ -80,4 +80,8 @@ public class JSONFFIEngine {
         void invoke(String arg);
     }
 
+    public void reset() {
+        resetFunc.invoke();
+    }
+
 }

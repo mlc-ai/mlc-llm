@@ -136,7 +136,7 @@ fun ChatView(
 @Composable
 fun MessageView(messageData: MessageData) {
     SelectionContainer {
-        if (messageData.role == MessageRole.Bot) {
+        if (messageData.role == MessageRole.Assistant) {
             Row(
                 horizontalArrangement = Arrangement.Start,
                 modifier = Modifier.fillMaxWidth()
