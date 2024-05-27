@@ -274,7 +274,7 @@ private extension ChatState {
 
     func mainResetChat() {
         Task {
-            engine.reset()
+            await engine.reset()
             self.historyMessages = []
             self.streamingText = ""
 
@@ -287,7 +287,7 @@ private extension ChatState {
 
     func mainTerminateChat(callback: @escaping () -> Void) {
         Task {
-            engine.unload()
+            await engine.unload()
             DispatchQueue.main.async {
                 self.clearHistory()
                 self.modelID = ""
@@ -313,7 +313,7 @@ private extension ChatState {
                 self.appendMessage(role: .assistant, message: "[System] Initalize...")
             }
 
-            engine.unload()
+            await engine.unload()
             let vRAM = os_proc_available_memory()
             if (vRAM < estimatedVRAMReq) {
                 let requiredMemory = String (
@@ -329,7 +329,9 @@ private extension ChatState {
                 }
                 return
             }
-            engine.reload(modelPath: modelPath, modelLib: modelLib)
+            await engine.reload(
+                modelPath: modelPath, modelLib: modelLib
+            )
 
             // run a simple prompt with empty content to warm up system prompt
             // helps to start things before user start typing

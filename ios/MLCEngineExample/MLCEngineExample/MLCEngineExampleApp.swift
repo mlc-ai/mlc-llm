@@ -23,7 +23,7 @@ class AppState: ObservableObject {
     private let bundleURL = Bundle.main.bundleURL.appending(path: "bundle")
     // model path, this must match a builtin
     // file name in prepare_params.sh
-    private let modelPath = "llama3"
+    private let modelPath = "Llama-3-8B-Instruct-q3f16_1-MLC"
     // model lib identifier of within the packaged library
     // make sure we run "mlc_llm package"
     private let modelLib = "llama_q3f16_1"
@@ -36,7 +36,7 @@ class AppState: ObservableObject {
         Task {
             let modelLocalPath = bundleURL.appending(path: modelPath).path()
             // Step 0: load the engine
-            engine.reload(modelPath: modelLocalPath, modelLib: modelLib)
+            await engine.reload(modelPath: modelLocalPath, modelLib: modelLib)
 
             // run chat completion as in OpenAI API style
             for await res in await engine.chat.completions.create(
