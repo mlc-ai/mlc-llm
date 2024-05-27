@@ -85,20 +85,18 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)
-    kv_cache_bytes = metadata["kv_cache_bytes"]
 
-    return params_bytes, temp_func_bytes, kv_cache_bytes
+    return params_bytes, temp_func_bytes
 
 
 def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]) -> None:
-    params_bytes, temp_func_bytes, kv_cache_bytes = _compute_memory_usage(metadata, config)
-    total_size = params_bytes + temp_func_bytes + kv_cache_bytes
+    params_bytes, temp_func_bytes = _compute_memory_usage(metadata, config)
+    total_size = params_bytes + temp_func_bytes
     logger.info(
-        "%s: %.2f MB (Parameters: %.2f MB. KVCache: %.2f MB. Temporary buffer: %.2f MB)",
-        green("Total memory usage"),
+        "%s: %.2f MB (Parameters: %.2f MB. Temporary buffer: %.2f MB)",
+        green("Total memory usage without KV cache:"),
         total_size / 1024 / 1024,
         params_bytes / 1024 / 1024,
-        kv_cache_bytes / 1024 / 1024,
         temp_func_bytes / 1024 / 1024,
     )
 
@@ -106,23 +104,6 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
         "To reduce memory usage, "
         "tweak `prefill_chunk_size`, `context_window_size` and `sliding_window_size`"
     )
-
-
-def _print_memory_usage_in_json(metadata: Dict[str, Any], config: Dict) -> None:
-    params_bytes, temp_func_bytes, kv_cache_bytes = _compute_memory_usage(metadata, config)
-    print(
-        json.dumps(
-            {
-                "params_bytes": params_bytes,
-                "temp_func_bytes": temp_func_bytes,
-                "kv_cache_bytes": kv_cache_bytes,
-            }
-        )
-    )
-
-
-def _print_kv_cache_metadata_in_json(metadata: Dict[str, Any]) -> None:
-    print(json.dumps(metadata["kv_cache"]))
 
 
 def main():
@@ -154,16 +135,6 @@ def main():
         the basic information in JSON.
         """,
     )
-    parser.add_argument(
-        "--print-memory-usage-in-json-only",
-        action="store_true",
-        help="""If set, only inspect the metadata in memory usage and print usage in raw JSON.""",
-    )
-    parser.add_argument(
-        "--print-kv-cache-metadata-in-json-only",
-        action="store_true",
-        help="""If set, only inspect the metadata in KV cache and print usage in raw JSON.""",
-    )
     parsed = parser.parse_args()
     # Load metadata from model lib
     try:
@@ -180,12 +151,8 @@ def main():
         with open(mlc_chat_config_path, "r", encoding="utf-8") as config_file:
             cfg = json.load(config_file)
     # Main body
-    if parsed.print_memory_usage_in_json_only:
-        _print_memory_usage_in_json(metadata, cfg)
-    elif parsed.memory_only:
+    if parsed.memory_only:
         _report_memory_usage(metadata, cfg)
-    elif parsed.print_kv_cache_metadata_in_json_only:
-        _print_kv_cache_metadata_in_json(metadata)
     else:
         _report_all(metadata)
 

@@ -1,12 +1,10 @@
 """Python entrypoint of compilation."""
 
 import dataclasses
-import math
 from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import numpy as np
 from tvm import IRModule, relax, tir
 from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
@@ -117,23 +115,6 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "preprocs": param.attrs["preprocs"],
         }
 
-    def _find_kv_cache_bytes(model: nn.Module, model_config) -> int:
-        all_kv_cache = nn.core._attribute_finder(  # pylint: disable=protected-access
-            model,
-            prefix="",
-            condition_yield=lambda x: isinstance(x, nn.KVCache),
-        )
-        result = 0
-        for _, kv_cache in all_kv_cache:
-            result += math.prod(kv_cache.unit_shape) * np.dtype(kv_cache.dtype).itemsize
-        if getattr(model_config, "sliding_window_size", -1) > 0:
-            window_size = model_config.sliding_window_size
-        elif getattr(model_config, "context_window_size", -1) > 0:
-            window_size = model_config.context_window_size
-        else:
-            window_size = 0
-        return result * window_size
-
     model_config = args.overrides.apply(model_config)
     with args.target:
         op_ext.enable(
@@ -160,7 +141,6 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
             )
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
-        kv_cache_bytes = _find_kv_cache_bytes(model, model_config)
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
         mod, named_params, ext_mods = model.export_tvm(
@@ -185,7 +165,6 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
             "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
             "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
-            "kv_cache_bytes": kv_cache_bytes,
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
         }
         logger.info("Registering metadata: %s", metadata)
