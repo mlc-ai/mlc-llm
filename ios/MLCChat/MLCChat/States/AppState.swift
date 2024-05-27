@@ -239,7 +239,12 @@ private extension AppState {
 
         let model = ModelState(modelConfig: modelConfig, modelLocalBaseURL: modelBaseURL, startState: self, chatState: chatState)
         model.checkModelDownloadState(modelURL: modelURL)
-        models.append(model)
+
+        // addModelConfig is not called from main thread, update to models needs to be performed on main
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            models.append(model)
+        }
 
         if modelURL != nil && !isBuiltin {
             updateAppConfig {

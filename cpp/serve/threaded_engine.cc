@@ -48,6 +48,10 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
   void Reload(String engine_config_json_str) final {
+    // NOTE: important to set this before, we send out
+    // reload instruction to the other threads
+    // otherwise there can be deadlocks
+    reload_finished_ = false;
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
@@ -61,12 +65,17 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
     {
       std::unique_lock<std::mutex> lock(reload_unload_mutex_);
-      reload_finished_ = false;
       reload_unload_cv_.wait(lock, [this] { return reload_finished_; });
     }
   }
 
   void Unload() final {
+    // NOTE: important to set this before, we send out
+    // reload instruction to the other threads
+    // otherwise there can be deadlocks
+    // e.g. the other thread finish unload job and set the flag to true
+    // then we set it back to false
+    unload_finished_ = false;
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
@@ -79,7 +88,6 @@ class ThreadedEngineImpl : public ThreadedEngine {
     }
     {
       std::unique_lock<std::mutex> lock(reload_unload_mutex_);
-      unload_finished_ = false;
       reload_unload_cv_.wait(lock, [this] { return unload_finished_; });
     }
   }
@@ -137,7 +145,6 @@ class ThreadedEngineImpl : public ThreadedEngine {
                  exit_now_.load(std::memory_order_relaxed);
         });
         engine_waiting_ = false;
-
         local_instruction_queue = instruction_queue_;
         instruction_queue_.clear();
         pending_request_operation_cnt_ = 0;
@@ -147,8 +154,14 @@ class ThreadedEngineImpl : public ThreadedEngine {
           CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           background_engine_->AddRequest(Downcast<Request>(arg));
         } else if (kind == InstructionKind::kAbortRequest) {
-          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
-          background_engine_->AbortRequest(Downcast<String>(arg));
+          // in a rare case, abort request can happen after unloading
+          // aka background engine is nullptr
+          // this happens when the on going generation was interrupted
+          // the engine get unloaded, and then abort was called.
+          // it is safe to ignore these abort in such case
+          if (background_engine_ != nullptr) {
+            background_engine_->AbortRequest(Downcast<String>(arg));
+          }
         } else if (kind == InstructionKind::kUnloadEngine) {
           EngineUnloadImpl();
         } else if (kind == InstructionKind::kReloadEngine) {
@@ -276,8 +289,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
       // Wake up the thread waiting for reload finish.
       std::lock_guard<std::mutex> lock(reload_unload_mutex_);
       reload_finished_ = true;
-      reload_unload_cv_.notify_one();
     }
+    reload_unload_cv_.notify_one();
   }
 
   void EngineUnloadImpl() {
@@ -296,8 +309,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
       // Wake up the thread waiting for unload finish.
       std::lock_guard<std::mutex> lock(reload_unload_mutex_);
       unload_finished_ = true;
-      reload_unload_cv_.notify_one();
     }
+    reload_unload_cv_.notify_one();
   }
 
   /*! \brief The device to run models on. */
