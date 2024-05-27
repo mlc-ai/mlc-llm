@@ -630,33 +630,29 @@ and add local package that points to <code class="docutils literal notranslate">
 The following code shows an illustrative example of how to use the chat module.</p>
 <div class="highlight-swift notranslate"><div class="highlight"><pre><span></span><span class="kd">import</span> <span class="nc">MLCSwift</span>
 
-<span class="kd">let</span> <span class="nv">threadWorker</span> <span class="p">=</span> <span class="n">ThreadWorker</span><span class="p">()</span>
-<span class="kd">let</span> <span class="nv">chat</span> <span class="p">=</span> <span class="n">ChatModule</span><span class="p">()</span>
-
-<span class="n">threadWorker</span><span class="p">.</span><span class="n">push</span> <span class="p">{</span>
-   <span class="kd">let</span> <span class="nv">modelLib</span> <span class="p">=</span> <span class="s">&quot;model-lib-name&quot;</span>
+<span class="kd">func</span> <span class="nf">runExample</span><span class="p">()</span> <span class="k">async</span> <span class="p">{</span>
+   <span class="kd">let</span> <span class="nv">engine</span> <span class="p">=</span> <span class="n">MLCEngine</span><span class="p">()</span>
    <span class="kd">let</span> <span class="nv">modelPath</span> <span class="p">=</span> <span class="s">&quot;/path/to/model/weights&quot;</span>
-   <span class="kd">let</span> <span class="nv">input</span> <span class="p">=</span> <span class="s">&quot;What is the capital of Canada?&quot;</span>
-   <span class="n">chat</span><span class="p">.</span><span class="n">reload</span><span class="p">(</span><span class="n">modelLib</span><span class="p">,</span> <span class="n">modelPath</span><span class="p">:</span> <span class="n">modelPath</span><span class="p">)</span>
+   <span class="kd">let</span> <span class="nv">modelLib</span> <span class="p">=</span> <span class="s">&quot;model-lib-name&quot;</span>
 
-   <span class="n">chat</span><span class="p">.</span><span class="n">prefill</span><span class="p">(</span><span class="n">input</span><span class="p">)</span>
-   <span class="k">while</span> <span class="p">(</span><span class="o">!</span><span class="n">chat</span><span class="p">.</span><span class="n">stopped</span><span class="p">())</span> <span class="p">{</span>
-      <span class="n">displayReply</span><span class="p">(</span><span class="n">chat</span><span class="p">.</span><span class="n">getMessage</span><span class="p">())</span>
-      <span class="n">chat</span><span class="p">.</span><span class="n">decode</span><span class="p">()</span>
+   <span class="k">await</span> <span class="n">engine</span><span class="p">.</span><span class="n">reload</span><span class="p">(</span><span class="n">modelPath</span><span class="p">:</span> <span class="n">modelPath</span><span class="p">,</span> <span class="n">modelLib</span><span class="p">:</span> <span class="n">modelLib</span><span class="p">)</span>
+
+   <span class="c1">// run chat completion as in OpenAI API style</span>
+   <span class="k">for</span> <span class="k">await</span> <span class="n">res</span> <span class="k">in</span> <span class="k">await</span> <span class="n">engine</span><span class="p">.</span><span class="n">chat</span><span class="p">.</span><span class="n">completions</span><span class="p">.</span><span class="n">create</span><span class="p">(</span>
+         <span class="n">messages</span><span class="p">:</span> <span class="p">[</span>
+            <span class="n">ChatCompletionMessage</span><span class="p">(</span>
+               <span class="n">role</span><span class="p">:</span> <span class="p">.</span><span class="n">user</span><span class="p">,</span>
+               <span class="n">content</span><span class="p">:</span> <span class="s">&quot;What is the meaning of life?&quot;</span>
+            <span class="p">)</span>
+         <span class="p">]</span>
+   <span class="p">)</span> <span class="p">{</span>
+      <span class="bp">print</span><span class="p">(</span><span class="n">res</span><span class="p">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">delta</span><span class="p">.</span><span class="n">content</span><span class="p">!.</span><span class="n">asText</span><span class="p">())</span>
    <span class="p">}</span>
 <span class="p">}</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>Because the chat module makes heavy use of GPU and thread-local
-resources, it needs to run on a dedicated background thread.
-Therefore, <strong>avoid using</strong> <cite>DispatchQueue</cite>, which can cause context switching to
-different threads and segfaults due to thread-safety issues.
-Use the <cite>ThreadWorker</cite> class to launch all the jobs related
-to the chat module. You can check out the source code of
-the MLCChat app for a complete example.</p>
-</div>
+<p>Checkout <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCEngineExample">MLCEngineExample</a>
+for a minimal starter example.</p>
 </section>
 </section>
 
