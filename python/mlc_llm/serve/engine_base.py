@@ -925,11 +925,7 @@ def process_completion_request(
                 for i in range(generation_cfg.n)
             ],
             model=request.model,
-            usage=openai_api_protocol.CompletionUsage(
-                prompt_tokens=prompt_length,
-                completion_tokens=0,
-                total_tokens=prompt_length,
-            ),
+            usage=None,
         )
         echo_response = response
     return prompt, generation_cfg, prompt_length, echo_response
@@ -979,7 +975,7 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
         engine_state.record_event(request_id, event="yield final usage")
         response = openai_api_protocol.CompletionResponse(
             id=request_id,
-            choices=None,
+            choices=[],
             model=request.model,
             system_fingerprint="",
             usage=openai_api_protocol.CompletionUsage.model_validate_json(
