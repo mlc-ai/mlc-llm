@@ -312,7 +312,6 @@ private extension ChatState {
             DispatchQueue.main.async {
                 self.appendMessage(role: .assistant, message: "[System] Initalize...")
             }
-
             engine.unload()
             let vRAM = os_proc_available_memory()
             if (vRAM < estimatedVRAMReq) {
@@ -333,7 +332,7 @@ private extension ChatState {
 
             // run a simple prompt with empty content to warm up system prompt
             // helps to start things before user start typing
-            for await res in await engine.chat.completions.create(
+            for await _ in await engine.chat.completions.create(
                 messages: [ChatCompletionMessage(role: .user, content: "")],
                 max_tokens: 1
             ) {}
@@ -343,6 +342,7 @@ private extension ChatState {
                 self.updateMessage(role: .assistant, message: "[System] Ready to chat")
                 self.switchToReady()
             }
+
         }
     }
 }
