@@ -387,28 +387,25 @@ The following code shows an illustrative example of how to use the chat module.
 
    import MLCSwift
 
-   let threadWorker = ThreadWorker()
-   let chat = ChatModule()
-
-   threadWorker.push {
-      let modelLib = "model-lib-name"
+   func runExample() async {
+      let engine = MLCEngine()
       let modelPath = "/path/to/model/weights"
-      let input = "What is the capital of Canada?"
-      chat.reload(modelLib, modelPath: modelPath)
+      let modelLib = "model-lib-name"
 
-      chat.prefill(input)
-      while (!chat.stopped()) {
-         displayReply(chat.getMessage())
-         chat.decode()
+      await engine.reload(modelPath: modelPath, modelLib: modelLib)
+
+      // run chat completion as in OpenAI API style
+      for await res in await engine.chat.completions.create(
+            messages: [
+               ChatCompletionMessage(
+                  role: .user,
+                  content: "What is the meaning of life?"
+               )
+            ]
+      ) {
+         print(res.choices[0].delta.content!.asText())
       }
    }
 
-.. note::
-
-   Because the chat module makes heavy use of GPU and thread-local
-   resources, it needs to run on a dedicated background thread.
-   Therefore, **avoid using** `DispatchQueue`, which can cause context switching to
-   different threads and segfaults due to thread-safety issues.
-   Use the `ThreadWorker` class to launch all the jobs related
-   to the chat module. You can check out the source code of
-   the MLCChat app for a complete example.
+Checkout `MLCEngineExample <https://github.com/mlc-ai/mlc-llm/blob/main/ios/MLCEngineExample>`_
+for a minimal starter example.
