@@ -207,7 +207,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     fused_heads = num_q_heads + num_kv_heads * 2
     if rotary_dim is None:
         rotary_dim = head_dim
-    scale = tir.const(scale, dtype)
+    scale = tir.const(scale, "float32")
 
     def _rope(  # pylint: disable=too-many-arguments
         x: T.Buffer,
@@ -216,14 +216,14 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         d: tir.Var,
         pos: tir.Var,
     ):
-        cos_freq, sin_freq = rope_freq(pos * scale, d, rotary_dim, theta, dtype)
-        cos = cos_freq * x[s, h, d]
+        cos_freq, sin_freq = rope_freq(pos * scale, d, rotary_dim, theta, "float32")
+        cos = cos_freq * x[s, h, d].astype("float32")
         sin = sin_freq * tir.if_then_else(
             d < rotary_dim // 2,
             -x[s, h, d + rotary_dim // 2],
             x[s, h, d - rotary_dim // 2],
-        )
-        return cos + sin
+        ).astype("float32")
+        return (cos + sin).astype(dtype)
 
     @T.prim_func
     def fused_rope(  # pylint: disable=too-many-locals
