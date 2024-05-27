@@ -19,6 +19,21 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+uint64_t TotalDetectGlobalMemory(DLDevice device) {
+  // Get single-card GPU size.
+  TVMRetValue rv;
+  DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
+  int64_t gpu_size_bytes = rv;
+  // Since the memory size returned by the OpenCL runtime is smaller than the actual available
+  // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android
+  // with OpenCL.
+  if (device.device_type == kDLOpenCL) {
+    int64_t min_size_bytes = 5LL * 1024 * 1024 * 1024;  //  Minimum size is 5 GB
+    gpu_size_bytes = std::max(gpu_size_bytes, min_size_bytes);
+  }
+  return gpu_size_bytes;
+}
+
 /****************** DebugConfig ******************/
 
 Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
@@ -522,16 +537,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     logit_processor_workspace_bytes +=
         max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125;
   }
-  // Get single-card GPU size.
-  TVMRetValue rv;
-  DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
-  int64_t gpu_size_bytes = rv;
-  // Since the memory size returned by the OpenCL runtime is smaller than the actual available memory space,
-  // we set a best available space so that MLC LLM can run 7B or 8B models on Android with OpenCL.
-  if (device.device_type == kDLOpenCL) {
-      int64_t min_size_bytes = 5LL * 1024 * 1024 * 1024; // Minimum size is 5 GB
-      gpu_size_bytes = std::max(gpu_size_bytes, min_size_bytes);
-  }
+  int64_t gpu_size_bytes = TotalDetectGlobalMemory(device);
   // Compute the maximum total sequence length under the GPU memory budget.
   int64_t model_max_total_sequence_length =
       static_cast<int>((gpu_size_bytes * gpu_memory_utilization  //
@@ -823,16 +829,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
     logit_processor_workspace_bytes +=
         max_num_sequence * 20 + max_num_sequence * vocab_size * 16.125;
   }
-  // Get single-card GPU size.
-  TVMRetValue rv;
-  DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
-  int64_t gpu_size_bytes = rv;
-  // Since the memory size returned by the OpenCL runtime is smaller than the actual available memory space,
-  // we set a best available space so that MLC LLM can run 7B or 8B models on Android with OpenCL.
-  if (device.device_type == kDLOpenCL) {
-      int64_t min_size_bytes = 5LL * 1024 * 1024 * 1024; // Minimum size is 5 GB
-      gpu_size_bytes = std::max(gpu_size_bytes, min_size_bytes);
-  }
+  int64_t gpu_size_bytes = TotalDetectGlobalMemory(device);
   // Compute the maximum history size length under the GPU memory budget.
   int64_t model_max_history_size = static_cast<int>((gpu_size_bytes * gpu_memory_utilization  //
                                                      - params_bytes                           //
