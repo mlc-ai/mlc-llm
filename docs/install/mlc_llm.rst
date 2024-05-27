@@ -209,7 +209,7 @@ This step is useful when you want to make modification or obtain a specific vers
     To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
 
 **Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
-access to ``mlc_llm.compile``, ``mlc_llm.ChatModule``, and the CLI.
+access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.
 There are two ways to do so:
 
     .. tabs ::

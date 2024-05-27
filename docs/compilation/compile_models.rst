@@ -293,11 +293,20 @@ We can check the output with the commands below:
         .. code:: shell
 
             python
-            >>> from mlc_llm import ChatModule
-            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")
-            >>> cm.generate("hi")
-            'Hi! How can I assist you today?'
+            >>> from mlc_llm import MLCEngine
+            >>> engine = MLCEngine(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+            ...   model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so")
+            >>> engine.chat.completions.create(
+            ...   messages=[{"role": "user", "content": "hello"}]
+            ... )
+            ChatCompletionResponse(
+              choices=[ChatCompletionResponseChoice(
+                message=ChatCompletionMessage(
+                  content="Hi! How can I assist you today?", role='assistant'
+                )
+              )],
+              ...
+            )
 
     .. group-tab:: Metal
 
@@ -320,11 +329,20 @@ We can check the output with the commands below:
         .. code:: shell
 
             python
-            >>> from mlc_llm import ChatModule
-            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so")
-            >>> cm.generate("hi")
-            'Hi! How can I assist you today?'
+            >>> from mlc_llm import MLCEngine
+            >>> engine = MLCEngine(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+            ...   model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so")
+            >>> engine.chat.completions.create(
+            ...   messages=[{"role": "user", "content": "hello"}]
+            ... )
+            ChatCompletionResponse(
+              choices=[ChatCompletionResponseChoice(
+                message=ChatCompletionMessage(
+                  content="Hi! How can I assist you today?", role='assistant'
+                )
+              )],
+              ...
+            )
 
 
     .. group-tab:: Vulkan
@@ -348,11 +366,20 @@ We can check the output with the commands below:
         .. code:: shell
 
             python
-            >>> from mlc_llm import ChatModule
-            >>> cm = ChatModule(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC", \
-                model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so", device="vulkan")
-            >>> cm.generate("hi")
-            'Hi! How can I assist you today?'
+            >>> from mlc_llm import MLCEngine
+            >>> engine = MLCEngine(model="./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
+            ...   model_lib="./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so")
+            >>> engine.chat.completions.create(
+            ...   messages=[{"role": "user", "content": "hello"}]
+            ... )
+            ChatCompletionResponse(
+              choices=[ChatCompletionResponseChoice(
+                message=ChatCompletionMessage(
+                  content="Hi! How can I assist you today?", role='assistant'
+                )
+              )],
+              ...
+            )
 
     .. group-tab:: iOS/iPadOS
 
