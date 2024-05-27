@@ -138,8 +138,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
         });
         engine_waiting_ = false;
 
-        local_instruction_queue = instruction_queue_;
-        instruction_queue_.clear();
+        local_instruction_queue = std::move(instruction_queue_);
         pending_request_operation_cnt_ = 0;
       }
       for (const auto& [kind, arg] : local_instruction_queue) {
