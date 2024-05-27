@@ -12,7 +12,6 @@
 import Foundation
 import SwiftUI
 
-// Import MLCSwift
 import MLCSwift
 
 class AppState: ObservableObject {

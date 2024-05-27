@@ -99,8 +99,7 @@ NDArray BroadcastOrShardAndScatter(NDArray param, const ModelMetadata::Param& pa
   ShapeTuple shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
   ICHECK(shape.size() >= 1 && shape[0] == num_shards)
-      << "ValueError: The first dimension of the "
-      << "output shape must be equal to the "
+      << "ValueError: The first dimension of the " << "output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
   NDArray result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
@@ -146,10 +145,10 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
       ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
   CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
       << "ValueError: The model is compiled using `--tensor-parallel-shards="
-      << model_metadata.tensor_parallel_shards << "`, but ChatModule is configured to use "
-      << num_shards << " GPUs. "
-      << "Please use `ChatConfig(tensor_parallel_shards=" << model_metadata.tensor_parallel_shards
-      << ", ...)` to initialize ChatModule.";
+      << model_metadata.tensor_parallel_shards
+      << "`, but mlc-chat-config.json is configured to use " << num_shards << " GPUs. "
+      << "Please set \"tensor_parallel_shards\" in mlc-chat-config.json to "
+      << model_metadata.tensor_parallel_shards;
   // Step 1. Extract auxiliary information
   PreprocessorPool preprocs(model_metadata, relax_vm_module);
   std::unordered_map<std::string, ModelMetadata::Param> param_name2info;
