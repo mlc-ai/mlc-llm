@@ -670,7 +670,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                                 role = OpenAIProtocol.ChatCompletionRole.user,
                                 content = prompt
                             )
-                        )
+                        ),
+                        stream_options = OpenAIProtocol.StreamOptions(include_usage = true)
                     )
                     var texts = ""
                     for (response in channel) {

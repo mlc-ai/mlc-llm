@@ -107,11 +107,6 @@ class EngineState {
             responses.forEach { res ->
                 val requestState = requestStateMap[res.id] ?: return@forEach
                 GlobalScope.launch {
-                    val sendResult = requestState.continuation.trySend(res)
-                    if (sendResult.isFailure) {
-                        // Handle the failure case if needed
-                        logger.severe("Failed to send response: ${sendResult.exceptionOrNull()}")
-                    }
 
                     res.usage?.let { finalUsage ->
                         requestState.request.stream_options?.include_usage?.let { includeUsage ->
@@ -121,6 +116,12 @@ class EngineState {
                         }
                         requestState.continuation.close()
                         requestStateMap.remove(res.id)
+                    } ?: run {
+                        val sendResult = requestState.continuation.trySend(res)
+                        if (sendResult.isFailure) {
+                            // Handle the failure case if needed
+                            logger.severe("Failed to send the response: ${sendResult.exceptionOrNull()}")
+                        }
                     }
                 }
             }
