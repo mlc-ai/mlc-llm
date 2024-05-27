@@ -61,11 +61,10 @@ def _clone_repo(model: Union[str, Path], hf_local_dir: Optional[str]) -> Path:
             logger.info("[HF] Downloading model to %s", hf_local_dir)
         result = snapshot_download(repo_id=repo_name, local_dir=hf_local_dir)
         return Path(result)
-    else:
-        result = Path(model)
-        if result.exists():
-            return result
-        raise ValueError(f"Invalid model source: {model}")
+    result = Path(model)
+    if result.exists():
+        return result
+    raise ValueError(f"Invalid model source: {model}")
 
 
 def _run_quantization(
