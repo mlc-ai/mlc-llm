@@ -205,8 +205,11 @@ public class MLCEngine {
     deinit {
         jsonFFIEngine.exitBackgroundLoop()
     }
-
-    public func reload(modelPath: String, modelLib: String) {
+    
+    // The following functions do not have to be async for now
+    // But to be safe and consistent with chat.completions.create
+    // and for future API changes we keep them as async calls
+    public func reload(modelPath: String, modelLib: String) async {
         let engineConfig = """
         {
             "model": "\(modelPath)",
@@ -217,11 +220,11 @@ public class MLCEngine {
         jsonFFIEngine.reload(engineConfig)
     }
 
-    public func reset() {
+    public func reset() async {
         jsonFFIEngine.reset()
     }
 
-    public func unload() {
+    public func unload() async {
         jsonFFIEngine.unload()
     }
 }
