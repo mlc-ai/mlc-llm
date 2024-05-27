@@ -3,7 +3,12 @@
 
 `Discord <https://discord.gg/9Xpy2HGBuD>`_ | `GitHub <https://github.com/mlc-ai/mlc-llm>`_
 
-Machine Learning Compilation for Large Language Models (MLC LLM) is a high-performance universal deployment solution that allows native deployment of any large language models with native APIs with compiler acceleration. The mission of this project is to enable everyone to develop, optimize and deploy AI models natively on everyone's devices with ML compilation techniques.
+
+
+
+MLC LLM is a machine learning compiler and high-performance deployment
+engine for large language models.  The mission of this project is to enable
+everyone to develop, optimize, and deploy AI models natively on everyone's platforms. 
 
 Quick Start
 -----------
