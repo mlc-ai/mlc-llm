@@ -138,6 +138,8 @@ class Conversation(BaseModel):
             message_list.append(system_msg)
 
         for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
+            if i == 0:
+                message_list.append(separators[role == "assistant"])
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
