@@ -124,10 +124,17 @@ class OptimizationFlags:
                 return False
             return self.cutlass
 
+        def _cudagraph(target) -> bool:
+            """correct cudagraph flag"""
+            if not target.kind.name == "cuda":
+                return False
+            return self.cudagraph
+
         self.flashinfer = _flashinfer(target)
         self.cublas_gemm = _cublas_gemm(target, quantization)
         self.faster_transformer = _faster_transformer(target)
         self.cutlass = _cutlass(target)
+        self.cudagraph = _cudagraph(target)
 
 
 @dataclasses.dataclass
