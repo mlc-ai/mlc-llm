@@ -129,7 +129,7 @@
     .demo-container {
         position: relative;
         margin-top: 96px;
-        width: 100%;
+        width: calc(100% + 4rem);
         max-width: 1024px;
         flex-shrink: 0;
         padding: 2rem;
@@ -166,6 +166,10 @@
                 font-size: 3rem;
             }
         }
+
+        .demo-container {
+            width: calc(100% + 10rem);
+        }
     }
 }
 
@@ -196,6 +200,10 @@
             h1 {
                 font-size: 3.5rem;
             }
+        }
+
+        .demo-container {
+            width: 100%;
         }
     }
 
