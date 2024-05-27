@@ -109,7 +109,7 @@
 #hero .demo-container {
   position: relative;
   margin-top: 96px;
-  width: 100%;
+  width: calc(100% + 4rem);
   max-width: 1024px;
   flex-shrink: 0;
   padding: 2rem;
@@ -142,6 +142,9 @@
   #hero .heading-container h1 {
     font-size: 3rem;
   }
+  #hero .demo-container {
+    width: calc(100% + 10rem);
+  }
 }
 @media screen and (min-width: 768px) {
   #hero .heading-container {
@@ -163,6 +166,9 @@
   }
   #hero .heading-container h1 {
     font-size: 3.5rem;
+  }
+  #hero .demo-container {
+    width: 100%;
   }
 }
 @media screen and (min-width: 1280px) {
