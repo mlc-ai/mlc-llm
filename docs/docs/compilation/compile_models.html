@@ -542,11 +542,20 @@ We can check the output with the commands below:</p>
 </div>
 <p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
-&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>ChatModule
-&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span>
-&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
-<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>MLCEngine
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">engine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>MLCEngine<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,
+...<span class="w">   </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-cuda.so&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>engine.chat.completions.create<span class="o">(</span>
+...<span class="w">   </span><span class="nv">messages</span><span class="o">=[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="o">}]</span>
+...<span class="w"> </span><span class="o">)</span>
+ChatCompletionResponse<span class="o">(</span>
+<span class="w">  </span><span class="nv">choices</span><span class="o">=[</span>ChatCompletionResponseChoice<span class="o">(</span>
+<span class="w">    </span><span class="nv">message</span><span class="o">=</span>ChatCompletionMessage<span class="o">(</span>
+<span class="w">      </span><span class="nv">content</span><span class="o">=</span><span class="s2">&quot;Hi! How can I assist you today?&quot;</span>,<span class="w"> </span><span class="nv">role</span><span class="o">=</span><span class="s1">&#39;assistant&#39;</span>
+<span class="w">    </span><span class="o">)</span>
+<span class="w">  </span><span class="o">)]</span>,
+<span class="w">  </span>...
+<span class="o">)</span>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-TWV0YWw=" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-TWV0YWw=" name="TWV0YWw=" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
@@ -564,11 +573,20 @@ We can check the output with the commands below:</p>
 </div>
 <p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
-&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>ChatModule
-&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so&quot;</span><span class="o">)</span>
-&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
-<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>MLCEngine
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">engine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>MLCEngine<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,
+...<span class="w">   </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-metal.so&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>engine.chat.completions.create<span class="o">(</span>
+...<span class="w">   </span><span class="nv">messages</span><span class="o">=[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="o">}]</span>
+...<span class="w"> </span><span class="o">)</span>
+ChatCompletionResponse<span class="o">(</span>
+<span class="w">  </span><span class="nv">choices</span><span class="o">=[</span>ChatCompletionResponseChoice<span class="o">(</span>
+<span class="w">    </span><span class="nv">message</span><span class="o">=</span>ChatCompletionMessage<span class="o">(</span>
+<span class="w">      </span><span class="nv">content</span><span class="o">=</span><span class="s2">&quot;Hi! How can I assist you today?&quot;</span>,<span class="w"> </span><span class="nv">role</span><span class="o">=</span><span class="s1">&#39;assistant&#39;</span>
+<span class="w">    </span><span class="o">)</span>
+<span class="w">  </span><span class="o">)]</span>,
+<span class="w">  </span>...
+<span class="o">)</span>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-VnVsa2Fu" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-VnVsa2Fu" name="VnVsa2Fu" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
@@ -586,11 +604,20 @@ We can check the output with the commands below:</p>
 </div>
 <p>We can now chat with the model using the command line interface (CLI) app or the Python API.</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python
-&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>ChatModule
-&gt;&gt;&gt;<span class="w"> </span><span class="nv">cm</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>ChatModule<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so&quot;</span>,<span class="w"> </span><span class="nv">device</span><span class="o">=</span><span class="s2">&quot;vulkan&quot;</span><span class="o">)</span>
-&gt;&gt;&gt;<span class="w"> </span>cm.generate<span class="o">(</span><span class="s2">&quot;hi&quot;</span><span class="o">)</span>
-<span class="s1">&#39;Hi! How can I assist you today?&#39;</span>
+&gt;&gt;&gt;<span class="w"> </span>from<span class="w"> </span>mlc_llm<span class="w"> </span>import<span class="w"> </span>MLCEngine
+&gt;&gt;&gt;<span class="w"> </span><span class="nv">engine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>MLCEngine<span class="o">(</span><span class="nv">model</span><span class="o">=</span><span class="s2">&quot;./dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC&quot;</span>,
+...<span class="w">   </span><span class="nv">model_lib</span><span class="o">=</span><span class="s2">&quot;./dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-vulkan.so&quot;</span><span class="o">)</span>
+&gt;&gt;&gt;<span class="w"> </span>engine.chat.completions.create<span class="o">(</span>
+...<span class="w">   </span><span class="nv">messages</span><span class="o">=[{</span><span class="s2">&quot;role&quot;</span>:<span class="w"> </span><span class="s2">&quot;user&quot;</span>,<span class="w"> </span><span class="s2">&quot;content&quot;</span>:<span class="w"> </span><span class="s2">&quot;hello&quot;</span><span class="o">}]</span>
+...<span class="w"> </span><span class="o">)</span>
+ChatCompletionResponse<span class="o">(</span>
+<span class="w">  </span><span class="nv">choices</span><span class="o">=[</span>ChatCompletionResponseChoice<span class="o">(</span>
+<span class="w">    </span><span class="nv">message</span><span class="o">=</span>ChatCompletionMessage<span class="o">(</span>
+<span class="w">      </span><span class="nv">content</span><span class="o">=</span><span class="s2">&quot;Hi! How can I assist you today?&quot;</span>,<span class="w"> </span><span class="nv">role</span><span class="o">=</span><span class="s1">&#39;assistant&#39;</span>
+<span class="w">    </span><span class="o">)</span>
+<span class="w">  </span><span class="o">)]</span>,
+<span class="w">  </span>...
+<span class="o">)</span>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-aU9TL2lQYWRPUw==" class="sphinx-tabs-panel group-tab" hidden="true" id="panel-1-aU9TL2lQYWRPUw==" name="aU9TL2lQYWRPUw==" role="tabpanel" tabindex="0"><div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/libs
