@@ -22,7 +22,7 @@ class ConvTemplateRegistry:
         if name in ConvTemplateRegistry._conv_templates and not override:
             raise ValueError(
                 "The name of the template has been registered "
-                f"for {ConvTemplateRegistry._conv_templates[name].model_dump_json()}"
+                f"for {ConvTemplateRegistry._conv_templates[name].model_dump_json(by_alias=True)}"
             )
         ConvTemplateRegistry._conv_templates[name] = conv_template
 

@@ -70,9 +70,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             if isinstance(first_response, StopAsyncIteration):
                 yield "data: [DONE]\n\n"
                 return
-            yield f"data: {first_response.model_dump_json()}\n\n"
+            yield f"data: {first_response.model_dump_json(by_alias=True)}\n\n"
             async for response in stream_generator:
-                yield f"data: {response.model_dump_json()}\n\n"
+                yield f"data: {response.model_dump_json(by_alias=True)}\n\n"
             yield "data: [DONE]\n\n"
 
         return fastapi.responses.StreamingResponse(
@@ -166,9 +166,9 @@ async def request_chat_completion(
             if isinstance(first_response, StopAsyncIteration):
                 yield "data: [DONE]\n\n"
                 return
-            yield f"data: {first_response.model_dump_json()}\n\n"
+            yield f"data: {first_response.model_dump_json(by_alias=True)}\n\n"
             async for response in stream_generator:
-                yield f"data: {response.model_dump_json()}\n\n"
+                yield f"data: {response.model_dump_json(by_alias=True)}\n\n"
             yield "data: [DONE]\n\n"
 
         return fastapi.responses.StreamingResponse(

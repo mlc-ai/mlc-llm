@@ -1374,7 +1374,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
         request = self._ffi["create_request"](
-            request_id, input_data, generation_config.model_dump_json()
+            request_id, input_data, generation_config.model_dump_json(by_alias=True)
         )
 
         # Create the unique async request stream of the request.
@@ -1902,7 +1902,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
         request = self._ffi["create_request"](
-            request_id, input_data, generation_config.model_dump_json()
+            request_id, input_data, generation_config.model_dump_json(by_alias=True)
         )
 
         # Record the stream in the tracker

@@ -308,7 +308,9 @@ class SyncMLCEngine:
         """
         if not isinstance(inputs, list):
             inputs = [inputs]
-        return self._ffi["create_request"](request_id, inputs, generation_config.model_dump_json())
+        return self._ffi["create_request"](
+            request_id, inputs, generation_config.model_dump_json(by_alias=True)
+        )
 
     def add_request(self, request: Request) -> None:
         """Add a new request to the engine.
