@@ -260,7 +260,7 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep="\n",
         system_prefix_token_ids=[1],
         stop_str=["<|endoftext|>"],
-        stop_token_ids=[32000, 32001, 32007],
+        stop_token_ids=[2, 32000, 32001, 32007],
     )
 )
 
