@@ -14,7 +14,7 @@ The demo APK below is built for Samsung S23 with Snapdragon 8 Gen 2 chip.
 
 .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
   :width: 135
-  :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android/mlc-chat.apk
+  :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android-05282024/mlc-chat.apk
 
 Prerequisite
 ------------
@@ -32,7 +32,7 @@ Prerequisite
   ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
   # Example on Linux
-  ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
+  ANDROID_NDK: $HOME/Android/Sdk/ndk/25.2.9519653
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
   # Example on Windows
   ANDROID_NDK: %HOME%/AppData/Local/Android/Sdk/ndk/25.2.9519653
@@ -42,6 +42,7 @@ Prerequisite
 We strongly recommend setting the ``JAVA_HOME`` to the JDK bundled with Android Studio.
 e.g.
 ``export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home`` for macOS.
+``export JAVA_HOME=/opt/android-studio/jbr`` for Linux.
 Using Android Studio's JBR bundle as recommended `here https://developer.android.com/build/jdks`
 will reduce the chances of potential errors in JNI compilation.
 Set up the following environment variable:
@@ -233,7 +234,7 @@ Each entry in ``"model_list"`` of the JSON file has the following fields:
          "model_list": [
             {
                   "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
-                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
                   "estimated_vram_bytes": 1948348579,
                   "overrides": {
                      "context_window_size": 512,
@@ -257,7 +258,7 @@ Each entry in ``"model_list"`` of the JSON file has the following fields:
          "model_list": [
             {
                   "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
-                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+                  "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
                   "estimated_vram_bytes": 1948348579,
                   "model_lib": "gpt_neox_q4f16_1"
             }
@@ -280,7 +281,7 @@ Example:
       "model_list": [
          {
                "model": "HF://mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
-               "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1",
+               "model_id": "RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC",
                "estimated_vram_bytes": 1948348579,
                "model_lib": "gpt_neox_q4f16_1"
          }
@@ -313,7 +314,7 @@ Below is an example:
       "model_list": [
          {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2b-q4f16_1",
+            "model_id": "gemma-2b-q4f16_1-MLC",
             "estimated_vram_bytes": 3000000000,
             "bundle_weight": true
          }
