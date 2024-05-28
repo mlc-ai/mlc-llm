@@ -105,6 +105,7 @@ def main():
             "requests",
             "tqdm",
             "tiktoken",
+            "transformers",
             "prompt_toolkit",
             "openai",
         ],
