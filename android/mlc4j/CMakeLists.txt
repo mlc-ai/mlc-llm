@@ -16,12 +16,17 @@ endif (NOT DEFINED TVM_SOURCE_DIR)
 message(STATUS "TVM_SOURCE_DIR: ${TVM_SOURCE_DIR}")
 
 find_package(Java REQUIRED)
-find_package(JNI REQUIRED)
-if (JNI_FOUND)
-    message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
-    message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
-endif()
 include(UseJava)
+
+find_package(JNI)
+if (JNI_FOUND)
+  message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+else()
+  message (STATUS "Try to find jni directly from android env")
+  # try to find JNI_LIBRARY
+  find_path(JNI_INCLUDE_DIRS NAMES "jni.h")
+  message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
+endif()
 
 
 file(GLOB_RECURSE javasources
