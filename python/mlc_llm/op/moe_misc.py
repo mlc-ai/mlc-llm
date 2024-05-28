@@ -379,19 +379,30 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
     """
     dtype = x.dtype
     _, hidden_size = x.shape
-
+    if dtype == "float16":
+        VEC = 8
+    else:
+        VEC = 4
+    SIZE = hidden_size
+    STRIDED = hidden_size // VEC
     @T.prim_func(private=True)
     def _func(var_x: T.handle, var_indices: T.handle, var_out: T.handle):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({ "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
         indices_len = T.int64()
-        x = T.match_buffer(var_x, [indices_len, hidden_size], dtype)
-        indices = T.match_buffer(var_indices, [indices_len], "int32")
-        out = T.match_buffer(var_out, [indices_len, hidden_size], dtype)
-        for i in T.serial(0, indices_len):
-            for j in T.serial(0, hidden_size):
-                with T.block("scatter"):
-                    vi, vj = T.axis.remap("SS", [i, j])
-                    out[indices[vi], vj] = x[vi, vj]
+        x = T.match_buffer(var_x, (indices_len, SIZE), dtype)
+        indices = T.match_buffer(var_indices, (indices_len,), "int32")
+        out = T.match_buffer(var_out, (indices_len, SIZE), dtype)
+        # with T.block("root"):
+        for i_j_fused_0 in T.thread_binding(indices_len, thread="blockIdx.x"):
+            for i_j_fused_1 in T.thread_binding(T.int64(STRIDED), thread="threadIdx.x"):
+                for k in T.vectorized(T.int32(VEC)):
+                    with T.block("scatter"):
+                        vi = T.axis.spatial(indices_len, i_j_fused_0)
+                        vj = T.axis.spatial(SIZE, T.Cast("int32", i_j_fused_1 * VEC + k))
+                        T.reads(x[vi, vj], indices[vi])
+                        T.writes(out[indices[vi], vj])
+                        out[indices[vi], vj] = x[vi, vj]
+
 
     return op.tensor_ir_op(
         _func,
