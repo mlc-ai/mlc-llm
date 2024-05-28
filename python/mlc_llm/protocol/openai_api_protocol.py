@@ -327,7 +327,7 @@ class ChatCompletionRequest(BaseModel):
                     ]
                 ):
                     conv_template.use_function_calling = True
-                    conv_template.function_string = tool.function.model_dump_json()
+                    conv_template.function_string = tool.function.model_dump_json(by_alias=True)
                     return
 
             # pylint: disable=unsubscriptable-object

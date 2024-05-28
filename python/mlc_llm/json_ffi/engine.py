@@ -186,7 +186,7 @@ class Completions:
         )
         chatcmpl_generator = self._state.handle_chat_completion(
             self._ffi,
-            request.model_dump_json(),
+            request.model_dump_json(by_alias=True),
             include_usage=(
                 request.stream_options is not None and request.stream_options.include_usage
             ),
