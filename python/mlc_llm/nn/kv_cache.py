@@ -457,14 +457,14 @@ def _rope(
     qkv_dtype="float16",
 ):
     d = indices[-1]
-    cos_freq, sin_freq = rope_freq(offset * scale, d, rotary_dim, theta, qkv_dtype)
-    cos = cos_freq * buffer[indices]
+    cos_freq, sin_freq = rope_freq(offset * scale, d, rotary_dim, theta, "float32")
+    cos = cos_freq * buffer[indices].astype("float32")
     sin = sin_freq * tir.if_then_else(
         d < rotary_dim // 2,
         -buffer[indices[:-1] + (d + rotary_dim // 2,)],
         buffer[indices[:-1] + (d - rotary_dim // 2,)],
-    )
-    return cos + sin
+    ).astype("float32")
+    return (cos + sin).astype(qkv_dtype)
 
 
 def _var(dtype):
