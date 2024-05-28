@@ -1,4 +1,5 @@
 """Python entrypoint for calibration."""
+
 import asyncio
 import json
 import random
@@ -10,7 +11,7 @@ import tvm
 from transformers import AutoTokenizer
 from tvm.contrib import tvmjs
 
-from mlc_llm.serve.engine import AsyncMLCEngine
+from mlc_llm.serve.engine import AsyncMLCEngine, EngineConfig
 from mlc_llm.tokenizer import Tokenizer
 
 
@@ -23,7 +24,7 @@ class CalibrationObserver:
 
     @staticmethod
     def get():
-        """Get the singleton instance of the class."""""
+        """Get the singleton instance of the class.""" ""
         if CalibrationObserver.instance is None:
             CalibrationObserver.instance = CalibrationObserver()
         return CalibrationObserver.instance
@@ -132,7 +133,7 @@ def calibrate(
     num_calibration_samples: int,
     *,
     seed: int,
-    max_batch_size: Optional[int] = None,
+    max_num_sequence: Optional[int] = None,
     max_total_sequence_length: Optional[int] = None,
     prefill_chunk_size: Optional[int] = None,
     max_history_size: Optional[int] = None,
@@ -146,17 +147,19 @@ def calibrate(
         device=device,
         model_lib=model_lib,
         mode="server",
-        max_batch_size=max_batch_size,
-        max_total_sequence_length=max_total_sequence_length,
-        prefill_chunk_size=prefill_chunk_size,
-        max_history_size=max_history_size,
-        gpu_memory_utilization=gpu_memory_utilization,
+        engine_config=EngineConfig(
+            max_num_sequence=max_history_size,
+            max_total_sequence_length=max_total_sequence_length,
+            prefill_chunk_size=prefill_chunk_size,
+            max_history_size=max_history_size,
+            gpu_memory_utilization=gpu_memory_utilization,
+        ),
     )
     tokenizer = AutoTokenizer.from_pretrained(model)
     sampled_requests = sample_requests(dataset, num_calibration_samples, tokenizer)
     asyncio.run(
         send_calibration_requests(
-            async_engine, sampled_requests, max_concurrent_requests=max_batch_size or 32
+            async_engine, sampled_requests, max_concurrent_requests=max_num_sequence or 32
         )
     )
     async_engine.terminate()

@@ -1,8 +1,10 @@
 """Command line entrypoint of calibration."""
 
-from mlc_llm.help import HELP
 from mlc_llm.interface.calibrate import calibrate
+from mlc_llm.interface.help import HELP
 from mlc_llm.support.argparse import ArgumentParser
+
+from .serve import EngineConfigOverride
 
 
 def main(argv):
@@ -47,16 +49,11 @@ def main(argv):
         default=0,
         help=HELP["seed_calibrate"] + ' (default: "%(default)s")',
     )
-
-    # optional arguments for the engine
-    parser.add_argument("--max-batch-size", type=int, help=HELP["max_batch_size"])
     parser.add_argument(
-        "--max-total-seq-length", type=int, help=HELP["max_total_sequence_length_serve"]
-    )
-    parser.add_argument("--prefill-chunk-size", type=int, help=HELP["prefill_chunk_size_serve"])
-    parser.add_argument("--max-history-size", type=int, help=HELP["max_history_size_serve"])
-    parser.add_argument(
-        "--gpu-memory-utilization", type=float, help=HELP["gpu_memory_utilization_serve"]
+        "--overrides",
+        type=EngineConfigOverride.from_str,
+        default="",
+        help=HELP["overrides_serve"],
     )
 
     parsed = parser.parse_args(argv)
@@ -67,10 +64,10 @@ def main(argv):
         output=parsed.output,
         dataset=parsed.dataset,
         num_calibration_samples=parsed.num_calibration_samples,
-        max_batch_size=parsed.max_batch_size,
-        max_total_sequence_length=parsed.max_total_seq_length,
-        prefill_chunk_size=parsed.prefill_chunk_size,
-        max_history_size=parsed.max_history_size,
-        gpu_memory_utilization=parsed.gpu_memory_utilization,
+        max_num_sequence=parsed.overrides.max_num_sequence,
+        max_total_sequence_length=parsed.overrides.max_total_seq_length,
+        prefill_chunk_size=parsed.overrides.prefill_chunk_size,
+        max_history_size=parsed.overrides.max_history_size,
+        gpu_memory_utilization=parsed.overrides.gpu_memory_utilization,
         seed=parsed.seed,
     )

@@ -73,7 +73,7 @@ class FP8PerTensorQuantizeMixtralExperts(
         w = self.q_weight
 
         if self.config.calibration_mode == "max":
-            _, x_scale = self.config.quantize_float8(
+            _, x_scale = self.config.quantize_float8(  # type: ignore
                 x,
                 quantize_dtype=self.config.activation_dtype,
                 storage_dtype=self.config.activation_dtype,
