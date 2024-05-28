@@ -78,7 +78,7 @@ If you are using Windows, make sure you use conda to install cmake and Ninja.
 
 .. code-block:: bash
 
-    conda install -c conda-forge cmake ninja
+    conda install -c conda-forge cmake ninja git git-lfs zstd
 
 Windows Java findings have issues with environment variables that come with space.
 Make sure you get a copy of Java in a path without space. The simplest way to do that
