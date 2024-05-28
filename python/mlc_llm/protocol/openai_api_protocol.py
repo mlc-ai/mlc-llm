@@ -344,7 +344,7 @@ class ChatCompletionRequest(BaseModel):
         for tool in self.tools:  # pylint: disable=not-an-iterable
             if tool.type != "function":
                 raise BadRequestError("Only 'function' tool type is supported")
-            function_list.append(tool.function.model_dump())
+            function_list.append(tool.function.model_dump(by_alias=True))
 
         conv_template.use_function_calling = True
         conv_template.function_string = json.dumps(function_list)

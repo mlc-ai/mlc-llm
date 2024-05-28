@@ -218,7 +218,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     apply_system_defaults_for_missing_fields(mlc_chat_config)
     # Step 5. Dump the configuration file to output directory
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
-        json.dump(mlc_chat_config.model_dump(), out_file, indent=2)
+        json.dump(mlc_chat_config.model_dump(by_alias=True), out_file, indent=2)
         logger.info("Dumping configuration file to: %s", bold(out_file.name))
 
 
