@@ -103,7 +103,7 @@ class Conversation(BaseModel):
 
     def to_json_dict(self) -> Dict[str, Any]:
         """Convert to a json dictionary"""
-        return self.model_dump(exclude_none=True)
+        return self.model_dump(by_alias=True, exclude_none=True)
 
     @classmethod
     def from_json_dict(cls: Type[T], json_dict: Dict[str, Any]) -> T:
