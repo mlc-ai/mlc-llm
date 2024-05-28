@@ -11,7 +11,7 @@ import tvm
 from tvm.contrib import tvmjs
 
 from mlc_llm.serve.engine import AsyncMLCEngine, EngineConfig
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import Tokenizer
 
 
 class CalibrationObserver:

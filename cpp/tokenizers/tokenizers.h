@@ -8,9 +8,9 @@
 #define MLC_LLM_TOKENIZER_H_
 
 #include <tokenizers_cpp.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/container/array.h>
 
 #include <optional>
 #include <unordered_map>

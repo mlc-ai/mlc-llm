@@ -93,7 +93,7 @@ class Tokenizer(Object):
         token_ids : List[List[int]]
             The list of list of encoded token ids.
         """
-        return list(_ffi_api.TokenizerEncodeBatch(self, texts))
+        return list(_ffi_api.TokenizerEncodeBatch(self, texts))  # type: ignore  # pylint: disable=no-member
 
     def decode(self, token_ids: List[int]) -> str:
         """Decode token ids into text.

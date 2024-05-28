@@ -419,13 +419,13 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
 
 TVM_REGISTER_GLOBAL("mlc.TokenizerEncodeBatch")
     .set_body_typed([](const Tokenizer& tokenizer, const Array<String>& texts) {
-        std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
-        Array<IntTuple> ret;
-        ret.reserve(results.size());
-        for (const auto& result : results) {
-          ret.push_back(IntTuple{result.begin(), result.end()});
-        }
-        return ret;
+      std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
+      Array<IntTuple> ret;
+      ret.reserve(results.size());
+      for (const auto& result : results) {
+        ret.push_back(IntTuple{result.begin(), result.end()});
+      }
+      return ret;
     });
 
 TVM_REGISTER_GLOBAL("mlc.TokenizerDecode")

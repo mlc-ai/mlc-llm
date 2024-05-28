@@ -49,7 +49,6 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
 
     def __post_init__(self):
-        print("PTQ, calibration_mdoe", self.calibration_mode)
         assert self.kind == "per-tensor-quant"
         self.num_elem_per_storage = (
             DataType(self.storage_dtype).bits // DataType(self.weight_dtype).bits
