@@ -916,7 +916,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
     async def abort(self, request_id: str) -> None:
         """Generation abortion interface.
 
-        Parameter
+        Parameters
         ---------
         request_id : str
             The id of the request to abort.
@@ -1488,7 +1488,7 @@ class MLCEngine(engine_base.MLCEngineBase):
     def abort(self, request_id: str) -> None:
         """Generation abortion interface.
 
-        Parameter
+        Parameters
         ---------
         request_id : str
             The id of the request to abort.
