@@ -166,7 +166,7 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
                     logits[seq_ids[vs], vv] = T.if_then_else(
                         (bitmask[seq_ids[vs], vv // 32] >> (vv % 32)) & 1 == 1,
                         logits[seq_ids[vs], vv],
-                        T.float32(-1e10),
+                        T.min_value("float32"),
                     )
 
     return _apply_bitmask_inplace

@@ -128,6 +128,9 @@ class LogitProcessorImpl : public LogitProcessorObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply penalty");
 
     // Update 3. Vocabulary mask.
+    // Note: The mask application must be placed as the last step in logit processor.
+    // This is because the masked logits are set to the minimal value.
+    // Further logit subtraction may cause issue such as underflow.
     RECORD_EVENT(trace_recorder_, request_ids, "start apply logit mask");
     UpdateWithMask(logits, mstates, cum_num_token, draft_tokens);
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply logit mask");
