@@ -332,10 +332,14 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 </div>
 </div><div aria-labelledby="tab-1-1-5" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-5" name="1-5" role="tabpanel" tabindex="0"><p>Supported in all Linux packages. Checkout the following instructions
 to install the latest vulkan loader to avoid vulkan not found issue.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gcc<span class="w"> </span>libvulkan-loader
+</pre></div>
+</div>
 </div></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>gcc<span class="w"> </span>libvulkan-loader
+<p>We need git-lfs in the system, you can install it via</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>git-lfs
 </pre></div>
 </div>
 <p>If encountering issues with GLIBC not found, please install the latest glibc in conda:</p>
@@ -360,7 +364,11 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>info<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>platform
 </pre></div>
 </div>
-<p>It should return “osx-64” for Mac with Intel chip, and “osx-arm64” for Mac with Apple chip.</p>
+<p>It should return “osx-64” for Mac with Intel chip, and “osx-arm64” for Mac with Apple chip.
+We need git-lfs in the system, you can install it via</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>git-lfs
+</pre></div>
+</div>
 </div>
 </div><div aria-labelledby="tab-0-0-2" class="sphinx-tabs-panel" hidden="true" id="panel-0-0-2" name="0-2" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-3-3-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-3-3-0" name="3-0" role="tab" tabindex="0">CPU + Vulkan</button></div><div aria-labelledby="tab-3-3-0" class="sphinx-tabs-panel" id="panel-3-3-0" name="3-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
@@ -371,9 +379,10 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Please make sure your conda environment comes with python and pip.
-Make sure you also install vulkan loader and clang to avoid vulkan
-not found error or clang not found(needed for jit compile)</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>clang<span class="w"> </span>libvulkan-loader
+Make sure you also install the following packages,
+vulkan loader, clang, git and git-lfs to enable proper automatic download
+and jit compilation.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>clang<span class="w"> </span>libvulkan-loader<span class="w"> </span>git-lfs<span class="w"> </span>git
 </pre></div>
 </div>
 <p>If encountering the error below:</p>

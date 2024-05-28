@@ -178,7 +178,10 @@
 <li class="toctree-l1"><a class="reference internal" href="ios.html">iOS Swift SDK</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Android SDK</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#demo-app">Demo App</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#prerequisite">Prerequisite</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#prerequisite">Prerequisite</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#additional-guides-for-windows-users">Additional Guides for Windows Users</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#build-android-app-from-source">Build Android App from Source</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#step-1-install-build-dependencies">Step 1. Install Build Dependencies</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#step-2-build-runtime-and-model-libraries">Step 2. Build Runtime and Model Libraries</a></li>
@@ -302,16 +305,20 @@
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="#demo-app" id="id1">Demo App</a></p></li>
-<li><p><a class="reference internal" href="#prerequisite" id="id2">Prerequisite</a></p></li>
-<li><p><a class="reference internal" href="#build-android-app-from-source" id="id3">Build Android App from Source</a></p>
+<li><p><a class="reference internal" href="#prerequisite" id="id2">Prerequisite</a></p>
 <ul>
-<li><p><a class="reference internal" href="#step-1-install-build-dependencies" id="id4">Step 1. Install Build Dependencies</a></p></li>
-<li><p><a class="reference internal" href="#step-2-build-runtime-and-model-libraries" id="id5">Step 2. Build Runtime and Model Libraries</a></p></li>
-<li><p><a class="reference internal" href="#step-3-build-android-app" id="id6">Step 3. Build Android App</a></p></li>
+<li><p><a class="reference internal" href="#additional-guides-for-windows-users" id="id3">Additional Guides for Windows Users</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#customize-the-app" id="id7">Customize the App</a></p></li>
-<li><p><a class="reference internal" href="#bundle-model-weights" id="id8">Bundle Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#build-android-app-from-source" id="id4">Build Android App from Source</a></p>
+<ul>
+<li><p><a class="reference internal" href="#step-1-install-build-dependencies" id="id5">Step 1. Install Build Dependencies</a></p></li>
+<li><p><a class="reference internal" href="#step-2-build-runtime-and-model-libraries" id="id6">Step 2. Build Runtime and Model Libraries</a></p></li>
+<li><p><a class="reference internal" href="#step-3-build-android-app" id="id7">Step 3. Build Android App</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#customize-the-app" id="id8">Customize the App</a></p></li>
+<li><p><a class="reference internal" href="#bundle-model-weights" id="id9">Bundle Model Weights</a></p></li>
 </ul>
 </nav>
 <section id="demo-app">
@@ -330,13 +337,17 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example on macOS</span>
 ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Library/Android/sdk/ndk/25.2.9519653
 TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
-<span class="c1"># Example on Windows</span>
+<span class="c1"># Example on Linux</span>
 ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Library/Android/sdk/ndk/25.2.9519653
 TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
+<span class="c1"># Example on Windows</span>
+ANDROID_NDK:<span class="w"> </span>%HOME%/AppData/Local/Android/Sdk/ndk/25.2.9519653
+TVM_NDK_CC:<span class="w"> </span>%ANDROID_NDK%/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 </pre></div>
 </div>
 <p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM Unity runtime.
-We strongly recommend setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio. e.g.
+We strongly recommend setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio.
+e.g.
 <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/Applications/Android\</span> <span class="pre">Studio.app/Contents/jbr/Contents/Home</span></code> for macOS.
 Using Android Studio’s JBR bundle as recommended <cite>here https://developer.android.com/build/jdks</cite>
 will reduce the chances of potential errors in JNI compilation.
@@ -362,12 +373,31 @@ Set up the following environment variable:</p>
 <span class="nb">export</span><span class="w"> </span><span class="nv">TVM_SOURCE_DIR</span><span class="o">=</span>...<span class="w">     </span><span class="c1"># TVM Unity runtime</span>
 </pre></div>
 </div>
+<section id="additional-guides-for-windows-users">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Additional Guides for Windows Users</a><a class="headerlink" href="#additional-guides-for-windows-users" title="Permalink to this heading">¶</a></h3>
+<p>Building under Windows for Android is still experimental; please make sure you
+first finish the above guides, then read and follow the instructions in this section
+If you are using Windows, make sure you use conda to install cmake and Ninja.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>cmake<span class="w"> </span>ninja<span class="w"> </span>git<span class="w"> </span>git-lfs<span class="w"> </span>zstd
+</pre></div>
+</div>
+<p>Windows Java findings have issues with environment variables that come with space.
+Make sure you get a copy of Java in a path without space. The simplest way to do that
+is to copy the Android Studio’s JBR bundle to a directory without any space.
+If your Android studio’s installation is at <code class="docutils literal notranslate"><span class="pre">C:\Program</span> <span class="pre">Files\Android\Android</span> <span class="pre">Studio\</span></code>
+you can try to do the following</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cp<span class="w"> </span>-r<span class="w"> </span><span class="s2">&quot;C:\Program Files\Android\Android Studio\jbr&quot;</span><span class="w"> </span>C:<span class="se">\a</span>ny-path-without-space
+<span class="nb">set</span><span class="w"> </span><span class="nv">JAVA_HOME</span><span class="o">=</span>C:<span class="se">\a</span>ny-path-without-space
+</pre></div>
+</div>
+<p>You can continue the next steps after you have set these steps correctly.</p>
+</section>
 </section>
 <section id="build-android-app-from-source">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Build Android App from Source</a><a class="headerlink" href="#build-android-app-from-source" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Build Android App from Source</a><a class="headerlink" href="#build-android-app-from-source" title="Permalink to this heading">¶</a></h2>
 <p>This section shows how we can build the app from the source.</p>
 <section id="step-1-install-build-dependencies">
-<h3><a class="toc-backref" href="#id4" role="doc-backlink">Step 1. Install Build Dependencies</a><a class="headerlink" href="#step-1-install-build-dependencies" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Step 1. Install Build Dependencies</a><a class="headerlink" href="#step-1-install-build-dependencies" title="Permalink to this heading">¶</a></h3>
 <p>First and foremost, please clone the <a class="reference external" href="https://github.com/mlc-ai/mlc-llm">MLC LLM GitHub repository</a>.
 After cloning, go to the <code class="docutils literal notranslate"><span class="pre">android/</span></code> directory.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/mlc-ai/mlc-llm.git
@@ -378,7 +408,7 @@ git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w
 </div>
 </section>
 <section id="step-2-build-runtime-and-model-libraries">
-<span id="android-build-runtime-and-model-libraries"></span><h3><a class="toc-backref" href="#id5" role="doc-backlink">Step 2. Build Runtime and Model Libraries</a><a class="headerlink" href="#step-2-build-runtime-and-model-libraries" title="Permalink to this heading">¶</a></h3>
+<span id="android-build-runtime-and-model-libraries"></span><h3><a class="toc-backref" href="#id6" role="doc-backlink">Step 2. Build Runtime and Model Libraries</a><a class="headerlink" href="#step-2-build-runtime-and-model-libraries" title="Permalink to this heading">¶</a></h3>
 <p>The models to be built for the Android app are specified in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>:
 in the <code class="docutils literal notranslate"><span class="pre">model_list</span></code>, <code class="docutils literal notranslate"><span class="pre">model</span></code> points to the Hugging Face repository which</p>
 <ul class="simple">
@@ -441,7 +471,7 @@ You can do so by setting the environment variable <code class="docutils literal 
 </div>
 </section>
 <section id="step-3-build-android-app">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Step 3. Build Android App</a><a class="headerlink" href="#step-3-build-android-app" title="Permalink to this heading">¶</a></h3>
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Step 3. Build Android App</a><a class="headerlink" href="#step-3-build-android-app" title="Permalink to this heading">¶</a></h3>
 <p>Open folder <code class="docutils literal notranslate"><span class="pre">./android</span></code> as an Android Studio Project.
 Connect your Android device to your machine.
 In the menu bar of Android Studio, click <strong>“Build → Make Project”</strong>.
@@ -453,7 +483,7 @@ Once the build is finished, click <strong>“Run → Run ‘app’”</strong> a
 </section>
 </section>
 <section id="customize-the-app">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Customize the App</a><a class="headerlink" href="#customize-the-app" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Customize the App</a><a class="headerlink" href="#customize-the-app" title="Permalink to this heading">¶</a></h2>
 <p>We can customize the models built in the Android app by customizing <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/blob/main/android/MLCChat/mlc-package-config.json">MLCChat/mlc-package-config.json</a>.
 We introduce each field of the JSON file here.</p>
 <p>Each entry in <code class="docutils literal notranslate"><span class="pre">&quot;model_list&quot;</span></code> of the JSON file has the following fields:</p>
@@ -533,7 +563,7 @@ Example:</p>
 </div>
 </section>
 <section id="bundle-model-weights">
-<span id="android-bundle-model-weights"></span><h2><a class="toc-backref" href="#id8" role="doc-backlink">Bundle Model Weights</a><a class="headerlink" href="#bundle-model-weights" title="Permalink to this heading">¶</a></h2>
+<span id="android-bundle-model-weights"></span><h2><a class="toc-backref" href="#id9" role="doc-backlink">Bundle Model Weights</a><a class="headerlink" href="#bundle-model-weights" title="Permalink to this heading">¶</a></h2>
 <p>Instructions have been provided to build an Android App with MLC LLM in previous sections,
 but it requires run-time weight downloading from HuggingFace,
 as configured in <code class="docutils literal notranslate"><span class="pre">MLCChat/mlc-package-config.json</span></code>.

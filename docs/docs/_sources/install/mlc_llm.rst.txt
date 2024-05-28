@@ -65,13 +65,16 @@ Select your operating system/compute platform and run the command in your termin
                 Supported in all Linux packages. Checkout the following instructions
                 to install the latest vulkan loader to avoid vulkan not found issue.
 
-        .. note::
+                .. code-block:: bash
 
+                    conda install -c conda-forge gcc libvulkan-loader
+
+        .. note::
+            We need git-lfs in the system, you can install it via
 
             .. code-block:: bash
 
-                conda install -c conda-forge gcc libvulkan-loader
-
+                conda install -c conda-forge git-lfs
 
             If encountering issues with GLIBC not found, please install the latest glibc in conda:
 
@@ -106,6 +109,11 @@ Select your operating system/compute platform and run the command in your termin
                 conda info | grep platform
 
             It should return "osx-64" for Mac with Intel chip, and "osx-arm64" for Mac with Apple chip.
+            We need git-lfs in the system, you can install it via
+
+            .. code-block:: bash
+
+                conda install -c conda-forge git-lfs
 
     .. tab:: Windows
 
@@ -120,12 +128,13 @@ Select your operating system/compute platform and run the command in your termin
 
         .. note::
             Please make sure your conda environment comes with python and pip.
-            Make sure you also install vulkan loader and clang to avoid vulkan
-            not found error or clang not found(needed for jit compile)
+            Make sure you also install the following packages,
+            vulkan loader, clang, git and git-lfs to enable proper automatic download
+            and jit compilation.
 
             .. code-block:: bash
 
-                conda install -c conda-forge clang libvulkan-loader
+                conda install -c conda-forge clang libvulkan-loader git-lfs git
 
             If encountering the error below:
 
