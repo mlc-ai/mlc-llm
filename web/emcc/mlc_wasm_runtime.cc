@@ -42,3 +42,6 @@
 #include "serve/grammar/grammar_state_matcher.cc"
 #include "serve/grammar/json_schema_converter.cc"
 #include "support/encoding.cc"
+
+// Only compiles necessary functions for mlc.PostProcessTokenTable
+#include "tokenizers.cc"

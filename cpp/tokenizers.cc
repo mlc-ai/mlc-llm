@@ -21,6 +21,7 @@
 namespace mlc {
 namespace llm {
 
+#ifndef COMPILE_MLC_WASM_RUNTIME
 TVM_REGISTER_OBJECT_TYPE(TokenizerInfoNode);
 
 String TokenizerInfoNode::AsJSONString() const {
@@ -277,6 +278,7 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
 
   return TokenizerInfo(n);
 }
+#endif
 
 /*! \brief ByteFallback decoder: transform tokens like <0x1B> to hex char byte 1B */
 inline std::string ByteFallbackDecoder(const std::string& token) {
@@ -370,6 +372,17 @@ inline std::string PostProcessToken(const std::string& token,
   }
 }
 
+std::vector<std::string> Tokenizer::PostProcessTokenTable(
+    const std::vector<std::string>& token_table, const std::string& token_postproc_method) {
+  std::vector<std::string> post_processed_token_table;
+  post_processed_token_table.reserve(token_table.size());
+  for (const std::string& token : token_table) {
+    post_processed_token_table.push_back(PostProcessToken(token, token_postproc_method));
+  }
+  return post_processed_token_table;
+}
+
+#ifndef COMPILE_MLC_WASM_RUNTIME
 const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
   if (!post_processed_token_table_.empty()) {
     return post_processed_token_table_;
@@ -384,16 +397,6 @@ const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
   post_processed_token_table_ =
       Tokenizer::PostProcessTokenTable(raw_token_table, info_->token_postproc_method);
   return post_processed_token_table_;
-}
-
-std::vector<std::string> Tokenizer::PostProcessTokenTable(
-    const std::vector<std::string>& token_table, const std::string& token_postproc_method) {
-  std::vector<std::string> post_processed_token_table;
-  post_processed_token_table.reserve(token_table.size());
-  for (const std::string& token : token_table) {
-    post_processed_token_table.push_back(PostProcessToken(token, token_postproc_method));
-  }
-  return post_processed_token_table;
 }
 
 TVM_REGISTER_GLOBAL("mlc.Tokenizer").set_body_typed([](const String& path) {
@@ -414,6 +417,30 @@ TVM_REGISTER_GLOBAL("mlc.TokenizerDecode")
 TVM_REGISTER_GLOBAL("mlc.DetectTokenizerInfo").set_body_typed([](const String& path) {
   return Tokenizer::DetectTokenizerInfo(path)->AsJSONString();
 });
+#endif
+
+TVM_REGISTER_GLOBAL("mlc.PostProcessTokenTable").set_body([](TVMArgs args, TVMRetValue* rv) {
+  Array<String> token_table_arr = args[0];
+  std::string token_postproc_method = args[args.size() - 1];
+  std::vector<std::string> token_table;
+  for (int i = 0; i < token_table_arr.size(); ++i) {
+    token_table.push_back(token_table_arr[i]);
+  }
+  std::vector<std::string> processed_token_table =
+      Tokenizer::PostProcessTokenTable(token_table, token_postproc_method);
+
+  // Convert std::vector<std::string> to Array<String>
+  Array<String> processed_token_table_tvm;
+  for (int i = 0; i < processed_token_table.size(); ++i) {
+    processed_token_table_tvm.push_back(processed_token_table[i]);
+  }
+  *rv = processed_token_table_tvm;
+});
+
+TVM_REGISTER_GLOBAL("mlc.PostProcessToken")
+    .set_body_typed([](const String& token, const String& token_postproc_method) {
+      return PostProcessToken(token, token_postproc_method);
+    });
 
 }  // namespace llm
 }  // namespace mlc
