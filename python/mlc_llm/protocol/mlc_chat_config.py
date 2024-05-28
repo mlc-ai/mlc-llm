@@ -1,6 +1,6 @@
 # pylint: disable=too-many-instance-attributes
 """Schema for mlc-chat-config"""
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -58,7 +58,7 @@ class MLCChatConfig(BaseModel):
     # but we keep them for book-keep purposes
     pad_token_id: Optional[int] = None
     bos_token_id: Optional[int] = None
-    eos_token_id: Optional[int] = None
+    eos_token_id: Optional[Union[int, List[int]]] = None
     # Legacy fields
     # Control the behavior of the runtime
     # these fields will be deprecated soon
