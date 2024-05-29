@@ -39,7 +39,7 @@
   gap: 1rem;
   justify-content: center;
 }
-#hero .heading-container .link-container .get-start-link {
+#hero .heading-container .link-container .github-link {
   display: inline-flex;
   gap: 1rem;
   border-radius: 9999px;
@@ -50,7 +50,7 @@
   cursor: pointer;
   height: fit-content;
 }
-#hero .heading-container .link-container .get-start-link .get-start-link-content {
+#hero .heading-container .link-container .github-link .github-link-content {
   width: 100%;
   height: 100%;
   z-index: 1;
@@ -63,14 +63,15 @@
   justify-content: center;
   color: rgb(229, 229, 229);
 }
-#hero .heading-container .link-container .get-start-link .get-start-link-content .icon {
+#hero .heading-container .link-container .github-link .github-link-content .icon {
   display: inline-flex;
   align-items: center;
+  margin-right: 0.5rem;
 }
-#hero .heading-container .link-container .get-start-link .get-start-link-content .icon svg {
+#hero .heading-container .link-container .github-link .github-link-content .icon svg {
   height: 1.5rem;
 }
-#hero .heading-container .link-container .chat-link {
+#hero .heading-container .link-container .get-start-link {
   display: inline-flex;
   gap: 1rem;
   background-color: white;
@@ -83,7 +84,7 @@
   height: fit-content;
   padding: 0.25rem;
 }
-#hero .heading-container .link-container .chat-link .chat-link-content {
+#hero .heading-container .link-container .get-start-link .get-start-link-content {
   width: 100%;
   height: 100%;
   z-index: 1;
