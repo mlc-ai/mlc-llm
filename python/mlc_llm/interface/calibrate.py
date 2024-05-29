@@ -8,7 +8,6 @@ from typing import List, Mapping, Optional, Tuple
 import numpy as np
 import tqdm.asyncio
 import tvm
-from transformers import AutoTokenizer
 from tvm.contrib import tvmjs
 
 from mlc_llm.serve.engine import AsyncMLCEngine, EngineConfig
@@ -74,9 +73,9 @@ def sample_requests(
         (data["conversations"][0]["value"], data["conversations"][1]["value"]) for data in dataset
     ]
     prompts = [prompt for prompt, _ in dataset]
-    prompt_token_ids = tokenizer(prompts).input_ids
+    prompt_token_ids = tokenizer.encode_batch(prompts)
     completions = [completion for _, completion in dataset]
-    completion_token_ids = tokenizer(completions).input_ids
+    completion_token_ids = tokenizer.encode_batch(completions)
     tokenized_dataset = []
     for i in range(len(dataset)):
         output_len = len(completion_token_ids[i])
@@ -155,8 +154,7 @@ def calibrate(
             gpu_memory_utilization=gpu_memory_utilization,
         ),
     )
-    tokenizer = AutoTokenizer.from_pretrained(model)
-    sampled_requests = sample_requests(dataset, num_calibration_samples, tokenizer)
+    sampled_requests = sample_requests(dataset, num_calibration_samples, async_engine.tokenizer)
     asyncio.run(
         send_calibration_requests(
             async_engine, sampled_requests, max_concurrent_requests=max_num_sequence or 32

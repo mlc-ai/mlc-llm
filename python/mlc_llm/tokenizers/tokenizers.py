@@ -80,6 +80,21 @@ class Tokenizer(Object):
         """
         return list(_ffi_api.TokenizerEncode(self, text))  # type: ignore  # pylint: disable=no-member
 
+    def encode_batch(self, texts: List[str]) -> List[List[int]]:
+        """Encode a batch of texts into ids.
+
+        Parameters
+        ----------
+        texts : List[str]
+            The list of text strings to encode.
+
+        Returns
+        -------
+        token_ids : List[List[int]]
+            The list of list of encoded token ids.
+        """
+        return list(_ffi_api.TokenizerEncodeBatch(self, texts))
+
     def decode(self, token_ids: List[int]) -> str:
         """Decode token ids into text.
 

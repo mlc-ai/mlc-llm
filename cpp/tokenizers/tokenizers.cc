@@ -70,6 +70,14 @@ std::vector<int32_t> TokenizerObj::Encode(const std::string& text) const {
   return tokenizer->Encode(text);
 }
 
+std::vector<std::vector<int32_t>> TokenizerObj::EncodeBatch(const Array<String>& texts) const {
+  std::vector<std::string> texts_vec;
+  for (const String& text : texts) {
+    texts_vec.push_back(text);
+  }
+  return tokenizer->EncodeBatch(texts_vec);
+}
+
 std::string TokenizerObj::Decode(const std::vector<int32_t>& token_ids) const {
   return tokenizer->Decode(token_ids);
 }
@@ -409,7 +417,18 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
       return IntTuple{token_ids.begin(), token_ids.end()};
     });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerDecode")
+TVM_REGISTER_GLOBAL("mlc.TokenizerEncodeBatch")
+    .set_body_typed([](const Tokenizer& tokenizer, const Array<String>& texts) {
+        std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
+        Array<IntTuple> ret;
+        ret.reserve(results.size());
+        for (const auto& result : results) {
+          ret.push_back(IntTuple{result.begin(), result.end()});
+        }
+        return ret;
+    });
+
+TVM_REGISTER_GLOBAL("mlc.TokenizerDecode")
     .set_body_typed([](const Tokenizer& tokenizer, const IntTuple& token_ids) {
       return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
     });
