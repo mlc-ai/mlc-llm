@@ -7,6 +7,9 @@ import tvm.testing
 
 from mlc_llm.op.tree_attn import tree_attn
 
+# test category "op_correctness"
+pytestmark = [pytest.mark.op_correctness]
+
 
 @pytest.mark.parametrize("nbatch", [1, 4, 32])
 @pytest.mark.parametrize("h_q", [8, 16])

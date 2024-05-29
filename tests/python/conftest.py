@@ -19,3 +19,29 @@ import pytest
 import tvm.testing
 
 pytest_plugins = ["tvm.testing.plugin"]
+
+
+def pytest_configure(config):
+    """Register markers"""
+    config.addinivalue_line(
+        "markers", "unittest: unittests for modules, do not require GPU, usually run fast"
+    )
+    config.addinivalue_line("markers", "op_correctness: unittest for op corectness, requires GPU")
+    config.addinivalue_line(
+        "markers",
+        (
+            "engine: testing engine feature functionalities, requires model and GPU, "
+            "note: for most request related tests, use endpoint test instead."
+        ),
+    )
+    config.addinivalue_line(
+        "markers",
+        (
+            "endpoint: sending requests to a global endpoint fixture(can be an rest or API), "
+            "tests compatibilities of API behaviors"
+        ),
+    )
+    config.addinivalue_line(
+        "markers",
+        "uncategorized: this test is not yet categorized, team should work to categorize it",
+    )

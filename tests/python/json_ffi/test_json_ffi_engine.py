@@ -1,10 +1,15 @@
 import json
 from typing import Dict, List, Optional
 
+import pytest
 from pydantic import BaseModel
 
 from mlc_llm.json_ffi import JSONFFIEngine
 from mlc_llm.testing import require_test_model
+
+# test category "engine_feature"
+pytestmark = [pytest.mark.engine_feature]
+
 
 chat_completion_prompts = [
     "What is the meaning of life?",
@@ -151,7 +156,9 @@ def test_chat_completion(model):
     run_chat_completion(engine, model)
 
     # Test malformed requests.
-    for response in engine._raw_chat_completion("malformed_string", n=1, request_id="123"):
+    for response in engine._raw_chat_completion(
+        "malformed_string", include_usage=False, request_id="123"
+    ):
         assert len(response.choices) == 1
         assert response.choices[0].finish_reason == "error"
 

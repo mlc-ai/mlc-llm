@@ -176,6 +176,22 @@ stage('Build') {
   )
 }
 
+stage('Unittests') {
+  parallel(
+    'UnitTest': {
+      node('CPU-SMALL') {
+        ws(per_exec_ws('mlc-llm-test-unittest')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_cuda', 'wheels/*.whl')
+          sh(script: "${run_cuda} conda env export --name ci-unittest", label: 'Checkout version')
+          sh(script: "${run_cuda} -j 4 conda run -n ci-unittest ./ci/task/test_unittest.sh", label: 'Testing')
+        }
+      }
+    }
+  )
+}
+
 stage('Model Compilation') {
   parallel(
     'CUDA': {

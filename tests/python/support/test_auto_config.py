@@ -10,6 +10,9 @@ from mlc_llm.support.auto_config import detect_config
 
 logging.enable_logging()
 
+# test category "unittest"
+pytestmark = [pytest.mark.unittest]
+
 
 def _create_json_file(json_path, data):
     with open(json_path, "w", encoding="utf-8") as i_f:

@@ -5,6 +5,9 @@ import tvm.testing
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 
+# test category "op_correctness"
+pytestmark = [pytest.mark.op_correctness]
+
 
 @pytest.mark.parametrize("nbatch", [32, 64])
 @pytest.mark.parametrize("vocab", [3, 32, 64, 32000, 33, 65, 32001, 128000])

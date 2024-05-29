@@ -1,12 +1,16 @@
 import numpy as np
+import pytest
 import scipy.special
 import tvm
 from tvm import dlight
 
-from mlc_llm.compiler_pass.rewrite_softmax import _get_lse_and_softmax_func
+# test category "op_correctness"
+pytestmark = [pytest.mark.op_correctness]
 
 
 def test_two_stage_softmax():
+    from mlc_llm.compiler_pass.rewrite_softmax import _get_lse_and_softmax_func
+
     chunk_size = 4096
     target = tvm.target.Target("cuda")
     f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(target, chunk_size)

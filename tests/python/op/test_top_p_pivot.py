@@ -7,6 +7,9 @@ from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
 
 # mypy: disable-error-code="var-annotated"
 
+# test category "op_correctness"
+pytestmark = [pytest.mark.op_correctness]
+
 
 @pytest.mark.parametrize("batch_size", [32, 64])
 @pytest.mark.parametrize("vocab", [3, 32, 64, 128])

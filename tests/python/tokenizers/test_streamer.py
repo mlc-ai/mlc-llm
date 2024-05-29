@@ -16,7 +16,6 @@ specify the tokenizer path via environment variable.
 """
 
 # pylint: disable=missing-function-docstring
-import os
 import time
 from typing import List, Tuple
 
@@ -24,6 +23,10 @@ import pytest
 
 from mlc_llm.testing import require_test_tokenizers
 from mlc_llm.tokenizers import StopStrHandler, TextStreamer, Tokenizer
+
+# test category "unittest"
+pytestmark = [pytest.mark.unittest]
+
 
 # fmt: off
 para_input_tokens = [18585, 29892, 1244, 29915, 29879, 263, 3273, 14880, 1048, 953, 29877, 2397,

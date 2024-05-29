@@ -1,4 +1,8 @@
+import pytest
+
 from mlc_llm.conversation_template import ConvTemplateRegistry
+
+pytestmark = [pytest.mark.runtime_unittest]
 
 
 # From the official Llama-3 example:
