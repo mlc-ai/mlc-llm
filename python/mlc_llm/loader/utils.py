@@ -1,4 +1,5 @@
 """Common utilities for loading parameters"""
+
 # pylint: disable=too-few-public-methods
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Set, Tuple

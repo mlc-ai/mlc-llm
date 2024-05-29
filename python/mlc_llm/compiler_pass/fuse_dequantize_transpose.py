@@ -1,4 +1,5 @@
 """A compiler pass that fuses transpose + dequantize."""
+
 import tvm
 from tvm import relax, tir
 from tvm.ir.module import IRModule

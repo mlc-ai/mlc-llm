@@ -25,8 +25,8 @@ from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig
-from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
+from mlc_llm.tokenizers import TextStreamer
 
 from . import engine_base
 

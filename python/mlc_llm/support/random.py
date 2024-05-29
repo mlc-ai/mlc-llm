@@ -1,4 +1,5 @@
 """Utility functions for random number generation."""
+
 import sys
 
 

@@ -18,14 +18,14 @@
 #include <tuple>
 #include <unordered_set>
 
+#include "../grammar/grammar_state_matcher.h"
 #include "../support/json_parser.h"
 #include "../support/result.h"
-#include "../tokenizers.h"
+#include "../tokenizers/tokenizers.h"
 #include "engine_actions/action.h"
 #include "engine_actions/action_commons.h"
 #include "engine_state.h"
 #include "event_trace_recorder.h"
-#include "grammar/grammar_state_matcher.h"
 #include "logit_processor.h"
 #include "model.h"
 #include "request.h"

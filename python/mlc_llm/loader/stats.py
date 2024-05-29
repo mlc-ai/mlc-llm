@@ -1,4 +1,5 @@
 """Statistics of the loading process of parameter loaders"""
+
 import dataclasses
 import time
 from contextlib import contextmanager

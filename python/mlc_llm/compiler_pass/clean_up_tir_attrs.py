@@ -1,4 +1,5 @@
 """A compiler pass that cleans up undesired TIR attrs."""
+
 from typing import List
 
 import tvm

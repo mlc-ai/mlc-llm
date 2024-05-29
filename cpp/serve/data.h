@@ -11,7 +11,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
-#include "../tokenizers.h"
+#include "../tokenizers/tokenizers.h"
 
 namespace mlc {
 namespace llm {

@@ -1,4 +1,5 @@
 """A centralized registry of all existing quantization methods and their configurations."""
+
 from typing import Any, Dict
 
 from .awq_quantization import AWQQuantize

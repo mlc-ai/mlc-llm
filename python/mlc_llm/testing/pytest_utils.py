@@ -37,6 +37,7 @@ def require_test_model(*models: str):
         for base_path in MLC_TEST_MODEL_PATH:
             if (base_path / model / "mlc-chat-config.json").is_file():
                 model_path = base_path / model
+                break
         if model_path is None and (Path(model) / "mlc-chat-config.json").is_file():
             model_path = Path(model)
 
@@ -77,3 +78,9 @@ def require_test_model(*models: str):
         return pytest.mark.skipif(len(missing_models) > 0, reason=message)(wrapper)
 
     return _decorator
+
+
+def require_test_tokenizers(*models: str):
+    """Testcase decorator to require a path to tokenizers"""
+    # redirect to require models for now
+    return require_test_model(*models)

@@ -11,7 +11,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
-#include "../tokenizers.h"
+#include "../tokenizers/tokenizers.h"
 #include "config.h"
 #include "data.h"
 

@@ -14,7 +14,7 @@ from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import convert_tiktoken, logging
 from mlc_llm.support.style import bold, green, red
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import Tokenizer
 
 from .compiler_flags import ModelConfigOverride
 

@@ -1,4 +1,5 @@
 """Low-level generation config class"""
+
 # pylint: disable=missing-class-docstring, disable=too-many-instance-attributes
 from typing import Dict, List, Optional
 

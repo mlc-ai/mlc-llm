@@ -1,4 +1,5 @@
 """An enhanced argument parser for mlc-chat."""
+
 import argparse
 import sys
 

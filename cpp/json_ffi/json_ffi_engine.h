@@ -11,7 +11,7 @@
 #include <string>
 
 #include "../serve/threaded_engine.h"
-#include "../streamer.h"
+#include "../tokenizers/streamer.h"
 #include "conv_template.h"
 #include "openai_api_protocol.h"
 

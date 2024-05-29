@@ -1,4 +1,5 @@
 """A compiler pass that fuses dequantize + matmul + elementwise."""
+
 import tvm
 from tvm import IRModule, relax
 from tvm.relax.dpl.pattern import GlobalVarPattern, TuplePattern, is_op, wildcard

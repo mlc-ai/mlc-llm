@@ -1,4 +1,5 @@
 """A compiler pass that fuses dequantize + take."""
+
 import tvm
 from tvm import IRModule, relax, tir
 from tvm.relax.dpl.pattern import (

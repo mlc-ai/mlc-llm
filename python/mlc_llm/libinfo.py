@@ -1,4 +1,5 @@
 """Library information. This is a standalone file that can be used to get various info"""
+
 #! pylint: disable=protected-access
 import os
 import sys

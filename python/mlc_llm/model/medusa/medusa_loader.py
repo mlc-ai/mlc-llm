@@ -2,6 +2,7 @@
 This file specifies how MLC's Medusa parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
+
 import functools
 
 from mlc_llm.loader import ExternMapping

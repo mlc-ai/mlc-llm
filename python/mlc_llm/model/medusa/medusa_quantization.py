@@ -1,4 +1,5 @@
 """This file specifies how MLC's Medusa parameters are quantized."""
+
 from typing import Tuple
 
 from tvm.relax.frontend import nn

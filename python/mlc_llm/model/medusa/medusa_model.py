@@ -1,4 +1,5 @@
 """Medusa model definition."""
+
 import dataclasses
 from typing import Any, Dict, Optional
 
