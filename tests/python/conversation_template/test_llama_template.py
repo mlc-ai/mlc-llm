@@ -4,6 +4,7 @@ from mlc_llm.conversation_template import ConvTemplateRegistry
 
 pytestmark = [pytest.mark.runtime_unittest]
 
+
 # From the official Llama-3 example:
 # https://llama.meta.com/docs/model-cards-and-prompt-formats/meta-llama-3/
 def test_llama3_prompt():
