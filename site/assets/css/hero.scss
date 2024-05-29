@@ -45,7 +45,7 @@
             gap: 1rem;
             justify-content: center;
 
-            .get-start-link {
+            .github-link {
                 display: inline-flex;
                 gap: 1rem;
                 border-radius: 9999px;
@@ -57,7 +57,7 @@
                 height: fit-content;
                 // padding: .25rem;
 
-                .get-start-link-content {
+                .github-link-content {
                     width: 100%;
                     height: 100%;
                     z-index: 1;
@@ -73,6 +73,7 @@
                     .icon {
                         display: inline-flex;
                         align-items: center;
+                        margin-right: .5rem;
 
                         svg {
                             height: 1.5rem;
@@ -81,7 +82,7 @@
                 }
             }
 
-            .chat-link {
+            .get-start-link {
                 display: inline-flex;
                 gap: 1rem;
                 background-color: white;
@@ -94,7 +95,7 @@
                 height: fit-content;
                 padding: .25rem;
 
-                .chat-link-content {
+                .get-start-link-content {
                     width: 100%;
                     height: 100%;
                     z-index: 1;
