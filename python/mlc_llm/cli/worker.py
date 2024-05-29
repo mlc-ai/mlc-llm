@@ -24,6 +24,9 @@ from tvm._ffi import get_global_func
 
 from .. import base  # pylint: disable=unused-import, no-name-in-module
 
+# register the calibration functions
+from ..interface import calibrate  # pylint: disable=unused-import
+
 
 def main():
     """Main worker function"""

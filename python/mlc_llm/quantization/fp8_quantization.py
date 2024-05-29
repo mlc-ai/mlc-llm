@@ -22,15 +22,17 @@ class FP8PerTensorQuantizeMixtralExperts(
         in_features,
         out_features,
         config: ptq.PerTensorQuantize,
+        name: str,
         tensor_parallel_shards=1,
     ):  # pylint: disable=too-many-arguments
-        super().__init__(num_local_experts, in_features, out_features, config)
+        super().__init__(num_local_experts, in_features, out_features, config, name)
         self.tensor_parallel_shards = tensor_parallel_shards
 
     @staticmethod
     def from_mixtral_experts(
         src: "MixtralExperts",
         config: ptq.PerTensorQuantize,
+        name: str,
     ) -> "FP8PerTensorQuantizeMixtralExperts":
         """
         Converts a non-quantized MixtralExperts to a per-tensor quantized MixtralExperts.
@@ -40,8 +42,11 @@ class FP8PerTensorQuantizeMixtralExperts(
         src : MixtralExperts
             The non-quantized MixtralExperts
 
-        weight_config : GroupQuantize
-            The group quantization weight_config.
+        config : PerTensorQuantize
+            The FP8 quantization weight_config.
+
+        name : str
+            The name of the layer.
 
         Returns
         -------
@@ -53,6 +58,7 @@ class FP8PerTensorQuantizeMixtralExperts(
             in_features=src.in_features,
             out_features=src.out_features,
             config=config,
+            name=name,
             tensor_parallel_shards=src.tensor_parallel_shards,
         )
 
@@ -65,6 +71,23 @@ class FP8PerTensorQuantizeMixtralExperts(
 
     def forward(self, x: nn.Tensor, indptr: nn.Tensor) -> nn.Tensor:  # pylint: disable=invalid-name
         w = self.q_weight
+
+        if self.config.calibration_mode == "max":
+            _, x_scale = self.config.quantize_float8(  # type: ignore
+                x,
+                quantize_dtype=self.config.activation_dtype,
+                storage_dtype=self.config.activation_dtype,
+            )
+            if self.config.tensor_parallel_shards > 1:
+                x_scale = nn.ccl_allreduce(x_scale, "max")
+            x_scale = nn.extern(
+                "mlc_llm.calibration_observer",
+                [f"{self.name}.q_calibration_scale", "max", x_scale],
+                out=nn.Tensor.placeholder(x_scale.shape, x_scale.dtype),
+            )
+            x_q = (x / x_scale).astype(self.config.activation_dtype)
+            x = x_q.astype(self.config.model_dtype) * x_scale
+
         if indptr.ndim == 2:
             assert indptr.shape[0] == 1
             return moe_matmul.dequantize_float8_gemv(
@@ -72,17 +95,21 @@ class FP8PerTensorQuantizeMixtralExperts(
             )
 
         if extern.get_store().cutlass_group_gemm:
-            # NOTE: calibration scale should be used to convert x to fp8 when calibration is enabled
-            x = nn.op.astype(x, dtype=self.config.activation_dtype)
+            if self.config.calibration_mode == "inference":
+                if self.q_calibration_scale is not None:
+                    x /= self.q_calibration_scale
+                x_q = nn.op.astype(x, dtype=self.config.activation_dtype)
+                x_scale = self.q_calibration_scale
+
             scale = (
-                self.q_scale.astype("float32")
+                (x_scale * self.q_scale).astype("float32")
                 if self.q_scale is not None
                 else nn.wrap_nested(
                     relax.Constant(nd.array(np.array([1.0]).astype("float32"))), "scale"
                 )
             )
             return cutlass.group_gemm(
-                x, w, indptr, scale, self.config.weight_dtype, self.config.model_dtype
+                x_q, w, indptr, scale, self.config.weight_dtype, self.config.model_dtype
             )
         # Note: convert_weight is target agnostic, so a fallback must be provided
         w = nn.tensor_expr_op(

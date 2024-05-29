@@ -238,4 +238,15 @@ The source code path to MLC LLM.
     "output_package": """
 The path of output directory for the package build outputs.
 """.strip(),
+    "calibration_dataset": """
+The path to the calibration dataset.
+    """.strip(),
+    "num_calibration_samples": """
+The number of samples used for calibration.
+    """.strip(),
+    "output_calibration": """
+The output directory to save the calibration params.
+    """.strip(),
+    "seed_calibrate": """
+The seed to sample the calibration dataset.""",
 }

@@ -88,5 +88,6 @@ def per_tensor_quant(
         model,
         quant_map,
         "",
+        tensor_parallel_shards=model_config.tensor_parallel_shards,
     )
     return model, quant_map

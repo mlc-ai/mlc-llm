@@ -8,6 +8,7 @@
 #define MLC_LLM_TOKENIZER_H_
 
 #include <tokenizers_cpp.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
@@ -66,6 +67,9 @@ class TokenizerObj : public Object {
 
   /*! \brief Encode text into ids. */
   std::vector<int32_t> Encode(const std::string& text) const;
+
+  /*! \brief Encode texts into ids. */
+  std::vector<std::vector<int32_t>> EncodeBatch(const Array<String>& texts) const;
 
   /*! \brief Decode token ids into text. */
   std::string Decode(const std::vector<int32_t>& token_ids) const;
