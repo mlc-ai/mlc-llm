@@ -1,4 +1,5 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
+
 # pylint: disable=E1101
 import json
 import re
@@ -271,4 +272,5 @@ CONV_TEMPLATES = {
     "gemma_instruction",
     "orion",
     "llava",
+    "hermes2_pro_llama3",
 }
