@@ -76,15 +76,15 @@ def sample_requests(
     prompt_token_ids = tokenizer.encode_batch(prompts)
     completions = [completion for _, completion in dataset]
     completion_token_ids = tokenizer.encode_batch(completions)
-    tokenized_dataset = []
+    tokenized_dataset: List[Tuple[str, List[int], int]] = []
     for i in range(len(dataset)):
         output_len = len(completion_token_ids[i])
         tokenized_dataset.append((prompts[i], prompt_token_ids[i], output_len))
 
     # Filter out too long sequences.
     filtered_dataset: List[Tuple[str, int, int]] = []
-    for prompt, prompt_token_ids, output_len in tokenized_dataset:
-        prompt_len = len(prompt_token_ids)
+    for prompt, token_ids, output_len in tokenized_dataset:
+        prompt_len = len(token_ids)
         if prompt_len < 4 or output_len < 4:
             # Prune too short sequences.
             continue
