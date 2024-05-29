@@ -38,6 +38,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     head_dim: int = 0
     dtype: str = "float32"
+    max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
