@@ -1,4 +1,5 @@
 """Memory usage estimation analysis function for Relax functions."""
+
 import json
 from typing import Any, Dict
 

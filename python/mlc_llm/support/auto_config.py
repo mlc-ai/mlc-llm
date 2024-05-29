@@ -1,4 +1,5 @@
 """Help function for detecting the model configuration file `config.json`"""
+
 import json
 import tempfile
 from pathlib import Path

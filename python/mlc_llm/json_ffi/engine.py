@@ -18,7 +18,7 @@ from mlc_llm.serve.engine_base import (
     _query_engine_metrics,
     detect_device,
 )
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import Tokenizer
 
 
 class EngineState:

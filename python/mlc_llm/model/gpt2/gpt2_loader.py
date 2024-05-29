@@ -2,6 +2,7 @@
 This file specifies how MLC's GPT-2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
+
 import functools
 
 from mlc_llm.loader import ExternMapping

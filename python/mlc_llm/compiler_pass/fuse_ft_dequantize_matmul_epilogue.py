@@ -1,4 +1,5 @@
 """A compiler pass that fuses dequantize matmul + epilogue."""
+
 import operator
 from functools import reduce
 

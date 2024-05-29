@@ -14,6 +14,7 @@ To conveniently use those externel modules, MLC LLM compilation pipeline manages
 singleton `Store: ExternalModuleStore` to store the configured modules. It is supposed to be enabled
 before any compilation happens, and configured during a model's `forward` method is invoked.
 """
+
 import dataclasses
 from typing import Optional
 

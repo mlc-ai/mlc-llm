@@ -6,7 +6,7 @@
 #ifndef MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 #define MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 
-#include "../../tokenizers.h"
+#include "../../tokenizers/tokenizers.h"
 #include "../draft_token_workspace_manager.h"
 #include "../engine.h"
 #include "../engine_state.h"

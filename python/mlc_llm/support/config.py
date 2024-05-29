@@ -9,6 +9,7 @@ the model's hyperparameters. For instance, Vicuna-13b-v1.5-16k contains the foll
 The base class allows us to load the configuration from this JSON file, moving irrelevant fields
 into `kwargs`, such as `transformers_version` and `use_cache`.
 """
+
 # pylint: disable=too-few-public-methods
 import dataclasses
 import json

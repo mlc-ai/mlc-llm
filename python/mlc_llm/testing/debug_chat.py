@@ -1,4 +1,5 @@
 """Debug compiled models with TVM instrument"""
+
 # pylint: disable=too-many-arguments
 import json
 import random
@@ -19,7 +20,7 @@ from mlc_llm.serve import engine_utils
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green, red
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import Tokenizer
 
 
 def _extract_metadata(mod: Module):

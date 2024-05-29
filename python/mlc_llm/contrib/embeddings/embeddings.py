@@ -13,7 +13,7 @@ from tvm.runtime.relax_vm import VirtualMachine
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import Tokenizer
 
 
 def _extract_metadata(mod: Module):

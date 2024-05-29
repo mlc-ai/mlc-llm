@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 import tvm.testing
 from pydantic import BaseModel, Field, TypeAdapter
 
-from mlc_llm.serve import BNFGrammar, GrammarStateMatcher
+from mlc_llm.grammar import BNFGrammar, GrammarStateMatcher
 
 
 def check_schema_with_grammar(

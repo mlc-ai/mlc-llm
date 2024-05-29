@@ -1,4 +1,5 @@
 """Check if a device exists."""
+
 import sys
 
 from tvm.runtime import Device

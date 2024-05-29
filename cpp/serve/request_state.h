@@ -12,10 +12,10 @@
 
 #include <optional>
 
-#include "../streamer.h"
+#include "../grammar/grammar_state_matcher.h"
 #include "../support/random.h"
+#include "../tokenizers/streamer.h"
 #include "config.h"
-#include "grammar/grammar_state_matcher.h"
 #include "metrics.h"
 #include "request.h"
 

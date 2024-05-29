@@ -1,4 +1,5 @@
 """The no quantization config"""
+
 from dataclasses import dataclass
 
 

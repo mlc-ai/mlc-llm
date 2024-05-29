@@ -1,4 +1,5 @@
 """Utils to better use tqdm"""
+
 import contextlib
 import inspect
 import io

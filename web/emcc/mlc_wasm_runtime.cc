@@ -35,13 +35,13 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 // Grammar related
-#include "serve/grammar/grammar.cc"
-#include "serve/grammar/grammar_functor.cc"
-#include "serve/grammar/grammar_parser.cc"
-#include "serve/grammar/grammar_serializer.cc"
-#include "serve/grammar/grammar_state_matcher.cc"
-#include "serve/grammar/json_schema_converter.cc"
+#include "grammar/grammar.cc"
+#include "grammar/grammar_functor.cc"
+#include "grammar/grammar_parser.cc"
+#include "grammar/grammar_serializer.cc"
+#include "grammar/grammar_state_matcher.cc"
+#include "grammar/json_schema_converter.cc"
 #include "support/encoding.cc"
 
 // Only compiles necessary functions for mlc.PostProcessTokenTable
-#include "tokenizers.cc"
+#include "tokenizers/tokenizers.cc"

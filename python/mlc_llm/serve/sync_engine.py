@@ -26,9 +26,8 @@ from mlc_llm.serve.engine_base import (
 )
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.serve.request import Request
-from mlc_llm.streamer import TextStreamer
 from mlc_llm.support import logging
-from mlc_llm.tokenizer import Tokenizer
+from mlc_llm.tokenizers import TextStreamer, Tokenizer
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)

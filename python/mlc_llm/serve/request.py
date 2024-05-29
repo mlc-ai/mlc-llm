@@ -1,4 +1,5 @@
 """The request class in MLC LLM serving"""
+
 from typing import List
 
 import tvm._ffi
