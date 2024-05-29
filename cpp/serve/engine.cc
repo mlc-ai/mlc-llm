@@ -152,21 +152,21 @@ class EngineImpl : public Engine {
       ICHECK_GT(n->models_.size(), 1U);
       switch (engine_config->speculative_mode) {
         case SpeculativeMode::kEagle:
-          n->actions_ = {
-              EngineAction::EagleNewRequestPrefill(n->models_,                     //
-                                                   logit_processor,                //
-                                                   sampler,                        //
-                                                   n->model_workspaces_,           //
-                                                   draft_token_workspace_manager,  //
-                                                   engine_config,                  //
-                                                   model_configs,                  //
-                                                   n->trace_recorder_),
-              EngineAction::EagleBatchDraft(n->models_, logit_processor, sampler,
-                                            n->model_workspaces_, draft_token_workspace_manager,
-                                            n->trace_recorder_, engine_config->spec_draft_length),
-              EngineAction::EagleBatchVerify(n->models_, logit_processor, sampler,
-                                             n->model_workspaces_, draft_token_workspace_manager,
-                                             engine_config, n->trace_recorder_)};
+          n->actions_ = {EngineAction::EagleNewRequestPrefill(n->models_,                     //
+                                                              logit_processor,                //
+                                                              sampler,                        //
+                                                              n->model_workspaces_,           //
+                                                              draft_token_workspace_manager,  //
+                                                              engine_config,                  //
+                                                              model_configs,                  //
+                                                              n->trace_recorder_),
+                         EngineAction::EagleBatchDraft(
+                             n->models_, logit_processor, sampler, n->model_workspaces_,
+                             draft_token_workspace_manager, engine_config, n->trace_recorder_,
+                             engine_config->spec_draft_length),
+                         EngineAction::EagleBatchVerify(
+                             n->models_, logit_processor, sampler, n->model_workspaces_,
+                             draft_token_workspace_manager, engine_config, n->trace_recorder_)};
           break;
         case SpeculativeMode::kMedusa:
           n->actions_ = {EngineAction::EagleNewRequestPrefill(n->models_,                     //
@@ -191,22 +191,22 @@ class EngineImpl : public Engine {
                                               model_configs,         //
                                               n->trace_recorder_),
               EngineAction::BatchDraft(n->models_, logit_processor, sampler, n->model_workspaces_,
-                                       draft_token_workspace_manager, n->trace_recorder_,
-                                       engine_config->spec_draft_length),
+                                       draft_token_workspace_manager, engine_config,
+                                       n->trace_recorder_, engine_config->spec_draft_length),
               EngineAction::BatchVerify(n->models_, logit_processor, sampler, n->model_workspaces_,
                                         draft_token_workspace_manager, engine_config,
                                         n->trace_recorder_)};
       }
     } else {
-      n->actions_ = {
-          EngineAction::NewRequestPrefill(n->models_,            //
-                                          logit_processor,       //
-                                          sampler,               //
-                                          n->model_workspaces_,  //
-                                          engine_config,         //
-                                          model_configs,         //
-                                          n->trace_recorder_),
-          EngineAction::BatchDecode(n->models_, logit_processor, sampler, n->trace_recorder_)};
+      n->actions_ = {EngineAction::NewRequestPrefill(n->models_,            //
+                                                     logit_processor,       //
+                                                     sampler,               //
+                                                     n->model_workspaces_,  //
+                                                     engine_config,         //
+                                                     model_configs,         //
+                                                     n->trace_recorder_),
+                     EngineAction::BatchDecode(n->models_, logit_processor, sampler, engine_config,
+                                               n->trace_recorder_)};
     }
     // - Automatically set the threading backend max concurrency.
     n->engine_config_ = engine_config;

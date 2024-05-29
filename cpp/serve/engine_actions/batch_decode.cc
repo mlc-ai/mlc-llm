@@ -29,10 +29,12 @@ namespace serve {
 class BatchDecodeActionObj : public EngineActionObj {
  public:
   explicit BatchDecodeActionObj(Array<Model> models, LogitProcessor logit_processor,
-                                Sampler sampler, Optional<EventTraceRecorder> trace_recorder)
+                                Sampler sampler, EngineConfig engine_config,
+                                Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
+        engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
@@ -63,6 +65,10 @@ class BatchDecodeActionObj : public EngineActionObj {
     ICHECK_GT(num_rsentries, 0)
         << "There should be at least one request state entry that can run decode. "
            "Possible failure reason: none of the prefill phase of the running requests is finished";
+    ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
+        << "The number of running requests exceeds the max number of sequence in EngineConfig. "
+           "Possible failure reason: the prefill action allows new sequence in regardless of the "
+           "max num sequence.";
     // Collect
     // - the last committed token,
     // - the request id,
@@ -154,16 +160,18 @@ class BatchDecodeActionObj : public EngineActionObj {
   LogitProcessor logit_processor_;
   /*! \brief The sampler to sample new tokens. */
   Sampler sampler_;
+  /*! \brief The engine config. */
+  EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
 
 EngineAction EngineAction::BatchDecode(Array<Model> models, LogitProcessor logit_processor,
-                                       Sampler sampler,
+                                       Sampler sampler, EngineConfig engine_config,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(
-      make_object<BatchDecodeActionObj>(std::move(models), std::move(logit_processor),
-                                        std::move(sampler), std::move(trace_recorder)));
+  return EngineAction(make_object<BatchDecodeActionObj>(
+      std::move(models), std::move(logit_processor), std::move(sampler), std::move(engine_config),
+      std::move(trace_recorder)));
 }
 
 }  // namespace serve
