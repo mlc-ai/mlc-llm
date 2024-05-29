@@ -196,7 +196,7 @@ OPT_FLAG_PRESET = {
         flashinfer=True,
         cublas_gemm=True,
         faster_transformer=True,
-        cudagraph=False,
+        cudagraph=True,
         cutlass=True,
     ),
     "O3": OptimizationFlags(
