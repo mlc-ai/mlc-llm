@@ -25,12 +25,14 @@ class EagleBatchDraftActionObj : public EngineActionObj {
   explicit EagleBatchDraftActionObj(Array<Model> models, LogitProcessor logit_processor,
                                     Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                     DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                    EngineConfig engine_config,
                                     Optional<EventTraceRecorder> trace_recorder, int draft_length)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
         draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
+        engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
         draft_length_(draft_length) {
     ICHECK_GT(draft_length_, 0);
@@ -56,6 +58,14 @@ class EagleBatchDraftActionObj : public EngineActionObj {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int num_rsentries = running_rsentries.size();
+    ICHECK_GT(num_rsentries, 0)
+        << "There should be at least one request state entry that can run decode. "
+           "Possible failure reason: none of the prefill phase of the running requests is finished";
+    ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
+        << "The number of running requests exceeds the max number of sequence in EngineConfig. "
+           "Possible failure reason: the prefill action allows new sequence in regardless of the "
+           "max num sequence.";
+
     Array<String> request_ids;
     std::vector<int64_t> request_internal_ids;
     Array<GenerationConfig> generation_cfg;
@@ -189,6 +199,8 @@ class EagleBatchDraftActionObj : public EngineActionObj {
   std::vector<ModelWorkspace> model_workspaces_;
   /*! \brief The draft token workspace manager. */
   DraftTokenWorkspaceManager draft_token_workspace_manager_;
+  /*! \brief The engine config. */
+  EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Draft proposal length */
@@ -201,12 +213,13 @@ EngineAction EngineAction::EagleBatchDraft(Array<Model> models, LogitProcessor l
                                            Sampler sampler,
                                            std::vector<ModelWorkspace> model_workspaces,
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                           EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder,
                                            int draft_length) {
   return EngineAction(make_object<EagleBatchDraftActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
-      std::move(trace_recorder), draft_length));
+      std::move(engine_config), std::move(trace_recorder), draft_length));
 }
 
 }  // namespace serve
