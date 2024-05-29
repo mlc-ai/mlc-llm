@@ -56,6 +56,7 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   result.quantization = json::Lookup<std::string>(metadata, "quantization");
   result.context_window_size = json::Lookup<int64_t>(metadata, "context_window_size");
   result.prefill_chunk_size = json::Lookup<int64_t>(metadata, "prefill_chunk_size");
+  result.max_batch_size = json::Lookup<int64_t>(metadata, "max_batch_size");
   if (metadata.count("sliding_window_size"))
     result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window_size");
   if (metadata.count("sliding_window"))  // to be removed after SLM migration

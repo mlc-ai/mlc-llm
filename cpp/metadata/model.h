@@ -74,6 +74,7 @@ struct ModelMetadata {
   std::string quantization;
   int64_t context_window_size;
   int64_t prefill_chunk_size;
+  int64_t max_batch_size;
   int64_t sliding_window_size;
   int64_t tensor_parallel_shards;
   int64_t attention_sink_size;

@@ -444,11 +444,7 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
           std::min(model_max_prefill_chunk_size, runtime_prefill_chunk_size);
     }
     // - The maximum batch size is the minimum max batch size among all models.
-    model_max_batch_size = std::min(
-        model_max_batch_size,
-        json::LookupOptional<int64_t>(
-            json::Lookup<picojson::object>(model_configs[i], "model_config"), "max_batch_size")
-            .value_or(128));
+    model_max_batch_size = std::min(model_max_batch_size, model_metadata[i].max_batch_size);
     // - The maximum sliding window size is the minimum among all models.
     int64_t runtime_sliding_window_size =
         json::LookupOptional<int64_t>(model_configs[i], "sliding_window_size").value_or(-1);
