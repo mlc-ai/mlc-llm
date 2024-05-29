@@ -1,4 +1,9 @@
+import pytest
+
 from mlc_llm.serve import PagedRadixTree
+
+# category "runtime_module"
+pytestmark = [pytest.mark.unittest]
 
 
 def test_add():

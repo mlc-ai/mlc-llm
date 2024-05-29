@@ -7,6 +7,9 @@ import tvm.testing
 
 from mlc_llm.op.tree_attn import tree_attn
 
+# test category "op_correctness"
+pytestmark = [pytest.mark.op_correctness]
+
 
 @pytest.mark.parametrize("nbatch", [1, 4, 32])
 @pytest.mark.parametrize("h_q", [8, 16])
@@ -24,7 +27,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     def gen_full_binary_tree(height):
         mask = list()
         pos = list()
-        num_nodes = 2**height - 1
+        num_nodes = 2 ** height - 1
         for i in range(num_nodes):
             if i == 0:
                 mask_0 = [0] * num_nodes
@@ -56,7 +59,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         else:
             height = np.random.randint(2, 6)
             res = gen_full_binary_tree(height)
-            num_nodes += 2**height - 1
+            num_nodes += 2 ** height - 1
         m_list.append(res[0])
         mn_list.append(res[0] ** 2)
         mask_list.extend(res[1])

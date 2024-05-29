@@ -79,11 +79,14 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         model_dtype = q.dtype
         if qk_dtype is None:
             qk_dtype = model_dtype
-        attn_weights = op.matmul(  # [b, h, s, t]
-            q,  # [b, h, s, d]
-            op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
-            out_dtype=qk_dtype,
-        ) / math.sqrt(d)
+        attn_weights = (
+            op.matmul(  # [b, h, s, t]
+                q,  # [b, h, s, d]
+                op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
+                out_dtype=qk_dtype,
+            )
+            / math.sqrt(d)
+        )
         if attn_score_scaling_factor != 1.0:
             attn_weights = attn_weights * attn_score_scaling_factor
         attn_weights = attn_weights.maximum(tir.min_value(model_dtype)).minimum(
