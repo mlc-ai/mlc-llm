@@ -47,12 +47,42 @@ else
 	COMMAND=("$@")
 fi
 
+if [[ -n ${MLC_CI_SETUP_DEPS:-} ]]; then
+    DOCKER_ENV="${DOCKER_ENV} -e MLC_CI_SETUP_DEPS=${MLC_CI_SETUP_DEPS}"
+fi
+
 # Use nvidia-docker if the container is GPU.
-if [[ ! -z $CUDA_VISIBLE_DEVICES ]]; then
-	DOCKER_ENV="${DOCKER_ENV} -e CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+if [[ -n ${CUDA_VISIBLE_DEVICES:-} ]]; then
+    DOCKER_ENV="${DOCKER_ENV} -e CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES}"
+    if type nvidia-docker 1> /dev/null 2> /dev/null; then
+        DOCKER_BINARY=nvidia-docker
+    else
+        DOCKER_BINARY=docker
+        DOCKER_ENV="${DOCKER_ENV} --gpus all"
+    fi
+
+    # nvidia-docker treats Vulkan as a graphics API, so we need to
+    # request passthrough of graphics APIs.  This could also be set in
+    # the Dockerfile.
+    DOCKER_ENV="${DOCKER_ENV} -e NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility"
+
+    # vulkan comaptibility
+    ICD_SEARCH_LOCATIONS=(
+        # https://github.com/KhronosGroup/Vulkan-Loader/blob/master/loader/LoaderAndLayerInterface.md#icd-discovery-on-linux
+        /usr/local/etc/vulkan/icd.d
+        /usr/local/share/vulkan/icd.d
+        /etc/vulkan/icd.d
+        /usr/share/vulkan/icd.d
+        /etc/glvnd/egl_vendor.d
+        /usr/share/glvnd/egl_vendor.d
+    )
+    for filename in $(find "${ICD_SEARCH_LOCATIONS[@]}" -name "*nvidia*.json" 2> /dev/null); do
+	DOCKER_VOLUMNS="${DOCKER_VOLUMNS} -v ${filename}:${filename}:ro"
+    done
 fi
 
 # Print arguments.
+echo "DOCKER_BINARY ${DOCKER_BINARY}"
 echo "WORKSPACE: ${WORKSPACE}"
 echo "IMAGE NAME: ${DOCKER_IMAGE_NAME}"
 echo "ENV VARIABLES: ${DOCKER_ENV}"
