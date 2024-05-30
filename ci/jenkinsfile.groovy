@@ -17,13 +17,14 @@
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
-run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:4d61e5d -e GPU cpu"
-run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:4d61e5d -e GPU cuda-12.1"
-run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:4d61e5d -e GPU rocm-5.7"
+run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:4d61e5d -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
+run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:4d61e5d -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
+run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:4d61e5d -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
 
-pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU cpu"
-pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:561ceee -e GPU cuda-12.1"
-pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU rocm-5.7"
+pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:561ceee -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
+pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
+
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
@@ -170,6 +171,22 @@ stage('Build') {
           sh(script: "${pkg_cpu} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
           sh(script: "ls -alh ./wheels/", label: 'Build artifact')
           pack_lib('mlc_wheel_vulkan', 'wheels/*.whl')
+        }
+      }
+    }
+  )
+}
+
+stage('Unittest') {
+  parallel(
+    'CUDA': {
+      node('GPU') {
+        ws(per_exec_ws('mlc-llm-unittest')) {
+          init_git(false)
+          sh(script: "ls -alh", label: 'Show work directory')
+          unpack_lib('mlc_wheel_cuda', 'wheels/*.whl')
+          sh(script: "${run_cuda} conda env export --name ci-unittest", label: 'Checkout version')
+          sh(script: "${run_cuda} conda run -n ci-unittest ./ci/task/test_unittest.sh", label: 'Testing')
         }
       }
     }
