@@ -6,4 +6,5 @@ set -x
 # add pytestmarker = [pytest.mark.unittest] in the test file
 # so they will be run here
 python -m pip install pytest
+python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
 python -m pytest -v tests/python/ -m unittest
