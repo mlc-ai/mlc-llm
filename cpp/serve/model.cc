@@ -673,12 +673,13 @@ class ModelImpl : public ModelObj {
 
   void SetPrefillChunkSize(int prefill_chunk_size) final {
     this->prefill_chunk_size_ = prefill_chunk_size;
-    Device device_host{DLDeviceType::kDLCPU, 0};
-    memory::Allocator* allocator =
-        memory::MemoryManager::GetOrCreateAllocator(device_host, memory::AllocatorType::kNaive);
+    Device preferred_host_device = GetPreferredHostDevice(device_);
+    memory::Allocator* allocator = memory::MemoryManager::GetOrCreateAllocator(
+        preferred_host_device, memory::AllocatorType::kNaive);
     ICHECK_NOTNULL(allocator);
     token_ids_storage_ = memory::Storage(
-        allocator->Alloc(device_host, {prefill_chunk_size_}, DataType::Int(32)), allocator);
+        allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DataType::Int(32)),
+        allocator);
   }
 
   LogitProcessor CreateLogitProcessor(int max_num_token,
