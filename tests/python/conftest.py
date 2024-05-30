@@ -16,9 +16,6 @@
 # under the License.
 # pylint: disable=missing-module-docstring,unused-import
 import pytest
-import tvm.testing
-
-pytest_plugins = ["tvm.testing.plugin"]
 
 
 def pytest_configure(config):
