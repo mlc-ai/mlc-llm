@@ -5,6 +5,7 @@ from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
 import fastapi
+import structlog
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.protocol.openai_api_protocol import (
@@ -18,7 +19,7 @@ from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
 app = fastapi.APIRouter()
-
+logger = structlog.stdlib.get_logger(__name__)
 ################ v1/models ################
 
 
@@ -136,6 +137,8 @@ async def request_chat_completion(
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
     # - Check the requested model.
+    logger.info("Received chat completion request", request=request)
+
     server_context: ServerContext = ServerContext.current()
     request_final_usage_include_extra = server_context.enable_debug
     request_include_debug_config = server_context.enable_debug
