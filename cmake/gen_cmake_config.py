@@ -56,6 +56,15 @@ if __name__ == "__main__":
         user_input = input("Use FlashInfer? (need CUDA w/ compute capability 80;86;89;90) (y/n): ")
         if user_input in ["yes", "Y", "y"]:
             cmake_config_str += "set(USE_FLASHINFER ON)\n"
+            cmake_config_str += "set(FLASHINFER_ENABLE_FP8 OFF)\n"
+            cmake_config_str += "set(FLASHINFER_ENABLE_BF16 OFF)\n"
+            cmake_config_str += "set(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8)\n"
+            cmake_config_str += "set(FLASHINFER_GEN_PAGE_SIZES 16)\n"
+            cmake_config_str += "set(FLASHINFER_GEN_HEAD_DIMS 128)\n"
+            cmake_config_str += "set(FLASHINFER_GEN_KV_LAYOUTS 0 1)\n"
+            cmake_config_str += "set(FLASHINFER_GEN_POS_ENCODING_MODES 0 1)\n"
+            cmake_config_str += 'set(FLASHINFER_GEN_ALLOW_FP16_QK_REDUCTIONS "false")\n'
+            cmake_config_str += 'set(FLASHINFER_GEN_CASUALS "false" "true")\n'
             use_flashInfer = True  # pylint: disable=invalid-name
             break
         elif user_input in ["no", "N", "n"]:
