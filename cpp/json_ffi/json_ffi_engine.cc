@@ -29,8 +29,7 @@ bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string req
 
 void JSONFFIEngine::StreamBackError(std::string request_id) {
   ChatCompletionMessage delta;
-  delta.content = std::vector<std::unordered_map<std::string, std::string>>{
-      {{"type", "text"}, {"text", this->err_}}};
+  delta.content = this->err_;
   delta.role = "assistant";
 
   ChatCompletionStreamResponseChoice choice;
@@ -46,6 +45,18 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
 
   picojson::array response_arr;
   response_arr.push_back(picojson::value(response.AsJSON()));
+
+  // now stream back the final usage block, which is required.
+  // NOTE: always stream back final usage block as it is an
+  // invariant of the system
+  response.choices.clear();
+  picojson::object dummy_usage;
+  dummy_usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(0));
+  dummy_usage["completion_tokens"] = picojson::value(static_cast<int64_t>(0));
+  dummy_usage["total_tokens"] = picojson::value(static_cast<int64_t>(0));
+  response.usage = picojson::value(dummy_usage);
+  response_arr.push_back(picojson::value(response.AsJSON()));
+
   std::string stream_back_json = picojson::value(response_arr).serialize();
   this->request_stream_callback_(stream_back_json);
 }
