@@ -29,7 +29,7 @@ class MemoryBufferStream : public dmlc::Stream {
     return size;
   }
 
-  void Write(const void* ptr, size_t size) override {
+  size_t Write(const void* ptr, size_t size) override {
     LOG(FATAL) << "MemoryBufferStream does not support write";
   }
 
