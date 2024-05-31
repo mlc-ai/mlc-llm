@@ -129,7 +129,7 @@ class Completions:
         n: int = 1,
         seed: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
-        stream: bool = False,
+        stream: bool = True,
         stream_options: Optional[Dict[str, Any]] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
@@ -143,6 +143,8 @@ class Completions:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
         debug_config = extra_body.get("debug_config", None) if extra_body is not None else None
+        if not stream:
+            raise ValueError("JSONFFIEngine only support stream=True")
         request = openai_api_protocol.ChatCompletionRequest(
             messages=[
                 openai_api_protocol.ChatCompletionMessage.model_validate(message)

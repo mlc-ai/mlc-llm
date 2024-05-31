@@ -133,7 +133,10 @@ def _process_model_args(
         if model.model_lib is not None:
             # do model lib search if the model lib is provided
             # error out if file not found
-            if Path(model.model_lib).is_file():
+            if model.model_lib.startswith("mock://"):
+                model_lib = model.model_lib
+                logger.info("[DEBUG] mock test: %s", model_lib)
+            elif Path(model.model_lib).is_file():
                 model_lib = model.model_lib
                 logger.info("Using library model: %s", model_lib)
             else:
@@ -802,6 +805,9 @@ def process_chat_completion_stream_output(  # pylint: disable=too-many-arguments
                 delta_outputs[0].request_final_usage_json_str
             ),
         )
+        # non streaming mode always comes with usage
+        if not request.stream:
+            return response
         # skip usage if stream option does not indicate include usage
         if request.stream_options is None:
             return None
@@ -981,6 +987,9 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
                 delta_outputs[0].request_final_usage_json_str
             ),
         )
+        # non streaming mode always comes with usage
+        if not request.stream:
+            return response
         if request.stream_options is None:
             return None
         if not request.stream_options.include_usage:

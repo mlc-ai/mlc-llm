@@ -41,6 +41,220 @@ using namespace tvm::runtime;
 
 class EngineModule;
 
+// get tokenizer info from model config
+inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& model_config) {
+  if (model_config.count("tokenizer_info") == 0) {
+    LOG(WARNING) << "Tokenizer info not found in mlc-chat-config.json. "
+                 << "Trying to automatically detect the tokenizer info";
+    return std::nullopt;
+  }
+  const picojson::object& tokenizer_info_obj =
+      model_config.at("tokenizer_info").get<picojson::object>();
+  auto info = make_object<TokenizerInfoNode>();
+  if (tokenizer_info_obj.count("token_postproc_method")) {
+    info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
+  }
+  if (tokenizer_info_obj.count("prepend_space_in_encode")) {
+    info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").get<bool>();
+  }
+  if (tokenizer_info_obj.count("strip_space_in_decode")) {
+    info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
+  }
+  return TokenizerInfo(info);
+}
+
+/*!
+ *  \brief This a mock engine that always echo back the inputs
+ *   and attaches the generation config to usage.extra
+ *
+ * \note: mock engine test cannot replace real engine test.
+ *
+ * It only tests that parameters are converted and
+ * passed correctly to the backend.
+ */
+class MockEchoEngineImpl : public Engine {
+ public:
+  static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
+                                             FRequestStreamCallback request_stream_callback,
+                                             const picojson::object& model_config) {
+    using TResult = Result<EngineCreationOutput>;
+    // set dummy values
+    InferrableEngineConfig inferrable_config;
+    inferrable_config.max_num_sequence = 32;
+    inferrable_config.max_total_sequence_length = 32 * 4096;
+    inferrable_config.max_single_sequence_length = 4096;
+    inferrable_config.prefill_chunk_size = 1024;
+    inferrable_config.max_history_size = 1024;
+    picojson::value config_json;
+    std::string err = picojson::parse(config_json, engine_config_json_str);
+    if (!err.empty()) {
+      return TResult::Error(err);
+    }
+    EngineConfig engine_config = EngineConfig::FromJSONAndInferredConfig(
+        config_json.get<picojson::object>(), inferrable_config);
+
+    auto n = std::make_unique<MockEchoEngineImpl>();
+    n->request_stream_callback_ = request_stream_callback;
+    n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_config));
+    // - Get the default generation config from the first model.
+    GenerationConfig default_generation_cfg =
+        GenerationConfig::GetDefaultFromModelConfig(model_config);
+    return TResult::Ok({std::move(n), std::move(engine_config), std::move(default_generation_cfg)});
+  }
+
+  void Reset() final {}
+
+  bool Empty() final { return request_map_.empty(); }
+
+  void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) final {
+    request_stream_callback_ = request_stream_callback;
+  }
+
+  FRequestStreamCallback GetRequestStreamCallback() final { return request_stream_callback_; }
+
+  void AddRequest(Request request) final {
+    // precompute the stream back results and store them in the request_map
+    request = Request::FromUntokenized(request, tokenizer_);
+    std::vector<RequestStreamOutput> outputs;
+    int64_t num_output_tokens = 0;
+    int64_t num_input_tokens = 0;
+
+    for (Data input : request->inputs) {
+      // only stream back token data
+      if (auto* token_data = input.as<TokenDataNode>()) {
+        for (int64_t token_id : token_data->token_ids) {
+          num_input_tokens += 1;
+          num_output_tokens += 1;
+          if (request->generation_cfg->max_tokens == -1 ||
+              num_output_tokens <= request->generation_cfg->max_tokens) {
+            outputs.push_back(RequestStreamOutput(
+                request->id,
+                std::vector<IntTuple>(request->generation_cfg->n, IntTuple({token_id})),
+                Optional<Array<Array<String>>>(),
+                std::vector<Optional<String>>(request->generation_cfg->n, NullOpt)));
+          }
+        }
+      }
+    }
+
+    // output go beyond max tokens
+    String finish_reason = "stop";
+    if (request->generation_cfg->max_tokens != -1 &&
+        num_input_tokens > request->generation_cfg->max_tokens) {
+      finish_reason = "length";
+    }
+    Array<IntTuple> group_delta_token_ids;
+
+    // correct the last output with right finish reason
+    if (outputs.size() > 0) {
+      group_delta_token_ids = outputs.back()->group_delta_token_ids;
+      outputs.pop_back();
+    }
+    outputs.push_back(RequestStreamOutput(
+        request->id, group_delta_token_ids, Optional<Array<Array<String>>>(),
+        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason)));
+
+    // attach usage and config
+    picojson::object usage;
+    usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(num_input_tokens));
+    usage["completion_tokens"] =
+        picojson::value(static_cast<int64_t>(num_output_tokens * request->generation_cfg->n));
+    usage["total_tokens"] = picojson::value(
+        static_cast<int64_t>(num_input_tokens + num_output_tokens * request->generation_cfg->n));
+    usage["extra"] = picojson::value(request->generation_cfg->AsJSON());
+    // NOTE: Invariant requirement
+    // always stream back final usage
+    // otherwise frontend may have issues deciding termination
+    outputs.push_back(RequestStreamOutput::Usage(request->id, picojson::value(usage).serialize()));
+    // reverse the stream back so we can just pop back and get out
+    std::reverse(outputs.begin(), outputs.end());
+
+    request_map_[request->id] = MockRequestState{request, std::move(outputs)};
+  }
+
+  void AbortRequest(const String& request_id) {
+    auto it = request_map_.find(request_id);
+    if (it == request_map_.end()) return;
+    Request request = it->second.request;
+
+    // If the request input length exceeds the maximum allowed single sequence length,
+    // invoke callback and do not process the request.
+    Array<RequestStreamOutput> output{RequestStreamOutput(
+        request_id, std::vector<IntTuple>(request->generation_cfg->n),
+        Optional<Array<Array<String>>>(),
+        std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
+    // NOTE: Invariant requirement
+    // always stream back final usage
+    // otherwise frontend may have issues deciding
+    String dummy_usage =
+        ("{ \"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0 }");
+    output.push_back(RequestStreamOutput::Usage(request->id, dummy_usage));
+    request_map_.erase(it);
+    if (request_stream_callback_ != nullptr) {
+      request_stream_callback_(output);
+    }
+  }
+
+  void AbortAllRequests() final {
+    // avoid deletion during iteraton
+    std::vector<String> request_ids;
+    for (const auto& kv : request_map_) {
+      request_ids.push_back(kv.first);
+    }
+    for (String req_id : request_ids) {
+      AbortRequest(req_id);
+    }
+  }
+
+  void Step() final {
+    Array<RequestStreamOutput> outputs;
+    std::vector<String> finished_request_ids;
+    for (auto& kv : request_map_) {
+      MockRequestState& state = kv.second;
+      ICHECK_GE(state.reversed_outputs.size(), 2);
+      if (state.reversed_outputs.size() == 2) {
+        outputs.push_back(state.reversed_outputs.back());
+        state.reversed_outputs.pop_back();
+        outputs.push_back(state.reversed_outputs.back());
+        finished_request_ids.push_back(kv.first);
+      } else {
+        outputs.push_back(state.reversed_outputs.back());
+        state.reversed_outputs.pop_back();
+      }
+    }
+    for (String req_id : finished_request_ids) {
+      request_map_.erase(req_id);
+    }
+    if (request_stream_callback_ != nullptr) {
+      request_stream_callback_(outputs);
+    }
+  }
+
+  /************** Debug/Profile **************/
+
+  /*! \brief Internal engine metrics. */
+  String JSONMetrics() final { return "{}"; }
+
+  /*! \brief Call the given global function on all workers. Only for debug purpose. */
+  void DebugCallFuncOnAllAllWorker(const String& func_name) final {}
+
+ private:
+  struct MockRequestState {
+    Request request;
+    std::vector<RequestStreamOutput> reversed_outputs;
+  };
+
+  // internal tokenizer
+  // keep for future usage, in case we want to echo back the tokens
+  Tokenizer tokenizer_;
+  // callback stream
+  FRequestStreamCallback request_stream_callback_;
+  // active requests
+  std::unordered_map<String, MockRequestState> request_map_;
+};
+
+/********************** Engine Impl **********************/
+
 /*! \brief The implementation of Engine. */
 class EngineImpl : public Engine {
   friend class EngineModule;
@@ -63,6 +277,7 @@ class EngineImpl : public Engine {
     }
     std::vector<std::pair<std::string, std::string>> models_and_model_libs =
         models_and_model_libs_res.Unwrap();
+
     ICHECK_GE(models_and_model_libs.size(), 1);
     // - Initialize singleton states inside the engine.
     n->estate_->Reset();
@@ -81,6 +296,13 @@ class EngineImpl : public Engine {
       }
       model_configs.push_back(model_config_res.Unwrap());
     }
+
+    // kick in mock path so we don't have to load in models
+    if (models_and_model_libs[0].second == "mock://echo") {
+      return MockEchoEngineImpl::Create(engine_config_json_str, n->request_stream_callback_,
+                                        model_configs[0]);
+    }
+
     Optional<Session> session = n->CreateDiscoSession(model_configs, device);
     // - Initialize each model independently.
     n->models_.clear();
@@ -235,6 +457,25 @@ class EngineImpl : public Engine {
     request_stream_callback_ = std::move(request_stream_callback);
   }
 
+  // string back error node
+  void StreamBackError(Request request, String finish_reason) {
+    // If the request input length exceeds the maximum allowed single sequence length,
+    // invoke callback and do not process the request.
+    Array<RequestStreamOutput> output{RequestStreamOutput(
+        request->id, std::vector<IntTuple>(request->generation_cfg->n),
+        Optional<Array<Array<String>>>(),
+        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason))};
+    // NOTE: Invariant requirement
+    // always stream back final usage
+    // otherwise frontend may have issues deciding
+    String dummy_usage =
+        ("{ \"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0 }");
+    output.push_back(RequestStreamOutput::Usage(request->id, dummy_usage));
+    if (request_stream_callback_ != nullptr) {
+      request_stream_callback_(output);
+    }
+  }
+
   /***************** High-level Request Management *****************/
 
   void HandleSpecialRequests(Request request) {
@@ -267,13 +508,7 @@ class EngineImpl : public Engine {
 
     if (request->num_input_tokens >= engine_config_->max_single_sequence_length &&
         request_stream_callback_ != nullptr) {
-      // If the request input length exceeds the maximum allowed single sequence length,
-      // invoke callback and do not process the request.
-      Array<RequestStreamOutput> output{RequestStreamOutput(
-          request->id, std::vector<IntTuple>(request->generation_cfg->n),
-          Optional<Array<Array<String>>>(),
-          std::vector<Optional<String>>(request->generation_cfg->n, String("length")))};
-      request_stream_callback_(output);
+      this->StreamBackError(request, "length");
       return;
     }
 
@@ -351,13 +586,7 @@ class EngineImpl : public Engine {
     }
 
     // Send a callback to notice the abortion.
-    if (request_stream_callback_ != nullptr) {
-      Array<RequestStreamOutput> output{RequestStreamOutput(
-          request_id, std::vector<IntTuple>(request->generation_cfg->n),
-          Optional<Array<Array<String>>>(),
-          std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
-      request_stream_callback_(output);
-    }
+    this->StreamBackError(request, "abort");
   }
 
   void AbortAllRequests() final {
@@ -540,32 +769,11 @@ class EngineImpl : public Engine {
     }
   }
 
-  static std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& model_config) {
-    if (model_config.count("tokenizer_info") == 0) {
-      LOG(WARNING) << "Tokenizer info not found in mlc-chat-config.json. "
-                   << "Trying to automatically detect the tokenizer info";
-      return std::nullopt;
-    }
-    const picojson::object& tokenizer_info_obj =
-        model_config.at("tokenizer_info").get<picojson::object>();
-    auto info = make_object<TokenizerInfoNode>();
-    if (tokenizer_info_obj.count("token_postproc_method")) {
-      info->token_postproc_method =
-          tokenizer_info_obj.at("token_postproc_method").get<std::string>();
-    }
-    if (tokenizer_info_obj.count("prepend_space_in_encode")) {
-      info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").get<bool>();
-    }
-    if (tokenizer_info_obj.count("strip_space_in_decode")) {
-      info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
-    }
-    return TokenizerInfo(info);
-  }
-
   // Engine state, managing requests and request states.
   EngineState estate_;
   // Configurations and singletons
   EngineConfig engine_config_;
+  // internal tokenizer
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
   // Helper to get the grammar init context for requests.
