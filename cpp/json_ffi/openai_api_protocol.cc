@@ -316,6 +316,12 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
     return TResult::Error(max_tokens_res.UnwrapErr());
   }
   request.max_tokens = max_tokens_res.Unwrap();
+  // n
+  Result<int64_t> n_res = json::LookupOrDefaultWithResultReturn<int64_t>(json_obj, "n", 1);
+  if (n_res.IsErr()) {
+    return TResult::Error(n_res.UnwrapErr());
+  }
+  request.n = n_res.Unwrap();
   // frequency_penalty
   Result<std::optional<double>> frequency_penalty_res =
       json::LookupOptionalWithResultReturn<double>(json_obj, "frequency_penalty");
@@ -385,6 +391,18 @@ Result<ChatCompletionRequest> ChatCompletionRequest::FromJSON(const std::string&
       tools.push_back(tool.Unwrap());
     }
     request.tools = tools;
+  }
+
+  // response format
+  std::optional<picojson::object> response_format_obj =
+      json::LookupOptional<picojson::object>(json_obj, "response_format");
+  if (response_format_obj.has_value()) {
+    Result<ResponseFormat> response_format_res =
+        ResponseFormat::FromJSON(response_format_obj.value());
+    if (response_format_res.IsErr()) {
+      return TResult::Error(response_format_res.UnwrapErr());
+    }
+    request.response_format = response_format_res.Unwrap();
   }
 
   // debug_config

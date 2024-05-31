@@ -34,6 +34,34 @@ uint64_t TotalDetectGlobalMemory(DLDevice device) {
   return gpu_size_bytes;
 }
 
+/****************** ResponseFormat ******************/
+
+Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) {
+  using TResult = Result<ResponseFormat>;
+  ResponseFormat res;
+  res.type = json::LookupOrDefault<std::string>(config, "type", "text");
+
+  std::optional<std::string> schema = json::LookupOptional<std::string>(config, "schema");
+  if (schema.has_value()) {
+    res.schema = schema.value();
+  }
+
+  if (res.type != "text" && res.type != "function" && res.type != "json_object") {
+    return TResult::Error("Uknonwn response_format type " + res.type);
+  }
+
+  return TResult::Ok(res);
+}
+
+picojson::object ResponseFormat::AsJSON() const {
+  picojson::object config;
+  config["type"] = picojson::value(type);
+  if (schema.defined()) {
+    config["schema"] = picojson::value(schema.value().operator std::string());
+  }
+  return config;
+}
+
 /****************** DebugConfig ******************/
 
 Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
@@ -178,15 +206,12 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
   std::optional<picojson::object> response_format_obj =
       json::LookupOptional<picojson::object>(config, "response_format");
   if (response_format_obj.has_value()) {
-    ResponseFormat response_format;
-    response_format.type = json::LookupOrDefault<std::string>(response_format_obj.value(), "type",
-                                                              response_format.type);
-    std::optional<std::string> schema =
-        json::LookupOptional<std::string>(response_format_obj.value(), "schema");
-    if (schema.has_value()) {
-      response_format.schema = schema.value();
+    Result<ResponseFormat> response_format_res =
+        ResponseFormat::FromJSON(response_format_obj.value());
+    if (response_format_res.IsErr()) {
+      return TResult::Error(response_format_res.UnwrapErr());
     }
-    n->response_format = response_format;
+    n->response_format = response_format_res.Unwrap();
   } else {
     n->response_format = default_config->response_format;
   }

@@ -111,6 +111,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   gen_cfg->max_tokens = request.max_tokens.value_or(default_gen_cfg->max_tokens);
   gen_cfg->stop_strs = std::move(stop_strs);
   gen_cfg->stop_token_ids = conv_template_.stop_token_ids;
+  gen_cfg->response_format = request.response_format.value_or(ResponseFormat());
   gen_cfg->debug_config = request.debug_config.value_or(DebugConfig());
 
   Result<GenerationConfig> res_gen_config = GenerationConfig::Validate(GenerationConfig(gen_cfg));
@@ -120,12 +121,26 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   }
 
   Request engine_request(request_id, inputs, res_gen_config.Unwrap());
+
+  // setup request state
+  RequestState rstate;
+  rstate.model = request.model.value_or("");
+  rstate.streamer.reserve(gen_cfg->n);
+  for (int i = 0; i < gen_cfg->n; ++i) {
+    rstate.streamer.push_back(TextStreamer(tokenizer_));
+  }
+  request_map_[request_id] = std::move(rstate);
+
   this->engine_->AddRequest(engine_request);
   return true;
 }
 
 bool JSONFFIEngine::Abort(std::string request_id) {
   this->engine_->AbortRequest(request_id);
+  auto it = request_map_.find(request_id);
+  if (it != request_map_.end()) {
+    request_map_.erase(it);
+  }
   return true;
 }
 
@@ -187,10 +202,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     this->conv_template_ = conv_template.Unwrap();
     this->model_config_ = ModelConfig::FromJSON(
         json::Lookup<picojson::object>(model_config_json_unwrapped, "model_config"));
-
-    // Create streamer.
-    // Todo(mlc-team): Create one streamer for each request, instead of a global one.
-    this->streamer_ = TextStreamer(Tokenizer::FromPath(engine_config->model));
+    this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
   }
 
   void Unload() { this->engine_->Unload(); }
@@ -202,15 +214,12 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
   String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
-    std::unordered_map<std::string, std::vector<ChatCompletionStreamResponseChoice>> response_map;
-    std::vector<picojson::value> request_final_usage_messages;
-    std::string model = "json_ffi";
-
+    picojson::array json_response_arr;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
-      if (response_map.find(request_id) == response_map.end()) {
-        response_map[request_id] = std::vector<ChatCompletionStreamResponseChoice>();
-      }
+      auto request_state_it = request_map_.find(request_id);
+      if (request_state_it == request_map_.end()) continue;
+      RequestState& rstate = request_state_it->second;
 
       // build the final usage messages
       // invariant, we can always let other messages to come first
@@ -218,7 +227,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       if (delta_output->request_final_usage_json_str.defined()) {
         ChatCompletionStreamResponse response;
         response.id = request_id;
-        response.model = model;
+        response.model = rstate.model;
         response.system_fingerprint = "";
         std::string usage_json_str = delta_output->request_final_usage_json_str.value();
         picojson::value usage_json;
@@ -228,59 +237,61 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
         } else {
           response.usage = usage_json;
         }
-        request_final_usage_messages.push_back(picojson::value(response.AsJSON()));
+        json_response_arr.push_back(picojson::value(response.AsJSON()));
+        request_map_.erase(request_state_it);
         continue;
       }
       ICHECK_NE(delta_output->group_finish_reason.size(), 0);
-      ChatCompletionStreamResponseChoice choice;
+      ICHECK_EQ(delta_output->group_delta_token_ids.size(),
+                delta_output->group_finish_reason.size());
+      ICHECK_EQ(delta_output->group_delta_token_ids.size(), rstate.streamer.size());
 
-      if (delta_output->group_finish_reason.size() != 1) {
-        // Only support n = 1 in ChatCompletionStreamResponse for now
-        this->err_ += "Group finish reason should have exactly one element";
-      }
-      Optional<String> finish_reason = delta_output->group_finish_reason[0];
-      if (finish_reason.defined()) {
-        if (finish_reason.value() == "stop") {
-          choice.finish_reason = FinishReason::stop;
-        } else if (finish_reason.value() == "length") {
-          choice.finish_reason = FinishReason::length;
-        } else if (finish_reason.value() == "tool_calls") {
-          choice.finish_reason = FinishReason::tool_calls;
-        } else if (finish_reason.value() == "error") {
-          choice.finish_reason = FinishReason::error;
-        }
-      } else {
-        choice.finish_reason = std::nullopt;
-      }
-
-      choice.index = response_map[request_id].size();
-
-      ChatCompletionMessage delta;
-      // Size of delta_output->group_delta_token_ids Array should be 1
-      IntTuple delta_token_ids = delta_output->group_delta_token_ids[0];
-      std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
-      delta.content = this->streamer_->Put(delta_token_ids_vec);
-      delta.role = "assistant";
-
-      choice.delta = delta;
-
-      response_map[request_id].push_back(choice);
-    }
-
-    picojson::array response_arr;
-    for (const auto& [request_id, choices] : response_map) {
-      if (choices.size() == 0) continue;
       ChatCompletionStreamResponse response;
       response.id = request_id;
-      response.choices = choices;
-      response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
+      response.model = rstate.model;
       response.system_fingerprint = "";
-      response_arr.push_back(picojson::value(response.AsJSON()));
+
+      for (size_t i = 0; i < delta_output->group_finish_reason.size(); ++i) {
+        // choice
+        ChatCompletionStreamResponseChoice choice;
+        Optional<String> finish_reason = delta_output->group_finish_reason[i];
+        if (finish_reason.defined()) {
+          if (finish_reason.value() == "stop") {
+            choice.finish_reason = FinishReason::stop;
+          } else if (finish_reason.value() == "length") {
+            choice.finish_reason = FinishReason::length;
+          } else if (finish_reason.value() == "tool_calls") {
+            choice.finish_reason = FinishReason::tool_calls;
+          } else if (finish_reason.value() == "error") {
+            choice.finish_reason = FinishReason::error;
+          }
+        } else {
+          choice.finish_reason = std::nullopt;
+        }
+        choice.index = static_cast<int>(i);
+        ChatCompletionMessage delta;
+        // Size of delta_output->group_delta_token_ids Array should be 1
+        const IntTuple& delta_token_ids = delta_output->group_delta_token_ids[i];
+        std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
+        std::string content = rstate.streamer[i]->Put(delta_token_ids_vec);
+        if (finish_reason.defined()) {
+          content += rstate.streamer[i]->Finish();
+        }
+        if (!content.empty()) {
+          delta.content = content;
+        }
+        delta.role = "assistant";
+        choice.delta = delta;
+        if (!choice.delta.content.IsNull() || choice.finish_reason.has_value()) {
+          response.choices.push_back(choice);
+        }
+      }
+      // if it is not the usage block, choices cannot be empty
+      if (!response.choices.empty()) {
+        json_response_arr.push_back(picojson::value(response.AsJSON()));
+      }
     }
-    for (auto&& item : request_final_usage_messages) {
-      response_arr.emplace_back(std::move(item));
-    }
-    return picojson::value(response_arr).serialize();
+    return picojson::value(json_response_arr).serialize();
   }
 };
 

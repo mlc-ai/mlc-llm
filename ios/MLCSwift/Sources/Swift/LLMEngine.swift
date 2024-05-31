@@ -19,7 +19,7 @@ public class MLCEngine {
     struct RequestState {
         let request: ChatCompletionRequest
         let continuation: AsyncStream<ChatCompletionStreamResponse>.Continuation
-        
+
         init(
             request: ChatCompletionRequest,
             continuation: AsyncStream<ChatCompletionStreamResponse>.Continuation
@@ -28,7 +28,7 @@ public class MLCEngine {
             self.continuation = continuation
         }
     }
-    
+
     // internal engine state
     // that maintains logger and continuations
     // we decouple it from MLCEngine
@@ -206,7 +206,7 @@ public class MLCEngine {
     deinit {
         jsonFFIEngine.exitBackgroundLoop()
     }
-    
+
     // The following functions do not have to be async for now
     // But to be safe and consistent with chat.completions.create
     // and for future API changes we keep them as async calls
