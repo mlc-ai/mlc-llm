@@ -8,14 +8,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
-from huggingface_hub import HfApi  # pylint: disable=import-error
-from huggingface_hub import snapshot_download
-from huggingface_hub.utils import \
-    HfHubHTTPError  # pylint: disable=import-error
+from huggingface_hub import HfApi, snapshot_download  # pylint: disable=import-error
+from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
+from pydantic import BaseModel, Field, ValidationError
+
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.style import bold, green, red
-from pydantic import BaseModel, Field, ValidationError
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -34,7 +33,6 @@ T = TypeVar("T", bound="BaseModel")
 class ModelDeliveryTask(BaseModel):
     """
     Example:
-
     {
         "model_id": "Phi-3-mini-128k-instruct",
         "model": "HF://microsoft/Phi-3-mini-128k-instruct",
@@ -43,6 +41,7 @@ class ModelDeliveryTask(BaseModel):
         "context_window_size": 4096
     }
     """
+
     model_id: str
     model: str
     conv_template: str
@@ -57,6 +56,10 @@ class ModelDeliveryTask(BaseModel):
 
 
 class ModelDeliveryList(BaseModel):
+    """
+    The class that specifies the model delivery list.
+    """
+
     tasks: List[ModelDeliveryTask]
     # For delivered log, the default destination and quantization fields are optional
     default_destination: Optional[str] = None
@@ -64,6 +67,9 @@ class ModelDeliveryList(BaseModel):
 
     @classmethod
     def from_json(cls: Type[T], json_dict: Dict[str, Any]) -> T:
+        """
+        Convert from a json dictionary.
+        """
         try:
             return ModelDeliveryList.model_validate(json_dict)
         except ValidationError as e:
@@ -71,6 +77,9 @@ class ModelDeliveryList(BaseModel):
             raise e
 
     def to_json(self) -> Dict[str, Any]:
+        """
+        Convert to a json dictionary.
+        """
         return self.model_dump(exclude_none=True)
 
 
@@ -78,7 +87,7 @@ def _clone_repo(model: Union[str, Path], hf_local_dir: Optional[str]) -> str:
     if isinstance(model, Path):
         if not model.exists():
             raise ValueError(f"Invalid model source: {model}")
-        return model
+        return str(model)
     prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
     mlc_prefix = next(p for p in prefixes if model.startswith(p))
     if mlc_prefix:
@@ -113,6 +122,7 @@ def _run_quantization(
     succeeded = True
     log_path = Path(output_dir) / "logs.txt"
     with log_path.open("a", encoding="utf-8") as log_file:
+        assert isinstance(model_info.quantization, str)
         logger.info("[MLC] Processing in directory: %s", output_dir)
         # Required arguments
         cmd = [
@@ -176,7 +186,7 @@ def _run_quantization(
     return succeeded
 
 
-def _main(  # pylint: disable=too-many-locals
+def _main(  # pylint: disable=too-many-locals, too-many-arguments
     username: str,
     api: HfApi,
     spec: ModelDeliveryList,
@@ -207,8 +217,9 @@ def _main(  # pylint: disable=too-many-locals
             else:
                 quantizations += task.quantization
 
-        for quantization in spec.default_quantization + task.quantization:
-            repo = spec.default_destination.format(
+        default_destination = spec.default_destination or "{username}/{model_id}-{quantization}-MLC"
+        for quantization in quantizations:
+            repo = default_destination.format(
                 username=username,
                 model_id=task.model_id,
                 quantization=quantization,
@@ -234,7 +245,7 @@ def _main(  # pylint: disable=too-many-locals
             )
             if not result:
                 failed_cases.append(
-                    (task["model_id"], model_info["quantization"]),
+                    (task.model_id, quantization),
                 )
             else:
                 delivered_log.tasks.append(model_info)
@@ -258,6 +269,24 @@ def main():
         with path.open("r", encoding="utf-8") as i_f:
             return ModelDeliveryList.from_json(json.load(i_f))
 
+    def _get_default_hf_token() -> str:
+        # Try to get the token from the environment variable
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            logger.info("HF token found in environment variable HF_TOKEN")
+            return hf_token
+
+        # If not found, look for the token in the default cache folder
+        token_file_path = os.path.expanduser("~/.cache/huggingface/token")
+        if os.path.exists(token_file_path):
+            with open(token_file_path, "r") as token_file:
+                hf_token = token_file.read().strip()
+                if hf_token:
+                    logger.info("HF token found in ~/.cache/huggingface/token")
+                    return hf_token
+
+        raise EnvironmentError("HF token not found")
+
     parser = ArgumentParser("MLC LLM continuous model delivery")
     parser.add_argument(
         "--username",
@@ -268,20 +297,20 @@ def main():
     parser.add_argument(
         "--token",
         type=str,
-        required=True,
+        default=_get_default_hf_token(),
         help="HuggingFace access token, obtained under https://huggingface.co/settings/tokens",
     )
     parser.add_argument(
         "--spec",
         type=_load_spec,
-        required=True,
-        help="Path to the model delivery file",
+        default="model-delivery-config.json",
+        help="Path to the model delivery file" + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--log",
         type=str,
-        required=True,
-        help="Path to the output log file",
+        default="model-delivered-log.json",
+        help="Path to the output log file" + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--output",
