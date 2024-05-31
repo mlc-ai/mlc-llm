@@ -279,7 +279,7 @@ def main():
         # If not found, look for the token in the default cache folder
         token_file_path = os.path.expanduser("~/.cache/huggingface/token")
         if os.path.exists(token_file_path):
-            with open(token_file_path, "r") as token_file:
+            with open(token_file_path, "r", encoding="utf-8") as token_file:
                 hf_token = token_file.read().strip()
                 if hf_token:
                     logger.info("HF token found in ~/.cache/huggingface/token")
