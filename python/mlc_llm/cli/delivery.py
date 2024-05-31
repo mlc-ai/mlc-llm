@@ -1,16 +1,16 @@
 """Continuous model delivery for MLC LLM models."""
 
 import argparse
-import dataclasses
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 from huggingface_hub import HfApi, snapshot_download  # pylint: disable=import-error
 from huggingface_hub.utils import HfHubHTTPError  # pylint: disable=import-error
+from pydantic import BaseModel, Field, ValidationError
 
 from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
@@ -27,18 +27,27 @@ GEN_CONFIG_OPTIONAL_ARGS = [
     "tensor_parallel_shards",
 ]
 
+T = TypeVar("T", bound="BaseModel")
 
-@dataclasses.dataclass
-class ModelInfo:  # pylint: disable=too-many-instance-attributes
-    """Necessary information for the model delivery"""
+
+class ModelDeliveryTask(BaseModel):
+    """
+    Example:
+    {
+        "model_id": "Phi-3-mini-128k-instruct",
+        "model": "HF://microsoft/Phi-3-mini-128k-instruct",
+        "conv_template": "phi-3",
+        "quantization": ["q3f16_1"],
+        "context_window_size": 4096
+    }
+    """
 
     model_id: str
-    model: Path
+    model: str
     conv_template: str
-    quantization: str
-    source_format: str = "auto"
-    # If unspecified in CLI, remains to be None and will not be
-    # passed to `gen_config` or `convert_weight`
+    quantization: Optional[Union[List[str], str]] = Field(default_factory=list)
+    destination: Optional[str] = None
+
     context_window_size: Optional[int] = None
     sliding_window_size: Optional[int] = None
     prefill_chunk_size: Optional[int] = None
@@ -46,11 +55,39 @@ class ModelInfo:  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: Optional[int] = None
 
 
-def _clone_repo(model: Union[str, Path], hf_local_dir: Optional[str]) -> Path:
+class ModelDeliveryList(BaseModel):
+    """
+    The class that specifies the model delivery list.
+    """
+
+    tasks: List[ModelDeliveryTask]
+    # For delivered log, the default destination and quantization fields are optional
+    default_destination: Optional[str] = None
+    default_quantization: Optional[List[str]] = None
+
+    @classmethod
+    def from_json(cls: Type[T], json_dict: Dict[str, Any]) -> T:
+        """
+        Convert from a json dictionary.
+        """
+        try:
+            return ModelDeliveryList.model_validate(json_dict)
+        except ValidationError as e:
+            logger.error("Error validating ModelDeliveryList: %s", e)
+            raise e
+
+    def to_json(self) -> Dict[str, Any]:
+        """
+        Convert to a json dictionary.
+        """
+        return self.model_dump(exclude_none=True)
+
+
+def _clone_repo(model: Union[str, Path], hf_local_dir: Optional[str]) -> str:
     if isinstance(model, Path):
         if not model.exists():
             raise ValueError(f"Invalid model source: {model}")
-        return model
+        return str(model)
     prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
     mlc_prefix = next(p for p in prefixes if model.startswith(p))
     if mlc_prefix:
@@ -59,16 +96,15 @@ def _clone_repo(model: Union[str, Path], hf_local_dir: Optional[str]) -> Path:
         if hf_local_dir:
             hf_local_dir = os.path.join(hf_local_dir, model_name)
             logger.info("[HF] Downloading model to %s", hf_local_dir)
-        result = snapshot_download(repo_id=repo_name, local_dir=hf_local_dir)
-        return Path(result)
+        return snapshot_download(repo_id=repo_name, local_dir=hf_local_dir)
     result = Path(model)
     if result.exists():
-        return result
+        return model
     raise ValueError(f"Invalid model source: {model}")
 
 
 def _run_quantization(
-    model_info: ModelInfo,
+    model_info: ModelDeliveryTask,
     repo: str,
     api: HfApi,
     output_dir: str,
@@ -86,7 +122,7 @@ def _run_quantization(
     succeeded = True
     log_path = Path(output_dir) / "logs.txt"
     with log_path.open("a", encoding="utf-8") as log_file:
-        assert isinstance(model_info.model, Path)
+        assert isinstance(model_info.quantization, str)
         logger.info("[MLC] Processing in directory: %s", output_dir)
         # Required arguments
         cmd = [
@@ -94,7 +130,7 @@ def _run_quantization(
             "-m",
             "mlc_llm",
             "gen_config",
-            str(model_info.model),
+            model_info.model,
             "--quantization",
             model_info.quantization,
             "--conv-template",
@@ -119,8 +155,6 @@ def _run_quantization(
             str(model_info.model),
             "--quantization",
             model_info.quantization,
-            "--source-format",
-            model_info.source_format,
             "--output",
             output_dir,
         ]
@@ -152,87 +186,106 @@ def _run_quantization(
     return succeeded
 
 
-def _main(  # pylint: disable=too-many-locals
+def _main(  # pylint: disable=too-many-locals, too-many-arguments
     username: str,
     api: HfApi,
-    spec: Dict[str, Any],
+    spec: ModelDeliveryList,
+    log: str,
     hf_local_dir: Optional[str],
     output: str,
 ):
     failed_cases: List[Tuple[str, str]] = []
-    for task_index, task in enumerate(spec["tasks"], 1):
+    delivered_log = ModelDeliveryList(tasks=[])
+    for task_index, task in enumerate(spec.tasks, 1):
         logger.info(
             bold("[{task_index}/{total_tasks}] Processing model: ").format(
                 task_index=task_index,
-                total_tasks=len(spec["tasks"]),
+                total_tasks=len(spec.tasks),
             )
-            + green(task["model_id"])
+            + green(task.model_id)
         )
-        model = _clone_repo(task["model"], hf_local_dir)
-        for quantization in spec["default_quantization"] + task.get("quantization", []):
-            model_info = {
-                "model_id": task["model_id"],
-                "model": model,
-                "conv_template": task["conv_template"],
-            }
-            # Process optional arguments
-            for optional_arg in GEN_CONFIG_OPTIONAL_ARGS:
-                # e.g. "context_window_size": task.get("context_window_size", None)
-                model_info[optional_arg] = task.get(optional_arg, None)
-            if isinstance(quantization, str):
-                model_info["quantization"] = quantization
+        model = _clone_repo(task.model, hf_local_dir)
+
+        quantizations = []
+
+        if spec.default_quantization:
+            quantizations += spec.default_quantization
+
+        if task.quantization:
+            if isinstance(task.quantization, str):
+                quantizations.append(task.quantization)
             else:
-                model_info["quantization"] = quantization.pop("format")
-                model_info.update(quantization)
-            repo = spec.get("destination", "{username}/{model_id}-{quantization}-MLC").format(
+                quantizations += task.quantization
+
+        default_destination = spec.default_destination or "{username}/{model_id}-{quantization}-MLC"
+        for quantization in quantizations:
+            repo = default_destination.format(
                 username=username,
-                model_id=model_info["model_id"],
-                quantization=model_info["quantization"],
+                model_id=task.model_id,
+                quantization=quantization,
             )
-            logger.info(
-                "%s%s. %s%s. %s%s",
-                bold("Model: "),
-                green(task["model_id"]),
-                bold("Quantization: "),
-                green(model_info["quantization"]),
-                bold("Repo: "),
-                green(f"https://huggingface.co/{repo}"),
+            model_info = ModelDeliveryTask(
+                model=model,
+                quantization=quantization,
+                destination=repo,
+                **task.model_dump(exclude_none=True, exclude={"model", "quantization"}),
             )
+            logger.info("Model info: %s", model_info.model_dump_json(indent=4))
             output_dir = os.path.join(
-                output, f"{model_info['model_id']}-{model_info['quantization']}-MLC"
+                output, f"{model_info.model_id}-{model_info.quantization}-MLC"
             )
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
 
             result = _run_quantization(
-                ModelInfo(**model_info),
-                repo=spec["destination"].format(
-                    username=username,
-                    model_id=model_info["model_id"],
-                    quantization=model_info["quantization"],
-                ),
+                model_info=model_info,
+                repo=repo,
                 api=api,
                 output_dir=output_dir,
             )
             if not result:
                 failed_cases.append(
-                    (task["model_id"], model_info["quantization"]),
+                    (task.model_id, quantization),
                 )
+            else:
+                delivered_log.tasks.append(model_info)
     if failed_cases:
         logger.info("Total %s %s:", len(failed_cases), red("failures"))
         for model_id, quantization in failed_cases:
             logger.info("  Model %s. Quantization %s.", model_id, quantization)
 
+    logger.info("Writing log to %s", log)
+    with open(log, "w", encoding="utf-8") as o_f:
+        json.dump(delivered_log.to_json(), o_f, indent=4)
+
 
 def main():
     """Entry point."""
 
-    def _load_spec(path_spec: str) -> Dict[str, Any]:
+    def _load_spec(path_spec: str) -> ModelDeliveryList:
         path = Path(path_spec)
         if not path.exists():
             raise argparse.ArgumentTypeError(f"Spec file does not exist: {path}")
         with path.open("r", encoding="utf-8") as i_f:
-            return json.load(i_f)
+            return ModelDeliveryList.from_json(json.load(i_f))
+
+    def _get_default_hf_token() -> str:
+        # Try to get the token from the environment variable
+        hf_token = os.getenv("HF_TOKEN")
+        if hf_token:
+            logger.info("HF token found in environment variable HF_TOKEN")
+            return hf_token
+
+        # If not found, look for the token in the default cache folder
+        token_file_path = os.path.expanduser("~/.cache/huggingface/token")
+        if os.path.exists(token_file_path):
+            with open(token_file_path, "r", encoding="utf-8") as token_file:
+                hf_token = token_file.read().strip()
+                if hf_token:
+                    logger.info("HF token found in ~/.cache/huggingface/token")
+                    return hf_token
+
+        raise EnvironmentError("HF token not found")
 
     parser = ArgumentParser("MLC LLM continuous model delivery")
     parser.add_argument(
@@ -244,31 +297,38 @@ def main():
     parser.add_argument(
         "--token",
         type=str,
-        required=True,
+        default=_get_default_hf_token(),
         help="HuggingFace access token, obtained under https://huggingface.co/settings/tokens",
     )
     parser.add_argument(
         "--spec",
         type=_load_spec,
-        required=True,
-        help="Path to the spec file",
+        default="model-delivery-config.json",
+        help="Path to the model delivery file" + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--hf-local-dir",
+        "--log",
         type=str,
-        required=False,
-        help="Local directory to store the HuggingFace model",
+        default="model-delivered-log.json",
+        help="Path to the output log file" + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--output",
         type=str,
         required=True,
-        help="Output directory",
+        help="Directory to store the output MLC models",
+    )
+    parser.add_argument(
+        "--hf-local-dir",
+        type=str,
+        required=False,
+        help="Local directory to store the downloaded HuggingFace model",
     )
     parsed = parser.parse_args()
     _main(
         parsed.username,
         spec=parsed.spec,
+        log=parsed.log,
         api=HfApi(token=parsed.token),
         hf_local_dir=parsed.hf_local_dir,
         output=parsed.output,
