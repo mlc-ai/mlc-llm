@@ -139,7 +139,8 @@ async def replay(
     base_timestamp: Optional[float] = None,
     start_timestamp: Optional[float] = None,
     max_schedule_gap: Optional[float] = 0.1,
-):
+    wait_until_last_task_done: bool = True,
+):  # pylint: disable=too-many-arguments
     """
     Replay generated events based on historical timestamps. The replaying requests start
     from a new start time while preserving the ordering of requests.
@@ -179,7 +180,13 @@ async def replay(
         cur_time = loop.time()
         launch_time = item["timestamp"].timestamp() - base_timestamp + start_timestamp
         if launch_time - cur_time > max_schedule_gap:
-            print(f"sleep: {launch_time - cur_time - max_schedule_gap}")
             await asyncio.sleep(launch_time - cur_time - max_schedule_gap)
-        loop.call_at(launch_time, lambda item=item: asyncio.create_task(callback(item)))
-    await asyncio.gather(*asyncio.all_tasks(loop))
+        loop.call_at(
+            launch_time,
+            lambda: asyncio.create_task(callback(item)),  # pylint: disable=cell-var-from-loop
+        )
+
+    if wait_until_last_task_done:
+        # Wait for all tasks to be scheduled
+        await asyncio.sleep(launch_time - loop.time() + max_schedule_gap)
+        await asyncio.gather(*asyncio.all_tasks(loop) - {asyncio.current_task()})
