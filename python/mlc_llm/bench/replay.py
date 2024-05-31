@@ -8,87 +8,101 @@ from typing import Dict, List, Optional
 import aiohttp
 import pandas as pd
 
-from mlc_llm.support import logging
 
-logging.enable_logging()
-logger = logging.getLogger(__name__)
-
-
-class RequestReplayer:
+class OpenAIRequestSender:
     """
-    Replay generated events based on historical timestamps. The replaying requests start
-    from a new start time while preserving the intervals between requests.
+    Handles the sending of asynchronous HTTP requests.
 
     Parameters
     ----------
-    log_path : str
-        The path to the event log CSV or JSONL file containing the events to replay.
-
     host : Optional[str]
-        The host address for the API. Default is "127.0.0.1".
+        The host address for the API, by default "127.0.0.1".
 
     port : Optional[int]
-        The port number for the API. Default is 8008.
+        The port number for the API, by default 8008.
 
     stream : Optional[bool]
-        Indicates whether the streaming should be enabled. Default is True.
+        Indicates whether streaming should be enabled. Default is True.
 
-    timeout : Optional[int]
-        The timeout in seconds for each request. Default is 180.
+    timeout : Optional[float]
+        The timeout in seconds for each request, by default 180.
     """
 
-    def __init__(  # pylint: disable=too-many-arguments
+    def __init__(
         self,
-        log_path: str,
         host: Optional[str] = "127.0.0.1",
         port: Optional[int] = 8008,
         stream: Optional[bool] = True,
-        timeout: Optional[int] = 180,
-    ) -> None:
+        timeout: Optional[float] = 180,
+    ):
         self.url = f"http://{host}:{port}/v1/chat/completions"
         self.stream = stream
         self.timeout = timeout
         self.headers = {"Content-Type": "application/json"}
         if os.getenv("MLC_API_KEY"):
             self.headers["Authorization"] = f"Bearer {os.getenv('MLC_API_KEY')}"
-        self.request_params = self.get_request_params(log_path)
+        self.session = None
 
-    def get_request_params(self, log_path: str) -> List[Dict]:
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.session.close()
+
+    async def __call__(self, params):
         """
-        Loads and preprocesses the event log from either a CSV or JSONL file to prepare payloads and
-        request parameters for replay.
+        Sends an asynchronous HTTP POST request using the class's aiohttp session.
 
         Parameters
         ----------
-        log_path : str
-            The path to the event log CSV or JSONL file containing the events to replay.
+        params : dict
+            The parameters for the request, including url, headers, and payload.
 
         Returns
         -------
-        res: List[Dict]
-            A list of preprocessed event data dictionaries for replay.
+        response : dict
+            The JSON response from the server or None if an error occurs.
         """
-        if log_path.endswith(".csv"):
-            return self._load_csv(log_path)
-        if log_path.endswith(".jsonl"):
-            return self._load_jsonl(log_path)
-        raise ValueError("Unsupported file format. Please use .csv or .jsonl.")
+        try:
+            url = params.get("url", self.url)
+            headers = params.get("headers", self.headers)
+            payload = params.get(
+                "payload",
+                {key: value for key, value in params.items() if key != "timestamp"},
+            )
+            if self.session:
+                async with self.session.post(
+                    url, headers=headers, json=payload, timeout=self.timeout
+                ) as response:
+                    return await response.json()
+            else:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url, headers=headers, json=payload, timeout=self.timeout
+                    ) as response:
+                        return await response.json()
+        except Exception as err:  # pylint: disable=broad-except
+            print(f"Error in send request: {err}")
+            return
 
-    def _load_csv(self, filepath: str) -> List[Dict]:
-        """
-        Loads parameters from a CSV file and returns a list of event data dictionaries.
 
-        Parameters
-        ----------
-        filepath : str
-            The path to the CSV file.
+def load_replay_log(log_path: str) -> List[Dict]:
+    """
+    Load replay log from file
 
-        Returns
-        -------
-        res: List[Dict]
-            A list of event data dictionaries from the CSV file, sorted by timestamp.
-        """
-        df = pd.read_csv(filepath)
+    Parameters
+    ----------
+    log_path : str
+        The path to the event log CSV or JSONL file containing the events to replay.
+
+    Returns
+    -------
+    res: List[Dict]
+        A list of preprocessed event data for replay.
+    """
+    if log_path.endswith(".csv"):
+        df = pd.read_csv(log_path)
         column_names = df.columns.values
         assert (
             ("Date" in column_names)
@@ -109,76 +123,63 @@ class RequestReplayer:
                 }
             )
         return params
-
-    def _load_jsonl(self, filepath: str) -> List[Dict]:
-        """
-        Loads parameters from a JSONL file and returns a list of event data dictionaries.
-
-        Parameters
-        ----------
-        filepath : str
-            The path to the JSONL file.
-
-        Returns
-        -------
-        res: List[Dict]
-            A list of event data dictionaries from the JSONL file, sorted by timestamp.
-        """
-        with open(filepath, "r", encoding="utf-8") as file:
+    if log_path.endswith(".jsonl"):
+        with open(log_path, "r", encoding="utf-8") as file:
             data = [json.loads(line) for line in file]
-            for item in data:
-                item["timestamp"] = datetime.fromisoformat(item["timestamp"])
-        data.sort(key=lambda x: x["timestamp"])
+            for row in data:
+                row["timestamp"] = datetime.fromisoformat(str(row["timestamp"]))
         return data
+    raise ValueError("Unsupported file format. Please use .csv or .jsonl.")
 
-    async def send_request(self, session, params: Dict):
-        """
-        Sends an asynchronous HTTP POST request using an aiohttp session.
 
-        Parameters
-        ----------
-        session : aiohttp.ClientSession
-            The active aiohttp client session.
+async def replay(
+    replay_log: List[Dict],
+    callback,
+    *,
+    base_timestamp: Optional[float] = None,
+    start_timestamp: Optional[float] = None,
+    max_schedule_gap: Optional[float] = 0.1,
+):
+    """
+    Replay generated events based on historical timestamps. The replaying requests start
+    from a new start time while preserving the ordering of requests.
 
-        params : dict
-            The parameters for the request, including URL, headers, and payload, etc.
+    Parameters
+    ----------
+    replay_log : List[Dict]
+        A list of event data, each containing a 'timestamp' and replay parameters.
 
-        Returns
-        -------
-        res
-            The JSON response from the server or None if an error occurs.
-        """
-        try:
-            url = params.get("address", self.url)
-            headers = params.get("headers", self.headers)
-            payload = params["payload"]
-            async with session.post(
-                url, json=payload, headers=headers, timeout=self.timeout
-            ) as response:
-                return await response.json()
-        except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Error in send request %s", err)
+    callback : coroutine function
+        The async function to be called for each log item.
 
-    async def run(self):
-        """
-        Replays the stored requests.
+    base_timestamp : Optional[float]
+        The timestamp of the first log entry, used as a reference point for scheduling.
+        Defaults to the timestamp of the first item in `replay_log`.
 
-        Utilizes the asyncio event loop to schedule each request according to its timestamp,
-        adjusting for the current time.
-        """
-        if not self.request_params:
-            return
-        async with aiohttp.ClientSession() as session:
-            loop = asyncio.get_running_loop()
-            start_time = loop.time()
-            first_timestamp = self.request_params[0]["timestamp"]
+    start_timestamp : Optional[float]
+        The time when the replay starts.
 
-            for params in self.request_params:
-                original_delay = (params["timestamp"] - first_timestamp).total_seconds()
-                loop.call_at(
-                    start_time + original_delay,
-                    lambda p=params: asyncio.create_task(self.send_request(session, p)),
-                )
+    max_schedule_gap : Optional[float]
+        The maximum allowed delay between the scheduled time in seconds. Defaults to 0.1 seconds.
 
-            last_delay = (self.request_params[-1]["timestamp"] - first_timestamp).total_seconds()
-            await asyncio.sleep(last_delay + 1)
+    Raises
+    ------
+    TypeError
+        If the callback is not a coroutine or an awaitable function.
+    """
+    if not replay_log:
+        return
+    loop = asyncio.get_running_loop()
+    if base_timestamp is None:
+        base_timestamp = replay_log[0]["timestamp"].timestamp()
+    if start_timestamp is None:
+        start_timestamp = loop.time() + max_schedule_gap
+
+    for item in replay_log:
+        cur_time = loop.time()
+        launch_time = item["timestamp"].timestamp() - base_timestamp + start_timestamp
+        if launch_time - cur_time > max_schedule_gap:
+            print(f"sleep: {launch_time - cur_time - max_schedule_gap}")
+            await asyncio.sleep(launch_time - cur_time - max_schedule_gap)
+        loop.call_at(launch_time, lambda item=item: asyncio.create_task(callback(item)))
+    await asyncio.gather(*asyncio.all_tasks(loop))
