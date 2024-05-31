@@ -28,6 +28,17 @@ using namespace tvm::runtime;
 struct ResponseFormat {
   String type = "text";
   Optional<String> schema = NullOpt;
+  /*!
+   * \brief Create debug config from JSON.
+   * \param config_json The json string for generation config
+   * \returns The converted result.
+   */
+  static Result<ResponseFormat> FromJSON(const picojson::object& config_json);
+
+  /**
+   * \return serialized json value of the config.
+   */
+  picojson::object AsJSON() const;
 };
 
 enum class SpecialRequestKind : int {

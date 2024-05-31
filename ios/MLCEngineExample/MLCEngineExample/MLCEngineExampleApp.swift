@@ -1,5 +1,3 @@
-// NOTE: This example is still work in progress
-//
 // This is a minimum example App to interact with MLC Engine
 // This app is mainly created with minimalism in mind for
 // example and quick testing purposes.
