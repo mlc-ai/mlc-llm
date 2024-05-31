@@ -242,6 +242,8 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
   this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
   this->kv_cache_popn_func_ = get_global_func("vm.builtin.kv_state_popn");
+  this->kv_cache_commit_accepted_token_tree_nodes_func_ =
+      get_global_func("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes");
   this->kv_cache_get_num_available_pages_func_ =
       *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_num_available_pages");
   this->kv_cache_get_total_sequence_length_func_ =

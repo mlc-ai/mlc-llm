@@ -13,6 +13,7 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 from mlc_llm.op.position_embedding import llama_rope_with_position_map, rope_freq
+from mlc_llm.op.tree_attn import tree_attn
 
 from ..support.max_thread_check import (
     check_thread_limits,
@@ -246,6 +247,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
+            bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
+            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_with_tree_mask"),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -350,6 +353,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
+            bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
+            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_with_tree_mask"),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -1570,3 +1575,54 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
                     pages[tgt_page_id, 1, vh, vp, vd] = pages[src_page_id, 1, vh, vp, vd]
 
     return copy_single_page
+
+
+def _compact_kv_copy(num_heads, head_dim, dtype, target: Target):
+    tx = get_max_num_threads_per_block(target)
+
+    @T.prim_func
+    def compact_kv_copy(
+        var_pages: T.handle,
+        var_copy_length_indptr: T.handle,
+        var_copy_src_dst_pos: T.handle,
+        batch_size: T.int32,
+    ):
+        T.func_attr({"tir.is_scheduled": 1})
+        num_pages = T.int32()
+        total_copy_length = T.int32()
+        copy_length_indptr_elem_offset = T.int32()
+        copy_src_dst_pos_elem_offset = T.int32()
+        pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, 16, head_dim), dtype)
+        copy_length_indptr = T.match_buffer(
+            var_copy_length_indptr,
+            (batch_size + 1,),
+            "int32",
+            elem_offset=copy_length_indptr_elem_offset,
+        )
+        copy_src_dst_pos = T.match_buffer(
+            var_copy_src_dst_pos,
+            (2, total_copy_length),
+            "int32",
+            elem_offset=copy_src_dst_pos_elem_offset,
+        )
+
+        with T.block("root"):
+            for bhd_o in T.thread_binding(
+                (batch_size * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"
+            ):
+                for bhd_i in T.thread_binding(tx, thread="threadIdx.x"):
+                    b: T.int32 = (bhd_o * tx + bhd_i) // (num_heads * head_dim)
+                    h: T.int32 = (bhd_o * tx + bhd_i) // head_dim % num_heads
+                    d: T.int32 = (bhd_o * tx + bhd_i) % head_dim
+                    if (bhd_o * tx + bhd_i) < batch_size * num_heads * head_dim:
+                        for i in T.serial(copy_length_indptr[b + 1] - copy_length_indptr[b]):
+                            src_pos: T.int32 = copy_src_dst_pos[0, copy_length_indptr[b] + i]
+                            dst_pos: T.int32 = copy_src_dst_pos[1, copy_length_indptr[b] + i]
+                            pages[dst_pos // 16, 0, h, dst_pos % 16, d] = pages[
+                                src_pos // 16, 0, h, src_pos % 16, d
+                            ]
+                            pages[dst_pos // 16, 1, h, dst_pos % 16, d] = pages[
+                                src_pos // 16, 1, h, src_pos % 16, d
+                            ]
+
+    return compact_kv_copy

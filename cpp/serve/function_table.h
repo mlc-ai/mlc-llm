@@ -109,6 +109,7 @@ struct FunctionTable {
   PackedFunc kv_cache_begin_forward_func_;
   PackedFunc kv_cache_end_forward_func_;
   PackedFunc kv_cache_popn_func_;
+  PackedFunc kv_cache_commit_accepted_token_tree_nodes_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
   PackedFunc kv_cache_get_total_sequence_length_func_;
   PackedFunc gpu_multinomial_from_uniform_func_;
