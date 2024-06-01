@@ -417,7 +417,7 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
       return IntTuple{token_ids.begin(), token_ids.end()};
     });
 
-TVM_REGISTER_GLOBAL("mlc.TokenizerEncodeBatch")
+TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
     .set_body_typed([](const Tokenizer& tokenizer, const Array<String>& texts) {
       std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
       Array<IntTuple> ret;
