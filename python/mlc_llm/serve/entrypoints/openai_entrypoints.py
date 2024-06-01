@@ -7,7 +7,6 @@ from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
 import fastapi
-import structlog
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.protocol.openai_api_protocol import (
@@ -21,7 +20,6 @@ from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
 app = fastapi.APIRouter()
-logger = structlog.stdlib.get_logger(__name__)
 ################ v1/models ################
 
 
@@ -144,6 +142,10 @@ async def request_chat_completion(
     request_include_debug_config = server_context.enable_debug
 
     if server_context.enable_debug:
+        import structlog  # pylint: disable=import-outside-toplevel,import-error
+
+        logger = structlog.stdlib.get_logger(__name__)
+
         request_param = await raw_request.json()
         timestamp = {"timestamp": datetime.now().isoformat()}
         request_param = {**timestamp, **request_param}

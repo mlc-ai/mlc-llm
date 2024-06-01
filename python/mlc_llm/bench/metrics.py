@@ -2,9 +2,6 @@
 import json
 from typing import Any, Dict, List, Union
 
-import pandas as pd
-from transformers import LlamaTokenizerFast
-
 from mlc_llm.support import logging
 
 logging.enable_logging()
@@ -20,12 +17,6 @@ METRIC_NAMES = [
     "num_input_tokens",
     "num_output_tokens",
 ]
-
-
-def get_token_length(text):
-    """Get the number of tokens."""
-    tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
-    return len(tokenizer.encode(text))
 
 
 class MetricsCollector:
@@ -86,6 +77,8 @@ class MetricsCollector:
         end_time : float
             The end time of the metrics collection.
         """
+        import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
+
         if not self.all_metrics:
             return None
 

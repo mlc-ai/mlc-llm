@@ -4,8 +4,6 @@ import json
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import pandas as pd
-
 
 def load_replay_log(log_path: str) -> List[Dict]:
     """
@@ -22,6 +20,8 @@ def load_replay_log(log_path: str) -> List[Dict]:
         A list of preprocessed event data for replay.
     """
     if log_path.endswith(".csv"):
+        import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
+
         df = pd.read_csv(log_path)
         column_names = df.columns.values
         assert (

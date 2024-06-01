@@ -1,6 +1,6 @@
 """MLC LLM bench request"""
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import httpx
 from openai import AsyncOpenAI
@@ -8,7 +8,7 @@ from typing_extensions import Self
 
 from mlc_llm.support import logging
 
-from .metrics import MetricsCollector, get_token_length
+from .metrics import MetricsCollector
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
@@ -80,6 +80,27 @@ class OpenAIRequestSender:
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
         await self.client.close()
 
+    def _get_token_length(self, text: str) -> int:
+        """Get the number of tokens.
+
+        Parameters
+        ----------
+        text : str
+            The text to tokenize.
+
+        Returns
+        -------
+        output : int
+            The number of tokens
+        """
+        from transformers import (  # pylint: disable=import-outside-toplevel,import-error
+            LlamaTokenizerFast,
+        )
+
+        # TODO(yongwww): explore to use mlc_llm.tokenizer.Tokenizer
+        tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
+        return len(tokenizer.encode(text))
+
     def get_stats(self, start_time: float, end_time: float) -> Dict:
         """
         Returns the statistics summary.
@@ -128,14 +149,14 @@ class OpenAIRequestSender:
         if self.timeout:
             chat_params["timeout"] = self.timeout
 
-        metrics = {}
+        metrics: Dict[str, Union[float, int]] = {}
         time_to_next_token = []
         total_request_time = 0
         tokens_received = 0
         generated_text = ""
         ttft = None
         prompt = params["messages"][0]["content"]
-        metrics["num_input_tokens"] = get_token_length(prompt)
+        metrics["num_input_tokens"] = self._get_token_length(prompt)
         most_recent_received_token_time = start_time = time.monotonic()
 
         response = await self.client.chat.completions.create(**chat_params)
