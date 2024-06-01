@@ -1,90 +1,10 @@
 """MLC LLM bench replay request"""
 import asyncio
 import json
-import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import aiohttp
 import pandas as pd
-
-
-class OpenAIRequestSender:
-    """
-    Handles the sending of asynchronous HTTP requests.
-
-    Parameters
-    ----------
-    host : Optional[str]
-        The host address for the API, by default "127.0.0.1".
-
-    port : Optional[int]
-        The port number for the API, by default 8008.
-
-    stream : Optional[bool]
-        Indicates whether streaming should be enabled. Default is True.
-
-    timeout : Optional[float]
-        The timeout in seconds for each request, by default 180.
-    """
-
-    def __init__(
-        self,
-        host: Optional[str] = "127.0.0.1",
-        port: Optional[int] = 8008,
-        stream: Optional[bool] = True,
-        timeout: Optional[float] = 180,
-    ):
-        self.url = f"http://{host}:{port}/v1/chat/completions"
-        self.stream = stream
-        self.timeout = timeout
-        self.headers = {"Content-Type": "application/json"}
-        if os.getenv("MLC_API_KEY"):
-            self.headers["Authorization"] = f"Bearer {os.getenv('MLC_API_KEY')}"
-        self.session = None
-
-    async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
-        return self
-
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        await self.session.close()
-
-    async def __call__(self, params):
-        """
-        Sends an asynchronous HTTP POST request using the class's aiohttp session.
-
-        Parameters
-        ----------
-        params : dict
-            The parameters for the request, including url, headers, and payload.
-
-        Returns
-        -------
-        response : dict
-            The JSON response from the server or None if an error occurs.
-        """
-        try:
-            url = params.get("url", self.url)
-            headers = params.get("headers", self.headers)
-            payload = params.get(
-                "payload",
-                {key: value for key, value in params.items() if key != "timestamp"},
-            )
-            if self.session:
-                async with self.session.post(
-                    url, headers=headers, json=payload, timeout=self.timeout
-                ) as response:
-                    return await response.json()
-            else:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url, headers=headers, json=payload, timeout=self.timeout
-                    ) as response:
-                        return await response.json()
-        except Exception as err:  # pylint: disable=broad-except
-            print(f"Error in send request: {err}")
-            return
 
 
 def load_replay_log(log_path: str) -> List[Dict]:
@@ -162,6 +82,9 @@ async def replay(
 
     max_schedule_gap : Optional[float]
         The maximum allowed delay between the scheduled time in seconds. Defaults to 0.1 seconds.
+
+    wait_until_last_task_done : bool
+        Whether to wait until the last task is done. Defaults to True.
 
     Raises
     ------

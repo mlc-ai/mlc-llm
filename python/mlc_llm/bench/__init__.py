@@ -1,3 +1,5 @@
 """Subdirectory of bench."""
 
-from .replay import OpenAIRequestSender, load_replay_log, replay
+from .metrics import MetricsCollector
+from .replay import load_replay_log, replay
+from .request import OpenAIRequestSender

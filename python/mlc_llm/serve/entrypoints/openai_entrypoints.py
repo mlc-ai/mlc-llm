@@ -139,7 +139,6 @@ async def request_chat_completion(
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
     # - Check the requested model.
-
     server_context: ServerContext = ServerContext.current()
     request_final_usage_include_extra = server_context.enable_debug
     request_include_debug_config = server_context.enable_debug
