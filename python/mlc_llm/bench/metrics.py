@@ -71,7 +71,7 @@ class MetricsCollector:
         """
         return self.all_metrics
 
-    def get_metrics_summary(self, start_time: int, end_time: int) -> Dict[str, Any]:
+    def get_metrics_summary(self, start_time: float, end_time: float) -> Dict[str, Any]:
         """
         Computes summary statistics across all metrics collected.
 
@@ -80,10 +80,10 @@ class MetricsCollector:
         ret : Dict[str, Any]
             A dictionary containing the summary statistics of the collected metrics.
 
-        start_time : int
+        start_time : float
             The start time of the metrics collection.
 
-        end_time : int
+        end_time : float
             The end time of the metrics collection.
         """
         if not self.all_metrics:
