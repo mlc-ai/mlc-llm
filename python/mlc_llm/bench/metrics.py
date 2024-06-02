@@ -1,4 +1,4 @@
-""" MLC LLM bench Metrics Collector"""
+""" MLC LLM bench Metrics"""
 import json
 from typing import Any, Dict, List, Union
 
@@ -19,7 +19,7 @@ METRIC_NAMES = [
 ]
 
 
-class MetricsCollector:
+class MetricsCalculator:
     """
     A class to manage various performance metrics.
 
@@ -31,12 +31,17 @@ class MetricsCollector:
         A list containing all metrics data recorded, each as a dictionary.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, metrics: List[Dict[str, Union[str, float, int]]]) -> None:
         """
         Initializes the metrics collector.
         """
+        from transformers import (  # pylint: disable=import-outside-toplevel,import-error
+            LlamaTokenizerFast,
+        )
+
         self.metric_keys: List = list(METRIC_NAMES)
-        self.all_metrics: List[Dict] = []
+        self.all_metrics: List[Dict] = metrics
+        self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
 
     def add_metrics(self, metrics: Dict[str, Union[int, float]]) -> None:
         """
@@ -51,6 +56,21 @@ class MetricsCollector:
             logger.error("Metric dictionary keys do not match the predefined metric keys.")
         self.all_metrics.append(metrics)
 
+    def _get_token_length(self, text: str) -> int:
+        """Get the number of tokens.
+
+        Parameters
+        ----------
+        text : str
+            The text to tokenize.
+
+        Returns
+        -------
+        output : int
+            The number of tokens
+        """
+        return len(self.tokenizer.encode(text))
+
     def get_all_metrics(self) -> List[Dict[str, Any]]:
         """
         Returns all the metric data collected.
@@ -61,6 +81,30 @@ class MetricsCollector:
             A list of all metric data dictionaries.
         """
         return self.all_metrics
+
+    def calculate_metrics(self, start_time: float, end_time: float) -> None:
+        """
+        Calculates the metrics based on the collected data.
+
+        Parameters
+        ----------
+        start_time : float
+            The start time of the metrics collection.
+
+        end_time : float
+            The end time of the metrics collection.
+        """
+        # print(f"yongwww: ", self.all_metrics)
+        for metrics in self.all_metrics:
+            assert isinstance(metrics, dict)
+            metrics["num_input_tokens"] = self._get_token_length(metrics["input"])
+            metrics["num_output_tokens"] = self._get_token_length(metrics["output"])
+            metrics["overall_output_throughput"] = metrics["num_output_tokens"] / (
+                end_time - start_time
+            )
+            metrics["num_completed_requests"] = len(self.all_metrics)
+            metrics["inter_token_latency"] = 1
+            metrics["decode_token_latency"] = 1
 
     def get_metrics_summary(self, start_time: float, end_time: float) -> Dict[str, Any]:
         """
@@ -81,6 +125,8 @@ class MetricsCollector:
 
         if not self.all_metrics:
             return None
+
+        self.calculate_metrics(start_time, end_time)
 
         ret: Dict[str, Any] = {}
         metrics = self.all_metrics
@@ -106,3 +152,6 @@ class MetricsCollector:
         ret["overall_output_throughput"] = df["num_output_tokens"].sum() / (end_time - start_time)
         logger.info("Metrics Summary:\n%s", json.dumps(ret, indent=4, default=str))
         return ret
+
+
+# TODO(yongwww): consider moving the get_metrics_summary out of class, and remove class
