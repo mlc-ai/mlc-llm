@@ -1,4 +1,4 @@
-"""MLC LLM bench request"""
+"""MLC LLM Bench Request"""
 import time
 from typing import Any, Dict, List, Optional
 
@@ -16,8 +16,8 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
-class RawMetrics(BaseModel):
-    """The raw metrics collected from the request."""
+class RequestRecords(BaseModel):
+    """The request records collected from LLM inference requests."""
 
     input: str
     output: str
@@ -27,26 +27,23 @@ class RawMetrics(BaseModel):
 
 class OpenAIRequestSender:
     """
-    Collect inference statistics.
+    Manages the sending of requests to a specified API endpoint and gathers inference statistics.
 
     Parameters
     ----------
     host : Optional[str]
-        The host address for the API, by default "127.0.0.1".
-
+        The host address for the API, defaulting to "127.0.0.1".
     port : Optional[int]
-        The port number for the API, by default 8008.
-
+        The port number for the API, defaulting to 8008.
     stream : Optional[bool]
-        Indicates whether streaming should be enabled. Default is True.
-
+        Specifies if streaming should be enabled, default is True.
     timeout : Optional[float]
-        The timeout in seconds for each request, by default 180.
+        The maximum duration in seconds for each request, default is 180.
 
     Attributes
     ----------
     stats : dict
-        A dictionary to store statistics about requests and responses.
+        Statistics about the performance.
     """
 
     def __init__(
@@ -64,7 +61,7 @@ class OpenAIRequestSender:
         self.timeout = timeout
         self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
         self.prompt_generator = PromptsGenerator()
-        self.metrics: List[RawMetrics] = []
+        self.metrics: List[RequestRecords] = []
         self.client = AsyncOpenAI(
             base_url=f"http://{host}:{port}/v1",
             api_key="None",
@@ -79,7 +76,7 @@ class OpenAIRequestSender:
 
     async def __call__(self, params: Dict[str, Any] = None) -> None:
         """
-        Send request to the deployed serving endpoint.
+        Send a request to the deployed serving endpoint and collect metrics.
 
         Parameters
         ----------
@@ -91,19 +88,18 @@ class OpenAIRequestSender:
         response : Union[Dict, None]
             The JSON response from the server or None if an error occurs.
         """
-        # Generate prompts if not provided
         if "messages" not in params:
-            num_tokens = 128
+            prompt_tokens = 128
             if "prompt_tokens" in params:
-                num_tokens = params["prompt_tokens"]
+                prompt_tokens = params["prompt_tokens"]
             else:
-                logger.warning("Neither messages nor prompt tokens provided.")
-            prompt = self.prompt_generator.generate_prompt(num_tokens)
+                logger.warning("A random prompt with %d tokens will be generated.", prompt_tokens)
+
+            prompt = self.prompt_generator.generate_prompt(prompt_tokens)
             params["messages"] = [{"role": "system", "content": prompt}]
         else:
             prompt = params["messages"][0]["content"]
         chat_params = self._get_chat_completion_params(params)
-        # Use the default parameters if not provided
         if "stream" not in chat_params:
             chat_params["stream"] = self.stream
         if "timeout" not in chat_params:
@@ -113,7 +109,6 @@ class OpenAIRequestSender:
         generated_text = ""
         ttft = 0
         start_time = time.monotonic()
-        # TODO(yongwww): handle Completion request
         response = await self.client.chat.completions.create(**chat_params)
 
         if chat_params["stream"]:
@@ -126,7 +121,7 @@ class OpenAIRequestSender:
             generated_text = response.choices[0].message.content
 
         total_request_time = time.monotonic() - start_time  # type: ignore
-        raw_metric = RawMetrics(
+        raw_metric = RequestRecords(
             input=prompt,
             output=generated_text,
             end_to_end_latency=total_request_time,
@@ -136,7 +131,7 @@ class OpenAIRequestSender:
 
     def _get_chat_completion_params(self, params: Dict) -> Dict:
         """
-        Get the chat completion parameters from the request parameters.
+        Extract chat completion parameters from the provided request parameters.
 
         Parameters
         ----------
@@ -154,13 +149,13 @@ class OpenAIRequestSender:
                 chat_completion_params[k] = params[k]
         return chat_completion_params
 
-    def get_metrics(self) -> List[RawMetrics]:
+    def get_metrics(self) -> List[RequestRecords]:
         """
-        Get the metrics collected.
+        Retrieve the collected metrics.
 
         Returns
         -------
-        metrics : List[RawMetrics]
-            The metrics collected.
+        metrics : List[RequestRecords]
+            The list of collected metrics.
         """
         return self.metrics

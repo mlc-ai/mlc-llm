@@ -1,7 +1,13 @@
 """MLC LLM bench prompts generator"""
+import json
 import random
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
+
+from mlc_llm.support import logging
+
+logging.enable_logging()
+logger = logging.getLogger(__name__)
 
 
 class PromptsGenerator:  # pylint: disable=too-few-public-methods
@@ -9,24 +15,44 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
     Generates prompts of a specified token length from a text file containing potential prompts.
     """
 
-    def __init__(self, file_path: Optional[str] = None) -> None:
+    def __init__(self, prompts_path: Optional[str] = None, tokenizer: Optional[Any] = None) -> None:
         """
         Initializes the PromptsGenerator with the file path and tokenizer.
 
         Parameters
         ----------
-        file_path : Optional[str]
-            The path to the text file containing the prompts.
+        prompts_path : Optional[str]
+            The path to the file containing the source prompts, it could be
+            either plain text or .jsonl.
         """
-        from transformers import (  # pylint: disable=import-outside-toplevel,import-error
-            LlamaTokenizerFast,
-        )
+        self.tokenizer = tokenizer
+        if not self.tokenizer:
+            from transformers import (  # pylint: disable=import-outside-toplevel,import-error
+                LlamaTokenizerFast,
+            )
 
-        # TODO(yongwww): Add a default plain prompts source
-        prompt_path = Path(file_path) if file_path else Path(__file__).parent / "prompts.txt"
-        with prompt_path.open("r") as file:
-            self.source_prompts = file.readlines()
-        self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
+            self.tokenizer = LlamaTokenizerFast.from_pretrained(
+                "hf-internal-testing/llama-tokenizer"
+            )
+            logger.warning("No tokenizer provided. Using default tokenizer.")
+
+        self.prompts: List[Dict] = []
+        if prompts_path is not None and prompts_path.endswith(".jsonl"):
+            with open(prompts_path, "r", encoding="utf-8") as file:
+                for line in file:
+                    json_line = json.loads(line)
+                    assert "prompt" in json_line, "The prompt field is required in the JSONL file."
+                    if "prompt_tokens" not in json_line:
+                        json_line["prompt_tokens"] = self._count_tokens(json_line["prompt"])
+                    self.prompts.append(json.loads(line))
+                self.prompts = [json.loads(line) for line in file]
+        else:
+            if not prompts_path:
+                prompts_path = Path(__file__).parent / "prompts.txt"  # type: ignore
+            with open(prompts_path, "r", encoding="utf-8") as file:
+                prompt_line = file.readline()
+                prompt_tokens = self._count_tokens(prompt_line)
+                self.prompts.append({"prompt": prompt_line, "prompt_tokens": prompt_tokens})
 
     def _count_tokens(self, text: str) -> int:
         """Get the number of tokens.
@@ -67,22 +93,22 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
         """
         assert tokens_mean > 0, "The mean number of tokens must be greater than 0."
         random.seed(seed)
-        num_out_tokens = (
+        out_prompt_tokens = (
             int(random.gauss(tokens_mean, tokens_stddev)) if tokens_stddev else tokens_mean
         )
-        if num_out_tokens <= 0:
-            num_out_tokens = tokens_mean
-        random.shuffle(self.source_prompts)
-        remaining_num_tokens = num_out_tokens
-        out_prompt = ""
-        while remaining_num_tokens > 0:
-            for tokens in self.source_prompts:
-                num_tokens = self._count_tokens(tokens)
-                if remaining_num_tokens - num_tokens < 0:
-                    out_prompt += tokens[:remaining_num_tokens]
-                    remaining_num_tokens = 0
-                    break
-                out_prompt += tokens
-                remaining_num_tokens -= num_tokens
-        self._count_tokens(out_prompt)
-        return out_prompt
+        if out_prompt_tokens <= 0:
+            out_prompt_tokens = tokens_mean
+        remaining_prompt_tokens = out_prompt_tokens
+        result_prompt = ""
+        while remaining_prompt_tokens > 0:
+            prompt_dict = random.choice(self.prompts)
+            cur_prompt_tokens = prompt_dict["prompt_tokens"]
+            cur_prompt = prompt_dict["prompt"]
+            if remaining_prompt_tokens - cur_prompt_tokens < 0:
+                result_prompt += cur_prompt[:remaining_prompt_tokens]
+                remaining_prompt_tokens = 0
+                break
+            result_prompt += cur_prompt
+            remaining_prompt_tokens -= cur_prompt_tokens
+        self._count_tokens(result_prompt)
+        return result_prompt

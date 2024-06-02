@@ -6,35 +6,35 @@ from pydantic import BaseModel
 
 from mlc_llm.support import logging
 
-from .request import RawMetrics
+from .request import RequestRecords
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
-class RefinedMetrics(BaseModel):
+class Metrics(BaseModel):
     """The list of metric keys"""
 
     ttft: float
     end_to_end_latency: float
     inter_token_latency: float
     decode_token_latency: float
-    num_input_tokens: int
-    num_output_tokens: int
+    prompt_tokens: int
+    completion_tokens: int
 
 
-def refine_metrics(metrics: List[RawMetrics]) -> List[RefinedMetrics]:
+def _get_metrics(metrics: List[RequestRecords]) -> List[Metrics]:
     """
     Augments raw metrics.
 
     Parameters
     ----------
-    metrics : List[RefinedMetrics]
+    metrics : List[Metrics]
         The list of raw metrics data collected.
 
     Returns
     -------
-    metrics : List[RefinedMetrics]
+    metrics : List[Metrics]
         The list of augmented metrics with additional items.
     """
     from transformers import (  # pylint: disable=import-outside-toplevel,import-error
@@ -48,32 +48,32 @@ def refine_metrics(metrics: List[RawMetrics]) -> List[RefinedMetrics]:
 
     result = []
     for metric in metrics:
-        num_input_tokens = _count_tokens(metric.input, tokenizer)
-        num_output_tokens = _count_tokens(metric.output, tokenizer)
-        assert num_input_tokens > 0 and num_output_tokens >= 0, "Invalid number of tokens"
+        prompt_tokens = _count_tokens(metric.input, tokenizer)
+        completion_tokens = _count_tokens(metric.output, tokenizer)
+        assert prompt_tokens > 0 and completion_tokens >= 0, "Invalid number of tokens"
         end_to_end_latency = metric.end_to_end_latency
         # TODO(yongwww): handle the non-streaming case where ttft is 0
-        refined_metric = RefinedMetrics(
-            inter_token_latency=end_to_end_latency / num_output_tokens,
-            decode_token_latency=(end_to_end_latency - metric.ttft) / num_output_tokens,
+        refined_metric = Metrics(
+            inter_token_latency=end_to_end_latency / completion_tokens,
+            decode_token_latency=(end_to_end_latency - metric.ttft) / completion_tokens,
             ttft=metric.ttft,
             end_to_end_latency=end_to_end_latency,
-            num_input_tokens=num_input_tokens,
-            num_output_tokens=num_output_tokens,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
         result.append(refined_metric)
     return result
 
 
 def get_metrics_summary(
-    all_metrics: List[RawMetrics], start_time: float, end_time: float
+    all_metrics: List[Union[RequestRecords, Metrics]], start_time: float, end_time: float
 ) -> Dict[str, Union[int, float]]:
     """
     Computes summary statistics across all metrics collected.
 
     Parameters
     ----------
-    all_metrics : List[RawMetrics]
+    all_metrics : List[RequestRecords]
         All the metrics data collected in the monitoring period.
 
     start_time : float
@@ -93,11 +93,11 @@ def get_metrics_summary(
         logger.warning("No metrics collected.")
         return {}
 
-    metrics = refine_metrics(all_metrics)
+    metrics = all_metrics if isinstance(all_metrics[0], Metrics) else _get_metrics(all_metrics)
     df = pd.DataFrame([metric.model_dump() for metric in metrics])
 
     report: Dict = {}
-    for key, _ in RefinedMetrics.model_fields.items():
+    for key, _ in Metrics.model_fields.items():
         if key in df.columns:
             series = df[key].dropna()
             report[key] = {
@@ -112,7 +112,7 @@ def get_metrics_summary(
             }
 
     report["num_completed_requests"] = len(metrics)
-    report["overall_output_throughput"] = df["num_output_tokens"].sum() / (end_time - start_time)
+    report["overall_output_throughput"] = df["completion_tokens"].sum() / (end_time - start_time)
 
     logger.info("Metrics Summary:\n%s", json.dumps(report, indent=4, default=str))
     return report
