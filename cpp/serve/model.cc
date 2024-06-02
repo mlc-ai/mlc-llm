@@ -644,7 +644,7 @@ class ModelImpl : public ModelObj {
   ModelMetadata GetMetadata() const final { return ft_.model_metadata_; }
 
   int GetNumAvailablePages() const final {
-    if (this->kind == KVStateKind::kRNNState) {
+    if (this->kind == KVStateKind::kRNNState || this->kind == KVStateKind::kNone) {
       // RNNState does not introduce new page at runtime
       return std::numeric_limits<int>::max();
     } else {
