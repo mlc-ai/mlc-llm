@@ -1,157 +1,118 @@
 """ MLC LLM bench Metrics"""
 import json
-from typing import Any, Dict, List, Union
+from typing import Dict, List, Union
+
+from pydantic import BaseModel
 
 from mlc_llm.support import logging
+
+from .request import RawMetrics
 
 logging.enable_logging()
 logger = logging.getLogger(__name__)
 
-# The list of metric keys, overall_output_throughput and num_completed_requests
-# are able to be computed based on the other metrics
-METRIC_NAMES = [
-    "inter_token_latency",
-    "decode_token_latency",
-    "ttft",
-    "end_to_end_latency",
-    "num_input_tokens",
-    "num_output_tokens",
-]
+
+class RefinedMetrics(BaseModel):
+    """The list of metric keys"""
+
+    ttft: float
+    end_to_end_latency: float
+    inter_token_latency: float
+    decode_token_latency: float
+    num_input_tokens: int
+    num_output_tokens: int
 
 
-class MetricsCalculator:
+def refine_metrics(metrics: List[RawMetrics]) -> List[RefinedMetrics]:
     """
-    A class to manage various performance metrics.
+    Augments raw metrics.
 
-    Attributes
+    Parameters
     ----------
-    metric_keys : List[str]
-        A list of all the metric keys managed by the collector.
-    all_metrics : List[Dict[str, Any]]
-        A list containing all metrics data recorded, each as a dictionary.
+    metrics : List[RefinedMetrics]
+        The list of raw metrics data collected.
+
+    Returns
+    -------
+    metrics : List[RefinedMetrics]
+        The list of augmented metrics with additional items.
     """
+    from transformers import (  # pylint: disable=import-outside-toplevel,import-error
+        LlamaTokenizerFast,
+    )
 
-    def __init__(self, metrics: List[Dict[str, Union[str, float, int]]]) -> None:
-        """
-        Initializes the metrics collector.
-        """
-        from transformers import (  # pylint: disable=import-outside-toplevel,import-error
-            LlamaTokenizerFast,
+    tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
+
+    def _count_tokens(text: str, tokenizer) -> int:
+        return len(tokenizer.encode(text))
+
+    result = []
+    for metric in metrics:
+        num_input_tokens = _count_tokens(metric.input, tokenizer)
+        num_output_tokens = _count_tokens(metric.output, tokenizer)
+        assert num_input_tokens > 0 and num_output_tokens >= 0, "Invalid number of tokens"
+        end_to_end_latency = metric.end_to_end_latency
+        # TODO(yongwww): handle the non-streaming case where ttft is 0
+        refined_metric = RefinedMetrics(
+            inter_token_latency=end_to_end_latency / num_output_tokens,
+            decode_token_latency=(end_to_end_latency - metric.ttft) / num_output_tokens,
+            ttft=metric.ttft,
+            end_to_end_latency=end_to_end_latency,
+            num_input_tokens=num_input_tokens,
+            num_output_tokens=num_output_tokens,
         )
+        result.append(refined_metric)
+    return result
 
-        self.metric_keys: List = list(METRIC_NAMES)
-        self.all_metrics: List[Dict] = metrics
-        self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
 
-    def add_metrics(self, metrics: Dict[str, Union[int, float]]) -> None:
-        """
-        Adds a new set of metric data to the collection.
+def get_metrics_summary(
+    all_metrics: List[RawMetrics], start_time: float, end_time: float
+) -> Dict[str, Union[int, float]]:
+    """
+    Computes summary statistics across all metrics collected.
 
-        Parameters
-        ----------
-        metrics : Dict[str, Union[int, float]]
-            A dictionary containing values for the metrics defined in metric_keys.
-        """
-        if not all(key in self.metric_keys for key in metrics.keys()):
-            logger.error("Metric dictionary keys do not match the predefined metric keys.")
-        self.all_metrics.append(metrics)
+    Parameters
+    ----------
+    all_metrics : List[RawMetrics]
+        All the metrics data collected in the monitoring period.
 
-    def _get_token_length(self, text: str) -> int:
-        """Get the number of tokens.
+    start_time : float
+        The start time of the monitoring period.
 
-        Parameters
-        ----------
-        text : str
-            The text to tokenize.
+    end_time : float
+        The end time of the monitoring period.
 
-        Returns
-        -------
-        output : int
-            The number of tokens
-        """
-        return len(self.tokenizer.encode(text))
+    Returns
+    -------
+    report : Dict
+        A dictionary containing the summary statistics of the collected metrics.
+    """
+    import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
 
-    def get_all_metrics(self) -> List[Dict[str, Any]]:
-        """
-        Returns all the metric data collected.
+    if not all_metrics:
+        logger.warning("No metrics collected.")
+        return {}
 
-        Returns
-        -------
-        List[Dict[str, Any]]
-            A list of all metric data dictionaries.
-        """
-        return self.all_metrics
+    metrics = refine_metrics(all_metrics)
+    df = pd.DataFrame([metric.model_dump() for metric in metrics])
 
-    def calculate_metrics(self, start_time: float, end_time: float) -> None:
-        """
-        Calculates the metrics based on the collected data.
-
-        Parameters
-        ----------
-        start_time : float
-            The start time of the metrics collection.
-
-        end_time : float
-            The end time of the metrics collection.
-        """
-        # print(f"yongwww: ", self.all_metrics)
-        for metrics in self.all_metrics:
-            assert isinstance(metrics, dict)
-            metrics["num_input_tokens"] = self._get_token_length(metrics["input"])
-            metrics["num_output_tokens"] = self._get_token_length(metrics["output"])
-            metrics["overall_output_throughput"] = metrics["num_output_tokens"] / (
-                end_time - start_time
-            )
-            metrics["num_completed_requests"] = len(self.all_metrics)
-            metrics["inter_token_latency"] = 1
-            metrics["decode_token_latency"] = 1
-
-    def get_metrics_summary(self, start_time: float, end_time: float) -> Dict[str, Any]:
-        """
-        Computes summary statistics across all metrics collected.
-
-        Returns
-        -------
-        ret : Dict[str, Any]
-            A dictionary containing the summary statistics of the collected metrics.
-
-        start_time : float
-            The start time of the metrics collection.
-
-        end_time : float
-            The end time of the metrics collection.
-        """
-        import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
-
-        if not self.all_metrics:
-            return None
-
-        self.calculate_metrics(start_time, end_time)
-
-        ret: Dict[str, Any] = {}
-        metrics = self.all_metrics
-
-        df = pd.DataFrame(metrics)
-
-        for key in self.metric_keys:
-            ret[key] = {}
+    report: Dict = {}
+    for key, _ in RefinedMetrics.model_fields.items():
+        if key in df.columns:
             series = df[key].dropna()
-            quantiles = series.quantile([0.25, 0.5, 0.75, 0.9, 0.95, 0.99]).to_dict()
-            quantiles_reformatted_keys = {}
-            for quantile, value in quantiles.items():
-                reformatted_key = f"p{int(quantile * 100)}"
-                quantiles_reformatted_keys[reformatted_key] = value
-            ret[key]["quantiles"] = quantiles_reformatted_keys
-            mean = series.mean()
-            ret[key]["mean"] = mean
-            ret[key]["min"] = series.min()
-            ret[key]["max"] = series.max()
-            ret[key]["stddev"] = series.std()
+            report[key] = {
+                "quantiles": {
+                    f"p{int(q * 100)}": v
+                    for q, v in series.quantile([0.25, 0.5, 0.75, 0.9, 0.95, 0.99]).items()
+                },
+                "mean": series.mean(),
+                "min": series.min(),
+                "max": series.max(),
+                "stddev": series.std(),
+            }
 
-        ret["num_completed_requests"] = len(metrics)
-        ret["overall_output_throughput"] = df["num_output_tokens"].sum() / (end_time - start_time)
-        logger.info("Metrics Summary:\n%s", json.dumps(ret, indent=4, default=str))
-        return ret
+    report["num_completed_requests"] = len(metrics)
+    report["overall_output_throughput"] = df["num_output_tokens"].sum() / (end_time - start_time)
 
-
-# TODO(yongwww): consider moving the get_metrics_summary out of class, and remove class
+    logger.info("Metrics Summary:\n%s", json.dumps(report, indent=4, default=str))
+    return report

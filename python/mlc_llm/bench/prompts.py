@@ -1,7 +1,7 @@
 """MLC LLM bench prompts generator"""
 import random
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 
 class PromptsGenerator:  # pylint: disable=too-few-public-methods
@@ -28,7 +28,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
             self.source_prompts = file.readlines()
         self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
 
-    def _get_token_length(self, text: str) -> int:
+    def _count_tokens(self, text: str) -> int:
         """Get the number of tokens.
 
         Parameters
@@ -45,7 +45,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
 
     def generate_prompt(
         self, tokens_mean: int, tokens_stddev: Optional[int] = 0, seed: Optional[int] = 11111
-    ) -> Tuple[str, int]:
+    ) -> str:
         """
         Generates a prompt that closely matches the desired token count.
 
@@ -62,10 +62,8 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
 
         Returns
         -------
-        out: Tuple[str, int]
-            A tuple containing:
-            1) A prompt string with the specified number of tokens.
-            2) The actual number of tokens in the prompt.
+        out: str
+            A prompt string with the specified number of tokens.
         """
         assert tokens_mean > 0, "The mean number of tokens must be greater than 0."
         random.seed(seed)
@@ -79,12 +77,12 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
         out_prompt = ""
         while remaining_num_tokens > 0:
             for tokens in self.source_prompts:
-                num_tokens = self._get_token_length(tokens)
+                num_tokens = self._count_tokens(tokens)
                 if remaining_num_tokens - num_tokens < 0:
                     out_prompt += tokens[:remaining_num_tokens]
                     remaining_num_tokens = 0
                     break
                 out_prompt += tokens
                 remaining_num_tokens -= num_tokens
-        self._get_token_length(out_prompt)
-        return (out_prompt, num_out_tokens)
+        self._count_tokens(out_prompt)
+        return out_prompt
