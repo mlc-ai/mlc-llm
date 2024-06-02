@@ -27,6 +27,7 @@ from .phi import phi_loader, phi_model, phi_quantization
 from .phi3 import phi3_loader, phi3_model, phi3_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
+from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
@@ -244,6 +245,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen2_quantization.no_quant,
             "group-quant": qwen2_quantization.group_quant,
             "ft-quant": qwen2_quantization.ft_quant,
+        },
+    ),
+    "qwen2_moe": Model(
+        name="qwen2_moe",
+        model=qwen2_moe_model.Qwen2MoeForCausalLM,
+        config=qwen2_moe_model.Qwen2MoeConfig,
+        source={
+            "huggingface-torch": qwen2_moe_loader.huggingface,
+            "huggingface-safetensor": qwen2_moe_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen2_moe_quantization.no_quant,
+            "group-quant": qwen2_moe_quantization.group_quant,
+            "ft-quant": qwen2_moe_quantization.ft_quant,
         },
     ),
     "stablelm": Model(
