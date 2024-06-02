@@ -186,6 +186,18 @@ def _run_quantization(
     return succeeded
 
 
+def _get_current_log(log: str) -> ModelDeliveryList:
+    log_path = Path(log)
+    if not log_path.exists():
+        with log_path.open("w", encoding="utf-8") as o_f:
+            current_log = ModelDeliveryList(tasks=[])
+            json.dump(current_log.to_json(), o_f, indent=4)
+    else:
+        with log_path.open("r", encoding="utf-8") as i_f:
+            current_log = ModelDeliveryList.from_json(json.load(i_f))
+    return current_log
+
+
 def _main(  # pylint: disable=too-many-locals, too-many-arguments
     username: str,
     api: HfApi,
@@ -195,7 +207,7 @@ def _main(  # pylint: disable=too-many-locals, too-many-arguments
     output: str,
 ):
     failed_cases: List[Tuple[str, str]] = []
-    delivered_log = ModelDeliveryList(tasks=[])
+    delivered_log = _get_current_log(log)
     for task_index, task in enumerate(spec.tasks, 1):
         logger.info(
             bold("[{task_index}/{total_tasks}] Processing model: ").format(
