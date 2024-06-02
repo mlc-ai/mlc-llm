@@ -59,6 +59,14 @@ class DraftTokenWorkspaceManagerObj : public Object {
   void AllocSlots(int num_slots, std::vector<int>* result);
 
   /*!
+   * \brief Allocate slots for the draft tokens.
+   * \param num_slots The number of slots to allocate.
+   * \param initial_ref_count The initial reference count for each slot.
+   * \param result The vector to store the allocated slots.
+   */
+  void AllocSlots(int num_slots, const std::vector<int>& initial_ref_count, std::vector<int>* result);
+
+  /*!
    * \brief Free the slots.
    * \param slots The slots to free.
    */
@@ -74,6 +82,7 @@ class DraftTokenWorkspaceManagerObj : public Object {
   DataType hidden_states_dtype_;
   DLDevice device_;
   const FunctionTable& ft_;
+  std::unordered_map<int, int> ref_count_;
 };
 
 class DraftTokenWorkspaceManager : public ObjectRef {
