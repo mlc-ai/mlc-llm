@@ -17,9 +17,6 @@ MLC_CHAT_SYSTEM_DEFAULT = {
     "frequency_penalty": 0.0,
     "repetition_penalty": 1.0,
     "top_p": 1.0,
-    "mean_gen_len": 128,
-    "max_gen_len": 512,
-    "shift_fill_factor": 0.3,
 }
 """system default values."""
 
@@ -59,12 +56,6 @@ class MLCChatConfig(BaseModel):
     pad_token_id: Optional[int] = None
     bos_token_id: Optional[int] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
-    # Legacy fields
-    # Control the behavior of the runtime
-    # these fields will be deprecated soon
-    mean_gen_len: Optional[int] = None
-    max_gen_len: Optional[int] = None
-    shift_fill_factor: Optional[float] = None
 
     def get_system_defaults_for_missing_fields(self) -> Dict[str, Any]:
         """Apply system default value for fields that are None
