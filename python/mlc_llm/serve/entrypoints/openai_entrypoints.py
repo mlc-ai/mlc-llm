@@ -1,6 +1,8 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
 # pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
+import json
+from datetime import datetime
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
@@ -18,7 +20,6 @@ from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
 app = fastapi.APIRouter()
-
 ################ v1/models ################
 
 
@@ -139,6 +140,22 @@ async def request_chat_completion(
     server_context: ServerContext = ServerContext.current()
     request_final_usage_include_extra = server_context.enable_debug
     request_include_debug_config = server_context.enable_debug
+
+    if server_context.enable_debug:
+        import structlog  # pylint: disable=import-outside-toplevel,import-error
+
+        logger = structlog.stdlib.get_logger(__name__)
+
+        request_param = await raw_request.json()
+        timestamp = {"timestamp": datetime.now().isoformat()}
+        request_param = {**timestamp, **request_param}
+        try:
+            logger.info("Received chat completion request", request=json.dumps(request_param))
+        except (  # pylint: disable=broad-exception-caught
+            Exception,
+            json.JSONDecodeError,
+        ) as err:
+            logger.error("Error in dumping request parameters: %s", err)
 
     if not request_include_debug_config:
         request.debug_config = None
