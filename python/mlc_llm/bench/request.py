@@ -22,7 +22,7 @@ class RequestRecords(BaseModel):
     input: str
     output: str
     end_to_end_latency: float
-    ttft: Optional[float] = 0
+    ttft: Optional[float] = None
 
 
 class OpenAIRequestSender:
@@ -61,7 +61,7 @@ class OpenAIRequestSender:
         self.timeout = timeout
         self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
         self.prompt_generator = PromptsGenerator()
-        self.metrics: List[RequestRecords] = []
+        self.request_records: List[RequestRecords] = []
         self.client = AsyncOpenAI(
             base_url=f"http://{host}:{port}/v1",
             api_key="None",
@@ -76,7 +76,7 @@ class OpenAIRequestSender:
 
     async def __call__(self, params: Dict[str, Any] = None) -> None:
         """
-        Send a request to the deployed serving endpoint and collect metrics.
+        Send a request to the deployed serving endpoint and collect request records.
 
         Parameters
         ----------
@@ -107,7 +107,7 @@ class OpenAIRequestSender:
 
         total_request_time = 0
         generated_text = ""
-        ttft = 0
+        ttft = None
         start_time = time.monotonic()
         response = await self.client.chat.completions.create(**chat_params)
 
@@ -121,13 +121,13 @@ class OpenAIRequestSender:
             generated_text = response.choices[0].message.content
 
         total_request_time = time.monotonic() - start_time  # type: ignore
-        raw_metric = RequestRecords(
+        req_rec = RequestRecords(
             input=prompt,
             output=generated_text,
             end_to_end_latency=total_request_time,
             ttft=ttft,
         )
-        self.metrics.append(raw_metric)
+        self.request_records.append(req_rec)
 
     def _get_chat_completion_params(self, params: Dict) -> Dict:
         """
@@ -149,13 +149,13 @@ class OpenAIRequestSender:
                 chat_completion_params[k] = params[k]
         return chat_completion_params
 
-    def get_metrics(self) -> List[RequestRecords]:
+    def get_request_records(self) -> List[RequestRecords]:
         """
-        Retrieve the collected metrics.
+        Retrieve the collected reqeust records.
 
         Returns
         -------
-        metrics : List[RequestRecords]
-            The list of collected metrics.
+        request_records : List[RequestRecords]
+            The list of collected request records.
         """
-        return self.metrics
+        return self.request_records

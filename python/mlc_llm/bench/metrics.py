@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 class Metrics(BaseModel):
     """The list of metric keys"""
 
-    ttft: float
+    prompt_tokens: int
+    completion_tokens: int
     end_to_end_latency: float
     inter_token_latency: float
     decode_token_latency: float
-    prompt_tokens: int
-    completion_tokens: int
+    ttft: Optional[float] = None
 
 
 class MetricsProcessor:
@@ -86,9 +86,11 @@ class MetricsProcessor:
             completion_tokens = self.count_tokens(metric.output)
             assert prompt_tokens > 0 and completion_tokens >= 0, "Invalid prompt tokens"
             end_to_end_latency = metric.end_to_end_latency
+            if metric.ttft is None:
+                ttft = 0
             refined_metric = Metrics(
                 inter_token_latency=end_to_end_latency / completion_tokens,
-                decode_token_latency=(end_to_end_latency - metric.ttft) / completion_tokens,
+                decode_token_latency=(end_to_end_latency - ttft) / completion_tokens,
                 ttft=metric.ttft,
                 end_to_end_latency=end_to_end_latency,
                 prompt_tokens=prompt_tokens,
