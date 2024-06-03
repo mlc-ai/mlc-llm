@@ -61,9 +61,6 @@ Below is the ``mlc-chat-config.json`` file corresponding to Llama2 model:
     },
 
     // 4. Chat related fields that affect runtime behavior
-    "mean_gen_len": 128,
-    "max_gen_len": 512,
-    "shift_fill_factor": 0.3,
     "temperature": 0.6,
     "repetition_penalty": 1.0,
     "top_p": 0.9
@@ -97,14 +94,6 @@ can be customized to change the behavior of the model.**
 
   For additional information on top-p sampling, please refer to this `blog post <https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling>`_.
 
-``mean_gen_len``
-  The approximated average number of generated tokens in each round. Used to determine whether the maximum window size would be exceeded.
-
-``max_gen_len``
-  This parameter determines the maximum length of the generated text. If it is not set, the model will generate text until it encounters a stop token.
-
-``shift_fill_factor``
-  The fraction of maximum window size to shift when it is exceeded.
 
 .. _struct-conv:
 
