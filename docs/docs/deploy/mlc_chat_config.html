@@ -341,9 +341,6 @@ the runtimes also provide APIs to optionally override some of the configurations
 <span class="w">  </span><span class="p">},</span>
 
 <span class="w">  </span><span class="c1">// 4. Chat related fields that affect runtime behavior</span>
-<span class="w">  </span><span class="nt">&quot;mean_gen_len&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">128</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;max_gen_len&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">512</span><span class="p">,</span>
-<span class="w">  </span><span class="nt">&quot;shift_fill_factor&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.3</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;temperature&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.6</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;repetition_penalty&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
 <span class="w">  </span><span class="nt">&quot;top_p&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.9</span>
@@ -373,12 +370,6 @@ to make sure this field is a complete JSON object.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">top_p</span></code></dt><dd><p>This parameter determines the set of tokens from which we sample during decoding. The default value is set to <code class="docutils literal notranslate"><span class="pre">0.95</span></code>. At each step, we select tokens from the minimal set that has a cumulative probability exceeding the <code class="docutils literal notranslate"><span class="pre">top_p</span></code> parameter.</p>
 <p>For additional information on top-p sampling, please refer to this <a class="reference external" href="https://huggingface.co/blog/how-to-generate#top-p-nucleus-sampling">blog post</a>.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">mean_gen_len</span></code></dt><dd><p>The approximated average number of generated tokens in each round. Used to determine whether the maximum window size would be exceeded.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">max_gen_len</span></code></dt><dd><p>This parameter determines the maximum length of the generated text. If it is not set, the model will generate text until it encounters a stop token.</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">shift_fill_factor</span></code></dt><dd><p>The fraction of maximum window size to shift when it is exceeded.</p>
 </dd>
 </dl>
 <section id="conversation-structure">
