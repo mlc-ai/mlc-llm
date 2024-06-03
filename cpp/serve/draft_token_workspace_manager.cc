@@ -29,12 +29,33 @@ DraftTokenWorkspaceManagerObj::DraftTokenWorkspaceManagerObj(int max_num_tokens,
 void DraftTokenWorkspaceManagerObj::AllocSlots(int num_slots, std::vector<int>* result) {
   ICHECK_LE(num_slots, free_slots_.size());
   result->assign(free_slots_.rbegin(), free_slots_.rbegin() + num_slots);
-  std::vector<int> allocated(free_slots_.begin(), free_slots_.begin() + num_slots);
   free_slots_.resize(free_slots_.size() - num_slots);
+  for (int slot : (*result)) {
+    ref_count_[slot] = 1;
+  }
+}
+
+void DraftTokenWorkspaceManagerObj::AllocSlots(int num_slots,
+                                               const std::vector<int>& initial_ref_count,
+                                               std::vector<int>* result) {
+  ICHECK_LE(num_slots, free_slots_.size());
+  ICHECK_EQ(num_slots, initial_ref_count.size());
+  result->assign(free_slots_.rbegin(), free_slots_.rbegin() + num_slots);
+  free_slots_.resize(free_slots_.size() - num_slots);
+  for (int i = 0; i < num_slots; ++i) {
+    int slot = (*result)[i];
+    ICHECK(initial_ref_count[i] > 0);
+    ref_count_[slot] = initial_ref_count[i];
+  }
 }
 
 void DraftTokenWorkspaceManagerObj::FreeSlots(const std::vector<int>& slots) {
-  std::copy(slots.begin(), slots.end(), std::back_inserter(free_slots_));
+  for (int slot : slots) {
+    if (--ref_count_.at(slot) == 0) {
+      free_slots_.push_back(slot);
+      ref_count_.erase(slot);
+    }
+  }
 }
 
 void DraftTokenWorkspaceManagerObj::AllocWorkspace(ModelWorkspace* workspace,
