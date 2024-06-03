@@ -64,7 +64,8 @@ class DraftTokenWorkspaceManagerObj : public Object {
    * \param initial_ref_count The initial reference count for each slot.
    * \param result The vector to store the allocated slots.
    */
-  void AllocSlots(int num_slots, const std::vector<int>& initial_ref_count, std::vector<int>* result);
+  void AllocSlots(int num_slots, const std::vector<int>& initial_ref_count,
+                  std::vector<int>* result);
 
   /*!
    * \brief Free the slots.

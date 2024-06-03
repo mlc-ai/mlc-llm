@@ -35,8 +35,9 @@ void DraftTokenWorkspaceManagerObj::AllocSlots(int num_slots, std::vector<int>* 
   }
 }
 
-void DraftTokenWorkspaceManagerObj::AllocSlots(int num_slots, const std::vector<int>& initial_ref_count,
-                                             std::vector<int>* result) {
+void DraftTokenWorkspaceManagerObj::AllocSlots(int num_slots,
+                                               const std::vector<int>& initial_ref_count,
+                                               std::vector<int>* result) {
   ICHECK_LE(num_slots, free_slots_.size());
   ICHECK_EQ(num_slots, initial_ref_count.size());
   result->assign(free_slots_.rbegin(), free_slots_.rbegin() + num_slots);
