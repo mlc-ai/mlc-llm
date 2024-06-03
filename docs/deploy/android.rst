@@ -55,7 +55,9 @@ Please ensure that the JDK versions for Android Studio and JAVA_HOME are the sam
 
 - ``export TVM_SOURCE_DIR=/path/to/mlc-llm/3rdparty/tvm``.
 
-(Optional) **TVM Unity compiler** Python package (:ref:`install <tvm-unity-prebuilt-package>` or :ref:`build from source <tvm-unity-build-from-source>`). It is *NOT* required if models are prebuilt, but to compile PyTorch models from HuggingFace in the following section, the compiler is a must-dependency.
+Please follow :doc:`/install/mlc_llm` to obtain a binary build of mlc_llm package. Note that this
+is independent from mlc-llm source code that we use for android package build in the following up section.
+Once you installed this package, you do not need to build mlc llm from source.
 
 .. note::
     ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.

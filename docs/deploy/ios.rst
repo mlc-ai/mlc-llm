@@ -39,7 +39,9 @@ After cloning, go to the ``ios/`` directory.
    cd ./ios
 
 
-Please follow :doc:`/install/tvm` to install TVM Unity.
+Please follow :doc:`/install/mlc_llm` to obtain a binary build of mlc_llm package. Note that this
+is independent from the above source code that we use for iOS package build.
+You do not need to build mlc_llm for your host and we can use the prebuilt package for that purpose.
 
 We also need to have the following build dependencies:
 
