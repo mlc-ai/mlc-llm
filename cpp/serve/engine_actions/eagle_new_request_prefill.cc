@@ -80,15 +80,6 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         RequestModelState mstate = rsentry->mstates[model_id];
-        auto [input_data, input_length] =
-            ChunkPrefillInputData(mstate, prefill_inputs[i].max_prefill_length);
-        if (prefill_lengths[i] == -1) {
-          prefill_lengths[i] = input_length;
-        } else {
-          ICHECK_EQ(prefill_lengths[i], input_length);
-        }
-        mstate->num_prefilled_tokens += input_length;
-
         ICHECK(mstate->draft_output_tokens.empty());
         ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending) {
@@ -127,6 +118,15 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           // Embedding is only needed for the base model in Medusa.
           continue;
         }
+        auto [input_data, input_length] =
+            ChunkPrefillInputData(mstate, prefill_inputs[i].max_prefill_length);
+        if (prefill_lengths[i] == -1) {
+          prefill_lengths[i] = input_length;
+        } else {
+          ICHECK_EQ(prefill_lengths[i], input_length);
+        }
+        mstate->num_prefilled_tokens += input_length;
+
         RECORD_EVENT(trace_recorder_, prefill_inputs[i].rsentry->request->id, "start embedding");
         // Speculative models shift left the input tokens by 1 when base model has committed tokens.
         // Note: for n > 1 cases Eagle doesn't work because parent entry doesn't shift input tokens.
@@ -191,22 +191,22 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         LOG(FATAL) << "unreachable";
       }
 
-      Array<String> request_ids_for_logitproc = request_ids;
-
+      Array<String> child_request_ids;
       // - Prepare the configurations for the sampler.
       //   For prefill_inputs which have children, sample
       //   one token for each rstate that is depending.
       //   Otherwise, sample a token for the current rstate.
-      std::vector<int> sample_indices;
+      std::vector<int> child_sample_indices;
       std::vector<RequestStateEntry> rsentries_for_sample;
       std::vector<RandomGenerator*> rngs;
       std::vector<bool> rsentry_activated;
-      Array<GenerationConfig> generation_cfg;
-      sample_indices.reserve(num_rsentries);
+      Array<GenerationConfig> child_generation_cfg;
+      child_sample_indices.reserve(num_rsentries);
+      child_generation_cfg.reserve(num_rsentries);
+      child_request_ids.reserve(num_rsentries);
       rsentries_for_sample.reserve(num_rsentries);
       rngs.reserve(num_rsentries);
       rsentry_activated.reserve(num_rsentries);
-      request_ids.clear();
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         // No sample for rsentries with remaining inputs.
@@ -217,18 +217,21 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         int remaining_num_child_to_activate = prefill_inputs[i].num_child_to_activate;
         for (int child_idx : rsentry->child_indices) {
           // Only use base model to judge if we need to add child entries.
-          if (rstates_of_entries[i]->entries[child_idx]->status == RequestStateStatus::kPending &&
-              (rstates_of_entries[i]->entries[child_idx]->mstates[0]->committed_tokens.empty() ||
+          if ((rstates_of_entries[i]->entries[child_idx]->status == RequestStateStatus::kPending &&
+                   rstates_of_entries[i]
+                       ->entries[child_idx]
+                       ->mstates[0]
+                       ->committed_tokens.empty() ||
                fork_rsentry_child_map[i].count(child_idx))) {
             // If rstates_of_entries[i]->entries[child_idx] has no committed token,
             // the prefill of the current rsentry will unblock
             // rstates_of_entries[i]->entries[child_idx],
             // and thus we want to sample a token for rstates_of_entries[i]->entries[child_idx].
             fork_rsentry_child_map[i].insert(child_idx);
-            sample_indices.push_back(i);
+            child_sample_indices.push_back(i);
             rsentries_for_sample.push_back(rstates_of_entries[i]->entries[child_idx]);
-            request_ids.push_back(rsentry->request->id);
-            generation_cfg.push_back(rsentry->request->generation_cfg);
+            child_request_ids.push_back(rsentry->request->id);
+            child_generation_cfg.push_back(rsentry->request->generation_cfg);
             rngs.push_back(&rstates_of_entries[i]->entries[child_idx]->rng);
 
             // We only fork the first `num_child_to_activate` children.
@@ -258,10 +261,10 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         }
         if (rsentry->child_indices.empty()) {
           // If rsentry has no child, we sample a token for itself.
-          sample_indices.push_back(i);
+          child_sample_indices.push_back(i);
           rsentries_for_sample.push_back(rsentry);
-          request_ids.push_back(rsentry->request->id);
-          generation_cfg.push_back(rsentry->request->generation_cfg);
+          child_request_ids.push_back(rsentry->request->id);
+          child_generation_cfg.push_back(rsentry->request->generation_cfg);
           rngs.push_back(&rsentry->rng);
           rsentry_activated.push_back(true);
         }
@@ -269,49 +272,56 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
       // - Prepare input for logit processor.
       ICHECK(logits_for_sample.defined());
-      Array<GenerationConfig> generation_cfg_for_logitproc;
+      Array<GenerationConfig> generation_cfg;
       Array<RequestModelState> mstates_for_logitproc;
-      generation_cfg_for_logitproc.reserve(num_rsentries);
+      std::vector<int> sample_indices(num_rsentries);
+      generation_cfg.reserve(num_rsentries);
       mstates_for_logitproc.reserve(num_rsentries);
+      std::iota(sample_indices.begin(), sample_indices.end(), 0);
       for (int i = 0; i < num_rsentries; ++i) {
-        generation_cfg_for_logitproc.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
+        generation_cfg.push_back(prefill_inputs[i].rsentry->request->generation_cfg);
         mstates_for_logitproc.push_back(prefill_inputs[i].rsentry->mstates[model_id]);
       }
       if (model_id == 0 || engine_config_->speculative_mode == SpeculativeMode::kEagle) {
         const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
-            logit_processor_, sampler_, logits_for_sample, generation_cfg_for_logitproc,
-            request_ids_for_logitproc, mstates_for_logitproc, rngs, sample_indices);
+            logit_processor_, sampler_, logits_for_sample, generation_cfg, request_ids,
+            mstates_for_logitproc, rngs, sample_indices, child_generation_cfg, child_request_ids,
+            child_sample_indices);
         if (model_id == 0) {
           UpdateRequestStateEntriesWithSampleResults(rsentries_for_sample, rsentry_activated,
                                                      sample_results);
           // Add the sampled token as an input of the eagle models.
-          for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-            for (int mid = 1; mid < static_cast<int>(models_.size()); ++mid) {
-              TokenData token_data =
-                  Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
-              std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
-                                                token_data->token_ids.end()};
-              token_ids.push_back(sample_results[i].sampled_token_id.first);
-              int ninputs = static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
-              rsentries_for_sample[i]->mstates[mid]->inputs.Set(
-                  ninputs - 1, TokenData(IntTuple(token_ids.begin(), token_ids.end())));
+          if (engine_config_->speculative_mode == SpeculativeMode::kEagle) {
+            for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+              for (int mid = 1; mid < static_cast<int>(models_.size()); ++mid) {
+                TokenData token_data =
+                    Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
+                std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
+                                                  token_data->token_ids.end()};
+                token_ids.push_back(sample_results[i].sampled_token_id.first);
+                int ninputs =
+                    static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
+                rsentries_for_sample[i]->mstates[mid]->inputs.Set(
+                    ninputs - 1, TokenData(IntTuple(token_ids.begin(), token_ids.end())));
+              }
             }
           }
         } else {
           // - Slice and save hidden_states_for_sample
           UpdateRequestStatesWithDraftProposals(rsentries_for_sample, sample_results, model_id,
                                                 renormalized_probs, hidden_states_for_sample,
-                                                estate);
+                                                estate, child_sample_indices);
         }
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
         for (int draft_id = 0; draft_id < engine_config_->spec_draft_length; ++draft_id) {
           const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
-              logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg_for_logitproc,
-              request_ids_for_logitproc, mstates_for_logitproc, rngs, sample_indices);
+              logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,
+              mstates_for_logitproc, rngs, sample_indices, child_generation_cfg, child_request_ids,
+              child_sample_indices);
 
-          UpdateRequestStatesWithDraftProposals(rsentries_for_sample, sample_results, model_id,
-                                                renormalized_probs,
-                                                /*hidden_states=*/ObjectRef{nullptr}, estate);
+          UpdateRequestStatesWithDraftProposals(
+              rsentries_for_sample, sample_results, model_id, renormalized_probs,
+              /*hidden_states=*/ObjectRef{nullptr}, estate, child_sample_indices);
         }
       }
     }
@@ -328,8 +338,15 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       const std::vector<RequestStateEntry>& rsentries_for_sample,
       const std::vector<SampleResult>& sample_results, int model_id,
       const NDArray& renormalized_probs, const ObjectRef& hidden_states_for_sample,
-      EngineState estate) {
-    draft_token_workspace_manager_->AllocSlots(rsentries_for_sample.size(), &draft_token_slots_);
+      EngineState estate, const std::vector<int>& sample_indices) {
+    std::vector<int> reuse_count(renormalized_probs->shape[0], 0);
+    for (int i = 0; i < static_cast<int>(sample_indices.size()); ++i) {
+      // The same probability may be sampled multiple times.
+      reuse_count[sample_indices[i]]++;
+    }
+    draft_token_workspace_manager_->AllocSlots(renormalized_probs->shape[0], reuse_count,
+                                               &draft_token_slots_);
+
     models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
                                   &model_workspaces_[0].draft_probs_storage);
     if (engine_config_->speculative_mode == SpeculativeMode::kEagle &&
@@ -338,8 +355,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                       &model_workspaces_[0].draft_hidden_states_storage);
     }
     for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
-      rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(sample_results[i],
-                                                                draft_token_slots_[i]);
+      rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(
+          sample_results[i], draft_token_slots_[sample_indices[i]]);
     }
   }
 

@@ -295,7 +295,8 @@ std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
     const LogitProcessor& logit_processor, const Sampler& sampler, const NDArray& logits,
     const Array<GenerationConfig>& generation_cfg, const Array<String>& request_ids,
     const Array<RequestModelState>& mstates, const std::vector<RandomGenerator*>& rngs,
-    const std::vector<int>& sample_indices) {
+    const std::vector<int>& sample_indices, const Array<GenerationConfig>& child_generation_cfg,
+    const Array<String>& child_request_ids, const std::vector<int>& child_sample_indices) {
   // - Update logits.
   logit_processor->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
@@ -307,7 +308,7 @@ std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
   NDArray renormalized_probs = sampler->BatchRenormalizeProbsByTopP(probs_on_device, sample_indices,
                                                                     request_ids, generation_cfg);
   std::vector<SampleResult> sample_results = sampler->BatchSampleTokensWithProbAfterTopP(
-      renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
+      renormalized_probs, child_sample_indices, child_request_ids, child_generation_cfg, rngs);
   return {std::move(probs_on_device), std::move(sample_results)};
 }
 

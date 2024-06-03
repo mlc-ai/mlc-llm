@@ -83,6 +83,13 @@ inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const Engine
 
 /*!
  * \brief Apply the logit processor to the logits and sample one token for each request.
+ *
+ * Both the parent request configurations and the child request configurations need to be provided.
+ * The parent request configurations are used to process the logits, normalize the probabilities.
+ * The child request configurations are used to sample the tokens.
+ *
+ * When the request doesn't have children, the parent and child configurations are the same.
+ *
  * \param logit_processor The logit processor to apply.
  * \param sampler The sampler to sample tokens.
  * \param logits The logits to process.
@@ -91,13 +98,17 @@ inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const Engine
  * \param mstates The model states of the requests.
  * \param rngs The random generators of the requests.
  * \param sample_indices The indices of the requests to sample.
+ * \param child_generation_cfg The generation configurations of the child requests.
+ * \param child_request_ids The request ids of the child requests.
+ * \param child_sample_indices The indices of the child requests to sample.
  * \return The processed logits and the sampled results.
  */
 std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
     const LogitProcessor& logit_processor, const Sampler& sampler, const NDArray& logits,
     const Array<GenerationConfig>& generation_cfg, const Array<String>& request_ids,
     const Array<RequestModelState>& mstates, const std::vector<RandomGenerator*>& rngs,
-    const std::vector<int>& sample_indices);
+    const std::vector<int>& sample_indices, const Array<GenerationConfig>& child_generation_cfg,
+    const Array<String>& child_request_ids, const std::vector<int>& child_sample_indices);
 
 }  // namespace serve
 }  // namespace llm
