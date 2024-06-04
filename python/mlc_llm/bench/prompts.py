@@ -15,16 +15,30 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
     Generates prompts of a specified token length from a text file containing potential prompts.
     """
 
-    def __init__(self, prompts_path: Optional[str] = None, tokenizer: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        prompts_path: Optional[str] = None,
+        tokenizer: Optional[Any] = None,
+        seed: Optional[int] = 11111,
+    ) -> None:
         """
         Initializes the PromptsGenerator with the file path and tokenizer.
 
         Parameters
         ----------
         prompts_path : Optional[str]
-            The path to the file containing the source prompts, it could be
-            either plain text or .jsonl.
+            The path to the file containing the source prompts. This file can be
+            a plain text file, with each line representing a separate prompt str,
+            or a .jsonl file where each line is a JSON object formatted as
+            {"prompt": "prompt text", "prompt_tokens": 10}.
+
+        tokenizer : Optional[Any]
+            The tokenizer object to use for tokenizing the prompts.
+
+        seed : Optional[int]
+            The seed for the random number generator.
         """
+        random.seed(seed)
         self.tokenizer = tokenizer
         if not self.tokenizer:
             from transformers import (  # pylint: disable=import-outside-toplevel,import-error
@@ -69,9 +83,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
         """
         return len(self.tokenizer.encode(text))
 
-    def generate_prompt(
-        self, tokens_mean: int, tokens_stddev: Optional[int] = 0, seed: Optional[int] = 11111
-    ) -> str:
+    def generate_prompt(self, tokens_mean: int, tokens_stddev: Optional[int] = 0) -> str:
         """
         Generates a prompt that closely matches the desired token count.
 
@@ -83,16 +95,12 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
         token_stddev : Optional[int]
             The desired standard deviation of tokens in the prompt.
 
-        seed : Optional[int]
-            The seed for the random number generator.
-
         Returns
         -------
         out: str
             A prompt string with the specified number of tokens.
         """
         assert tokens_mean > 0, "The mean number of tokens must be greater than 0."
-        random.seed(seed)
         out_prompt_tokens = (
             int(random.gauss(tokens_mean, tokens_stddev)) if tokens_stddev else tokens_mean
         )
