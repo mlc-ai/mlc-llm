@@ -145,19 +145,33 @@ class OpenAIProtocol {
     @Serializable
     data class CompletionUsageExtra(
         val prefill_tokens_per_s: Float? = null,
+        val ttft_s: Float? = null,
+        val inter_token_latency_s: Float? = null,
         val decode_tokens_per_s: Float? = null,
-        val num_prefill_tokens: Int? = null
+        val prefill_tokens: Int? = null
     ) {
         fun asTextLabel(): String {
             var outputText = ""
             if (prefill_tokens_per_s != null) {
                 outputText += "prefill: ${String.format("%.1f", prefill_tokens_per_s)} tok/s"
             }
+            if (ttft_s != null) {
+                if (outputText.isNotEmpty()) {
+                    outputText += ", "
+                }
+                outputText += "ttft: ${String.format("%.1f", ttft_s)} s"
+            }
             if (decode_tokens_per_s != null) {
                 if (outputText.isNotEmpty()) {
                     outputText += ", "
                 }
                 outputText += "decode: ${String.format("%.1f", decode_tokens_per_s)} tok/s"
+            }
+            if (inter_token_latency_s != null) {
+                if (outputText.isNotEmpty()) {
+                    outputText += ", "
+                }
+                outputText += "inter_token_latency: ${String.format("%.1f", inter_token_latency_s)} s"
             }
             return outputText
         }

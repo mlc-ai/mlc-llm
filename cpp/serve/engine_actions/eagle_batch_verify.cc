@@ -169,7 +169,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       }
       // Metrics update
       // live update the output metrics
-      rsentries[i]->rstate->metrics.num_output_tokens += accept_length;
+      rsentries[i]->rstate->metrics.completion_tokens += accept_length;
       estate->metrics.spec_decode.Update(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
                                          accept_length);
       // - Minus one because the last draft token has no kv cache entry

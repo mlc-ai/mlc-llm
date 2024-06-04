@@ -191,9 +191,16 @@ class ChatState:
                 return "N/A"
             prefill_speed = last_finished_request.get("prefill_tokens_per_s", None)
             decode_speed = last_finished_request.get("decode_tokens_per_s", None)
+            ttft_speed = last_finished_request.get("ttft_s", None)
+            itl_speed = last_finished_request.get("inter_token_latency_s", None)
             prefill_speed = f"{prefill_speed:.1f}" if prefill_speed is not None else "N/A"
+            ttft_speed = f"{ttft_speed:.1f}" if ttft_speed is not None else "N/A"
+            itl_speed = f"{itl_speed:.1f}" if itl_speed is not None else "N/A"
             decode_speed = f"{decode_speed:.1f}" if decode_speed is not None else "N/A"
-            return f"prefill: {prefill_speed} tok/s, decode: {decode_speed} tok/s"
+            return (
+                f"prefill: {prefill_speed} tok/s, decode: {decode_speed} tok/s, "
+                f"ttft: {ttft_speed} s, inter token latency: {itl_speed} s"
+            )
 
         print(get_stats_text(), flush=True)
 

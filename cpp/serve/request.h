@@ -47,7 +47,7 @@ class RequestNode : public Object {
    * "-1" means the input length is unknown due to the existence
    * of untokenized text data.
    */
-  int num_input_tokens = -1;
+  int prompt_tokens = -1;
   /*!
    * \brief The sampling configuration which may contain temperature,
    * top_p, repetition_penalty, max_gen_len, etc.

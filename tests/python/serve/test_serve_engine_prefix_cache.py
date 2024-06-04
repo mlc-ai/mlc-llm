@@ -30,7 +30,7 @@ def test_engine_system_prompt(engine):
         ),
     )
     metrics = engine.metrics()
-    assert metrics["num_prefill_tokens_sum"] == system_prompt_tokens
+    assert metrics["prefill_tokens_sum"] == system_prompt_tokens
     sum_prefill_tokens = system_prompt_tokens
 
     input_token_lens = [len(engine.tokenizer.encode(prompt)) for prompt in prompts]
@@ -38,19 +38,19 @@ def test_engine_system_prompt(engine):
     generation_config = GenerationConfig(temperature=0, max_tokens=max_tokens)
     _, _ = engine.generate(prompts, generation_config)
     metrics = engine.metrics()
-    assert metrics["num_prefill_tokens_sum"] == sum_prefill_tokens + sum(input_token_lens)
-    sum_prefill_tokens = metrics["num_prefill_tokens_sum"]
+    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + sum(input_token_lens)
+    sum_prefill_tokens = metrics["prefill_tokens_sum"]
 
     _, _ = engine.generate(system_prompt + " and why ?", generation_config)
     metrics = engine.metrics()
     # system prompt is reused entirely
-    assert metrics["num_prefill_tokens_sum"] == sum_prefill_tokens + 3
-    sum_prefill_tokens = metrics["num_prefill_tokens_sum"]
+    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + 3
+    sum_prefill_tokens = metrics["prefill_tokens_sum"]
 
     _, _ = engine.generate(prompts[:4], generation_config)
     metrics = engine.metrics()
     # first 4 prompts are removed and need to prefill again
-    assert metrics["num_prefill_tokens_sum"] == sum_prefill_tokens + sum(input_token_lens[:4])
+    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + sum(input_token_lens[:4])
 
 
 def test_engine_multi_round(engine):
@@ -61,14 +61,14 @@ def test_engine_multi_round(engine):
 
     output_texts, _ = engine.generate(prompts[:num_requests], generation_config)
     metrics = engine.metrics()
-    assert metrics["num_prefill_tokens_sum"] == sum(input_token_lens)
-    sum_prefill_tokens = metrics["num_prefill_tokens_sum"]
+    assert metrics["prefill_tokens_sum"] == sum(input_token_lens)
+    sum_prefill_tokens = metrics["prefill_tokens_sum"]
     concat_prompt = []
     for i, output in enumerate(output_texts):
         concat_prompt.append(prompts[i] + " " + output[0] + " ?")
     output_texts, _ = engine.generate(concat_prompt[:num_requests], generation_config)
     metrics = engine.metrics()
-    assert metrics["num_prefill_tokens_sum"] == sum_prefill_tokens + 2 * num_requests
+    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + 2 * num_requests
 
 
 @require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")

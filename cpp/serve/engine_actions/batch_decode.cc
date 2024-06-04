@@ -133,7 +133,7 @@ class BatchDecodeActionObj : public EngineActionObj {
       mstates[i]->CommitToken(sample_results[i]);
       // Metrics update
       // live update the output metrics
-      running_rsentries[i]->rstate->metrics.num_output_tokens += 1;
+      running_rsentries[i]->rstate->metrics.completion_tokens += 1;
     }
 
     auto tend = std::chrono::high_resolution_clock::now();

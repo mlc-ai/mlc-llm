@@ -72,25 +72,27 @@ picojson::object SpecDecodeMetrics::AsJSON() const {
 
 picojson::object RequestMetrics::AsJSON() const {
   picojson::object metrics;
-  metrics["num_input_tokens"] = picojson::value(num_input_tokens);
-  metrics["num_prefill_tokens"] = picojson::value(num_prefill_tokens);
-  metrics["num_output_tokens"] = picojson::value(num_output_tokens);
+  metrics["prompt_tokens"] = picojson::value(prompt_tokens);
+  metrics["prefill_tokens"] = picojson::value(prefill_tokens);
+  metrics["completion_tokens"] = picojson::value(completion_tokens);
 
-  if (num_output_tokens != 0) {
-    metrics["decode_tokens_per_s"] = picojson::value(num_output_tokens / this->GetDecodeTime());
+  if (completion_tokens != 0) {
+    metrics["decode_tokens_per_s"] = picojson::value(completion_tokens / this->GetDecodeTime());
   }
-  if (num_prefill_tokens != 0) {
-    metrics["prefill_tokens_per_s"] = picojson::value(num_prefill_tokens / this->GetPrefillTime());
+  if (prefill_tokens != 0) {
+    metrics["prefill_tokens_per_s"] = picojson::value(prefill_tokens / this->GetPrefillTime());
   }
   metrics["end_to_end_latency_s"] = picojson::value(this->GetTotalTime());
+  metrics["ttft_s"] = picojson::value(this->GetTTFT());
+  metrics["inter_token_latency_s"] = picojson::value(this->GetInterTokenLatency());
   return metrics;
 }
 
 std::string RequestMetrics::AsUsageJSONStr(bool include_extra) const {
   picojson::object usage;
-  usage["completion_tokens"] = picojson::value(num_output_tokens);
-  usage["prompt_tokens"] = picojson::value(num_input_tokens);
-  usage["total_tokens"] = picojson::value(num_input_tokens + num_output_tokens);
+  usage["completion_tokens"] = picojson::value(completion_tokens);
+  usage["prompt_tokens"] = picojson::value(prompt_tokens);
+  usage["total_tokens"] = picojson::value(prompt_tokens + completion_tokens);
   if (include_extra) {
     usage["extra"] = picojson::value(this->AsJSON());
   }
@@ -101,9 +103,9 @@ picojson::object EngineMetrics::AsJSON() const {
   picojson::object metrics;
   metrics["engine_prefill_time_sum"] = picojson::value(engine_prefill_time_sum);
   metrics["engine_decode_time_sum"] = picojson::value(engine_decode_time_sum);
-  metrics["num_input_tokens_sum"] = picojson::value(num_input_tokens_sum);
-  metrics["num_prefill_tokens_sum"] = picojson::value(num_prefill_tokens_sum);
-  metrics["num_output_tokens_sum"] = picojson::value(num_output_tokens_sum);
+  metrics["prompt_tokens_sum"] = picojson::value(prompt_tokens_sum);
+  metrics["prefill_tokens_sum"] = picojson::value(prefill_tokens_sum);
+  metrics["completion_tokens_sum"] = picojson::value(completion_tokens_sum);
   metrics["last_finished_request"] = picojson::value(last_finished_request.AsJSON());
   if (!spec_decode.IsEmpty()) {
     metrics["spec_decode"] = picojson::value(spec_decode.AsJSON());
@@ -146,9 +148,9 @@ std::string EngineMetrics::AsUsageJSONStr() const {
 void EngineMetrics::Reset() {
   engine_prefill_time_sum = 0.0;
   engine_decode_time_sum = 0.0;
-  num_input_tokens_sum = 0;
-  num_prefill_tokens_sum = 0;
-  num_output_tokens_sum = 0;
+  prompt_tokens_sum = 0;
+  prefill_tokens_sum = 0;
+  completion_tokens_sum = 0;
   last_finished_request.Reset();
   spec_decode.Reset();
   decode_time_by_batch_size.clear();

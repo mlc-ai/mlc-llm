@@ -150,7 +150,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     for (const RequestStateEntry& rsentry : rstate->entries) {
       for (Data data : rsentry->mstates[0]->prefilled_inputs) {
         // note that we are counting prefill tokens across all branches
-        rstate->metrics.num_prefill_tokens += data->GetLength();
+        rstate->metrics.prefill_tokens += data->GetLength();
       }
     }
   }
