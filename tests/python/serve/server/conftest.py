@@ -28,6 +28,7 @@ def launch_server(served_model):  # pylint: disable=redefined-outer-name
         model_lib=served_model[1],
         enable_tracing=True,
         enable_debug=True,
+        port=8000,
     )
 
     with server:

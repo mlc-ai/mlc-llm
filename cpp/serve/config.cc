@@ -615,8 +615,11 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
            model_config_limits.model_max_sliding_window_size});
     } else {
       inferred_config.max_total_sequence_length =
-          std::min(model_max_total_sequence_length,
-                   max_num_sequence * model_config_limits.model_max_single_sequence_length);
+          model_config_limits.model_max_single_sequence_length ==
+                  std::numeric_limits<int64_t>::max()
+              ? model_max_total_sequence_length
+              : std::min(model_max_total_sequence_length,
+                         max_num_sequence * model_config_limits.model_max_single_sequence_length);
     }
     os << "max KV cache token capacity will be set to "
        << inferred_config.max_total_sequence_length.value() << ", ";
