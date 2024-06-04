@@ -101,9 +101,19 @@ class BatchVerifyActionObj : public EngineActionObj {
         {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
+    // Construct the token tree. Right now only chains are supported.
+    std::vector<int64_t> token_tree_parent_ptr;
+    token_tree_parent_ptr.reserve(total_verify_length);
+    for (int i = 0; i < num_rsentries; ++i) {
+      for (int pos = 0; pos < verify_lengths[i]; ++pos) {
+        token_tree_parent_ptr.push_back(pos - 1);
+      }
+    }
+    ICHECK_EQ(token_tree_parent_ptr.size(), total_verify_length);
+
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
-    NDArray logits =
-        models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids, verify_lengths);
+    NDArray logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
+                                                            verify_lengths, token_tree_parent_ptr);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
@@ -138,7 +148,11 @@ class BatchVerifyActionObj : public EngineActionObj {
     // by the draft model but not added into the draft model's KV cache.
     // In this case, an additional batch decode step is needed for these requests.
     std::vector<int64_t> fully_accepted_rsentries;
+    std::vector<int64_t> verify_model_seq_internal_ids;
+    std::vector<int64_t> accepted_token_tree_leaf_nodes;
     fully_accepted_rsentries.reserve(num_rsentries);
+    verify_model_seq_internal_ids.reserve(num_rsentries);
+    accepted_token_tree_leaf_nodes.reserve(num_rsentries);
 
     for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
@@ -154,12 +168,13 @@ class BatchVerifyActionObj : public EngineActionObj {
                                          accept_length);
       int rollback_length =
           std::max(cum_verify_lengths[i + 1] - cum_verify_lengths[i] - accept_length, 0);
-      // rollback kv cache
+      // Commit accepted tokens to the "verify_model", rollback kv cache
+      // in the "draft_model".
       // NOTE: when number of small models is more than 1 (in the future),
       // it is possible to re-compute prefill for the small models.
+      verify_model_seq_internal_ids.push_back(rsentries[i]->mstates[verify_model_id_]->internal_id);
+      accepted_token_tree_leaf_nodes.push_back(accept_length - 1);
       if (rollback_length > 0) {
-        models_[verify_model_id_]->PopNFromKVCache(
-            rsentries[i]->mstates[verify_model_id_]->internal_id, rollback_length);
         // The last accepted token is not yet added into the draft model.
         // Therefore, the rollback length for the draft model is one less.
         models_[draft_model_id_]->PopNFromKVCache(
@@ -168,6 +183,8 @@ class BatchVerifyActionObj : public EngineActionObj {
         fully_accepted_rsentries.push_back(i);
       }
     }
+    models_[verify_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
+        verify_model_seq_internal_ids, accepted_token_tree_leaf_nodes);
 
     if (!fully_accepted_rsentries.empty()) {
       // - Run a step of batch decode for requests whose drafts are fully accepted.

@@ -450,7 +450,8 @@ class ModelImpl : public ModelObj {
   }
 
   NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                      const std::vector<int>& lengths) final {
+                      const std::vector<int>& lengths,
+                      const std::vector<int64_t>& token_tree_parent_ptr) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -458,6 +459,7 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
     }
+    CHECK_EQ(total_length, token_tree_parent_ptr.size());
 
     NVTXScopedRange nvtx_scope("BatchVerify num_tokens=" + std::to_string(total_length));
 
@@ -471,7 +473,9 @@ class ModelImpl : public ModelObj {
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
-    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
+                                     token_tree_parent_ptr_tuple);
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
@@ -512,7 +516,8 @@ class ModelImpl : public ModelObj {
 
   ObjectRef BatchVerifyToLastHidden(const ObjectRef& embeddings,
                                     const std::vector<int64_t>& seq_ids,
-                                    const std::vector<int>& lengths) final {
+                                    const std::vector<int>& lengths,
+                                    const std::vector<int64_t>& token_tree_parent_ptr) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -520,6 +525,7 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
     }
+    CHECK_EQ(total_length, token_tree_parent_ptr.size());
     NVTXScopedRange nvtx_scope("BatchVerifyToLastHidden num_tokens=" +
                                std::to_string(total_length));
 
@@ -548,7 +554,9 @@ class ModelImpl : public ModelObj {
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
-    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
+                                     token_tree_parent_ptr_tuple);
 
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_);
@@ -627,6 +635,13 @@ class ModelImpl : public ModelObj {
       return;
     }
     ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
+  }
+
+  void CommitAcceptedTokenTreeNodesToKVCache(
+      const std::vector<int64_t>& seq_ids,
+      const std::vector<int64_t>& accepted_leaf_indices) final {
+    ft_.kv_cache_commit_accepted_token_tree_nodes_func_(kv_cache_, IntTuple(seq_ids),
+                                                        IntTuple(accepted_leaf_indices));
   }
 
   void EnableSlidingWindowForSeq(int64_t seq_id) final {

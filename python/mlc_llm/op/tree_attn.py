@@ -91,7 +91,6 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         var_v: T.handle, # [total_len, h_kv, d]
         var_kv_indptr: T.handle, # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
         var_q_rope_position: T.handle, # [total_q_len]
-        var_m: T.handle, # [batch_size]
         var_mn_indptr: T.handle, # [batch_size + 1]
         var_mask: T.handle, # [mn_indptr[batch_size]]
         var_output: T.handle, # [total_len, h_q, d]
@@ -99,14 +98,16 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
-        attn_score_scaling_factor: T.float32
+        attn_score_scaling_factor: T.float32,
+        batch_size: T.int32,
     ):
-        batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
         kv_len = T.int32(is_size_var=True)
         q_indptr_elem_offset = T.int32(is_size_var=True)
         kv_indptr_elem_offset = T.int32(is_size_var=True)
         q_rope_position_elem_offset = T.int32(is_size_var=True)
+        mn_indptr_elem_offset = T.int32(is_size_var=True)
+        mask_elem_offset = T.int32(is_size_var=True)
         tree_size = T.int32(is_size_var=True)
 
         q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
@@ -115,9 +116,8 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
         kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
         q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        m_array = T.match_buffer(var_m, (batch_size,), "int32")
-        mn_indptr = T.match_buffer(var_mn_indptr, (batch_size + 1,), "int32")
-        mask = T.match_buffer(var_mask, (tree_size,), "int32")
+        mn_indptr = T.match_buffer(var_mn_indptr, (batch_size + 1,), "int32", elem_offset=mn_indptr_elem_offset)
+        mask = T.match_buffer(var_mask, (tree_size,), "int32", elem_offset=mask_elem_offset)
         output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
 
@@ -256,7 +256,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=m_array[b_idx],
+                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
                                                                 kv_len=kv_chunk_len[0]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
@@ -271,7 +271,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                                 col=L_kv_start + j,
                                                                 mask_ptr=mask,
                                                                 offset=mn_indptr[b_idx],
-                                                                stride=m_array[b_idx],
+                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
                                                                 kv_len=kv_chunk_len[0]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:

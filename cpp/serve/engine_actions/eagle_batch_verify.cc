@@ -111,9 +111,19 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
+    // Construct the token tree. Right now only chains are supported.
+    std::vector<int64_t> token_tree_parent_ptr;
+    token_tree_parent_ptr.reserve(cum_verify_lengths.back());
+    for (int i = 0; i < num_rsentries; ++i) {
+      for (int pos = 0; pos < verify_lengths[i]; ++pos) {
+        token_tree_parent_ptr.push_back(pos - 1);
+      }
+    }
+    ICHECK_EQ(token_tree_parent_ptr.size(), cum_verify_lengths.back());
+
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
     ObjectRef hidden_states = models_[verify_model_id_]->BatchVerifyToLastHidden(
-        embeddings, request_internal_ids, verify_lengths);
+        embeddings, request_internal_ids, verify_lengths, token_tree_parent_ptr);
     NDArray logits = models_[verify_model_id_]->GetLogits(hidden_states);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
     ICHECK_EQ(logits->ndim, 2);
@@ -141,7 +151,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     // by the draft model but not added into the draft model's KV cache.
     // In this case, an additional batch decode step is needed for these requests.
     std::vector<int64_t> fully_accepted_rsentries;
+    std::vector<int64_t> verify_model_seq_internal_ids;
+    std::vector<int64_t> accepted_token_tree_leaf_nodes;
     fully_accepted_rsentries.reserve(num_rsentries);
+    verify_model_seq_internal_ids.reserve(num_rsentries);
+    accepted_token_tree_leaf_nodes.reserve(num_rsentries);
 
     std::vector<int> last_accepted_hidden_positions;
     last_accepted_hidden_positions.reserve(num_rsentries);
@@ -163,12 +177,13 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       int rollback_length =
           std::max(cum_verify_lengths[i + 1] - cum_verify_lengths[i] - accept_length, 0);
 
-      // rollback kv cache
+      // Commit accepted tokens to the "verify_model", rollback kv cache
+      // in the "draft_model".
       // NOTE: when number of small models is more than 1 (in the future),
       // it is possible to re-compute prefill for the small models.
+      verify_model_seq_internal_ids.push_back(rsentries[i]->mstates[verify_model_id_]->internal_id);
+      accepted_token_tree_leaf_nodes.push_back(accept_length - 1);
       if (rollback_length > 0) {
-        models_[verify_model_id_]->PopNFromKVCache(
-            rsentries[i]->mstates[verify_model_id_]->internal_id, rollback_length);
         // Draft model rollback minus one because verify uses one more token.
         models_[draft_model_id_]->PopNFromKVCache(
             rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length - 1);
@@ -181,6 +196,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       // - Slice and save hidden_states_for_sample
       last_accepted_hidden_positions.push_back(cum_verify_lengths[i] + accept_length - 1);
     }
+    models_[verify_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
+        verify_model_seq_internal_ids, accepted_token_tree_leaf_nodes);
     if (!fully_accepted_rsentries.empty() &&
         engine_config_->speculative_mode == SpeculativeMode::kEagle) {
       // - Run a step of batch decode for requests whose drafts are fully accepted.
