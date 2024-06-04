@@ -15,6 +15,20 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+inline bool FlashInferSamplingAvailable(Device device) {
+  // Device must be CUDA, and FlashInfer must be enabled.
+  if (device.device_type != DLDeviceType::kDLCUDA ||
+      Registry::Get("flashinfer.sampling.parallel_sampling_from_prob") == nullptr) {
+    return false;
+  }
+  // Compute version must be at least 8.0
+  TVMRetValue rv;
+  DeviceAPI::Get(device)->GetAttr(device, kComputeVersion, &rv);
+  std::string compute_version = rv;
+  std::string major_version = compute_version.substr(0, compute_version.find('.'));
+  return std::stoi(major_version) >= 8;
+}
+
 inline void CopyArray(NDArray src, NDArray dst, TVMStreamHandle copy_stream) {
   DLTensor dl_dst = *(dst.operator->());
   NDArray::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
@@ -38,6 +52,7 @@ class GPUSampler : public SamplerObj {
                       Optional<EventTraceRecorder> trace_recorder)
       : max_num_sample_(max_num_sample),
         vocab_size_(vocab_size),
+        flashinfer_sampling_available_(FlashInferSamplingAvailable(device)),
         device_(device),
         gpu_multinomial_from_uniform_func_(ft->gpu_multinomial_from_uniform_func_),
         gpu_argsort_probs_func_(ft->gpu_argsort_probs_func_),
@@ -550,8 +565,7 @@ class GPUSampler : public SamplerObj {
     if (!need_top_p && !need_prob_values) {
       // - Short path: If top_p and prob values are not needed, we directly sample from multinomial.
       SyncCopyStream(device_, compute_stream_, copy_stream_);
-      if (device_.device_type == DLDeviceType::kDLCUDA &&
-          flashinfer_multinomial_sample_func_ != nullptr) {
+      if (flashinfer_sampling_available_) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
         (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
@@ -594,8 +608,7 @@ class GPUSampler : public SamplerObj {
                                       uniform_samples_device, sample_indices_device, top_p_device);
     } else {
       // - Sample without top_p.
-      if (device_.device_type == DLDeviceType::kDLCUDA &&
-          flashinfer_multinomial_sample_func_ != nullptr) {
+      if (flashinfer_sampling_available_) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
         (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
@@ -667,6 +680,7 @@ class GPUSampler : public SamplerObj {
   const int vocab_size_;
   const DLDataType dtype_i32_ = DataType::Int(32);
   const DLDataType dtype_f32_ = DataType::Float(32);
+  const bool flashinfer_sampling_available_;
   // Functions for sampling on GPU.
   Device device_;
   PackedFunc gpu_multinomial_from_uniform_func_;
