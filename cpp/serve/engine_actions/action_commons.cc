@@ -122,7 +122,7 @@ void UpdatePrefixCache(Array<Request> requests, EngineState estate) {
                           rsentry->mstates[0]->cached_committed_tokens));
           for (int i = rsentry->mstates[0]->cached_committed_tokens;
                i < static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1; ++i) {
-            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
+            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].GetTokenId());
           }
           estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
           rsentry->mstates[0]->cached_committed_tokens =
@@ -246,7 +246,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     std::vector<int32_t> committed_token_ids;
     committed_token_ids.reserve(mstate->committed_tokens.size());
     for (const SampleResult& committed_token : mstate->committed_tokens) {
-      committed_token_ids.push_back(committed_token.sampled_token_id.first);
+      committed_token_ids.push_back(committed_token.GetTokenId());
     }
     mstate->num_prefilled_tokens = 0;
 

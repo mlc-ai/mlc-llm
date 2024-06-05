@@ -81,10 +81,10 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
       ICHECK_EQ(draft_lengths[i], draft_mstate->draft_token_slots.size());
       // the last committed token + all the draft tokens but the last one.
-      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().sampled_token_id.first);
+      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
       for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()); ++j) {
-        all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
+        all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].GetTokenId());
         draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
       }
       verify_request_mstates.push_back(verify_mstate);
@@ -221,7 +221,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         input_tokens.push_back(rsentries[rsentry_id]
                                    ->mstates[verify_model_id_]
                                    ->committed_tokens[num_committed_tokens - 2]
-                                   .sampled_token_id.first);
+                                   .GetTokenId());
 
         // Taking the hidden states of the token before the last token
         hidden_states_positions_for_fully_accepted.push_back(
@@ -273,7 +273,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       }
       for (int i = 0; i < num_rsentries; ++i) {
         ICHECK(!mstates[i]->committed_tokens.empty());
-        input_tokens.push_back(mstates[i]->committed_tokens.back().sampled_token_id.first);
+        input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
       }
 
       Array<NDArray> multi_step_logits{nullptr};  // for medusa output

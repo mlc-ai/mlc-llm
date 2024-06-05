@@ -111,7 +111,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
           ICHECK(!mstates[i]->draft_output_tokens.empty());
-          input_tokens.push_back(mstates[i]->draft_output_tokens.back().sampled_token_id.first);
+          input_tokens.push_back(mstates[i]->draft_output_tokens.back().GetTokenId());
         }
 
         // - Compute embeddings.

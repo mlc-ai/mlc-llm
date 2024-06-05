@@ -434,7 +434,7 @@ class CPUSampler : public SamplerObj {
           // Sub 1 to ignore the last prediction.
           for (; cur_token_idx < verify_end - verify_start - 1; ++cur_token_idx) {
             float* p_probs = global_p_probs + (verify_start + cur_token_idx) * vocab_size;
-            int cur_token = draft_output_tokens[i][cur_token_idx].sampled_token_id.first;
+            int cur_token = draft_output_tokens[i][cur_token_idx].GetTokenId();
             float q_value = draft_output_tokens[i][cur_token_idx].sampled_token_id.second;
             float p_value = p_probs[cur_token];
 

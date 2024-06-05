@@ -88,7 +88,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     generation_cfg.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
     for (const RequestStateEntry& rsentry : running_rsentries) {
-      input_tokens.push_back(rsentry->mstates[0]->committed_tokens.back().sampled_token_id.first);
+      input_tokens.push_back(rsentry->mstates[0]->committed_tokens.back().GetTokenId());
       request_ids.push_back(rsentry->request->id);
       request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
       mstates.push_back(rsentry->mstates[0]);

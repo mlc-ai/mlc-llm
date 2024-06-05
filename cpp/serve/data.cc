@@ -138,6 +138,8 @@ inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& 
   (*os) << "]";
 }
 
+int32_t SampleResult::GetTokenId() const { return this->sampled_token_id.first; }
+
 std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logprob) const {
   ICHECK(top_prob_tokens.empty() || logprob);
   if (!logprob) {

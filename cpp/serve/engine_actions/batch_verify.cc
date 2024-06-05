@@ -82,9 +82,9 @@ class BatchVerifyActionObj : public EngineActionObj {
       ICHECK_EQ(verify_lengths[i], draft_mstate->draft_token_slots.size() + 1);
       // the last committed token + all the draft tokens.
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
-      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().sampled_token_id.first);
+      all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
       for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()); ++j) {
-        all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].sampled_token_id.first);
+        all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].GetTokenId());
         draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
       }
       verify_request_mstates.push_back(verify_mstate);
@@ -204,7 +204,7 @@ class BatchVerifyActionObj : public EngineActionObj {
         input_tokens.push_back(rsentries[rsentry_id]
                                    ->mstates[verify_model_id_]
                                    ->committed_tokens[num_committed_tokens - 2]
-                                   .sampled_token_id.first);
+                                   .GetTokenId());
         fully_accepted_request_internal_ids.push_back(
             rsentries[rsentry_id]->mstates[draft_model_id_]->internal_id);
       }
