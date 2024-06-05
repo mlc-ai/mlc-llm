@@ -233,7 +233,7 @@ class GPUSampler : public SamplerObj {
       ICHECK_EQ(draft_output_tokens_i.size() + 1, end - start);
       for (int j = 0; j < end - start - 1; j++) {
         // Copy sampled token id
-        p_draft_tokens_host[start + j + 1] = draft_output_tokens_i[j].sampled_token_id.first;
+        p_draft_tokens_host[start + j + 1] = draft_output_tokens_i[j].GetTokenId();
       }
     }
     CopyArray(draft_tokens_host, draft_tokens_device, copy_stream_);

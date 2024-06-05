@@ -399,8 +399,7 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
       if (!rsentry_activated[i]) {
         // When the child rsentry is not activated,
         // add the sampled token as an input of the mstate for prefill.
-        mstate->inputs.push_back(
-            TokenData(std::vector<int64_t>{sample_results[i].sampled_token_id.first}));
+        mstate->inputs.push_back(TokenData(std::vector<int64_t>{sample_results[i].GetTokenId()}));
       }
     }
     // prefill has finished

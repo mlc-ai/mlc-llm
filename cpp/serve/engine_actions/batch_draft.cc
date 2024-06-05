@@ -99,9 +99,9 @@ class BatchDraftActionObj : public EngineActionObj {
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
           // The first draft proposal uses the last committed token.
-          input_tokens.push_back(
-              draft_id == 0 ? mstates[i]->committed_tokens.back().sampled_token_id.first
-                            : mstates[i]->draft_output_tokens.back().sampled_token_id.first);
+          input_tokens.push_back(draft_id == 0
+                                     ? mstates[i]->committed_tokens.back().GetTokenId()
+                                     : mstates[i]->draft_output_tokens.back().GetTokenId());
         }
 
         // - Compute embeddings.

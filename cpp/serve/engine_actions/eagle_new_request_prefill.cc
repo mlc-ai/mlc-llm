@@ -298,7 +298,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                     Downcast<TokenData>(rsentries_for_sample[i]->mstates[mid]->inputs.back());
                 std::vector<int32_t> token_ids = {token_data->token_ids.begin(),
                                                   token_data->token_ids.end()};
-                token_ids.push_back(sample_results[i].sampled_token_id.first);
+                token_ids.push_back(sample_results[i].GetTokenId());
                 int ninputs =
                     static_cast<int>(rsentries_for_sample[i]->mstates[mid]->inputs.size());
                 rsentries_for_sample[i]->mstates[mid]->inputs.Set(

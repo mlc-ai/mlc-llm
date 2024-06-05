@@ -57,15 +57,18 @@ def _get_dso_suffix() -> str:
 
 
 def _get_test_model_path() -> List[Path]:
+    paths = []
     if "MLC_LLM_TEST_MODEL_PATH" in os.environ:
-        return [Path(p) for p in os.environ["MLC_LLM_TEST_MODEL_PATH"].split(os.pathsep)]
+        paths += [Path(p) for p in os.environ["MLC_LLM_TEST_MODEL_PATH"].split(os.pathsep)]
     # by default, we reuse the cache dir via mlc_llm chat
     # note that we do not auto download for testcase
     # to avoid networking dependencies
     base_list = ["hf"]
-    return [_get_cache_dir() / "model_weights" / base / "mlc-ai" for base in base_list] + [
-        Path(os.path.abspath(os.path.curdir))
+    paths += [_get_cache_dir() / "model_weights" / base / "mlc-ai" for base in base_list] + [
+        Path(os.path.abspath(os.path.curdir)),
+        Path(os.path.abspath(os.path.curdir)) / "dist",
     ]
+    return paths
 
 
 def _get_read_only_weight_caches() -> List[Path]:

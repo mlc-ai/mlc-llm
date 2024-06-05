@@ -138,6 +138,9 @@ struct SampleResult {
   /*! \brief The token id and probability of the tokens with top probabilities. */
   std::vector<TokenProbPair> top_prob_tokens;
 
+  /*! \brief Get the sampled token id. */
+  int32_t GetTokenId() const;
+
   /*!
    * \brief Get the logprob JSON string of this token with regard
    * to OpenAI API at https://platform.openai.com/docs/api-reference/chat/object.

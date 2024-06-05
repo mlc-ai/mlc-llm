@@ -48,13 +48,12 @@ void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
 
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   committed_tokens.push_back(std::move(sampled_token));
-  appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
+  appeared_token_ids[sampled_token.GetTokenId()] += 1;
 
   // Update the grammar matcher state if it exists.
   if (grammar_state_matcher) {
-    bool accepted =
-        grammar_state_matcher.value()->AcceptToken(sampled_token.sampled_token_id.first);
-    ICHECK(accepted) << "Token id " << sampled_token.sampled_token_id.first
+    bool accepted = grammar_state_matcher.value()->AcceptToken(sampled_token.GetTokenId());
+    ICHECK(accepted) << "Token id " << sampled_token.GetTokenId()
                      << " is not accepted by the grammar state matcher.";
   }
 }
@@ -62,12 +61,12 @@ void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
 void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_token_slot) {
   draft_output_tokens.push_back(std::move(sampled_token));
   draft_token_slots.push_back(draft_token_slot);
-  appeared_token_ids[sampled_token.sampled_token_id.first] += 1;
+  appeared_token_ids[sampled_token.GetTokenId()] += 1;
 }
 
 void RequestModelStateNode::RemoveLastDraftToken() {
   ICHECK(!draft_output_tokens.empty());
-  auto it = appeared_token_ids.find(draft_output_tokens.back().sampled_token_id.first);
+  auto it = appeared_token_ids.find(draft_output_tokens.back().GetTokenId());
   draft_output_tokens.pop_back();
   CHECK(it != appeared_token_ids.end());
   if (--it->second == 0) {
@@ -135,7 +134,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
   ICHECK(!stop_str_handler->StopTriggered());
   while (next_callback_token_pos < num_committed_tokens) {
     std::vector<int32_t> delta_token_ids =
-        stop_str_handler->Put(committed_tokens[next_callback_token_pos].sampled_token_id.first);
+        stop_str_handler->Put(committed_tokens[next_callback_token_pos].GetTokenId());
     logprob_json_strs.push_back(committed_tokens[next_callback_token_pos].GetLogProbJSON(
         tokenizer, request->generation_cfg->logprobs));
     ++next_callback_token_pos;
