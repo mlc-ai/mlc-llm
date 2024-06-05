@@ -4,8 +4,8 @@
  * \brief The header for the parser of BNF/EBNF grammar into BNF AST.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PARSER_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PARSER_H_
+#ifndef MLC_LLM_GRAMMAR_GRAMMAR_PARSER_H_
+#define MLC_LLM_GRAMMAR_GRAMMAR_PARSER_H_
 
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
@@ -65,4 +65,4 @@ class BNFJSONParser {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_PARSER_H_
+#endif  // MLC_LLM_GRAMMAR_GRAMMAR_PARSER_H_

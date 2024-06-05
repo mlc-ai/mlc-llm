@@ -246,8 +246,6 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
   // {-1} means the universal set, i.e. all tokens initially
   tmp_rejected_indices_.assign({-1});
 
-  // std::chrono::microseconds time_unc(0);
-  // std::chrono::microseconds time_idx(0);
   int check_cnt = 0;
 
   for (auto top : latest_stack_tops) {
@@ -257,8 +255,6 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
     }
 
     const auto& catagorized_tokens = catagorized_tokens_for_grammar.at(cur_rule_position);
-
-    // auto start = std::chrono::high_resolution_clock::now();
 
     // For each stack, we will check every uncertain token and put them into the accepted or
     // rejected list.
@@ -276,35 +272,6 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
 
     const std::string* prev_token = nullptr;
     int prev_matched_size = 0;
-
-    // std::cout << tree_.PrintNode(top) << std::endl;
-
-    // std::cout << "Accepted count: " << catagorized_tokens.accepted_indices.size()
-    //           << ", rejected count: " << catagorized_tokens.rejected_indices.size()
-    //           << ", uncertain count: " << catagorized_tokens.uncertain_indices.size()
-    //           << ", save type: " << static_cast<int>(catagorized_tokens.save_type) << std::endl;
-
-    // if (catagorized_tokens.accepted_indices.size() < 200) {
-    //   std::cout << "Accpeted: ";
-    //   for (int i = 0; i < catagorized_tokens.accepted_indices.size(); ++i) {
-    //     std::cout << "<"
-    //               << PrintAsEscaped(
-    //                      sorted_token_table[catagorized_tokens.accepted_indices[i]].second)
-    //               << "> ";
-    //   }
-    //   std::cout << "\n";
-    // }
-
-    // if (catagorized_tokens.uncertain_indices.size() > 100) {
-    // std::cout << "Uncertain: ";
-    // for (int i = 0; i < catagorized_tokens.uncertain_indices.size(); ++i) {
-    //   std::cout << "<"
-    //             << PrintAsEscaped(
-    //                    sorted_token_table[catagorized_tokens.uncertain_indices[i]].second)
-    //             << "> ";
-    // }
-    // std::cout << "\n";
-    // }
 
     for (auto cur_token_idx : catagorized_tokens.uncertain_indices) {
       const auto& cur_token = sorted_token_table[cur_token_idx].second;
@@ -354,13 +321,7 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
 
     RollbackChars(prev_matched_size + 1);
 
-    // auto end = std::chrono::high_resolution_clock::now();
-
-    // time_unc += std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    // start = std::chrono::high_resolution_clock::now();
-
-    // Step 3. Update the accepted_indices and rejected_indices
+    // Step 3. Update the accepted_indices or rejected_indices
     if (catagorized_tokens.save_type == SaveType::kAcceptedBitset) {
       tmp_accepted_bitset_ |= catagorized_tokens.accepted_bitset;
     } else if (catagorized_tokens.save_type == SaveType::kAccepted) {
@@ -374,19 +335,11 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
       IntsetUnion(&tmp_rejected_indices_delta_, catagorized_tokens.rejected_indices);
       IntsetIntersection(&tmp_rejected_indices_, tmp_rejected_indices_delta_);
     }
-    // end = std::chrono::high_resolution_clock::now();
-    // time_idx += std::chrono::duration_cast<std::chrono::microseconds>(end - start);
   }
 
   // Finally update the rejected_ids bitset
-  // auto start = std::chrono::high_resolution_clock::now();
   bool can_reach_end = CanReachEnd();
   SetTokenBitmask(next_token_bitmask, tmp_accepted_bitset_, tmp_rejected_indices_, can_reach_end);
-  // auto end = std::chrono::high_resolution_clock::now();
-  // time_idx += std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-  // std::cout << "Time for uncertain: " << time_unc.count()
-  //           << "us, time for index: " << time_idx.count() << "us" << std::endl;
-  // std::cout << "Check cnt " << check_cnt << std::endl;
 }
 
 void GrammarStateMatcherNodeImpl::Rollback(int num_tokens) {

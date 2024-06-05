@@ -1,5 +1,5 @@
 /*!
- * \file json_parser.h
+ * \file support/json_parser.h
  * \brief Helps to parse JSON strings and objects.
  */
 #ifndef MLC_LLM_SUPPORT_JSON_PARSER_H_

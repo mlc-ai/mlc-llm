@@ -22,8 +22,8 @@ RequestModelState::RequestModelState(
   n->inputs = std::move(inputs);
 
   if (grammar_state_init_ctx.has_value()) {
-    // TODO(yixin): add support for stop_token_ids
-    n->grammar_state_matcher = GrammarStateMatcher(grammar_state_init_ctx.value());
+    // TODO(yixin): set rollback limit to a configurable value.
+    n->grammar_state_matcher = GrammarStateMatcher(grammar_state_init_ctx.value(), 10);
   }
 
   n->request = std::move(request);

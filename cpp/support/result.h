@@ -1,6 +1,6 @@
 /*!
  * Copyright (c) 2023 by Contributors
- * \file result.h
+ * \file support/result.h
  * \brief The header for the Result class in MLC LLM.
  */
 #ifndef MLC_LLM_SUPPORT_RESULT_H_

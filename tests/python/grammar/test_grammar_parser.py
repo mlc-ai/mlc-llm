@@ -88,7 +88,7 @@ def test_char():
 rest ::= [a-zA-Z0-9-] [\u0234-\U00000345] [测-试] [\--\]]  rest1
 rest1 ::= "\?\"\'测试あc" "👀" "" [a-a] [b-b]
 """
-    expected = r"""main ::= (([a-z] [A-z] "\u0234\u0345\u00ff" [\-A-Z] [\-\-] [^a] rest))
+    expected = r"""main ::= (([a-z] [A-z] "\u0234\u0345\xff" [\-A-Z] [\-\-] [^a] rest))
 rest ::= (([a-zA-Z0-9\-] [\u0234-\u0345] [\u6d4b-\u8bd5] [\--\]] rest1))
 rest1 ::= (("\?\"\'\u6d4b\u8bd5\u3042c\U0001f440ab"))
 """
@@ -147,11 +147,29 @@ sequence_test_choice ::= (("c") | ("d"))
 
 
 def test_json():
-    current_file_path = os.path.abspath(__file__)
-    json_ebnf_path = os.path.join(os.path.dirname(current_file_path), "json.ebnf")
-
-    with open(json_ebnf_path, "r", encoding="utf-8") as file:
-        before = file.read()
+    # Adopted from https://www.crockford.com/mckeeman.html. Not optimized
+    before = r"""main ::= element
+value ::= object | array | string | number | "true" | "false" | "null"
+object ::= "{" ws "}" | "{" members "}"
+members ::= member | member "," members
+member ::= ws string ws ":" element
+array ::= "[" ws "]" | "[" elements "]"
+elements ::= element | element "," elements
+element ::= ws value ws
+string ::= "\"" characters "\""
+characters ::= "" | character characters
+character ::= [^"\\] | "\\" escape
+escape ::= "\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "u" hex hex hex hex
+hex ::= [A-Fa-f0-9]
+number ::= integer fraction exponent
+integer ::= digit | onenine digits | "-" digit | "-" onenine digits
+digits ::= digit | digit digits
+digit ::= [0-9]
+onenine ::= [1-9]
+fraction ::= "" | "." digits
+exponent ::= "" | ("e" | "E") ("" | "+" | "-") digits
+ws ::= "" | "\u0020" ws | "\u000A" ws | "\u000D" ws | "\u0009" ws
+"""
 
     expected = r"""main ::= ((element))
 value ::= ((object) | (array) | (string) | (number) | ("true") | ("false") | ("null"))
@@ -180,7 +198,6 @@ exponent_choice_1 ::= ("" | ("+") | ("-"))
 
     bnf_grammar = BNFGrammar.from_ebnf_string(before, "main")
     after = bnf_grammar.to_string()
-    print(after)
     assert after == expected
 
 

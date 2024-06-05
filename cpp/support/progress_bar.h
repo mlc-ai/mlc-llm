@@ -1,6 +1,6 @@
 /*!
  * Copyright (c) 2023 by Contributors
- * \file progress_bar.h
+ * \file support/progress_bar.h
  * \brief A simple progress bar in C++.
  */
 #ifndef MLC_LLM_SUPPORT_PROGRESS_BAR_H_

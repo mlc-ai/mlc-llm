@@ -4,8 +4,8 @@
  * \brief The header for the building the BNF AST.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_
+#ifndef MLC_LLM_GRAMMAR_GRAMMAR_BUILDER_H_
+#define MLC_LLM_GRAMMAR_GRAMMAR_BUILDER_H_
 #include <tvm/runtime/object.h>
 
 #include <cstdint>
@@ -38,7 +38,7 @@ class BNFGrammarBuilder {
    */
   BNFGrammar Get(const std::string& main_rule = "main") {
     int32_t main_rule_id = GetRuleId(main_rule);
-    CHECK(main_rule_id != -1) << "The in rule with name \"" << main_rule << "\" is not found.";
+    CHECK(main_rule_id != -1) << "The main rule with name \"" << main_rule << "\" is not found.";
     grammar_->main_rule_id_ = main_rule_id;
 
     return BNFGrammar(grammar_);
@@ -251,4 +251,4 @@ class BNFGrammarBuilder {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_BUILDER_H_
+#endif  // MLC_LLM_GRAMMAR_GRAMMAR_BUILDER_H_

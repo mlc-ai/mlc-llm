@@ -4,8 +4,8 @@
  * \brief The header for the simplification of the BNF AST.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_
+#ifndef MLC_LLM_GRAMMAR_GRAMMAR_FUNCTOR_H_
+#define MLC_LLM_GRAMMAR_GRAMMAR_FUNCTOR_H_
 
 #include <queue>
 #include <string>
@@ -216,4 +216,4 @@ class BNFGrammarNormalizer : public BNFGrammarMutator {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_FUNCTOR_H_
+#endif  // MLC_LLM_GRAMMAR_GRAMMAR_FUNCTOR_H_

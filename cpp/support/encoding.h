@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file serve/encoding.h
+ * \file support/encoding.h
  * \brief Encoding and decoding from/to UTF-8 and escape sequence to/from codepoints.
  */
-#ifndef MLC_LLM_SERVE_ENCODING_H_
-#define MLC_LLM_SERVE_ENCODING_H_
+#ifndef MLC_LLM_SUPPORT_ENCODING_H_
+#define MLC_LLM_SUPPORT_ENCODING_H_
 
 #include <string>
 #include <unordered_map>
@@ -104,4 +104,4 @@ std::pair<TCodepoint, const char*> ParseNextUTF8OrEscaped(
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_ENCODING_H_
+#endif  // MLC_LLM_SUPPORT_ENCODING_H_

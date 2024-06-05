@@ -6,7 +6,6 @@
 #include "grammar_serializer.h"
 
 #include <picojson.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 
 #include "../support/encoding.h"
