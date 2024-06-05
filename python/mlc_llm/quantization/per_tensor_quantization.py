@@ -221,8 +221,6 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
     ) -> Union[Tuple[nn.Tensor], Tuple[nn.Tensor, nn.Tensor]]:
         """Per-tensor quantization for weight tensor, defined in tensor expression."""
 
-        # quantize_dtype = DataType(quantize_dtype)
-
         if self.use_scale:
             # min_scaling_factor taken from TRT-LLM
             def _compute_scale(x: te.Tensor) -> te.Tensor:
@@ -230,7 +228,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                 min_scaling_factor = tir.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
                 scale = topi.maximum(
                     max_abs.astype(self.model_dtype) / self.max_int_value, min_scaling_factor
-                )
+                ).astype("float32")
                 scale = topi.expand_dims(scale, axis=0)
                 return scale
 
@@ -315,7 +313,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         else:
             dequantized_tensor = q_tensor.astype(self.model_dtype)
         if scale is not None:
-            dequantized_tensor = dequantized_tensor * scale
+            dequantized_tensor = dequantized_tensor * scale.astype(dequantized_tensor.dtype)
         return dequantized_tensor
 
 
@@ -343,9 +341,9 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
         )
         self.q_calibration_scale = None
         if config.use_scale:
-            self.q_scale = nn.Parameter((1,), config.model_dtype)
+            self.q_scale = nn.Parameter((1,), "float32")
             if config.calibration_mode == "inference":
-                self.q_calibration_scale = nn.Parameter((1,), config.model_dtype)
+                self.q_calibration_scale = nn.Parameter((1,), "float32")
         else:
             self.q_scale = None
         if bias:
@@ -412,7 +410,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
         # Note: Use calibration scale when calibration is enabled
         if self.config.calibration_mode == "inference":
             if self.q_calibration_scale:
-                x /= self.q_calibration_scale
+                x /= self.q_calibration_scale.astype(x.dtype)
             x_q = x.astype(self.config.activation_dtype)
             x_scale = self.q_calibration_scale
         elif self.config.calibration_mode == "max":
@@ -428,25 +426,21 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                 [f"{self.name}.q_calibration_scale", "max", x_scale],
                 out=nn.Tensor.placeholder(x_scale.shape, x_scale.dtype),
             )
-            x_q = (x / x_scale).astype(self.config.activation_dtype)
+            x_q = (x / x_scale.astype(x.dtype)).astype(self.config.activation_dtype)
+            x = x_q.astype(self.config.model_dtype) * x_scale.astype(self.config.model_dtype)
         else:
             raise ValueError(f"Unknown calibration mode: {self.config.calibration_mode}")
 
-        if self.config.weight_dtype == self.config.storage_dtype and not self.config.use_scale:
-            w = self.q_weight
-            w = nn.op.permute_dims(w)
-            x = nn.op.matmul(
-                x_q, w, out_dtype=self.out_dtype
-            )  # mixed precision matmul: fp8 * fp8 => fp16
+        if (
+            self.config.weight_dtype == self.config.storage_dtype
+            and self.config.calibration_mode == "inference"
+        ):
+            x = nn.op.matmul(x_q, nn.permute_dims(self.q_weight), out_dtype="float32")
+            if self.config.use_scale:
+                scale = x_scale * self.q_scale
+                x = x * scale
+            x = x.astype(self.out_dtype)
         else:
-            # dequantize input and weight to fp16, this can be fused into matmul during lowering
-            x = nn.op.tensor_expr_op(
-                lambda quantized_x, scale: self.config._dequantize(  # pylint: disable=protected-access
-                    quantized_x, scale, out_shape=x.shape
-                ),
-                "dequantize_x",
-                args=[x_q, x_scale],
-            )
             w = nn.op.tensor_expr_op(
                 lambda weight, scale: self.config._dequantize(  # pylint: disable=protected-access
                     weight,
@@ -463,8 +457,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                 "dequantize",
                 args=[self.q_weight, self.q_scale],
             )
-            w = nn.op.permute_dims(w)
-            x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
+            x = nn.op.matmul(x, nn.permute_dims(w), out_dtype=self.out_dtype)
         if self.bias is not None:
             x = x + self.bias
         return x
@@ -494,7 +487,7 @@ class PerTensorQuantizeEmbedding(nn.Module):
             (num, tir.ceildiv(dim, config.num_elem_per_storage)), config.storage_dtype
         )
         if self.config.use_scale:
-            self.q_scale = nn.Parameter((1,), config.model_dtype)
+            self.q_scale = nn.Parameter((1,), "float32")
         else:
             self.q_scale = None
 
@@ -612,9 +605,9 @@ class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-in
         )
         self.q_calibration_scale = None
         if config.use_scale:
-            self.q_scale = nn.Parameter((1,), config.model_dtype)
+            self.q_scale = nn.Parameter((1,), "float32")
             if config.calibration_mode == "inference":
-                self.q_calibration_scale = nn.Parameter((1,), config.model_dtype)
+                self.q_calibration_scale = nn.Parameter((1,), "float32")
         else:
             self.q_scale = None
 

@@ -85,8 +85,8 @@ class FP8PerTensorQuantizeMixtralExperts(
                 [f"{self.name}.q_calibration_scale", "max", x_scale],
                 out=nn.Tensor.placeholder(x_scale.shape, x_scale.dtype),
             )
-            x_q = (x / x_scale).astype(self.config.activation_dtype)
-            x = x_q.astype(self.config.model_dtype) * x_scale
+            x_q = (x / x_scale.astype(x.dtype)).astype(self.config.activation_dtype)
+            x = x_q.astype(self.config.model_dtype) * x_scale.astype(self.config.model_dtype)
 
         if indptr.ndim == 2:
             assert indptr.shape[0] == 1
@@ -97,12 +97,12 @@ class FP8PerTensorQuantizeMixtralExperts(
         if extern.get_store().cutlass_group_gemm:
             if self.config.calibration_mode == "inference":
                 if self.q_calibration_scale is not None:
-                    x /= self.q_calibration_scale
+                    x /= self.q_calibration_scale.astype(x.dtype)
                 x_q = nn.op.astype(x, dtype=self.config.activation_dtype)
                 x_scale = self.q_calibration_scale
 
             scale = (
-                (x_scale * self.q_scale).astype("float32")
+                x_scale * self.q_scale
                 if self.q_scale is not None
                 else nn.wrap_nested(
                     relax.Constant(nd.array(np.array([1.0]).astype("float32"))), "scale"

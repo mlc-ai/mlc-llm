@@ -30,7 +30,7 @@ class CalibrationObserver:
 
     @tvm.register_func("mlc_llm.calibration_observer")
     @staticmethod
-    def callback(name, mode, value, out_value):
+    def callback(name: str, mode: str, value: "tvm.nd.NDArray", out_value: "tvm.nd.NDArray"):
         """The callback function to update the saved calibration parameters."""
         instance = CalibrationObserver.get()
         if mode == "max":
@@ -48,7 +48,7 @@ class CalibrationObserver:
         tvmjs.dump_ndarray_cache(
             self.params,
             output,
-            encode_format="raw",
+            encode_format="f32-to-bf16",
             meta_data=None,
             show_progress=False,
             update_if_exists=True,

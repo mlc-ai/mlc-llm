@@ -238,7 +238,7 @@ def dequantize_float8_gemv(
     def _func_with_scale(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, num_storage), storage_dtype),
-        scale: T.Buffer((1,), model_dtype),
+        scale: T.Buffer((1,), "float32"),
         indptr: T.Buffer((1, experts_per_tok), "int32"),
         o: T.Buffer((experts_per_tok, out_features), model_dtype),
     ):
