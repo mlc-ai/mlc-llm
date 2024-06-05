@@ -1,4 +1,5 @@
 """MLC LLM Bench Request"""
+import json
 import time
 from typing import Any, Dict, List, Optional
 
@@ -21,7 +22,7 @@ class RequestRecords(BaseModel):
 
     input: str
     output: str
-    end_to_end_latency: float
+    end_to_end_latency_s: float
     ttft: Optional[float] = None
 
 
@@ -109,11 +110,16 @@ class OpenAIRequestSender:
         generated_text = ""
         ttft = None
         start_time = time.monotonic()
+        # chat_params["stream_options"] = {"include_usage": True}
         response = await self.client.chat.completions.create(**chat_params)
 
         if chat_params["stream"]:
             async for chunk in response:
-                if chunk.choices[0].delta.content is not None:
+                if chunk.usage:
+                    logger.info(
+                        "Server Metrics:\n%s", json.dumps(chunk.usage.extra, indent=4, default=str)
+                    )
+                elif chunk.choices[0].delta.content is not None:
                     if not ttft:
                         ttft = time.monotonic() - start_time  # type: ignore
                     generated_text += chunk.choices[0].delta.content
@@ -124,7 +130,7 @@ class OpenAIRequestSender:
         req_rec = RequestRecords(
             input=prompt,
             output=generated_text,
-            end_to_end_latency=total_request_time,
+            end_to_end_latency_s=total_request_time,
             ttft=ttft,
         )
         self.request_records.append(req_rec)

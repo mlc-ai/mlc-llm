@@ -17,9 +17,9 @@ class Metrics(BaseModel):
 
     prompt_tokens: int
     completion_tokens: int
-    end_to_end_latency: float
-    inter_token_latency: float
-    decode_token_latency: float
+    end_to_end_latency_s: float
+    inter_token_latency_s: float
+    decode_tokens_per_s: float
     ttft: Optional[float] = None
 
 
@@ -85,14 +85,13 @@ class MetricsProcessor:
             prompt_tokens = self.count_tokens(metric.input)
             completion_tokens = self.count_tokens(metric.output)
             assert prompt_tokens > 0 and completion_tokens >= 0, "Invalid prompt tokens"
-            end_to_end_latency = metric.end_to_end_latency
-            if metric.ttft is None:
-                ttft = 0
+            end_to_end_latency_s = metric.end_to_end_latency_s
+            ttft = metric.ttft if metric.ttft is not None else 0
             refined_metric = Metrics(
-                inter_token_latency=end_to_end_latency / completion_tokens,
-                decode_token_latency=(end_to_end_latency - ttft) / completion_tokens,
+                inter_token_latency_s=end_to_end_latency_s / completion_tokens,
+                decode_tokens_per_s=completion_tokens / (end_to_end_latency_s - ttft),
                 ttft=metric.ttft,
-                end_to_end_latency=end_to_end_latency,
+                end_to_end_latency_s=end_to_end_latency_s,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
             )

@@ -116,17 +116,17 @@ class MockEchoEngineImpl : public Engine {
     // precompute the stream back results and store them in the request_map
     request = Request::FromUntokenized(request, tokenizer_);
     std::vector<RequestStreamOutput> outputs;
-    int64_t num_output_tokens = 0;
-    int64_t num_input_tokens = 0;
+    int64_t completion_tokens = 0;
+    int64_t prompt_tokens = 0;
 
     for (Data input : request->inputs) {
       // only stream back token data
       if (auto* token_data = input.as<TokenDataNode>()) {
         for (int64_t token_id : token_data->token_ids) {
-          num_input_tokens += 1;
-          num_output_tokens += 1;
+          prompt_tokens += 1;
+          completion_tokens += 1;
           if (request->generation_cfg->max_tokens == -1 ||
-              num_output_tokens <= request->generation_cfg->max_tokens) {
+              completion_tokens <= request->generation_cfg->max_tokens) {
             outputs.push_back(RequestStreamOutput(
                 request->id,
                 std::vector<IntTuple>(request->generation_cfg->n, IntTuple({token_id})),
@@ -140,7 +140,7 @@ class MockEchoEngineImpl : public Engine {
     // output go beyond max tokens
     String finish_reason = "stop";
     if (request->generation_cfg->max_tokens != -1 &&
-        num_input_tokens > request->generation_cfg->max_tokens) {
+        prompt_tokens > request->generation_cfg->max_tokens) {
       finish_reason = "length";
     }
     Array<IntTuple> group_delta_token_ids;
@@ -156,11 +156,11 @@ class MockEchoEngineImpl : public Engine {
 
     // attach usage and config
     picojson::object usage;
-    usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(num_input_tokens));
+    usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(prompt_tokens));
     usage["completion_tokens"] =
-        picojson::value(static_cast<int64_t>(num_output_tokens * request->generation_cfg->n));
+        picojson::value(static_cast<int64_t>(completion_tokens * request->generation_cfg->n));
     usage["total_tokens"] = picojson::value(
-        static_cast<int64_t>(num_input_tokens + num_output_tokens * request->generation_cfg->n));
+        static_cast<int64_t>(prompt_tokens + completion_tokens * request->generation_cfg->n));
     usage["extra"] = picojson::value(request->generation_cfg->AsJSON());
     // NOTE: Invariant requirement
     // always stream back final usage
@@ -504,9 +504,9 @@ class EngineImpl : public Engine {
 
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
-    ICHECK_NE(request->num_input_tokens, -1);
+    ICHECK_NE(request->prompt_tokens, -1);
 
-    if (request->num_input_tokens >= engine_config_->max_single_sequence_length &&
+    if (request->prompt_tokens >= engine_config_->max_single_sequence_length &&
         request_stream_callback_ != nullptr) {
       this->StreamBackError(request, "length");
       return;

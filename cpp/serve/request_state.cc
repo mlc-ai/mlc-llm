@@ -186,7 +186,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
     return {return_token_ids, logprob_json_strs, String("length")};
   }
   // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
-  if (request->num_input_tokens + num_committed_tokens >= max_single_sequence_length) {
+  if (request->prompt_tokens + num_committed_tokens >= max_single_sequence_length) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
     return {return_token_ids, logprob_json_strs, String("length")};
@@ -203,7 +203,7 @@ RequestState::RequestState(std::vector<RequestStateEntry> entries,
   ICHECK(!entries.empty());
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   n->entries = std::move(entries);
-  n->metrics.num_input_tokens = n->entries[0]->request->num_input_tokens;
+  n->metrics.prompt_tokens = n->entries[0]->request->prompt_tokens;
   n->metrics.add_time_point = add_time_point;
   data_ = std::move(n);
 }

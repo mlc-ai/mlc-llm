@@ -97,11 +97,11 @@ struct SpecDecodeMetrics {
  */
 struct RequestMetrics {
   /*! \brief Request input tokens. */
-  int64_t num_input_tokens = 0;
+  int64_t prompt_tokens = 0;
   /*! \brief Total number of output tokens. */
-  int64_t num_output_tokens = 0;
+  int64_t completion_tokens = 0;
   /*! \brief Total number of tokens that needs to be prefilled */
-  int64_t num_prefill_tokens = 0;
+  int64_t prefill_tokens = 0;
 
   /*! \brief The time of adding the request to engine. */
   std::chrono::high_resolution_clock::time_point add_time_point;
@@ -111,7 +111,7 @@ struct RequestMetrics {
   std::chrono::high_resolution_clock::time_point finish_time_point;
 
   /*! \brief check whether the request metrics is a completed request */
-  bool IsComplete() const { return num_input_tokens != 0 && num_output_tokens != 0; }
+  bool IsComplete() const { return prompt_tokens != 0 && completion_tokens != 0; }
 
   /*! \return the prefill time in seconds */
   double GetPrefillTime() const {
@@ -123,16 +123,24 @@ struct RequestMetrics {
     return static_cast<double>((finish_time_point - prefill_end_time_point).count()) / 1e9;
   }
 
+  /*! \return the time to first token (TTFT) in seconds */
+  double GetTTFT() const {
+    return static_cast<double>((prefill_end_time_point - add_time_point).count()) / 1e9;
+  }
+
   /*! \return the prefill time in seconds */
   double GetTotalTime() const {
     return static_cast<double>((finish_time_point - add_time_point).count()) / 1e9;
   }
 
+  /*! \return the inter token latency (ITL) in seconds */
+  double GetInterTokenLatency() const { return GetTotalTime() / completion_tokens; }
+
   /*! \brief Reset the metric. */
   void Reset() {
-    this->num_input_tokens = 0;
-    this->num_prefill_tokens = 0;
-    this->num_output_tokens = 0;
+    this->prompt_tokens = 0;
+    this->prefill_tokens = 0;
+    this->completion_tokens = 0;
   }
   /*!
    * \brief Return the request metrics in JSON.
@@ -155,11 +163,11 @@ struct EngineMetrics {
   /*! \brief The total engine time on decode/draft/verify, including warmup */
   double engine_decode_time_sum = 0;
   /*! \brief The total number of request input tokens. */
-  int64_t num_input_tokens_sum = 0;
+  int64_t prompt_tokens_sum = 0;
   /*! \brief The total number of processed tokens (excluding the prefix-cached length) in prefill */
-  int64_t num_prefill_tokens_sum = 0;
+  int64_t prefill_tokens_sum = 0;
   /*! \brief The total number of request output tokens */
-  int64_t num_output_tokens_sum = 0;
+  int64_t completion_tokens_sum = 0;
   /*! \brief metrics from last finished request. */
   RequestMetrics last_finished_request;
   /*! \brief speculative decoding metrics */
@@ -213,9 +221,9 @@ struct EngineMetrics {
    *  by including the information from the finished request.
    */
   void RequestFinishUpdate(const RequestMetrics& request_metrics) {
-    num_input_tokens_sum += request_metrics.num_input_tokens;
-    num_prefill_tokens_sum += request_metrics.num_prefill_tokens;
-    num_output_tokens_sum += request_metrics.num_output_tokens;
+    prompt_tokens_sum += request_metrics.prompt_tokens;
+    prefill_tokens_sum += request_metrics.prefill_tokens;
+    completion_tokens_sum += request_metrics.completion_tokens;
     last_finished_request = request_metrics;
   }
   /*!
