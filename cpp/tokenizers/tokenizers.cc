@@ -428,7 +428,7 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
       return ret;
     });
 
-TVM_REGISTER_GLOBAL("mlc.TokenizerDecode")
+TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerDecode")
     .set_body_typed([](const Tokenizer& tokenizer, const IntTuple& token_ids) {
       return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
     });
