@@ -1144,7 +1144,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 stop=stop,
                 stream=stream,
                 stream_options=(
-                    openai_api_protocol.CompletionUsage.model_validate(stream_options)
+                    openai_api_protocol.StreamOptions.model_validate(stream_options)
                     if stream_options is not None
                     else None
                 ),
