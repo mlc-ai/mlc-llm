@@ -134,9 +134,7 @@ struct RequestMetrics {
   }
 
   /*! \return the inter token latency (ITL) in seconds */
-  double GetInterTokenLatency() const {
-    return GetTotalTime() / completion_tokens;
-  }
+  double GetInterTokenLatency() const { return GetTotalTime() / completion_tokens; }
 
   /*! \brief Reset the metric. */
   void Reset() {
