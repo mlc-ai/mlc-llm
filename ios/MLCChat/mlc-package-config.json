@@ -3,7 +3,7 @@
     "model_list": [
         {
             "model": "HF://mlc-ai/Phi-3-mini-4k-instruct-q4f16_1-MLC",
-            "model_id": "Phi-3-mini-4k-instruct-q4f16_1",
+            "model_id": "Phi-3-mini-4k-instruct-q4f16_1-MLC",
             "bundle_weight": true,
             "estimated_vram_bytes": 3043000000,
             "overrides": {
@@ -12,7 +12,7 @@
         },
         {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2b-q4f16_1",
+            "model_id": "gemma-2b-q4f16_1-MLC",
             "estimated_vram_bytes": 3000000000,
             "overrides": {
                 "prefill_chunk_size": 128
@@ -20,7 +20,7 @@
         },
         {
             "model": "HF://mlc-ai/Qwen1.5-1.8B-Chat-q4f16_1-MLC",
-            "model_id": "Qwen1.5-1.8B-Chat-q4f16_1",
+            "model_id": "Qwen1.5-1.8B-Chat-q4f16_1-MLC",
             "estimated_vram_bytes": 2960000000,
             "overrides": {
                 "prefill_chunk_size": 128,
@@ -29,7 +29,7 @@
         },
         {
             "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q4f16_1-MLC",
-            "model_id": "Mistral-7B-Instruct-v0.3-q3f16_1",
+            "model_id": "Mistral-7B-Instruct-v0.3-q3f16_1-MLC",
             "estimated_vram_bytes": 3316000000,
             "overrides": {
                 "prefill_chunk_size": 128
