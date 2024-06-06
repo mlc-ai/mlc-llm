@@ -2,9 +2,18 @@
     "device": "iphone",
     "model_list": [
         {
-            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.2-q3f16_1-MLC",
-            "model_id": "Mistral-7B-Instruct-v0.2-q3f16_1",
-            "estimated_vram_bytes": 3316000000,
+            "model": "HF://mlc-ai/Phi-3-mini-4k-instruct-q4f16_1-MLC",
+            "model_id": "Phi-3-mini-4k-instruct-q4f16_1",
+            "bundle_weight": true,
+            "estimated_vram_bytes": 3043000000,
+            "overrides": {
+                "prefill_chunk_size": 128
+            }
+        },
+        {
+            "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
+            "model_id": "gemma-2b-q4f16_1",
+            "estimated_vram_bytes": 3000000000,
             "overrides": {
                 "prefill_chunk_size": 128
             }
@@ -19,17 +28,9 @@
             }
         },
         {
-            "model": "HF://mlc-ai/Phi-3-mini-4k-instruct-q4f16_1-MLC",
-            "model_id": "Phi-3-mini-4k-instruct-q4f16_1",
-            "estimated_vram_bytes": 3043000000,
-            "overrides": {
-                "prefill_chunk_size": 128
-            }
-        },
-        {
-            "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2b-q4f16_1",
-            "estimated_vram_bytes": 3000000000,
+            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q4f16_1-MLC",
+            "model_id": "Mistral-7B-Instruct-v0.3-q3f16_1",
+            "estimated_vram_bytes": 3316000000,
             "overrides": {
                 "prefill_chunk_size": 128
             }
