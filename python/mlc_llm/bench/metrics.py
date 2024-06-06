@@ -89,7 +89,7 @@ class MetricsProcessor:
             ttft = metric.ttft if metric.ttft is not None else 0
             refined_metric = Metrics(
                 inter_token_latency_s=end_to_end_latency_s / completion_tokens,
-                decode_tokens_per_s=completion_tokens / (end_to_end_latency_s - ttft),
+                decode_tokens_per_s=(completion_tokens - 1) / (end_to_end_latency_s - ttft),
                 ttft=metric.ttft,
                 end_to_end_latency_s=end_to_end_latency_s,
                 prompt_tokens=prompt_tokens,
