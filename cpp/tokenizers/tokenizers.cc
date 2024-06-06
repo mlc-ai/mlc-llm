@@ -153,7 +153,7 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
   if (!std::filesystem::exists(path)) {
     LOG(WARNING) << "Tokenizer info is not detected as tokenizer.json is not found. The default "
                  << "tokenizer info will be used.";
-    return TokenizerInfo();
+    return TokenizerInfo(make_object<TokenizerInfoNode>());
   }
 
   std::string tokenizer_json = LoadBytesFromFile(path.string());
