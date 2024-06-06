@@ -28,11 +28,12 @@
             }
         },
         {
-            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q4f16_1-MLC",
+            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q3f16_1-MLC",
             "model_id": "Mistral-7B-Instruct-v0.3-q3f16_1-MLC",
             "estimated_vram_bytes": 3316000000,
             "overrides": {
-                "prefill_chunk_size": 128
+                "prefill_chunk_size": 128,
+                "context_window_size": 768
             }
         }
     ]

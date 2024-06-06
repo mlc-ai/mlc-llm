@@ -87,6 +87,15 @@ final class ChatState: ObservableObject {
         })
     }
 
+    // reset the chat if we switch to background
+    // during generation to avoid permission issue
+    func requestSwitchToBackground() {
+        if (getModelChatState() == .generating) {
+            self.requestResetChat()
+        }
+    }
+
+
     func requestTerminateChat(callback: @escaping () -> Void) {
         assert(isInterruptible)
         interruptChat(prologue: {
