@@ -23,5 +23,6 @@ from . import (
     rwkv,
     stablelm,
     wizardlm,
+    tinyllama,
 )
 from .registry import ConvTemplateRegistry
