@@ -178,7 +178,7 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         :caption: Download TVM Unity from GitHub
 
         # clone from GitHub
-        git clone --recursive https://github.com:mlc-ai/relax.git tvm-unity && cd tvm-unity
+        git clone --recursive https://github.com/mlc-ai/relax.git tvm-unity && cd tvm-unity
         # create the build directory
         rm -rf build && mkdir build && cd build
         # specify build requirements in `config.cmake`
