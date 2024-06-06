@@ -10,5 +10,10 @@ shortuuid
 pydantic
 uvicorn
 fastapi
+openai
+prompt_toolkit
+safetensors
+tiktoken
+torch
 --find-links https://mlc.ai/wheels
 mlc-ai-nightly
