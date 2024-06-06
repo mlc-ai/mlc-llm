@@ -8,7 +8,7 @@ import GameController
 
 struct ChatView: View {
     @EnvironmentObject private var chatState: ChatState
-
+    @Environment(\.scenePhase) var scenePhase
     @State private var inputMessage: String = ""
     @FocusState private var inputIsFocused: Bool
     @Environment(\.dismiss) private var dismiss
@@ -20,7 +20,7 @@ struct ChatView: View {
     @State private var imageConfirmed: Bool = false
     @State private var imageSourceType: UIImagePickerController.SourceType = .photoLibrary
     @State private var image: UIImage?
-    
+
     var body: some View {
         VStack {
             modelInfoView
@@ -30,6 +30,11 @@ struct ChatView: View {
         }
         .navigationBarTitle("MLC Chat: \(chatState.displayName)", displayMode: .inline)
         .navigationBarBackButtonHidden()
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .background {
+                self.chatState.requestSwitchToBackground()
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button {
@@ -50,6 +55,7 @@ struct ChatView: View {
                 .disabled(!chatState.isResettable)
             }
         }
+
     }
 }
 
