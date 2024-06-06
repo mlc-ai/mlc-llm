@@ -178,6 +178,11 @@ void RenormalizeProbByTopP(NDArray prob, int unit_offset, double top_p, double e
   ICHECK(prob.DataType() == DataType::Float(32));
   ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
+  if (top_p == 1.0) {
+    // No renormalization is needed if top_p is 1.
+    return;
+  }
+
   int vocab_size = prob->shape[prob->ndim - 1];
   float* __restrict p_prob =
       static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * vocab_size);
