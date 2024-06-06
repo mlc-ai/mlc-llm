@@ -4,7 +4,6 @@ from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlacehol
 
 from .registry import ConvTemplateRegistry
 
-
 # TinyLlama v1.0
 ConvTemplateRegistry.register_conv_template(
     Conversation(
