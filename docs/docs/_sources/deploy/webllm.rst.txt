@@ -1,7 +1,7 @@
 .. _webllm-runtime:
 
-WebLLM and JavaScript API
-=========================
+WebLLM Javascript SDK
+=====================
 
 .. contents:: Table of Contents
    :local:

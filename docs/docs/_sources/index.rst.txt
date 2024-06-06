@@ -34,7 +34,7 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
    :caption: Build and Deploy Apps
    :hidden:
 
-   deploy/javascript.rst
+   deploy/webllm.rst
    deploy/rest.rst
    deploy/cli.rst
    deploy/python_engine.rst
