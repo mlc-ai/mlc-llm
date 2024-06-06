@@ -7,14 +7,16 @@ from typing import Optional
 
 from mlc_llm.interface.help import HELP
 from mlc_llm.interface.serve import serve
+from mlc_llm.serve.config import ModelConfigOverride
 from mlc_llm.support import argparse
 from mlc_llm.support.argparse import ArgumentParser
 
 
 @dataclasses.dataclass
-class EngineConfigOverride:
+class EngineAndModelConfigOverride:  # pylint: disable=too-many-instance-attributes
     """Arguments for overriding engine config."""
 
+    # Overrides for EngineConfig (runtime)
     max_num_sequence: Optional[int] = None
     max_total_seq_length: Optional[int] = None
     prefill_chunk_size: Optional[int] = None
@@ -22,6 +24,12 @@ class EngineConfigOverride:
     gpu_memory_utilization: Optional[float] = None
     spec_draft_length: Optional[int] = None
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
+
+    # Overrides for model config (compile time)
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -36,10 +44,14 @@ class EngineConfigOverride:
             file=out,
             end="",
         )
+        print(f";context_window_size={self.context_window_size}", file=out, end="")
+        print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
+        print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
+        print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
-    def from_str(source: str) -> "EngineConfigOverride":
+    def from_str(source: str) -> "EngineAndModelConfigOverride":
         """Parse engine config override values from a string."""
         parser = argparse.ArgumentParser(description="Engine config override values")
 
@@ -50,8 +62,12 @@ class EngineConfigOverride:
         parser.add_argument("--gpu_memory_utilization", type=float, default=None)
         parser.add_argument("--spec_draft_length", type=int, default=None)
         parser.add_argument("--prefix_cache_max_num_recycling_seqs", type=int, default=None)
+        parser.add_argument("--context_window_size", type=int, default=None)
+        parser.add_argument("--sliding_window_size", type=int, default=None)
+        parser.add_argument("--attention_sink_size", type=int, default=None)
+        parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
-        return EngineConfigOverride(
+        return EngineAndModelConfigOverride(
             max_num_sequence=results.max_num_sequence,
             max_total_seq_length=results.max_total_seq_length,
             prefill_chunk_size=results.prefill_chunk_size,
@@ -59,6 +75,21 @@ class EngineConfigOverride:
             gpu_memory_utilization=results.gpu_memory_utilization,
             spec_draft_length=results.spec_draft_length,
             prefix_cache_max_num_recycling_seqs=results.prefix_cache_max_num_recycling_seqs,
+            context_window_size=results.context_window_size,
+            sliding_window_size=results.sliding_window_size,
+            attention_sink_size=results.attention_sink_size,
+            tensor_parallel_shards=results.tensor_parallel_shards,
+        )
+
+    def to_model_config_overrides(self) -> ModelConfigOverride:
+        """Extract the model config overrides."""
+        return ModelConfigOverride(
+            context_window_size=self.context_window_size,
+            sliding_window_size=self.sliding_window_size,
+            prefill_chunk_size=self.prefill_chunk_size,
+            attention_sink_size=self.attention_sink_size,
+            max_batch_size=self.max_num_sequence,
+            tensor_parallel_shards=self.tensor_parallel_shards,
         )
 
 
@@ -114,7 +145,7 @@ def main(argv):
     )
     parser.add_argument(
         "--overrides",
-        type=EngineConfigOverride.from_str,
+        type=EngineAndModelConfigOverride.from_str,
         default="",
         help=HELP["overrides_serve"],
     )
@@ -177,6 +208,7 @@ def main(argv):
         gpu_memory_utilization=parsed.overrides.gpu_memory_utilization,
         spec_draft_length=parsed.overrides.spec_draft_length,
         prefix_cache_max_num_recycling_seqs=parsed.overrides.prefix_cache_max_num_recycling_seqs,
+        model_config_overrides=parsed.overrides.to_model_config_overrides(),
         enable_tracing=parsed.enable_tracing,
         host=parsed.host,
         port=parsed.port,

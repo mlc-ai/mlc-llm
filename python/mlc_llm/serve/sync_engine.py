@@ -15,7 +15,7 @@ import tvm
 
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data
-from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.config import EngineConfig, ModelConfigOverride
 from mlc_llm.serve.engine_base import (
     EngineMetrics,
     _check_engine_config,
@@ -92,12 +92,18 @@ class SyncMLCEngine:
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
+        model_config_overrides: Optional[ModelConfigOverride] = None,
         request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
         # - Check the fields fields of `engine_config`.
         if engine_config is None:
             engine_config = EngineConfig()
-        _check_engine_config(model, model_lib, mode, engine_config)
+        _check_engine_config(
+            model,
+            model_lib,
+            mode,
+            engine_config,
+        )
 
         # - Initialize model loading info.
         models = _parse_models(model, model_lib, engine_config.additional_models)
@@ -108,7 +114,7 @@ class SyncMLCEngine:
             model_args,
             model_config_paths,
             self.conv_template,
-        ) = _process_model_args(models, device)
+        ) = _process_model_args(models, device, model_config_overrides)
 
         # - Load the raw model config into dict
         self.model_config_dicts = []

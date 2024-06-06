@@ -7,6 +7,7 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -21,6 +22,7 @@
 #include "../grammar/grammar_state_matcher.h"
 #include "../support/json_parser.h"
 #include "../support/result.h"
+#include "../support/utils.h"
 #include "../tokenizers/tokenizers.h"
 #include "engine_actions/action.h"
 #include "engine_actions/action_commons.h"
@@ -278,7 +280,8 @@ class EngineImpl : public Engine {
     std::vector<std::pair<std::string, std::string>> models_and_model_libs =
         models_and_model_libs_res.Unwrap();
 
-    ICHECK_GE(models_and_model_libs.size(), 1);
+    int num_model = models_and_model_libs.size();
+    ICHECK_GE(num_model, 1);
     // - Initialize singleton states inside the engine.
     n->estate_->Reset();
     n->request_stream_callback_ = std::move(request_stream_callback);
@@ -286,14 +289,18 @@ class EngineImpl : public Engine {
     n->device_ = device;
     // - Load model config, create a shared disco session when tensor
     // parallelism is enabled.
+    std::vector<std::string> model_libs;
     std::vector<picojson::object> model_configs;
-    for (int i = 0; i < static_cast<int>(models_and_model_libs.size()); ++i) {
+    model_libs.reserve(num_model);
+    model_configs.reserve(num_model);
+    for (int i = 0; i < num_model; ++i) {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
       Result<picojson::object> model_config_res = Model::LoadModelConfig(model_str);
       if (model_config_res.IsErr()) {
         return TResult::Error("Model " + std::to_string(i) +
                               " has invalid mlc-chat-config.json: " + model_config_res.UnwrapErr());
       }
+      model_libs.push_back(model_lib);
       model_configs.push_back(model_config_res.Unwrap());
     }
 
@@ -303,13 +310,14 @@ class EngineImpl : public Engine {
                                         model_configs[0]);
     }
 
-    Optional<Session> session = n->CreateDiscoSession(model_configs, device);
+    auto [session, num_shards] = n->CreateDiscoSession(model_libs, model_configs, device);
     // - Initialize each model independently.
     n->models_.clear();
-    for (int i = 0; i < static_cast<int>(models_and_model_libs.size()); ++i) {
+    for (int i = 0; i < num_model; ++i) {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
-      Model model = Model::Create(model_lib, model_str, model_configs[i], device, session,
-                                  /*trace_enabled=*/trace_recorder.defined());
+      Model model =
+          Model::Create(model_lib, model_str, model_configs[i], device, session, num_shards,
+                        /*trace_enabled=*/trace_recorder.defined());
       n->models_.push_back(model);
     }
     // - Automatically infer the missing fields in EngineConfig JSON strings
@@ -622,25 +630,44 @@ class EngineImpl : public Engine {
   }
 
   /************** Utility Functions **************/
-  Optional<Session> CreateDiscoSession(const std::vector<picojson::object>& model_configs,
-                                       Device device) {
+  std::pair<Optional<Session>, int> CreateDiscoSession(
+      const std::vector<std::string>& model_libs,
+      const std::vector<picojson::object>& model_configs, Device device) {
     const auto& base_model_config = model_configs[0];
 
-    auto f_get_num_shards = [](const picojson::object& model_config) -> int {
-      constexpr auto kNumShardsKey = "tensor_parallel_shards";
-      if (model_config.count(kNumShardsKey)) {
-        const auto& val = model_config.at(kNumShardsKey);
-        CHECK(val.is<int64_t>());
-        return static_cast<int>(val.get<int64_t>());
+    auto f_get_num_shards = [&device](const std::string& model_lib,
+                                      const picojson::object& model_config) -> int {
+      if (!StartsWith(model_lib, "system://")) {
+        Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
+        PackedFunc fload_exec = executable->GetFunction("vm_load_executable");
+        ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+        Module local_vm = fload_exec();
+        local_vm->GetFunction("vm_initialization")(
+            static_cast<int>(device.device_type), device.device_id,
+            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+            static_cast<int>(kDLCPU), 0,
+            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+        return ModelMetadata::FromModule(local_vm, std::move(model_config)).tensor_parallel_shards;
       } else {
-        LOG(FATAL) << "Key \"tensor_parallel_shards\" not found.";
+        return 1;
       }
-      throw;
     };
 
-    int num_shards = std::transform_reduce(
-        model_configs.begin(), model_configs.end(), 1, [](int a, int b) { return std::max(a, b); },
-        f_get_num_shards);
+    int num_shards = -1;
+    ICHECK_EQ(model_libs.size(), model_configs.size());
+    for (int i = 0; i < static_cast<int>(model_libs.size()); ++i) {
+      int model_num_shards = f_get_num_shards(model_libs[i], model_configs[i]);
+      if (i == 0) {
+        num_shards = model_num_shards;
+      } else {
+        CHECK_EQ(model_num_shards, num_shards)
+            << "Inconsistent tensor_parallel_shards values across models. Some model is compiled "
+               "with tensor_parallel_shards "
+            << num_shards << " and some other model is compiled with tensor_parallel_shards "
+            << model_num_shards;
+      }
+    }
+
     Optional<Session> session = NullOpt;
     if (num_shards > 1) {
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
@@ -664,7 +691,7 @@ class EngineImpl : public Engine {
       session = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
       session.value()->InitCCL(ccl, ShapeTuple(device_ids));
     }
-    return session;
+    return {session, num_shards};
   }
 
   /************** Debug/Profile **************/

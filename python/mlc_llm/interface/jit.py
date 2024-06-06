@@ -84,8 +84,6 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                 if field.name in forbid_list and value == -1:
                     continue
                 result.append(f"{field.name}={value}")
-        if not result:
-            result = ["tensor_parallel_shards=1"]
         return ";".join(result)
 
     def _get_model_config() -> Dict[str, Any]:

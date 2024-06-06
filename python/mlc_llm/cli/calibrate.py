@@ -4,7 +4,7 @@ from mlc_llm.interface.calibrate import calibrate
 from mlc_llm.interface.help import HELP
 from mlc_llm.support.argparse import ArgumentParser
 
-from .serve import EngineConfigOverride
+from .serve import EngineAndModelConfigOverride
 
 
 def main(argv):
@@ -51,7 +51,7 @@ def main(argv):
     )
     parser.add_argument(
         "--overrides",
-        type=EngineConfigOverride.from_str,
+        type=EngineAndModelConfigOverride.from_str,
         default="",
         help=HELP["overrides_serve"],
     )

@@ -78,7 +78,15 @@ Therefore, phase 1 and 2 will only execute **once** over multiple runs.
 
   Workflow in MLC LLM
 
-|
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
+  For example,
+
+  .. code:: shell
+
+    mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 .. _introduction-to-mlc-llm-python-api:
 
@@ -136,6 +144,24 @@ If you want to run without streaming, you can run
 You can also try different arguments supported in `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_.
 If you would like to do concurrent asynchronous generation, you can use :class:`mlc_llm.AsyncMLCEngine` instead.
 
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``model_config_overrides`` in MLCEngine constructor.
+  For example,
+
+  .. code:: python
+
+    from mlc_llm import MLCEngine
+    from mlc_llm.serve.config import ModelConfigOverride
+
+    model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+    engine = MLCEngine(
+        model,
+        model_config_overrides=ModelConfigOverride(tensor_parallel_shards=2),
+    )
+
+
 REST Server
 -----------
 
@@ -166,6 +192,16 @@ we can open a new shell and send a cURL request via the following command:
 The server will process this request and send back the response.
 Similar to :ref:`introduction-to-mlc-llm-python-api`, you can pass argument ``"stream": true``
 to request for stream responses.
+
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
+  For example,
+
+  .. code:: shell
+
+    mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 .. _introduction-deploy-your-own-model:
 

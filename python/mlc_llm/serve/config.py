@@ -4,6 +4,9 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import List, Literal, Optional, Tuple, Union
 
+from mlc_llm.support import argparse
+from mlc_llm.support.config import ConfigOverrideBase
+
 
 @dataclass
 class EngineConfig:  # pylint: disable=too-many-instance-attributes
@@ -124,3 +127,36 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     def from_json(json_str: str) -> "EngineConfig":
         """Construct a config from JSON string."""
         return EngineConfig(**json.loads(json_str))
+
+
+@dataclass
+class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
+    """Flags for overriding model config."""
+
+    context_window_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    prefill_chunk_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
+    max_batch_size: Optional[int] = None
+    tensor_parallel_shards: Optional[int] = None
+
+    @staticmethod
+    def from_str(source: str) -> "ModelConfigOverride":
+        """Parse model config override values from a string."""
+        parser = argparse.ArgumentParser(description="model config override values")
+        parser.add_argument("--tensor_parallel_shards", type=int, default=None)
+        parser.add_argument("--context_window_size", type=int, default=None)
+        parser.add_argument("--sliding_window_size", type=int, default=None)
+        parser.add_argument("--prefill_chunk_size", type=int, default=None)
+        parser.add_argument("--attention_sink_size", type=int, default=None)
+        parser.add_argument("--max_batch_size", type=int, default=None)
+
+        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
+        return ModelConfigOverride(
+            tensor_parallel_shards=results.tensor_parallel_shards,
+            context_window_size=results.context_window_size,
+            sliding_window_size=results.sliding_window_size,
+            prefill_chunk_size=results.prefill_chunk_size,
+            attention_sink_size=results.attention_sink_size,
+            max_batch_size=results.max_batch_size,
+        )
