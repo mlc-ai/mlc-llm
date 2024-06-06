@@ -22,6 +22,7 @@ from . import (
     redpajama,
     rwkv,
     stablelm,
+    tinyllama,
     wizardlm,
 )
 from .registry import ConvTemplateRegistry
