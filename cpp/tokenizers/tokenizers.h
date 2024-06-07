@@ -16,6 +16,7 @@
 #include <unordered_map>
 
 #include "../base.h"
+#include "../support/dynamic_bitset.h"
 
 namespace mlc {
 namespace llm {
@@ -68,6 +69,10 @@ class TokenizerObj : public Object {
   /*! \brief Encode text into ids. */
   std::vector<int32_t> Encode(const std::string& text) const;
 
+  /*! \brief Encode text into ids. Some tokenizers may prepend a space in encoding, this method
+   * guarantees the space is not prepended. */
+  std::vector<int32_t> EncodeNoPrependSpace(const std::string& text) const;
+
   /*! \brief Encode texts into ids. */
   std::vector<std::vector<int32_t>> EncodeBatch(const Array<String>& texts) const;
 
@@ -76,6 +81,10 @@ class TokenizerObj : public Object {
 
   /*! \brief Return the post-processed token table of the tokenizer. Special tokens are included. */
   const std::vector<std::string>& PostProcessedTokenTable();
+
+  /*! \brief Get the prefix token mask as a bitset. The tokens which is a prefix of another token
+   * are set to true, and others are set to false in the bitset. */
+  const DynamicBitset& GetPrefixTokenMask();
 
   /*!
    * \brief Returns the vocabulary size. Special tokens are considered.
@@ -100,9 +109,12 @@ class TokenizerObj : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(TokenizerObj, Object);
 
  private:
+  /*! \brief Useful information of the tokenizer during generation. */
   TokenizerInfo info_;
   /*! \brief The cached token table. */
   std::vector<std::string> post_processed_token_table_;
+  /*! \brief The cached prefix token mask. */
+  DynamicBitset prefix_token_mask_;
 };
 
 class Tokenizer : public ObjectRef {

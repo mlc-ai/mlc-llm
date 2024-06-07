@@ -42,8 +42,8 @@ class LogProbs(BaseModel):
 
 
 class CompletionUsage(BaseModel):
-    completion_tokens: int
     prompt_tokens: int
+    completion_tokens: int
     total_tokens: int
     extra: Optional[Dict[str, Any]] = None
     """Extra metrics and info that may be returned by debug_config

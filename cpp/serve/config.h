@@ -46,12 +46,23 @@ enum class SpecialRequestKind : int {
   kQueryEngineMetrics = 1,
 };
 
+/*! \brief Controls the behavior of inference with grammar constraint. */
+enum class GrammarExecutionMode : int {
+  /*! \brief If grammar is provided for a request, use the grammar to constrain the output token. */
+  kConstraint = 0,
+  /*! \brief If grammar is provided for a request, not only constrain the output, but also use the
+   * jump-forward decoding to predict the next tokens. This is the default option. */
+  kJumpForward = 1,
+};
+
 /*! \brief The debug configuration of a request. */
 class DebugConfig {
  public:
   bool ignore_eos = false;
   bool pinned_system_prompt = false;
   SpecialRequestKind special_request = SpecialRequestKind::kNone;
+  /*! \brief The grammar execution mode. */
+  GrammarExecutionMode grammar_execution_mode = GrammarExecutionMode::kJumpForward;
 
   /*!
    * \brief Create debug config from JSON.

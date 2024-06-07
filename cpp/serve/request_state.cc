@@ -49,12 +49,29 @@ void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   committed_tokens.push_back(std::move(sampled_token));
   appeared_token_ids[sampled_token.GetTokenId()] += 1;
+  // There will be one more token that will be processed in the next decoding.
+  ++num_tokens_for_next_decode;
 
   // Update the grammar matcher state if it exists.
   if (grammar_state_matcher) {
     bool accepted = grammar_state_matcher.value()->AcceptToken(sampled_token.GetTokenId());
     ICHECK(accepted) << "Token id " << sampled_token.GetTokenId()
                      << " is not accepted by the grammar state matcher.";
+  }
+}
+
+void RequestModelStateNode::RollbackTokens(int count) {
+  ICHECK(count <= static_cast<int>(committed_tokens.size()));
+  for (int i = 0; i < count; ++i) {
+    auto it = appeared_token_ids.find(committed_tokens.back().GetTokenId());
+    CHECK(it != appeared_token_ids.end());
+    if (--it->second == 0) {
+      appeared_token_ids.erase(it);
+    }
+    committed_tokens.pop_back();
+    if (grammar_state_matcher) {
+      grammar_state_matcher.value()->Rollback(1);
+    }
   }
 }
 
@@ -116,18 +133,22 @@ RequestStateEntry::RequestStateEntry(
   data_ = std::move(n);
 }
 
-DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tokenizer,
-                                                            int64_t max_single_sequence_length) {
+DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
+    const Tokenizer& tokenizer, int64_t max_single_sequence_length) {
   std::vector<int32_t> return_token_ids;
   std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
+
+  String extra_prefix_string = this->extra_prefix_string;
+  this->extra_prefix_string.clear();
+
   const std::vector<SampleResult>& committed_tokens = this->mstates[0]->committed_tokens;
   int num_committed_tokens = committed_tokens.size();
   ICHECK_LE(this->next_callback_token_pos, num_committed_tokens);
 
   // Case 1. There is no new token ids.
-  if (this->next_callback_token_pos == num_committed_tokens) {
-    return {{}, {}, Optional<String>()};
+  if (this->next_callback_token_pos == num_committed_tokens && extra_prefix_string.empty()) {
+    return {{}, {}, Optional<String>(), extra_prefix_string};
   }
 
   // Case 2. Any of the stop strings is matched.
@@ -173,7 +194,7 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
   }
 
   if (finish_reason.defined()) {
-    return {return_token_ids, logprob_json_strs, finish_reason};
+    return {return_token_ids, logprob_json_strs, finish_reason, extra_prefix_string};
   }
 
   // Case 5. Generation reaches the specified max generation length ==> Finished
@@ -182,15 +203,15 @@ DeltaRequestReturn RequestStateEntryNode::GetReturnTokenIds(const Tokenizer& tok
       num_committed_tokens >= request->generation_cfg->max_tokens) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, logprob_json_strs, String("length")};
+    return {return_token_ids, logprob_json_strs, String("length"), extra_prefix_string};
   }
   // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->prompt_tokens + num_committed_tokens >= max_single_sequence_length) {
     std::vector<int32_t> remaining = stop_str_handler->Finish();
     return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, logprob_json_strs, String("length")};
+    return {return_token_ids, logprob_json_strs, String("length"), extra_prefix_string};
   }
-  return {return_token_ids, logprob_json_strs, Optional<String>()};
+  return {return_token_ids, logprob_json_strs, Optional<String>(), extra_prefix_string};
 }
 
 /****************** RequestState ******************/

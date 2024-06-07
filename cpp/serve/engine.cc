@@ -133,7 +133,8 @@ class MockEchoEngineImpl : public Engine {
                 request->id,
                 std::vector<IntTuple>(request->generation_cfg->n, IntTuple({token_id})),
                 Optional<Array<Array<String>>>(),
-                std::vector<Optional<String>>(request->generation_cfg->n, NullOpt)));
+                std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
+                std::vector<String>(request->generation_cfg->n)));
           }
         }
       }
@@ -154,7 +155,8 @@ class MockEchoEngineImpl : public Engine {
     }
     outputs.push_back(RequestStreamOutput(
         request->id, group_delta_token_ids, Optional<Array<Array<String>>>(),
-        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason)));
+        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
+        std::vector<String>(request->generation_cfg->n)));
 
     // attach usage and config
     picojson::object usage;
@@ -184,7 +186,8 @@ class MockEchoEngineImpl : public Engine {
     Array<RequestStreamOutput> output{RequestStreamOutput(
         request_id, std::vector<IntTuple>(request->generation_cfg->n),
         Optional<Array<Array<String>>>(),
-        std::vector<Optional<String>>(request->generation_cfg->n, String("abort")))};
+        std::vector<Optional<String>>(request->generation_cfg->n, String("abort")),
+        std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
     // always stream back final usage
     // otherwise frontend may have issues deciding
@@ -435,8 +438,9 @@ class EngineImpl : public Engine {
                                                      engine_config,         //
                                                      model_configs,         //
                                                      n->trace_recorder_),
-                     EngineAction::BatchDecode(n->models_, logit_processor, sampler, engine_config,
-                                               n->trace_recorder_)};
+                     EngineAction::BatchJumpForward(n->models_, n->tokenizer_, n->trace_recorder_),
+                     EngineAction::BatchDecode(n->models_, n->tokenizer_, logit_processor, sampler,
+                                               engine_config, n->trace_recorder_)};
     }
     // - Automatically set the threading backend max concurrency.
     n->engine_config_ = engine_config;
@@ -472,7 +476,8 @@ class EngineImpl : public Engine {
     Array<RequestStreamOutput> output{RequestStreamOutput(
         request->id, std::vector<IntTuple>(request->generation_cfg->n),
         Optional<Array<Array<String>>>(),
-        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason))};
+        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
+        std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
     // always stream back final usage
     // otherwise frontend may have issues deciding

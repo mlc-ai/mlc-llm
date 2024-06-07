@@ -102,6 +102,10 @@ struct RequestMetrics {
   int64_t completion_tokens = 0;
   /*! \brief Total number of tokens that needs to be prefilled */
   int64_t prefill_tokens = 0;
+  /*! \brief The number of processed tokens (including tokens rolled back later) in decode. */
+  int64_t decode_tokens = 0;
+  /*! \brief The number of tokens predicted by jump-forward decoding. */
+  int64_t jump_forward_tokens = 0;
 
   /*! \brief The time of adding the request to engine. */
   std::chrono::high_resolution_clock::time_point add_time_point;
@@ -164,12 +168,18 @@ struct EngineMetrics {
   double engine_prefill_time_sum = 0;
   /*! \brief The total engine time on decode/draft/verify, including warmup */
   double engine_decode_time_sum = 0;
+  /*! \brief The total engine time on jump-forward prediction. */
+  double engine_jump_forward_time_sum = 0;
   /*! \brief The total number of request input tokens. */
   int64_t prompt_tokens_sum = 0;
-  /*! \brief The total number of processed tokens (excluding the prefix-cached length) in prefill */
-  int64_t prefill_tokens_sum = 0;
   /*! \brief The total number of request output tokens */
   int64_t completion_tokens_sum = 0;
+  /*! \brief The total number of processed tokens (excluding the prefix-cached length) in prefill */
+  int64_t prefill_tokens_sum = 0;
+  /*! \brief The total number of processed tokens (including tokens rolled back later) in decode. */
+  int64_t decode_tokens_sum = 0;
+  /*! \brief The total number of tokens predicted by jump-forward decoding. */
+  int64_t jump_forward_tokens_sum = 0;
   /*! \brief metrics from last finished request. */
   RequestMetrics last_finished_request;
   /*! \brief speculative decoding metrics */
@@ -226,6 +236,8 @@ struct EngineMetrics {
     prompt_tokens_sum += request_metrics.prompt_tokens;
     prefill_tokens_sum += request_metrics.prefill_tokens;
     completion_tokens_sum += request_metrics.completion_tokens;
+    decode_tokens_sum += request_metrics.decode_tokens;
+    jump_forward_tokens_sum += request_metrics.jump_forward_tokens;
     last_finished_request = request_metrics;
   }
   /*!

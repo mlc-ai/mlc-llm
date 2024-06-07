@@ -77,6 +77,15 @@ Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
       return TResult::Error("Uknown special request " + special_request);
     }
   }
+  std::string grammar_execution_mode =
+      json::LookupOrDefault<std::string>(config, "grammar_execution_mode", "jump_forward");
+  if (grammar_execution_mode == "jump_forward") {
+    res.grammar_execution_mode = GrammarExecutionMode::kJumpForward;
+  } else if (grammar_execution_mode == "constraint") {
+    res.grammar_execution_mode = GrammarExecutionMode::kConstraint;
+  } else {
+    return TResult::Error("Uknown grammar execution mode " + grammar_execution_mode);
+  }
   return TResult::Ok(res);
 }
 
@@ -94,6 +103,16 @@ picojson::object DebugConfig::AsJSON() const {
     }
     case SpecialRequestKind::kNone:
       break;
+  }
+  switch (grammar_execution_mode) {
+    case GrammarExecutionMode::kJumpForward: {
+      config["grammar_execution_mode"] = picojson::value("jump_forward");
+      break;
+    }
+    case GrammarExecutionMode::kConstraint: {
+      config["grammar_execution_mode"] = picojson::value("constraint");
+      break;
+    }
   }
   return config;
 }

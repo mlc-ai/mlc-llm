@@ -321,6 +321,21 @@ class GrammarStateMatcher(Object):
 
         return _ffi_api.GrammarStateMatcherFindNextTokenBitmaskAsNDArray(self)  # type: ignore  # pylint: disable=no-member
 
+    def find_jump_forward_string(self) -> str:
+        """Find the jump-forward string for jump-forward decoding. This is the longest string that
+        will be valid according to the current syntax.
+
+        Notes
+        -----
+        This method does not change the grammar state.
+
+        Returns
+        -------
+        jump_forward_string : str
+            The jump-forward string.
+        """
+        return _ffi_api.GrammarStateMatcherFindJumpForwardString(self)  # type: ignore  # pylint: disable=no-member
+
     def rollback(self, num_tokens: int) -> None:
         """Rollback the matcher to a previous state.
 
