@@ -170,6 +170,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                 if T.tvm_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.int32 = batch_idx[0]
                                     LH_start: T.int32 = tile_id[0] * tile_x
+                                    q_indptr_val: T.int32 = q_indptr[b_idx]
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
                                     T.tvm_storage_sync("shared")
@@ -193,7 +194,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                             i, j = T.axis.remap("SS", [li, lj])
                                             T.reads()
                                             T.writes()
-                                            cur_L = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_L = q_indptr_val + (LH_start + i) // group_size
                                             cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
