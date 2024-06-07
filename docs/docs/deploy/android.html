@@ -466,7 +466,7 @@ This library packages the dependent model libraries and necessary runtime to exe
 <p class="admonition-title">Note</p>
 <p>We leverage a local JIT cache to avoid repetitive compilation of the same input.
 However, sometimes it is helpful to force rebuild when we have a new compiler update
-or when something goes wrong with the ached library.
+or when something goes wrong with the cached library.
 You can do so by setting the environment variable <code class="docutils literal notranslate"><span class="pre">MLC_JIT_POLICY=REDO</span></code></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MLC_JIT_POLICY</span><span class="o">=</span>REDO<span class="w"> </span>mlc_llm<span class="w"> </span>package
 </pre></div>

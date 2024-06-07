@@ -182,7 +182,7 @@ This library packages the dependent model libraries and necessary runtime to exe
 
    We leverage a local JIT cache to avoid repetitive compilation of the same input.
    However, sometimes it is helpful to force rebuild when we have a new compiler update
-   or when something goes wrong with the ached library.
+   or when something goes wrong with the cached library.
    You can do so by setting the environment variable ``MLC_JIT_POLICY=REDO``
 
    .. code:: bash
