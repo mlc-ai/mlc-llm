@@ -1,6 +1,7 @@
 """The build script for mlc4j (MLC LLM and tvm4j)"""
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -93,7 +94,9 @@ def main(mlc_llm_source_dir: Path):
     if "TVM_SOURCE_DIR" in os.environ:
         logger.info('Set TVM_SOURCE_DIR to "%s"', os.environ["TVM_SOURCE_DIR"])
         with open("config.cmake", "w", encoding="utf-8") as file:
-            print("set(TVM_SOURCE_DIR %s)" % os.environ["TVM_SOURCE_DIR"], file=file)
+            # We use "json.dumps" to escape backslashes and quotation marks
+            tvm_source_dir_str_with_escape = json.dumps(os.environ["TVM_SOURCE_DIR"])
+            print("set(TVM_SOURCE_DIR %s)" % tvm_source_dir_str_with_escape, file=file)
 
     # - Run cmake, build and install
     run_cmake(mlc_llm_source_dir / "android" / "mlc4j")
