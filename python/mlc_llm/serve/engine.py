@@ -1298,6 +1298,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             self.state,
             self.tokenizer,
             self.max_input_sequence_length,
+            self.conv_template.model_copy(deep=True),
         )
         _ = prompt_length
         if echo_response is not None:
@@ -1840,6 +1841,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             self.state,
             self.tokenizer,
             self.max_input_sequence_length,
+            self.conv_template.model_copy(deep=True),
         )
         _ = prompt_length
         if echo_response is not None:
