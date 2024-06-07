@@ -174,9 +174,9 @@
 <li class="toctree-l1"><a class="reference internal" href="webllm.html">WebLLM Javascript SDK</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rest.html">REST API</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">CLI</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#option-1-conda-prebuilt">Option 1. Conda Prebuilt</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#option-2-build-mlc-runtime-from-source">Option 2. Build MLC Runtime from Source</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#run-models-through-mlcchat-cli">Run Models through MLCChat CLI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#install-mlc-llm-package">Install MLC-LLM Package</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-mlc-llm-chat-command">The <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">chat</span></code> Command</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="python_engine.html">Python API</a></li>
@@ -291,94 +291,90 @@
             
   <section id="cli">
 <span id="deploy-cli"></span><h1>CLI<a class="headerlink" href="#cli" title="Permalink to this heading">¶</a></h1>
-<p>MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box.</p>
+<p>MLC Chat CLI is the command line tool to run MLC-compiled LLMs out of the box interactively.</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#option-1-conda-prebuilt" id="id1">Option 1. Conda Prebuilt</a></p></li>
-<li><p><a class="reference internal" href="#option-2-build-mlc-runtime-from-source" id="id2">Option 2. Build MLC Runtime from Source</a></p></li>
-<li><p><a class="reference internal" href="#run-models-through-mlcchat-cli" id="id3">Run Models through MLCChat CLI</a></p></li>
+<li><p><a class="reference internal" href="#install-mlc-llm-package" id="id1">Install MLC-LLM Package</a></p></li>
+<li><p><a class="reference internal" href="#quick-start" id="id2">Quick Start</a></p></li>
+<li><p><a class="reference internal" href="#the-mlc-llm-chat-command" id="id3">The <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">chat</span></code> Command</a></p></li>
 </ul>
 </nav>
-<section id="option-1-conda-prebuilt">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Option 1. Conda Prebuilt</a><a class="headerlink" href="#option-1-conda-prebuilt" title="Permalink to this heading">¶</a></h2>
-<p>The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.</p>
-<p>To use other GPU runtimes, e.g. CUDA, please instead <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">build it from source</span></a>.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly<span class="w"> </span>mlc-ai-nightly
-mlc_llm<span class="w"> </span>chat<span class="w"> </span>-h
+<section id="install-mlc-llm-package">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Install MLC-LLM Package</a><a class="headerlink" href="#install-mlc-llm-package" title="Permalink to this heading">¶</a></h2>
+<p>Chat CLI is a part of the MLC-LLM package.
+To use the chat CLI, first install MLC LLM by following the instructions <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">here</span></a>.
+Once you have install the MLC-LLM package, you can run the following command to check if the installation was successful:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>You should see serve help message if the installation was successful.</p>
+</section>
+<section id="quick-start">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Quick Start</a><a class="headerlink" href="#quick-start" title="Permalink to this heading">¶</a></h2>
+<p>This section provides a quick start guide to work with MLC-LLM chat CLI.
+To launch the CLI session, run the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>MODEL<span class="w"> </span><span class="o">[</span>--model-lib<span class="w"> </span>PATH-TO-MODEL-LIB<span class="o">]</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">MODEL</span></code> is the model folder after compiling with <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">MLC-LLM build process</span></a>. Information about other arguments can be found in the next section.</p>
+<p>Once the chat CLI is ready, you can enter the prompt to interact with the model.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>You can use the following special commands:
+  /help               print the special commands
+  /exit               quit the cli
+  /stats              print out stats of last request (token/sec)
+  /metrics            print out full engine metrics
+  /reset              restart a fresh chat
+  /set [overrides]    override settings in the generation config. For example,
+                      `/set temperature=0.5;top_p=0.8;seed=23;max_tokens=100;stop=str1,str2`
+                      Note: Separate stop words in the `stop` option with commas (,).
+  Multi-line input: Use escape+enter to start a new line.
+
+&gt;&gt;&gt; What&#39;s the meaning of life?
+The meaning of life is a philosophical and metaphysical question related to the purpose or significance of life or existence in general...
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>The prebuilt package supports <strong>Metal</strong> on macOS and <strong>Vulkan</strong> on Linux and Windows. It is possible to use other GPU runtimes such as <strong>CUDA</strong> by compiling MLCChat CLI from the source.</p>
+<p>If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+please specify argument <code class="docutils literal notranslate"><span class="pre">--overrides</span> <span class="pre">&quot;tensor_parallel_shards=$NGPU&quot;</span></code>.
+For example,</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC<span class="w"> </span>--overrides<span class="w"> </span><span class="s2">&quot;tensor_parallel_shards=2&quot;</span>
+</pre></div>
+</div>
 </div>
 </section>
-<section id="option-2-build-mlc-runtime-from-source">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Option 2. Build MLC Runtime from Source</a><a class="headerlink" href="#option-2-build-mlc-runtime-from-source" title="Permalink to this heading">¶</a></h2>
-<p>We also provide options to build mlc runtime libraries and <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> from source.
-This step is useful if the prebuilt is unavailable on your platform, or if you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. We can build a customized version
-of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.</p>
-<p>First, make sure you install TVM unity (following the instruction in <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>).
-Then please follow the instructions in <a class="reference internal" href="../install/mlc_llm.html#mlcchat-build-from-source"><span class="std std-ref">Option 2. Build from Source</span></a> to build the necessary libraries.</p>
-<div class="line-block">
-<div class="line"><br /></div>
-</div>
-</section>
-<section id="run-models-through-mlcchat-cli">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Run Models through MLCChat CLI</a><a class="headerlink" href="#run-models-through-mlcchat-cli" title="Permalink to this heading">¶</a></h2>
-<p>Once <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> is installed, you are able to run any MLC-compiled model on the command line.</p>
-<p>To run a model with MLC LLM in any platform, you can either:</p>
-<ul class="simple">
-<li><p>Use off-the-shelf model prebuilts from the MLC Huggingface repo (see <span class="xref std std-ref">Model Prebuilts</span> for details).</p></li>
-<li><p>Use locally compiled model weights and libraries following <a class="reference internal" href="../compilation/compile_models.html"><span class="doc">the model compilation page</span></a>.</p></li>
-</ul>
-<p><strong>Option 1: Use model prebuilts</strong></p>
-<p>To run <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code>, you can specify the Huggingface MLC prebuilt model repo path with the prefix <code class="docutils literal notranslate"><span class="pre">HF://</span></code>.
-For example, to run the MLC Llama 3 8B Q4F16_1 model (<a class="reference external" href="https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC">Repo link</a>),
-simply use <code class="docutils literal notranslate"><span class="pre">HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC</span></code>. The model weights and library will be downloaded
-automatically from Huggingface.</p>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC<span class="w"> </span>--device<span class="w"> </span><span class="s2">&quot;cuda:0&quot;</span><span class="w"> </span>--overrides<span class="w"> </span><span class="nv">context_window_size</span><span class="o">=</span><span class="m">1024</span>
+<section id="the-mlc-llm-chat-command">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">The <code class="docutils literal notranslate"><span class="pre">mlc_llm</span> <span class="pre">chat</span></code> Command</a><a class="headerlink" href="#the-mlc-llm-chat-command" title="Permalink to this heading">¶</a></h2>
+<p>We provide the list of chat CLI interface for reference.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>MODEL<span class="w"> </span><span class="o">[</span>--model-lib<span class="w"> </span>PATH-TO-MODEL-LIB<span class="o">]</span><span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--overrides<span class="w"> </span>OVERRIDES<span class="o">]</span>
 </pre></div>
 </div>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>You can use the following special commands:
-  /help               print the special commands
-  /exit               quit the cli
-  /stats              print out the latest stats (token/sec)
-  /reset              restart a fresh chat
-  /set [overrides]    override settings in the generation config. For example,
-                      `/set temperature=0.5;max_gen_len=100;stop=end,stop`
-                      Note: Separate stop words in the `stop` option with commas (,).
-  Multi-line input: Use escape+enter to start a new line.
-
-user: What&#39;s the meaning of life
-assistant:
-What a profound and intriguing question! While there&#39;s no one definitive answer, I&#39;d be happy to help you explore some perspectives on the meaning of life.
-
-The concept of the meaning of life has been debated and...
-</pre></div>
-</div>
-<p><strong>Option 2: Use locally compiled model weights and libraries</strong></p>
-<p>For models other than the prebuilt ones we provided:</p>
-<ol class="arabic simple">
-<li><p>If the model is a variant to an existing model library (e.g. <code class="docutils literal notranslate"><span class="pre">WizardMathV1.1</span></code> and <code class="docutils literal notranslate"><span class="pre">OpenHermes</span></code> are variants of <code class="docutils literal notranslate"><span class="pre">Mistral</span></code>),
-follow <a class="reference internal" href="../compilation/convert_weights.html#convert-weights-via-mlc"><span class="std std-ref">Convert Model Weights</span></a> to convert the weights and reuse existing model libraries.</p></li>
-<li><p>Otherwise, follow <a class="reference internal" href="../compilation/compile_models.html#compile-model-libraries"><span class="std std-ref">Compile Model Libraries</span></a> to compile both the model library and weights.</p></li>
-</ol>
-<p>Once you have the model locally compiled with a model library and model weights, to run <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code>, simply</p>
-<ul class="simple">
-<li><p>Specify the path to <code class="docutils literal notranslate"><span class="pre">mlc-chat-config.json</span></code> and the converted model weights to <code class="docutils literal notranslate"><span class="pre">--model</span></code></p></li>
-<li><p>Specify the path to the compiled model library (e.g. a .so file) to <code class="docutils literal notranslate"><span class="pre">--model-lib</span></code></p></li>
-</ul>
-<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>chat<span class="w"> </span>dist/Llama-2-7b-chat-hf-q4f16_1-MLC<span class="w"> </span><span class="se">\</span>
-<span class="w">             </span>--device<span class="w"> </span><span class="s2">&quot;cuda:0&quot;</span><span class="w"> </span>--overrides<span class="w"> </span><span class="nv">context_window_size</span><span class="o">=</span><span class="m">1024</span><span class="w"> </span><span class="se">\</span>
-<span class="w">             </span>--model-lib<span class="w"> </span>dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-<span class="w">             </span><span class="c1"># CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so</span>
-<span class="w">             </span><span class="c1"># Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so</span>
-<span class="w">             </span><span class="c1"># Same rule applies for other platforms</span>
-</pre></div>
-</div>
+<dl class="simple">
+<dt>MODEL                  The model folder after compiling with MLC-LLM build process. The parameter</dt><dd><p>can either be the model name with its quantization scheme
+(e.g. <code class="docutils literal notranslate"><span class="pre">Llama-2-7b-chat-hf-q4f16_1</span></code>), or a full path to the model
+folder. In the former case, we will use the provided name to search
+for the model folder over possible paths.</p>
+</dd>
+</dl>
+<dl class="option-list">
+<dt><kbd><span class="option">--model-lib</span></kbd></dt>
+<dd><p>A field to specify the full path to the model library file to use (e.g. a <code class="docutils literal notranslate"><span class="pre">.so</span></code> file).</p>
+</dd>
+<dt><kbd><span class="option">--device</span></kbd></dt>
+<dd><p>The description of the device to run on. User should provide a string in the
+form of <code class="docutils literal notranslate"><span class="pre">device_name:device_id</span></code> or <code class="docutils literal notranslate"><span class="pre">device_name</span></code>, where <code class="docutils literal notranslate"><span class="pre">device_name</span></code> is one of
+<code class="docutils literal notranslate"><span class="pre">cuda</span></code>, <code class="docutils literal notranslate"><span class="pre">metal</span></code>, <code class="docutils literal notranslate"><span class="pre">vulkan</span></code>, <code class="docutils literal notranslate"><span class="pre">rocm</span></code>, <code class="docutils literal notranslate"><span class="pre">opencl</span></code>, <code class="docutils literal notranslate"><span class="pre">auto</span></code> (automatically detect the
+local device), and <code class="docutils literal notranslate"><span class="pre">device_id</span></code> is the device id to run on. The default value is <code class="docutils literal notranslate"><span class="pre">auto</span></code>,
+with the device id set to 0 for default.</p>
+</dd>
+<dt><kbd><span class="option">--overrides</span></kbd></dt>
+<dd><p>Model configuration override. Supports overriding
+<code class="docutils literal notranslate"><span class="pre">context_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">prefill_chunk_size</span></code>, <code class="docutils literal notranslate"><span class="pre">sliding_window_size</span></code>, <code class="docutils literal notranslate"><span class="pre">attention_sink_size</span></code>,
+<code class="docutils literal notranslate"><span class="pre">max_batch_size</span></code> and <code class="docutils literal notranslate"><span class="pre">tensor_parallel_shards</span></code>. The overrides could be explicitly
+specified via details knobs, e.g. –overrides <code class="docutils literal notranslate"><span class="pre">context_window_size=1024;prefill_chunk_size=128</span></code>.</p>
+</dd>
+</dl>
 </section>
 </section>
 

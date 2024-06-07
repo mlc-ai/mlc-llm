@@ -21,7 +21,7 @@ SERVE is a part of the MLC-LLM package, installation instruction for which can b
 
 You should see serve help message if the installation was successful.
 
-Quick start
+Quick Start
 ------------
 
 This section provides a quick start guide to work with MLC-LLM REST API. To launch a server, run the following command:
@@ -52,6 +52,16 @@ Once you have launched the Server, you can use the API in your own program to se
    choices = r.json()["choices"]
    for choice in choices:
       print(f"{choice['message']['content']}\n")
+
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
+  For example,
+
+  .. code:: shell
+
+    mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 ------------------------------------------------
 
@@ -137,13 +147,14 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
                        - ``medusa``, denoting the medusa-style speculative decoding.
 --overrides            Overriding extra configurable fields of EngineConfig.
 
-                       Supporting fields that can be be overridden: ``max_num_sequence``, ``max_total_seq_length``,
-                       ``prefill_chunk_size``, ``max_history_size``, ``gpu_memory_utilization``,
-                       ``spec_draft_length``, ``prefix_cache_max_num_recycling_seqs``.
+                       Supporting fields that can be be overridden: ``tensor_parallel_shards``, ``max_num_sequence``,
+                       ``max_total_seq_length``, ``prefill_chunk_size``, ``max_history_size``, ``gpu_memory_utilization``,
+                       ``spec_draft_length``, ``prefix_cache_max_num_recycling_seqs``, ``context_window_size``,
+                       ``sliding_window_size``, ``attention_sink_size``.
 
                        Please check out the documentation of EngineConfig in ``mlc_llm/serve/config.py``
                        for detailed docstring of each field.
-                       Example: ``--overrides "max_num_sequence=32;max_total_seq_length=4096;gpu_memory_utilization=0.8"``
+                       Example: ``--overrides "max_num_sequence=32;max_total_seq_length=4096;tensor_parallel_shards=2"``
 --enable-tracing       A boolean indicating if to enable event logging for requests.
 --host                 The host at which the server should be started, defaults to ``127.0.0.1``.
 --port                 The port on which the server should be started, defaults to ``8000``.

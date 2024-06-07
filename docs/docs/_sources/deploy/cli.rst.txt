@@ -3,102 +3,89 @@
 CLI
 ===============
 
-MLCChat CLI is the command line tool to run MLC-compiled LLMs out of the box.
+MLC Chat CLI is the command line tool to run MLC-compiled LLMs out of the box interactively.
 
 .. contents:: Table of Contents
   :local:
   :depth: 2
 
-Option 1. Conda Prebuilt
-~~~~~~~~~~~~~~~~~~~~~~~~
+Install MLC-LLM Package
+------------------------
 
-The prebuilt package supports Metal on macOS and Vulkan on Linux and Windows, and can be installed via Conda one-liner.
+Chat CLI is a part of the MLC-LLM package.
+To use the chat CLI, first install MLC LLM by following the instructions :ref:`here <install-mlc-packages>`.
+Once you have install the MLC-LLM package, you can run the following command to check if the installation was successful:
 
-To use other GPU runtimes, e.g. CUDA, please instead :ref:`build it from source <mlcchat_build_from_source>`.
+.. code:: bash
 
-.. code:: shell
+   mlc_llm chat --help
 
-    conda activate your-environment
-    python3 -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
-    mlc_llm chat -h
+You should see serve help message if the installation was successful.
 
-.. note::
-    The prebuilt package supports **Metal** on macOS and **Vulkan** on Linux and Windows. It is possible to use other GPU runtimes such as **CUDA** by compiling MLCChat CLI from the source.
+Quick Start
+------------
 
+This section provides a quick start guide to work with MLC-LLM chat CLI.
+To launch the CLI session, run the following command:
 
-Option 2. Build MLC Runtime from Source
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. code:: bash
 
-We also provide options to build mlc runtime libraries and ``mlc_llm`` from source.
-This step is useful if the prebuilt is unavailable on your platform, or if you would like to build a runtime
-that supports other GPU runtime than the prebuilt version. We can build a customized version
-of mlc chat runtime. You only need to do this if you choose not to use the prebuilt.
+   mlc_llm chat MODEL [--model-lib PATH-TO-MODEL-LIB]
 
-First, make sure you install TVM unity (following the instruction in :ref:`install-tvm-unity`).
-Then please follow the instructions in :ref:`mlcchat_build_from_source` to build the necessary libraries.
+where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found in the next section.
 
-.. `|` adds a blank line
-
-|
-
-Run Models through MLCChat CLI
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Once ``mlc_llm`` is installed, you are able to run any MLC-compiled model on the command line.
-
-To run a model with MLC LLM in any platform, you can either:
-
-- Use off-the-shelf model prebuilts from the MLC Huggingface repo (see :ref:`Model Prebuilts` for details).
-- Use locally compiled model weights and libraries following :doc:`the model compilation page </compilation/compile_models>`.
-
-**Option 1: Use model prebuilts**
-
-To run ``mlc_llm``, you can specify the Huggingface MLC prebuilt model repo path with the prefix ``HF://``.
-For example, to run the MLC Llama 3 8B Q4F16_1 model (`Repo link <https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC>`_),
-simply use ``HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC``. The model weights and library will be downloaded
-automatically from Huggingface.
-
-.. code:: shell
-
-  mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --device "cuda:0" --overrides context_window_size=1024
+Once the chat CLI is ready, you can enter the prompt to interact with the model.
 
 .. code::
 
   You can use the following special commands:
     /help               print the special commands
     /exit               quit the cli
-    /stats              print out the latest stats (token/sec)
+    /stats              print out stats of last request (token/sec)
+    /metrics            print out full engine metrics
     /reset              restart a fresh chat
     /set [overrides]    override settings in the generation config. For example,
-                        `/set temperature=0.5;max_gen_len=100;stop=end,stop`
+                        `/set temperature=0.5;top_p=0.8;seed=23;max_tokens=100;stop=str1,str2`
                         Note: Separate stop words in the `stop` option with commas (,).
     Multi-line input: Use escape+enter to start a new line.
 
-  user: What's the meaning of life
-  assistant:
-  What a profound and intriguing question! While there's no one definitive answer, I'd be happy to help you explore some perspectives on the meaning of life.
+  >>> What's the meaning of life?
+  The meaning of life is a philosophical and metaphysical question related to the purpose or significance of life or existence in general...
 
-  The concept of the meaning of life has been debated and...
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
+  For example,
+
+  .. code:: shell
+
+    mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 
-**Option 2: Use locally compiled model weights and libraries**
+The ``mlc_llm chat`` Command
+----------------------------
 
-For models other than the prebuilt ones we provided:
+We provide the list of chat CLI interface for reference.
 
-1. If the model is a variant to an existing model library (e.g. ``WizardMathV1.1`` and ``OpenHermes`` are variants of ``Mistral``),
-   follow :ref:`convert-weights-via-MLC` to convert the weights and reuse existing model libraries.
-2. Otherwise, follow :ref:`compile-model-libraries` to compile both the model library and weights.
+.. code:: bash
 
-Once you have the model locally compiled with a model library and model weights, to run ``mlc_llm``, simply
+   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--overrides OVERRIDES]
 
-- Specify the path to ``mlc-chat-config.json`` and the converted model weights to ``--model``
-- Specify the path to the compiled model library (e.g. a .so file) to ``--model-lib``
 
-.. code:: shell
+MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
+                       can either be the model name with its quantization scheme
+                       (e.g. ``Llama-2-7b-chat-hf-q4f16_1``), or a full path to the model
+                       folder. In the former case, we will use the provided name to search
+                       for the model folder over possible paths.
 
-  mlc_llm chat dist/Llama-2-7b-chat-hf-q4f16_1-MLC \
-               --device "cuda:0" --overrides context_window_size=1024 \
-               --model-lib dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-vulkan.so
-               # CUDA on Linux: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-cuda.so
-               # Metal on macOS: dist/prebuilt_libs/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f16_1-metal.so
-               # Same rule applies for other platforms
+--model-lib            A field to specify the full path to the model library file to use (e.g. a ``.so`` file).
+--device               The description of the device to run on. User should provide a string in the
+                       form of ``device_name:device_id`` or ``device_name``, where ``device_name`` is one of
+                       ``cuda``, ``metal``, ``vulkan``, ``rocm``, ``opencl``, ``auto`` (automatically detect the
+                       local device), and ``device_id`` is the device id to run on. The default value is ``auto``,
+                       with the device id set to 0 for default.
+--overrides            Model configuration override. Supports overriding
+                       ``context_window_size``, ``prefill_chunk_size``, ``sliding_window_size``, ``attention_sink_size``,
+                       ``max_batch_size`` and ``tensor_parallel_shards``. The overrides could be explicitly
+                       specified via details knobs, e.g. --overrides ``context_window_size=1024;prefill_chunk_size=128``.
