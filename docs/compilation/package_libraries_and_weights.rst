@@ -182,7 +182,7 @@ Compilation Cache
 ``mlc_llm package`` leverage a local JIT cache to avoid repetitive compilation of the same input.
 It also leverages a local cache to download weights from remote. These caches
 are shared across the entire project. Sometimes it is helpful to force rebuild when
-we have a new compiler update or when something goes wrong with the ached library.
+we have a new compiler update or when something goes wrong with the cached library.
 You can do so by setting the environment variable ``MLC_JIT_POLICY=REDO``
 
 .. code:: bash
