@@ -1,6 +1,6 @@
 """ MLC LLM bench Metrics"""
 import json
-from typing import Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pydantic import BaseModel
 
@@ -12,6 +12,19 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
+class ServerMetrics(BaseModel):
+    """The metrics from the server side."""
+
+    prompt_tokens: int
+    prefill_tokens: int
+    completion_tokens: int
+    decode_tokens_per_s: float
+    prefill_tokens_per_s: float
+    end_to_end_latency_s: float
+    inter_token_latency_s: float
+    ttft_s: Optional[float] = None
+
+
 class Metrics(BaseModel):
     """The list of metric keys"""
 
@@ -21,6 +34,7 @@ class Metrics(BaseModel):
     inter_token_latency_s: float
     decode_tokens_per_s: float
     ttft: Optional[float] = None
+    server_metrics: Optional[ServerMetrics] = None
 
 
 class MetricsProcessor:
@@ -87,13 +101,26 @@ class MetricsProcessor:
             assert prompt_tokens > 0 and completion_tokens >= 0, "Invalid prompt tokens"
             end_to_end_latency_s = metric.end_to_end_latency_s
             ttft = metric.ttft if metric.ttft is not None else 0
+            server_metric = None
+            if metric.server_metrics is not None:
+                server_metric = ServerMetrics(
+                    prompt_tokens=metric.server_metrics["prompt_tokens"],
+                    prefill_tokens=metric.server_metrics["prefill_tokens"],
+                    completion_tokens=metric.server_metrics["completion_tokens"],
+                    decode_tokens_per_s=metric.server_metrics["decode_tokens_per_s"],
+                    prefill_tokens_per_s=metric.server_metrics["prefill_tokens_per_s"],
+                    end_to_end_latency_s=metric.server_metrics["end_to_end_latency_s"],
+                    inter_token_latency_s=metric.server_metrics["inter_token_latency_s"],
+                    ttft_s=metric.server_metrics["ttft_s"],
+                )
             refined_metric = Metrics(
                 inter_token_latency_s=end_to_end_latency_s / completion_tokens,
-                decode_tokens_per_s=completion_tokens / (end_to_end_latency_s - ttft),
+                decode_tokens_per_s=(completion_tokens - 1) / (end_to_end_latency_s - ttft),
                 ttft=metric.ttft,
                 end_to_end_latency_s=end_to_end_latency_s,
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
+                server_metrics=server_metric,
             )
             result.append(refined_metric)
         return result
@@ -148,9 +175,7 @@ class MetricsProcessor:
         self.reset_metrics(filered_metrics)
         return filered_metrics
 
-    def generate_metrics_summary(
-        self, start_time: float, end_time: float
-    ) -> Dict[str, Union[int, float]]:
+    def generate_metrics_summary(self, start_time: float, end_time: float) -> Dict[str, Any]:
         """
         Computes summary statistics across all metrics collected.
 
@@ -170,16 +195,49 @@ class MetricsProcessor:
         report : Dict
             A dictionary containing the summary statistics of the collected metrics.
         """
-        import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
-
         if not self.all_metrics:
             return {}
 
-        metrics = self.all_metrics
-        df = pd.DataFrame([metric.model_dump() for metric in metrics])
+        # Generate the client metrics statistics
+        report = self._compute_metrics_statistics(self.all_metrics)
+        report["num_completed_requests"] = len(self.all_metrics)
+        total_tokens = sum(metric.completion_tokens for metric in self.all_metrics)
+        report["overall_output_throughput"] = total_tokens / (end_time - start_time)
+
+        # Generate the server metrics statistics
+        server_metrics = [
+            metric.server_metrics for metric in self.all_metrics if metric.server_metrics
+        ]
+        server_report = self._compute_metrics_statistics(server_metrics)
+        report["server_metrics"] = server_report
+
+        logger.info("Metrics Summary:\n%s", json.dumps(report, indent=4, default=str))
+        return report
+
+    def _compute_metrics_statistics(self, metrics: List[Union[Metrics, ServerMetrics]]) -> Dict:
+        """
+        Compute the statistics of the metrics.
+
+        Parameters
+        ----------
+        metrics : List[Union[Metrics, ServerMetrics]]
+            The list of metrics to get the statistics.
+
+        Returns
+        -------
+        report : Dict
+            The statistics of the metrics.
+        """
+        import pandas as pd  # pylint: disable=import-outside-toplevel,import-error
 
         report: Dict = {}
-        for key, _ in Metrics.model_fields.items():
+        if not metrics:
+            return report
+
+        df = pd.DataFrame([metric.model_dump() for metric in metrics])
+        for key, _ in metrics[0].model_fields.items():
+            if key == "server_metrics":
+                continue
             if key in df.columns:
                 series = df[key].dropna()
                 report[key] = {
@@ -192,11 +250,4 @@ class MetricsProcessor:
                     "max": series.max(),
                     "stddev": series.std(),
                 }
-
-        report["num_completed_requests"] = len(metrics)
-        report["overall_output_throughput"] = df["completion_tokens"].sum() / (
-            end_time - start_time
-        )
-
-        logger.info("Metrics Summary:\n%s", json.dumps(report, indent=4, default=str))
         return report

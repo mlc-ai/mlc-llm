@@ -58,8 +58,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
                     assert "prompt" in json_line, "The prompt field is required in the JSONL file."
                     if "prompt_tokens" not in json_line:
                         json_line["prompt_tokens"] = self._count_tokens(json_line["prompt"])
-                    self.prompts.append(json.loads(line))
-                self.prompts = [json.loads(line) for line in file]
+                    self.prompts.append(json_line)
         else:
             if not prompts_path:
                 prompts_path = Path(__file__).parent / "prompts.txt"  # type: ignore
