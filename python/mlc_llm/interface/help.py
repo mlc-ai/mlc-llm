@@ -125,10 +125,10 @@ Model configuration override. Configurations to override `mlc-chat-config.json`.
 `max_batch_size` and `tensor_parallel_shards`. Meanwhile, model config could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
-    "chatconfig_overrides": """
-Chat configuration override. Configurations to override ChatConfig. Supports `conv_template`,
+    "modelconfig_overrides": """
+Model configuration override. Supports overriding,
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
-`max_batch_size` and `tensor_parallel_shards`. Meanwhile, model chat could be explicitly
+`max_batch_size` and `tensor_parallel_shards`. The overrides could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
     "debug_dump": """
@@ -220,13 +220,14 @@ The maximum number of sequences in prefix cache, default as max_batch_size.
 And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 """.strip(),
     "overrides_serve": """
-Overriding extra configurable fields of EngineConfig.
-Supporting fields that can be be overridden: "max_num_sequence", "max_total_seq_length",
-"prefill_chunk_size", "max_history_size", "gpu_memory_utilization", "spec_draft_length",
-"prefix_cache_max_num_recycling_seqs".
+Overriding extra configurable fields of EngineConfig and model compilation config.
+Supporting fields that can be be overridden: "tensor_parallel_shards", "max_num_sequence",
+"max_total_seq_length", "prefill_chunk_size", "max_history_size", "gpu_memory_utilization",
+"spec_draft_length", "prefix_cache_max_num_recycling_seqs", "context_window_size",
+"sliding_window_size", "attention_sink_size".
 Please check out the documentation of EngineConfig in mlc_llm/serve/config.py for detailed docstring
 of each field.
-Example: --overrides "max_num_sequence=32;max_total_seq_length=4096;gpu_memory_utilization=0.8"
+Example: --overrides "max_num_sequence=32;max_total_seq_length=4096;tensor_parallel_shards=2"
 """.strip(),
     "config_package": """
 The path to "mlc-package-config.json" which is used for package build.

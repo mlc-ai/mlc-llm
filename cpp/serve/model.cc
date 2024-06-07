@@ -27,9 +27,10 @@ class ModelImpl;
 TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
-                    DLDevice device, const Optional<Session>& session, bool trace_enabled) {
+                    DLDevice device, const Optional<Session>& session, int num_shards,
+                    bool trace_enabled) {
   return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device, session,
-                                      trace_enabled));
+                                      num_shards, trace_enabled));
 }
 
 Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
@@ -56,14 +57,15 @@ class ModelImpl : public ModelObj {
    * \sa Model::Create
    */
   explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
-                     DLDevice device, const Optional<Session>& session, bool trace_enabled)
+                     DLDevice device, const Optional<Session>& session, int num_shards,
+                     bool trace_enabled)
       : model_(model_path), device_(device) {
     // Step 1. Process model config json string.
     LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib_path, device_, model_config, session);
+    this->ft_.Init(reload_lib_path, device_, model_config, session, num_shards);
     // Step 3. Reset
     this->Reset();
     // Step 4. Set model type

@@ -85,6 +85,23 @@ Please refer to `OpenAI's Python package <https://github.com/openai/openai-pytho
 and `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_
 for the complete chat completion interface.
 
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``model_config_overrides`` in MLCEngine constructor.
+  For example,
+
+  .. code:: python
+
+    from mlc_llm import MLCEngine
+    from mlc_llm.serve.config import ModelConfigOverride
+
+    model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+    engine = MLCEngine(
+        model,
+        model_config_overrides=ModelConfigOverride(tensor_parallel_shards=2),
+    )
+
 
 .. _python-engine-async-llm-engine:
 
@@ -169,6 +186,23 @@ interface.
 Please refer to `OpenAI's Python package <https://github.com/openai/openai-python?tab=readme-ov-file#usage>`_
 and `OpenAI chat completion API <https://platform.openai.com/docs/api-reference/chat/create>`_
 for the complete chat completion interface.
+
+.. note::
+
+  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
+  please specify argument ``model_config_overrides`` in AsyncMLCEngine constructor.
+  For example,
+
+  .. code:: python
+
+    from mlc_llm import AsyncMLCEngine
+    from mlc_llm.serve.config import ModelConfigOverride
+
+    model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+    engine = AsyncMLCEngine(
+        model,
+        model_config_overrides=ModelConfigOverride(tensor_parallel_shards=2),
+    )
 
 
 Engine Mode

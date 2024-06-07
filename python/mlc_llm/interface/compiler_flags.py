@@ -195,7 +195,7 @@ OPT_FLAG_PRESET = {
     "O2": OptimizationFlags(
         flashinfer=True,
         cublas_gemm=True,
-        faster_transformer=True,
+        faster_transformer=False,
         cudagraph=True,
         cutlass=True,
     ),

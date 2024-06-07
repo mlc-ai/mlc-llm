@@ -9,7 +9,7 @@ import numbers
 import queue
 import sys
 import threading
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
@@ -21,7 +21,7 @@ from mlc_llm.protocol.conversation_protocol import Conversation
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.config import EngineConfig, ModelConfigOverride
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.support import download_cache, logging
 from mlc_llm.support.auto_device import detect_device
@@ -111,7 +111,9 @@ def _parse_models(
 
 
 def _process_model_args(
-    models: List[ModelInfo], device: tvm.runtime.Device
+    models: List[ModelInfo],
+    device: tvm.runtime.Device,
+    model_config_overrides: Optional[ModelConfigOverride],
 ) -> Tuple[List[Tuple[str, str]], List[str], Conversation]:
     """Process the input ModelInfo to get the engine initialization arguments."""
     conversation: Optional[Conversation] = None
@@ -151,7 +153,7 @@ def _process_model_args(
 
             model_lib = jit.jit(
                 model_path=model_path,
-                overrides={},
+                overrides={} if model_config_overrides is None else asdict(model_config_overrides),
                 device=device,
             ).model_lib_path
         return str(model_path), model_lib
@@ -554,6 +556,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         model_lib: Optional[str],
         mode: Literal["local", "interactive", "server"],
         engine_config: Optional[EngineConfig],
+        model_config_overrides: Optional[ModelConfigOverride],
         enable_tracing: bool,
     ) -> None:
         # - Check the fields fields of `engine_config`.
@@ -570,7 +573,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
             model_args,
             model_config_paths,
             self.conv_template,
-        ) = _process_model_args(models, device)
+        ) = _process_model_args(models, device, model_config_overrides)
 
         # - Load the raw model config into dict
         self.model_config_dicts = []

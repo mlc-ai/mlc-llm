@@ -42,7 +42,7 @@ struct FunctionTable {
   static PackedFunc SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name);
 
   void Init(String reload_lib_path, Device device, picojson::object model_config,
-            Optional<Session> session);
+            Optional<Session> session, int num_shards);
 
   ObjectRef LoadParams(const std::string& model_path, Device device);
 

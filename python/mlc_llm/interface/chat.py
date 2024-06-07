@@ -8,6 +8,7 @@ from prompt_toolkit.key_binding import KeyBindings  # pylint: disable=import-err
 
 from mlc_llm.json_ffi import JSONFFIEngine
 from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.serve.config import EngineConfig, ModelConfigOverride
 from mlc_llm.serve.engine import MLCEngine
 from mlc_llm.serve.engine_base import _query_engine_metrics
 from mlc_llm.support import argparse
@@ -239,7 +240,23 @@ class ChatState:
                 self.generate(prompt)
 
 
-def chat(model: str, device: str, model_lib: Optional[str]):
+def chat(
+    model: str,
+    device: str,
+    model_lib: Optional[str],
+    overrides: ModelConfigOverride,
+):
     """Chat cli entry"""
     # By default we use JSONFFIEngine
-    ChatState(JSONFFIEngine(model, device, model_lib=model_lib, mode="interactive")).chat()
+    ChatState(
+        JSONFFIEngine(
+            model,
+            device,
+            model_lib=model_lib,
+            mode="interactive",
+            engine_config=EngineConfig(
+                prefill_chunk_size=overrides.prefill_chunk_size,
+            ),
+            model_config_overrides=overrides,
+        )
+    ).chat()

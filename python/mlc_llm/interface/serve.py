@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.serve import engine
+from mlc_llm.serve.config import ModelConfigOverride
 from mlc_llm.serve.entrypoints import (
     debug_entrypoints,
     metrics_entrypoints,
@@ -35,6 +36,7 @@ def serve(
     spec_draft_length: Optional[int],
     prefix_cache_mode: Literal["disable", "radix"],
     prefix_cache_max_num_recycling_seqs: Optional[int],
+    model_config_overrides: Optional[ModelConfigOverride],
     enable_tracing: bool,
     host: str,
     port: int,
@@ -62,6 +64,7 @@ def serve(
             prefix_cache_mode=prefix_cache_mode,
             prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
         ),
+        model_config_overrides=model_config_overrides,
         enable_tracing=enable_tracing,
     )
 
