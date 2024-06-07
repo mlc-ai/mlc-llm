@@ -94,12 +94,12 @@ for the complete chat completion interface.
   .. code:: python
 
     from mlc_llm import MLCEngine
-    from mlc_llm.serve.config import ModelConfigOverride
+    from mlc_llm.serve.config import EngineConfig
 
     model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
     engine = MLCEngine(
         model,
-        model_config_overrides=ModelConfigOverride(tensor_parallel_shards=2),
+        engine_config=EngineConfig(tensor_parallel_shards=2),
     )
 
 
@@ -196,12 +196,12 @@ for the complete chat completion interface.
   .. code:: python
 
     from mlc_llm import AsyncMLCEngine
-    from mlc_llm.serve.config import ModelConfigOverride
+    from mlc_llm.serve.config import EngineConfig
 
     model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
     engine = AsyncMLCEngine(
         model,
-        model_config_overrides=ModelConfigOverride(tensor_parallel_shards=2),
+        engine_config=EngineConfig(tensor_parallel_shards=2),
     )
 
 

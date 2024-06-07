@@ -24,7 +24,7 @@ from tvm.runtime import Device
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data, engine_utils
-from mlc_llm.serve.config import EngineConfig, ModelConfigOverride
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.support import logging
 from mlc_llm.tokenizers import TextStreamer
 
@@ -887,11 +887,6 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         Additional configurable arguments of MLC engine.
         See class "EngineConfig" for more detail.
 
-    model_config_overrides : Optional[ModelConfigOverrides]
-        The arguments to override the model compilation.
-        For example, "tensor_parallel_shards" can be passed in via ModelConfigOverrides
-        to override the default value in the model's "mlc-chat-config.json".
-
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
@@ -904,7 +899,6 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
-        model_config_overrides: Optional[ModelConfigOverride] = None,
         enable_tracing: bool = False,
     ) -> None:
         super().__init__(
@@ -914,7 +908,6 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             model_lib=model_lib,
             mode=mode,
             engine_config=engine_config,
-            model_config_overrides=model_config_overrides,
             enable_tracing=enable_tracing,
         )
         self.chat = AsyncChat(weakref.ref(self))
@@ -1467,11 +1460,6 @@ class MLCEngine(engine_base.MLCEngineBase):
         Additional configurable arguments of MLC engine.
         See class "EngineConfig" for more detail.
 
-    model_config_overrides : Optional[ModelConfigOverrides]
-        The arguments to override the model compilation.
-        For example, "tensor_parallel_shards" can be passed in via ModelConfigOverrides
-        to override the default value in the model's "mlc-chat-config.json".
-
     enable_tracing : bool
         A boolean indicating if to enable event logging for requests.
     """
@@ -1484,7 +1472,6 @@ class MLCEngine(engine_base.MLCEngineBase):
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
-        model_config_overrides: Optional[ModelConfigOverride] = None,
         enable_tracing: bool = False,
     ) -> None:
         super().__init__(
@@ -1494,7 +1481,6 @@ class MLCEngine(engine_base.MLCEngineBase):
             model_lib=model_lib,
             mode=mode,
             engine_config=engine_config,
-            model_config_overrides=model_config_overrides,
             enable_tracing=enable_tracing,
         )
         self.chat = Chat(weakref.ref(self))

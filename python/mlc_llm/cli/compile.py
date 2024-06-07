@@ -25,7 +25,7 @@ from mlc_llm.support.auto_target import detect_system_lib_prefix, detect_target_
 
 
 def main(argv):
-    """Parse command line argumennts and call `mlc_llm.compiler.compile`."""
+    """Parse command line arguments and call `mlc_llm.compiler.compile`."""
 
     def _parse_output(path: Union[str, Path]) -> Path:
         path = Path(path)
