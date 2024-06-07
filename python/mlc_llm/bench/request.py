@@ -17,19 +17,6 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
-class ServerMetrics(BaseModel):
-    """The metrics from the server side."""
-
-    prompt_tokens: int
-    prefill_tokens: int
-    completion_tokens: int
-    decode_tokens_per_s: float
-    prefill_tokens_per_s: float
-    end_to_end_latency_s: float
-    inter_token_latency_s: float
-    ttft_s: Optional[float] = None
-
-
 class RequestRecords(BaseModel):
     """The request records collected from LLM inference requests."""
 
