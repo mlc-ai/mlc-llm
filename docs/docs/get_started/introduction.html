@@ -433,12 +433,12 @@ If you would like to do concurrent asynchronous generation, you can use <a class
 please specify argument <code class="docutils literal notranslate"><span class="pre">model_config_overrides</span></code> in MLCEngine constructor.
 For example,</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm</span> <span class="kn">import</span> <span class="n">MLCEngine</span>
-<span class="kn">from</span> <span class="nn">mlc_llm.serve.config</span> <span class="kn">import</span> <span class="n">ModelConfigOverride</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.serve.config</span> <span class="kn">import</span> <span class="n">EngineConfig</span>
 
 <span class="n">model</span> <span class="o">=</span> <span class="s2">&quot;HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC&quot;</span>
 <span class="n">engine</span> <span class="o">=</span> <span class="n">MLCEngine</span><span class="p">(</span>
     <span class="n">model</span><span class="p">,</span>
-    <span class="n">model_config_overrides</span><span class="o">=</span><span class="n">ModelConfigOverride</span><span class="p">(</span><span class="n">tensor_parallel_shards</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+    <span class="n">engine_config</span><span class="o">=</span><span class="n">EngineConfig</span><span class="p">(</span><span class="n">tensor_parallel_shards</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
 <span class="p">)</span>
 </pre></div>
 </div>

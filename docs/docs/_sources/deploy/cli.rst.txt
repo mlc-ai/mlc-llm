@@ -87,5 +87,5 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
                        with the device id set to 0 for default.
 --overrides            Model configuration override. Supports overriding
                        ``context_window_size``, ``prefill_chunk_size``, ``sliding_window_size``, ``attention_sink_size``,
-                       ``max_batch_size`` and ``tensor_parallel_shards``. The overrides could be explicitly
+                       and ``tensor_parallel_shards``. The overrides could be explicitly
                        specified via details knobs, e.g. --overrides ``context_window_size=1024;prefill_chunk_size=128``.
