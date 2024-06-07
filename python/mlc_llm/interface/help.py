@@ -128,7 +128,7 @@ specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_
     "modelconfig_overrides": """
 Model configuration override. Supports overriding,
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
-`max_batch_size` and `tensor_parallel_shards`. The overrides could be explicitly
+`max_num_sequence` and `tensor_parallel_shards`. The overrides could be explicitly
 specified via details knobs, e.g. --overrides "context_window_size=1024;prefill_chunk_size=128".
 """.strip(),
     "debug_dump": """

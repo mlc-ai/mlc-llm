@@ -4,9 +4,6 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import List, Literal, Optional, Tuple, Union
 
-from mlc_llm.support import argparse
-from mlc_llm.support.config import ConfigOverrideBase
-
 
 @dataclass
 class EngineConfig:  # pylint: disable=too-many-instance-attributes
@@ -47,7 +44,10 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         You can manually specify arguments "max_num_sequence", "max_total_sequence_length" and
         "prefill_chunk_size" to override the automatic inferred values.
 
-    gpu_memory_utilization : float
+    tensor_parallel_shards : Optional[int]
+        Number of shards to split the model into in tensor parallelism multi-gpu inference.
+
+    gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
         When it is unspecified, it defaults to 0.85.
@@ -72,8 +72,14 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size : Optional[int]
         The maximum total sequence length in a prefill.
 
+    sliding_window_size : Optional[int]
+        The sliding window size in sliding window attention (SWA).
+
+    attention_sink_size : Optional[int]
+        The number of attention sinks when sliding window is enabled..
+
     max_history_size: Optional[int]
-        The maximum history size for RNN state to rool back.
+        The maximum history size for RNN state to roll back.
 
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]]
         The kind of cache.
@@ -105,12 +111,15 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     model_lib: Optional[str] = None
     additional_models: List[Union[str, Tuple[str, str]]] = field(default_factory=list)
     mode: Optional[Literal["local", "interactive", "server"]] = None
+    tensor_parallel_shards: Optional[int] = None
     gpu_memory_utilization: Optional[float] = None
     kv_cache_page_size: int = 16
     max_num_sequence: Optional[int] = None
     max_total_sequence_length: Optional[int] = None
     max_single_sequence_length: Optional[int] = None
     prefill_chunk_size: Optional[int] = None
+    sliding_window_size: Optional[int] = None
+    attention_sink_size: Optional[int] = None
     max_history_size: Optional[int] = None
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]] = None
     speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable"
@@ -127,36 +136,3 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     def from_json(json_str: str) -> "EngineConfig":
         """Construct a config from JSON string."""
         return EngineConfig(**json.loads(json_str))
-
-
-@dataclass
-class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
-    """Flags for overriding model config."""
-
-    context_window_size: Optional[int] = None
-    sliding_window_size: Optional[int] = None
-    prefill_chunk_size: Optional[int] = None
-    attention_sink_size: Optional[int] = None
-    max_batch_size: Optional[int] = None
-    tensor_parallel_shards: Optional[int] = None
-
-    @staticmethod
-    def from_str(source: str) -> "ModelConfigOverride":
-        """Parse model config override values from a string."""
-        parser = argparse.ArgumentParser(description="model config override values")
-        parser.add_argument("--tensor_parallel_shards", type=int, default=None)
-        parser.add_argument("--context_window_size", type=int, default=None)
-        parser.add_argument("--sliding_window_size", type=int, default=None)
-        parser.add_argument("--prefill_chunk_size", type=int, default=None)
-        parser.add_argument("--attention_sink_size", type=int, default=None)
-        parser.add_argument("--max_batch_size", type=int, default=None)
-
-        results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
-        return ModelConfigOverride(
-            tensor_parallel_shards=results.tensor_parallel_shards,
-            context_window_size=results.context_window_size,
-            sliding_window_size=results.sliding_window_size,
-            prefill_chunk_size=results.prefill_chunk_size,
-            attention_sink_size=results.attention_sink_size,
-            max_batch_size=results.max_batch_size,
-        )

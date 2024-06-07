@@ -9,7 +9,6 @@ import tvm
 
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.serve import engine_utils
-from mlc_llm.serve.config import ModelConfigOverride
 from mlc_llm.serve.engine_base import (
     EngineConfig,
     EngineMetrics,
@@ -219,7 +218,6 @@ class JSONFFIEngine:
         model_lib: Optional[str] = None,
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
-        model_config_overrides: Optional[ModelConfigOverride] = None,
     ) -> None:
         # - Check the fields fields of `engine_config`.
         if engine_config is None:
@@ -231,7 +229,7 @@ class JSONFFIEngine:
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, tvm.runtime.Device)
-        model_args = _process_model_args(models, device, model_config_overrides)[0]
+        model_args = _process_model_args(models, device, engine_config)[0]
 
         # - Load the raw model config into dict
         for i, model_info in enumerate(models):
