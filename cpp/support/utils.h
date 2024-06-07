@@ -1,8 +1,11 @@
 /*!
  * Copyright (c) 2023 by Contributors
- * \file utils.h
+ * \file support/utils.h
  * \brief Utility functions.
  */
+#ifndef MLC_LLM_SUPPORT_UTILS_H_
+#define MLC_LLM_SUPPORT_UTILS_H_
+
 #include <sstream>
 #include <string>
 #include <vector>
@@ -57,3 +60,5 @@ uint32_t HashCombine(Args... args) {
 
 }  // namespace llm
 }  // namespace mlc
+
+#endif  // MLC_LLM_SUPPORT_UTILS_H_

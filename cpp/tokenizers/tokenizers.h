@@ -54,7 +54,7 @@ class TokenizerInfoNode : public Object {
 class TokenizerInfo : public ObjectRef {
  public:
   /*! \brief Create a TokenizerInfo object from a dumped string. */
-  static TokenizerInfo FromJSON(String json_string);
+  static TokenizerInfo FromJSONString(String json_string);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TokenizerInfo, ObjectRef, TokenizerInfoNode);
 };

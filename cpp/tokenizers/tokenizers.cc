@@ -32,7 +32,7 @@ String TokenizerInfoNode::AsJSONString() const {
   return picojson::value(obj).serialize(false);
 }
 
-TokenizerInfo TokenizerInfo::FromJSON(String json_string) {
+TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
   picojson::value v;
   std::string err = picojson::parse(v, json_string.operator std::string());
   ICHECK(err.empty()) << "Failed to parse JSON: " << err;

@@ -1,6 +1,6 @@
 /*!
  * Copyright (c) 2023 by Contributors
- * \file load_bytes_from_file.h
+ * \file support/load_bytes_from_file.h
  * \brief Utility methods to load from files.
  */
 #ifndef MLC_LLM_SUPPORT_LOAD_BYTES_FROM_FILE_H_

@@ -403,7 +403,7 @@ def test_find_next_rejected_tokens_schema() -> None:
         matcher.find_next_rejected_tokens(True)
         print("Accepting char:", c, file=sys.stderr)
         assert matcher.debug_accept_char(ord(c))
-    matcher.find_next_rejected_tokens(True)
+    assert 2 not in matcher.find_next_rejected_tokens(True)
 
 
 if __name__ == "__main__":

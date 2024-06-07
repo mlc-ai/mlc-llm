@@ -3,8 +3,8 @@
  * \file grammar/grammar_state_matcher_base.h
  * \brief The base class of GrammarStateMatcher. It implements a character-based matching automata.
  */
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
+#ifndef MLC_LLM_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
+#define MLC_LLM_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
 
 #include <vector>
 
@@ -109,7 +109,8 @@ class GrammarStateMatcherBase {
   // We store the stack tops in different steps in the history to support rollback.
   StackTopsHistory stack_tops_history_;
 
-  // Temporary data for AcceptChar.
+  // Temporary data for AcceptChar, PushInitialState, etc to store new stacks.
+  // They are stored here to avoid repeated allocation.
   std::vector<int32_t> tmp_new_stack_tops_;
 };
 
@@ -267,21 +268,21 @@ inline void GrammarStateMatcherBase::PushInitialState(RulePosition init_rule_pos
     // Initialize the stack with the main rule.
     auto main_rule = grammar_->GetMainRule();
     auto main_rule_body = grammar_->GetRuleExpr(main_rule.body_expr_id);
-    std::vector<int32_t> stack_tops;
+    tmp_new_stack_tops_.clear();
     for (auto i : main_rule_body) {
       auto init_rule_position = RulePosition(0, i, 0, RulePosition::kNoParent);
       if (expand_init_rule_position) {
-        ExpandRulePosition(init_rule_position, &stack_tops, true);
+        ExpandRulePosition(init_rule_position, &tmp_new_stack_tops_, true);
       } else {
-        stack_tops.push_back(tree_.NewNode(init_rule_position));
+        tmp_new_stack_tops_.push_back(tree_.NewNode(init_rule_position));
       }
     }
-    stack_tops_history_.PushHistory(stack_tops);
+    stack_tops_history_.PushHistory(tmp_new_stack_tops_);
   } else {
     if (expand_init_rule_position) {
-      std::vector<int32_t> stack_tops;
-      ExpandRulePosition(init_rule_position, &stack_tops, true);
-      stack_tops_history_.PushHistory(stack_tops);
+      tmp_new_stack_tops_.clear();
+      ExpandRulePosition(init_rule_position, &tmp_new_stack_tops_, true);
+      stack_tops_history_.PushHistory(tmp_new_stack_tops_);
     } else {
       stack_tops_history_.PushHistory({tree_.NewNode(init_rule_position)});
     }
@@ -397,4 +398,4 @@ inline bool GrammarStateMatcherBase::ExpandRulePosition(RulePosition cur_rule_po
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_
+#endif  // MLC_LLM_GRAMMAR_GRAMMAR_STATE_MATCHER_BASE_H_

@@ -4,8 +4,8 @@
  * \brief The header for printing the AST of a BNF grammar.
  */
 
-#ifndef MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_
-#define MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_
+#ifndef MLC_LLM_GRAMMAR_GRAMMAR_SERIALIZER_H_
+#define MLC_LLM_GRAMMAR_GRAMMAR_SERIALIZER_H_
 
 #include <string>
 
@@ -114,4 +114,4 @@ class BNFGrammarJSONSerializer : public BNFGrammarSerializer {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_GRAMMAR_SERIALIZER_H_
+#endif  // MLC_LLM_GRAMMAR_GRAMMAR_SERIALIZER_H_

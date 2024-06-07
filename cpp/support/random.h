@@ -1,11 +1,11 @@
 /*!
  *  Copyright (c) 2023 by Contributors
- * \file random.h
+ * \file support/random.h
  * \brief Header of random number generator.
  */
 
-#ifndef MLC_LLM_RANDOM_H_
-#define MLC_LLM_RANDOM_H_
+#ifndef MLC_LLM_SUPPORT_RANDOM_H_
+#define MLC_LLM_SUPPORT_RANDOM_H_
 
 #include <random>
 
@@ -34,4 +34,4 @@ class RandomGenerator {
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_RANDOM_H_
+#endif  // MLC_LLM_SUPPORT_RANDOM_H_

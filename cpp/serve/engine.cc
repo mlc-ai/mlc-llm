@@ -518,7 +518,7 @@ class EngineImpl : public Engine {
     int n = request->generation_cfg->n;
     int rng_seed = request->generation_cfg->seed;
     auto grammar_state_init_ctx =
-        ResponseFormatToGrammarInitContext(request->generation_cfg->response_format);
+        GetGrammarInitCtxFromResponseFormat(request->generation_cfg->response_format);
 
     std::vector<RequestStateEntry> rsentries;
     // Create the request state entry for the input.
@@ -757,7 +757,7 @@ class EngineImpl : public Engine {
 
   /*! \brief Create a grammar init context according to the response format. If the response format
    * is not JSON, return std::nullopt. */
-  std::optional<std::shared_ptr<GrammarStateInitContext>> ResponseFormatToGrammarInitContext(
+  std::optional<std::shared_ptr<GrammarStateInitContext>> GetGrammarInitCtxFromResponseFormat(
       const ResponseFormat& response_format) {
     if (response_format.type != "json_object") {
       return std::nullopt;

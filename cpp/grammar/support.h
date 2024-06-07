@@ -3,8 +3,8 @@
  * \file grammar/support.h
  * \brief The header for utilities used in grammar-guided generation.
  */
-#ifndef MLC_LLM_SERVE_GRAMMAR_SUPPORT_H_
-#define MLC_LLM_SERVE_GRAMMAR_SUPPORT_H_
+#ifndef MLC_LLM_GRAMMAR_SUPPORT_H_
+#define MLC_LLM_GRAMMAR_SUPPORT_H_
 
 #include <tvm/runtime/logging.h>
 
@@ -181,4 +181,4 @@ inline void IntsetIntersection(std::vector<int32_t>* lhs, const std::vector<int3
 }  // namespace llm
 }  // namespace mlc
 
-#endif  // MLC_LLM_SERVE_GRAMMAR_SUPPORT_H_
+#endif  // MLC_LLM_GRAMMAR_SUPPORT_H_
