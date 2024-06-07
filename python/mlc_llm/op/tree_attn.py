@@ -72,7 +72,6 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
     bdx = 32
     num_warps = 4
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
-    L_per_cta = tile_x // group_size
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
@@ -170,8 +169,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
 
                                 if T.tvm_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.int32 = batch_idx[0]
-                                    L_start: T.int32 = q_indptr[b_idx] + tile_id[0] * L_per_cta
-                                    H_qo_start: T.int32 = by * group_size
+                                    LH_start: T.int32 = tile_id[0] * tile_x
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
                                     T.tvm_storage_sync("shared")
@@ -195,8 +193,8 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                             i, j = T.axis.remap("SS", [li, lj])
                                             T.reads()
                                             T.writes()
-                                            cur_L = L_start + i // group_size
-                                            cur_H_qo = H_qo_start + i % group_size
+                                            cur_L = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
@@ -251,13 +249,15 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
+                                                    row_: T.int32 = (LH_start + row) // group_size
                                                     for j in T.serial(tile_z):
-                                                        if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
-                                                                col=L_kv_start + j,
-                                                                mask_ptr=mask,
-                                                                offset=mn_indptr[b_idx],
-                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
-                                                                kv_len=kv_chunk_len[0]):
+                                                        if _tree_mask(
+                                                            row=row_,
+                                                            col=L_kv_start + j,
+                                                            mask_ptr=mask,
+                                                            offset=mn_indptr[b_idx],
+                                                            stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                            kv_len=kv_chunk_len[0]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
@@ -267,12 +267,14 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
-                                                        if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
-                                                                col=L_kv_start + j,
-                                                                mask_ptr=mask,
-                                                                offset=mn_indptr[b_idx],
-                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
-                                                                kv_len=kv_chunk_len[0]):
+                                                        row_: T.int32 = (LH_start + row) // group_size
+                                                        if _tree_mask(
+                                                            row=row_,
+                                                            col=L_kv_start + j,
+                                                            mask_ptr=mask,
+                                                            offset=mn_indptr[b_idx],
+                                                            stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                            kv_len=kv_chunk_len[0]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
@@ -301,15 +303,19 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                     for li, lj in T.grid(tile_x, tile_y):
                                         with T.block("O_store"):
                                             i, j = T.axis.remap("SS", [li, lj])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                output[L_start + i // group_size, H_qo_start + i % group_size, j] = O_local[i, j] / d_smem[i]
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
                                         with T.block("lse_store"):
                                             i = T.axis.remap("S", [li])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log2(d_smem[i])
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                lse[cur_L, cur_H_qo] = m_smem[i] + T.log2(d_smem[i])
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
