@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-import aiohttp
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 from typing_extensions import Self
 
@@ -17,6 +17,19 @@ logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
+class ServerMetrics(BaseModel):
+    """The metrics from the server side."""
+
+    prompt_tokens: int
+    prefill_tokens: int
+    completion_tokens: int
+    decode_tokens_per_s: float
+    prefill_tokens_per_s: float
+    end_to_end_latency_s: float
+    inter_token_latency_s: float
+    ttft_s: Optional[float] = None
+
+
 class RequestRecords(BaseModel):
     """The request records collected from LLM inference requests."""
 
@@ -24,6 +37,7 @@ class RequestRecords(BaseModel):
     output: str
     end_to_end_latency_s: float
     ttft: Optional[float] = None
+    server_metrics: Optional[Dict] = None
 
 
 class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
@@ -40,6 +54,10 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         Specifies if streaming should be enabled, default is True.
     timeout : Optional[float]
         The maximum duration in seconds for each request, default is 180.
+    client : Optional[Any]
+        The client to use for sending requests.
+    include_server_metrics : Optional[bool]
+        Specifies if server metrics should be included, default is False.
 
     Attributes
     ----------
@@ -47,13 +65,16 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         Statistics about the performance.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         host: Optional[str] = "127.0.0.1",
         port: Optional[int] = 8008,
         stream: Optional[bool] = None,
         timeout: Optional[float] = None,
+        client: Optional[Any] = None,
+        include_server_metrics: Optional[bool] = False,
     ) -> None:
+        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
         from transformers import (  # pylint: disable=import-outside-toplevel,import-error
             LlamaTokenizerFast,
         )
@@ -63,7 +84,8 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
         self.prompt_generator = PromptsGenerator()
         self.request_records: List[RequestRecords] = []
-        self.client = aiohttp.ClientSession()
+        self.client = client if client else aiohttp.ClientSession()
+        self.include_server_metrics = include_server_metrics
         self.url = f"http://{host}:{port}/v1/chat/completions"
         self.headers = {"Content-Type": "application/json"}
         if os.getenv("MLC_LLM_API_KEY"):
@@ -75,7 +97,7 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
     async def __aexit__(self, exc_type, exc_value, traceback) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-locals, too-many-branches
+    async def __call__(  # pylint: disable=too-many-locals, too-many-branches, too-many-statements
         self, params: Dict[str, Any] = None
     ) -> None:
         if "messages" not in params:
@@ -93,45 +115,71 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
             chat_params["stream"] = self.stream
         if "timeout" not in chat_params:
             chat_params["timeout"] = self.timeout
+        if self.include_server_metrics:
+            if "stream_options" not in chat_params:
+                chat_params["stream_options"] = {"include_usage": True}
+            else:
+                chat_params["stream_options"]["include_usage"] = True
 
         total_request_time = 0
         generated_text = ""
         ttft = None
-        # chat_params["stream_options"] = {"include_usage": True}
         start_time = time.monotonic()
+        server_metrics = None
 
-        try:
-            async with self.client.post(
-                self.url, json=chat_params, headers=self.headers
-            ) as response:
-                if chat_params["stream"]:
-                    async for chunk in response.content:
-                        chunk = chunk.strip()
-                        if not chunk or chunk == b"\n":
-                            continue
-                        # Get rid of the prefix "DATA: "
-                        raw_data = chunk[6:].strip()
-                        if raw_data == b"[DONE]":
-                            continue
-                        data = json.loads(raw_data)
-                        delta = data["choices"][0]["delta"]
+        # AsyncOpenAI chat completion
+        if isinstance(self.client, AsyncOpenAI):
+            response = await self.client.chat.completions.create(**chat_params)
+            if chat_params["stream"]:
+                async for chunk in response:
+                    if chunk.usage:
+                        server_metrics = chunk.usage.extra
+                    elif chunk.choices[0].delta.content is not None:
+                        if not ttft:
+                            ttft = time.monotonic() - start_time  # type: ignore
+                        generated_text += chunk.choices[0].delta.content
+            else:
+                generated_text = response.choices[0].message.content
+        else:
+            try:
+                async with self.client.post(
+                    self.url, json=chat_params, headers=self.headers
+                ) as response:
+                    if chat_params["stream"]:
+                        async for chunk in response.content:
+                            chunk = chunk.strip()
+                            if not chunk or chunk == b"\n":
+                                continue
+                            # Get rid of the prefix "data: " and suffix "\n"
+                            raw_data = chunk[6:].strip()
+                            if raw_data == b"[DONE]":
+                                continue
+                            data = json.loads(raw_data)
+                            if data["usage"] is not None:
+                                server_metrics = data["usage"]["extra"]
+                            if not data["choices"]:
+                                continue
+                            delta = data["choices"][0]["delta"]
+                            if delta.get("content", None):
+                                if not ttft:
+                                    ttft = time.monotonic() - start_time
 
-                        if delta.get("content", None):
-                            if not ttft:
-                                ttft = time.monotonic() - start_time
+                            generated_text += delta["content"]
+                    else:
+                        data = await response.json()
+                        generated_text = data["choices"][0]["message"]["content"]
+            except Exception as e:  # pylint: disable=broad-except
+                logger.error("Error sending request: %s", str(e))
+                raise e
 
-                        generated_text += delta["content"]
-                else:
-                    data = await response.json()
-                    generated_text = data["choices"][0]["message"]["content"]
-        except Exception as e:  # pylint: disable=broad-except
-            logger.error("Error sending request: %s", str(e))
         total_request_time = time.monotonic() - start_time  # type: ignore
+
         req_rec = RequestRecords(
             input=prompt,
             output=generated_text,
             end_to_end_latency_s=total_request_time,
             ttft=ttft,
+            server_metrics=server_metrics,
         )
         self.request_records.append(req_rec)
 
