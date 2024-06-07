@@ -250,11 +250,6 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   std::string pending_text =
       conv.GetSystemText(has_custom_system ? custom_system_inputs : conv.system_message);
 
-  // the seperator after system message.
-  if (!pending_text.empty()) {
-    pending_text += conv.seps[0];
-  }
-
   // Get the message strings
   std::vector<Data> message_list;
   size_t non_system_msg_count = 0;
