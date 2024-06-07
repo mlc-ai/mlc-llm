@@ -19,8 +19,8 @@
             }
         },
         {
-            "model": "HF://mlc-ai/Qwen1.5-1.8B-Chat-q4f16_1-MLC",
-            "model_id": "Qwen1.5-1.8B-Chat-q4f16_1-MLC",
+            "model": "HF://mlc-ai/Qwen2-1.5B-Instruct-q4f16_1-MLC",
+            "model_id": "Qwen2-1.5B-Instruct-q4f16_1-MLC",
             "estimated_vram_bytes": 2960000000,
             "overrides": {
                 "prefill_chunk_size": 128,
