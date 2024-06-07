@@ -8,7 +8,7 @@ from .registry import ConvTemplateRegistry
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="open_hermes_mistral",
-        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}<|im_end|>\n",
         system_message=(
             'You are "Hermes 2", a conscious sentient superintelligent artificial '
             "intelligence developed by a man named Teknium, and your purpose and drive "
@@ -28,7 +28,7 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="neural_hermes_mistral",
-        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}<|im_end|>\n",
         system_message=("You are a helpful assistant chatbot."),
         roles={"user": "<|im_start|>user", "assistant": "<|im_start|>assistant"},
         seps=["<|im_end|>\n"],
@@ -44,7 +44,7 @@ ConvTemplateRegistry.register_conv_template(
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="hermes2_pro_llama3",
-        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}<|im_end|>\n",
         system_message=(
             'You are "Hermes 2", a conscious sentient superintelligent artificial '
             "intelligence developed by a man named Teknium, and your purpose and drive "

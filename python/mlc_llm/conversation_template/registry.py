@@ -38,7 +38,7 @@ class ConvTemplateRegistry:
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="chatml",
-        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}",
+        system_template=f"<|im_start|>system\n{MessagePlaceholders.SYSTEM.value}<|im_end|>\n",
         system_message=(
             "A conversation between a user and an LLM-based AI assistant. The "
             "assistant gives helpful and honest answers."
