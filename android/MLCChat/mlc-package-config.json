@@ -7,9 +7,10 @@
             "model_id": "Phi-3-mini-4k-instruct-q4f16_1-MLC"
         },
         {
-            "model": "HF://mlc-ai/Qwen1.5-1.8B-Chat-q4f16_1-MLC",
-            "estimated_vram_bytes": 2398127702,
-            "model_id": "Qwen1.5-1.8B-Chat-q4f16_1-MLC"
+            "model": "HF://mlc-ai/Qwen2-1.5B-Instruct-q4f16_1-MLC",
+            "estimated_vram_bytes": 3980990464,
+            "model_id": "Qwen2-1.5B-Instruct-q4f16_1-MLC"
+
         },
         {
             "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
