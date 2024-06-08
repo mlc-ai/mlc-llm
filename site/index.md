@@ -21,4 +21,4 @@ Please visit our [documentation](https://llm.mlc.ai/docs/) to get started with M
 
 ## Links
 - [MLC LLM Github](https://github.com/mlc-ai/mlc-llm)
-- [WebLLM Project](https://github.com/mlc-ai/web-llm)
+- [WebLLM Project](https://webllm.mlc.ai)
