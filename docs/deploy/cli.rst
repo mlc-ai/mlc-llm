@@ -70,7 +70,7 @@ We provide the list of chat CLI interface for reference.
 
 .. code:: bash
 
-   mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--overrides OVERRIDES]
+   mlc_llm chat MODEL [--model-lib PATH-TO-MODEL-LIB] [--device DEVICE] [--overrides OVERRIDES]
 
 
 MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
