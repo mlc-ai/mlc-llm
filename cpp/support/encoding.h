@@ -6,6 +6,7 @@
 #ifndef MLC_LLM_SUPPORT_ENCODING_H_
 #define MLC_LLM_SUPPORT_ENCODING_H_
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>
