@@ -103,30 +103,18 @@ Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> 
     sentencepiece = path / "tokenizer.model";
     huggingface = path / "tokenizer.json";
     rwkvworld = path / "tokenizer_model";
-    // Check ByteLevelBPE
-    {
-      std::filesystem::path merges_path = path / "merges.txt";
-      std::filesystem::path vocab_path = path / "vocab.json";
-      std::filesystem::path added_tokens_path = path / "added_tokens.json";
-      if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
-          std::filesystem::exists(added_tokens_path)) {
-        std::string vocab = LoadBytesFromFile(vocab_path.string());
-        std::string merges = LoadBytesFromFile(merges_path.string());
-        std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
-        return Tokenizer(tokenizers::Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens),
-                         info_value);
-      }
-    }
   } else {
     sentencepiece = path.parent_path() / "tokenizer.model";
     huggingface = path.parent_path() / "tokenizer.json";
     rwkvworld = path.parent_path() / "tokenizer_model";
   }
   if (std::filesystem::exists(huggingface)) {
+    // Check HuggingFace
     return Tokenizer(tokenizers::Tokenizer::FromBlobJSON(LoadBytesFromFile(huggingface.string())),
                      info_value);
   }
   if (std::filesystem::exists(sentencepiece)) {
+    // Check SentencePiece
     LOG(WARNING)
         << "Using `tokenizer.model` since we cannot locate `tokenizer.json`.\n"
         << "It is recommended to use `tokenizer.json` to ensure all token mappings are included, "
@@ -137,7 +125,23 @@ Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> 
         tokenizers::Tokenizer::FromBlobSentencePiece(LoadBytesFromFile(sentencepiece.string())),
         info_value);
   }
+  {
+    // Check ByteLevelBPE
+    std::filesystem::path merges_path = path / "merges.txt";
+    std::filesystem::path vocab_path = path / "vocab.json";
+    std::filesystem::path added_tokens_path = path / "added_tokens.json";
+    if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
+        std::filesystem::exists(added_tokens_path)) {
+      LOG(INFO) << "come here";
+      std::string vocab = LoadBytesFromFile(vocab_path.string());
+      std::string merges = LoadBytesFromFile(merges_path.string());
+      std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());
+      return Tokenizer(tokenizers::Tokenizer::FromBlobByteLevelBPE(vocab, merges, added_tokens),
+                       info_value);
+    }
+  }
   if (std::filesystem::exists(rwkvworld)) {
+    // Check RWKV
     return Tokenizer(tokenizers::Tokenizer::FromBlobRWKVWorld(rwkvworld.string()), info_value);
   }
   LOG(FATAL) << "Cannot find any tokenizer under: " << _path;
