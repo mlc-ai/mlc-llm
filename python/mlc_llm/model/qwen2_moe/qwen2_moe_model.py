@@ -38,6 +38,11 @@ class Qwen2MoeConfig(QWen2Config):  # pylint: disable=too-many-instance-attribut
 class Qwen2MoeMLP(nn.Module):
     def __init__(self, config: Qwen2MoeConfig, intermediate_size: Optional[int] = None):
         intermediate_size = intermediate_size or config.intermediate_size
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MoE MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
@@ -56,6 +61,11 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
         super().__init__()
         self.num_experts_per_tok = config.num_experts_per_tok
         self.num_experts = config.num_experts
+        if config.moe_intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MoE intermediate size {config.moe_intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.moe_intermediate_size = config.moe_intermediate_size // config.tensor_parallel_shards
         self.norm_topk_prob = config.norm_topk_prob
         self.share_expert_intermediate_size = (

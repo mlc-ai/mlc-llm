@@ -94,6 +94,11 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
     def __init__(self, config: GPTNeoXConfig):
         self.rope_theta = config.position_embedding_base
         self.hidden_size = config.hidden_size
+        if config.num_attention_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_attention_heads} attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.query_key_value = nn.Linear(
@@ -126,6 +131,11 @@ class GPTNeoXMLP(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
         super().__init__()
         out_dtype = config.ffn_out_dtype
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.dense_h_to_4h = nn.Linear(
             config.hidden_size,

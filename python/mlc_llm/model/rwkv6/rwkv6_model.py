@@ -52,11 +52,11 @@ class RWKV6Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         )
         if self.num_heads * self.head_size != self.hidden_size:
             raise ValueError(
-                f"hidden_size ({self.hidden_size}) must be diisible "
+                f"hidden_size ({self.hidden_size}) must be divisible "
                 f"by head_size ({self.head_size})"
             )
         if self.tensor_parallel_shards != 1:
-            raise ValueError("Only support single deice at this moment.")
+            raise ValueError("Only support single device at this moment.")
 
 
 # pylint: disable=invalid-name, missing-docstring

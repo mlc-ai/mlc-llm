@@ -19,6 +19,7 @@ def group_quant(
     model: nn.Module = BaichuanForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
+    quantization.tensor_parallel_shards = model_config.tensor_parallel_shards
     model = quantization.quantize_model(
         model,
         quant_map,

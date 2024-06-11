@@ -86,6 +86,11 @@ class InternLMConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
 class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: InternLMConfig):
         self.hidden_size = config.hidden_size
+        if config.num_attention_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_attention_heads} attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.max_position_embeddings = config.context_window_size
@@ -109,6 +114,11 @@ class InternLMAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
 
 class InternLMMLP(nn.Module):
     def __init__(self, config: InternLMConfig):
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
 
         self.gate_up_proj = nn.Linear(
