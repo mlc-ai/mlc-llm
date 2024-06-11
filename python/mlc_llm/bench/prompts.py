@@ -1,8 +1,10 @@
 """MLC LLM bench prompts generator"""
+
+from collections import defaultdict
 import json
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from mlc_llm.support import logging
 
@@ -18,6 +20,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         prompts_path: Optional[str] = None,
+        json_prompts_path: Optional[str] = None,
         tokenizer: Optional[Any] = None,
         seed: Optional[int] = 11111,
     ) -> None:
@@ -66,6 +69,22 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
                 prompt_line = file.readline()
                 prompt_tokens = self._count_tokens(prompt_line)
                 self.prompts.append({"prompt": prompt_line, "prompt_tokens": prompt_tokens})
+        if json_prompts_path:
+            self.json_prompts = defaultdict(list)
+            with open(json_prompts_path, "r", encoding="utf-8") as file:
+                for line in file:
+                    json_line = json.loads(line)
+                    assert (
+                        "messages" in json_line
+                    ), "The messages field is required in the JSONL file."
+                    assert (
+                        "response_format" in json_line
+                    ), "The response_format field is required in the JSONL file."
+                    self.json_prompts[json.dumps(json_line["response_format"]["schema"])].append(
+                        json_line["messages"]
+                    )
+        else:
+            self.json_prompts = None
 
     def _count_tokens(self, text: str) -> int:
         """Get the number of tokens.
@@ -82,7 +101,7 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
         """
         return len(self.tokenizer.encode(text))
 
-    def generate_prompt(self, tokens_mean: int, tokens_stddev: Optional[int] = 0) -> str:
+    def generate_prompt(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generates a prompt that closely matches the desired token count.
 
@@ -96,26 +115,33 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
 
         Returns
         -------
-        out: str
-            A prompt string with the specified number of tokens.
+        override_params: Dict[str, Any]
+            The params to override the original request, e.g. messages, response_format.
         """
+        if "response_format" in params:
+            response_format = params["response_format"]
+            if response_format.get("type") == "json_object":
+                if response_format.get("schema") in self.json_prompts:
+                    assert len(self.json_prompts[response_format["schema"]]) > 0
+                    return {"messages": random.choice(self.json_prompts[response_format["schema"]])}
+                schema, prompts = random.choice(list(self.json_prompts.items()))
+                response_format["schema"] = schema
+                return {"messages": random.choice(prompts), "response_format": response_format}
+        tokens_mean = params.get("prompt_tokens", 128)
         assert tokens_mean > 0, "The mean number of tokens must be greater than 0."
-        out_prompt_tokens = (
-            int(random.gauss(tokens_mean, tokens_stddev)) if tokens_stddev else tokens_mean
-        )
-        if out_prompt_tokens <= 0:
-            out_prompt_tokens = tokens_mean
-        remaining_prompt_tokens = out_prompt_tokens
+        remaining_prompt_tokens = tokens_mean
         result_prompt = ""
+        override_params = None
         while remaining_prompt_tokens > 0:
             prompt_dict = random.choice(self.prompts)
             cur_prompt_tokens = prompt_dict["prompt_tokens"]
             cur_prompt = prompt_dict["prompt"]
+            if override_params is None:
+                override_params = prompt_dict["override_params"]
             if remaining_prompt_tokens - cur_prompt_tokens < 0:
                 result_prompt += cur_prompt[:remaining_prompt_tokens]
                 remaining_prompt_tokens = 0
                 break
             result_prompt += cur_prompt
             remaining_prompt_tokens -= cur_prompt_tokens
-        self._count_tokens(result_prompt)
-        return result_prompt
+        return {"messages": [{"role": "system", "content": result_prompt}]}

@@ -1,4 +1,5 @@
 """MLC LLM Bench Request"""
+
 import json
 import os
 import time
@@ -45,6 +46,8 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         The client to use for sending requests.
     include_server_metrics : Optional[bool]
         Specifies if server metrics should be included, default is False.
+    prompt_generator : Optional[PromptsGenerator]
+        The prompt generator for missing messages fields.
 
     Attributes
     ----------
@@ -60,6 +63,7 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         timeout: Optional[float] = None,
         client: Optional[Any] = None,
         include_server_metrics: Optional[bool] = False,
+        prompt_generator: Optional[PromptsGenerator] = None,
     ) -> None:
         import aiohttp  # pylint: disable=import-outside-toplevel,import-error
         from transformers import (  # pylint: disable=import-outside-toplevel,import-error
@@ -69,7 +73,7 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         self.stream = stream
         self.timeout = timeout
         self.tokenizer = LlamaTokenizerFast.from_pretrained("hf-internal-testing/llama-tokenizer")
-        self.prompt_generator = PromptsGenerator()
+        self.prompt_generator = PromptsGenerator() if prompt_generator is None else prompt_generator
         self.request_records: List[RequestRecords] = []
         self.client = client if client else aiohttp.ClientSession()
         self.include_server_metrics = include_server_metrics
@@ -88,15 +92,10 @@ class OpenAIRequestSender:  # pylint: disable=too-many-instance-attributes
         self, params: Dict[str, Any] = None
     ) -> None:
         if "messages" not in params:
-            prompt_tokens = 128
-            if "prompt_tokens" in params:
-                prompt_tokens = params["prompt_tokens"]
-            else:
-                logger.warning("A random prompt with %d tokens will be generated.", prompt_tokens)
-            prompt = self.prompt_generator.generate_prompt(prompt_tokens)
-            params["messages"] = [{"role": "system", "content": prompt}]
-        else:
-            prompt = params["messages"][-1]["content"]
+            override_params = self.prompt_generator.generate_prompt(params)
+            assert "messages" in override_params, "override params must contain messages field"
+            params.update(override_params)
+        prompt = params["messages"][-1]["content"]
         chat_params = self._get_chat_completion_params(params)
         if "stream" not in chat_params:
             chat_params["stream"] = self.stream
