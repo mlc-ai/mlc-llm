@@ -65,6 +65,8 @@ class BatchVerifyActionObj : public EngineActionObj {
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
+    std::vector<int64_t> token_tree_parent_ptr;
+    token_tree_parent_ptr.reserve(total_verify_length);
     request_internal_ids.reserve(num_rsentries);
     all_tokens_to_verify.reserve(total_verify_length);
     verify_request_mstates.reserve(num_rsentries);
@@ -83,9 +85,11 @@ class BatchVerifyActionObj : public EngineActionObj {
       // the last committed token + all the draft tokens.
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
+      token_tree_parent_ptr.push_back(-1);
       for (int j = 0; j < static_cast<int>(draft_mstate->draft_output_tokens.size()); ++j) {
         all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].GetTokenId());
         draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
+        token_tree_parent_ptr.push_back(draft_mstate->draft_token_parent_idx[j] + 1);
       }
       verify_request_mstates.push_back(verify_mstate);
       generation_cfg.push_back(rsentries[i]->request->generation_cfg);
@@ -100,16 +104,6 @@ class BatchVerifyActionObj : public EngineActionObj {
     ObjectRef embeddings = models_[verify_model_id_]->TokenEmbed(
         {IntTuple{all_tokens_to_verify.begin(), all_tokens_to_verify.end()}});
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
-
-    // Construct the token tree. Right now only chains are supported.
-    std::vector<int64_t> token_tree_parent_ptr;
-    token_tree_parent_ptr.reserve(total_verify_length);
-    for (int i = 0; i < num_rsentries; ++i) {
-      for (int pos = 0; pos < verify_lengths[i]; ++pos) {
-        token_tree_parent_ptr.push_back(pos - 1);
-      }
-    }
-    ICHECK_EQ(token_tree_parent_ptr.size(), total_verify_length);
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
     NDArray logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
@@ -140,7 +134,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::vector<std::vector<SampleResult>> sample_results_arr =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
-            draft_output_tokens, draft_probs_on_device);
+            draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     // We collect the requests whose drafts are fully accepted.

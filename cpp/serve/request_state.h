@@ -76,6 +76,8 @@ class RequestModelStateNode : public Object {
   std::vector<SampleResult> draft_output_tokens;
   /*! \brief The storage slots for the associated states of draft tokens. */
   std::vector<int> draft_token_slots;
+  /*! \brief The parent indices of the draft tokens. */
+  std::vector<int64_t> draft_token_parent_idx;
   /*! \brief The appeared committed and draft tokens and their occurrence times. */
   std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
@@ -106,7 +108,7 @@ class RequestModelStateNode : public Object {
   void RollbackTokens(int count);
 
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
-  void AddDraftToken(SampleResult sampled_token, int draft_token_slot);
+  void AddDraftToken(SampleResult sampled_token, int draft_token_slot, int64_t parent_idx);
   /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */
   void RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots = nullptr);
 
