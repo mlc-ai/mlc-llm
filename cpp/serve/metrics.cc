@@ -73,14 +73,16 @@ picojson::object SpecDecodeMetrics::AsJSON() const {
 picojson::object RequestMetrics::AsJSON() const {
   picojson::object metrics;
   metrics["prompt_tokens"] = picojson::value(prompt_tokens);
-  metrics["prefill_tokens"] = picojson::value(prefill_tokens);
   metrics["completion_tokens"] = picojson::value(completion_tokens);
+  metrics["prefill_tokens"] = picojson::value(prefill_tokens);
+  metrics["decode_tokens"] = picojson::value(decode_tokens);
+  metrics["jump_forward_tokens"] = picojson::value(jump_forward_tokens);
 
-  if (completion_tokens != 0) {
-    metrics["decode_tokens_per_s"] = picojson::value(completion_tokens / this->GetDecodeTime());
-  }
   if (prefill_tokens != 0) {
     metrics["prefill_tokens_per_s"] = picojson::value(prefill_tokens / this->GetPrefillTime());
+  }
+  if (decode_tokens != 0) {
+    metrics["decode_tokens_per_s"] = picojson::value(decode_tokens / this->GetDecodeTime());
   }
   metrics["end_to_end_latency_s"] = picojson::value(this->GetTotalTime());
   metrics["ttft_s"] = picojson::value(this->GetTTFT());
@@ -90,8 +92,8 @@ picojson::object RequestMetrics::AsJSON() const {
 
 std::string RequestMetrics::AsUsageJSONStr(bool include_extra) const {
   picojson::object usage;
-  usage["completion_tokens"] = picojson::value(completion_tokens);
   usage["prompt_tokens"] = picojson::value(prompt_tokens);
+  usage["completion_tokens"] = picojson::value(completion_tokens);
   usage["total_tokens"] = picojson::value(prompt_tokens + completion_tokens);
   if (include_extra) {
     usage["extra"] = picojson::value(this->AsJSON());
@@ -103,9 +105,20 @@ picojson::object EngineMetrics::AsJSON() const {
   picojson::object metrics;
   metrics["engine_prefill_time_sum"] = picojson::value(engine_prefill_time_sum);
   metrics["engine_decode_time_sum"] = picojson::value(engine_decode_time_sum);
+  metrics["engine_jump_forward_time_sum"] = picojson::value(engine_jump_forward_time_sum);
   metrics["prompt_tokens_sum"] = picojson::value(prompt_tokens_sum);
-  metrics["prefill_tokens_sum"] = picojson::value(prefill_tokens_sum);
   metrics["completion_tokens_sum"] = picojson::value(completion_tokens_sum);
+  metrics["prefill_tokens_sum"] = picojson::value(prefill_tokens_sum);
+  metrics["decode_tokens_sum"] = picojson::value(decode_tokens_sum);
+  metrics["jump_forward_tokens_sum"] = picojson::value(jump_forward_tokens_sum);
+
+  if (prefill_tokens_sum != 0) {
+    metrics["prefill_tokens_per_s"] = picojson::value(prefill_tokens_sum / engine_prefill_time_sum);
+  }
+  if (engine_decode_time_sum != 0) {
+    metrics["decode_tokens_per_s"] = picojson::value(decode_tokens_sum / engine_decode_time_sum);
+  }
+
   metrics["last_finished_request"] = picojson::value(last_finished_request.AsJSON());
   if (!spec_decode.IsEmpty()) {
     metrics["spec_decode"] = picojson::value(spec_decode.AsJSON());
@@ -138,6 +151,9 @@ picojson::object EngineMetrics::AsJSON() const {
 
 std::string EngineMetrics::AsUsageJSONStr() const {
   picojson::object usage;
+  // We return engine usage as a usage field according to the OpenAI API.
+  // To comply with the API, just set prompt_tokens, completion_tokens, and total_tokens to 0.
+  // And store the information in the extra field.
   usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(0));
   usage["completion_tokens"] = picojson::value(static_cast<int64_t>(0));
   usage["total_tokens"] = picojson::value(static_cast<int64_t>(0));

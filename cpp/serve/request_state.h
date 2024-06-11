@@ -59,6 +59,11 @@ class RequestModelStateNode : public Object {
   int64_t cached_committed_tokens = 0;
   /*! \brief The number of tokens that is already prefilled from the inputs. */
   int64_t num_prefilled_tokens = 0;
+  /*! \brief The number of tokens that need to be processed in the next decoding. */
+  int num_tokens_for_next_decode = 0;
+  /*! \brief Whether retokenization is needed in the next decoding. When the jump-forward decoding
+   * is enabled, retokenization is needed after every jump-forward and decoding action. */
+  bool require_retokenization_in_next_decode = false;
 
   // NOTE: The following fields are reserved for future speculative inference
   // settings, and are produced by the speculative small models.
@@ -93,8 +98,13 @@ class RequestModelStateNode : public Object {
    * with dtype uint32_t and shape (ceildiv(vocab_size, 32),).
    */
   void FindNextTokenBitmask(DLTensor* bitmask);
-  /*! \brief Commit a new token into committed_tokens. Update appeared_token_ids. */
+  /*! \brief Commit a new token into committed_tokens. Does not effect the kv cache. Update
+   * appeared_token_ids and the grammar state. */
   void CommitToken(SampleResult sampled_token);
+  /*! \brief Roll back the last tokens back from committed_tokens. Does not effect the kv cache.
+   * Also roll back appeared_token_ids and the grammar state. */
+  void RollbackTokens(int count);
+
   /*! \brief Add a draft token into draft_output_tokens. Update appeared_token_ids. */
   void AddDraftToken(SampleResult sampled_token, int draft_token_slot);
   /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */
@@ -123,6 +133,9 @@ struct DeltaRequestReturn {
   std::vector<int32_t> delta_token_ids;
   Array<String> delta_logprob_json_strs;
   Optional<String> finish_reason;
+  /*! \brief The extra string to prepend the delta output. The delta output should be
+   * extra_prefix_string + detokenize(delta_token_ids). */
+  String extra_prefix_string = "";
 };
 
 /****************** Request States ******************/
@@ -198,6 +211,9 @@ class RequestStateEntryNode : public Object {
    */
   int next_callback_token_pos;
 
+  /*! \brief The extra string to prepend the output. */
+  std::string extra_prefix_string;
+
   /*!
    * \brief Back reference to the request state.
    * Use ObjectRef to avoid circulate reference.
@@ -213,8 +229,8 @@ class RequestStateEntryNode : public Object {
    * \return The delta token ids to return, the logprob JSON strings of each delta token id, and
    * the optional finish reason.
    */
-  DeltaRequestReturn GetReturnTokenIds(const Tokenizer& tokenizer,
-                                       int64_t max_single_sequence_length);
+  DeltaRequestReturn GetDeltaRequestReturn(const Tokenizer& tokenizer,
+                                           int64_t max_single_sequence_length);
 
   static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
   static constexpr const bool _type_has_method_sequal_reduce = false;

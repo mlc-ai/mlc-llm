@@ -278,6 +278,7 @@ def _query_engine_metrics(engine):
 async def _async_query_engine_metrics(engine):
     """Query engine metrics via debug options"""
     dummy_message = {"role": "user", "context": ""}
+    result = None
     async for response in await engine.chat.completions.create(
         messages=[dummy_message],
         model="model",
@@ -286,7 +287,11 @@ async def _async_query_engine_metrics(engine):
         extra_body={"debug_config": {"special_request": "query_engine_metrics"}},
     ):
         if response.usage is not None:
-            return EngineMetrics(response.usage.extra)
+            assert result is None
+            result = EngineMetrics(response.usage.extra)
+
+    if result is not None:
+        return result
     raise RuntimeError("query_engine metrics did not get metrics back")
 
 
@@ -510,7 +515,7 @@ class EngineState:
             outputs = []
             for stream_output, text_streamer in zip(stream_outputs, text_streamers):
                 self.record_event(request_id, event="start detokenization")
-                delta_text = (
+                delta_text = stream_output.extra_prefix_string + (
                     text_streamer.put(stream_output.delta_token_ids)
                     if len(stream_output.delta_token_ids) > 0
                     else ""

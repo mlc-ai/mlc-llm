@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 
 #include "./../support/encoding.h"
 #include "./../support/load_bytes_from_file.h"
@@ -70,6 +71,20 @@ std::vector<int32_t> TokenizerObj::Encode(const std::string& text) const {
   return tokenizer->Encode(text);
 }
 
+std::vector<int32_t> TokenizerObj::EncodeNoPrependSpace(const std::string& text) const {
+  // TODO(yixin): now this only supports tokenizers with tokenizer.json
+  // other tokenizers should be supported.
+  static const constexpr char* kPaddingPrefix = "\x01";
+  if (!info_->prepend_space_in_encode) {
+    return tokenizer->Encode(text);
+  }
+
+  auto result = tokenizer->Encode(kPaddingPrefix + text);
+  // remove the first two tokens: "▁" and "<0x01>"
+  result.erase(result.begin(), result.begin() + 2);
+  return result;
+}
+
 std::vector<std::vector<int32_t>> TokenizerObj::EncodeBatch(const Array<String>& texts) const {
   std::vector<std::string> texts_vec;
   for (const String& text : texts) {
@@ -80,6 +95,35 @@ std::vector<std::vector<int32_t>> TokenizerObj::EncodeBatch(const Array<String>&
 
 std::string TokenizerObj::Decode(const std::vector<int32_t>& token_ids) const {
   return tokenizer->Decode(token_ids);
+}
+
+const DynamicBitset& TokenizerObj::GetPrefixTokenMask() {
+  if (prefix_token_mask_.Size() != 0) {
+    return prefix_token_mask_;
+  }
+
+  int vocab_size = GetVocabSize();
+  prefix_token_mask_ = DynamicBitset(vocab_size);
+
+  // Sort all tokens
+  const auto& token_table = PostProcessedTokenTable();
+  std::vector<std::pair<std::string, int>> sorted_tokens;
+  for (int32_t token_id = 0; token_id < vocab_size; ++token_id) {
+    sorted_tokens.emplace_back(token_table[token_id], token_id);
+  }
+  std::sort(sorted_tokens.begin(), sorted_tokens.end());
+
+  // Check every token if it is a prefix of another token
+  for (int idx = 0; idx < vocab_size - 1; ++idx) {
+    auto cur_token = sorted_tokens[idx].first;
+    auto nxt_token = sorted_tokens[idx + 1].first;
+    if (cur_token.length() <= nxt_token.length() &&
+        std::string_view(nxt_token).substr(0, cur_token.length()) == cur_token) {
+      prefix_token_mask_.Set(sorted_tokens[idx].second);
+    }
+  }
+
+  return prefix_token_mask_;
 }
 
 size_t TokenizerObj::GetVocabSize() const { return tokenizer->GetVocabSize(); }

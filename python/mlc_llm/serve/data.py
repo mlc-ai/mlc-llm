@@ -158,6 +158,7 @@ class SingleRequestStreamOutput:
     delta_logprob_json_strs: Optional[List[str]]
     finish_reason: Optional[str]
     request_final_usage_json_str: Optional[str]
+    extra_prefix_string: str
 
 
 @tvm._ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
@@ -195,11 +196,13 @@ class RequestStreamOutput(Object):
         if request_final_usage_json_str is not None:
             return (
                 request_id,
-                [SingleRequestStreamOutput([], None, None, request_final_usage_json_str)],
+                [SingleRequestStreamOutput([], None, None, request_final_usage_json_str, "")],
             )
 
         stream_outputs = []
-        for i, (delta_token_ids, finish_reason) in enumerate(zip(fields[1], fields[3])):
+        for i, (delta_token_ids, finish_reason, extra_prefix_string) in enumerate(
+            zip(fields[1], fields[3], fields[5])
+        ):
             delta_logprob_json_strs = (
                 [str(logprob_json_str) for logprob_json_str in fields[2][i]]
                 if fields[2] is not None
@@ -211,6 +214,7 @@ class RequestStreamOutput(Object):
                     delta_logprob_json_strs=delta_logprob_json_strs,
                     finish_reason=str(finish_reason) if finish_reason is not None else None,
                     request_final_usage_json_str=None,
+                    extra_prefix_string=str(extra_prefix_string),
                 )
             )
         return request_id, stream_outputs

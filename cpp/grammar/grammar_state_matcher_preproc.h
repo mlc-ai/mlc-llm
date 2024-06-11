@@ -8,6 +8,7 @@
 
 #include <vector>
 
+#include "../support/dynamic_bitset.h"
 #include "../support/encoding.h"
 #include "../support/utils.h"
 #include "grammar.h"

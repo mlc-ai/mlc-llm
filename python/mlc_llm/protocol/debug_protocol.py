@@ -16,6 +16,8 @@ class DebugConfig(BaseModel):
     ignore_eos: bool = False
     pinned_system_prompt: bool = False
     special_request: Optional[Literal["query_engine_metrics"]] = None
+    grammar_execution_mode: Literal["constraint", "jump_forward"] = "jump_forward"
+
     """Special request indicators
 
     Special requests are handled by engine differently and do not go

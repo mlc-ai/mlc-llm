@@ -246,7 +246,7 @@ class SyncMLCEngine:
                         assert stream_output.delta_logprob_json_strs is not None
                         output_logprobs_str[rid][i] += stream_output.delta_logprob_json_strs
 
-                    delta_text = (
+                    delta_text = stream_output.extra_prefix_string + (
                         text_streamer.put(stream_output.delta_token_ids)
                         if len(stream_output.delta_token_ids) > 0
                         else ""

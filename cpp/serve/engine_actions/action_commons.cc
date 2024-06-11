@@ -167,6 +167,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     Array<IntTuple> group_delta_token_ids;
     Array<Array<String>> group_delta_logprob_json_strs;
     Array<Optional<String>> group_finish_reason;
+    Array<String> group_extra_prefix_string;
     group_delta_token_ids.reserve(n);
     group_delta_logprob_json_strs.reserve(n);
     group_finish_reason.reserve(n);
@@ -175,17 +176,19 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     for (int i = 0; i < n; ++i) {
       const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
       const DeltaRequestReturn& delta_request_ret =
-          rsentry->GetReturnTokenIds(tokenizer, max_single_sequence_length);
+          rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length);
       group_delta_token_ids.push_back(IntTuple{delta_request_ret.delta_token_ids.begin(),
                                                delta_request_ret.delta_token_ids.end()});
       group_delta_logprob_json_strs.push_back(delta_request_ret.delta_logprob_json_strs);
       group_finish_reason.push_back(delta_request_ret.finish_reason);
+      group_extra_prefix_string.push_back(delta_request_ret.extra_prefix_string);
       if (delta_request_ret.finish_reason.defined()) {
         invoke_callback = true;
         finished_rsentries.push_back(rsentry);
       }
 
-      if (!delta_request_ret.delta_token_ids.empty()) {
+      if (!delta_request_ret.delta_token_ids.empty() ||
+          !delta_request_ret.extra_prefix_string.empty()) {
         invoke_callback = true;
       }
     }
@@ -195,7 +198,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
           request->id, std::move(group_delta_token_ids),
           request->generation_cfg->logprobs > 0 ? std::move(group_delta_logprob_json_strs)
                                                 : Optional<Array<Array<String>>>(),
-          std::move(group_finish_reason)));
+          std::move(group_finish_reason), std::move(group_extra_prefix_string)));
     }
   }
 

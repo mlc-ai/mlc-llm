@@ -65,6 +65,8 @@ std::string PrintAsEscaped(
   return std::string("\\") + prefix + hex;
 }
 
+std::string PrintAsEscaped(uint8_t raw_char) { return PrintAsEscaped(raw_char); }
+
 std::string PrintAsEscaped(std::string raw_str) {
   std::string res;
   auto codepoints = ParseUTF8(raw_str.c_str(), UTF8ErrorPolicy::kReturnByte);
