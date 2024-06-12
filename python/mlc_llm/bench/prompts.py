@@ -1,8 +1,8 @@
 """MLC LLM bench prompts generator"""
 
-from collections import defaultdict
 import json
 import random
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
