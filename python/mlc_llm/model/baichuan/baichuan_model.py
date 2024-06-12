@@ -87,6 +87,11 @@ class BaichuanConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
 class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: BaichuanConfig):
         self.hidden_size = config.hidden_size
+        if config.num_attention_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_attention_heads} attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.W_pack = nn.Linear(self.hidden_size, 3 * self.num_heads * self.head_dim, bias=False)
@@ -106,6 +111,11 @@ class BaichuanAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
 
 class BaichuanMLP(nn.Module):
     def __init__(self, config: BaichuanConfig):
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,

@@ -84,6 +84,11 @@ class GPT2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPT2Config):
         self.embed_dim = config.n_embd
+        if config.n_head % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.n_head} attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_heads = config.n_head // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.scale_attn_by_inverse_layer_idx = config.scale_attn_by_inverse_layer_idx
@@ -120,6 +125,11 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
 class GPT2MLP(nn.Module):
     def __init__(self, config: GPT2Config):
         embed_dim = config.n_embd
+        if config.n_inner % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.n_inner} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         intermediate_size = config.n_inner // config.tensor_parallel_shards
         self.c_fc = nn.Linear(embed_dim, intermediate_size)
         self.c_proj = nn.Linear(intermediate_size, embed_dim)

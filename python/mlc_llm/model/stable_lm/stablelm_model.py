@@ -88,6 +88,11 @@ class StableLmAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
+        if config.num_key_value_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_key_value_heads} key-value attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
         self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
@@ -115,6 +120,11 @@ class StableLmAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
 
 class StableLmMLP(nn.Module):
     def __init__(self, config: StableLmConfig):
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,

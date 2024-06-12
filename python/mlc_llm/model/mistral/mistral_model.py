@@ -101,6 +101,11 @@ class MistralMLP(nn.Module):
 
     def __init__(self, config: MistralConfig):
         super().__init__()
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -120,6 +125,11 @@ class MistralAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
 
     def __init__(self, config: MistralConfig):
         self.head_dim = config.head_dim
+        if config.num_key_value_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_key_value_heads} key-value attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(

@@ -176,6 +176,11 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class PhiMLP(nn.Module):
     def __init__(self, config: PhiConfig):
         super().__init__()
+        if config.n_inner % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.n_inner} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.n_inner // config.tensor_parallel_shards
         self.fc1 = nn.Linear(config.n_embd, self.intermediate_size)
         self.fc2 = nn.Linear(self.intermediate_size, config.n_embd)

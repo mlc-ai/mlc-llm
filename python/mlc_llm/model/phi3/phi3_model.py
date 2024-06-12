@@ -94,6 +94,11 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 class Phi3MLP(nn.Module):
     def __init__(self, config: Phi3Config):
         super().__init__()
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)

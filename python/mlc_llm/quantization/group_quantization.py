@@ -41,6 +41,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     num_elem_per_storage: int = 0
     num_storage_per_group: int = 0
     max_int_value: int = 0
+    tensor_parallel_shards: int = 0
 
     def __post_init__(self):
         assert self.kind == "group-quant"
@@ -304,6 +305,16 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         self.out_dtype = out_dtype
         self.config = config
         num_group = tir.ceildiv(in_features, config.group_size)
+        num_shards = config.tensor_parallel_shards
+        if num_shards > 1 and (in_features * num_shards // config.group_size) % num_shards != 0:
+            raise ValueError(
+                f"The linear dimension {in_features * num_shards} has "
+                f"{in_features * num_shards // config.group_size} groups under group size "
+                f"{config.group_size}. The groups cannot be evenly distributed on "
+                f"{num_shards} GPUs.\n"
+                "Possible solutions: reduce number of GPUs, or use quantization with smaller "
+                "group size."
+            )
         if config.linear_weight_layout == "KN":
             self.q_weight = nn.Parameter(
                 (config.num_storage_per_group * num_group, out_features), config.storage_dtype
