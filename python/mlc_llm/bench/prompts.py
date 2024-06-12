@@ -4,7 +4,7 @@ from collections import defaultdict
 import json
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from mlc_llm.support import logging
 
@@ -34,6 +34,11 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
             a plain text file, with each line representing a separate prompt str,
             or a .jsonl file where each line is a JSON object formatted as
             {"prompt": "prompt text", "prompt_tokens": 10}.
+
+        json_prompts_path : Optional[str]
+            The path to the file containing the source json prompts. This file a
+            .jsonl file where each line is a JSON object formatted as
+            {"messages": List[Dict[str, Any]], "response_format": Dict[str, Any]}.
 
         tokenizer : Optional[Any]
             The tokenizer object to use for tokenizing the prompts.
@@ -103,15 +108,12 @@ class PromptsGenerator:  # pylint: disable=too-few-public-methods
 
     def generate_prompt(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generates a prompt that closely matches the desired token count.
+        Generates a prompt based on the params, e.g. prompt_tokens, response_format.
 
         Parameters
         ----------
-        token_mean : int
+        params : Dict[str, Any]
             The desired mean number of tokens in the prompt.
-
-        token_stddev : Optional[int]
-            The desired standard deviation of tokens in the prompt.
 
         Returns
         -------
