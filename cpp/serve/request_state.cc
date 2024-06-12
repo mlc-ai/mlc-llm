@@ -75,9 +75,11 @@ void RequestModelStateNode::RollbackTokens(int count) {
   }
 }
 
-void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_token_slot) {
+void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_token_slot,
+                                          int64_t parent_idx) {
   draft_output_tokens.push_back(std::move(sampled_token));
   draft_token_slots.push_back(draft_token_slot);
+  draft_token_parent_idx.push_back(parent_idx);
   appeared_token_ids[sampled_token.GetTokenId()] += 1;
 }
 
@@ -85,6 +87,7 @@ void RequestModelStateNode::RemoveLastDraftToken() {
   ICHECK(!draft_output_tokens.empty());
   auto it = appeared_token_ids.find(draft_output_tokens.back().GetTokenId());
   draft_output_tokens.pop_back();
+  draft_token_parent_idx.pop_back();
   CHECK(it != appeared_token_ids.end());
   if (--it->second == 0) {
     appeared_token_ids.erase(it);

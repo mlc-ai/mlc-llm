@@ -142,7 +142,8 @@ class BatchDraftActionObj : public EngineActionObj {
         models_[model_id]->ScatterDraftProbs(probs_on_device, draft_token_slots_,
                                              &model_workspaces_[0].draft_probs_storage);
         for (int i = 0; i < num_rsentries; ++i) {
-          mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i]);
+          int64_t parent_idx = static_cast<int64_t>(mstates[i]->draft_output_tokens.size()) - 1;
+          mstates[i]->AddDraftToken(sample_results[i], draft_token_slots_[i], parent_idx);
         }
 
         auto tdraft_end = std::chrono::high_resolution_clock::now();

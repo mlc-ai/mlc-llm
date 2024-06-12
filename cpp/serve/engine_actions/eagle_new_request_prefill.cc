@@ -355,8 +355,12 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                       &model_workspaces_[0].draft_hidden_states_storage);
     }
     for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+      int parent_idx =
+          rsentries_for_sample[i]->mstates[model_id]->draft_output_tokens.empty()
+              ? -1
+              : rsentries_for_sample[i]->mstates[model_id]->draft_output_tokens.size() - 1;
       rsentries_for_sample[i]->mstates[model_id]->AddDraftToken(
-          sample_results[i], draft_token_slots_[sample_indices[i]]);
+          sample_results[i], draft_token_slots_[sample_indices[i]], parent_idx);
     }
   }
 

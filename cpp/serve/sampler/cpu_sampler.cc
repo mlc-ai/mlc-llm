@@ -413,7 +413,7 @@ class CPUSampler : public SamplerObj {
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
-      NDArray draft_probs_on_device) final {
+      const std::vector<int64_t>& token_tree_parent_ptr, NDArray draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_host->ndim, 2);
@@ -434,6 +434,12 @@ class CPUSampler : public SamplerObj {
         [&](int i) {
           int verify_start = cum_verify_lengths[i];
           int verify_end = cum_verify_lengths[i + 1];
+
+          CHECK_EQ(token_tree_parent_ptr[verify_start], -1);
+          for (int j = verify_start + 1; j < verify_end; ++j) {
+            CHECK_EQ(token_tree_parent_ptr[j], j - verify_start)
+                << "CPU sampler only supports chain-style draft tokens.";
+          }
 
           int cur_token_idx = 0;
           // Sub 1 to ignore the last prediction.

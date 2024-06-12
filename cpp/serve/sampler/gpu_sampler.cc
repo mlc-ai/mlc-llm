@@ -203,7 +203,7 @@ class GPUSampler : public SamplerObj {
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
-      NDArray draft_probs_on_device) final {
+      const std::vector<int64_t>& token_tree_parent_ptr, NDArray draft_probs_on_device) final {
     NVTXScopedRange nvtx_scope("BatchVerifyDraftTokensWithProbAfterTopP");
     std::vector<std::vector<SampleResult>> sample_results;
     // probs_on_device: (n, v)
@@ -252,21 +252,29 @@ class GPUSampler : public SamplerObj {
         token_tree_parent_ptr_device_.CreateView({num_sequence}, dtype_i32_);
     std::vector<int> token_tree_child_to_parent(/*n=*/num_nodes);
 
+    int* token_tree_first_child_ptr_host = static_cast<int*>(token_tree_first_child_host->data);
+    int* token_tree_next_sibling_ptr_host = static_cast<int*>(token_tree_next_sibling_host->data);
     // Build the tree structure on CPU
     for (int i = 0; i < num_sequence; i++) {
       // Assuming no tree structure for now
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
       ICHECK_GE(end - start, 2);
-      token_tree_child_to_parent[start] = -1;  // root has no parent
       for (int j = 0; j < end - start; j++) {
         int cur_node = j + start;
-        int child_node = j + 1 >= end - start ? -1 : cur_node + 1;
-        static_cast<int*>(token_tree_first_child_host->data)[cur_node] = child_node;
-        if (child_node != -1) {
-          token_tree_child_to_parent[child_node] = cur_node;
+        int parent_node =
+            token_tree_parent_ptr[cur_node] != -1 ? token_tree_parent_ptr[cur_node] + start : -1;
+        token_tree_first_child_ptr_host[cur_node] = -1;
+        if (parent_node != -1 && token_tree_first_child_ptr_host[parent_node] == -1) {
+          token_tree_first_child_ptr_host[parent_node] = cur_node;
         }
-        static_cast<int*>(token_tree_next_sibling_host->data)[cur_node] = -1;
+        token_tree_child_to_parent[cur_node] = parent_node;
+        if (cur_node + 1 < end && token_tree_parent_ptr[cur_node - start + 1] ==
+                                      token_tree_parent_ptr[cur_node - start]) {
+          token_tree_next_sibling_ptr_host[cur_node] = cur_node + 1;
+        } else {
+          token_tree_next_sibling_ptr_host[cur_node] = -1;
+        }
       }
       static_cast<int*>(token_tree_parent_ptr_host->data)[i] = start;  // point to the root
     }

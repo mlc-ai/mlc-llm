@@ -299,7 +299,9 @@ class LogitProcessorImpl : public LogitProcessorObj {
           p_penalties[num_token_for_penalty * 3 + 2] = generation_cfg[i]->repetition_penalty;
           ++num_token_for_penalty;
           if (j > 0) {
-            mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1);
+            // Assume chain-style token tree.
+            mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1,
+                                      j - 1 - 1);
           }
         }
         if (num_token_to_process != 1) {
@@ -379,7 +381,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
           p_seq_ids[token_start_offset + j] = 1;
         }
         if (j > 0) {
-          mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1);
+          // Assume chain-style token tree.
+          mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1, j - 1 - 1);
         }
       }
       if (token_number != 1) {
