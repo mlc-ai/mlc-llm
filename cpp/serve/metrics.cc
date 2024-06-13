@@ -130,13 +130,11 @@ picojson::object EngineMetrics::AsJSON() const {
       const TimeCost& item = time_list[i];
       if (item.count == 0) continue;
       std::ostringstream label_mean;
-      label_mean << "mean"
-                 << "{batch_size=" << i << "}";
+      label_mean << "mean{batch_size=" << i << "}";
       double mean = item.sum / item.count;
       result[label_mean.str()] = picojson::value(mean);
       std::ostringstream label_count;
-      label_count << "count"
-                  << "{batch_size=" << i << "}";
+      label_count << "count{batch_size=" << i << "}";
       result[label_count.str()] = picojson::value(item.count);
     }
     return picojson::value(result);
@@ -164,9 +162,12 @@ std::string EngineMetrics::AsUsageJSONStr() const {
 void EngineMetrics::Reset() {
   engine_prefill_time_sum = 0.0;
   engine_decode_time_sum = 0.0;
+  engine_jump_forward_time_sum = 0;
   prompt_tokens_sum = 0;
-  prefill_tokens_sum = 0;
   completion_tokens_sum = 0;
+  prefill_tokens_sum = 0;
+  decode_tokens_sum = 0;
+  jump_forward_tokens_sum = 0;
   last_finished_request.Reset();
   spec_decode.Reset();
   decode_time_by_batch_size.clear();
