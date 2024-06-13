@@ -14,10 +14,9 @@ from mlc_llm.model.qwen2.qwen2_model import ACT2FN, QWen2Attention, QWen2Config
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 
 logger = logging.getLogger(__name__)
-
-# TODO(mlc-team): Support Tensor Parallel.
 
 
 @dataclasses.dataclass
@@ -68,10 +67,7 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             )
         self.moe_intermediate_size = config.moe_intermediate_size // config.tensor_parallel_shards
         self.norm_topk_prob = config.norm_topk_prob
-        self.share_expert_intermediate_size = (
-            config.shared_expert_intermediate_size // config.tensor_parallel_shards
-        )
-        self.shared_expert = Qwen2MoeMLP(config, self.share_expert_intermediate_size)
+        self.shared_expert = Qwen2MoeMLP(config, config.shared_expert_intermediate_size)
         self.shared_expert_gate = nn.Linear(config.hidden_size, 1, bias=False)
 
         self.gate = nn.Linear(
@@ -154,7 +150,42 @@ class Qwen2MoeDecoderLayer(nn.Module):
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
+
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attn.num_attention_heads * hd
+            k = self.self_attn.num_key_value_heads * hd
+            v = self.self_attn.num_key_value_heads * hd
+            si = self.mlp.shared_expert.intermediate_size
+            mi = self.mlp.moe_intermediate_size
+            _set(
+                self.self_attn.c_attn.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            _set(
+                self.self_attn.c_attn.bias,
+                tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+            )
+            _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(
+                self.mlp.shared_expert.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_shared_mlp_up", segs=[si, si], dim=0),
+            )
+            _set(
+                self.mlp.shared_expert.down_proj.weight,
+                tp.ShardSingleDim("_shard_shared_mlp_down", dim=1),
+            )
+            _set(
+                self.mlp.moe_gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_moe_mlp_up", segs=[mi, mi], dim=1),
+            )
+            _set(self.mlp.moe_down_proj.weight, tp.ShardSingleDim("_shard_moe_mlp_down", dim=2))
+
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.input_layernorm(hidden_states)
@@ -202,8 +233,6 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
-        if self.tensor_parallel_shards != 1:
-            raise ValueError("Currently only support tensor_parallel_shards=1.")
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
