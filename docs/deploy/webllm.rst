@@ -7,69 +7,87 @@ WebLLM Javascript SDK
    :local:
    :depth: 2
 
-`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_ is an MLC chat web runtime
-that allows you to build chat applications directly in the browser, leveraging
-`WebGPU <https://www.w3.org/TR/webgpu/>`_ and providing users a natural layer of abstraction.
+`WebLLM <https://www.npmjs.com/package/@mlc-ai/web-llm>`_ is a high-performance in-browser LLM
+inference engine, aiming to be the backend of AI-powered web applications and agents.
 
-Try out the Prebuilt Webpage
-----------------------------
+It provides a specialized runtime for the web backend of MLCEngine, leverages
+`WebGPU <https://www.w3.org/TR/webgpu/>`_ for local acceleration, offers OpenAI-compatible API,
+and provides built-in support for web workers to separate heavy computation from the UI flow.
 
-To get started, you can try out `WebLLM prebuilt webpage <https://webllm.mlc.ai/#chat-demo>`__.
+Please checkout the `WebLLM repo <https://github.com/mlc-ai/web-llm>`__ on how to use WebLLM to build
+web application in Javascript/Typescript. Here we only provide a high-level idea and discuss how to
+use MLC-LLM to compile your own model to run with WebLLM.
 
-A WebGPU-compatible browser and a local GPU are needed to run WebLLM.
+Getting Started
+---------------
+
+To get started, try out `WebLLM Chat <https://chat.webllm.ai/>`__, which provides a great example
+of integrating WebLLM into a full web application.
+
+A WebGPU-compatible browser is needed to run WebLLM-powered web applications.
 You can download the latest Google Chrome and use `WebGPU Report <https://webgpureport.org/>`__
 to verify the functionality of WebGPU on your browser.
 
+WebLLM is available as an `npm package <https://www.npmjs.com/package/@mlc-ai/web-llm>`_ and is
+also CDN-delivered. Try a simple chatbot example in
+`this JSFiddle example <https://jsfiddle.net/neetnestor/4nmgvsa2/>`__ without setup.
 
-Use WebLLM NPM Package
-----------------------
+You can also checkout `existing examples <https://github.com/mlc-ai/web-llm/tree/main/examples>`__
+on more advanced usage of WebLLM such as JSON mode, streaming, and more.
 
-WebLLM is available as an `npm package <https://www.npmjs.com/package/@mlc-ai/web-llm>`_.
-The source code is available in `the WebLLM repo <https://github.com/mlc-ai/web-llm>`_,
-where you can make your own modifications and build from source.
+Model Records in WebLLM
+-----------------------
 
-Note that the `WebLLM prebuilt webpage <https://webllm.mlc.ai/#chat-demo>`__ above
-is powered by the WebLLM npm package, specifically with the code in
-the `simple-chat <https://github.com/mlc-ai/web-llm/tree/main/examples/simple-chat>`__ example.
+Each of the model in `WebLLM Chat <https://chat.webllm.ai>`__ is registered as an instance of
+``ModelRecord`` and can be accessed at
+`webllm.prebuiltAppConfig.model_list <https://github.com/mlc-ai/web-llm/blob/main/src/config.ts#L293>`__.
 
-Each of the model in the  `WebLLM prebuilt webpage <https://webllm.mlc.ai/#chat-demo>`__
-is registered as an instance of ``ModelRecord``. Looking at the most straightforward example
-`get-started <https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts>`__,
-we see the code snippet:
+Looking at the most straightforward example `get-started <https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts>`__,
+there are two ways to run a model.
+
+One can either use the prebuilt model by simply calling ``reload()`` with the ``model_id``:
 
 .. code:: typescript
 
-  const myAppConfig: AppConfig = {
+  const selectedModel = "Llama-3-8B-Instruct-q4f32_1-MLC";
+  const engine = await webllm.CreateMLCEngine(selectedModel);
+
+Or one can specify their own model to run by creating a model record:
+
+.. code:: typescript
+
+  const appConfig: webllm.AppConfig = {
     model_list: [
       {
-        "model_url": "https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/resolve/main/",
-        "local_id": "Llama-2-7b-chat-hf-q4f32_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Llama-2-7b-chat-hf/Llama-2-7b-chat-hf-q4f32_1-ctx4k_cs1k-webgpu.wasm",
-      },
-      {
-        "model_url": "https://huggingface.co/mlc-ai/Mistral-7B-Instruct-v0.2-q4f16_1-MLC/resolve/main/",
-        "local_id": "Mistral-7B-Instruct-v0.2-q4f16_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm",
-        "required_features": ["shader-f16"],
+        model: "https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f32_1-MLC",
+        model_id: "Llama-3-8B-Instruct-q4f32_1-MLC",
+        model_lib:
+          webllm.modelLibURLPrefix +
+          webllm.modelVersion +
+          "/Llama-3-8B-Instruct-q4f32_1-ctx4k_cs1k-webgpu.wasm",
       },
       // Add your own models here...
-    ]
-  }
-  const selectedModel = "Llama-2-7b-chat-hf-q4f32_1"
-  // const selectedModel = "Mistral-7B-Instruct-v0.1-q4f16_1"
-  await chat.reload(selectedModel, undefined, myAppConfig);
+    ],
+  };
+  const selectedModel = "Llama-3-8B-Instruct-q4f32_1-MLC";
+  const engine: webllm.MLCEngineInterface = await webllm.CreateMLCEngine(
+    selectedModel,
+    { appConfig: appConfig },
+  );
 
-Just like any other platforms, to run a model with on WebLLM, you need:
+Looking at the code above, we find that, just like any other platforms supported by MLC-LLM, to
+run a model on WebLLM, you need:
 
-1. **Model weights** converted to MLC format (e.g. `Llama-2-7b-hf-q4f32_1-MLC
-   <https://huggingface.co/mlc-ai/Llama-2-7b-chat-hf-q4f32_1-MLC/tree/main>`_.): downloaded through ``model_url``
-2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs>`__): downloaded through ``model_lib_url``.
+1. **Model weights** converted to MLC format (e.g. `Llama-3-8B-Instruct-q4f32_1-MLC
+   <https://huggingface.co/mlc-ai/Llama-3-8B-Instruct-q4f32_1-MLC/tree/main>`_.): downloaded through the url ``ModelRecord.model``
+2. **Model library** that comprises the inference logic (see repo `binary-mlc-llm-libs <https://github.com/mlc-ai/binary-mlc-llm-libs/tree/main/web-llm-models>`__): downloaded through the url ``ModelRecord.model_lib``.
+
+In sections below, we walk you through two examples on how to add your own model besides the ones in
+`webllm.prebuiltAppConfig.model_list <https://github.com/mlc-ai/web-llm/blob/main/src/config.ts#L293>`__.
+Before proceeding, please verify installation of ``mlc_llm`` and ``tvm``.
 
 Verify Installation for Adding Models
 -------------------------------------
-
-In sections below, we walk you through two examples of adding models to WebLLM. Before proceeding,
-please verify installation of ``mlc_llm`` and ``tvm``:
 
 **Step 1. Verify mlc_llm**
 
@@ -106,7 +124,7 @@ In cases where the model you are adding is simply a variant of an existing
 model, we only need to convert weights and reuse existing model library. For instance:
 
 - Adding ``OpenMistral`` when MLC supports ``Mistral``
-- Adding ``Llama2-uncensored`` when MLC supports ``Llama2``
+- Adding a ``Llama3`` fine-tuned on a domain-specific task when MLC supports ``Llama3``
 
 
 In this section, we walk you through adding ``WizardMath-7B-V1.1-q4f16_1`` to the
@@ -150,23 +168,9 @@ See :ref:`compile-command-specification` for specification of ``gen_config``.
         --quantization q4f16_1 --conv-template wizard_coder_or_math \
         -o dist/WizardMath-7B-V1.1-q4f16_1-MLC/
 
-For the ``conv-template``, `conversation_template.py <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py>`__
-contains a full list of conversation templates that MLC provides.
-
-If the model you are adding requires a new conversation template, you would need to add your own.
-Follow `this PR <https://github.com/mlc-ai/mlc-llm/pull/2163>`__ as an example. Besides, you also need to add the new template to ``/path/to/web-llm/src/conversation.ts``.
-We look up the template to use with the ``conv_template`` field in ``mlc-chat-config.json``.
-
-For more details, please see :ref:`configure-mlc-chat-json`.
-
-.. note::
-
-  If you added your conversation template in ``src/conversation.ts``, you need to build WebLLM
-  from source following the instruction in
-  `the WebLLM repo's README <https://github.com/mlc-ai/web-llm?tab=readme-ov-file#build-webllm-package-from-source>`_.
-
-  Alternatively, you could use the ``"custom"`` conversation template so that you can pass in
-  your own ``ConvTemplateConfig`` in runtime without having to build the package from source.
+For the ``conv-template``, `conversation_template.py <https://github.com/mlc-ai/mlc-llm/tree/main/python/mlc_llm/conversation_template>`__
+contains a full list of conversation templates that MLC provides. You can also manually modify the ``mlc-chat-config.json`` to
+add your customized conversation template.
 
 **Step 3 Upload weights to HF**
 
@@ -192,26 +196,30 @@ Finally, we modify the code snippet for
 `get-started <https://github.com/mlc-ai/web-llm/blob/main/examples/get-started/src/get_started.ts>`__
 pasted above.
 
-We simply specify the Huggingface link as ``model_url``, while reusing the ``model_lib_url`` for
-``Mistral-7B``. Note that we need the suffix to be ``/resolve/main/``.
+We simply specify the Huggingface link as ``model``, while reusing the ``model_lib`` for
+``Mistral-7B``.
 
 .. code:: typescript
 
-  const myAppConfig: AppConfig = {
+  const appConfig: webllm.AppConfig = {
     model_list: [
-      // Other records here omitted...
       {
-        // Substitute model_url with the one you created `my-huggingface-account/my-wizardMath-weight-huggingface-repo`
-        "model_url": "https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC/resolve/main/",
-        "local_id": "WizardMath-7B-V1.1-q4f16_1",
-        "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/main/Mistral-7B-Instruct-v0.2/Mistral-7B-Instruct-v0.2-q4f16_1-sw4k_cs1k-webgpu.wasm",
-        "required_features": ["shader-f16"],
+        model: "https://huggingface.co/mlc-ai/WizardMath-7B-V1.1-q4f16_1-MLC",
+        model_id: "WizardMath-7B-V1.1-q4f16_1-MLC",
+        model_lib:
+          webllm.modelLibURLPrefix +
+          webllm.modelVersion +
+          "/Mistral-7B-Instruct-v0.3-q4f16_1-ctx4k_cs1k-webgpu.wasm",
       },
-    ]
-  }
+      // Add your own models here...
+    ],
+  };
 
   const selectedModel = "WizardMath-7B-V1.1-q4f16_1"
-  await chat.reload(selectedModel, undefined, myAppConfig);
+  const engine: webllm.MLCEngineInterface = await webllm.CreateMLCEngine(
+    selectedModel,
+    { appConfig: appConfig },
+  );
 
 Now, running the ``get-started`` example will use the ``WizardMath`` model you just added.
 See `get-started's README <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app>`__
@@ -223,9 +231,9 @@ Bring Your Own Model Library
 
 A model library is specified by:
 
- - The model architecture (e.g. ``llama-2``, ``gpt-neox``)
+ - The model architecture (e.g. ``llama-3``, ``gpt-neox``, ``phi-3``)
  - Quantization (e.g. ``q4f16_1``, ``q0f32``)
- - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which affects memory planning
+ - Metadata (e.g. ``context_window_size``, ``sliding_window_size``, ``prefill-chunk-size``), which affects memory planning (currently only ``prefill-chunk-size`` affects the compiled model)
  - Platform (e.g. ``cuda``, ``webgpu``, ``iOS``)
 
 In cases where the model you want to run is not compatible with the provided MLC
@@ -288,9 +296,8 @@ All these knobs are specified in ``mlc-chat-config.json`` generated by ``gen_con
         --device webgpu -o dist/libs/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm
 
 .. note::
-    When compiling larger models like ``Llama-2-7B``, you may want to add ``--prefill_chunk_size 1024`` or
-    lower ``context_window_size`` to decrease memory usage. Otherwise, during runtime,
-    you may run into issues like:
+    When compiling larger models like ``Llama-3-8B``, you may want to add ``--prefill_chunk_size 1024``
+    to decrease memory usage. Otherwise, during runtime, you may run into issues like:
 
     .. code:: text
 
@@ -344,16 +351,19 @@ Finally, we are able to run the model we added in WebLLM's `get-started <https:/
     model_list: [
       // Other records here omitted...
       {
-        "model_url": "https://huggingface.co/my-hf-account/my-redpajama3b-weight-huggingface-repo/resolve/main/",
-        "local_id": "RedPajama-INCITE-Instruct-3B-v1",
-        "model_lib_url": "https://raw.githubusercontent.com/my-gh-account/my-repo/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm",
+        "model": "https://huggingface.co/my-hf-account/my-redpajama3b-weight-huggingface-repo/resolve/main/",
+        "model_id": "RedPajama-INCITE-Instruct-3B-v1",
+        "model_lib": "https://raw.githubusercontent.com/my-gh-account/my-repo/main/RedPajama-INCITE-Chat-3B-v1-q4f16_1-webgpu.wasm",
         "required_features": ["shader-f16"],
       },
     ]
   }
 
-  const selectedModel = "RedPajama-INCITE-Instruct-3B-v1"
-  await chat.reload(selectedModel, undefined, myAppConfig);
+  const selectedModel = "RedPajama-INCITE-Instruct-3B-v1";
+  const engine: webllm.MLCEngineInterface = await webllm.CreateMLCEngine(
+    selectedModel,
+    { appConfig: appConfig },
+  );
 
 Now, running the ``get-started`` example will use the ``RedPajama`` model you just added.
 See `get-started's README <https://github.com/mlc-ai/web-llm/tree/main/examples/get-started#webllm-get-started-app>`__

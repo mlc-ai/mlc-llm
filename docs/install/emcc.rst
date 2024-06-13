@@ -21,6 +21,18 @@ Validate that emcc is accessible in shell
 
     emcc --version
 
+.. note::
+    We recently found that using the latest ``emcc`` version may run into issues during runtime. Use
+    ``./emsdk install 3.1.56`` instead of ``./emsdk install latest`` for now as a workaround.
+
+    The error may look like
+
+    .. code:: text
+
+        Init error, LinkError: WebAssembly.instantiate(): Import #6 module="wasi_snapshot_preview1"
+        function="proc_exit": function import requires a callable
+
+
 Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR
 -------------------------------------------------
 
