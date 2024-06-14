@@ -305,6 +305,16 @@ to install the latest emsdk.</p></li>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>emcc<span class="w"> </span>--version
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We recently found that using the latest <code class="docutils literal notranslate"><span class="pre">emcc</span></code> version may run into issues during runtime. Use
+<code class="docutils literal notranslate"><span class="pre">./emsdk</span> <span class="pre">install</span> <span class="pre">3.1.56</span></code> instead of <code class="docutils literal notranslate"><span class="pre">./emsdk</span> <span class="pre">install</span> <span class="pre">latest</span></code> for now as a workaround.</p>
+<p>The error may look like</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Init error, LinkError: WebAssembly.instantiate(): Import #6 module=&quot;wasi_snapshot_preview1&quot;
+function=&quot;proc_exit&quot;: function import requires a callable
+</pre></div>
+</div>
+</div>
 </section>
 <section id="step-2-set-tvm-source-dir-and-mlc-llm-source-dir">
 <h2>Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR<a class="headerlink" href="#step-2-set-tvm-source-dir-and-mlc-llm-source-dir" title="Permalink to this heading">¶</a></h2>
