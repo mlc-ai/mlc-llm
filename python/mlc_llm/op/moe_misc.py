@@ -28,7 +28,9 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     return op.sum(x, axis=dim)
 
 
-def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor, Tensor]:
+def gating_softmax_topk(  # pylint: disable=too-many-statements
+    x: Tensor, k: int, norm_topk_prob=True
+) -> Tuple[Tensor, Tensor]:
     """Compute the softmax score, choose the top-k experts, and returns selected scores.
 
     Parameters
@@ -54,11 +56,12 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
     index_dtype = "int32"
 
     TX = 1024
-    SCAN_LEN = 2
+    SCAN_LEN_2 = 2
+    SCAN_LEN_4 = 4
 
     # specialized kernel for top 2 case
     @T.prim_func(private=True)
-    def topk_softmax_norm_func(
+    def top2_softmax_norm_func(
         var_x: T.handle,
         var_out: T.handle,
         var_out_index: T.handle,
@@ -66,11 +69,11 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
         T.func_attr({"tir.noalias": True, "tir.is_scheduled": True})
         batch_size = T.int64()
         x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
-        out = T.match_buffer(var_out, (batch_size, SCAN_LEN), dtype)
-        out_index = T.match_buffer(var_out_index, (batch_size, SCAN_LEN), index_dtype)
-        local_top_k = T.alloc_buffer((SCAN_LEN,), dtype=dtype, scope="local")
-        local_top_k_index = T.alloc_buffer((SCAN_LEN,), dtype=index_dtype, scope="local")
-        local_top_k_f32 = T.alloc_buffer((SCAN_LEN,), dtype="float32", scope="local")
+        out = T.match_buffer(var_out, (batch_size, SCAN_LEN_2), dtype)
+        out_index = T.match_buffer(var_out_index, (batch_size, SCAN_LEN_2), index_dtype)
+        local_top_k = T.alloc_buffer((SCAN_LEN_2,), dtype=dtype, scope="local")
+        local_top_k_index = T.alloc_buffer((SCAN_LEN_2,), dtype=index_dtype, scope="local")
+        local_top_k_f32 = T.alloc_buffer((SCAN_LEN_2,), dtype="float32", scope="local")
         local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
         for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
             for ii in T.thread_binding(0, TX, "threadIdx.x"):
@@ -92,13 +95,13 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
                             elif x[vi, vk] > local_top_k[1]:
                                 local_top_k[1] = x[vi, vk]
                                 local_top_k_index[1] = vk
-                    for j in T.unroll(SCAN_LEN):
+                    for j in T.unroll(SCAN_LEN_2):
                         with T.block("cast"):
                             vj = T.axis.remap("S", [j])
                             local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
                     with T.block("max"):
                         local_top_k_max[0] = T.max(local_top_k_f32[0], local_top_k_f32[1])
-                    for j in T.unroll(SCAN_LEN):
+                    for j in T.unroll(SCAN_LEN_2):
                         with T.block("output"):
                             vj = T.axis.remap("S", [j])
                             out[vi, vj] = T.cast(
@@ -111,15 +114,88 @@ def gating_softmax_topk(x: Tensor, k: int, norm_topk_prob=True) -> Tuple[Tensor,
                             )
                             out_index[vi, vj] = local_top_k_index[vj]
 
+    # specialized kernel for top 4 case
+    @T.prim_func(private=True)
+    def top4_softmax_norm_func(
+        var_x: T.handle,
+        var_out: T.handle,
+        var_out_index: T.handle,
+    ) -> None:
+        T.func_attr({"tir.noalias": True, "tir.is_scheduled": True})
+        batch_size = T.int64()
+        x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
+        out = T.match_buffer(var_out, (batch_size, SCAN_LEN_4), dtype)
+        out_index = T.match_buffer(var_out_index, (batch_size, SCAN_LEN_4), index_dtype)
+        local_top_k = T.alloc_buffer((SCAN_LEN_4,), dtype=dtype, scope="local")
+        local_top_k_index = T.alloc_buffer((SCAN_LEN_4,), dtype=index_dtype, scope="local")
+        for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
+            for ii in T.thread_binding(0, TX, "threadIdx.x"):
+                with T.block("top_k"):
+                    vi = T.axis.spatial(batch_size, io * TX + ii)
+                    T.where(io * TX + ii < batch_size)
+                    with T.block("init"):
+                        local_top_k[0] = T.min_value(dtype)
+                        local_top_k[1] = T.min_value(dtype)
+                        local_top_k[2] = T.min_value(dtype)
+                        local_top_k[3] = T.min_value(dtype)
+                        local_top_k_index[0] = 0
+                        local_top_k_index[1] = 0
+                        local_top_k_index[2] = 0
+                        local_top_k_index[3] = 0
+                    for k in range(num_local_experts):
+                        with T.block("update"):
+                            vk = T.axis.remap("S", [k])
+                            # N.B. This snippet is specialized for k = 4
+                            if x[vi, vk] > local_top_k[0]:
+                                local_top_k[3] = local_top_k[2]
+                                local_top_k_index[3] = local_top_k_index[2]
+                                local_top_k[2] = local_top_k[1]
+                                local_top_k_index[2] = local_top_k_index[1]
+                                local_top_k[1] = local_top_k[0]
+                                local_top_k_index[1] = local_top_k_index[0]
+                                local_top_k[0] = x[vi, vk]
+                                local_top_k_index[0] = vk
+                            elif x[vi, vk] > local_top_k[1]:
+                                local_top_k[3] = local_top_k[2]
+                                local_top_k_index[3] = local_top_k_index[2]
+                                local_top_k[2] = local_top_k[1]
+                                local_top_k_index[2] = local_top_k_index[1]
+                                local_top_k[1] = x[vi, vk]
+                                local_top_k_index[1] = vk
+                            elif x[vi, vk] > local_top_k[2]:
+                                local_top_k[3] = local_top_k[2]
+                                local_top_k_index[3] = local_top_k_index[2]
+                                local_top_k[2] = x[vi, vk]
+                                local_top_k_index[2] = vk
+                            elif x[vi, vk] > local_top_k[3]:
+                                local_top_k[3] = x[vi, vk]
+                                local_top_k_index[3] = vk
+                    for j in T.unroll(SCAN_LEN_4):
+                        with T.block("output"):
+                            vj = T.axis.remap("S", [j])
+                            out[vi, vj] = local_top_k[vj]
+                            out_index[vi, vj] = local_top_k_index[vj]
+
     # fast path for Mixtral
     if k == 2 and norm_topk_prob:
         return op.tensor_ir_op(
-            topk_softmax_norm_func,
+            top2_softmax_norm_func,
             "top2_softmax",
             args=[x],
             out=(
                 Tensor.placeholder([batch_size, 2], dtype),
                 Tensor.placeholder([batch_size, 2], index_dtype),
+            ),
+        )
+    if k == 4 and not norm_topk_prob:
+        expert_score = op.softmax(x.astype("float32"), axis=-1).astype(dtype)
+        return op.tensor_ir_op(
+            top4_softmax_norm_func,
+            "top4_softmax",
+            args=[expert_score],
+            out=(
+                Tensor.placeholder([batch_size, 4], dtype),
+                Tensor.placeholder([batch_size, 4], index_dtype),
             ),
         )
     if norm_topk_prob:
