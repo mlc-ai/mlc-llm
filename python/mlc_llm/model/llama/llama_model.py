@@ -197,7 +197,7 @@ class LlamaModel(nn.Module):
         return hidden_states
 
 
-class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
