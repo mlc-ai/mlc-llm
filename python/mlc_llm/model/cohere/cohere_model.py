@@ -94,11 +94,12 @@ class CohereMLP(nn.Module):
             )
 
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2*self.intermediate_size, bias=False)
+        self.gate_proj = nn.Linear(config.hidden_size, self.intermediate_size, bias=False)
+        self.up_proj = nn.Linear(config.hidden_size, self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x):
-        down_proj = self.down_proj(op.silu(self.gate_up_proj(x)))
+        down_proj = self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
         return down_proj
 
 class CohereAttention(nn.Module):
@@ -152,8 +153,8 @@ class CohereDecoderLayer(nn.Module):
             i = self.mlp.intermediate_size
             _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
             _set(self.self_attn.out_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            # _set(self.mlp.gate_proj, tp.ShardSingleDim("_shard_mlp_gate", segs=[i, i], dim=0))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(self.mlp.gate_proj, tp.ShardSingleDim("_shard_mlp_gate", segs=[i, i], dim=0))
+            _set(self.mlp.up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -192,8 +193,7 @@ class CohereForCausalLM(nn.Module):
     # pylint: disable=too-many-instance-attributes
     def __init__(self, config: CohereConfig) -> None:
         super().__init__()
-
-        self.transformer = CohereModel(config)
+        self.model = CohereModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
@@ -218,7 +218,7 @@ class CohereForCausalLM(nn.Module):
     ):
         op_ext.configure()
 
-        hidden_states = self.transformer(input_embeds, paged_kv_cache)
+        hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         lm_logits = self.lm_head(hidden_states)
@@ -233,7 +233,7 @@ class CohereForCausalLM(nn.Module):
             b, s, d = x.shape # type: ignore
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
 
@@ -245,7 +245,7 @@ class CohereForCausalLM(nn.Module):
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -270,7 +270,7 @@ class CohereForCausalLM(nn.Module):
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids) # type: ignore
-        embeds = self.transformer.embed_tokens(input_ids)
+        embeds = self.model.embed_tokens(input_ids)
         return embeds
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments

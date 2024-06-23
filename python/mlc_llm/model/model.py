@@ -82,7 +82,7 @@ class Model:
 MODELS: Dict[str, Model] = {
     "llama": Model(
         name="llama",
-        model=llama_model.LlamaForCasualLM,
+        model=llama_model.LlamaForCausalLM,
         config=llama_model.LlamaConfig,
         source={
             "huggingface-torch": llama_loader.huggingface,

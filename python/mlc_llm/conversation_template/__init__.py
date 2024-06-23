@@ -24,5 +24,6 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
+    cohere,
 )
 from .registry import ConvTemplateRegistry

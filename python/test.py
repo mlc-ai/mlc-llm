@@ -1,4 +1,4 @@
-from mlc_llm.model.cohere import CohereConfig, CohereForCausalLM
+from mlc_llm.model.cohere.cohere_model import CohereConfig, CohereForCausalLM
 config_dict = {
   "architectures": [
     "CohereForCausalLM"
