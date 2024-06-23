@@ -49,19 +49,20 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
             ),
         )
     
-    # mapping.add_unused("lm_head.weight") # Check if this is okay
+    # these do not exist in the model's weights list (https://huggingface.co/CohereForAI/aya-23-8B/blob/main/model.safetensors.index.json)
+    # but are defined to be used in the model
+    # mapping.add_unused("lm_head.weight") 
     # mapping.add_unused("model.norm.bias")
-        
 
     _add("model.embed_tokens.weight", "model.embed_tokens.weight")
     _add("model.norm.weight", "model.norm.weight")
     
     for i in range(model_config.num_hidden_layers):
 
-        # Add input 
-        _add(f"model.layers.{i}.input_layernorm.weight", f"model.layers.{i}.input_layernorm.weight") 
+        # Add norm layers
+        # _add(f"model.layers.{i}.input_layernorm.weight", f"model.layers.{i}.input_layernorm.weight") 
         # _add(f"model.layers.{i}.input_layernorm.bias", f"model.layers.{i}.input_layernorm.bias") 
-        # mapping.add_unused(f"model.layers.{i}.input_layernorm.bias")
+
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
@@ -100,17 +101,16 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
         # inv_freq is not used in the model
         # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
         
-    # print("model.norm.bias" in named_parameters.keys())
-    # for mlc_name, mlc_param in named_parameters.items():
-    #     if mlc_name not in mapping.param_map:
-    #         mapping.add_mapping(
-    #             mlc_name,
-    #             [mlc_name],
-    #             functools.partial(
-    #                 lambda x, dtype: x.astype(dtype),
-    #                 dtype=mlc_param.dtype,
-    #             ),
-    #         )
+    for mlc_name, mlc_param in named_parameters.items():
+        if mlc_name not in mapping.param_map:
+            mapping.add_mapping(
+                mlc_name,
+                [mlc_name],
+                functools.partial(
+                    lambda x, dtype: x.astype(dtype),
+                    dtype=mlc_param.dtype,
+                ),
+            )
     
     return mapping
 
