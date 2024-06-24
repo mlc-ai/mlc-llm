@@ -141,7 +141,7 @@ class CohereDecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = CohereAttention(config)
         self.mlp = CohereMLP(config)
-        self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.input_layernorm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps, bias=False)
 
         def _set_tp():
             def _set(layer, hint):
@@ -173,14 +173,44 @@ class CohereDecoderLayer(nn.Module):
             return op.ccl_allreduce(mlp_out + residual / self.tensor_parallel_shards, "sum")
         return mlp_out + residual
 
+class CohereNorm(nn.Module):
+    def __init__(
+        self,
+        normalized_shape: int,
+        eps: float = 1e-5,
+        dtype: Optional[str] = None,
+        bias=False
+    ) -> None:
+        super().__init__()
+        self.normalized_shape = normalized_shape
+        self.eps = eps
+        self.weight = nn.Parameter((normalized_shape,), dtype=dtype)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return op.layer_norm(
+            x,
+            normalized_shape=self.normalized_shape,
+            weight=self.weight,
+            bias=None,
+            eps=self.eps,
+        )
+
+class CohereEmbedding(nn.Embedding):
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
+
 class CohereModel(nn.Module):
     def __init__(self, config: CohereConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
+        self.embed_tokens = CohereEmbedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
             [CohereDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.norm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps, bias=False)
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
@@ -194,7 +224,6 @@ class CohereForCausalLM(nn.Module):
     def __init__(self, config: CohereConfig) -> None:
         super().__init__()
         self.model = CohereModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -221,7 +250,7 @@ class CohereForCausalLM(nn.Module):
         hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        lm_logits = self.lm_head(hidden_states)
+        lm_logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         if lm_logits.dtype != "float32":
             lm_logits = lm_logits.astype("float32")
         return lm_logits
@@ -235,7 +264,8 @@ class CohereForCausalLM(nn.Module):
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
+        # logits = self.lm_head(hidden_states)
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
 
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -246,7 +276,7 @@ class CohereForCausalLM(nn.Module):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
