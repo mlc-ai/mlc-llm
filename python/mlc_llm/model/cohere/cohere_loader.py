@@ -48,20 +48,8 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
                 dtype=named_parameters[mlc_name].dtype,
             ),
         )
-    
-    # these do not exist in the model's weights list (https://huggingface.co/CohereForAI/aya-23-8B/blob/main/model.safetensors.index.json)
-    # but are defined to be used in the model
-    # mapping.add_unused("lm_head.weight") 
-    # mapping.add_unused("model.norm.bias")
 
-    _add("model.embed_tokens.weight", "model.embed_tokens.weight")
-    _add("model.norm.weight", "model.norm.weight")
-    
     for i in range(model_config.num_hidden_layers):
-
-        # Add norm layers
-        # _add(f"model.layers.{i}.input_layernorm.weight", f"model.layers.{i}.input_layernorm.weight") 
-        # _add(f"model.layers.{i}.input_layernorm.bias", f"model.layers.{i}.input_layernorm.bias") 
 
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
@@ -82,19 +70,6 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
         )
         # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
-        # mlc_name = f"{mlp}.gate_up_proj.weight"
-        # mlc_param = named_parameters[mlc_name]
-        # mapping.add_mapping(
-        #     mlc_name,
-        #     [
-        #         f"{mlp}.gate_proj.weight",
-        #         f"{mlp}.up_proj.weight",
-        #     ],
-        #     functools.partial(
-        #         lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-        #         dtype=mlc_param.dtype,
-        #     ),
-        # )
         _add(f"{mlp}.up_proj.weight", f"{mlp}.up_proj.weight")
         _add(f"{mlp}.gate_proj.weight", f"{mlp}.gate_proj.weight")
         _add(f"{mlp}.down_proj.weight", f"{mlp}.down_proj.weight")
