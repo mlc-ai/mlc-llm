@@ -12,6 +12,7 @@ from mlc_llm.quantization import Quantization
 
 from .cohere_model import CohereConfig, CohereForCausalLM
 
+
 def huggingface(model_config: CohereConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
@@ -39,6 +40,7 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
     named_parameters = dict(_named_params)
 
     mapping = ExternMapping()
+
     def _add(mlc_name, hf_name):
         mapping.add_mapping(
             mlc_name,
@@ -75,7 +77,7 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
         _add(f"{mlp}.down_proj.weight", f"{mlp}.down_proj.weight")
         # inv_freq is not used in the model
         # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
-        
+
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
@@ -86,7 +88,7 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
                     dtype=mlc_param.dtype,
                 ),
             )
-    
+
     return mapping
 
 

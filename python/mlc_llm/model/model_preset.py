@@ -1264,9 +1264,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "vocab_size": 49152,
     },
     "aya-23": {
-        "architectures": [
-            "CohereForCausalLM"
-        ],
+        "architectures": ["CohereForCausalLM"],
         "attention_bias": False,
         "attention_dropout": 0.0,
         "bos_token_id": 5,
@@ -1288,6 +1286,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.40.0.dev0",
         "use_cache": True,
         "use_qk_norm": False,
-        "vocab_size": 256000
-        }
+        "vocab_size": 256000,
+    },
 }
