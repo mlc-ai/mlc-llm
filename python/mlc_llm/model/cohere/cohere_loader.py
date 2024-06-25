@@ -52,7 +52,6 @@ def huggingface(model_config: CohereConfig, quantization: Quantization) -> Exter
         )
 
     for i in range(model_config.num_hidden_layers):
-
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
