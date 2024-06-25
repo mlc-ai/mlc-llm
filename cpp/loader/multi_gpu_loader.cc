@@ -2,6 +2,7 @@
  * \file multi_gpu_loader.cc
  * \brief Implementation of a multi-GPU loader with loading-time sharding.
  */
+#ifndef MLC_SINGLE_GPU_ONLY
 #include <picojson.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/builtin.h>
@@ -265,3 +266,5 @@ TVM_REGISTER_GLOBAL("mlc.loader.LoadMultiGPUPresharded").set_body_typed(LoadMult
 }  // namespace loader
 }  // namespace llm
 }  // namespace mlc
+
+#endif  // MLC_SINGLE_GPU_ONLY
