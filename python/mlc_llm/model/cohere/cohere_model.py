@@ -1,16 +1,14 @@
 """
 Implementation for Aya23 architecture
+TODO: add docstring
 """
 
 import dataclasses
-import math
-
-from mlc_llm.support.config import ConfigBase
+from typing import Any, Dict, Optional
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-from typing import Any, Dict, Optional
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
@@ -62,7 +60,6 @@ class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                         break
 
             if self.prefill_chunk_size == 0:
-                # TODO: check if 2048 is alright
                 logger.info(
                     "%s defaults to %d",
                     bold("prefill_chunk_size"),
@@ -149,7 +146,7 @@ class CohereDecoderLayer(nn.Module):
         super().__init__()
         self.self_attn = CohereAttention(config)
         self.mlp = CohereMLP(config)
-        self.input_layernorm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps, bias=False)
+        self.input_layernorm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         def _set_tp():
             def _set(layer, hint):
@@ -171,10 +168,10 @@ class CohereDecoderLayer(nn.Module):
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         hidden_ln = self.input_layernorm(hidden_states)
-        hidden_states_attention = self.self_attn(hidden_ln, paged_kv_cache, layer_id)
+        hidden_states_attn = self.self_attn(hidden_ln, paged_kv_cache, layer_id)
         hidden_states_mlp = self.mlp(hidden_ln)
-        hidden_states = self._apply_parallel_residual(hidden_states_attention, residual=hidden_states)  # type: ignore
-        hidden_states = self._apply_parallel_residual(hidden_states_mlp, residual=hidden_states)  # type: ignore
+        hidden_states = self._apply_parallel_residual(hidden_states_attn, residual=hidden_states) #type: ignore
+        hidden_states = self._apply_parallel_residual(hidden_states_mlp, residual=hidden_states) #type: ignore
         return hidden_states
 
     def _apply_parallel_residual(self, mlp_out, residual):
@@ -185,7 +182,7 @@ class CohereDecoderLayer(nn.Module):
 
 class CohereNorm(nn.Module):
     def __init__(
-        self, normalized_shape: int, eps: float = 1e-5, dtype: Optional[str] = None, bias=False
+        self, normalized_shape: int, eps: float = 1e-5, dtype: Optional[str] = None
     ) -> None:
         super().__init__()
         self.normalized_shape = normalized_shape
@@ -218,7 +215,7 @@ class CohereModel(nn.Module):
         self.layers = nn.ModuleList(
             [CohereDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
-        self.norm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps, bias=False)
+        self.norm = CohereNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
@@ -268,13 +265,13 @@ class CohereForCausalLM(nn.Module):
         op_ext.configure()
 
         def _index(x: te.Tensor):
-            b, s, d = x.shape  # type: ignore
+            b, s, d = x.shape  #type: ignore
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         # logits = self.lm_head(hidden_states)
-        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)  #type: ignore
 
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -294,7 +291,7 @@ class CohereForCausalLM(nn.Module):
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
         if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)  # type: ignore
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)  #type: ignore
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
@@ -308,7 +305,7 @@ class CohereForCausalLM(nn.Module):
 
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)  # type: ignore
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)  #type: ignore
         embeds = self.model.embed_tokens(input_ids)
         return embeds
 
@@ -398,4 +395,4 @@ class CohereForCausalLM(nn.Module):
                 },
             },
         }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self)  # type: ignore
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)  #type: ignore

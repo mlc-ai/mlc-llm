@@ -7,6 +7,7 @@
 
 # model preset templates
 from . import (
+    cohere,
     dolly,
     gemma,
     glm,
@@ -24,6 +25,5 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
-    cohere,
 )
 from .registry import ConvTemplateRegistry
