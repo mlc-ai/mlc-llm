@@ -21,11 +21,12 @@ from mlc_llm.support.style import bold
 
 logger = logging.getLogger(__name__)
 
+
 @dataclasses.dataclass
-class CohereConfig(ConfigBase): # pylint: disable=too-many-instance-attributes
+class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Cohere Aya-23 model"""
 
-    model_type: str # cohere
+    model_type: str  # cohere
     hidden_size: int
     vocab_size: int
     num_hidden_layers: int
@@ -76,13 +77,18 @@ class CohereConfig(ConfigBase): # pylint: disable=too-many-instance-attributes
                     min(self.context_window_size, 2048),
                 )
                 self.prefill_chunk_size = min(self.context_window_size, 2048)
-            
+
             if self.num_key_value_heads == 0 or self.num_key_value_heads is None:
                 self.num_key_value_heads = self.num_attention_heads
             if self.head_dim == 0:
                 self.head_dim = self.hidden_size // self.num_attention_heads
-            assert self.head_dim * self.num_attention_heads == self.hidden_size, "head_dim * num_attention_heads != hidden_size"
-            assert self.num_attention_heads % self.num_key_value_heads == 0, "num_attention_heads % num_key_value_heads != 0"
+            assert (
+                self.head_dim * self.num_attention_heads == self.hidden_size
+            ), "head_dim * num_attention_heads != hidden_size"
+            assert (
+                self.num_attention_heads % self.num_key_value_heads == 0
+            ), "num_attention_heads % num_key_value_heads != 0"
+
 
 class CohereMLP(nn.Module):
     def __init__(self, config: CohereConfig):
@@ -101,6 +107,7 @@ class CohereMLP(nn.Module):
     def forward(self, x):
         down_proj = self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
         return down_proj
+
 
 class CohereAttention(nn.Module):
     def __init__(self, config: CohereConfig):
@@ -136,6 +143,7 @@ class CohereAttention(nn.Module):
         )
         return self.out_proj(output)
 
+
 class CohereDecoderLayer(nn.Module):
     def __init__(self, config: CohereConfig):
         super().__init__()
@@ -145,7 +153,8 @@ class CohereDecoderLayer(nn.Module):
 
         def _set_tp():
             def _set(layer, hint):
-                    layer.weight.attrs["shard_strategy"] = hint
+                layer.weight.attrs["shard_strategy"] = hint
+
             hd = config.head_dim
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_key_value_heads * hd
@@ -164,22 +173,19 @@ class CohereDecoderLayer(nn.Module):
         hidden_ln = self.input_layernorm(hidden_states)
         hidden_states_attention = self.self_attn(hidden_ln, paged_kv_cache, layer_id)
         hidden_states_mlp = self.mlp(hidden_ln)
-        hidden_states = self._apply_parallel_residual(hidden_states_attention, residual=hidden_states) # type: ignore
-        hidden_states = self._apply_parallel_residual(hidden_states_mlp, residual=hidden_states) # type: ignore
+        hidden_states = self._apply_parallel_residual(hidden_states_attention, residual=hidden_states)  # type: ignore
+        hidden_states = self._apply_parallel_residual(hidden_states_mlp, residual=hidden_states)  # type: ignore
         return hidden_states
-    
+
     def _apply_parallel_residual(self, mlp_out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(mlp_out + residual / self.tensor_parallel_shards, "sum")
         return mlp_out + residual
 
+
 class CohereNorm(nn.Module):
     def __init__(
-        self,
-        normalized_shape: int,
-        eps: float = 1e-5,
-        dtype: Optional[str] = None,
-        bias=False
+        self, normalized_shape: int, eps: float = 1e-5, dtype: Optional[str] = None, bias=False
     ) -> None:
         super().__init__()
         self.normalized_shape = normalized_shape
@@ -195,6 +201,7 @@ class CohereNorm(nn.Module):
             eps=self.eps,
         )
 
+
 class CohereEmbedding(nn.Embedding):
     def lm_head_forward(self, x: nn.Tensor):
         """The lm_head forwarding, which transposes the weight and multiplies
@@ -202,6 +209,7 @@ class CohereEmbedding(nn.Embedding):
         """
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
+
 
 class CohereModel(nn.Module):
     def __init__(self, config: CohereConfig):
@@ -218,6 +226,7 @@ class CohereModel(nn.Module):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
+
 
 class CohereForCausalLM(nn.Module):
     # pylint: disable=too-many-instance-attributes
@@ -259,7 +268,7 @@ class CohereForCausalLM(nn.Module):
         op_ext.configure()
 
         def _index(x: te.Tensor):
-            b, s, d = x.shape # type: ignore
+            b, s, d = x.shape  # type: ignore
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
@@ -285,7 +294,7 @@ class CohereForCausalLM(nn.Module):
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
         if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions) # type: ignore
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)  # type: ignore
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
@@ -299,7 +308,7 @@ class CohereForCausalLM(nn.Module):
 
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids) # type: ignore
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)  # type: ignore
         embeds = self.model.embed_tokens(input_ids)
         return embeds
 
@@ -389,4 +398,4 @@ class CohereForCausalLM(nn.Module):
                 },
             },
         }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self) # type: ignore
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)  # type: ignore
