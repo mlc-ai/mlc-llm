@@ -385,6 +385,7 @@ def test_engine_generate(model: str):
                 print(f"Output {req_id}({i}):{output}\n")
 
 
+@require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
 def test_engine_hybrid_prefill(model: str):
     """Test engine **with hybrid prefill**.
 
