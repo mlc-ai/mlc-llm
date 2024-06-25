@@ -36,6 +36,21 @@ BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
  */
 std::vector<BatchPrefillBaseActionObj::PrefillInput>
 BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
+  // Preempt request state entries when decode cannot apply.
+  std::vector<RequestStateEntry> running_rsentries;
+  {
+    NVTXScopedRange nvtx_scope("BatchDecode getting requests");
+    running_rsentries = GetRunningRequestStateEntries(estate);
+    while (!(running_rsentries.size() <= models_[0]->GetNumAvailablePages())) {
+      if (estate->prefix_cache->TryFreeMemory()) continue;
+      RequestStateEntry preempted =
+          PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
+      if (preempted.same_as(running_rsentries.back())) {
+        running_rsentries.pop_back();
+      }
+    }
+  }
+
   if (estate->waiting_queue.empty()) {
     // No request to prefill.
     return {};
@@ -44,13 +59,20 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   std::vector<std::vector<PrefillInput>> prefill_inputs_for_all_models;
   prefill_inputs_for_all_models.reserve(models_.size());
 
+  int num_decode_inputs = static_cast<int>(running_rsentries.size());
+
   // We first collect the inputs that can be prefilled for each model.
   // Then we make a reduction to return the maximum common inputs.
   for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
     std::vector<PrefillInput> prefill_inputs;
-    // - Try to prefill pending requests.
+    // - Try to prefill pending requests, in addition to reserved decode requests.
     int total_input_length = 0;
-    int total_required_pages = 0;
+    int total_required_pages = num_decode_inputs;
+    // Reserve decode requests first.
+    for (const RequestStateEntry& rsentry : running_rsentries) {
+      prefill_inputs.push_back({rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0});
+      total_input_length += rsentry->mstates[i]->num_tokens_for_next_decode;
+    }
     int num_available_pages = models_[i]->GetNumAvailablePages();
     int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
     int current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
@@ -177,7 +199,8 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         std::min(num_prefill_inputs, static_cast<int>(prefill_inputs_for_all_models[i].size()));
   }
 
-  if (num_prefill_inputs == 0) {
+  // If all inputs are decode inputs, since no prefill inputs can be added, skip prefill action
+  if (num_prefill_inputs == num_decode_inputs) {
     return {};
   }
 
@@ -259,6 +282,17 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
 std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     const RequestModelState& mstate, int max_prefill_length) {
   if (mstate->inputs.empty()) {
+    // If the request is a hybrid decode request
+    ICHECK(mstate->num_tokens_for_next_decode > 0);
+    int num_tokens = mstate->num_tokens_for_next_decode;
+    mstate->num_tokens_for_next_decode = 0;
+    std::vector<int32_t> decode_tokens;
+    decode_tokens.reserve(num_tokens);
+    for (auto begin = mstate->committed_tokens.end() - num_tokens;
+         begin != mstate->committed_tokens.end(); ++begin) {
+      decode_tokens.push_back(begin->GetTokenId());
+    }
+    return {{TokenData(decode_tokens)}, num_tokens};
   }
   ICHECK(!mstate->inputs.empty());
   std::vector<Data> inputs;
@@ -378,11 +412,14 @@ std::vector<Request> BatchPrefillBaseActionObj::RemoveProcessedRequests(
         break;
       }
     }
-    if (!pending_state_exists) {
+    if (!pending_state_exists &&
+        std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), rsentry->request) !=
+            estate->waiting_queue.end()) {
       auto it =
           std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), rsentry->request);
-      ICHECK(it != estate->waiting_queue.end());
-      estate->waiting_queue.erase(it);
+      if (it != estate->waiting_queue.end()) {
+        estate->waiting_queue.erase(it);
+      }
     }
   }
   return processed_requests;
@@ -393,6 +430,19 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
     const std::vector<bool>& rsentry_activated, const std::vector<SampleResult>& sample_results) {
   auto tnow = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < static_cast<int>(rsentries_for_sample.size()); ++i) {
+    // If the request is a hybrid decode request
+    if (rsentries_for_sample[i]->status == RequestStateStatus::kAlive &&
+        rsentries_for_sample[i]->child_indices.empty() &&
+        rsentries_for_sample[i]->mstates[0]->inputs.empty()) {
+      for (const RequestModelState& mstate : rsentries_for_sample[i]->mstates) {
+        CHECK(!mstate->require_retokenization_in_next_decode);
+        mstate->CommitToken(sample_results[i]);
+        // live update the output metrics
+        rsentries_for_sample[i]->rstate->metrics.completion_tokens += 1;
+      }
+      continue;
+    }
+
     // Update all model states of the request state entry.
     for (const RequestModelState& mstate : rsentries_for_sample[i]->mstates) {
       mstate->CommitToken(sample_results[i]);
