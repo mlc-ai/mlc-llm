@@ -17,6 +17,7 @@ from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
+from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
@@ -301,6 +302,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": internlm_quantization.no_quant,
             "group-quant": internlm_quantization.group_quant,
             "ft-quant": internlm_quantization.ft_quant,
+        },
+    ),
+    "internlm2": Model(
+        name="internlm2",
+        model=internlm2_model.InternLM2ForCausalLM,
+        config=internlm2_model.InternLM2Config,
+        source={
+            "huggingface-torch": internlm2_loader.huggingface,
+            "huggingface-safetensor": internlm2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": internlm2_quantization.no_quant,
+            "group-quant": internlm2_quantization.group_quant,
+            "ft-quant": internlm2_quantization.ft_quant,
         },
     ),
     "rwkv5": Model(
