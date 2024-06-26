@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's StableLM parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's InternLM2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 
