@@ -14,7 +14,6 @@ from mlc_llm.quantization import Quantization
 from .internlm2_model import InternLM2Config, InternLM2ForCausalLM
 
 
-
 def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
@@ -43,8 +42,6 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
 
     mapping = ExternMapping()
 
-
-
     def _convert_wqkv_layout(wqkv, dtype):
         config = model_config
         kv_groups = config.num_attention_heads // config.num_key_value_heads
@@ -56,9 +53,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
         wv = wv.reshape(-1, wv.shape[-1])
         return np.concatenate([wq, wk, wv], axis=0).astype(dtype)
 
-
     for i in range(model_config.num_hidden_layers):
-
         # Add gates in MLP
         mlp = f"model.layers.{i}.feed_forward"
         mlc_name = f"{mlp}.gate_up_proj.weight"
@@ -83,7 +78,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
             functools.partial(
                 _convert_wqkv_layout,
                 dtype=mlc_param.dtype,
-            )
+            ),
         )
 
     for mlc_name, mlc_param in named_parameters.items():
@@ -98,5 +93,3 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
             )
 
     return mapping
-
-
