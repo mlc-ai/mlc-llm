@@ -166,7 +166,7 @@ class InternLM2Model(nn.Module):
         return hidden_states
 
 
-class InternLM2ForCausalLM(nn.Module):
+class InternLM2ForCausalLM(nn.Module): # pylint: disable=R0902
     def __init__(self, config: InternLM2Config):
         self.model = InternLM2Model(config)
         self.output = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
