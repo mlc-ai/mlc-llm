@@ -1,3 +1,4 @@
+# pylint: disable=W0611
 """
 This file specifies how MLC's InternLM2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
@@ -10,7 +11,7 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .internlm2_model import InternLM2Config, InternLM2ForCausalLM  # pylint: disable=W0611
+from .internlm2_model import InternLM2Config, InternLM2ForCausalLM
 
 
 def huggingface(
