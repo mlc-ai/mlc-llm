@@ -6,8 +6,7 @@ PyTorch, HuggingFace safetensors.
 import functools
 
 import numpy as np
-from tvm.relax.frontend import nn
-from tvm.relax.frontend.nn import Tensor, op
+
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
