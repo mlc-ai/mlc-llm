@@ -10,7 +10,7 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .internlm2_model import InternLM2Config, InternLM2ForCausalLM
+from .internlm2_model import InternLM2Config, InternLM2ForCausalLM  # pylint: disable=W0611
 
 
 def huggingface(
