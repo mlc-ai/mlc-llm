@@ -1,6 +1,6 @@
 """A builtin set of models available in MLC LLM."""
 
-from typing import Any, Dict
+from typing import Any, Dict # pylint: disable=too-many-lines
 
 MODEL_PRESETS: Dict[str, Any] = {
     "llama2_7b": {
