@@ -13,7 +13,9 @@ from mlc_llm.quantization import Quantization
 from .internlm2_model import InternLM2Config, InternLM2ForCausalLM
 
 
-def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) -> ExternMapping:  # pylint: disable=W0611
+def huggingface(
+    model_config: InternLM2ForCausalLM, quantization: Quantization
+) -> ExternMapping:  # pylint: disable=W0611
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
