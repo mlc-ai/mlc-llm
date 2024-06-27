@@ -78,7 +78,7 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
             )
             self.prefill_chunk_size = self.context_window_size
             assert (
-            self.tensor_parallel_shards == 1
+                self.tensor_parallel_shards == 1
             ), "InternLM2 currently does not support sharding."
 
 
