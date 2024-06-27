@@ -185,6 +185,6 @@ What to Do Next
   - :ref:`deploy-android`
   - :ref:`deploy-ide-integration`
 
-- `Convert model weight to MLC format <convert-weights-via-MLC>`_, if you want to run your own models.
-- `Compile model libraries <compile-model-libraries>`_, if you want to deploy to web/iOS/Android or control the model optimizations.
+- :ref:`convert-weights-via-MLC`, if you want to run your own models.
+- :ref:`compile-model-libraries`, if you want to deploy to web/iOS/Android or control the model optimizations.
 - Report any problem or ask any question: open new issues in our `GitHub repo <https://github.com/mlc-ai/mlc-llm/issues>`_.
