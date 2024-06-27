@@ -979,7 +979,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "auto_map": {
             "AutoConfig": "configuration_internlm2.InternLM2Config",
             "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
-            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM"
+            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM",
         },
         "bias": False,
         "bos_token_id": 1,
