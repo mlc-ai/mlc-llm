@@ -15,7 +15,7 @@ from .internlm2_model import InternLM2Config, InternLM2ForCausalLM  # pylint: di
 
 def huggingface(
     model_config: InternLM2ForCausalLM, quantization: Quantization
-) -> ExternMapping:  # pylint: disable=W0611
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
