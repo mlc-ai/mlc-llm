@@ -77,7 +77,9 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
                 bold("context_window_size"),
             )
             self.prefill_chunk_size = self.context_window_size
-            assert self.tensor_parallel_shards == 1, "InternLM2 currently does not support sharding."
+            assert (
+            self.tensor_parallel_shards == 1
+            ), "InternLM2 currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -173,11 +175,10 @@ class InternLM2ForCausalLM(nn.Module):
         self.num_hidden_layers = config.num_hidden_layers
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
-        self.num_key_value_heads= config.num_key_value_heads
+        self.num_key_value_heads = config.num_key_value_heads
         self.head_dim = self.hidden_size // self.num_attention_heads
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
-
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -185,10 +186,10 @@ class InternLM2ForCausalLM(nn.Module):
             self.dtype = dtype
 
     def batch_forward(
-            self,
-            input_embeds: Tensor,
-            paged_kv_cache: PagedKVCache,
-            logit_positions: Optional[Tensor] = None,
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
     ):
         op_ext.configure()
 
@@ -227,7 +228,7 @@ class InternLM2ForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def batch_prefill(
-            self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
@@ -241,12 +242,12 @@ class InternLM2ForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
-            self,
-            max_batch_size: tir.Var,
-            max_total_seq_len: tir.Var,
-            prefill_chunk_size: tir.Var,
-            page_size: tir.Var,
-            support_sliding_window: tir.Var,
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             max_batch_size=max_batch_size,
@@ -327,4 +328,3 @@ class InternLM2ForCausalLM(nn.Module):
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
-
