@@ -979,7 +979,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "auto_map": {
             "AutoConfig": "configuration_internlm2.InternLM2Config",
             "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
-             "AutoModel": "modeling_internlm2.InternLM2ForCausalLM"
+            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM"
         },
         "bias": False,
         "bos_token_id": 1,
@@ -1001,6 +1001,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "torch_dtype": "bfloat16",
         "transformers_version": "4.37.1",
         "use_cache": True,
-        "vocab_size": 92544
+        "vocab_size": 92544,
     },
 }
