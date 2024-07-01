@@ -439,6 +439,7 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
         mstate->CommitToken(sample_results[i]);
         // live update the output metrics
         rsentries_for_sample[i]->rstate->metrics.completion_tokens += 1;
+        rsentries_for_sample[i]->rstate->metrics.prefill_end_time_point = tnow;
       }
       continue;
     }
