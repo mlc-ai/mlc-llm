@@ -410,7 +410,10 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
         for (int i = 0; i < models_.size(); ++i) {
           models_[i]->AddNewSequence(rsentry->mstates[0]->internal_id);
-          models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          // Enable sliding window for the sequence if it is not a parent.
+          if (rsentry->child_indices.empty()) {
+            models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          }
         }
       } else {
         if (result.forked_seq_id != -1) {
@@ -435,7 +438,10 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           for (int i = 0; i < models_.size(); ++i) {
             models_[i]->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
                                      result.prefilled_offset - 1);
-            models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+            // Enable sliding window for the sequence if it is not a parent.
+            if (rsentry->child_indices.empty()) {
+              models_[i]->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+            }
           }
         } else {
           // Reuse recycling sequence

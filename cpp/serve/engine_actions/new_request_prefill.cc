@@ -272,7 +272,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
         for (Model model : models_) {
           model->AddNewSequence(rsentry->mstates[0]->internal_id);
-          model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          // Enable sliding window for the sequence if it is not a parent.
+          if (rsentry->child_indices.empty()) {
+            model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+          }
         }
       } else {
         if (result.forked_seq_id != -1) {
@@ -282,7 +285,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           for (Model model : models_) {
             model->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
                                 result.prefilled_offset);
-            model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+            // Enable sliding window for the sequence if it is not a parent.
+            if (rsentry->child_indices.empty()) {
+              model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
+            }
           }
         } else {
           // Reuse recycling sequence
