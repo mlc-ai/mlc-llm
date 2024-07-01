@@ -675,6 +675,7 @@ class EngineImpl : public Engine {
 
     Optional<Session> session = NullOpt;
     if (num_shards > 1) {
+#ifndef MLC_SINGLE_GPU_ONLY
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
       if (Registry::Get(f_create_process_pool) == nullptr) {
         LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
@@ -695,6 +696,9 @@ class EngineImpl : public Engine {
       }
       session = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
       session.value()->InitCCL(ccl, ShapeTuple(device_ids));
+#else
+      LOG(FATAL) << "MLC_SINGLE_GPU_ONLY is specified. Multi-GPU is not enabled.";
+#endif  // MLC_SINGLE_GPU_ONLY
     }
     return {session, num_shards};
   }
@@ -782,9 +786,11 @@ class EngineImpl : public Engine {
     for (Model model : models_) {
       host_cpu_usage += model->EstimateHostCPURequirement();
     }
-    int max_concurrency = tvm::runtime::threading::MaxConcurrency();
-    tvm::runtime::threading::SetMaxConcurrency(
-        std::min(std::max(max_concurrency - host_cpu_usage, 1), engine_config_->max_num_sequence));
+    if (host_cpu_usage > 1) {
+      int max_concurrency = tvm::runtime::threading::MaxConcurrency();
+      tvm::runtime::threading::SetMaxConcurrency(std::min(
+          std::max(max_concurrency - host_cpu_usage, 1), engine_config_->max_num_sequence));
+    }
   }
 
   /*! \brief Create a grammar init context according to the response format. If the response format
