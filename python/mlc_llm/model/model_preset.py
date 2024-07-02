@@ -1,6 +1,6 @@
 """A builtin set of models available in MLC LLM."""
 
-from typing import Any, Dict
+from typing import Any, Dict  # pylint: disable=too-many-lines
 
 MODEL_PRESETS: Dict[str, Any] = {
     "llama2_7b": {
@@ -972,5 +972,35 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "use_sliding_window": False,
         "vocab_size": 152064,
+    },
+    "internlm2": {
+        "architectures": ["InternLM2ForCausalLM"],
+        "attn_implementation": "eager",
+        "auto_map": {
+            "AutoConfig": "configuration_internlm2.InternLM2Config",
+            "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
+            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM",
+        },
+        "bias": False,
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 14336,
+        "max_position_embeddings": 32768,
+        "model_type": "internlm2",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 8,
+        "pad_token_id": 2,
+        "rms_norm_eps": 1e-05,
+        "rope_scaling": None,
+        "rope_theta": 1000000,
+        "tie_word_embeddings": False,
+        "torch_dtype": "bfloat16",
+        "transformers_version": "4.37.1",
+        "use_cache": True,
+        "vocab_size": 92544,
     },
 }
