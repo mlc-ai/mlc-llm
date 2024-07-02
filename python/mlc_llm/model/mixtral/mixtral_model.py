@@ -10,7 +10,7 @@ from mlc_llm import op as op_ext
 from mlc_llm.model.llama.llama_model import (
     LlamaAttention,
     LlamaConfig,
-    LlamaForCasualLM,
+    LlamaForCausalLM,
     LlamaModel,
 )
 from mlc_llm.nn import PagedKVCache
@@ -176,7 +176,7 @@ class MixtralModel(LlamaModel):
         )
 
 
-class MixtralForCasualLM(LlamaForCasualLM):
+class MixtralForCasualLM(LlamaForCausalLM):
     """Same as LlamaForCausalLM."""
 
     def __init__(self, config: MixtralConfig):

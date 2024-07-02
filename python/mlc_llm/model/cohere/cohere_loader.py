@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's Llama parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's Cohere parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 
@@ -10,18 +10,18 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .llama_model import LlamaConfig, LlamaForCausalLM
-from .llama_quantization import awq_quant
+from .cohere_model import CohereConfig, CohereForCausalLM
+from .cohere_quantization import awq_quant
 
 
-def huggingface(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(model_config: CohereConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
     Parameters
     ----------
-    model_config : LlamaConfig
-        The configuration of the Llama model.
+    model_config : CohereConfig
+        The configuration of the Cohere model.
 
     quantization : Quantization
         The quantization configuration.
@@ -31,7 +31,7 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = LlamaForCausalLM(model_config)
+    model = CohereForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
@@ -42,11 +42,22 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
 
     mapping = ExternMapping()
 
+    def _add(mlc_name, hf_name):
+        mapping.add_mapping(
+            mlc_name,
+            [hf_name],
+            functools.partial(
+                lambda x, dtype: x.astype(dtype),
+                dtype=named_parameters[mlc_name].dtype,
+            ),
+        )
+
     for i in range(model_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
         mlc_param = named_parameters[mlc_name]
+        _add(f"{attn}.out_proj.weight", f"{attn}.o_proj.weight")
         mapping.add_mapping(
             mlc_name,
             [
@@ -61,21 +72,11 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
         )
         # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
-        mlc_name = f"{mlp}.gate_up_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        mapping.add_mapping(
-            mlc_name,
-            [
-                f"{mlp}.gate_proj.weight",
-                f"{mlp}.up_proj.weight",
-            ],
-            functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
-        )
+        _add(f"{mlp}.up_proj.weight", f"{mlp}.up_proj.weight")
+        _add(f"{mlp}.gate_proj.weight", f"{mlp}.gate_proj.weight")
+        _add(f"{mlp}.down_proj.weight", f"{mlp}.down_proj.weight")
         # inv_freq is not used in the model
-        mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
+        # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
@@ -87,16 +88,18 @@ def huggingface(model_config: LlamaConfig, quantization: Quantization) -> Extern
                     dtype=mlc_param.dtype,
                 ),
             )
+
     return mapping
 
 
-def awq(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
+# https://huggingface.co/alijawad07/aya-23-8B-AWQ-GEMM/tree/main
+def awq(model_config: CohereConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of AWQ parameters.
     Parameters
     ----------
-    model_config : LlamaConfig
-        The configuration of the Llama model.
+    model_config : CohereConfig
+        The configuration of the Cohere model.
 
     quantization : Quantization
         The quantization configuration.
@@ -114,6 +117,16 @@ def awq(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
     named_parameters = dict(_named_params)
 
     mapping = ExternMapping()
+
+    def _add(mlc_name, hf_name):
+        mapping.add_mapping(
+            mlc_name,
+            [hf_name],
+            functools.partial(
+                lambda x, dtype: x.astype(dtype),
+                dtype=named_parameters[mlc_name].dtype,
+            ),
+        )
 
     for i in range(model_config.num_hidden_layers):
         # Add QKV in self attention
@@ -137,30 +150,17 @@ def awq(model_config: LlamaConfig, quantization: Quantization) -> ExternMapping:
                     dtype=mlc_param.dtype,
                 ),
             )
+            _add(f"{attn}.out_proj.{quantize_suffix}", f"{attn}.o_proj.{quantize_suffix}")
 
         # Concat gate and up in MLP
         mlp = f"model.layers.{i}.mlp"
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
-            mlc_name = f"{mlp}.gate_up_proj.{quantize_suffix}"
-            assert mlc_name in named_parameters
-            mlc_param = named_parameters[mlc_name]
-            mapping.add_mapping(
-                mlc_name,
-                [
-                    f"{mlp}.gate_proj.{quantize_suffix}",
-                    f"{mlp}.up_proj.{quantize_suffix}",
-                ],
-                functools.partial(
-                    lambda gate, up, dtype: np.concatenate(
-                        [gate, up],
-                        axis=1,  # AWQ GEMM would transpose the weight
-                    ).astype(dtype),
-                    dtype=mlc_param.dtype,
-                ),
-            )
+            _add(f"{mlp}.up_proj.{quantize_suffix}", f"{mlp}.up_proj.{quantize_suffix}")
+            _add(f"{mlp}.gate_proj.{quantize_suffix}", f"{mlp}.gate_proj.{quantize_suffix}")
+            _add(f"{mlp}.down_proj.{quantize_suffix}", f"{mlp}.down_proj.{quantize_suffix}")
 
         # inv_freq is not used in the model
-        mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
+        # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:

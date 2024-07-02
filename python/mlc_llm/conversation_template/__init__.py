@@ -7,6 +7,7 @@
 
 # model preset templates
 from . import (
+    cohere,
     dolly,
     gemma,
     glm,
