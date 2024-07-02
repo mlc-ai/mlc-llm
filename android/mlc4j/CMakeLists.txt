@@ -56,6 +56,7 @@ target_include_directories(tvm4j_runtime_packed PUBLIC
   ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
   ${TVM_SOURCE_DIR}/3rdparty/picojson
   ${TVM_SOURCE_DIR}/include
+  ${TVM_SOURCE_DIR}/src
 )
 target_compile_definitions(tvm4j_runtime_packed PUBLIC ${MLC_LLM_COMPILE_DEFS})
 target_compile_definitions(tvm4j_runtime_packed PUBLIC TVM_RELAX_VM_ENABLE_PROFILER=0)
