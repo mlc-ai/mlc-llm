@@ -56,30 +56,26 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
                     break
             else:
                 raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because none of "
+                    "Unable to determine the maximum sequence length, because none of "
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %s (%d)",
+                "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                bold("context_window_size"),
-                self.context_window_size,
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = self.context_window_size
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
         elif self.prefill_chunk_size > self.context_window_size:
             logger.info(
-                "Overriding %s from %d to %d (%s)",
+                "Overriding %s from %d to %d",
                 bold("prefill_chunk_size"),
                 self.prefill_chunk_size,
-                self.context_window_size,
-                bold("context_window_size"),
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = self.context_window_size
-            assert (
-                self.tensor_parallel_shards == 1
-            ), "InternLM2 currently does not support sharding."
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
+        assert self.tensor_parallel_shards == 1, "InternLM2 currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -87,6 +83,11 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
 
 class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: InternLM2Config):
+        if config.num_attention_heads % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split {config.num_attention_heads} attention heads "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.hidden_size = config.hidden_size
         self.rope_theta = config.rope_theta
         self.num_heads = config.num_attention_heads
@@ -116,6 +117,11 @@ class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attrib
 
 class InternLM2MLP(nn.Module):
     def __init__(self, config: InternLM2Config):
+        if config.intermediate_size % config.tensor_parallel_shards != 0:
+            raise ValueError(
+                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"evenly to {config.tensor_parallel_shards} GPUs."
+            )
         self.intermediate_size = config.intermediate_size
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
