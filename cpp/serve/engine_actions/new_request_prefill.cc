@@ -100,7 +100,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "start embedding");
         for (int i = 0; i < static_cast<int>(input_data.size()); ++i) {
-          if (!model_id) {
+          if (!model_id && !prefill_inputs[i].is_decode) {
             mstate->prefilled_inputs.push_back(input_data[i]);
           }
           embeddings = input_data[i]->GetEmbedding(models_[model_id],
