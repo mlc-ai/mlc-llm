@@ -70,7 +70,8 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     int total_required_pages = num_decode_inputs;
     // Reserve decode requests first.
     for (const RequestStateEntry& rsentry : running_rsentries) {
-      prefill_inputs.push_back({rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0});
+      prefill_inputs.push_back(
+          {rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
       total_input_length += rsentry->mstates[i]->num_tokens_for_next_decode;
     }
     int num_available_pages = models_[i]->GetNumAvailablePages();
@@ -138,7 +139,8 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
                          total_input_length, total_required_pages, num_available_pages,
                          current_total_seq_len, num_running_rsentries, kv_state_kind,
                          sliding_window_enabled)) {
-            prefill_inputs.push_back({rsentry, input_length, num_child_to_activate});
+            prefill_inputs.push_back(
+                {rsentry, input_length, num_child_to_activate, /*is_decode=*/false});
             num_prefill_rsentries += 1 + num_child_to_activate;
             can_prefill = true;
             break;
@@ -177,7 +179,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         if (CanPrefill(estate, num_prefill_rsentries, total_input_length, total_required_pages,
                        num_available_pages, current_total_seq_len, num_running_rsentries,
                        kv_state_kind, sliding_window_enabled)) {
-          prefill_inputs.push_back({rsentry, input_length, 0});
+          prefill_inputs.push_back({rsentry, input_length, 0, /*is_decode=*/false});
         }
 
         // - Prefill stops here.

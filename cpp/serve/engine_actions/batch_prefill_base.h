@@ -25,6 +25,7 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
     RequestStateEntry rsentry;
     int max_prefill_length = 0;
     int num_child_to_activate = 0;
+    bool is_decode = false;
   };
 
   BatchPrefillBaseActionObj(Array<Model> models, EngineConfig engine_config,
