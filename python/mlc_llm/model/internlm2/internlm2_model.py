@@ -167,7 +167,8 @@ class InternLM2DecoderLayer(nn.Module):
                 )
             _set(self.attention.wo.weight, tp.ShardSingleDim("_shard_o", dim=1))
             _set(
-                self.feed_forward.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
+                self.feed_forward.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
             )
             _set(self.feed_forward.w2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
@@ -189,6 +190,7 @@ class InternLM2DecoderLayer(nn.Module):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
+
 
 class InternLM2Model(nn.Module):
     def __init__(self, config: InternLM2Config):
