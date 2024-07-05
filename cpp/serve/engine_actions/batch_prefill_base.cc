@@ -176,7 +176,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
 
         total_input_length += input_length;
         total_required_pages += num_require_pages;
-        if (CanPrefill(estate, num_prefill_rsentries, total_input_length, total_required_pages,
+        if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length, total_required_pages,
                        num_available_pages, current_total_seq_len, num_running_rsentries,
                        kv_state_kind, sliding_window_enabled)) {
           prefill_inputs.push_back({rsentry, input_length, 0, /*is_decode=*/false});
