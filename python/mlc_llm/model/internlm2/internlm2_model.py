@@ -168,7 +168,7 @@ class InternLM2DecoderLayer(nn.Module):
             _set(self.attention.wo.weight, tp.ShardSingleDim("_shard_o", dim=1))
             _set(
                 self.feed_forward.gate_up_proj.weight,
-                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
             )
             _set(self.feed_forward.w2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
