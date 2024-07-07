@@ -1009,7 +1009,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "auto_map": {
             "AutoConfig": "configuration_internlm2.InternLM2Config",
             "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
-            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM"
+            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM",
         },
         "bias": False,
         "bos_token_id": 1,
@@ -1025,7 +1025,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "num_key_value_heads": 8,
         "pad_token_id": 2,
         "rms_norm_eps": 1e-05,
-        "rope_scaling": {"type": "dynamic","factor": 2.0},
+        "rope_scaling": {"type": "dynamic", "factor": 2.0},
         "rope_theta": 1000000,
         "tie_word_embeddings": False,
         "torch_dtype": "bfloat16",
