@@ -66,6 +66,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       int cum_prefill_length = 0;
       bool single_input =
           num_rsentries == 1 && prefill_inputs[0].rsentry->mstates[model_id]->inputs.size() == 1;
+      std::vector<int64_t> cached_token_data;
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         RequestModelState mstate = rsentry->mstates[model_id];
@@ -103,12 +104,33 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           if (!model_id && !prefill_inputs[i].is_decode) {
             mstate->prefilled_inputs.push_back(input_data[i]);
           }
-          embeddings = input_data[i]->GetEmbedding(models_[model_id],
-                                                   /*dst=*/!single_input ? &embeddings : nullptr,
-                                                   /*offset=*/cum_prefill_length);
-          cum_prefill_length += input_data[i]->GetLength();
+          if (const auto* token_data = input_data[i].as<TokenDataNode>()) {
+            cached_token_data.insert(cached_token_data.end(), token_data->token_ids.begin(),
+                                     token_data->token_ids.end());
+          } else {
+            if (!cached_token_data.empty()) {
+              embeddings = TokenData(cached_token_data)
+                               ->GetEmbedding(models_[model_id],
+                                              /*dst=*/!single_input ? &embeddings : nullptr,
+                                              /*offset=*/cum_prefill_length);
+              cum_prefill_length += cached_token_data.size();
+              cached_token_data.clear();
+            }
+            embeddings = input_data[i]->GetEmbedding(models_[model_id],
+                                                     /*dst=*/!single_input ? &embeddings : nullptr,
+                                                     /*offset=*/cum_prefill_length);
+            cum_prefill_length += input_data[i]->GetLength();
+          }
         }
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "finish embedding");
+      }
+      if (!cached_token_data.empty()) {
+        embeddings = TokenData(cached_token_data)
+                         ->GetEmbedding(models_[model_id],
+                                        /*dst=*/!single_input ? &embeddings : nullptr,
+                                        /*offset=*/cum_prefill_length);
+        cum_prefill_length += cached_token_data.size();
+        cached_token_data.clear();
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
