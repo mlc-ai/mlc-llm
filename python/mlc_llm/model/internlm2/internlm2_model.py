@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
@@ -40,6 +41,7 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    head_dim: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -60,6 +62,9 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %d",
@@ -75,7 +80,6 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
                 min(self.context_window_size, 2048),
             )
             self.prefill_chunk_size = min(self.context_window_size, 2048)
-        assert self.tensor_parallel_shards == 1, "InternLM2 currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -90,9 +94,9 @@ class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attrib
             )
         self.hidden_size = config.hidden_size
         self.rope_theta = config.rope_theta
-        self.num_heads = config.num_attention_heads
-        self.head_dim = self.hidden_size // self.num_heads
-        self.num_key_value_heads = config.num_key_value_heads
+        self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
+        self.head_dim = config.head_dim
+        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.max_position_embeddings = config.context_window_size
 
         self.wqkv = nn.Linear(
@@ -122,7 +126,7 @@ class InternLM2MLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
@@ -143,16 +147,49 @@ class InternLM2DecoderLayer(nn.Module):
         self.attention_norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.ffn_norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.attention.num_heads * hd
+            k = self.attention.num_key_value_heads * hd
+            v = self.attention.num_key_value_heads * hd
+            i = self.feed_forward.intermediate_size
+            _set(
+                self.attention.wqkv.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            if config.bias:
+                _set(
+                    self.attention.wqkv.bias,
+                    tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+                )
+            _set(self.attention.wo.weight, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(
+                self.feed_forward.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
+            _set(self.feed_forward.w2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.attention_norm(hidden_states)
         hidden_states = self.attention(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = residual + hidden_states
+        hidden_states = self._apply_residual(residual, residual=hidden_states)
         residual = hidden_states
         hidden_states = self.ffn_norm(hidden_states)
         hidden_states = self.feed_forward(hidden_states)
-        hidden_states = residual + hidden_states
+        hidden_states = self._apply_residual(residual, residual=hidden_states)
         return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
 
 class InternLM2Model(nn.Module):
@@ -182,7 +219,7 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.head_dim = config.head_dim
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
 
@@ -208,6 +245,8 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.tok_embeddings(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -236,6 +275,8 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
     def batch_prefill(
         self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
 
