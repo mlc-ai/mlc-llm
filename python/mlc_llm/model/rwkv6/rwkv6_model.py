@@ -32,7 +32,7 @@ class RWKV6Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     intermediate_size: int
     num_hidden_layers: int
     vocab_size: int
-    model_version: str
+    model_version: str = "6_0"
     tensor_parallel_shards: int = 1
     rescale_every: int = 0
     head_size: int = 64

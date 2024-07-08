@@ -34,10 +34,11 @@ def apply_system_defaults_for_missing_fields(mlc_chat_config: MLCChatConfig) -> 
 
 def check_string(s: str) -> bool:
     """Check whether it's a string."""
-    delimit = s[1]
-    if s[0] != "b" or s[-1] != delimit:
+    s = s[1:] if s[0] == "b" else s
+    delimit = s[0]
+    if s[-1] != delimit or delimit not in ["'", '"']:
         return False
-    for i in range(2, len(s) - 1):
+    for i in range(1, len(s) - 1):
         if s[i] == delimit and s[i - 1] != "\\":
             return False
     return True
