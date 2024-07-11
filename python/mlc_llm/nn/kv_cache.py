@@ -1566,6 +1566,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
         ):
             for t in T.thread_binding(tx, thread="threadIdx.x"):
                 with T.block("copy"):
+                    T.where(b * tx + t < copy_length * num_heads * head_dim)
                     vh = T.axis.spatial(
                         num_heads,
                         T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
