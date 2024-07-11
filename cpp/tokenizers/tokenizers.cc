@@ -375,7 +375,7 @@ inline std::string SpaceReplacerDecoder(const std::string& token) {
 inline std::string ByteLevelDecoder(const std::string& token) {
   // clang-format off
   // The inverse map of bytes_to_unicode. -1 means there is no mapping to this unicode.
-  static const std::array<int, 324> unicode_to_byte_map = {
+  static const std::array<int, 324> char_to_byte_map = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
     46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68,
@@ -396,20 +396,20 @@ inline std::string ByteLevelDecoder(const std::string& token) {
   // clang-format on
 
   auto unicode_codepoints = ParseUTF8(token.c_str(), UTF8ErrorPolicy::kReturnInvalid);
-  ICHECK(unicode_codepoints.size() != 1 || unicode_codepoints[0] != kInvalidUTF8);
+  if (unicode_codepoints.size() == 1 && unicode_codepoints[0] == kInvalidUTF8) {
+    return token;
+  }
+
   std::string decoded;
 
   for (auto unicode_codepoint : unicode_codepoints) {
-    ICHECK(unicode_codepoint >= 0 &&
-           unicode_codepoint < static_cast<int>(unicode_to_byte_map.size()));
-    int byte = unicode_to_byte_map[unicode_codepoint];
-    if (byte == -1) {
-      // If there is no mapping, add the codepoint itself to the result string
-      // Some tokenizer like Phi-2 have  raw tokens like \t\t
-      decoded += static_cast<char>(unicode_codepoint);
-    } else {
-      decoded += static_cast<char>(byte);
+    ICHECK(unicode_codepoint >= 0);
+    if (unicode_codepoint >= static_cast<int>(char_to_byte_map.size()) ||
+        char_to_byte_map[unicode_codepoint] == -1) {
+      // If there is no mapping, return the original token
+      return token;
     }
+    decoded += static_cast<char>(char_to_byte_map[unicode_codepoint]);
   }
   return decoded;
 }
