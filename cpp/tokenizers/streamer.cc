@@ -182,10 +182,13 @@ StopStrHandlerObj::StopStrHandlerObj(Array<String> stop_strs,
   }
 }
 
-std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
+void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token_ids) {
+  ICHECK_NOTNULL(return_token_ids);
+
   // Return the input token id if there is no stop string.
   if (stop_strs_.empty()) {
-    return {token_id};
+    return_token_ids->push_back(token_id);
+    return;
   }
 
   CHECK(!stop_triggered_) << "Cannot put new token when already stopped.";
@@ -194,8 +197,6 @@ std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
   const std::string& token = token_table_[token_id];
   pending_token_ids_.push_back(token_id);
   pending_token_lengths_.push_back(token.length());
-
-  std::vector<int32_t> return_token_ids;
 
   for (char ch : token) {
     // The earliest starting point of stop string.
@@ -241,19 +242,18 @@ std::vector<int32_t> StopStrHandlerObj::Put(int32_t token_id) {
     while (!pending_token_ids_.empty() &&
            cum_length + pending_token_lengths_.front() <= cutoff_length) {
       cum_length += pending_token_lengths_.front();
-      return_token_ids.push_back(pending_token_ids_.front());
+      return_token_ids->push_back(pending_token_ids_.front());
       pending_token_ids_.erase(pending_token_ids_.begin());
       pending_token_lengths_.erase(pending_token_lengths_.begin());
     }
     if (stop_triggered_) {
-      return return_token_ids;
+      return;
     }
 
     ICHECK_LE(cum_length, cutoff_length);
     // `cum_length` is the prefix length what we actually cut off.
     pending_string_len_ = (cutoff_length - cum_length) + max_match_length;
   }
-  return return_token_ids;
 }
 
 StopStrHandler::StopStrHandler(Array<String> stop_strs,
@@ -268,14 +268,16 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandler")
 
 TVM_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandlerPut")
     .set_body_typed([](StopStrHandler handler, int token_id) {
-      std::vector<int32_t> delta_tokens = handler->Put(token_id);
-      return IntTuple(delta_tokens.begin(), delta_tokens.end());
+      std::vector<int64_t> delta_tokens;
+      handler->Put(token_id, &delta_tokens);
+      return IntTuple(std::move(delta_tokens));
     });
 
 TVM_REGISTER_GLOBAL("mlc.tokenizers.StopStringHandlerFinish")
     .set_body_typed([](StopStrHandler handler) {
-      std::vector<int32_t> remaining_token_ids = handler->Finish();
-      return IntTuple(remaining_token_ids.begin(), remaining_token_ids.end());
+      std::vector<int64_t> remaining_token_ids;
+      handler->Finish(&remaining_token_ids);
+      return IntTuple(std::move(remaining_token_ids));
     });
 
 TVM_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandlerStopTriggered")

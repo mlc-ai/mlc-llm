@@ -171,26 +171,26 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     group_delta_token_ids.reserve(n);
     group_delta_logprob_json_strs.reserve(n);
     group_finish_reason.reserve(n);
+    group_extra_prefix_string.reserve(n);
 
     bool invoke_callback = false;
     for (int i = 0; i < n; ++i) {
       const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
-      const DeltaRequestReturn& delta_request_ret =
+      DeltaRequestReturn delta_request_ret =
           rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length);
-      group_delta_token_ids.push_back(IntTuple{delta_request_ret.delta_token_ids.begin(),
-                                               delta_request_ret.delta_token_ids.end()});
-      group_delta_logprob_json_strs.push_back(delta_request_ret.delta_logprob_json_strs);
-      group_finish_reason.push_back(delta_request_ret.finish_reason);
-      group_extra_prefix_string.push_back(delta_request_ret.extra_prefix_string);
       if (delta_request_ret.finish_reason.defined()) {
         invoke_callback = true;
         finished_rsentries.push_back(rsentry);
       }
-
       if (!delta_request_ret.delta_token_ids.empty() ||
           !delta_request_ret.extra_prefix_string.empty()) {
         invoke_callback = true;
       }
+
+      group_delta_token_ids.push_back(IntTuple(std::move(delta_request_ret.delta_token_ids)));
+      group_delta_logprob_json_strs.push_back(std::move(delta_request_ret.delta_logprob_json_strs));
+      group_finish_reason.push_back(std::move(delta_request_ret.finish_reason));
+      group_extra_prefix_string.push_back(std::move(delta_request_ret.extra_prefix_string));
     }
 
     if (invoke_callback) {
