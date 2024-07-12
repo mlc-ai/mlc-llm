@@ -87,7 +87,9 @@ class TokenizerObj : public Object {
   const DynamicBitset& GetPrefixTokenMask();
 
   /*!
-   * \brief Returns the vocabulary size. Special tokens are considered.
+   * \brief Returns the vocabulary size. Special tokens are considered. This may be smaller than the
+   * `vocab_size` in config.json (length of logits), see https://github.com/QwenLM/Qwen2/issues/147
+   * and https://huggingface.co/microsoft/Phi-3-mini-4k-instruct/discussions/47.
    */
   size_t GetVocabSize() const;
 

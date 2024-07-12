@@ -310,16 +310,22 @@ class GrammarStateMatcher(Object):
 
         return _ffi_api.GrammarStateMatcherFindNextRejectedTokens(self, verbose)  # type: ignore  # pylint: disable=no-member
 
-    def find_next_token_bitmask_as_ndarray(self) -> tvm.nd.array:
-        """Find the ids of the rejected tokens for the next step.
+    def find_next_token_bitmask_as_ndarray(self, full_vocab_size: int) -> tvm.nd.array:
+        """Find the bitmask for the next step.
+
+        Parameters
+        ----------
+        full_vocab_size: int
+            Different from `tokenizer->GetVocabSize()` or `init_ctx_->vocab_size`, this is the
+            vocab_size read from `config.json` that can be potentially larger.
 
         Returns
         -------
-        rejected_token_ids : List[int]
-            A list of rejected token ids.
+        bitmask_ndarray : tvm.nd.array
+            Bitmask for the next step.
         """
 
-        return _ffi_api.GrammarStateMatcherFindNextTokenBitmaskAsNDArray(self)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.GrammarStateMatcherFindNextTokenBitmaskAsNDArray(self, full_vocab_size)  # type: ignore  # pylint: disable=no-member
 
     def find_jump_forward_string(self) -> str:
         """Find the jump-forward string for jump-forward decoding. This is the longest string that

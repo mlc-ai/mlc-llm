@@ -176,7 +176,7 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
   bool AcceptStopToken();
 
   friend IntTuple FindNextRejectedTokens(GrammarStateMatcher matcher, bool verbose);
-  friend NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher);
+  friend NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher, int full_vocab_size);
 
   std::shared_ptr<GrammarStateInitContext> init_ctx_;
   int max_rollback_steps_;
@@ -362,6 +362,16 @@ void GrammarStateMatcherNodeImpl::FindNextTokenBitmask(DLTensor* next_token_bitm
   // Finally update the rejected_ids bitset
   bool can_reach_end = CanReachEnd();
   SetTokenBitmask(next_token_bitmask, tmp_accepted_bitset_, tmp_rejected_indices_, can_reach_end);
+
+  // Up till now, we use vocab_size from `GetVocabSize()`, while `next_token_bitmask` is of
+  // vocab_size read from `config.json`. For models like QWen2 and Phi3, the latter can be larger.
+  // So we further mask out the dummy padded tokens.
+  CHECK(next_token_bitmask->ndim == 1);
+  DynamicBitset next_token_bitset(next_token_bitmask->shape[0] * 32,
+                                  reinterpret_cast<uint32_t*>(next_token_bitmask->data));
+  for (int i = init_ctx_->vocab_size; i < next_token_bitmask->shape[0] * 32; i++) {
+    next_token_bitset.Set(i, false);
+  }
 }
 
 std::string GrammarStateMatcherNodeImpl::FindJumpForwardString() {
@@ -719,12 +729,12 @@ TVM_REGISTER_GLOBAL("mlc.grammar.GrammarStateMatcherFindNextRejectedTokens")
 
 /*!
  * \brief Find the bitmask for the next token as an NDArray.
+ * \param full_vocab_size Different from `tokenizer->GetVocabSize()` or `init_ctx_->vocab_size`,
+ * this is the vocab_size read from `config.json` that can be potentially larger.
  * \returns An NDArray of the bitmask for the next token of shape (bitmask_size,).
  */
-NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher) {
-  auto init_ctx = matcher.as<GrammarStateMatcherNodeImpl>()->init_ctx_;
-  auto vocab_size = init_ctx->vocab_size;
-  auto bitset_size = DynamicBitset::CalculateBufferSize(vocab_size);
+NDArray FindNextTokenBitmaskAsNDArray(GrammarStateMatcher matcher, int full_vocab_size) {
+  auto bitset_size = DynamicBitset::CalculateBufferSize(full_vocab_size);
   auto bitmask = NDArray::Empty(ShapeTuple{static_cast<long>(bitset_size)},
                                 DLDataType{kDLUInt, 32, 1}, DLDevice{kDLCPU, 0});
   auto dltensor = const_cast<DLTensor*>(bitmask.operator->());

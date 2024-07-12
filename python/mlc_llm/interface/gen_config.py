@@ -186,11 +186,11 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
             fast_tokenizer.backend_tokenizer.save(str(tokenizer_json_save_dest))
             mlc_chat_config.tokenizer_files.append("tokenizer.json")
-            logger.info("Succesfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
+            logger.info("Successfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning(
-                "Convertion to `tokenizer.json` %s with the exception below. "
-                "Skipping the conversion. Tokenizer will only use `tokenizer.model`",
+                "Converting to `tokenizer.json` %s with the exception below. "
+                "Skipping the conversion.",
                 FAILED,
                 exc_info=True,
             )
@@ -215,6 +215,27 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     # 3.4. Detect tokenizer info
     mlc_chat_config.tokenizer_info = asdict(Tokenizer.detect_tokenizer_info(str(output)))
     logger.info("Detected tokenizer info: %s", mlc_chat_config.tokenizer_info)
+
+    # 3.5. Ensure added_tokens do not have duplicated added_tokens, a mistake from model releaser
+    # that affects correctness of huggingface tokenizer.
+    # See https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/discussions/15.
+    if tokenizer_json_file.exists():
+        with open(tokenizer_json_file, "r") as f:
+            tokenizer_json = json.load(f)
+            if "added_tokens" in tokenizer_json:
+                appeared_content = set()
+                for added_token in tokenizer_json["added_tokens"]:
+                    content = added_token["content"]
+                    if content in appeared_content:
+                        logger.exception(
+                            "%s with incorrect tokenizer.json which has duplicated token %s. "
+                            "This affects correctness of huggingface tokenizer during runtime, "
+                            "please check your tokenizer.json to remove duplication manually.",
+                            FAILED,
+                            content,
+                        )
+                        raise ValueError("Duplicated vocab in tokenizer.json")
+                    appeared_content.add(content)
 
     # Step 4. Load system default value
     apply_system_defaults_for_missing_fields(mlc_chat_config)
