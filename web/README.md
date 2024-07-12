@@ -26,3 +26,5 @@ The main step is running `make` under this folder, a step included in `web/prep_
 `make` creates `web/dist/wasm/mlc_wasm_runtime.bc`, which will be included in the model library wasm
 when we compile the model. Thus during runtime, runtimes like WebLLM can directly reuse source
 code from MLC-LLM.
+
+After running `web/prep_emcc_deps.sh`, `python compile_wasm.py` builds all models in https://github.com/mlc-ai/binary-mlc-llm-libs/tree/main/web-llm-models.
