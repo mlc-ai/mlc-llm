@@ -43,15 +43,17 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \param attention_sink_size The attention sink size for the sequence, 0 by default.
    * \return The matched result.
    */
-  PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens, int sliding_window_size,
-                                          int attention_sink_size) final {
+  PrefixCacheMatchedResult InsertSequence(int64_t seq_id, std::vector<int32_t> tokens,
+                                          int sliding_window_size, int attention_sink_size) final {
     CHECK_NE(sliding_window_size, 0);
     CHECK_GE(attention_sink_size, 0);
     CHECK(seq_states_.find(seq_id) == seq_states_.end());
     CHECK(seq_sliding_window_infos_.find(seq_id) == seq_sliding_window_infos_.end());
+    CHECK(!tokens.empty());
+    CommitSequenceExtention();
+    tokens.pop_back();
+    auto [matched_offset, matched_seqs] = radix_tree_->MatchPrefix(tokens);
     std::pair<int, size_t> sliding_window_info{sliding_window_size, attention_sink_size};
-    IntTuple popped_tokens = IntTuple(std::vector<int64_t>(tokens.begin(), tokens.end() - 1));
-    auto [matched_offset, matched_seqs] = radix_tree_->MatchPrefix(popped_tokens);
     // No prefix matched, directly adding new sequence.
     if (!matched_offset) {
       radix_tree_->AddSequence(seq_id);
@@ -142,9 +144,12 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if the given sequence id is not valid or active.
    */
-  void ExtendSequence(int64_t seq_id, IntTuple tokens) final {
-    CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
-    radix_tree_->ExtendSequence(seq_id, tokens);
+  void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) final {
+    const auto& it = seq_states_.find(seq_id);
+    CHECK(it == seq_states_.end() || it->second == SequenceState::kActive);
+    std::vector<int32_t>& uncommitted_token_ids = uncommitted_extended_token_ids_[seq_id];
+    uncommitted_token_ids.reserve(uncommitted_token_ids.size() + tokens.size());
+    uncommitted_token_ids.insert(uncommitted_token_ids.end(), tokens.begin(), tokens.end());
   }
 
   /*!
@@ -154,6 +159,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \throw Error if the given sequence id is not valid or active.
    */
   void RollBackSequence(int64_t seq_id, size_t num_tokens) final {
+    CommitSequenceExtention();
     CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
     radix_tree_->RollBackSequence(seq_id, num_tokens);
   }
@@ -167,6 +173,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \throw Error if the given sequence id is not valid.
    */
   void RecycleSequence(int64_t seq_id, bool lazy = true) final {
+    CommitSequenceExtention();
     CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
     CHECK(recycling_seq_lrus_.find(seq_id) == recycling_seq_lrus_.end());
     if (lazy && max_num_recycling_seqs_ != 0) {
@@ -236,6 +243,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
     reversed_recycling_seq_lrus_.clear();
     seq_states_.clear();
     seq_sliding_window_infos_.clear();
+    uncommitted_extended_token_ids_.clear();
     lru_counter_ = 0;
   }
 
@@ -249,6 +257,21 @@ class PrefixCacheImpl : public PrefixCacheObj {
     seq_states_.at(seq_id) = SequenceState::kActive;
     CHECK(recycling_seq_lrus_.erase(seq_id));
     CHECK(reversed_recycling_seq_lrus_.erase(lru));
+  }
+
+  void CommitSequenceExtention() {
+    if (uncommitted_extended_token_ids_.empty()) {
+      return;
+    }
+    NVTXScopedRange nvtx_scope("PrefixCache commit sequence extension");
+    for (const auto& [seq_id, uncommitted_token_ids] : uncommitted_extended_token_ids_) {
+      if (!HasSequence(seq_id)) {
+        // The sequence has been removed. Hence no action is needed.
+        continue;
+      }
+      radix_tree_->ExtendSequence(seq_id, uncommitted_token_ids);
+    }
+    uncommitted_extended_token_ids_.clear();
   }
 
   /*!
@@ -304,6 +327,12 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * non-negative and used when sliding window size is positive.
    */
   std::unordered_map<int64_t, std::pair<int, size_t>> seq_sliding_window_infos_;
+  /*!
+   * \brief The collection of uncommitted extended token ids of sequences.
+   * The "ExtendSequence" method only lazily add token ids into this collection,
+   * and these uncommitted token ids will be committed when needed.
+   */
+  std::unordered_map<int64_t, std::vector<int32_t>> uncommitted_extended_token_ids_;
 };  // namespace serve
 
 TVM_REGISTER_OBJECT_TYPE(PrefixCacheImpl);
@@ -322,8 +351,8 @@ class NoPrefixCache : public PrefixCacheObj {
    * \param attention_sink_size The attention sink size for the sequence, 0 by default.
    * \return The matched result.
    */
-  PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens, int sliding_window_size,
-                                          int attention_sink_size) final {
+  PrefixCacheMatchedResult InsertSequence(int64_t seq_id, std::vector<int32_t> tokens,
+                                          int sliding_window_size, int attention_sink_size) final {
     // Since there is no prefix cache, always return as new sequence.
     return PrefixCacheMatchedResult{0, -1, -1, 0};
   }
@@ -334,9 +363,8 @@ class NoPrefixCache : public PrefixCacheObj {
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if called since this should never be called.
    */
-  void ExtendSequence(int64_t seq_id, IntTuple tokens) final {
-    // Since there is no prefix cache, this method should never be called.
-    LOG(FATAL) << "Unreachable code.";
+  void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) final {
+    // No-op;
   }
 
   /*!

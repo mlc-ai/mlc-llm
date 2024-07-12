@@ -480,17 +480,18 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
   }
 }
 
-IntTuple BatchPrefillBaseActionObj::GetConcatPrefillInputData(const RequestModelState& mstate) {
-  std::vector<int64_t> tokens;
+std::vector<int32_t> BatchPrefillBaseActionObj::GetConcatPrefillInputData(
+    const RequestModelState& mstate) {
+  std::vector<int32_t> tokens;
   for (Data data : mstate->inputs) {
     if (const TokenDataNode* token_data = data.as<TokenDataNode>()) {
       tokens.reserve(tokens.size() + token_data->GetLength());
       tokens.insert(tokens.end(), token_data->token_ids.begin(), token_data->token_ids.end());
     } else {
-      return IntTuple({});
+      return {};
     }
   }
-  return IntTuple(tokens);
+  return tokens;
 }
 
 void BatchPrefillBaseActionObj::PopPrefillInputData(const RequestModelState& mstate,
