@@ -42,7 +42,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
     std::vector<RequestStateEntry> running_rsentries;
     {
       NVTXScopedRange nvtx_scope("BatchJumpForward getting requests");
-      running_rsentries = GetRunningRequestStateEntries(estate);
+      running_rsentries = estate->GetRunningRequestStateEntries();
       while (!CheckMemForJumpForward(running_rsentries.size())) {
         if (estate->prefix_cache->TryFreeMemory()) continue;
         RequestStateEntry preempted =

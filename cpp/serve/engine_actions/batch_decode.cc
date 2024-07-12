@@ -49,7 +49,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     std::vector<RequestStateEntry> running_rsentries;
     {
       NVTXScopedRange nvtx_scope("BatchDecode getting requests");
-      running_rsentries = GetRunningRequestStateEntries(estate);
+      running_rsentries = estate->GetRunningRequestStateEntries();
       while (!CanDecode(running_rsentries.size())) {
         if (estate->prefix_cache->TryFreeMemory()) continue;
         RequestStateEntry preempted =

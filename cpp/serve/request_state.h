@@ -133,7 +133,7 @@ class RequestModelState : public ObjectRef {
 
 struct DeltaRequestReturn {
   std::vector<int64_t> delta_token_ids;
-  Array<String> delta_logprob_json_strs;
+  std::vector<String> delta_logprob_json_strs;
   Optional<String> finish_reason;
   /*! \brief The extra string to prepend the delta output. The delta output should be
    * extra_prefix_string + detokenize(delta_token_ids). */
