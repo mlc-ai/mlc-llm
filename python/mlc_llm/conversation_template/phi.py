@@ -35,3 +35,19 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[32000, 32001, 32007],
     )
 )
+
+# Phi-3-vision
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="phi-3-vision",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="\n",
+        roles={"user": "<|user|>", "assistant": "<|assistant|>"},
+        seps=["<|end|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        system_prefix_token_ids=[1],
+        stop_str=["<|endoftext|>"],
+        stop_token_ids=[2, 32000, 32001, 32007],
+    )
+)

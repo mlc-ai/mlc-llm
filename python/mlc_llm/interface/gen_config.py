@@ -290,6 +290,7 @@ CONV_TEMPLATES = {
     "custom",  # for web-llm only
     "phi-2",
     "phi-3",
+    "phi-3-vision",
     "stablelm-2",
     "gemma_instruction",
     "orion",

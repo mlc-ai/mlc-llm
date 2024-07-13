@@ -5,8 +5,6 @@ PyTorch, HuggingFace safetensors.
 
 import functools
 
-import numpy as np
-
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
@@ -40,7 +38,10 @@ def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> Ex
 
     mapping = ExternMapping()
 
-    def _add(mlc_name, hf_name):
+    def _add(mlc_name, hf_name=None):
+        if None is hf_name:
+            hf_name = mlc_name
+
         mapping.add_mapping(
             mlc_name,
             [hf_name],
@@ -50,30 +51,24 @@ def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> Ex
             ),
         )
 
-    def _concat_add(mlc_name, hf_names):
-        mapping.add_mapping(
-            mlc_name,
-            hf_names,
-            functools.partial(
-                lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-                dtype=named_parameters[mlc_name].dtype,
-            ),
-        )
-
-    _add("lm_head.weight", "lm_head.weight")
-    _add("transformer.norm.weight", "model.norm.weight")
-    _add("transformer.embd.weight", "model.embed_tokens.weight")
-
-    prefix = "transformer.h"
-    hf_prefix = "model.layers"
+    prefix = "model.layers"
     for i in range(model_config.num_hidden_layers):
-        _add(f"{prefix}.{i}.ln.weight", f"{hf_prefix}.{i}.input_layernorm.weight")
-        _add(f"{prefix}.{i}.mlp.down_proj.weight", f"{hf_prefix}.{i}.mlp.down_proj.weight")
-        _add(f"{prefix}.{i}.mlp.gate_up_proj.weight", f"{hf_prefix}.{i}.mlp.gate_up_proj.weight")
-        _add(
-            f"{prefix}.{i}.post_attention_layernorm.weight",
-            f"{hf_prefix}.{i}.post_attention_layernorm.weight",
-        )
-        _add(f"{prefix}.{i}.mixer.out_proj.weight", f"{hf_prefix}.{i}.self_attn.o_proj.weight")
-        _add(f"{prefix}.{i}.mixer.qkv_proj.weight", f"{hf_prefix}.{i}.self_attn.qkv_proj.weight")
+        _add(f"{prefix}.{i}.input_layernorm.weight")
+        _add(f"{prefix}.{i}.mlp.down_proj.weight")
+        _add(f"{prefix}.{i}.mlp.gate_up_proj.weight")
+        _add(f"{prefix}.{i}.post_attention_layernorm.weight")
+        _add(f"{prefix}.{i}.self_attn.o_proj.weight")
+        _add(f"{prefix}.{i}.self_attn.qkv_proj.weight")
+
+    for mlc_name, mlc_param in named_parameters.items():
+        if mlc_name not in mapping.param_map:
+            mapping.add_mapping(
+                mlc_name,
+                [mlc_name],
+                functools.partial(
+                    lambda x, dtype: x.astype(dtype),
+                    dtype=mlc_param.dtype,
+                ),
+            )
+
     return mapping
