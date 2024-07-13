@@ -138,7 +138,7 @@ RequestStateEntry::RequestStateEntry(
 
 DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
     const Tokenizer& tokenizer, int64_t max_single_sequence_length) {
-  std::vector<int32_t> return_token_ids;
+  std::vector<int64_t> return_token_ids;
   std::vector<String> logprob_json_strs;
   Optional<String> finish_reason;
 
@@ -151,18 +151,17 @@ DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
 
   // Case 1. There is no new token ids.
   if (this->next_callback_token_pos == num_committed_tokens && extra_prefix_string.empty()) {
-    return {{}, {}, Optional<String>(), extra_prefix_string};
+    return {{}, {}, Optional<String>(), std::move(extra_prefix_string)};
   }
 
   // Case 2. Any of the stop strings is matched.
   ICHECK(!stop_str_handler->StopTriggered());
   while (next_callback_token_pos < num_committed_tokens) {
-    std::vector<int32_t> delta_token_ids =
-        stop_str_handler->Put(committed_tokens[next_callback_token_pos].GetTokenId());
+    stop_str_handler->Put(committed_tokens[next_callback_token_pos].GetTokenId(),
+                          &return_token_ids);
     logprob_json_strs.push_back(committed_tokens[next_callback_token_pos].GetLogProbJSON(
         tokenizer, request->generation_cfg->logprobs));
     ++next_callback_token_pos;
-    return_token_ids.insert(return_token_ids.end(), delta_token_ids.begin(), delta_token_ids.end());
     if (stop_str_handler->StopTriggered()) {
       finish_reason = "stop";
       break;
@@ -197,24 +196,26 @@ DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
   }
 
   if (finish_reason.defined()) {
-    return {return_token_ids, logprob_json_strs, finish_reason, extra_prefix_string};
+    return {std::move(return_token_ids), std::move(logprob_json_strs), std::move(finish_reason),
+            std::move(extra_prefix_string)};
   }
 
   // Case 5. Generation reaches the specified max generation length ==> Finished
   // `max_tokens` means the generation length is limited by model capacity.
   if (request->generation_cfg->max_tokens >= 0 &&
       num_committed_tokens >= request->generation_cfg->max_tokens) {
-    std::vector<int32_t> remaining = stop_str_handler->Finish();
-    return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, logprob_json_strs, String("length"), extra_prefix_string};
+    stop_str_handler->Finish(&return_token_ids);
+    return {std::move(return_token_ids), std::move(logprob_json_strs), String("length"),
+            std::move(extra_prefix_string)};
   }
   // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->prompt_tokens + num_committed_tokens >= max_single_sequence_length) {
-    std::vector<int32_t> remaining = stop_str_handler->Finish();
-    return_token_ids.insert(return_token_ids.end(), remaining.begin(), remaining.end());
-    return {return_token_ids, logprob_json_strs, String("length"), extra_prefix_string};
+    stop_str_handler->Finish(&return_token_ids);
+    return {std::move(return_token_ids), std::move(logprob_json_strs), String("length"),
+            std::move(extra_prefix_string)};
   }
-  return {return_token_ids, logprob_json_strs, Optional<String>(), extra_prefix_string};
+  return {std::move(return_token_ids), std::move(logprob_json_strs), Optional<String>(),
+          std::move(extra_prefix_string)};
 }
 
 /****************** RequestState ******************/

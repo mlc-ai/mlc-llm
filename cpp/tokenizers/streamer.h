@@ -80,15 +80,22 @@ class StopStrHandlerObj : public Object {
   explicit StopStrHandlerObj(Array<String> stop_strs, const std::vector<std::string>& token_table);
 
   /*!
-   * \brief Add new input delta token to the handler, return output
-   * delta tokens before stopping. The stop string handler may hold
-   * some of the input delta token which may be part of a stop string.
+   * \brief Add new input delta token to the handler, push the output
+   * delta tokens before stopping into the given vector.
+   * The stop string handler may hold some of the input delta token
+   * which may be part of a stop string.
    * The returned tokens are always guaranteed not to be part of stop string.
    */
-  std::vector<int32_t> Put(int32_t token_id);
+  void Put(int32_t token_id, std::vector<int64_t>* return_token_ids);
 
-  /*! \brief Stop string handling has finished, return remaining cached token ids. */
-  std::vector<int32_t> Finish() const { return pending_token_ids_; };
+  /*!
+   * \brief Stop string handling has finished, append the remaining
+   * cached token ids into the given vector.
+   */
+  void Finish(std::vector<int64_t>* return_token_ids) const {
+    return_token_ids->insert(return_token_ids->end(), pending_token_ids_.begin(),
+                             pending_token_ids_.end());
+  };
 
   /*! \brief Check if the generation has stopped due to stop string. */
   bool StopTriggered() const { return stop_triggered_; }

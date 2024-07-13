@@ -74,13 +74,21 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
           {rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
       total_input_length += rsentry->mstates[i]->num_tokens_for_next_decode;
     }
-    int num_available_pages = models_[i]->GetNumAvailablePages();
-    int num_running_rsentries = GetRunningRequestStateEntries(estate).size();
-    int current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
-    KVStateKind kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
+    int num_available_pages;
+    int num_running_rsentries;
+    int current_total_seq_len;
+    KVStateKind kv_state_kind;
+    {
+      NVTXScopedRange nvtx_scope("Query KV cache status");
+      num_available_pages = models_[i]->GetNumAvailablePages();
+      num_running_rsentries = GetRunningRequestStateEntries(estate).size();
+      current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
+      kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
+    }
 
     int num_prefill_rsentries = 0;
     for (const Request& request : estate->waiting_queue) {
+      NVTXScopedRange nvtx_scope("Process request " + request->id);
       RequestState rstate = estate->GetRequestState(request);
       bool prefill_stops = false;
       for (const RequestStateEntry& rsentry : rstate->entries) {
@@ -125,25 +133,28 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         total_required_pages += num_require_pages;
         // - Attempt 1. Check if the entire request state entry can fit for prefill.
         bool can_prefill = false;
-        for (int num_child_to_activate = rsentry->child_indices.size(); num_child_to_activate >= 0;
-             --num_child_to_activate) {
-          while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
-                             total_input_length, total_required_pages, num_available_pages,
-                             current_total_seq_len, num_running_rsentries, kv_state_kind,
-                             sliding_window_enabled)) {
-            if (!estate->prefix_cache->TryFreeMemory()) break;
-            // Update number of available pages after memory free.
-            num_available_pages = models_[i]->GetNumAvailablePages();
-          }
-          if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
-                         total_input_length, total_required_pages, num_available_pages,
-                         current_total_seq_len, num_running_rsentries, kv_state_kind,
-                         sliding_window_enabled)) {
-            prefill_inputs.push_back(
-                {rsentry, input_length, num_child_to_activate, /*is_decode=*/false});
-            num_prefill_rsentries += 1 + num_child_to_activate;
-            can_prefill = true;
-            break;
+        {
+          NVTXScopedRange nvtx_scope("Attempt 1");
+          for (int num_child_to_activate = rsentry->child_indices.size();
+               num_child_to_activate >= 0; --num_child_to_activate) {
+            while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                               total_input_length, total_required_pages, num_available_pages,
+                               current_total_seq_len, num_running_rsentries, kv_state_kind,
+                               sliding_window_enabled)) {
+              if (!estate->prefix_cache->TryFreeMemory()) break;
+              // Update number of available pages after memory free.
+              num_available_pages = models_[i]->GetNumAvailablePages();
+            }
+            if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
+                           total_input_length, total_required_pages, num_available_pages,
+                           current_total_seq_len, num_running_rsentries, kv_state_kind,
+                           sliding_window_enabled)) {
+              prefill_inputs.push_back(
+                  {rsentry, input_length, num_child_to_activate, /*is_decode=*/false});
+              num_prefill_rsentries += 1 + num_child_to_activate;
+              can_prefill = true;
+              break;
+            }
           }
         }
         if (can_prefill) {
@@ -174,12 +185,15 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
           ICHECK_GE(num_require_pages, 0);
         }
 
-        total_input_length += input_length;
-        total_required_pages += num_require_pages;
-        if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length, total_required_pages,
-                       num_available_pages, current_total_seq_len, num_running_rsentries,
-                       kv_state_kind, sliding_window_enabled)) {
-          prefill_inputs.push_back({rsentry, input_length, 0, /*is_decode=*/false});
+        {
+          NVTXScopedRange nvtx_scope("Attempt 2");
+          total_input_length += input_length;
+          total_required_pages += num_require_pages;
+          if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length,
+                         total_required_pages, num_available_pages, current_total_seq_len,
+                         num_running_rsentries, kv_state_kind, sliding_window_enabled)) {
+            prefill_inputs.push_back({rsentry, input_length, 0, /*is_decode=*/false});
+          }
         }
 
         // - Prefill stops here.
@@ -209,25 +223,28 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   std::vector<PrefillInput> prefill_inputs(
       prefill_inputs_for_all_models[0].begin(),
       prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
-  for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
-    // Prefill input lengths except the last one are supposed to be the same for all models.
-    for (int j = 0; j < num_prefill_inputs - 1; ++j) {
-      ICHECK(prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
-      ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
-                prefill_inputs[j].max_prefill_length);
-      prefill_inputs[j].num_child_to_activate =
-          std::min(prefill_inputs[j].num_child_to_activate,
-                   prefill_inputs_for_all_models[i][j].num_child_to_activate);
+  {
+    NVTXScopedRange nvtx_scope("reduction");
+    for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
+      // Prefill input lengths except the last one are supposed to be the same for all models.
+      for (int j = 0; j < num_prefill_inputs - 1; ++j) {
+        ICHECK(prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
+        ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
+                  prefill_inputs[j].max_prefill_length);
+        prefill_inputs[j].num_child_to_activate =
+            std::min(prefill_inputs[j].num_child_to_activate,
+                     prefill_inputs_for_all_models[i][j].num_child_to_activate);
+      }
+      // The input length of the last input is the minimum among all models.
+      ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
+          prefill_inputs[num_prefill_inputs - 1].rsentry));
+      prefill_inputs[num_prefill_inputs - 1].max_prefill_length =
+          std::min(prefill_inputs[num_prefill_inputs - 1].max_prefill_length,
+                   prefill_inputs_for_all_models[i][num_prefill_inputs - 1].max_prefill_length);
+      prefill_inputs[num_prefill_inputs - 1].num_child_to_activate =
+          std::min(prefill_inputs[num_prefill_inputs - 1].num_child_to_activate,
+                   prefill_inputs_for_all_models[i][num_prefill_inputs - 1].num_child_to_activate);
     }
-    // The input length of the last input is the minimum among all models.
-    ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
-        prefill_inputs[num_prefill_inputs - 1].rsentry));
-    prefill_inputs[num_prefill_inputs - 1].max_prefill_length =
-        std::min(prefill_inputs[num_prefill_inputs - 1].max_prefill_length,
-                 prefill_inputs_for_all_models[i][num_prefill_inputs - 1].max_prefill_length);
-    prefill_inputs[num_prefill_inputs - 1].num_child_to_activate =
-        std::min(prefill_inputs[num_prefill_inputs - 1].num_child_to_activate,
-                 prefill_inputs_for_all_models[i][num_prefill_inputs - 1].num_child_to_activate);
   }
 
   return prefill_inputs;

@@ -4,6 +4,7 @@
  */
 #include "prefix_cache.h"
 
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/registry.h>
 
 namespace mlc {
@@ -199,6 +200,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \throw Error if the given sequence id is not valid.
    */
   bool TryFreeMemory() final {
+    NVTXScopedRange nvtx_scope("PrefixCache TryFreeMemory");
     if (reversed_recycling_seq_lrus_.empty()) {
       // There is no recycling sequence. No memory can be freed.
       return false;

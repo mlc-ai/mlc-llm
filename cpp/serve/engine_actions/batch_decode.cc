@@ -92,25 +92,28 @@ class BatchDecodeActionObj : public EngineActionObj {
     generation_cfg.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
 
-    for (const RequestStateEntry& rsentry : running_rsentries) {
-      auto mstate = rsentry->mstates[0];
-      ICHECK(mstate->num_tokens_for_next_decode > 0 &&
-             mstate->num_tokens_for_next_decode <=
-                 static_cast<int>(mstate->committed_tokens.size()));
+    {
+      NVTXScopedRange nvtx_scope("BatchDecode setting batch info");
+      for (const RequestStateEntry& rsentry : running_rsentries) {
+        auto mstate = rsentry->mstates[0];
+        ICHECK(mstate->num_tokens_for_next_decode > 0 &&
+               mstate->num_tokens_for_next_decode <=
+                   static_cast<int>(mstate->committed_tokens.size()));
 
-      for (auto begin = mstate->committed_tokens.end() - mstate->num_tokens_for_next_decode;
-           begin != mstate->committed_tokens.end(); ++begin) {
-        input_tokens.push_back(begin->GetTokenId());
+        for (auto begin = mstate->committed_tokens.end() - mstate->num_tokens_for_next_decode;
+             begin != mstate->committed_tokens.end(); ++begin) {
+          input_tokens.push_back(begin->GetTokenId());
+        }
+
+        lengths.push_back(mstate->num_tokens_for_next_decode);
+        mstate->num_tokens_for_next_decode = 0;
+
+        request_ids.push_back(rsentry->request->id);
+        request_internal_ids.push_back(mstate->internal_id);
+        mstates.push_back(mstate);
+        generation_cfg.push_back(rsentry->request->generation_cfg);
+        rngs.push_back(&rsentry->rng);
       }
-
-      lengths.push_back(mstate->num_tokens_for_next_decode);
-      mstate->num_tokens_for_next_decode = 0;
-
-      request_ids.push_back(rsentry->request->id);
-      request_internal_ids.push_back(mstate->internal_id);
-      mstates.push_back(mstate);
-      generation_cfg.push_back(rsentry->request->generation_cfg);
-      rngs.push_back(&rsentry->rng);
     }
 
     // - Compute embeddings.
