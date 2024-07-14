@@ -13,7 +13,6 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
-from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
