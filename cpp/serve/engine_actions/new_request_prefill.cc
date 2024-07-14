@@ -277,8 +277,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
         !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-      IntTuple tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
-      if (!tokens.size()) {
+      std::vector<int32_t> tokens = GetConcatPrefillInputData(rsentry->mstates[0]);
+      if (tokens.empty()) {
         // If the RequestStateEntry is of empty input data, or not fully tokenized, do nothing
         // and return.
         return;

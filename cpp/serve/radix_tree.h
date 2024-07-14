@@ -42,7 +42,8 @@ class PagedRadixTreeObj : public Object {
    * \param tokens The prefix tokens for reference.
    * \return The pair of matched prefix length and the array of matched sequences indices.
    */
-  virtual std::pair<size_t, std::vector<int64_t>> MatchPrefix(IntTuple tokens) = 0;
+  virtual std::pair<size_t, std::vector<int64_t>> MatchPrefix(
+      const std::vector<int32_t>& tokens) = 0;
 
   /*!
    * \brief Get a sequence's length.
@@ -77,7 +78,7 @@ class PagedRadixTreeObj : public Object {
    * \param tokens The given tokens to extend.
    * \throw Error if sequence ID is not valid.
    */
-  virtual void ExtendSequence(int64_t seq_id, IntTuple tokens) = 0;
+  virtual void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) = 0;
 
   /*!
    * \brief Roll back a sequence by number of tokens.

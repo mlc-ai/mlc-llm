@@ -64,17 +64,21 @@ class PrefixCacheObj : public Object {
    * \param attention_sink_size The attention sink size for the sequence, 0 by default.
    * \return The matched result.
    */
-  virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, IntTuple tokens,
+  virtual PrefixCacheMatchedResult InsertSequence(int64_t seq_id, std::vector<int32_t> tokens,
                                                   int sliding_window_size = -1,
                                                   int attention_sink_size = 0) = 0;
 
   /*!
    * \brief Extend a sequence with new tokenized sequence suffix.
-   * \param seq_id The sequence to be extneded.
+   * This extension might be cached and lazily committed later.
+   * \param seq_id The sequence to be extended.
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if the given sequence id is not valid or active.
    */
-  virtual void ExtendSequence(int64_t seq_id, IntTuple tokens) = 0;
+  virtual void ExtendSequence(int64_t seq_id, std::vector<int32_t> tokens) = 0;
+
+  /*! \brief Commit the cached sequence extension from "ExtendSequence". */
+  virtual void CommitSequenceExtention() = 0;
 
   /*!
    * \brief Roll back a sequence by number of tokens.

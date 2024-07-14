@@ -99,35 +99,37 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
   }
 }
 
-void UpdatePrefixCache(Array<Request> requests, EngineState estate) {
-  for (Request request : requests) {
-    RequestState rstate = estate->GetRequestState(request);
+void UpdatePrefixCache(const std::vector<RequestState>& rstates, EngineState estate) {
+  NVTXScopedRange nvtx_scope("Update prefix cache");
+  std::vector<int32_t> token_ids;
+  for (RequestState rstate : rstates) {
     for (const RequestStateEntry& rsentry : rstate->entries) {
-      if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
-        if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
-          // Notify the prefix cache of the newly prefilled data.
-          for (Data data : rsentry->mstates[0]->prefilled_inputs) {
-            const TokenDataNode* token_data = data.as<TokenDataNode>();
-            estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id,
-                                                 token_data->token_ids);
-          }
-          rsentry->mstates[0]->prefilled_inputs.clear();
+      if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+        // Notify the prefix cache of the newly prefilled data.
+        token_ids.clear();
+        for (Data data : rsentry->mstates[0]->prefilled_inputs) {
+          const TokenDataNode* token_data = data.as<TokenDataNode>();
+          token_ids.reserve(token_ids.size() + token_data->token_ids.size());
+          token_ids.insert(token_ids.end(), token_data->token_ids->data,
+                           token_data->token_ids->data + token_data->token_ids.size());
         }
-        if (rsentry->mstates[0]->cached_committed_tokens <
-            static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1) {
-          // Notify the prefix cache of the newly decoded data, except the last token as it is not
-          // in KVCache yet.
-          std::vector<int64_t> tokens;
-          tokens.reserve((static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) -
-                          rsentry->mstates[0]->cached_committed_tokens));
-          for (int i = rsentry->mstates[0]->cached_committed_tokens;
-               i < static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1; ++i) {
-            tokens.push_back(rsentry->mstates[0]->committed_tokens[i].GetTokenId());
-          }
-          estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, IntTuple(tokens));
-          rsentry->mstates[0]->cached_committed_tokens =
-              static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1;
+        estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
+        rsentry->mstates[0]->prefilled_inputs.clear();
+      }
+      if (rsentry->mstates[0]->cached_committed_tokens <
+          static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1) {
+        // Notify the prefix cache of the newly decoded data, except the last token as it is not
+        // in KVCache yet.
+        token_ids.clear();
+        token_ids.reserve((static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) -
+                           rsentry->mstates[0]->cached_committed_tokens));
+        for (int i = rsentry->mstates[0]->cached_committed_tokens;
+             i < static_cast<int32_t>(rsentry->mstates[0]->committed_tokens.size()) - 1; ++i) {
+          token_ids.push_back(rsentry->mstates[0]->committed_tokens[i].GetTokenId());
         }
+        estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
+        rsentry->mstates[0]->cached_committed_tokens =
+            static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1;
       }
     }
   }
@@ -139,14 +141,17 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
                            int64_t max_single_sequence_length,
                            Optional<EventTraceRecorder> trace_recorder) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
+  int num_requests = requests.size();
+  std::vector<RequestState> rstates;
   std::vector<RequestStateEntry> finished_rsentries;
-  finished_rsentries.reserve(requests.size());
-
   Array<RequestStreamOutput> callback_delta_outputs;
-  callback_delta_outputs.reserve(requests.size());
+  rstates.reserve(num_requests);
+  finished_rsentries.reserve(num_requests);
+  callback_delta_outputs.reserve(num_requests);
 
-  for (Request request : requests) {
-    RequestState rstate = estate->GetRequestState(request);
+  for (int i = 0; i < num_requests; ++i) {
+    RequestState rstate = estate->GetRequestState(requests[i]);
+    rstates.push_back(rstate);
     for (const RequestStateEntry& rsentry : rstate->entries) {
       for (Data data : rsentry->mstates[0]->prefilled_inputs) {
         // note that we are counting prefill tokens across all branches
@@ -155,15 +160,13 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Mo
     }
   }
 
-  {
-    NVTXScopedRange nvtx_scope("ActionStepPostProcess updating prefix cache");
-    UpdatePrefixCache(requests, estate);
-  }
+  UpdatePrefixCache(rstates, estate);
 
   // - Collect new generated tokens and finish reasons for requests.
-  for (Request request : requests) {
+  for (int r = 0; r < num_requests; ++r) {
+    Request request = requests[r];
     int n = request->generation_cfg->n;
-    RequestState rstate = estate->GetRequestState(request);
+    RequestState rstate = rstates[r];
     Array<IntTuple> group_delta_token_ids;
     Array<Array<String>> group_delta_logprob_json_strs;
     Array<Optional<String>> group_finish_reason;

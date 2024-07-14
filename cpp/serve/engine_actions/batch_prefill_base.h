@@ -102,7 +102,7 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
    * \param mstate The RequestModelState whose input data is to be concatenated.
    * \return The concatenate IntTuple.
    */
-  IntTuple GetConcatPrefillInputData(const RequestModelState& mstate);
+  std::vector<int32_t> GetConcatPrefillInputData(const RequestModelState& mstate);
 
   /*!
    * \brief Pop the prefix tokens of the RequestModelState input data array.
