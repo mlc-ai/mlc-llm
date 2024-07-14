@@ -9,6 +9,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
@@ -131,9 +132,8 @@ class MockEchoEngineImpl : public Engine {
               completion_tokens <= request->generation_cfg->max_tokens) {
             outputs.push_back(RequestStreamOutput(
                 request->id,
-                std::vector<IntTuple>(request->generation_cfg->n, IntTuple({token_id})),
-                Optional<Array<Array<String>>>(),
-                std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
+                std::vector<std::vector<int64_t>>(request->generation_cfg->n, {token_id}),
+                std::nullopt, std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
                 std::vector<String>(request->generation_cfg->n)));
           }
         }
@@ -146,7 +146,7 @@ class MockEchoEngineImpl : public Engine {
         prompt_tokens > request->generation_cfg->max_tokens) {
       finish_reason = "length";
     }
-    Array<IntTuple> group_delta_token_ids;
+    std::vector<std::vector<int64_t>> group_delta_token_ids;
 
     // correct the last output with right finish reason
     if (outputs.size() > 0) {
@@ -154,7 +154,7 @@ class MockEchoEngineImpl : public Engine {
       outputs.pop_back();
     }
     outputs.push_back(RequestStreamOutput(
-        request->id, group_delta_token_ids, Optional<Array<Array<String>>>(),
+        request->id, group_delta_token_ids, std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
         std::vector<String>(request->generation_cfg->n)));
 
@@ -184,8 +184,7 @@ class MockEchoEngineImpl : public Engine {
     // If the request input length exceeds the maximum allowed single sequence length,
     // invoke callback and do not process the request.
     Array<RequestStreamOutput> output{RequestStreamOutput(
-        request_id, std::vector<IntTuple>(request->generation_cfg->n),
-        Optional<Array<Array<String>>>(),
+        request_id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, String("abort")),
         std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
@@ -481,8 +480,7 @@ class EngineImpl : public Engine {
     // If the request input length exceeds the maximum allowed single sequence length,
     // invoke callback and do not process the request.
     Array<RequestStreamOutput> output{RequestStreamOutput(
-        request->id, std::vector<IntTuple>(request->generation_cfg->n),
-        Optional<Array<Array<String>>>(),
+        request->id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
         std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
@@ -513,6 +511,7 @@ class EngineImpl : public Engine {
   }
 
   void AddRequest(Request request) final {
+    NVTXScopedRange nvtx_scope("Add request " + request->id);
     // special requests do not involve generation
     if (request->generation_cfg->debug_config.special_request != SpecialRequestKind::kNone) {
       this->HandleSpecialRequests(request);
@@ -556,12 +555,13 @@ class EngineImpl : public Engine {
                                /*parent_idx=*/0);
       }
     }
-    RequestState rstate = RequestState(std::move(rsentries), add_time_point);
+    RequestState rstate = RequestState(std::move(rsentries), n, add_time_point);
     for (const RequestStateEntry& rsentry : rstate->entries) {
       // Set the back reference.
       // note, we avoid cyclic reference and use raw ptr.
       rsentry->rstate = rstate.operator->();
     }
+    request->rstate = rstate.operator->();
     estate_->request_states.emplace(request->id, rstate);
   }
 
@@ -629,7 +629,11 @@ class EngineImpl : public Engine {
     CHECK(request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
-      Array<Request> processed_requests = action->Step(estate_);
+      Array<Request> processed_requests;
+      {
+        NVTXScopedRange nvtx_scope("Action step");
+        processed_requests = action->Step(estate_);
+      }
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_, engine_config_->max_single_sequence_length,

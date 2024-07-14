@@ -25,7 +25,8 @@ using namespace tvm::runtime;
  * \param req_internal_id The internal id of the request to remove.
  * \param models The models to remove the given request from.
  */
-void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<Model> models);
+void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
+                            const Array<Model>& models);
 
 /*!
  * \brief The request post-processing after an engine action step.
@@ -42,7 +43,7 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
  * \param trace_recorder The event trace recorder for requests.
  * if a request is finished.
  */
-void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
+void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Array<Model>& models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int64_t max_single_sequence_length,

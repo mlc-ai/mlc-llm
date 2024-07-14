@@ -46,6 +46,12 @@ struct EngineInternalIDManager {
   }
 };
 
+/*! \brief The data structures used in the action post-process. */
+struct ActionPostProcessStates {
+  std::vector<RequestStateEntry> finished_rsentries;
+  Array<RequestStreamOutput> callback_delta_outputs;
+};
+
 /*!
  * \brief The state of the running engine.
  * It contains the requests and their states submitted to the Engine.
@@ -66,6 +72,11 @@ class EngineStateObj : public Object {
   PrefixCache prefix_cache{nullptr};
   /*! \brief A boolean flag denoting whether the running request state entry list has changed. */
   bool running_rsentries_changed = true;
+  /*!
+   * \brief The post-process data structures.
+   * We make it a state to avoid repetitive memory allocation/free in the action post process.
+   */
+  ActionPostProcessStates postproc_states;
 
   /*! \brief Reset the engine state and clear the metrics. */
   void Reset();

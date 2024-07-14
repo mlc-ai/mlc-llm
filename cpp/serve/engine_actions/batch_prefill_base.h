@@ -124,6 +124,8 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   Array<Model> models_;
   /*! \brief The engine config. */
   EngineConfig engine_config_;
+  /*! \brief The KV state kind. */
+  KVStateKind kv_state_kind_;
   /*! \brief The sliding window size of each model. */
   std::vector<int> sliding_window_sizes_;
   /*! \brief Event trace recorder. */

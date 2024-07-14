@@ -91,7 +91,11 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
     ICHECK_NE(prefill_chunk_size_, -1);
-    auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
+    ObjectRef token_ids_dref_or_nd;
+    {
+      NVTXScopedRange nvtx_scope("Copy to worker 0");
+      token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
+    }
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
     if (dst != nullptr) {
@@ -586,7 +590,6 @@ class ModelImpl : public ModelObj {
 
   void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
                      int64_t prefill_chunk_size, int max_history_size) final {
-    //  KVStateKind kv_state_kind) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};

@@ -27,6 +27,7 @@ BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
     sliding_window_sizes_.push_back(
         json::LookupOrDefault<int64_t>(model_config, "sliding_window_size", -1));
   }
+  kv_state_kind_ = models_[0]->GetMetadata().kv_state_kind;
 }
 
 /*!
@@ -71,12 +72,13 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     int num_available_pages;
     int num_running_rsentries = num_decode_inputs;
     int current_total_seq_len;
-    KVStateKind kv_state_kind;
     {
-      NVTXScopedRange nvtx_scope("Query KV cache status");
+      NVTXScopedRange nvtx_scope("KV cache GetNumAvailablePages");
       num_available_pages = models_[i]->GetNumAvailablePages();
+    }
+    {
+      NVTXScopedRange nvtx_scope("KV cache GetCurrentTotalSequenceLength");
       current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
-      kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
     }
 
     int num_prefill_rsentries = 0;
@@ -132,7 +134,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
                num_child_to_activate >= 0; --num_child_to_activate) {
             while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                                total_input_length, total_required_pages, num_available_pages,
-                               current_total_seq_len, num_running_rsentries, kv_state_kind,
+                               current_total_seq_len, num_running_rsentries, kv_state_kind_,
                                sliding_window_enabled)) {
               if (!estate->prefix_cache->TryFreeMemory()) break;
               // Update number of available pages after memory free.
@@ -140,7 +142,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
             }
             if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                            total_input_length, total_required_pages, num_available_pages,
-                           current_total_seq_len, num_running_rsentries, kv_state_kind,
+                           current_total_seq_len, num_running_rsentries, kv_state_kind_,
                            sliding_window_enabled)) {
               prefill_inputs.push_back(
                   {rsentry, input_length, num_child_to_activate, /*is_decode=*/false});
@@ -184,7 +186,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
           total_required_pages += num_require_pages;
           if (CanPrefill(estate, num_prefill_rsentries + 1, total_input_length,
                          total_required_pages, num_available_pages, current_total_seq_len,
-                         num_running_rsentries, kv_state_kind, sliding_window_enabled)) {
+                         num_running_rsentries, kv_state_kind_, sliding_window_enabled)) {
             prefill_inputs.push_back({rsentry, input_length, 0, /*is_decode=*/false});
           }
         }
@@ -416,10 +418,10 @@ std::vector<Request> BatchPrefillBaseActionObj::RemoveProcessedRequests(
   std::unordered_set<const RequestNode*> dedup_map;
   for (int i = 0; i < num_rsentries; ++i) {
     const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
-    if (dedup_map.find(rsentry->request.get()) != dedup_map.end()) {
+    if (dedup_map.find(rsentry->request.operator->()) != dedup_map.end()) {
       continue;
     }
-    dedup_map.insert(rsentry->request.get());
+    dedup_map.insert(rsentry->request.operator->());
     processed_requests.push_back(rsentry->request);
 
     bool pending_state_exists = false;
