@@ -220,7 +220,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     # that affects correctness of huggingface tokenizer.
     # See https://huggingface.co/NousResearch/Hermes-2-Pro-Llama-3-8B/discussions/15.
     if tokenizer_json_file.exists():
-        with open(tokenizer_json_file, "r") as f:
+        with open(tokenizer_json_file, "r", encoding="utf-8") as f:
             tokenizer_json = json.load(f)
             if "added_tokens" in tokenizer_json:
                 appeared_content = set()

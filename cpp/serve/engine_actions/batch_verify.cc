@@ -127,6 +127,10 @@ class BatchVerifyActionObj : public EngineActionObj {
     NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
 
+    // - Commit the prefix cache changes from previous round of action.
+    // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
+    estate->prefix_cache->CommitSequenceExtention();
+
     std::vector<int> sample_indices(num_rsentries);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
