@@ -348,4 +348,4 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
         }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self)        
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)
