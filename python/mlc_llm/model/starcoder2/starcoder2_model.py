@@ -78,6 +78,7 @@ class Starcoder2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
             self.prefill_chunk_size = min(self.context_window_size, 2048)
         assert self.tensor_parallel_shards == 1, "Starcoder2 currently does not support sharding."
 
+
 # pylint: disable=invalid-name,missing-docstring
 
 
@@ -105,7 +106,9 @@ class Starcoder2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=self.use_bias,
         )
-        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=self.use_bias)
+        self.o_proj = nn.Linear(
+            self.num_heads * self.head_dim, self.hidden_size, bias=self.use_bias
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
@@ -346,3 +349,4 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+        
