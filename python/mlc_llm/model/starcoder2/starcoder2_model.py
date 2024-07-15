@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
@@ -40,6 +41,7 @@ class Starcoder2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    head_dim: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -60,6 +62,9 @@ class Starcoder2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %d",
@@ -75,7 +80,6 @@ class Starcoder2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 min(self.context_window_size, 2048),
             )
             self.prefill_chunk_size = min(self.context_window_size, 2048)
-        assert self.tensor_parallel_shards == 1, "Starcoder2 currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -93,15 +97,15 @@ class Starcoder2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
 
-        self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
-        self.head_dim = self.hidden_size // self.num_heads
+        self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
+        self.head_dim = config.head_dim
         self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.context_window_size
         self.use_bias = config.use_bias
 
         self.wqkv_pack = nn.Linear(
-            in_features=config.hidden_size,
+            in_features=self.hidden_size,
             out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=self.use_bias,
         )
@@ -154,16 +158,65 @@ class Starcoder2DecoderLayer(nn.Module):
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
         self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
 
+
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attn.num_heads * hd
+            k = self.self_attn.num_key_value_heads * hd
+            v = self.self_attn.num_key_value_heads * hd
+            i = self.mlp.intermediate_size
+            _set(
+                self.self_attn.wqkv_pack.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            if config.use_bias:
+                _set(
+                    self.self_attn.wqkv_pack.bias,
+                    tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
+                )
+
+            _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
+
+            _set(
+                self.mlp.c_fc.weight,
+                tp.ShardSingleDim("_shard_c_fc_weight", dim=0),
+            )
+            if config.use_bias:
+                _set(self.mlp.c_fc.bias, tp.ShardSingleDim("_shard_c_fc_bias", dim=0))
+
+            _set(self.mlp.c_proj.weight, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
+
+            if config.use_bias:
+                _set(self.mlp.c_proj.bias, tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0))
+
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
         hidden_states = residual + hidden_states
+        hidden_states = self._apply_residual(residual, residual=hidden_states)
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
+        hidden_states = self._apply_residual(residual, residual=hidden_states)
         return hidden_states
+
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
+
+
+
 
 
 class Starcoder2Model(nn.Module):
@@ -192,7 +245,7 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         self.hidden_size = config.hidden_size
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
-        self.head_dim = self.hidden_size // self.num_attention_heads
+        self.head_dim = config.head_dim
         self.vocab_size = config.vocab_size
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -220,6 +273,8 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits
 
     def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
