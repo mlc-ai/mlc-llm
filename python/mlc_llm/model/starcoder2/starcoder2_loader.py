@@ -1,5 +1,5 @@
 """
-This file specifies how MLC's InternLM parameter maps from other formats, for example HuggingFace
+This file specifies how MLC's Starcoder2 parameter maps from other formats, for example HuggingFace
 PyTorch, HuggingFace safetensors.
 """
 
