@@ -32,6 +32,7 @@ from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
+from .starcoder2 import starcoder2_loader, starcoder2_model, starcoder2_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -426,6 +427,20 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "no-quant": medusa_quantization.no_quant,
+        },
+    ),
+    "starcoder2": Model(
+        name="starcoder2",
+        model=starcoder2_model.Starcoder2ForCausalLM,
+        config=starcoder2_model.Starcoder2Config,
+        source={
+            "huggingface-torch": starcoder2_loader.huggingface,
+            "huggingface-safetensor": starcoder2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": starcoder2_quantization.no_quant,
+            "group-quant": starcoder2_quantization.group_quant,
+            "ft-quant": starcoder2_quantization.ft_quant,
         },
     ),
 }
