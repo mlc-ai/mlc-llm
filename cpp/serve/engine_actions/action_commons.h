@@ -65,22 +65,6 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
     Optional<EventTraceRecorder> trace_recorder);
 
-/*! \brief Get the running request entries from the engine state. */
-inline std::vector<RequestStateEntry> GetRunningRequestStateEntries(const EngineState& estate) {
-  std::vector<RequestStateEntry> rsentries;
-  for (const Request& request : estate->running_queue) {
-    for (const RequestStateEntry& rsentry : estate->GetRequestState(request)->entries) {
-      // One request entry is considered as running for decode if it is a leaf and has
-      // finished all input prefill.
-      if (rsentry->status == RequestStateStatus::kAlive && rsentry->child_indices.empty() &&
-          rsentry->mstates[0]->inputs.empty()) {
-        rsentries.push_back(rsentry);
-      }
-    }
-  }
-  return rsentries;
-}
-
 /*!
  * \brief Apply the logit processor to the logits and sample one token for each request.
  *

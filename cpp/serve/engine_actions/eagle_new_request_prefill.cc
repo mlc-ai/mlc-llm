@@ -331,6 +331,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
     std::vector<Request> processed_requests =
         RemoveProcessedRequests(prefill_inputs, estate, rstates_of_entries);
+    estate->running_rsentries_changed = true;
     return processed_requests;
   }
 
