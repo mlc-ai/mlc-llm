@@ -251,6 +251,8 @@ class EngineConfigNode : public Object {
   SpeculativeMode speculative_mode = SpeculativeMode::kDisable;
   /*! \brief The number of tokens to generate in speculative proposal (draft). */
   int spec_draft_length = 4;
+  /*! \brief The number of tokens to generate in speculative tree decoding */
+  int spec_tree_width = 1;
 
   /*************** Prefill mode ***************/
 
