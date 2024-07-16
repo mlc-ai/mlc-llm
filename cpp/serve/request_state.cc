@@ -80,9 +80,17 @@ void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_
   draft_output_tokens.push_back(std::move(sampled_token));
   draft_token_slots.push_back(draft_token_slot);
   draft_token_parent_idx.push_back(parent_idx);
+  draft_token_first_child_idx.push_back(-1);
+  if (parent_idx != -1) {
+    if (draft_token_first_child_idx[parent_idx] == -1) {
+      draft_token_first_child_idx[parent_idx] = static_cast<int>(draft_output_tokens.size()) - 1;
+    }
+  }
 }
 
 void RequestModelStateNode::RemoveLastDraftToken() {
+  // This method doesn't update the tree structure. It should only be called as part of
+  // `RemoveAllDraftTokens`.
   ICHECK(!draft_output_tokens.empty());
   draft_output_tokens.pop_back();
   draft_token_parent_idx.pop_back();
@@ -90,9 +98,18 @@ void RequestModelStateNode::RemoveLastDraftToken() {
 
 void RequestModelStateNode::RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots) {
   if (removed_draft_token_slots != nullptr) {
-    removed_draft_token_slots->assign(draft_token_slots.begin(), draft_token_slots.end());
+    std::unordered_set<int> dedup;
+    removed_draft_token_slots->clear();
+    for (auto slot : draft_token_slots) {
+      bool inserted = dedup.insert(slot).second;
+      if (inserted) {
+        removed_draft_token_slots->push_back(slot);
+      }
+    }
   }
   draft_token_slots.clear();
+  draft_token_parent_idx.clear();
+  draft_token_first_child_idx.clear();
   while (!draft_output_tokens.empty()) {
     RemoveLastDraftToken();
   }

@@ -78,6 +78,9 @@ class RequestModelStateNode : public Object {
   std::vector<int> draft_token_slots;
   /*! \brief The parent indices of the draft tokens. */
   std::vector<int64_t> draft_token_parent_idx;
+  /*! \brief The first child indices of the draft tokens. */
+  std::vector<int64_t> draft_token_first_child_idx;
+
   /*! \brief The appeared committed and draft tokens and their occurrence times. */
   std::unordered_map<int32_t, int32_t> appeared_token_ids;
 
