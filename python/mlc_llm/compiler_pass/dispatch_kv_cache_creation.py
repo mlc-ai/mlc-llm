@@ -6,6 +6,7 @@ import tvm
 from tvm import IRModule, relax
 
 from mlc_llm.nn import RopeMode, kv_cache
+from mlc_llm.quantization import PagedKVCacheQuantization, get_kv_storage_dtype
 
 
 def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
@@ -20,13 +21,13 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert isinstance(args[0], relax.ExternFunc)
     assert args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
 
-    assert len(args) == 11
+    assert len(args) == 12
     assert isinstance(args[1], relax.ShapeExpr)
     assert len(args[1].values) == 5
-    for i in range(2, 10):
+    for i in range(2, 11):
         assert isinstance(args[i], relax.PrimValue)
         assert isinstance(args[i].value, (tvm.tir.IntImm, tvm.tir.FloatImm))
-    assert isinstance(args[10], relax.DataTypeImm)
+    assert isinstance(args[11], relax.DataTypeImm)
 
     return {
         "max_batch_size": args[1].values[0],
@@ -42,7 +43,8 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
         "rope_scale": args[7].value.value,
         "rope_theta": args[8].value.value,
         "rotary_dim": args[9].value.value,
-        "dtype": args[10].value,
+        "kv_quantization": args[10].value.value,
+        "dtype": args[11].value,
     }
 
 
@@ -105,6 +107,10 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             "num_attention_heads": kwargs["num_attention_heads"],
             "num_key_value_heads": kwargs["num_key_value_heads"],
             "head_dim": kwargs["head_dim"],
+            "kv_nbits": get_kv_storage_dtype(
+                kv_quant_scheme=PagedKVCacheQuantization(kwargs["kv_quantization"]).name.lower(),
+                model_dtype=kwargs["dtype"],
+            ).bits,
         }
 
     def create_tir_paged_kv_cache(self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]) -> None:
@@ -156,6 +162,8 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             )
             # filter by attention group size
             or kwargs["num_attention_heads"] // kwargs["num_key_value_heads"] not in [1, 4, 8]
+            # MLC-LLM with FlashInfer and KV Quantization not supported yet
+            or kwargs["kv_quantization"] != PagedKVCacheQuantization.KV_NO_QUANT
         ):
             return
 

@@ -233,6 +233,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
+        self.kv_quantization = config.kv_quantization
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -320,6 +321,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
         )
 

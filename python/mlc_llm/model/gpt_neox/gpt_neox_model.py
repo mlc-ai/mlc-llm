@@ -13,6 +13,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -39,6 +40,7 @@ class GPTNeoXConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     ffn_out_dtype: str = "float32"
     max_batch_size: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -253,6 +255,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.kv_quantization = config.kv_quantization
         self.dtype = "float32"
         self.rotary_pct = config.rotary_pct
 
@@ -342,6 +345,7 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
             rotary_dim=int(self.head_dim * self.rotary_pct),
         )

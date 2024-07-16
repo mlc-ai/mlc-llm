@@ -12,6 +12,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -38,6 +39,7 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -107,6 +109,7 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     n_head_kv: int = 0
     head_dim: int = 0
     tensor_parallel_shards: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -166,6 +169,7 @@ class PhiConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             n_head_kv=config.num_key_value_heads,
             head_dim=config.head_dim,
             tensor_parallel_shards=config.tensor_parallel_shards,
+            kv_quantization=config.kv_quantization,
             kwargs=config.kwargs,
         )
 
@@ -328,6 +332,7 @@ class PhiForCausalLM(nn.Module):
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.kv_quantization = config.kv_quantization
         self.rotary_dim = config.rotary_dim
         self.dtype = "float32"
 
@@ -420,6 +425,7 @@ class PhiForCausalLM(nn.Module):
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            kv_quantization=self.kv_quantization,
             rotary_dim=self.rotary_dim,
             dtype=self.dtype,
         )

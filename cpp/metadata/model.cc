@@ -46,6 +46,7 @@ ModelMetadata::KVCacheMetadata ModelMetadata::KVCacheMetadata::FromJSON(
   kv_cache_metadata.head_dim = json::Lookup<int64_t>(json, "head_dim");
   kv_cache_metadata.num_attention_heads = json::Lookup<int64_t>(json, "num_attention_heads");
   kv_cache_metadata.num_key_value_heads = json::Lookup<int64_t>(json, "num_key_value_heads");
+  kv_cache_metadata.kv_nbits = json::Lookup<int64_t>(json, "kv_nbits");
   return kv_cache_metadata;
 }
 
@@ -73,7 +74,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
     result.kv_cache_metadata = {/*num_hidden_layers=*/0,
                                 /*head_dim=*/0,
                                 /*num_attention_heads=*/0,
-                                /*num_key_value_heads=*/0};
+                                /*num_key_value_heads=*/0,
+                                /*kv_nbits=*/0};
   }
   {
     std::vector<ModelMetadata::Param>& params = result.params;

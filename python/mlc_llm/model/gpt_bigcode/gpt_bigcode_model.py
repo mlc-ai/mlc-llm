@@ -12,6 +12,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -35,6 +36,7 @@ class GPTBigCodeConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -190,6 +192,7 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         self.num_kv_heads = 1
         self.head_dim = config.n_embd // config.n_head
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.kv_quantization = config.kv_quantization
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -278,6 +281,7 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             rope_mode=RopeMode.NONE,
             rope_scale=-1,
             rope_theta=-1,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
         )
 

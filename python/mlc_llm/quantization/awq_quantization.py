@@ -9,6 +9,7 @@ from tvm.runtime import NDArray
 
 from mlc_llm.loader import QuantizeMapping
 
+from .paged_kv_cache_quantization import PagedKVCacheQuantization
 from .utils import convert_uint_to_float, is_final_fc, is_moe_gate
 
 
@@ -41,6 +42,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
     quantize_dtype: str  # "int3", "int4", "int8"
     storage_dtype: str  # "uint32"
     model_dtype: str  # "float16", "float32"
+    kv_quantization: PagedKVCacheQuantization
 
     num_elem_per_storage: int = 0
     num_storage_per_group: int = 0

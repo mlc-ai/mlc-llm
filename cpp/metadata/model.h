@@ -67,6 +67,7 @@ struct ModelMetadata {
     int64_t num_attention_heads;
     int64_t num_key_value_heads;
     int64_t head_dim;
+    int64_t kv_nbits;
     static KVCacheMetadata FromJSON(const picojson::object& json);
   };
 
