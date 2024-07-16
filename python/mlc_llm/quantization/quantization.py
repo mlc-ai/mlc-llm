@@ -6,6 +6,7 @@ from .awq_quantization import AWQQuantize
 from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
+from .paged_kv_cache_quantization import PagedKVCacheQuantization
 from .per_tensor_quantization import PerTensorQuantize
 
 Quantization = Any
@@ -48,6 +49,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="KN",
         quantize_embedding=True,
         quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "q3f16_1": GroupQuantize(
         name="q3f16_1",
@@ -59,6 +61,19 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="NK",
         quantize_embedding=True,
         quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
+    ),
+    "q3f16kv": GroupQuantize(
+        name="q3f16kv",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_GROUP_QUANT_INT_3,
     ),
     "q4f16_0": GroupQuantize(
         name="q4f16_0",
@@ -70,6 +85,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="KN",
         quantize_embedding=True,
         quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "q4f16_1": GroupQuantize(
         name="q4f16_1",
@@ -81,6 +97,19 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="NK",
         quantize_embedding=True,
         quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
+    ),
+    "q4f16kv": GroupQuantize(
+        name="q4f16kv",
+        kind="group-quant",
+        group_size=32,
+        quantize_dtype="int4",
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_GROUP_QUANT_INT_4,
     ),
     "q4f32_1": GroupQuantize(
         name="q4f32_1",
@@ -92,6 +121,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="NK",
         quantize_embedding=True,
         quantize_final_fc=True,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "q4f16_2": GroupQuantize(
         name="q4f16_2",
@@ -103,6 +133,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         linear_weight_layout="NK",
         quantize_embedding=False,
         quantize_final_fc=False,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "q4f16_autoawq": AWQQuantize(
         name="q4f16_autoawq",
@@ -111,6 +142,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_dtype="int4",
         storage_dtype="uint32",
         model_dtype="float16",
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "q4f16_ft": FTQuantize(
         name="q4f16_ft",
@@ -118,6 +150,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_dtype="int4",
         storage_dtype="int8",
         model_dtype="float16",
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "e5m2_e5m2_f16": PerTensorQuantize(
         name="e5m2_e5m2_f16",
@@ -130,6 +163,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_embedding=False,
         quantize_linear=True,
         use_scale=False,
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "e4m3_e4m3_f16": PerTensorQuantize(
         name="e4m3_e4m3_f16",
@@ -143,6 +177,7 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_linear=True,
         use_scale=True,
         calibration_mode="inference",
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
     "e4m3_e4m3_f16_max_calibrate": PerTensorQuantize(
         name="e4m3_e4m3_f16_max_calibrate",
@@ -156,5 +191,6 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_linear=True,
         use_scale=True,
         calibration_mode="max",
+        kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
     ),
 }

@@ -12,6 +12,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -40,6 +41,7 @@ class Starcoder2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -196,6 +198,7 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         self.vocab_size = config.vocab_size
         self.rope_theta = config.rope_theta
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.kv_quantization = config.kv_quantization
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -282,6 +285,7 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
         )
 

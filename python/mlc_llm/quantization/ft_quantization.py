@@ -21,6 +21,7 @@ from .group_quantization import (
     GroupQuantizeEmbedding,
     GroupQuantizeLinear,
 )
+from .paged_kv_cache_quantization import PagedKVCacheQuantization
 from .utils import is_final_fc, is_moe_gate
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
     quantize_dtype: Literal["int4", "int8"]
     storage_dtype: Literal["int8"]
     model_dtype: Literal["float16"]
+    kv_quantization: PagedKVCacheQuantization
     group_size: Optional[int] = None
 
     num_elem_per_storage: int = 0
@@ -57,6 +59,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
             storage_dtype="uint32",
             model_dtype=self.model_dtype,
             linear_weight_layout="NK",
+            kv_quantization=self.kv_quantization,
         )
 
     def __post_init__(self):

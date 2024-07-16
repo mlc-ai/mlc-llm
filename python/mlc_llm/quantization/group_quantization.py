@@ -12,6 +12,7 @@ from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
 from mlc_llm.support import logging
 
+from .paged_kv_cache_quantization import PagedKVCacheQuantization
 from .utils import (
     apply_sharding,
     compile_quantize_func,
@@ -35,6 +36,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     storage_dtype: Literal["uint32"]
     model_dtype: Literal["float16", "float32"]
     linear_weight_layout: Literal["KN", "NK"]
+    kv_quantization: PagedKVCacheQuantization
     quantize_embedding: bool = True
     quantize_final_fc: bool = True
 

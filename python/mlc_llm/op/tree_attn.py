@@ -4,9 +4,7 @@ import math
 from typing import Tuple
 
 from tvm import tir
-from tvm.runtime import DataType
 from tvm.script import tir as T
-from tvm.target import Target
 
 from mlc_llm.op.position_embedding import rope_freq
 
@@ -42,21 +40,13 @@ def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):
     return tir.all(col < kv_len, mask_ptr[offset + row * stride + col] == 1)
 
 
-def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
+def tree_attn(kv_cache_config):
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
     ----------
-    h_kv : int
-        Number of heads for key and value.
-    h_q : int
-        Number of heads for query.
-    d : int
-        Hidden dimension.
-    dtype : str
-        Data type.
-    target : Target
-        The target device.
+    kv_cache_config : BaseKVConfig
+        Page KV Cache configuration.
 
     Returns
     -------
@@ -64,20 +54,23 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
         The generated IR module.
     """
     # pylint: disable=invalid-name,line-too-long
+    h_kv = kv_cache_config.num_key_value_heads
+    h_q = kv_cache_config.num_attention_heads
+    d = kv_cache_config.head_dim
+    dtype = kv_cache_config.model_dtype
+    target = kv_cache_config.target
+
     NUM_BLKS = 16
-    LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
+    LOAD_VEC = 8 // ((dtype.bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
     sm_scale = 1.0 / math.sqrt(float(d)) * math.log2(math.exp(1))
 
     bdx = 32
     num_warps = 4
-    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
+    tile_x, tile_y, tile_z = 64 // ((dtype.bits + 7) // 8) // max(d // 128, 1), d, 16
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
-    if (
-        str(target.kind) == "webgpu"
-        and ((d + 127) // 128) * ((DataType(dtype).bits + 15) // 16) >= 4
-    ):
+    if str(target.kind) == "webgpu" and ((d + 127) // 128) * ((dtype.bits + 15) // 16) >= 4:
         tile_z = 8
         num_warps = 2
 

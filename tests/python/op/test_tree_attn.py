@@ -6,6 +6,7 @@ import tvm
 import tvm.testing
 
 from mlc_llm.op.tree_attn import tree_attn
+from mlc_llm.quantization import PagedKVCacheQuantization, get_paged_kv_cache_config
 
 # test category "op_correctness"
 pytestmark = [pytest.mark.op_correctness]
@@ -112,9 +113,21 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     mask_tvm = tvm.nd.array(mask, dev)
     output_tvm = tvm.nd.array(output, dev)
     lse_tvm = tvm.nd.array(lse, dev)
-
     target = tvm.target.Target("cuda")
-    kernel = tree_attn(h_kv=h_kv, h_q=h_q, d=d, dtype="float16", target=target)
+
+    kv_cache_config = get_paged_kv_cache_config(
+        kv_quant_scheme=PagedKVCacheQuantization.KV_NO_QUANT.name.lower(),
+        model_dtype="float16",
+        kwargs={
+            "head_dim": d,
+            "num_hidden_layers": -1,
+            "num_attention_heads": h_q,
+            "num_key_value_heads": h_kv,
+            "target": target,
+        },
+    )
+
+    kernel = tree_attn(kv_cache_config)
     mod = tvm.build(kernel, target=target)
     mod(
         q_tvm,

@@ -170,40 +170,33 @@ def llama_rope(  # pylint: disable=too-many-arguments
 
 
 def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
+    kv_cache_config,
     theta: float,
     scale: float,
-    head_dim: int,
-    num_q_heads: int,
-    num_kv_heads: int,
-    dtype: str,
     rotary_dim: Optional[int] = None,
 ):
     """Return the TIR function that computes Llama-style RoPE with q position map.
 
     Parameters
     ----------
+    kv_cache_config : BaseKVConfig
+        Page KV Cache configuration.
+
     theta : float
         The theta value, or "base" in RoPE, which controls the frequency.
 
     scale : float
         The RoPE scaling factor.
 
-    head_dim : int
-        The number of features on each head.
-
-    num_q_heads : int
-        The number of query heads.
-
-    num_kv_heads : int
-        The number of key/value heads. It differs from `num_q_heads` in group-query attention.
-
-    dtype : str
-        The dtype of qkv data.
-
     rotary_dim : int
         The number of dimensions in the embedding that RoPE is applied to. By default, the
         rotary_dim is the same as head_dim.
     """
+    head_dim = kv_cache_config.head_dim
+    num_q_heads = kv_cache_config.num_attention_heads
+    num_kv_heads = kv_cache_config.num_key_value_heads
+    dtype = kv_cache_config.model_dtype
+
     fused_heads = num_q_heads + num_kv_heads * 2
     if rotary_dim is None:
         rotary_dim = head_dim

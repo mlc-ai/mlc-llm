@@ -25,6 +25,7 @@ from tvm.relax.op import arange, strided_slice
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
@@ -72,6 +73,7 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     text_architecture: str = "LlamaForCausalLM"
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -369,6 +371,7 @@ class LlavaForCasualLM(Module):
         self.multi_modal_projector = LlavaMultiModalProjector(config)
         self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
         self.vocab_size = config.vocab_size
+        self.kv_quantization = config.kv_quantization
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
@@ -450,6 +453,7 @@ class LlavaForCasualLM(Module):
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.language_model.rope_theta,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
         )
 

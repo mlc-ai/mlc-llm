@@ -1,5 +1,6 @@
 """This file specifies how MLC's InternLM2 parameters are quantized using group quantization
 or other formats."""
+
 from typing import Tuple
 
 from tvm.relax.frontend import nn
@@ -15,6 +16,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a InternLM2-architecture model using group quantization."""
+    model_config.kv_quantization = quantization.kv_quantization
     model: nn.Module = InternLM2ForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})

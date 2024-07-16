@@ -22,6 +22,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Mixtral-architecture model using group quantization."""
+    model_config.kv_quantization = quantization.kv_quantization
     model: nn.Module = MixtralForCasualLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})

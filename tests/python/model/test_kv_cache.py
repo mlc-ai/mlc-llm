@@ -7,6 +7,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 from mlc_llm.nn.kv_cache import FlashInferPagedKVCache, PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=invalid-name,unused-argument,too-many-locals,too-many-statements
@@ -88,6 +89,7 @@ def test_nn_module_paged_kv_cache():
                 rope_scale=1,
                 rope_theta=10000,
                 rotary_dim=128,
+                kv_quantization=PagedKVCacheQuantization.KV_NO_QUANT,
                 dtype="float16",
             )
 

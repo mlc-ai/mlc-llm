@@ -12,6 +12,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.quantization import PagedKVCacheQuantization
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -40,6 +41,7 @@ class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
+    kv_quantization: PagedKVCacheQuantization = PagedKVCacheQuantization.KV_NO_QUANT
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -240,6 +242,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
+        self.kv_quantization = config.kv_quantization
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -337,6 +340,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            kv_quantization=self.kv_quantization,
             dtype=self.dtype,
         )
 
