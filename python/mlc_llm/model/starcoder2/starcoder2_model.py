@@ -158,7 +158,6 @@ class Starcoder2DecoderLayer(nn.Module):
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
         self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
 
-
         def _set_tp():
             def _set(layer, hint):
                 layer.attrs["shard_strategy"] = hint
@@ -192,7 +191,6 @@ class Starcoder2DecoderLayer(nn.Module):
             if config.use_bias:
                 _set(self.mlp.c_proj.bias, tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0))
 
-
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
@@ -209,14 +207,10 @@ class Starcoder2DecoderLayer(nn.Module):
         hidden_states = self._apply_residual(residual, residual=hidden_states)
         return hidden_states
 
-
     def _apply_residual(self, out, residual):
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
-
-
-
 
 
 class Starcoder2Model(nn.Module):
