@@ -457,6 +457,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
             models_[i]->PopNFromKVCache(rsentry->mstates[0]->internal_id,
                                         result.reused_seq_pop_last_tokens + 1);
           }
+          result.prefilled_offset -= 1;
         }
       }
       // Pop matched prefix
