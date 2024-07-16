@@ -166,7 +166,6 @@ class Starcoder2DecoderLayer(nn.Module):
             q = self.self_attn.num_heads * hd
             k = self.self_attn.num_key_value_heads * hd
             v = self.self_attn.num_key_value_heads * hd
-            i = self.mlp.intermediate_size
             _set(
                 self.self_attn.wqkv_pack.weight,
                 tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
