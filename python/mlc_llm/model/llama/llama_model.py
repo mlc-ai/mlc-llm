@@ -30,6 +30,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_hidden_layers: int
     rms_norm_eps: float
     vocab_size: int
+    tie_word_embeddings: bool = False
     position_embedding_base: int = 0
     context_window_size: int = 0
     prefill_chunk_size: int = 0
@@ -110,6 +111,17 @@ class LlamaFFN(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
+class LlamaEmbedding(nn.Embedding):
+    """The embedding module that can be shared with the final lm_head. From Qwen2Embedding."""
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
+
+
 class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
         self.head_dim = config.head_dim
@@ -183,7 +195,7 @@ class LlamaDecoderLayer(nn.Module):
 class LlamaModel(nn.Module):
     def __init__(self, config: LlamaConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
+        self.embed_tokens = LlamaEmbedding("vocab_size", config.hidden_size)
         self.layers = nn.ModuleList(
             [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -200,7 +212,9 @@ class LlamaModel(nn.Module):
 class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: LlamaConfig):
         self.model = LlamaModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
+        self.tie_word_embeddings = config.tie_word_embeddings
+        if not config.tie_word_embeddings:
+            self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -246,7 +260,10 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
     def get_logits(self, hidden_states: Tensor):
         op_ext.configure()
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
