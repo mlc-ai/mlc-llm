@@ -351,7 +351,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     int num_available_pages = models_[verify_model_id_]->GetNumAvailablePages();
 
     // Preempt the request state entries that cannot fit the large model for verification.
-    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
+    std::vector<RequestStateEntry> running_rsentries = estate->GetRunningRequestStateEntries();
     std::vector<int> num_page_requirement;
     num_page_requirement.reserve(running_rsentries.size());
     for (const RequestStateEntry& rsentry : running_rsentries) {

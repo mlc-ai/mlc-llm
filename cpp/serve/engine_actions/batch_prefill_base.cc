@@ -37,17 +37,14 @@ BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
 std::vector<BatchPrefillBaseActionObj::PrefillInput>
 BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   // Preempt request state entries when decode cannot apply.
-  std::vector<RequestStateEntry> running_rsentries;
+  const std::vector<RequestStateEntry>* running_rsentries;
   {
     NVTXScopedRange nvtx_scope("BatchDecode getting requests");
-    running_rsentries = GetRunningRequestStateEntries(estate);
-    while (!(running_rsentries.size() <= models_[0]->GetNumAvailablePages())) {
-      if (estate->prefix_cache->TryFreeMemory()) continue;
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
-      if (preempted.same_as(running_rsentries.back())) {
-        running_rsentries.pop_back();
-      }
+    running_rsentries = &estate->GetRunningRequestStateEntries();
+    if (!(running_rsentries->size() <= models_[0]->GetNumAvailablePages())) {
+      // Even the decode cannot be performed.
+      // As a result, directly return without doing prefill.
+      return {};
     }
   }
 
@@ -59,7 +56,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   std::vector<std::vector<PrefillInput>> prefill_inputs_for_all_models;
   prefill_inputs_for_all_models.reserve(models_.size());
 
-  int num_decode_inputs = static_cast<int>(running_rsentries.size());
+  int num_decode_inputs = static_cast<int>(running_rsentries->size());
 
   // We first collect the inputs that can be prefilled for each model.
   // Then we make a reduction to return the maximum common inputs.
@@ -69,19 +66,18 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     int total_input_length = 0;
     int total_required_pages = num_decode_inputs;
     // Reserve decode requests first.
-    for (const RequestStateEntry& rsentry : running_rsentries) {
+    for (const RequestStateEntry& rsentry : *running_rsentries) {
       prefill_inputs.push_back(
           {rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
       total_input_length += rsentry->mstates[i]->num_tokens_for_next_decode;
     }
     int num_available_pages;
-    int num_running_rsentries;
+    int num_running_rsentries = num_decode_inputs;
     int current_total_seq_len;
     KVStateKind kv_state_kind;
     {
       NVTXScopedRange nvtx_scope("Query KV cache status");
       num_available_pages = models_[i]->GetNumAvailablePages();
-      num_running_rsentries = GetRunningRequestStateEntries(estate).size();
       current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
       kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
     }

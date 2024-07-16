@@ -45,7 +45,7 @@ class BatchDraftActionObj : public EngineActionObj {
     }
 
     // Preempt request state entries when decode cannot apply.
-    std::vector<RequestStateEntry> running_rsentries = GetRunningRequestStateEntries(estate);
+    std::vector<RequestStateEntry> running_rsentries = estate->GetRunningRequestStateEntries();
     while (!CanDecode(running_rsentries.size())) {
       if (estate->prefix_cache->TryFreeMemory()) continue;
       RequestStateEntry preempted = PreemptLastRunningRequestStateEntry(
