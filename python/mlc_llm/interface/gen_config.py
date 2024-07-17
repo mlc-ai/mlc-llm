@@ -258,6 +258,7 @@ TOKENIZER_FILES = [
 CONV_TEMPLATES = {
     "llama-3",
     "chatml",
+    "chatml_nosystem",
     "open_hermes_mistral",
     "neural_hermes_mistral",
     "llama_default",
