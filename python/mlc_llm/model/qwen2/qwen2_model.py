@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class QWen2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the QWen model."""
+    """Configuration of the QWen2 model."""
 
     hidden_act: str
     hidden_size: int
