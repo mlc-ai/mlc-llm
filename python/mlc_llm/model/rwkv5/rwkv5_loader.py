@@ -19,7 +19,7 @@ def huggingface(model_config: RWKV5Config, quantization: Quantization) -> Extern
     Parameters
     ----------
     model_config : RWKVConfig
-        The configuration of the Mistral model.
+        The configuration of the RWKV5 model.
 
     quantization : Quantization
         The quantization configuration.
