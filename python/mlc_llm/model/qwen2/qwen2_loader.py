@@ -19,8 +19,8 @@ def huggingface(model_config: QWen2Config, quantization: Quantization) -> Extern
 
     Parameters
     ----------
-    model_config : GPT2Config
-        The configuration of the GPT-2 model.
+    model_config : QWen2Config
+        The configuration of the Qwen2 model.
 
     quantization : Quantization
         The quantization configuration.
