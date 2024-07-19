@@ -331,6 +331,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
     std::vector<Request> processed_requests =
         RemoveProcessedRequests(prefill_inputs, estate, rstates_of_entries);
+    estate->running_rsentries_changed = true;
     return processed_requests;
   }
 
@@ -457,6 +458,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
             models_[i]->PopNFromKVCache(rsentry->mstates[0]->internal_id,
                                         result.reused_seq_pop_last_tokens + 1);
           }
+          result.prefilled_offset -= 1;
         }
       }
       // Pop matched prefix

@@ -600,6 +600,7 @@ class EngineImpl : public Engine {
 
     // Send a callback to notice the abortion.
     this->StreamBackError(request, "abort");
+    estate_->running_rsentries_changed = true;
   }
 
   void AbortAllRequests() final {

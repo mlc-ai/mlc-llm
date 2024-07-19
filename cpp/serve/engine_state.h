@@ -64,16 +64,23 @@ class EngineStateObj : public Object {
   EngineMetrics metrics;
   /*! \brief The prefix cache. */
   PrefixCache prefix_cache{nullptr};
+  /*! \brief A boolean flag denoting whether the running request state entry list has changed. */
+  bool running_rsentries_changed = true;
 
   /*! \brief Reset the engine state and clear the metrics. */
   void Reset();
   /*! \brief Get the request state of the given request. */
   RequestState GetRequestState(Request request);
+  /*! \brief Return the running request state entries*/
+  const std::vector<RequestStateEntry>& GetRunningRequestStateEntries();
 
   static constexpr const char* _type_key = "mlc.serve.EngineState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(EngineStateObj, Object);
+
+ private:
+  std::vector<RequestStateEntry> cached_running_rsentries_;
 };
 
 /*!

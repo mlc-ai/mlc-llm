@@ -96,6 +96,7 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
       callback_delta_outputs->push_back(RequestStreamOutput::Usage(
           root_rsentry->request->id, rstate->metrics.AsUsageJSONStr(true)));
     }
+    estate->running_rsentries_changed = true;
   }
 }
 
@@ -294,6 +295,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     // Add to the front of waiting queue.
     estate->waiting_queue.insert(estate->waiting_queue.begin(), request);
   }
+  estate->running_rsentries_changed = true;
   return rsentry;
 }
 

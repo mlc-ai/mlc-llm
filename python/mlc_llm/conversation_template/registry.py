@@ -52,6 +52,21 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# ChatML without a system prompt
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="chatml_nosystem",
+        system_template=f"{MessagePlaceholders.SYSTEM.value}",
+        system_message="",
+        roles={"user": "<|im_start|>user", "assistant": "<|im_start|>assistant"},
+        seps=["<|im_end|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        stop_str=["<|im_end|>"],
+        stop_token_ids=[2],
+    )
+)
+
 
 # Vanilla LM
 ConvTemplateRegistry.register_conv_template(

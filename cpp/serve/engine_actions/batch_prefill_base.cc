@@ -37,17 +37,14 @@ BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
 std::vector<BatchPrefillBaseActionObj::PrefillInput>
 BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   // Preempt request state entries when decode cannot apply.
-  std::vector<RequestStateEntry> running_rsentries;
+  const std::vector<RequestStateEntry>* running_rsentries;
   {
     NVTXScopedRange nvtx_scope("BatchDecode getting requests");
-    running_rsentries = GetRunningRequestStateEntries(estate);
-    while (!(running_rsentries.size() <= models_[0]->GetNumAvailablePages())) {
-      if (estate->prefix_cache->TryFreeMemory()) continue;
-      RequestStateEntry preempted =
-          PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
-      if (preempted.same_as(running_rsentries.back())) {
-        running_rsentries.pop_back();
-      }
+    running_rsentries = &estate->GetRunningRequestStateEntries();
+    if (!(running_rsentries->size() <= models_[0]->GetNumAvailablePages())) {
+      // Even the decode cannot be performed.
+      // As a result, directly return without doing prefill.
+      return {};
     }
   }
 
@@ -59,29 +56,25 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   std::vector<std::vector<PrefillInput>> prefill_inputs_for_all_models;
   prefill_inputs_for_all_models.reserve(models_.size());
 
-  int num_decode_inputs = static_cast<int>(running_rsentries.size());
+  int num_decode_inputs = static_cast<int>(running_rsentries->size());
 
   // We first collect the inputs that can be prefilled for each model.
   // Then we make a reduction to return the maximum common inputs.
   for (int i = 0; i < static_cast<int>(models_.size()); ++i) {
     std::vector<PrefillInput> prefill_inputs;
-    // - Try to prefill pending requests, in addition to reserved decode requests.
+    // - Try to prefill pending requests.
     int total_input_length = 0;
-    int total_required_pages = num_decode_inputs;
-    // Reserve decode requests first.
-    for (const RequestStateEntry& rsentry : running_rsentries) {
-      prefill_inputs.push_back(
-          {rsentry, rsentry->mstates[i]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
+    for (const RequestStateEntry& rsentry : *running_rsentries) {
       total_input_length += rsentry->mstates[i]->num_tokens_for_next_decode;
     }
+    int total_required_pages = num_decode_inputs;
     int num_available_pages;
-    int num_running_rsentries;
+    int num_running_rsentries = num_decode_inputs;
     int current_total_seq_len;
     KVStateKind kv_state_kind;
     {
       NVTXScopedRange nvtx_scope("Query KV cache status");
       num_available_pages = models_[i]->GetNumAvailablePages();
-      num_running_rsentries = GetRunningRequestStateEntries(estate).size();
       current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
       kv_state_kind = models_[i]->GetMetadata().kv_state_kind;
     }
@@ -215,14 +208,20 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         std::min(num_prefill_inputs, static_cast<int>(prefill_inputs_for_all_models[i].size()));
   }
 
-  // If all inputs are decode inputs, since no prefill inputs can be added, skip prefill action
-  if (num_prefill_inputs == num_decode_inputs) {
+  if (num_prefill_inputs == 0) {
     return {};
   }
 
-  std::vector<PrefillInput> prefill_inputs(
-      prefill_inputs_for_all_models[0].begin(),
-      prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
+  // Add the decode requests to the prefill inputs.
+  std::vector<PrefillInput> prefill_inputs;
+  prefill_inputs.reserve(num_decode_inputs + num_prefill_inputs);
+  for (const RequestStateEntry& rsentry : *running_rsentries) {
+    prefill_inputs.push_back(
+        {rsentry, rsentry->mstates[0]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
+  }
+  prefill_inputs.insert(prefill_inputs.end(), prefill_inputs_for_all_models[0].begin(),
+                        prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
+  num_prefill_inputs += num_decode_inputs;
   {
     NVTXScopedRange nvtx_scope("reduction");
     for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
