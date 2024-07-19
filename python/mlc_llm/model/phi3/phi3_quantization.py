@@ -1,4 +1,4 @@
-"""This file specifies how MLC's Phi parameters are quantized using group quantization
+"""This file specifies how MLC's Phi-3 parameters are quantized using group quantization
 or other formats."""
 
 from typing import Tuple
