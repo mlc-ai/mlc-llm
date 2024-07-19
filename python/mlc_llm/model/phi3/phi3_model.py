@@ -1,5 +1,5 @@
 """
-Implementation for Phi architecture.
+Implementation for Phi3 architecture.
 TODO: add docstring
 """
 
