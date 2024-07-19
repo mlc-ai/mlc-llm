@@ -194,16 +194,10 @@ class Starcoder2DecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        residual = hidden_states
-        hidden_states = self.input_layernorm(hidden_states)
-        hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = residual + hidden_states
-        hidden_states = self._apply_residual(residual, residual=hidden_states)
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states
-        hidden_states = self._apply_residual(residual, residual=hidden_states)
+        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        hidden_states = self._apply_residual(out, residual=hidden_states)
+        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
     def _apply_residual(self, out, residual):
