@@ -25,6 +25,7 @@ GEN_CONFIG_OPTIONAL_ARGS = [
     "prefill_chunk_size",
     "attention_sink_size",
     "tensor_parallel_shards",
+    "pipeline_parallel_stages",
 ]
 
 T = TypeVar("T", bound="BaseModel")
@@ -40,6 +41,7 @@ class OverrideConfigs(BaseModel):
     prefill_chunk_size: Optional[int] = None
     attention_sink_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
+    pipeline_parallel_stages: Optional[int] = None
 
 
 class ModelDeliveryTask(BaseModel):

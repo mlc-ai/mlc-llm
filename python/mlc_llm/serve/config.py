@@ -47,6 +47,9 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards : Optional[int]
         Number of shards to split the model into in tensor parallelism multi-gpu inference.
 
+    pipeline_parallel_stages : Optional[int]
+        Number of pipeline stages to split the model layers for pipeline parallelism.
+
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
         It is used to infer to maximum possible KV cache capacity.
@@ -118,6 +121,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     additional_models: List[Union[str, Tuple[str, str]]] = field(default_factory=list)
     mode: Optional[Literal["local", "interactive", "server"]] = None
     tensor_parallel_shards: Optional[int] = None
+    pipeline_parallel_stages: Optional[int] = None
     gpu_memory_utilization: Optional[float] = None
     kv_cache_page_size: int = 16
     max_num_sequence: Optional[int] = None

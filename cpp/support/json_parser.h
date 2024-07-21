@@ -256,6 +256,16 @@ inline SymShapeTuple Lookup(const picojson::object& json, const std::string& key
 }
 
 template <>
+inline SymShapeTuple LookupOrDefault(const picojson::object& json, const std::string& key,
+                                     const SymShapeTuple& default_value) {
+  auto it = json.find(key);
+  if (it == json.end() || it->second.is<picojson::null>()) {
+    return default_value;
+  }
+  return details::SymShapeTupleFromArray(Lookup<picojson::array>(json, key));
+}
+
+template <>
 inline SymShapeTuple Lookup(const picojson::array& json, int index) {
   return details::SymShapeTupleFromArray(Lookup<picojson::array>(json, index));
 }

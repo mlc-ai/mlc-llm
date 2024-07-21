@@ -572,7 +572,9 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     int64_t num_qo_heads = model_metadata[i].kv_cache_metadata.num_attention_heads;
     int64_t num_kv_heads = model_metadata[i].kv_cache_metadata.num_key_value_heads;
     int64_t hidden_size = head_dim * num_qo_heads;
-    kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25;
+    kv_bytes_per_token +=
+        head_dim * num_kv_heads * (num_layers / model_metadata[i].pipeline_parallel_stages) * 4 +
+        1.25;
     kv_aux_workspace_bytes +=
         (max_num_sequence + 1) * 88 + prefill_chunk_size * (num_qo_heads + 1) * 8 +
         prefill_chunk_size * head_dim * (num_qo_heads + num_kv_heads) * 4 + 48 * 1024 * 1024;

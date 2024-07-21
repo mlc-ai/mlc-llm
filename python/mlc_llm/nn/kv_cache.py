@@ -4,7 +4,7 @@
 import enum
 import json
 import math
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from tvm import relax as rx
 from tvm import tir
@@ -57,6 +57,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         dtype: str,
         rotary_dim: Optional[int] = None,
         rope_scaling: Optional[Dict[str, Any]] = None,
+        layer_partition: Optional[List[int]] = None,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
         """The generic function of creating a PagedKVCache,
@@ -66,6 +67,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             rotary_dim = head_dim
         if rope_scaling is None:
             rope_scaling = {}
+        if layer_partition is None:
+            layer_partition = [0, num_hidden_layers]
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
@@ -78,6 +81,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                         support_sliding_window,
                     ]
                 ),
+                rx.ShapeExpr(layer_partition),
                 rx.PrimValue(num_hidden_layers),
                 rx.PrimValue(num_attention_heads),
                 rx.PrimValue(num_key_value_heads),
@@ -168,6 +172,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         prefill_chunk_size: tir.Var,
         page_size: tir.Var,
         support_sliding_window: tir.Var,
+        layer_partition: rx.ShapeExpr,
         num_hidden_layers: int,
         num_attention_heads: int,
         num_key_value_heads: int,
@@ -205,6 +210,9 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             0 or 1, denoting whether the KV cache supports sliding window.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        layer_partition : rx.ShapeExpr
+            The KV cache layer partition for pipeline stages.
+            It is an indptr array, denoting the starting layer of each pipeline stage.
         rope_mode : RopeMode
             The RoPE mode of the Paged KV cache.
             If it is normal, RoPE will be applied to k before adding k to cache.
@@ -213,6 +221,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rope_scaling: Dict[str, Any]
+            The RoPE scaling information dict.
         rotary_dim : int
             The number of dimensions in the embedding that RoPE is applied to.
         """
@@ -230,7 +240,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
                     support_sliding_window,
                 ]
             ),
-            rx.PrimValue(num_hidden_layers),
+            layer_partition,
             rx.PrimValue(num_attention_heads),
             rx.PrimValue(num_key_value_heads),
             rx.PrimValue(head_dim),
@@ -281,6 +291,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         prefill_chunk_size: tir.Var,
         page_size: tir.Var,
         support_sliding_window: tir.Var,
+        layer_partition: rx.ShapeExpr,
         num_hidden_layers: int,
         num_attention_heads: int,
         num_key_value_heads: int,
@@ -318,6 +329,9 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             0 or 1, denoting whether the KV cache supports sliding window.
             It is a symbolic variable whose concrete value is specified
             at runtime.
+        layer_partition : rx.ShapeExpr
+            The KV cache layer partition for pipeline stages.
+            It is an indptr array, denoting the starting layer of each pipeline stage.
         rope_mode : RopeMode
             The RoPE mode of the Paged KV cache.
             If it is normal, RoPE will be applied to k before adding k to cache.
@@ -326,6 +340,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The scale of rotary position embedding.
         rope_theta : int
             The base of rotary position embedding.
+        rope_scaling: Dict[str, Any]
+            The RoPE scaling information dict.
         rotary_dim : int
             The number of dimensions in the embedding that RoPE is applied to.
         target : Target
@@ -343,7 +359,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                     support_sliding_window,
                 ]
             ),
-            rx.PrimValue(num_hidden_layers),
+            layer_partition,
             rx.PrimValue(num_attention_heads),
             rx.PrimValue(num_key_value_heads),
             rx.PrimValue(head_dim),

@@ -27,6 +27,7 @@ def serve(
     enable_debug: bool,
     additional_models: List[Union[str, Tuple[str, str]]],
     tensor_parallel_shards: Optional[int],
+    pipeline_parallel_stages: Optional[int],
     max_num_sequence: Optional[int],
     max_total_sequence_length: Optional[int],
     max_single_sequence_length: Optional[int],
@@ -58,6 +59,7 @@ def serve(
         engine_config=engine.EngineConfig(
             additional_models=additional_models,
             tensor_parallel_shards=tensor_parallel_shards,
+            pipeline_parallel_stages=pipeline_parallel_stages,
             max_num_sequence=max_num_sequence,
             max_total_sequence_length=max_total_sequence_length,
             max_single_sequence_length=max_single_sequence_length,

@@ -147,6 +147,7 @@ class ModelConfigOverride(ConfigOverrideBase):
     attention_sink_size: Optional[int] = None
     max_batch_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
+    pipeline_parallel_stages: Optional[int] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -156,6 +157,7 @@ class ModelConfigOverride(ConfigOverrideBase):
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
+        print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -168,6 +170,7 @@ class ModelConfigOverride(ConfigOverrideBase):
         parser.add_argument("--attention_sink_size", type=int, default=None)
         parser.add_argument("--max_batch_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
+        parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
@@ -176,6 +179,7 @@ class ModelConfigOverride(ConfigOverrideBase):
             attention_sink_size=results.attention_sink_size,
             max_batch_size=results.max_batch_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
+            pipeline_parallel_stages=results.pipeline_parallel_stages,
         )
 
 

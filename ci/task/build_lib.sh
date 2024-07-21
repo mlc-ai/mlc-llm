@@ -8,6 +8,9 @@ export CCACHE_COMPILERCHECK=content
 export CCACHE_NOHASHDIR=1
 export CCACHE_DIR=/ccache
 
+# Temporary workaround to install ccache.
+conda install -c conda-forge ccache
+
 if [[ ${GPU} != metal ]]; then
 	source /multibuild/manylinux_utils.sh
 	source /opt/rh/gcc-toolset-11/enable # GCC-11 is the hightest GCC version compatible with NVCC < 12

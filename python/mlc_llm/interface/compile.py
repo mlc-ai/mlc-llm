@@ -59,12 +59,12 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(out.getvalue().rstrip())
 
 
-def _apply_preproc_to_params(
+def _apply_preproc_to_params_and_check_pipeline(
     named_params: List[Tuple[str, nn.Parameter]],
     model_config,
 ) -> Dict[str, tir.PrimFunc]:
     extra_tirs: Dict[str, tir.PrimFunc] = {}
-    for _, param in named_params:
+    for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)
         if shard_strategy is not None and model_config.tensor_parallel_shards > 1:
@@ -80,6 +80,18 @@ def _apply_preproc_to_params(
                     weight=param,
                 )
         param.attrs["preprocs"] = preprocs
+
+        pipeline_parallel_stages = getattr(model_config, "pipeline_parallel_stages", 1)
+        if pipeline_parallel_stages != 1:
+            assert "pipeline_stages" in param.attrs, (
+                f'The pipeline stage is undefined for parameter "{name}" when the number '
+                f"of pipeline parallel stages is {pipeline_parallel_stages}"
+            )
+        param.attrs["pipeline_stages"] = (
+            [0]
+            if "pipeline_stages" not in param.attrs
+            else list(set(param.attrs["pipeline_stages"]))
+        )
     return extra_tirs
 
 
@@ -113,6 +125,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "shape": [s if isinstance(s, int) else s.name for s in param.shape],
             "dtype": param.dtype,
             "preprocs": param.attrs["preprocs"],
+            "pipeline_stages": param.attrs.get("pipeline_stages", [0]),
         }
 
     model_config = args.overrides.apply(model_config)
@@ -149,7 +162,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         )
         # Step 3. Running relax compilation pipeline
         logger.info("Running optimizations using TVM Unity")
-        additional_tirs = _apply_preproc_to_params(named_params, model_config)
+        additional_tirs = _apply_preproc_to_params_and_check_pipeline(named_params, model_config)
         variable_bounds = _get_variable_bounds(model_config)
         cuda_graph_symbolic_capture_hints = {
             "batch_decode": ["batch_size"],
@@ -165,6 +178,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
             "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
             "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
+            "pipeline_parallel_stages": getattr(model_config, "pipeline_parallel_stages", 1),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
         }
