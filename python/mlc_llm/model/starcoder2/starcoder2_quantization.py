@@ -15,7 +15,7 @@ def group_quant(
     model_config: Starcoder2Config,
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a InternLM-architecture model using group quantization."""
+    """Quantize a Starcoder2-architecture model using group quantization."""
     model: nn.Module = Starcoder2ForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
@@ -32,7 +32,7 @@ def ft_quant(
     model_config: Starcoder2Config,
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a InternLM model using FasterTransformer quantization."""
+    """Quantize a Starcoder2 model using FasterTransformer quantization."""
     model: nn.Module = Starcoder2ForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
@@ -48,7 +48,7 @@ def no_quant(
     model_config: Starcoder2Config,
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a InternLM model without quantization."""
+    """Quantize a Starcoder2 model without quantization."""
     model: nn.Module = Starcoder2ForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
