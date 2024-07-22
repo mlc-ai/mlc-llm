@@ -77,7 +77,6 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
         if self.head_dim == 0:
             self.head_dim = self.hidden_size // self.num_attention_heads
         assert self.num_attention_heads % self.num_key_value_heads == 0
-        assert self.head_dim * self.num_attention_heads == self.hidden_size
         assert self.attention_sink_size >= 0
         if self.prefill_chunk_size == 0:
             prefill_chunk_size_candidates = []
