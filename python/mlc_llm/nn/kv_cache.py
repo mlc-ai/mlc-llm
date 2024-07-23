@@ -2,8 +2,9 @@
 
 # pylint: disable=too-many-statements,too-many-lines,too-many-arguments
 import enum
+import json
 import math
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from tvm import relax as rx
 from tvm import tir
@@ -12,7 +13,10 @@ from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
 
-from mlc_llm.op.position_embedding import llama_rope_with_position_map, rope_freq
+from mlc_llm.op.position_embedding import (
+    llama_rope_with_position_map,
+    switch_rope_freq_func,
+)
 from mlc_llm.op.tree_attn import tree_attn
 
 from ..support.max_thread_check import (
@@ -37,7 +41,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
     @staticmethod
-    def create_generic(
+    def create_generic(  # pylint: disable=too-many-locals
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -52,6 +56,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         rope_theta: int,
         dtype: str,
         rotary_dim: Optional[int] = None,
+        rope_scaling: Optional[Dict[str, Any]] = None,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
         """The generic function of creating a PagedKVCache,
@@ -59,6 +64,8 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         """
         if rotary_dim is None:
             rotary_dim = head_dim
+        if rope_scaling is None:
+            rope_scaling = {}
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
@@ -78,6 +85,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 rx.PrimValue(rope_mode),
                 rx.PrimValue(rope_scale),
                 rx.PrimValue(rope_theta),
+                rx.StringImm(json.dumps(rope_scaling)),
                 rx.PrimValue(rotary_dim),
                 rx.DataTypeImm(dtype),
                 sinfo_args=rx.ObjectStructInfo(),
@@ -167,6 +175,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_mode: RopeMode,
         rope_scale: int,
         rope_theta: int,
+        rope_scaling: Dict[str, Any],
         rotary_dim: int,
         dtype: str,
         target: Target,
@@ -234,8 +243,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, head_dim, dtype), "kv_cache_transpose_append"),
             rx.extern("flashinfer.attention_kernel_prefill_with_paged_kv_cache"),
             rx.extern("flashinfer.attention_kernel_decode_with_paged_kv_cache"),
-            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, True, target), "tir_attention_prefill_sliding_window"),
-            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, True, target), "tir_attention_decode_sliding_window"),
+            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window"),
+            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window"),
             rx.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache"),
             rx.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache_begin_forward"),
             rx.extern("flashinfer.attention_kernel_prefill_with_ragged_kv_cache_end_forward"),
@@ -244,11 +253,11 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             rx.extern("flashinfer.attention_kernel_decode_with_paged_kv_cache_begin_forward"),
             rx.extern("flashinfer.attention_kernel_decode_with_paged_kv_cache_end_forward"),
             rx.extern("flashinfer.merge_state_in_place"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rope_scaling, rotary_dim), "tir_split_rotary"),
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
-            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_with_tree_mask"),
+            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -279,6 +288,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         head_dim: int,
         rope_scale: int,
         rope_theta: int,
+        rope_scaling: Dict[str, Any],
         rotary_dim: int,
         dtype: str,
         target: Target,
@@ -344,17 +354,17 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             # pylint: disable=line-too-long
             # fmt: off
             bb.add_func(_kv_cache_transpose_append(num_key_value_heads, head_dim, dtype), "kv_cache_transpose_append"),
-            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, False, target), "tir_attention_prefill"),
-            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, False, target), "tir_attention_decode"),
-            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, True, target), "tir_attention_prefill_sliding_window"),
-            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, True, target), "tir_attention_decode_sliding_window"),
-            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_ragged"),
+            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, False, rope_scaling, target), "tir_attention_prefill"),
+            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, False, rope_scaling, target), "tir_attention_decode"),
+            bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, head_dim, dtype, True, rope_scaling, target), "tir_attention_prefill_sliding_window"),
+            bb.add_func(_attention_decode(num_key_value_heads, num_attention_heads, head_dim, dtype, True, rope_scaling, target), "tir_attention_decode_sliding_window"),
+            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_ragged"),
             bb.add_func(_merge_state_inplace(num_attention_heads, head_dim, dtype, target), "tir_attention_merge_state"),
-            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rotary_dim), "tir_split_rotary"),
+            bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, head_dim, num_attention_heads, num_key_value_heads, dtype, rope_scaling, rotary_dim), "tir_split_rotary"),
             bb.add_func(_copy_single_page(num_key_value_heads, page_size, head_dim, dtype, target), "kv_cache_copy_single_page"),
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
-            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, target), "tir_attention_prefill_with_tree_mask"),
+            bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -459,10 +469,13 @@ def _rope(
     theta: tir.Var,
     scale: tir.Var,
     indices: Tuple[tir.Var, ...],
-    qkv_dtype="float16",
+    qkv_dtype: str,
+    rope_scaling: Dict[str, Any],
 ):
     d = indices[-1]
-    cos_freq, sin_freq = rope_freq(offset * scale, d, rotary_dim, theta, "float32")
+    cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+        offset * scale, d, rotary_dim, theta, "float32"
+    )
     cos = cos_freq * buffer[indices].astype("float32")
     sin = sin_freq * tir.if_then_else(
         d < rotary_dim // 2,
@@ -515,7 +528,9 @@ def _get_seq_offset(pos, seq_id, length_info, sliding_window):
     )
 
 
-def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, target: Target):
+def _attention_prefill(
+    h_kv, h_q, d, dtype, sliding_window: bool, rope_scaling: Dict[str, Any], target: Target
+):
     # pylint: disable=invalid-name
     NUM_BLKS = 16
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
@@ -676,7 +691,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, target: Target
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype),
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -697,7 +712,7 @@ def _attention_prefill(h_kv, h_q, d, dtype, sliding_window: bool, target: Target
                                                     page_offset: T.int32(is_size_var=True) = T.floormod(seq_offset, 16)  # type: ignore
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(pages, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (page_no, 0, by, page_offset, j), dtype),
+                                                        _rope(pages, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (page_no, 0, by, page_offset, j), dtype, rope_scaling),
                                                         pages[page_no, 0, by, page_offset, j]
                                                     )
                                                 else:
@@ -886,6 +901,7 @@ def _attention_decode(
     head_dim,
     qkv_dtype,
     sliding_window: bool,
+    rope_scaling: Dict[str, Any],
     target: Target,
 ):
     # pylint: disable=invalid-name
@@ -1020,7 +1036,7 @@ def _attention_decode(
                                 for vec in T.vectorized(VEC_SIZE):
                                     Q_local[vec] = T.if_then_else(
                                         rotary_mode == 1,
-                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec), qkv_dtype),
+                                        _rope(Q, q_rope_position[batch_idx], head_dim, rope_theta, rope_scale, (bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec), qkv_dtype, rope_scaling),
                                         Q[bx, by * GROUP_SIZE + bz * bdy + ty, tx * VEC_SIZE + vec]
                                     )
 
@@ -1040,7 +1056,7 @@ def _attention_decode(
                                                 for vec in T.vectorized(VEC_SIZE):
                                                     K_smem[tile_start_s + j, tx * VEC_SIZE + vec] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, tx * VEC_SIZE + vec), qkv_dtype),
+                                                        _rope(pages, k_rope_pos_offset[batch_idx] + row_g, head_dim, rope_theta, rope_scale, (page_no, 0, by, page_offset, tx * VEC_SIZE + vec), qkv_dtype, rope_scaling),
                                                         pages[page_no, 0, by, page_offset, tx * VEC_SIZE + vec]
                                                     )
                                                     V_smem[tile_start_s + j, tx * VEC_SIZE + vec] = pages[page_no, 1, by, page_offset, tx * VEC_SIZE + vec]
@@ -1212,7 +1228,7 @@ def _merge_state_inplace(
 
 
 def _attention_prefill_ragged(
-    h_kv, h_q, d, dtype, target: Target
+    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
 ):  # pylint: disable=unused-argument
     # pylint: disable=invalid-name,line-too-long
     NUM_BLKS = 16
@@ -1347,7 +1363,7 @@ def _attention_prefill_ragged(
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype),
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -1366,7 +1382,7 @@ def _attention_prefill_ragged(
                                                 if cur_L < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype),
+                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype, rope_scaling),
                                                         k[L_kv_base + cur_L, by, j]
                                                     )
                                                 else:

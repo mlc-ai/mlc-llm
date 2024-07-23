@@ -32,6 +32,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     vocab_size: int
     tie_word_embeddings: bool = False
     position_embedding_base: int = 0
+    rope_scaling: Optional[Dict[str, Any]] = None
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     num_key_value_heads: int = 0
@@ -40,12 +41,20 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self):  # pylint: disable=too-many-branches
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
             else:
                 self.position_embedding_base = 10000
+        if self.rope_scaling is not None:
+            if "rope_type" not in self.rope_scaling:
+                self.rope_scaling = None
+            else:
+                assert (
+                    self.rope_scaling["rope_type"] == "llama3"
+                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Llama'
+
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -221,6 +230,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.head_dim = config.head_dim
         self.hidden_size = config.hidden_size
         self.vocab_size = config.vocab_size
+        self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
@@ -361,6 +371,7 @@ class LlamaForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            rope_scaling=self.rope_scaling,
             dtype=self.dtype,
         )
 

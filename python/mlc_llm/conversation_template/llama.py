@@ -4,6 +4,26 @@ from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlacehol
 
 from .registry import ConvTemplateRegistry
 
+# Llama3.1 -- same as Llama3 except stop token ids and stop str
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="llama-3_1",
+        system_template=(
+            "<|start_header_id|>system<|end_header_id|>\n\n"
+            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>"
+        ),
+        system_message="You are a helpful, respectful and honest assistant.",
+        roles={"user": "<|start_header_id|>user", "assistant": "<|start_header_id|>assistant"},
+        seps=["<|eot_id|>"],
+        role_content_sep="<|end_header_id|>\n\n",
+        role_empty_sep="<|end_header_id|>\n\n",
+        stop_str=[],
+        stop_token_ids=[128001, 128008, 128009],  # "<|end_of_text|>", "<|eom_id|>", "<|eot_id|>"
+        system_prefix_token_ids=[128000],  # "<|begin_of_text|>"
+        add_role_after_system_message=True,
+    )
+)
+
 # Llama3
 # See https://github.com/meta-llama/llama3?tab=readme-ov-file#instruction-tuned-models
 # and https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py
@@ -12,7 +32,7 @@ ConvTemplateRegistry.register_conv_template(
         name="llama-3",
         system_template=(
             "<|start_header_id|>system<|end_header_id|>\n\n"
-            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>\n"
+            f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>"
         ),
         system_message="You are a helpful, respectful and honest assistant.",
         roles={"user": "<|start_header_id|>user", "assistant": "<|start_header_id|>assistant"},

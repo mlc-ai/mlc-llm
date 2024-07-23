@@ -257,6 +257,7 @@ TOKENIZER_FILES = [
 
 CONV_TEMPLATES = {
     "llama-3",
+    "llama-3_1",
     "chatml",
     "chatml_nosystem",
     "open_hermes_mistral",
