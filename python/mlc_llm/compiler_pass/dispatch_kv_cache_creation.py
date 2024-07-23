@@ -1,5 +1,6 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
+import json
 from typing import Any, Dict
 
 import tvm
@@ -20,13 +21,16 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert isinstance(args[0], relax.ExternFunc)
     assert args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
 
-    assert len(args) == 11
+    assert len(args) == 12
     assert isinstance(args[1], relax.ShapeExpr)
     assert len(args[1].values) == 5
-    for i in range(2, 10):
+    for i in range(2, 11):
+        if i == 9:
+            continue
         assert isinstance(args[i], relax.PrimValue)
         assert isinstance(args[i].value, (tvm.tir.IntImm, tvm.tir.FloatImm))
-    assert isinstance(args[10], relax.DataTypeImm)
+    assert isinstance(args[9], relax.StringImm)
+    assert isinstance(args[11], relax.DataTypeImm)
 
     return {
         "max_batch_size": args[1].values[0],
@@ -41,8 +45,9 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
         "rope_mode": args[6].value.value,
         "rope_scale": args[7].value.value,
         "rope_theta": args[8].value.value,
-        "rotary_dim": args[9].value.value,
-        "dtype": args[10].value,
+        "rope_scaling": json.loads(args[9].value),
+        "rotary_dim": args[10].value.value,
+        "dtype": args[11].value,
     }
 
 

@@ -1,6 +1,8 @@
 """Operators for positional embeddings, e.g. RoPE."""
 
-from typing import Optional, Tuple
+import math
+from functools import partial
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from tvm import tir
 from tvm.relax.frontend.nn import Tensor, op
@@ -9,7 +11,7 @@ from tvm.script import tir as T
 # pylint: disable=invalid-name
 
 
-def rope_freq(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
+def rope_freq_default(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
     """Compute the inverse frequency of RoPE and then return the cosine and sine of it.
 
     Parameters
@@ -43,6 +45,60 @@ def rope_freq(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
     return cos_freq, sin_freq
 
 
+def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
+    s: tir.Var,
+    d: tir.Var,
+    d_range: int,
+    theta: float,
+    dtype: str,
+    factor: float,
+    low_freq_factor: float,
+    high_freq_factor: float,
+    original_max_position_embeddings: float,
+):
+    """Compute the inverse frequency of RoPE for llama3 RoPE scaling."""
+    freq = tir.const(1, "float32") / tir.power(
+        theta, d * 2 % d_range / tir.const(d_range, "float32")
+    )
+    old_context_len = original_max_position_embeddings
+    low_freq_wavelen = old_context_len / low_freq_factor
+    high_freq_wavelen = old_context_len / high_freq_factor
+    wavelen = 2 * math.pi / freq
+
+    def _smoothen_freq(freq):
+        assert low_freq_wavelen != high_freq_wavelen
+        smooth = (old_context_len / wavelen - low_freq_factor) / (
+            high_freq_factor - low_freq_factor
+        )
+        return (1 - smooth) * freq / factor + smooth * freq
+
+    freq = s * tir.Select(
+        wavelen < high_freq_wavelen,
+        freq,
+        tir.Select(wavelen > low_freq_wavelen, freq / factor, _smoothen_freq(freq)),
+    )
+    cos_freq = tir.cos(freq).astype(dtype)
+    sin_freq = tir.sin(freq).astype(dtype)
+    return cos_freq, sin_freq
+
+
+def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
+    """Return the RoPE inverse frequency computation function based
+    on the given RoPE scaling.
+    """
+    if "rope_type" not in rope_scaling:
+        return rope_freq_default
+    if rope_scaling["rope_type"] == "llama3":
+        return partial(
+            rope_freq_llama3,
+            factor=rope_scaling["factor"],
+            low_freq_factor=rope_scaling["low_freq_factor"],
+            high_freq_factor=rope_scaling["high_freq_factor"],
+            original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
+        )
+    raise ValueError(f'Unsupported RoPE scaling type: {rope_scaling["rope_type"]}')
+
+
 # mypy: disable-error-code="attr-defined"
 
 
@@ -50,9 +106,10 @@ def llama_rope(  # pylint: disable=too-many-arguments
     qkv: Tensor,
     total_seq_len: tir.Var,
     theta: float,
+    scale: float,
     num_q_heads: int,
     num_kv_heads: int,
-    scale: float = 1.0,
+    rope_scaling: Dict[str, Any],
     rotary_dim: Optional[int] = None,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """Llama-style RoPE. Given a fused QKV tensor, it returns three tensors, Q, K, and V, where Q
@@ -109,7 +166,9 @@ def llama_rope(  # pylint: disable=too-many-arguments
         d: tir.Var,
         offset: tir.Var,
     ):
-        cos_freq, sin_freq = rope_freq((s + offset) * scale, d, rotary_dim, theta, dtype)
+        cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+            (s + offset) * scale, d, rotary_dim, theta, dtype
+        )
         cos = cos_freq * x[b, s, h, d]
         sin = sin_freq * tir.if_then_else(
             d < rotary_dim // 2,
@@ -176,6 +235,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     num_q_heads: int,
     num_kv_heads: int,
     dtype: str,
+    rope_scaling: Dict[str, Any],
     rotary_dim: Optional[int] = None,
 ):
     """Return the TIR function that computes Llama-style RoPE with q position map.
@@ -216,7 +276,9 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         d: tir.Var,
         pos: tir.Var,
     ):
-        cos_freq, sin_freq = rope_freq(pos * scale, d, rotary_dim, theta, "float32")
+        cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+            pos * scale, d, rotary_dim, theta, "float32"
+        )
         cos = cos_freq * x[s, h, d].astype("float32")
         sin = sin_freq * tir.if_then_else(
             d < rotary_dim // 2,

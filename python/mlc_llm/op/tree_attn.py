@@ -1,14 +1,14 @@
 """Operators for tree attention."""
 
 import math
-from typing import Tuple
+from typing import Any, Dict, Tuple
 
 from tvm import tir
 from tvm.runtime import DataType
 from tvm.script import tir as T
 from tvm.target import Target
 
-from mlc_llm.op.position_embedding import rope_freq
+from mlc_llm.op.position_embedding import switch_rope_freq_func
 
 # mypy: disable-error-code="attr-defined,valid-type,no-redef"
 # pylint: disable=too-many-statements,too-many-locals,too-many-arguments
@@ -25,24 +25,29 @@ def _rope(
     theta: tir.Var,
     scale: tir.Var,
     indices: Tuple[tir.Var, ...],
-    qkv_dtype="float16",
+    qkv_dtype: str,
+    rope_scaling: Dict[str, Any],
 ):
     d = indices[-1]
-    cos_freq, sin_freq = rope_freq(offset * scale, d, rotary_dim, theta, qkv_dtype)
-    cos = cos_freq * buffer[indices]
+    cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+        offset * scale, d, rotary_dim, theta, "float32"
+    )
+    cos = cos_freq * buffer[indices].astype("float32")
     sin = sin_freq * tir.if_then_else(
         d < rotary_dim // 2,
         -buffer[indices[:-1] + (d + rotary_dim // 2,)],
         buffer[indices[:-1] + (d - rotary_dim // 2,)],
-    )
-    return cos + sin
+    ).astype("float32")
+    return (cos + sin).astype(qkv_dtype)
 
 
 def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):
     return tir.all(col < kv_len, mask_ptr[offset + row * stride + col] == 1)
 
 
-def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-argument
+def tree_attn(
+    h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target
+):  # pylint: disable=unused-argument
     """Generate tree attention kernel for batched tree attention.
 
     Parameters
@@ -199,7 +204,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype),
+                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -218,7 +223,7 @@ def tree_attn(h_kv, h_q, d, dtype, target: Target):  # pylint: disable=unused-ar
                                                 if L_kv_start + i < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, by, j), dtype),
+                                                        _rope(k, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, by, j), dtype, rope_scaling),
                                                         k[cur_L, by, j]
                                                     )
                                                     V_smem[i, j] = v[cur_L, by, j]
