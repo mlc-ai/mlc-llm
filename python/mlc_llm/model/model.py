@@ -26,6 +26,7 @@ from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .orion import orion_loader, orion_model, orion_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .phi3 import phi3_loader, phi3_model, phi3_quantization
+from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
@@ -219,6 +220,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": phi3_quantization.no_quant,
             "group-quant": phi3_quantization.group_quant,
             "ft-quant": phi3_quantization.ft_quant,
+        },
+    ),
+    "phi3_v": Model(
+        name="phi3_v",
+        model=phi3v_model.Phi3VForCausalLM,
+        config=phi3v_model.Phi3VConfig,
+        source={
+            "huggingface-torch": phi3v_loader.huggingface,
+            "huggingface-safetensor": phi3v_loader.huggingface,
+        },
+        quantize={
+            "no-quant": phi3v_quantization.no_quant,
+            "group-quant": phi3v_quantization.group_quant,
+            "ft-quant": phi3v_quantization.ft_quant,
         },
     ),
     "qwen": Model(

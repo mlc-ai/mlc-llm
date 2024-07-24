@@ -1,5 +1,5 @@
 """
-Implementation for Phi-3 architecture.
+Implementation for Phi architecture.
 TODO: add docstring
 """
 
@@ -11,20 +11,35 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.phi3 import Phi3Model
+from mlc_llm.model.vision import CLIPVisionConfig
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
-from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
+from .phi3v_image import Phi3ImageEmbedding
+
 logger = logging.getLogger(__name__)
+
+CLIPVISION_DEFAULT_CONFIG = {
+    "hidden_size": 1024,
+    "image_size": 336,
+    "intermediate_size": 4096,
+    "num_attention_heads": 16,
+    "num_hidden_layers": 24,
+    "patch_size": 14,
+    "projection_dim": 768,
+    "layer_norm_eps": 1e-05,
+    "vocab_size": None,
+}
 
 
 @dataclasses.dataclass
-class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the Phi-3 model."""
+class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Phi-3 Vision model."""
 
-    model_type: str  # "phi", "phi-msft", "mixformer-sequential"
+    model_type: str
     hidden_size: int
     vocab_size: int
     num_hidden_layers: int
@@ -32,6 +47,7 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     intermediate_size: int
     rms_norm_eps: float
     num_key_value_heads: int
+    vision_config: CLIPVisionConfig = None
     position_embedding_base: int = 0
     context_window_size: int = 0
     prefill_chunk_size: int = 0
@@ -40,7 +56,19 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
+    # pylint: disable=too-many-branches, consider-using-min-builtin
     def __post_init__(self):
+        vision_config_dict: Dict[str, Any]
+        if isinstance(self.vision_config, CLIPVisionConfig):
+            vision_config_dict = dataclasses.asdict(self.vision_config)
+        else:
+            vision_config_dict = dict(CLIPVISION_DEFAULT_CONFIG)
+
+        for k, v in vision_config_dict.pop("kwargs", {}).items():
+            vision_config_dict[k] = v
+
+        self.vision_config = CLIPVisionConfig.from_dict(vision_config_dict)
+
         if self.position_embedding_base == 0:
             if "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
@@ -59,7 +87,7 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     break
             else:
                 raise ValueError(
-                    "Unable to determine the maximum sequence length, because none of "
+                    "Unable to determine the maxmimum sequence length, because none of "
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
@@ -88,129 +116,19 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.num_attention_heads % self.num_key_value_heads == 0
 
 
-# pylint: disable=invalid-name,missing-docstring
+# pylint: disable=invalid-name,missing-docstring, too-many-branches
 
 
-class Phi3MLP(nn.Module):
-    def __init__(self, config: Phi3Config):
-        super().__init__()
-        if config.intermediate_size % config.tensor_parallel_shards != 0:
-            raise ValueError(
-                f"Cannot split MLP intermediate size {config.intermediate_size} "
-                f"evenly to {config.tensor_parallel_shards} GPUs."
-            )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
-
-    def forward(self, hidden_states: Tensor):
-        up_states = self.gate_up_proj(hidden_states)
-        gate, up_states = nn.op.split(up_states, 2, axis=-1)
-        up_states = up_states * op.silu(gate)
-        return self.down_proj(up_states)
-
-
-class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: Phi3Config):
-        self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert config.num_attention_heads % config.tensor_parallel_shards == 0, (
-            f"num_attention_heads({config.num_attention_heads}) "
-            "must be divisible by tensor_parallel_shards"
-        )
-        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
-        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
-            f"num_attention_heads({config.num_key_value_heads}) "
-            "must be divisible by tensor_parallel_shards"
-        )
-        self.head_dim = config.head_dim
-
-        self.qkv_proj = nn.Linear(
-            in_features=config.hidden_size,
-            out_features=(self.num_q_heads + 2 * self.num_key_value_heads) * self.head_dim,
-            bias=False,
-        )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_key_value_heads
-        b, s, _ = hidden_states.shape
-        # QKV Projection
-        qkv = self.qkv_proj(hidden_states)
-        qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
-        # Attention
-        output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
-            (b, s, h_q * d),
-        )
-        return self.o_proj(output)
-
-
-class Phi3ParallelBlock(nn.Module):
-    def __init__(self, config: Phi3Config):
-        super().__init__()
-
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.self_attn = PhiMHA(config)
-        self.mlp = Phi3MLP(config)
-        self.post_attention_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
-
-        def _set_tp():
-            def _set(layer, hint):
-                layer.weight.attrs["shard_strategy"] = hint
-
-            hd = config.head_dim
-            q = self.self_attn.num_q_heads * hd
-            k = self.self_attn.num_key_value_heads * hd
-            v = self.self_attn.num_key_value_heads * hd
-            i = self.mlp.intermediate_size
-
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
-            _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
-            _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
-
-        self.tensor_parallel_shards = config.tensor_parallel_shards
-        _set_tp()
-
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        attn_outputs = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
-        hidden_states = self._apply_parallel_residual(attn_outputs, hidden_states)
-        out = self.mlp(self.post_attention_layernorm(hidden_states))
-        hidden_states = self._apply_parallel_residual(out, hidden_states)
-        return hidden_states
-
-    def _apply_parallel_residual(self, mlp_out, residual):
-        if self.tensor_parallel_shards > 1:
-            return op.ccl_allreduce(mlp_out + residual / self.tensor_parallel_shards, "sum")
-        return mlp_out + residual
-
-
-class Phi3Model(nn.Module):
-    def __init__(self, config: Phi3Config) -> None:
-        super().__init__()
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList(
-            [Phi3ParallelBlock(config) for _ in range(config.num_hidden_layers)]
-        )
-        self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-
-    def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        hidden_states = input_embed
-        for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = self.norm(hidden_states)
-        return hidden_states
-
-
-class Phi3ForCausalLM(nn.Module):
+# mypy: disable-error-code="arg-type,annotation-unchecked"
+class Phi3VForCausalLM(nn.Module):
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, config: Phi3Config) -> None:
+    def __init__(self, config: Phi3VConfig) -> None:
         super().__init__()
 
+        self.config = config
         self.model = Phi3Model(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
+        self.vision_embed_tokens = Phi3ImageEmbedding(config)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -289,6 +207,10 @@ class Phi3ForCausalLM(nn.Module):
         embeds = self.model.embed_tokens(input_ids)
         return embeds
 
+    def image_embed(self, pixel_values: Tensor) -> Tensor:
+        pixel_values = pixel_values.astype(self.dtype)
+        return self.vision_embed_tokens(pixel_values)
+
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
         max_batch_size: tir.Var,
@@ -317,6 +239,22 @@ class Phi3ForCausalLM(nn.Module):
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "image_embed": {
+                "pixel_values": nn.spec.Tensor(
+                    [
+                        1,
+                        17,
+                        3,
+                        self.config.vision_config.image_size,
+                        self.config.vision_config.image_size,
+                    ],
+                    "float32",
+                ),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
