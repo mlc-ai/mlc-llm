@@ -82,7 +82,9 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
                     T.where(io * TX + ii < batch_size)
                     with T.block("init"):
                         local_top_k[0] = T.min_value(dtype)
+                        local_top_k[1] = T.min_value(dtype)
                         local_top_k_index[0] = 0
+                        local_top_k_index[1] = 1
                     for k in range(num_local_experts):
                         with T.block("update"):
                             vk = T.axis.remap("S", [k])
@@ -139,9 +141,9 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
                         local_top_k[2] = T.min_value(dtype)
                         local_top_k[3] = T.min_value(dtype)
                         local_top_k_index[0] = 0
-                        local_top_k_index[1] = 0
-                        local_top_k_index[2] = 0
-                        local_top_k_index[3] = 0
+                        local_top_k_index[1] = 1
+                        local_top_k_index[2] = 2
+                        local_top_k_index[3] = 3
                     for k in range(num_local_experts):
                         with T.block("update"):
                             vk = T.axis.remap("S", [k])
