@@ -167,3 +167,83 @@ def convert_prompts_to_data(
         assert isinstance(prompts, list) and all(isinstance(token_id, int) for token_id in prompts)
         return [data.TokenData(prompts)]  # type: ignore
     return [convert_prompts_to_data(x)[0] for x in prompts]  # type: ignore
+
+
+class ErrorCleanupScope:
+    """Scope to call cleanup when an error is thrown.
+
+    This class provides an important pattern properly cleanup
+    when async scope CancelledError or other exception happens.
+
+    Parameters
+    ----------
+    cleanup : Callable
+        A callable function to trigger at scope exit during an exception.
+
+    Note
+    ----
+    This helper is motivated by the need to properly
+    abort an async generator and trigger corresponding
+    cleanup functions. Naively use the try except
+    pattern will results in bug when we chain up
+    async generators.
+
+    .. code:: python
+
+        class EngineNotSafe:
+            async def _inner_gen(self, request):
+                request_id = self.get_request_id()
+                self.add_request(request)
+                try:
+                    async for res in await producer_stream:
+                        yield res
+                except asyncio.CancelledError:
+                    self.abort(request_id)
+
+            async def generate(self, request):
+                async for res in await self._inner_gen(request):
+                    # async error can he raised in here
+                    # this will cause
+                    res = await process(res)
+                    yield res
+
+    The above except pattern is not safe.
+    This is because CancelledError may also be raised
+    outside _inner_gen during the process of generate
+    function in between iterations.
+
+    Instead, we use ErrorCleanupScope to safeguard the
+    generation process. The scope will always properly
+    cleanup in exit function when the exception is raised
+
+     .. code:: python
+
+        class EngineSafe:
+            async def _inner_gen(self, request):
+                request_id = self.get_request_id()
+                self.add_request(request)
+                with ErrorCleanupScope(lambda: self.abort(request_id))
+                    async for res in await producer_stream:
+                        yield res
+
+            async def generate(self, request):
+                async for res in await self._inner_gen(request):
+                    # even if async error is raised here
+                    # it will cleanup the ErrorCleanupScope
+                    # properly during function exit
+                    res = await process(res)
+                    yield res
+    """
+
+    cleanup: Callable
+
+    def __init__(self, cleanup: Callable):
+        self.cleanup = cleanup
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        # only cleanup when exc type is not none
+        if exc_type is not None:
+            self.cleanup()
