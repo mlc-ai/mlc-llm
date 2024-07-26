@@ -1056,12 +1056,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                         logprob_results[  # pylint: disable=unsupported-assignment-operation
                             choice.index
                         ] += choice.logprobs.content
-        except (
-            Exception,
-            asyncio.CancelledError,
-        ) as err:  # pylint: disable=broad-exception-caught
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            # for cancelled error, we can simply pass it through
+            raise
+        except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Error in chat completion with request ID %s: %s", request_id, err)
-            raise err
+            raise
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         use_function_calling, tool_calls_list = engine_base.process_function_call_output(
@@ -1260,12 +1260,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                             response.usage.extra = None
                     yield response
             self.state.record_event(request_id, event="finish")
-        except (
-            Exception,
-            asyncio.CancelledError,
-        ) as err:  # pylint: disable=broad-exception-caught
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            # for cancelled error, we can simply pass it through
+            raise
+        except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Error in _handle_chat_completion for request %s: %s", request_id, err)
-            raise err
+            raise
 
     async def _handle_completion(
         self,
@@ -1330,12 +1330,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             if suffix_response is not None:
                 yield suffix_response
             self.state.record_event(request_id, event="finish")
-        except (
-            Exception,
-            asyncio.CancelledError,
-        ) as err:  # pylint: disable=broad-exception-caught
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            # for cancelled error, we can simply pass it through
+            raise
+        except Exception as err:  # pylint: disable=broad-exception-caught
             logger.error("Error in _handle_completion for request %s: %s", request_id, err)
-            raise err
+            raise
 
     async def _generate(
         self,
@@ -1396,17 +1396,22 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             )
             self._ffi["add_request"](request)
 
-        # Iterate the stream asynchronously and yield the output.
-        try:
-            async for request_output in stream:
-                yield request_output
-        except (
-            Exception,
-            asyncio.CancelledError,
-        ) as exception:  # pylint: disable=broad-exception-caught
-            logger.error("Error in _generate for request %s: %s", request_id, exception)
-            await self.abort(request_id)
-            raise exception
+        def abort_request():
+            """clean up"""
+            self._abort(request_id)
+            logger.info("request %s cancelled", request_id)
+
+        with engine_utils.ErrorCleanupScope(abort_request):
+            # Iterate the stream asynchronously and yield the output.
+            try:
+                async for request_output in stream:
+                    yield request_output
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                # for cancelled error, we can simply pass it through
+                raise
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                logger.error("Exception in _generate for request %s: %s", request_id, exception)
+                raise
 
     def _abort(self, request_id: str):
         """Internal implementation of request abortion."""
@@ -1914,8 +1919,12 @@ class MLCEngine(engine_base.MLCEngineBase):
         ]
         self._ffi["add_request"](request)
 
+        def abort_request():
+            """clean up request if exception happens"""
+            self.abort(request_id)
+
         # Iterate the stream asynchronously and yield the token.
-        try:
+        with engine_utils.ErrorCleanupScope(abort_request):
             while True:
                 delta_outputs = self.state.sync_output_queue.get()
                 request_outputs, request_final_usage_json_str = self._request_stream_callback_impl(
@@ -1934,9 +1943,6 @@ class MLCEngine(engine_base.MLCEngineBase):
                     )
                     yield [output]
                     break
-        except Exception as exception:  # pylint: disable=broad-exception-caught
-            self.abort(request_id)
-            raise exception
 
     def _request_stream_callback_impl(
         self, delta_outputs: List[data.RequestStreamOutput]

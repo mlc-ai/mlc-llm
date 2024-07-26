@@ -95,8 +95,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
             # Therefore, we check if it is disconnected each time,
-            # and abort the request from engine if so.
-            await async_engine.abort(request_id)
+            # and explicitly return.
+            # Note that requesta abort is triggered when the async for and funciton scope ends.
             return error_protocol.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
@@ -207,8 +207,8 @@ async def request_chat_completion(
             # In non-streaming cases, the engine will not be notified
             # when the request is disconnected.
             # Therefore, we check if it is disconnected each time,
-            # and abort the request from engine if so.
-            await async_engine.abort(request_id)
+            # no need to explicitly abort, as the chat completion
+            # return will trigger abort call
             return error_protocol.create_error_response(
                 HTTPStatus.BAD_REQUEST, message="The request has disconnected"
             )
