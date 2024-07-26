@@ -642,8 +642,10 @@ class ModelImpl : public ModelObj {
   void CommitAcceptedTokenTreeNodesToKVCache(
       const std::vector<int64_t>& seq_ids,
       const std::vector<int64_t>& accepted_leaf_indices) final {
-    ft_.kv_cache_commit_accepted_token_tree_nodes_func_(kv_cache_, IntTuple(seq_ids),
-                                                        IntTuple(accepted_leaf_indices));
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple accepted_leaf_indices_tuple(accepted_leaf_indices);
+    ft_.kv_cache_commit_accepted_token_tree_nodes_func_(kv_cache_, seq_ids_tuple,
+                                                        accepted_leaf_indices_tuple);
   }
 
   void EnableSlidingWindowForSeq(int64_t seq_id) final {
