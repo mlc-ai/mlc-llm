@@ -345,6 +345,13 @@ class EngineImpl : public Engine {
         LOG(FATAL) << "Unsupported prefix cache mode: "
                    << static_cast<int>(engine_config->prefix_cache_mode);
       }
+      if (engine_config->speculative_mode != SpeculativeMode::kDisable &&
+          engine_config->prefill_mode == PrefillMode::kHybrid) {
+        engine_config->prefill_mode = PrefillMode::kChunked;
+        LOG(WARNING)
+            << "Hybrid prefill mode fallbacks to chunked prefill, due to speculative mode is "
+               "enabled and not implemented with hybrid prefill yet.";
+      }
     }
     // - Load model weights, create KV cache and workspace.
     n->model_workspaces_.clear();
