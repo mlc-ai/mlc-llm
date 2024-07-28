@@ -106,7 +106,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefill_mode : Literal["chunked", "hybrid"]
         The prefill mode.
         "chunked" means the basic prefill with chunked input enabled.
-        "hybrid" means the hybrid prefill or split-fuse, 
+        "hybrid" means the hybrid prefill or split-fuse,
         so that decode step will be converted into prefill.
 
     verbose : bool

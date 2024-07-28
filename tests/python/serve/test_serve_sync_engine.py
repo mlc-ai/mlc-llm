@@ -433,7 +433,7 @@ def test_engine_hybrid_prefill(model: str):
         model=model,
         mode="server",
         request_stream_callback=timer.callback_getter(),
-        engine_config=EngineConfig(prefill_mode="hybrid")
+        engine_config=EngineConfig(prefill_mode="hybrid"),
     )
 
     # Create requests
