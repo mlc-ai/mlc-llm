@@ -175,6 +175,17 @@ enum class SpeculativeMode : int {
   kMedusa = 3,
 };
 
+/*! \brief The prefill mode. */
+enum class PrefillMode : int {
+  /*! \brief Only chunked prefill is enabled. */
+  kChunked = 0,
+  /*!
+   * \brief The hybrid prefill or split-fuse prefill is enabled, some decode steps will be fused
+   * to prefill
+   */
+  kHybrid = 1,
+};
+
 class InferrableEngineConfig;
 
 /*! \brief The configuration of engine execution config. */
@@ -240,6 +251,11 @@ class EngineConfigNode : public Object {
   SpeculativeMode speculative_mode = SpeculativeMode::kDisable;
   /*! \brief The number of tokens to generate in speculative proposal (draft). */
   int spec_draft_length = 4;
+
+  /*************** Prefill mode ***************/
+
+  /*! \brief The prefill mode. */
+  PrefillMode prefill_mode = PrefillMode::kHybrid;
 
   /*************** Debug ***************/
   bool verbose = false;
@@ -367,6 +383,27 @@ inline SpeculativeMode SpeculativeModeFromString(const std::string& speculative_
     return SpeculativeMode::kMedusa;
   } else {
     LOG(FATAL) << "Invalid speculative mode string: " << speculative_mode;
+    throw;
+  }
+}
+
+inline std::string PrefillModeToString(PrefillMode prefill_mode) {
+  if (prefill_mode == PrefillMode::kChunked) {
+    return "chunked";
+  } else if (prefill_mode == PrefillMode::kHybrid) {
+    return "hybrid";
+  } else {
+    LOG(FATAL) << "Invalid prefill mode: " << static_cast<int>(prefill_mode);
+  }
+}
+
+inline PrefillMode PrefillModeFromString(const std::string& prefill_mode) {
+  if (prefill_mode == "chunked") {
+    return PrefillMode::kChunked;
+  } else if (prefill_mode == "hybrid") {
+    return PrefillMode::kHybrid;
+  } else {
+    LOG(FATAL) << "Invalid prefill mode string: " << prefill_mode;
     throw;
   }
 }

@@ -103,6 +103,12 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         The maximum number of recycling sequences in prefix cache, default as max_num_sequence.
         And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 
+    prefill_mode : Literal["chunked", "hybrid"]
+        The prefill mode.
+        "chunked" means the basic prefill with chunked input enabled.
+        "hybrid" means the hybrid prefill or split-fuse,
+        so that decode step will be converted into prefill.
+
     verbose : bool
         A boolean indicating whether to print logging info in engine.
     """
@@ -126,6 +132,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     spec_draft_length: int = 4
     prefix_cache_mode: Literal["disable", "radix"] = "radix"
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
+    prefill_mode: Literal["chunked", "hybrid"] = "hybrid"
     verbose: bool = True
 
     def asjson(self) -> str:
