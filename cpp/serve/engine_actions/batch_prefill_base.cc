@@ -213,18 +213,14 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   }
 
   // Add the decode requests to the prefill inputs if prefill mode is hybrid.
-  std::vector<PrefillInput> prefill_inputs;
+  std::vector<PrefillInput> prefill_inputs(prefill_inputs_for_all_models[0].begin(),
+                                           prefill_inputs_for_all_models[0].end());
   if (engine_config_->prefill_mode == PrefillMode::kHybrid) {
     prefill_inputs.reserve(num_decode_inputs + num_prefill_inputs);
     for (const RequestStateEntry& rsentry : *running_rsentries) {
       prefill_inputs.push_back(
           {rsentry, rsentry->mstates[0]->num_tokens_for_next_decode, 0, /*is_decode=*/true});
     }
-    prefill_inputs.insert(prefill_inputs.end(), prefill_inputs_for_all_models[0].begin(),
-                          prefill_inputs_for_all_models[0].begin() + num_prefill_inputs);
-    num_prefill_inputs += num_decode_inputs;
-  } else {
-    prefill_inputs.reserve(num_prefill_inputs);
   }
   {
     NVTXScopedRange nvtx_scope("reduction");
