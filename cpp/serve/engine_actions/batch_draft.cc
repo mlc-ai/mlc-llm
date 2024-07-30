@@ -99,6 +99,10 @@ class BatchDraftActionObj : public EngineActionObj {
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
           // The first draft proposal uses the last committed token.
+          if (draft_id == 0) {
+            ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
+            mstates[i]->num_tokens_for_next_decode = 0;
+          }
           input_tokens.push_back(draft_id == 0
                                      ? mstates[i]->committed_tokens.back().GetTokenId()
                                      : mstates[i]->draft_output_tokens.back().GetTokenId());
