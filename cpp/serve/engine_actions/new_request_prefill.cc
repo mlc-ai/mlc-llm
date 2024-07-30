@@ -100,11 +100,11 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         }
         request_internal_ids.push_back(mstate->internal_id);
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "start embedding");
-        for (int i = 0; i < static_cast<int>(input_data.size()); ++i) {
+        for (int j = 0; j < static_cast<int>(input_data.size()); ++j) {
           if (!model_id && !prefill_inputs[i].is_decode) {
-            mstate->prefilled_inputs.push_back(input_data[i]);
+            mstate->prefilled_inputs.push_back(input_data[j]);
           }
-          if (const auto* token_data = input_data[i].as<TokenDataNode>()) {
+          if (const auto* token_data = input_data[j].as<TokenDataNode>()) {
             cached_token_data.insert(cached_token_data.end(), token_data->token_ids.begin(),
                                      token_data->token_ids.end());
           } else {
@@ -116,10 +116,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
               cum_prefill_length += cached_token_data.size();
               cached_token_data.clear();
             }
-            embeddings = input_data[i]->GetEmbedding(models_[model_id],
+            embeddings = input_data[j]->GetEmbedding(models_[model_id],
                                                      /*dst=*/!single_input ? &embeddings : nullptr,
                                                      /*offset=*/cum_prefill_length);
-            cum_prefill_length += input_data[i]->GetLength();
+            cum_prefill_length += input_data[j]->GetLength();
           }
         }
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "finish embedding");
