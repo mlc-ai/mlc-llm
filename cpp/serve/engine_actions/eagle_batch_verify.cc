@@ -320,6 +320,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         }
       }
     }
+    // reset num_tokens_for_next_decode
+    for (const RequestStateEntry& rsentry : rsentries) {
+      rsentry->mstates[verify_model_id_]->num_tokens_for_next_decode = 0;
+      rsentry->mstates[draft_model_id_]->num_tokens_for_next_decode = 0;
+    }
     auto tend = std::chrono::high_resolution_clock::now();
     double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
     estate->metrics.engine_decode_time_sum += elapsed_time;

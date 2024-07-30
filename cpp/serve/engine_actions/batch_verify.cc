@@ -222,6 +222,9 @@ class BatchVerifyActionObj : public EngineActionObj {
     for (int i = 0; i < num_rsentries; ++i) {
       rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens(&draft_token_slots_);
       draft_token_workspace_manager_->FreeSlots(draft_token_slots_);
+      // reset num_tokens_for_next_decode to 1
+      rsentries[i]->mstates[verify_model_id_]->num_tokens_for_next_decode = 0;
+      rsentries[i]->mstates[draft_model_id_]->num_tokens_for_next_decode = 1;
     }
 
     auto tend = std::chrono::high_resolution_clock::now();
