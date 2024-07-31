@@ -13,6 +13,7 @@ from .bert import bert_loader, bert_model, bert_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
+from .gemma2 import gemma2_loader, gemma2_model, gemma2_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
@@ -121,6 +122,19 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": gemma_quantization.no_quant,
             "group-quant": gemma_quantization.group_quant,
+        },
+    ),
+    "gemma2": Model(
+        name="gemma2",
+        model=gemma2_model.Gemma2ForCausalLM,
+        config=gemma2_model.Gemma2Config,
+        source={
+            "huggingface-torch": gemma2_loader.huggingface,
+            "huggingface-safetensor": gemma2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gemma2_quantization.no_quant,
+            "group-quant": gemma2_quantization.group_quant,
         },
     ),
     "gpt2": Model(

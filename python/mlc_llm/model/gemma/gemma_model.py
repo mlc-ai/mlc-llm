@@ -126,6 +126,7 @@ class GemmaMLP(nn.Module):
 class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GemmaConfig):
         self.head_dim = config.head_dim
+        self.scaling_factor = 1.0
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.num_key_value_heads % config.tensor_parallel_shards == 0
@@ -153,7 +154,9 @@ class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, self.num_q_heads, self.scaling_factor
+            ),
             (b, s, h_q * d),
         )
         return self.o_proj(output)
@@ -235,6 +238,12 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         if dtype is not None:
             self.dtype = dtype
 
+    def get_logits(self, hidden_states: Tensor):
+        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
     def batch_forward(
         self,
         input_embeds: Tensor,
@@ -246,9 +255,7 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits
 
     def embed(self, input_ids: Tensor):
@@ -265,18 +272,14 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        logits = self.model.embed_tokens.lm_head_forward(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
     def batch_prefill(
