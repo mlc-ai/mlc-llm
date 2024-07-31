@@ -132,7 +132,6 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
         input_len_std: float = 250,
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
-
         if input_len is None or input_len < 40:
             input_len = 550
         if output_len is None:
@@ -389,6 +388,6 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
             )
     if args.dataset == "sharegpt":
         return ShareGPTDataset(args.dataset_path, tokenizer)
-    elif args.dataset == "llmperf":
+    if args.dataset == "llmperf":
         return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
