@@ -424,7 +424,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/dist/lib",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",
@@ -477,7 +477,7 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/dist/lib",
 				);
-				MARKETING_VERSION = 1.3;
+				MARKETING_VERSION = 1.5;
 				OTHER_LDFLAGS = (
 					"-Wl,-all_load",
 					"-lmodel_iphone",
