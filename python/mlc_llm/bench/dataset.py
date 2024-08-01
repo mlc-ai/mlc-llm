@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import random
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -102,6 +103,80 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
                         finish_time=0,
                         end_to_end_latency_s=0,
                         input_tokens=len(input_token_ids),
+                    ),
+                )
+            )
+        return request_records
+
+
+class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
+    """The dataset class for LLMPerf dataset."""
+
+    def __init__(self, dataset_path: str, num_requests: int, tokenizer: AutoTokenizer) -> None:
+        self.tokenizer = tokenizer
+        self.num_requests = num_requests
+
+        with open(dataset_path, encoding="utf-8") as f:
+            untokenized_data = f.readlines()
+        # Tokenize the prompts and completions.
+        tokenized_data = tokenizer(untokenized_data).input_ids
+        tokenized_data_lengths = [len(tokens) for tokens in tokenized_data]
+        self.dataset: List[Tuple[str, List[int], int]] = list(
+            zip(untokenized_data, tokenized_data, tokenized_data_lengths)
+        )
+
+    def generate_request_records(  # pylint: disable=too-many-arguments,too-many-locals
+        self,
+        input_len: Optional[int] = None,
+        output_len: Optional[int] = None,
+        input_len_std: float = 250,
+        output_len_std: float = 0.0,
+    ) -> List[RequestRecord]:
+        if input_len is None or input_len < 40:
+            input_len = 550
+        if output_len is None:
+            output_len = 150
+
+        request_records = []
+        for _ in range(self.num_requests):
+            input_length = round(float(np.random.normal(loc=input_len, scale=input_len_std)))
+            output_length = round(float(np.random.normal(loc=output_len, scale=output_len_std)))
+
+            prompt = (
+                "Randomly stream lines from the following text "
+                f"with {output_length} output tokens. "
+                "Don't generate eos tokens:\n\n"
+            )
+
+            remaining_token_length = input_length - len(self.tokenizer.encode(prompt))
+
+            random.shuffle(self.dataset)
+
+            while remaining_token_length > 0:
+                for text, tokens, token_length in self.dataset:
+                    if remaining_token_length < token_length:
+                        prompt += self.tokenizer.decode(tokens[:remaining_token_length])
+                    else:
+                        prompt += text
+
+                    remaining_token_length -= token_length
+                    if remaining_token_length < 0:
+                        break
+
+            request_records.append(
+                RequestRecord(
+                    chat_cmpl=ChatCompletionRequest(
+                        messages=[{"role": "user", "content": prompt}],
+                        model="",
+                        max_tokens=output_length,
+                        debug_config=DebugConfig(ignore_eos=True),
+                    ),
+                    metrics=Metrics(
+                        success=False,
+                        start_time=0,
+                        finish_time=0,
+                        end_to_end_latency_s=0,
+                        input_tokens=input_length,
                     ),
                 )
             )
@@ -296,6 +371,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
 
 SUPPORTED_DATASET = [
     "sharegpt",
+    "llmperf",
 ]
 
 
@@ -312,4 +388,6 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
             )
     if args.dataset == "sharegpt":
         return ShareGPTDataset(args.dataset_path, tokenizer)
+    if args.dataset == "llmperf":
+        return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
