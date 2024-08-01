@@ -14,7 +14,7 @@ The demo APK below is built for Samsung S23 with Snapdragon 8 Gen 2 chip.
 
 .. image:: https://seeklogo.com/images/D/download-android-apk-badge-logo-D074C6882B-seeklogo.com.png
   :width: 135
-  :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android-06072024/mlc-chat.apk
+  :target: https://github.com/mlc-ai/binary-mlc-llm-libs/releases/download/Android-07312024/mlc-chat.apk
 
 Prerequisite
 ------------
