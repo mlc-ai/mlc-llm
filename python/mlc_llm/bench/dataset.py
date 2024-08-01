@@ -109,8 +109,8 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
-    """The dataset class for LLMPerf dataset."""
+class SonnetDataset(Dataset):  # pylint: disable=too-few-public-methods
+    """The dataset class for sonnet dataset."""
 
     def __init__(self, dataset_path: str, num_requests: int, tokenizer: AutoTokenizer) -> None:
         self.tokenizer = tokenizer
@@ -371,7 +371,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
 
 SUPPORTED_DATASET = [
     "sharegpt",
-    "llmperf",
+    "sonnet",
 ]
 
 
@@ -388,6 +388,6 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
             )
     if args.dataset == "sharegpt":
         return ShareGPTDataset(args.dataset_path, tokenizer)
-    if args.dataset == "llmperf":
-        return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
+    if args.dataset == "sonnet":
+        return SonnetDataset(args.dataset_path, args.num_requests * 4, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
