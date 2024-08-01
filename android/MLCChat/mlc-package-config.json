@@ -13,8 +13,8 @@
 
         },
         {
-            "model": "HF://mlc-ai/gemma-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2b-q4f16_1-MLC",
+            "model": "HF://mlc-ai/gemma-2-2b-it-q4f16_1-MLC",
+            "model_id": "gemma-2-2b-it-q4f16_1-MLC",
             "estimated_vram_bytes": 3000000000
         },
         {

@@ -129,7 +129,7 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
             out_features=(self.num_q_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+        self.out_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_key_value_heads
@@ -142,15 +142,15 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
             paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
             (b, s, h_q * d),
         )
-        return self.o_proj(output)
+        return self.out_proj(output)
 
 
 class Phi3ParallelBlock(nn.Module):
     def __init__(self, config: Phi3Config):
         super().__init__()
 
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.self_attn = PhiMHA(config)
+        self.ln = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.mixer = PhiMHA(config)
         self.mlp = Phi3MLP(config)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
@@ -161,13 +161,13 @@ class Phi3ParallelBlock(nn.Module):
                 layer.weight.attrs["shard_strategy"] = hint
 
             hd = config.head_dim
-            q = self.self_attn.num_q_heads * hd
-            k = self.self_attn.num_key_value_heads * hd
-            v = self.self_attn.num_key_value_heads * hd
+            q = self.mixer.num_q_heads * hd
+            k = self.mixer.num_key_value_heads * hd
+            v = self.mixer.num_key_value_heads * hd
             i = self.mlp.intermediate_size
 
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
-            _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
+            _set(self.mixer.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(self.mixer.out_proj, tp.ShardSingleDim("_shard_o", dim=1))
             _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
@@ -175,7 +175,7 @@ class Phi3ParallelBlock(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        attn_outputs = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        attn_outputs = self.mixer(self.ln(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_parallel_residual(attn_outputs, hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_parallel_residual(out, hidden_states)
@@ -190,15 +190,13 @@ class Phi3ParallelBlock(nn.Module):
 class Phi3Model(nn.Module):
     def __init__(self, config: Phi3Config) -> None:
         super().__init__()
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList(
-            [Phi3ParallelBlock(config) for _ in range(config.num_hidden_layers)]
-        )
+        self.embd = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.h = nn.ModuleList([Phi3ParallelBlock(config) for _ in range(config.num_hidden_layers)])
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
-        for layer_id, layer in enumerate(self.layers):
+        for layer_id, layer in enumerate(self.h):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
@@ -209,7 +207,7 @@ class Phi3ForCausalLM(nn.Module):
     def __init__(self, config: Phi3Config) -> None:
         super().__init__()
 
-        self.model = Phi3Model(config)
+        self.transformer = Phi3Model(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
@@ -234,7 +232,7 @@ class Phi3ForCausalLM(nn.Module):
     ):
         op_ext.configure()
 
-        hidden_states = self.model(input_embeds, paged_kv_cache)
+        hidden_states = self.transformer(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         lm_logits = self.lm_head(hidden_states)
@@ -249,7 +247,7 @@ class Phi3ForCausalLM(nn.Module):
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = self.transformer(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
 
@@ -261,7 +259,7 @@ class Phi3ForCausalLM(nn.Module):
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = self.transformer(input_embed, paged_kv_cache)
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -286,7 +284,7 @@ class Phi3ForCausalLM(nn.Module):
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        embeds = self.model.embed_tokens(input_ids)
+        embeds = self.transformer.embd(input_ids)
         return embeds
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
