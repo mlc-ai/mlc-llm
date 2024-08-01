@@ -109,7 +109,7 @@ def run_executor(
 
     if args.cuda_profile:
         cuda_profiler_stop_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_stop"
-        cuda_profiler_stop_response = requests.post(cuda_profiler_start_url, timeout=60)
+        cuda_profiler_stop_response = requests.post(cuda_profiler_stop_url, timeout=60)
         assert cuda_profiler_stop_response.status_code == 200
 
     # Post-process
