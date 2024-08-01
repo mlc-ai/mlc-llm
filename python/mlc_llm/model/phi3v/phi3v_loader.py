@@ -55,15 +55,21 @@ def huggingface(model_config: Phi3VConfig, quantization: Quantization) -> Extern
     def _add_vision(name):
         _add(name, "model." + name)
 
+    _add("model.embd.weight", "model.embed_tokens.weight")
+
     # pylint: disable=line-too-long
-    prefix = "model.layers"
+    prefix = "model.h"
+    hf_prefix = "model.layers"
     for i in range(model_config.num_hidden_layers):
-        _add(f"{prefix}.{i}.input_layernorm.weight")
-        _add(f"{prefix}.{i}.mlp.down_proj.weight")
-        _add(f"{prefix}.{i}.mlp.gate_up_proj.weight")
-        _add(f"{prefix}.{i}.post_attention_layernorm.weight")
-        _add(f"{prefix}.{i}.self_attn.o_proj.weight")
-        _add(f"{prefix}.{i}.self_attn.qkv_proj.weight")
+        _add(f"{prefix}.{i}.ln.weight", f"{hf_prefix}.{i}.input_layernorm.weight")
+        _add(f"{prefix}.{i}.mlp.down_proj.weight", f"{hf_prefix}.{i}.mlp.down_proj.weight")
+        _add(f"{prefix}.{i}.mlp.gate_up_proj.weight", f"{hf_prefix}.{i}.mlp.gate_up_proj.weight")
+        _add(
+            f"{prefix}.{i}.post_attention_layernorm.weight",
+            f"{hf_prefix}.{i}.post_attention_layernorm.weight",
+        )
+        _add(f"{prefix}.{i}.mixer.out_proj.weight", f"{hf_prefix}.{i}.self_attn.o_proj.weight")
+        _add(f"{prefix}.{i}.mixer.qkv_proj.weight", f"{hf_prefix}.{i}.self_attn.qkv_proj.weight")
 
     prefix = "vision_embed_tokens.img_processor.vision_model.encoder.layers"
     for i in range(model_config.vision_config.num_hidden_layers):

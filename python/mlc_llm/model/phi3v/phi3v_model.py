@@ -204,7 +204,7 @@ class Phi3VForCausalLM(nn.Module):
     def embed(self, input_ids: Tensor):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        embeds = self.model.embed_tokens(input_ids)
+        embeds = self.model.embd(input_ids)
         return embeds
 
     def image_embed(self, pixel_values: Tensor) -> Tensor:
