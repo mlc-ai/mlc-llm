@@ -2,10 +2,10 @@
 
 import asyncio
 import random
-import requests
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import requests
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 import mlc_llm
