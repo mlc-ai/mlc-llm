@@ -356,6 +356,10 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   if (pending_text.length() != 0) {
     message_list.push_back(TextData(pending_text));
   }
+  // Handle system_prefix_token_ids
+  if (conv.system_prefix_token_ids.has_value()) {
+    message_list.insert(message_list.begin(), TokenData(conv.system_prefix_token_ids.value()));
+  }
   return TResult::Ok(message_list);
 }
 
