@@ -329,19 +329,19 @@
 <section id="prerequisite">
 <h2><a class="toc-backref" href="#id2" role="doc-backlink">Prerequisite</a><a class="headerlink" href="#prerequisite" title="Permalink to this heading">¶</a></h2>
 <p><strong>Rust</strong> (<a class="reference external" href="https://www.rust-lang.org/tools/install">install</a>) is needed to cross-compile HuggingFace tokenizers to Android. Make sure rustc, cargo, and rustup are available in <code class="docutils literal notranslate"><span class="pre">$PATH</span></code>.</p>
-<p><strong>Android Studio</strong> (<a class="reference external" href="https://developer.android.com/studio">install</a>) with NDK and CMake. To install NDK and CMake, in the Android Studio welcome page, click “Projects → SDK Manager → SDK Tools”. Set up the following environment variables:</p>
+<p><strong>Android Studio</strong> (<a class="reference external" href="https://developer.android.com/studio">install</a>) with NDK and CMake. To install NDK and CMake, on the Android Studio welcome page, click “Projects → SDK Manager → SDK Tools”. If you have already installed NDK in your development environment, please update your NDK to avoid build android package fail(<a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/2696">#2696</a>). The current demo Android APK is built with NDK 27.0.11718014. Once you have installed or updated the NDK, set up the following environment variables:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">ANDROID_NDK</span></code> so that <code class="docutils literal notranslate"><span class="pre">$ANDROID_NDK/build/cmake/android.toolchain.cmake</span></code> is available.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">TVM_NDK_CC</span></code> that points to NDK’s clang compiler.</p></li>
 </ul>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Example on macOS</span>
-ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Library/Android/sdk/ndk/25.2.9519653
+ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Library/Android/sdk/ndk/27.0.11718014
 TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
 <span class="c1"># Example on Linux</span>
-ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Android/Sdk/ndk/25.2.9519653
+ANDROID_NDK:<span class="w"> </span><span class="nv">$HOME</span>/Android/Sdk/ndk/27.0.11718014
 TVM_NDK_CC:<span class="w"> </span><span class="nv">$ANDROID_NDK</span>/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
 <span class="c1"># Example on Windows</span>
-ANDROID_NDK:<span class="w"> </span>%HOME%/AppData/Local/Android/Sdk/ndk/25.2.9519653
+ANDROID_NDK:<span class="w"> </span>%HOME%/AppData/Local/Android/Sdk/ndk/27.0.11718014
 TVM_NDK_CC:<span class="w"> </span>%ANDROID_NDK%/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 </pre></div>
 </div>
