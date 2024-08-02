@@ -22,6 +22,6 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep="",
         system_prefix_token_ids=[5],
         stop_str=["<|END_OF_TURN_TOKEN|>"],
-        stop_token_ids=[255001],
+        stop_token_ids=[6, 255001]
     )
 )
