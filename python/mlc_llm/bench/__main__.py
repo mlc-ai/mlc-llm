@@ -1,6 +1,7 @@
 """MLC LLM benchmark main entrance"""
 
 import asyncio
+import functools
 import random
 from typing import Any, Dict, List, Optional
 
@@ -18,7 +19,11 @@ from mlc_llm.bench.request_processor import (
     SampleRequests,
     SequentialProcessor,
 )
-from mlc_llm.bench.request_record import convert_reports_to_df, generate_metrics_summary
+from mlc_llm.bench.request_record import (
+    convert_reports_to_df,
+    generate_metrics_summary,
+    pretty_print_report,
+)
 from mlc_llm.cli.serve import EngineConfigOverride
 from mlc_llm.serve import EngineConfig
 from mlc_llm.support import argparse, logging
@@ -105,7 +110,7 @@ def run_executor(
         cuda_profiler_start_response = requests.post(cuda_profiler_start_url, timeout=60)
         assert cuda_profiler_start_response.status_code == 200
 
-    request_records, duration = asyncio.run(executor.run_benchmark(request_records))
+    request_records = asyncio.run(executor.run_benchmark(request_records))
 
     if args.cuda_profile:
         cuda_profiler_stop_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_stop"
@@ -114,7 +119,7 @@ def run_executor(
 
     # Post-process
     request_records = MetricAnalyzer(tokenizer)(request_records)
-    report = generate_metrics_summary(request_records, duration, args.num_requests, args.num_gpus)
+    report = generate_metrics_summary(request_records, args.num_requests, args.num_gpus)
     report = {**report, **executor.get_executor_feature_dict()}
     return report
 
@@ -133,11 +138,12 @@ def main(args: argparse.argparse.Namespace):
     def _main():
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
         dataset = create_dataset(args, tokenizer)
-        api_endpoint = create_api_endpoint(args)
-        executors = create_executors(args, api_endpoint)
+        executors = create_executors(args, functools.partial(create_api_endpoint, args))
         reports = []
         for executor in executors:
-            reports.append(run_executor(executor, dataset, tokenizer, args))
+            report = run_executor(executor, dataset, tokenizer, args)
+            reports.append(report)
+            pretty_print_report(report)
 
         # Construct data frame
         df = convert_reports_to_df(reports)
@@ -269,6 +275,11 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="The random number seed. Default to 0.",
+    )
+    parser.add_argument(
+        "--num-process-workers",
+        type=int,
+        help="The number of parallel process workers to send the requests.",
     )
     parser.add_argument(
         "--disable-tqdm",
