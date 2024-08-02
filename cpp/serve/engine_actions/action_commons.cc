@@ -110,6 +110,7 @@ void UpdatePrefixCache(const std::vector<RequestState>& rstates, EngineState est
         token_ids.clear();
         for (Data data : rsentry->mstates[0]->prefilled_inputs) {
           const TokenDataNode* token_data = data.as<TokenDataNode>();
+          if (token_data == nullptr) continue;
           token_ids.reserve(token_ids.size() + token_data->token_ids.size());
           token_ids.insert(token_ids.end(), token_data->token_ids->data,
                            token_data->token_ids->data + token_data->token_ids.size());
