@@ -206,7 +206,6 @@ class ModelImpl : public ModelObj {
 
   NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                        const std::vector<int>& lengths) final {
-    NVTXScopedRange nvtx_scope("BatchPrefill");
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -217,6 +216,8 @@ class ModelImpl : public ModelObj {
       total_length += lengths[i];
       p_logit_pos[i] = total_length - 1;
     }
+    NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
+                               " total_len=" + std::to_string(total_length));
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
     CHECK(ft_.prefill_func_.defined())
