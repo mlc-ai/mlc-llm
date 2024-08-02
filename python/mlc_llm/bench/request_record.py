@@ -52,7 +52,6 @@ class RequestRecord(BaseModel):
 
 def generate_metrics_summary(
     request_records: List[RequestRecord],
-    duration: float,
     num_total_requests: int,
     num_gpus: int,
 ) -> Dict[str, Any]:
@@ -62,9 +61,13 @@ def generate_metrics_summary(
     num_completed_requests = len(request_records)
     assert num_completed_requests <= num_total_requests
     request_metrics = [record.metrics for record in request_records]
+    duration = max(metrics.finish_time for metrics in request_metrics) - min(
+        metrics.start_time for metrics in request_metrics
+    )
 
     report = _compute_metrics_statistics(request_metrics)
     assert report is not None
+    report["num_gpus"] = num_gpus
     report["duration"] = duration
     report["num_total_requests"] = num_total_requests
     report["num_completed_requests"] = num_completed_requests
@@ -156,11 +159,14 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
         print(f"{'Total requests:':<40} {report['num_total_requests']:<10}")
         print(f"{'Completed requests:':<40} {report['num_completed_requests']:<10}")
         print(f"{'Duration (s):':<40} {report['duration']:<10.2f}")
+        print(f"{'Num GPUs:':<40} {report['num_gpus']:<10}")
         print(f"{'Total input tokens:':<40} {report['total_input_tokens']:<10}")
         print(f"{'Total output tokens:':<40} {report['total_output_tokens']:<10}")
         print(f"{'Request throughput (req/s):':<40} {report['request_throughput']:<10.2f}")
         print(f"{'Input token throughput (tok/s):':<40} {report['input_token_throughput']:<10.2f}")
+        print(f"{'Input token throughput per GPU (tok/s):':<40} {report['input_token_throughput_per_gpu']:<10.2f}")
         print(f"{'Output token throughput (tok/s):':<40} {report['output_token_throughput']:<10.2f}")
+        print(f"{'Output token throughput per GPU (tok/s):':<40} {report['output_token_throughput_per_gpu']:<10.2f}")
 
         ttft = report["time_to_first_token_s"]
         print(" Time to First Token (TTFT, ms) ".center(50, "-"))

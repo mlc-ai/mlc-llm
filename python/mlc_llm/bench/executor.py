@@ -2,8 +2,9 @@
 
 import argparse
 import asyncio
-import time
-from typing import Any, Dict, List, Tuple
+import concurrent.futures
+import os
+from typing import Any, Callable, Dict, List, Optional
 
 from tqdm.asyncio import tqdm
 
@@ -14,16 +15,17 @@ from mlc_llm.bench.request_record import RequestRecord
 class Executor:
     """The executor base class, denoting the kind of benchmark mode."""
 
-    api_endpoint: APIEndPoint
-
-    def __init__(self, api_endpoint: APIEndPoint, disable_tqdm: bool) -> None:
-        self.api_endpoint = api_endpoint
+    def __init__(
+        self,
+        f_create_api_endpoint: Callable[[], APIEndPoint],
+        num_processes: int,
+        disable_tqdm: bool,
+    ) -> None:
+        self.f_create_api_endpoint = f_create_api_endpoint
         self.disable_tqdm = disable_tqdm
-        self.pbar = None
+        self.num_processes = num_processes
 
-    async def run_benchmark(
-        self, request_records: List[RequestRecord]
-    ) -> Tuple[List[RequestRecord], float]:
+    async def run_benchmark(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         """Run benchmark with the given requests."""
         raise NotImplementedError()
 
@@ -39,18 +41,6 @@ class Executor:
         """Return the features of the executor."""
         raise NotImplementedError()
 
-    def _init_progress_bar(self, num_requests: int) -> None:
-        """Run warmup with the given requests."""
-        self.pbar = tqdm(total=num_requests) if not self.disable_tqdm else None
-
-    def _update_progress_bar(self) -> None:
-        if self.pbar is not None:
-            self.pbar.update(1)
-
-    def _terminate_progress_bar(self) -> None:
-        if self.pbar is not None:
-            self.pbar.close()
-
 
 class FixedConcurrentRequestExecutor(Executor):
     """The benchmark executor of fixing the number of concurrent requests."""
@@ -59,41 +49,89 @@ class FixedConcurrentRequestExecutor(Executor):
 
     def __init__(
         self,
-        api_endpoint: APIEndPoint,
+        f_create_api_endpoint: Callable[[], APIEndPoint],
+        num_processes: Optional[int],
         disable_tqdm: bool,
         num_concurrent_requests: int,
     ) -> None:
-        super().__init__(api_endpoint, disable_tqdm)
+        if num_processes is None:
+            # We assign each process at most 32 concurrent requests to send
+            # so that the asyncio pressure will not be too much.
+            num_processes = min((num_concurrent_requests + 31) // 32, 16)
+        super().__init__(f_create_api_endpoint, num_processes, disable_tqdm)
         self.num_concurrent_requests = num_concurrent_requests
 
-    async def run_benchmark(
-        self, request_records: List[RequestRecord]
-    ) -> Tuple[List[RequestRecord], float]:
-        updated_request_records: List[RequestRecord] = [None for _ in request_records]
-        async with self.api_endpoint:
-            num_sent_request = 0
+    async def run_benchmark(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+        partitions: List[List[RequestRecord]] = [
+            request_records[slice(i, len(request_records), self.num_processes)]
+            for i in range(self.num_processes)
+        ]
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-            async def _task() -> None:
-                nonlocal num_sent_request
-                while True:
-                    if num_sent_request == len(request_records):
-                        break
-                    idx = num_sent_request
-                    num_sent_request += 1
-                    request = request_records[idx]
+        loop = asyncio.get_running_loop()
+        pbar = None if self.disable_tqdm else tqdm(total=len(request_records))
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_processes) as pool:
+            futures = [
+                loop.run_in_executor(
+                    pool,
+                    FixedConcurrentRequestExecutor._process_task,
+                    self.f_create_api_endpoint,
+                    partition,
+                    self.num_concurrent_requests // self.num_processes
+                    + int(i < self.num_concurrent_requests % self.num_processes),
+                )
+                for i, partition in enumerate(partitions)
+            ]
+            results: List[RequestRecord] = []
+            for i, future in enumerate(asyncio.as_completed(futures)):
+                results.extend(await future)
+                if pbar is not None:
+                    pbar.update(len(partitions[i]))
 
-                    updated_request_records[idx] = await self.api_endpoint(request)
-                    self._update_progress_bar()
+        return results
 
-            tasks = [asyncio.create_task(_task()) for _ in range(self.num_concurrent_requests)]
-            self._init_progress_bar(len(request_records))
+    @staticmethod
+    def _process_task(
+        f_create_api_endpoint: Callable[[], APIEndPoint],
+        request_records: List[RequestRecord],
+        num_concurrent_requests: int,
+    ) -> List[RequestRecord]:
+        if len(request_records) == 0:
+            return []
 
-            start_time = time.monotonic()
-            await asyncio.gather(*tasks)
-            end_time = time.monotonic()
+        async def process_task_impl(
+            f_create_api_endpoint: Callable[[], APIEndPoint],
+            request_records: List[RequestRecord],
+            num_concurrent_requests: int,
+        ) -> List[RequestRecord]:
+            api_endpoint = f_create_api_endpoint()
+            updated_request_records: List[RequestRecord] = [None for _ in request_records]
+            async with api_endpoint:
+                num_sent_request = 0
 
-            self._terminate_progress_bar()
-        return updated_request_records, end_time - start_time
+                async def _task() -> None:
+                    nonlocal num_sent_request
+                    while True:
+                        if num_sent_request == len(request_records):
+                            break
+                        idx = num_sent_request
+                        num_sent_request += 1
+                        request = request_records[idx]
+
+                        updated_request_records[idx] = await api_endpoint(request)
+
+                tasks = [asyncio.create_task(_task()) for _ in range(num_concurrent_requests)]
+                await asyncio.gather(*tasks)
+
+            return updated_request_records
+
+        return asyncio.run(
+            process_task_impl(
+                f_create_api_endpoint,
+                request_records,
+                num_concurrent_requests,
+            )
+        )
 
     async def warmup(self, warmup_requests: List[RequestRecord]) -> None:
         # Disable tqdm for warmup
@@ -116,7 +154,7 @@ class FixedConcurrentRequestExecutor(Executor):
 
 def create_executors(
     args: argparse.Namespace,
-    api_endpoint: APIEndPoint,
+    f_create_api_endpoint: Callable[[], APIEndPoint],
 ) -> List[Executor]:
     """Create executor instances with regard to the specified args and endpoint."""
     if args.num_concurrent_requests is not None:
@@ -126,7 +164,12 @@ def create_executors(
                 "Please specify only one of them."
             )
         return [
-            FixedConcurrentRequestExecutor(api_endpoint, args.disable_tqdm, num_concurrent_requests)
+            FixedConcurrentRequestExecutor(
+                f_create_api_endpoint,
+                args.num_process_workers,
+                args.disable_tqdm,
+                num_concurrent_requests,
+            )
             for num_concurrent_requests in args.num_concurrent_requests
         ]
     if args.request_rate is not None:

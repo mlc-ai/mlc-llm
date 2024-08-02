@@ -21,7 +21,8 @@ Prerequisite
 
 **Rust** (`install <https://www.rust-lang.org/tools/install>`__) is needed to cross-compile HuggingFace tokenizers to Android. Make sure rustc, cargo, and rustup are available in ``$PATH``.
 
-**Android Studio** (`install <https://developer.android.com/studio>`__) with NDK and CMake. To install NDK and CMake, in the Android Studio welcome page, click "Projects → SDK Manager → SDK Tools". Set up the following environment variables:
+**Android Studio** (`install <https://developer.android.com/studio>`__) with NDK and CMake. To install NDK and CMake, on the Android Studio welcome page, click "Projects → SDK Manager → SDK Tools". If you have already installed NDK in your development environment, please update your NDK to avoid build android package fail(`#2696 <https://github.com/mlc-ai/mlc-llm/issues/2696>`__). The current demo Android APK is built with NDK 27.0.11718014. Once you have installed or updated the NDK, set up the following environment variables:
+
 
 - ``ANDROID_NDK`` so that ``$ANDROID_NDK/build/cmake/android.toolchain.cmake`` is available.
 - ``TVM_NDK_CC`` that points to NDK's clang compiler.
@@ -29,13 +30,13 @@ Prerequisite
 .. code-block:: bash
 
   # Example on macOS
-  ANDROID_NDK: $HOME/Library/Android/sdk/ndk/25.2.9519653
+  ANDROID_NDK: $HOME/Library/Android/sdk/ndk/27.0.11718014
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang
   # Example on Linux
-  ANDROID_NDK: $HOME/Android/Sdk/ndk/25.2.9519653
+  ANDROID_NDK: $HOME/Android/Sdk/ndk/27.0.11718014
   TVM_NDK_CC: $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang
   # Example on Windows
-  ANDROID_NDK: %HOME%/AppData/Local/Android/Sdk/ndk/25.2.9519653
+  ANDROID_NDK: %HOME%/AppData/Local/Android/Sdk/ndk/27.0.11718014
   TVM_NDK_CC: %ANDROID_NDK%/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 
 **JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime.
