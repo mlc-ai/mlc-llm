@@ -6,6 +6,7 @@ import random
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import requests
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 import mlc_llm
@@ -103,7 +104,18 @@ def run_executor(
     logger.info("Warmup with %d request(s)...", len(warmup_requests))
     asyncio.run(executor.warmup(warmup_requests))
     logger.info("Warmup finished. Start benchmarking...")
+
+    if args.cuda_profile:
+        cuda_profiler_start_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_start"
+        cuda_profiler_start_response = requests.post(cuda_profiler_start_url, timeout=60)
+        assert cuda_profiler_start_response.status_code == 200
+
     request_records = asyncio.run(executor.run_benchmark(request_records))
+
+    if args.cuda_profile:
+        cuda_profiler_stop_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_stop"
+        cuda_profiler_stop_response = requests.post(cuda_profiler_stop_url, timeout=60)
+        assert cuda_profiler_stop_response.status_code == 200
 
     # Post-process
     request_records = MetricAnalyzer(tokenizer)(request_records)
@@ -118,7 +130,9 @@ def main(args: argparse.argparse.Namespace):
     np.random.seed(args.seed)
 
     mlc_server = None
-    if args.mlc_model_lib:
+    if args.mlc_model_lib or args.cuda_profile:
+        if not args.mlc_model_lib:
+            raise ValueError("The model-lib argument is required.")
         mlc_server = _launch_mlc_server(args)
 
     def _main():
@@ -134,7 +148,7 @@ def main(args: argparse.argparse.Namespace):
         # Construct data frame
         df = convert_reports_to_df(reports)
         print(df)
-        df.to_csv(args.output)
+        df.to_csv(args.output, index=False)
         logger.info("Benchmark results dumped to file %s", args.output)
 
     if mlc_server is not None:
@@ -289,6 +303,13 @@ if __name__ == "__main__":
         type=str,
         default="mlc_benchmark.csv",
         help="The path of the output file where to dump the benchmark results.",
+    )
+    parser.add_argument(
+        "--cuda-profile",
+        type=bool,
+        default=False,
+        help="Whether to enable cuda profile on server. "
+        "The --mlc-model-lib path should be provided when enabling this option.",
     )
 
     main(parser.parse_args())
