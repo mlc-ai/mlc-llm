@@ -128,7 +128,7 @@ def main(args: argparse.argparse.Namespace):
         # Construct data frame
         df = convert_reports_to_df(reports)
         print(df)
-        df.to_csv(args.output)
+        df.to_csv(args.output, index=False)
         logger.info("Benchmark results dumped to file %s", args.output)
 
     if mlc_server is not None:
