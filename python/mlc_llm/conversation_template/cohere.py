@@ -1,7 +1,7 @@
 """Cohere default templates"""
+# pylint: disable=line-too-long
 
 # Referred from: https://huggingface.co/CohereForAI/aya-23-8B/blob/main/tokenizer_config.json
-# and https://github.com/huggingface/transformers/blob/main/src/transformers/models/cohere/tokenization_cohere_fast.py
 
 from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlaceholders
 
@@ -22,6 +22,6 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep="",
         system_prefix_token_ids=[5],
         stop_str=["<|END_OF_TURN_TOKEN|>"],
-        stop_token_ids=[6, 255001]
+        stop_token_ids=[6, 255001],
     )
 )
