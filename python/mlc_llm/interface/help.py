@@ -219,6 +219,10 @@ The default mode is "radix".
 The maximum number of sequences in prefix cache, default as max_batch_size.
 And set 0 to disable prefix cache, set -1 to have infinite capacity prefix cache.
 """.strip(),
+    "prefill_mode": """
+The prefill mode. "chunked" means the basic prefill with chunked input enabled. "hybrid" means the
+hybrid prefill or split-fuse, so that decode step will be converted into prefill.
+""".strip(),
     "overrides_serve": """
 Overriding extra configurable fields of EngineConfig and model compilation config.
 Supporting fields that can be be overridden: "tensor_parallel_shards", "max_num_sequence",
