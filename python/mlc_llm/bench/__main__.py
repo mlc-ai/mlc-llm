@@ -130,9 +130,7 @@ def main(args: argparse.argparse.Namespace):
     np.random.seed(args.seed)
 
     mlc_server = None
-    if args.mlc_model_lib or args.cuda_profile:
-        if not args.mlc_model_lib:
-            raise ValueError("The model-lib argument is required.")
+    if args.mlc_model_lib:
         mlc_server = _launch_mlc_server(args)
 
     def _main():
@@ -306,8 +304,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--cuda-profile",
-        type=bool,
         default=False,
+        action="store_true",
         help="Whether to enable cuda profile on server. "
         "The --mlc-model-lib path should be provided when enabling this option.",
     )
