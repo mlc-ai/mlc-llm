@@ -9,7 +9,7 @@ from typing import Optional
 
 from typing_extensions import Self
 
-from mlc_llm.bench.request_record import Metrics, RequestRecord
+from mlc_llm.bench.request_record import Metrics, RequestRecord, ServerMetrics
 from mlc_llm.support import logging
 
 logging.enable_logging()
@@ -94,21 +94,46 @@ class OpenAIEndPoint(APIEndPoint):
                         if raw_data == b"[DONE]":
                             continue
                         data = json.loads(raw_data)
-                        if self.include_server_metrics and data["usage"] is not None:
-                            server_metrics = data["usage"]["extra"]
                         if not data["choices"]:
                             continue
                         delta = data["choices"][0]["delta"]
-                        if delta.get("content", None):
-                            if not time_to_first_token_s:
-                                time_to_first_token_s = time.monotonic() - start_time
+                        if delta.get("content", None) and not time_to_first_token_s:
+                            time_to_first_token_s = time.monotonic() - start_time
+                        if self.include_server_metrics and data["usage"] is not None:
+                            # fmt: off
+                            # pylint: disable=line-too-long
+                            server_metrics = ServerMetrics(
+                                input_tokens=data["usage"]["extra"]["prompt_tokens"],
+                                prefill_tokens=data["usage"]["extra"]["prefill_tokens"],
+                                output_tokens=data["usage"]["extra"]["completion_tokens"],
+                                end_to_end_latency_s=data["usage"]["extra"]["end_to_end_latency_s"],
+                                prefill_tokens_per_s=data["usage"]["extra"]["prefill_tokens_per_s"],
+                                inter_token_latency_s=data["usage"]["extra"]["inter_token_latency_s"],
+                                time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],
+                                time_to_first_token_s=data["usage"]["extra"]["ttft_s"],
+                            )
+                            # pylint: enable=line-too-long
+                            # fmt: on
 
                         generated_text += delta["content"]
                 else:
                     data = await response.json()
                     generated_text = data["choices"][0]["message"]["content"]
                     if self.include_server_metrics and data["usage"] is not None:
-                        server_metrics = data["usage"]["extra"]
+                        # fmt: off
+                        # pylint: disable=line-too-long
+                        server_metrics = ServerMetrics(
+                            input_tokens=data["usage"]["extra"]["prompt_tokens"],
+                            prefill_tokens=data["usage"]["extra"]["prefill_tokens"],
+                            output_tokens=data["usage"]["extra"]["completion_tokens"],
+                            end_to_end_latency_s=data["usage"]["extra"]["end_to_end_latency_s"],
+                            prefill_tokens_per_s=data["usage"]["extra"]["prefill_tokens_per_s"],
+                            inter_token_latency_s=data["usage"]["extra"]["inter_token_latency_s"],
+                            time_per_output_token_s=1 / data["usage"]["extra"]["decode_tokens_per_s"],
+                            time_to_first_token_s=data["usage"]["extra"]["ttft_s"],
+                        )
+                        # pylint: enable=line-too-long
+                        # fmt: on
         except Exception:  # pylint: disable=broad-except
             logger.info("Error sending request: %s", traceback.format_exc())
             finish_time = time.monotonic()
@@ -121,6 +146,7 @@ class OpenAIEndPoint(APIEndPoint):
                 input_tokens=request_record.metrics.input_tokens,
                 time_to_first_token_s=time_to_first_token_s,
                 server_metrics=server_metrics,
+                exec_feature=request_record.metrics.exec_feature,
             )
             return request_record
 
@@ -134,6 +160,7 @@ class OpenAIEndPoint(APIEndPoint):
             input_tokens=request_record.metrics.input_tokens,
             time_to_first_token_s=time_to_first_token_s,
             server_metrics=server_metrics,
+            exec_feature=request_record.metrics.exec_feature,
         )
         return request_record
 

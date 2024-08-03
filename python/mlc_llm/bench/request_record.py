@@ -40,6 +40,8 @@ class Metrics(BaseModel):
     time_to_first_token_s: Optional[float] = None
     server_metrics: Optional[ServerMetrics] = None
 
+    exec_feature: Optional[Dict[str, Any]] = None
+
 
 class RequestRecord(BaseModel):
     """The request records collected from LLM inference requests."""
@@ -61,12 +63,14 @@ def generate_metrics_summary(
     num_completed_requests = len(request_records)
     assert num_completed_requests <= num_total_requests
     request_metrics = [record.metrics for record in request_records]
-    duration = max(metrics.finish_time for metrics in request_metrics) - min(
-        metrics.start_time for metrics in request_metrics
+    duration = (
+        max(metrics.finish_time for metrics in request_metrics)
+        - min(metrics.start_time for metrics in request_metrics)
+        if num_completed_requests > 0
+        else 1e-5
     )
 
     report = _compute_metrics_statistics(request_metrics)
-    assert report is not None
     report["num_gpus"] = num_gpus
     report["duration"] = duration
     report["num_total_requests"] = num_total_requests
@@ -85,15 +89,16 @@ def generate_metrics_summary(
     # Generate the server metrics statistics
     server_metrics = [metric.server_metrics for metric in request_metrics if metric.server_metrics]
     server_report = _compute_metrics_statistics(server_metrics)
-    if server_report is not None:
+    if server_report is not None and len(server_report) > 0:
         report["server_metrics"] = server_report
 
+    report["exec_feature"] = (
+        request_records[0].metrics.exec_feature if num_completed_requests > 0 else None
+    )
     return report
 
 
-def _compute_metrics_statistics(
-    metrics: List[Union[Metrics, ServerMetrics]]
-) -> Optional[Dict[str, Any]]:
+def _compute_metrics_statistics(metrics: List[Union[Metrics, ServerMetrics]]) -> Dict[str, Any]:
     """
     Compute the statistics of the metrics.
 
@@ -108,12 +113,12 @@ def _compute_metrics_statistics(
         The statistics of the metrics.
     """
     if not metrics:
-        return None
+        return {}
 
     report: Dict = {}
     df = pd.DataFrame([metric.model_dump() for metric in metrics])
     for key, _ in metrics[0].model_fields.items():
-        if key in ["success", "start_time", "finish_time", "server_metrics"]:
+        if key in ["success", "start_time", "finish_time", "server_metrics", "exec_feature"]:
             continue
         if key in df.columns:
             series = df[key].dropna()
@@ -156,18 +161,21 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
         if server_metrics:
             title += " (server side)"
         print(f" {title} ".center(50, "="))
-        print(f"{'Total requests:':<40} {report['num_total_requests']:<10}")
-        print(f"{'Completed requests:':<40} {report['num_completed_requests']:<10}")
-        print(f"{'Duration (s):':<40} {report['duration']:<10.2f}")
-        print(f"{'Num GPUs:':<40} {report['num_gpus']:<10}")
-        print(f"{'Total input tokens:':<40} {report['total_input_tokens']:<10}")
-        print(f"{'Total output tokens:':<40} {report['total_output_tokens']:<10}")
-        print(f"{'Request throughput (req/s):':<40} {report['request_throughput']:<10.2f}")
-        print(f"{'Input token throughput (tok/s):':<40} {report['input_token_throughput']:<10.2f}")
-        print(f"{'Input token throughput per GPU (tok/s):':<40} {report['input_token_throughput_per_gpu']:<10.2f}")
-        print(f"{'Output token throughput (tok/s):':<40} {report['output_token_throughput']:<10.2f}")
-        print(f"{'Output token throughput per GPU (tok/s):':<40} {report['output_token_throughput_per_gpu']:<10.2f}")
+        if not server_metrics:
+            print(f"{'Total requests:':<40} {report['num_total_requests']:<10}")
+            print(f"{'Completed requests:':<40} {report['num_completed_requests']:<10}")
+            print(f"{'Duration (s):':<40} {report['duration']:<10.2f}")
+            print(f"{'Num GPUs:':<40} {report['num_gpus']:<10}")
+            print(f"{'Total input tokens:':<40} {report['total_input_tokens']:<10}")
+            print(f"{'Total output tokens:':<40} {report['total_output_tokens']:<10}")
+            print(f"{'Request throughput (req/s):':<40} {report['request_throughput']:<10.2f}")
+            print(f"{'Input token throughput (tok/s):':<40} {report['input_token_throughput']:<10.2f}")
+            print(f"{'Input token throughput per GPU (tok/s):':<40} {report['input_token_throughput_per_gpu']:<10.2f}")
+            print(f"{'Output token throughput (tok/s):':<40} {report['output_token_throughput']:<10.2f}")
+            print(f"{'Output token throughput per GPU (tok/s):':<40} {report['output_token_throughput_per_gpu']:<10.2f}")
 
+        if report["num_completed_requests"] == 0:
+            return
         ttft = report["time_to_first_token_s"]
         print(" Time to First Token (TTFT, ms) ".center(50, "-"))
         print(f"{'Mean:':<40} {ttft['mean'] * 1000:<10.2f}")

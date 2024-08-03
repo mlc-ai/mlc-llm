@@ -1,23 +1,19 @@
 """MLC LLM benchmark main entrance"""
 
-import asyncio
 import functools
 import random
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-import requests
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 import mlc_llm
 from mlc_llm.bench.api_endpoint import SUPPORTED_BACKENDS, create_api_endpoint
 from mlc_llm.bench.dataset import SUPPORTED_DATASET, Dataset, create_dataset
-from mlc_llm.bench.executor import Executor, create_executors
 from mlc_llm.bench.request_processor import (
-    AttachStreamFlag,
     MetricAnalyzer,
-    SampleRequests,
-    SequentialProcessor,
+    RequestProcessor,
+    create_pipelines,
 )
 from mlc_llm.bench.request_record import (
     convert_reports_to_df,
@@ -39,6 +35,19 @@ def _parse_num_concurrent_requests(num_str: Optional[str]) -> Optional[List[int]
     if any(not number.isdigit() for number in numbers):
         raise ValueError(f"Unrecognized num_concurrent_requests list: {numbers}")
     return list(int(number) for number in numbers)
+
+
+def _parse_request_rate(request_rate_str: Optional[str]) -> Optional[List[np.float32]]:
+    if request_rate_str is None:
+        return None
+    request_rates = request_rate_str.split(",")
+    results = []
+    for rate_str in request_rates:
+        request_rate = float(rate_str)
+        if request_rate <= 0:
+            raise ValueError(f"Invalid request rate {request_rate}")
+        results.append(np.float32(request_rate))
+    return results
 
 
 def _parse_mlc_engine_config(config_str: Optional[str]) -> EngineConfig:
@@ -70,76 +79,45 @@ def _launch_mlc_server(args: argparse.argparse.Namespace):
     )
 
 
-def run_executor(
-    executor: Executor,
+def run_pipeline(
+    pipeline: RequestProcessor,
     dataset: Dataset,
     tokenizer: AutoTokenizer,
     args: argparse.argparse.Namespace,
 ) -> Dict[str, Any]:
-    """Run the executor with the given dataset and args. Return the benchmark report dict."""
-    # Pre-process
-    num_warmup_requests = executor.get_num_warmup_requests()
-    pre_processor = SequentialProcessor(
-        SampleRequests(args.num_requests + num_warmup_requests),
-        AttachStreamFlag(args.stream),
-    )
+    """Run the pipeline with the given dataset and args. Return the benchmark report dict."""
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     request_records = dataset.generate_request_records(
         args.input_len,
         args.output_len,
         args.input_len_std,
         args.output_len_std,
     )
-    request_records = pre_processor(request_records)
-    assert len(request_records) == args.num_requests + num_warmup_requests
-    warmup_requests = request_records[:num_warmup_requests]
-    request_records = request_records[num_warmup_requests:]
+    request_records = pipeline(request_records)
+    assert len(request_records) == args.num_requests
 
-    # Warmup and run
-    logger.info(
-        "Executor %s created for %s dataset at %s",
-        type(executor).__name__,
-        args.dataset,
-        args.dataset_path,
-    )
-    logger.info("Warmup with %d request(s)...", len(warmup_requests))
-    asyncio.run(executor.warmup(warmup_requests))
-    logger.info("Warmup finished. Start benchmarking...")
-
-    if args.cuda_profile:
-        cuda_profiler_start_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_start"
-        cuda_profiler_start_response = requests.post(cuda_profiler_start_url, timeout=60)
-        assert cuda_profiler_start_response.status_code == 200
-
-    request_records = asyncio.run(executor.run_benchmark(request_records))
-
-    if args.cuda_profile:
-        cuda_profiler_stop_url = f"http://{args.host}:{args.port}/debug/cuda_profiler_stop"
-        cuda_profiler_stop_response = requests.post(cuda_profiler_stop_url, timeout=60)
-        assert cuda_profiler_stop_response.status_code == 200
-
-    # Post-process
     request_records = MetricAnalyzer(tokenizer)(request_records)
     report = generate_metrics_summary(request_records, args.num_requests, args.num_gpus)
-    report = {**report, **executor.get_executor_feature_dict()}
     return report
 
 
 def main(args: argparse.argparse.Namespace):
     """Main benchmark entrance."""
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-
     mlc_server = None
     if args.mlc_model_lib:
         mlc_server = _launch_mlc_server(args)
+    if args.num_requests <= 0:
+        raise ValueError("Number of requests to benchmark must be positive.")
 
     def _main():
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
         dataset = create_dataset(args, tokenizer)
-        executors = create_executors(args, functools.partial(create_api_endpoint, args))
+        f_create_api_endpoint = functools.partial(create_api_endpoint, args)
+        pipelines = create_pipelines(args, f_create_api_endpoint)
         reports = []
-        for executor in executors:
-            report = run_executor(executor, dataset, tokenizer, args)
+        for pipeline in pipelines:
+            report = run_pipeline(pipeline, dataset, tokenizer, args)
             reports.append(report)
             pretty_print_report(report)
 
@@ -198,6 +176,12 @@ if __name__ == "__main__":
         help="The number of requests for benchmark.",
     )
     parser.add_argument(
+        "--num-warmup-requests",
+        type=int,
+        help="The number of requests for warmup. "
+        "It is optional when fixing the number of concurrent requests, and is required otherwise.",
+    )
+    parser.add_argument(
         "--num-concurrent-requests",
         type=_parse_num_concurrent_requests,
         help="The number(s) of concurrent requests to benchmark. "
@@ -207,9 +191,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--request-rate",
-        type=int,
-        help="The request rate, denoting the number of new requests each second. "
-        "When specified, the benchmark sends these many new requests each second.",
+        type=_parse_request_rate,
+        help="The request rate(s) denoting the number of new requests each second. "
+        'It can be either one float number (or "inf") or a list of numbers separated '
+        'by commas(","). '
+        "When specified, the benchmark sends these many new requests each second. "
+        'If it is "inf", all requests will be sent together at once.',
     )
     parser.add_argument(
         "--input-len",
@@ -283,6 +270,12 @@ if __name__ == "__main__":
         "--disable-tqdm",
         action="store_true",
         help="Whether to disable showing progress bar with tqdm during benchmarking.",
+    )
+    parser.add_argument(
+        "--max-schedule-gap",
+        type=float,
+        default=0.5,
+        help="The maximum allowed delay between the scheduled time in seconds.",
     )
     parser.add_argument(
         "--mlc-model-lib",
