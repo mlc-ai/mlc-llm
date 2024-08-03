@@ -130,6 +130,13 @@ def main(argv):
         help=HELP["prefix_cache_mode_serve"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--prefill-mode",
+        type=str,
+        choices=["hybrid", "chunked"],
+        default="hybrid",
+        help=HELP["prefill_mode"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--overrides",
         type=EngineConfigOverride.from_str,
         default="",
@@ -198,6 +205,7 @@ def main(argv):
         gpu_memory_utilization=parsed.overrides.gpu_memory_utilization,
         spec_draft_length=parsed.overrides.spec_draft_length,
         prefix_cache_max_num_recycling_seqs=parsed.overrides.prefix_cache_max_num_recycling_seqs,
+        prefill_mode=parsed.prefill_mode,
         enable_tracing=parsed.enable_tracing,
         host=parsed.host,
         port=parsed.port,

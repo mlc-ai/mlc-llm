@@ -39,6 +39,7 @@ def serve(
     spec_draft_length: Optional[int],
     prefix_cache_mode: Literal["disable", "radix"],
     prefix_cache_max_num_recycling_seqs: Optional[int],
+    prefill_mode: Literal["hybrid", "chunked"],
     enable_tracing: bool,
     host: str,
     port: int,
@@ -69,6 +70,7 @@ def serve(
             spec_draft_length=spec_draft_length,
             prefix_cache_mode=prefix_cache_mode,
             prefix_cache_max_num_recycling_seqs=prefix_cache_max_num_recycling_seqs,
+            prefill_mode=prefill_mode,
         ),
         enable_tracing=enable_tracing,
     )
