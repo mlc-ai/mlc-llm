@@ -6,7 +6,7 @@ Convert Model Weights
 To run a model with MLC LLM,
 we need to convert model weights into MLC format (e.g. `RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC <https://huggingface.co/mlc-ai/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC/tree/main>`_.)
 This page walks us through the process of adding a model variant with ``mlc_llm convert_weight``, which
-takes a hugginface model as input and converts/quantizes into MLC-compatible weights.
+takes a huggingface model as input and converts/quantizes into MLC-compatible weights.
 
 Specifically, we add RedPjama-INCITE-**Instruct**-3B-v1, while MLC already
 provides a model library for RedPjama-INCITE-**Chat**-3B-v1, which we can reuse.
