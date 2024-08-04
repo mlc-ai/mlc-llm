@@ -288,8 +288,6 @@ class ChatCompletionRequest(BaseModel):
                 raise BadRequestError(
                     f"System prompt at position {i} in the message list is invalid."
                 )
-            if message.role == "tool":
-                raise BadRequestError("Tool as the message author is not supported yet.")
             if message.tool_call_id is not None:
                 if message.role != "tool":
                     raise BadRequestError("Non-tool message having `tool_call_id` is invalid.")

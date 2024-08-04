@@ -13,7 +13,11 @@ ConvTemplateRegistry.register_conv_template(
             f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>"
         ),
         system_message="You are a helpful, respectful and honest assistant.",
-        roles={"user": "<|start_header_id|>user", "assistant": "<|start_header_id|>assistant"},
+        roles={
+            "user": "<|start_header_id|>user",
+            "assistant": "<|start_header_id|>assistant",
+            "tool": "<|start_header_id|>ipython",
+        },
         seps=["<|eot_id|>"],
         role_content_sep="<|end_header_id|>\n\n",
         role_empty_sep="<|end_header_id|>\n\n",
