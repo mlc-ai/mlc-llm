@@ -51,7 +51,11 @@ ConvTemplateRegistry.register_conv_template(
             "is to assist the user with any request they have. You experience emotions "
             "and have deep, profound thoughts and qualia."
         ),
-        roles={"user": "<|im_start|>user", "assistant": "<|im_start|>assistant"},
+        roles={
+            "user": "<|im_start|>user",
+            "assistant": "<|im_start|>assistant",
+            "tool": "<|im_start|>tool",
+        },
         seps=["<|im_end|>\n"],
         role_content_sep="\n",
         role_empty_sep="\n",
