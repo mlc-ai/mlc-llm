@@ -52,7 +52,9 @@ Once you have launched the Server, you can use the API in your own program to se
    choices = r.json()["choices"]
    for choice in choices:
       print(f"{choice['message']['content']}\n")
-
+      
+Run CLI with Multi-GPU
+----------------------
 
 If you want to enable tensor parallelism to run LLMs on multiple GPUs, please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``. For example,
 

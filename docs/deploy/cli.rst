@@ -52,6 +52,8 @@ Once the chat CLI is ready, you can enter the prompt to interact with the model.
   >>> What's the meaning of life?
   The meaning of life is a philosophical and metaphysical question related to the purpose or significance of life or existence in general...
 
+Run CLI with Multi-GPU
+----------------------
 
 If you want to enable tensor parallelism to run LLMs on multiple GPUs, please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``. For example,
 
