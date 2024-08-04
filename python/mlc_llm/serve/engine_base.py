@@ -741,7 +741,6 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
             assert isinstance(content, str)
             conv_template.system_message = content if content is not None else ""
             continue
-        assert role != "tool", "Internal error: tool role."
         conv_template.messages.append((role, content))
     conv_template.messages.append(("assistant", None))
 
