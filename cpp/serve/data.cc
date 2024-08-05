@@ -171,9 +171,10 @@ std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logpro
 TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
 
 RequestStreamOutput::RequestStreamOutput(
-    String request_id, Array<IntTuple> group_delta_token_ids,
-    Optional<Array<Array<String>>> group_delta_logprob_json_strs,
-    Array<Optional<String>> group_finish_reason, Array<String> group_extra_prefix_string) {
+    String request_id, std::vector<std::vector<int64_t>> group_delta_token_ids,
+    std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs,
+    std::vector<Optional<String>> group_finish_reason,
+    std::vector<String> group_extra_prefix_string) {
   ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
   n->request_id = std::move(request_id);
   n->group_delta_token_ids = std::move(group_delta_token_ids);
@@ -193,12 +194,29 @@ RequestStreamOutput RequestStreamOutput::Usage(String request_id,
 
 TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
     .set_body_typed([](RequestStreamOutput output) {
-      return Array<ObjectRef>{output->request_id,
-                              output->group_delta_token_ids,
-                              output->group_delta_logprob_json_strs,
-                              output->group_finish_reason,
+      CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
+      std::vector<IntTuple> group_delta_token_ids;
+      std::vector<Array<String>> group_delta_logprob_json_strs;
+      group_delta_token_ids.reserve(output->group_delta_token_ids.size());
+      if (output->group_delta_logprob_json_strs.has_value()) {
+        group_delta_logprob_json_strs.reserve(output->group_delta_token_ids.size());
+      }
+      for (int i = 0; i < static_cast<int>(output->group_delta_token_ids.size()); ++i) {
+        group_delta_token_ids.push_back(output->group_delta_token_ids[i]);
+        if (output->group_delta_logprob_json_strs.has_value()) {
+          group_delta_logprob_json_strs.push_back(output->group_delta_logprob_json_strs.value()[i]);
+        }
+      }
+      Array<ObjectRef> ret = {output->request_id,
+                              Array<IntTuple>(std::move(group_delta_token_ids)),
+                              output->group_delta_logprob_json_strs.has_value()
+                                  ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
+                                  : Optional<Array<Array<String>>>(),
+                              Array<Optional<String>>(output->group_finish_reason),
                               output->request_final_usage_json_str,
-                              output->group_extra_prefix_string};
+                              Array<String>(output->group_extra_prefix_string)};
+      output->unpacked = true;
+      return ret;
     });
 
 }  // namespace serve

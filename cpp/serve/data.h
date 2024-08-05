@@ -11,6 +11,9 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
+#include <atomic>
+#include <optional>
+
 #include "../tokenizers/tokenizers.h"
 
 namespace mlc {
@@ -170,14 +173,14 @@ class RequestStreamOutputObj : public Object {
    * \brief The new generated token ids since the last callback invocation
    * for the input request.
    */
-  Array<IntTuple> group_delta_token_ids;
+  std::vector<std::vector<int64_t>> group_delta_token_ids;
   /*! \brief The logprobs JSON strings of the new generated tokens since last invocation. */
-  Optional<Array<Array<String>>> group_delta_logprob_json_strs;
+  std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs;
   /*!
    * \brief The finish reason of the request when it is finished,
    * of None if the request has not finished yet.
    */
-  Array<Optional<String>> group_finish_reason;
+  std::vector<Optional<String>> group_finish_reason;
   /*!
    * \brief The usage field of the response, this is global to all streams.
    */
@@ -186,7 +189,9 @@ class RequestStreamOutputObj : public Object {
   /*!
    * \brief The extra prefix string of all requests.
    */
-  Array<String> group_extra_prefix_string;
+  std::vector<String> group_extra_prefix_string;
+
+  std::atomic<bool> unpacked = false;
 
   static constexpr const char* _type_key = "mlc.serve.RequestStreamOutput";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -200,14 +205,15 @@ class RequestStreamOutputObj : public Object {
  */
 class RequestStreamOutput : public ObjectRef {
  public:
-  explicit RequestStreamOutput(String request_id, Array<IntTuple> group_delta_token_ids,
-                               Optional<Array<Array<String>>> group_delta_logprob_json_strs,
-                               Array<Optional<String>> finish_reason,
-                               Array<String> group_extra_prefix_string);
+  explicit RequestStreamOutput(
+      String request_id, std::vector<std::vector<int64_t>> group_delta_token_ids,
+      std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs,
+      std::vector<Optional<String>> group_finish_reason,
+      std::vector<String> group_extra_prefix_string);
 
   static RequestStreamOutput Usage(String request_id, String request_final_usage_json_str);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
 };
 
 }  // namespace serve
