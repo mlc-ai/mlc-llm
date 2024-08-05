@@ -1293,13 +1293,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     "minicpm_2b": {
         "_name_or_path": "openbmb/CPM-2B",
         "architectures": ["MiniCPMForCausalLM"],
-        "auto_map": {
-            "AutoConfig": "configuration_minicpm.MiniCPMConfig",
-            "AutoModel": "modeling_minicpm.MiniCPMModel",
-            "AutoModelForCausalLM": "modeling_minicpm.MiniCPMForCausalLM",
-            "AutoModelForSeq2SeqLM": "modeling_minicpm.MiniCPMForCausalLM",
-            "AutoModelForSequenceClassification": "modeling_minicpm.MiniCPMForSequenceClassification",
-        },
         "bos_token_id": 1,
         "eos_token_id": 2,
         "hidden_act": "silu",
