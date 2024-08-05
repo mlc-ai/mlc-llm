@@ -67,15 +67,15 @@ class OpenAIEndPoint(APIEndPoint):
     async def __call__(  # pylint: disable=too-many-branches
         self, request_record: RequestRecord
     ) -> RequestRecord:
-        kwargs = request_record.chat_cmpl.model_dump()
-        if self.timeout is not None and "timeout" not in kwargs:
-            kwargs["timeout"] = self.timeout
+        payload = request_record.chat_cmpl.model_dump()
+        if self.timeout is not None and "timeout" not in payload:
+            payload["timeout"] = self.timeout
         if self.include_server_metrics:
-            if "stream_options" not in kwargs or kwargs["stream_options"] is None:
-                kwargs["stream_options"] = {"include_usage": True}
+            if "stream_options" not in payload or payload["stream_options"] is None:
+                payload["stream_options"] = {"include_usage": True}
             else:
-                kwargs["stream_options"]["include_usage"] = True
-        kwargs["ignore_eos"] = True
+                payload["stream_options"]["include_usage"] = True
+        payload["ignore_eos"] = True
 
         generated_text = ""
         time_to_first_token_s = None
@@ -83,8 +83,8 @@ class OpenAIEndPoint(APIEndPoint):
         server_metrics = None
 
         try:
-            async with self.client.post(self.url, json=kwargs, headers=self.headers) as response:
-                if kwargs["stream"]:
+            async with self.client.post(self.url, json=payload, headers=self.headers) as response:
+                if payload["stream"]:
                     async for chunk in response.content:
                         chunk = chunk.strip()
                         if not chunk or chunk == b"\n":
@@ -165,12 +165,113 @@ class OpenAIEndPoint(APIEndPoint):
         return request_record
 
 
+class TensorRTLLMEndPoint(APIEndPoint):
+    """The backend of sending HTTP requests in TensorRT-LLM API."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self, host: str, port: int, timeout: Optional[float] = None
+    ) -> None:
+        super().__init__(include_server_metrics=False)
+
+        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+
+        self.timeout = timeout
+        self.client: aiohttp.ClientSession = None
+        self.url_stream = f"http://{host}:{port}/v2/models/ensemble/generate_stream"
+        self.url_no_stream = f"http://{host}:{port}/v2/models/ensemble/generate"
+
+    async def __aenter__(self) -> Self:
+        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+
+        self.client = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, tb) -> None:
+        await self.client.close()
+
+    async def __call__(  # pylint: disable=too-many-branches
+        self, request_record: RequestRecord
+    ) -> RequestRecord:
+        assert len(request_record.chat_cmpl.messages) == 1
+        assert isinstance(request_record.chat_cmpl.messages[0].content, str)
+        payload = {
+            "accumulate_tokens": True,
+            "text_input": request_record.chat_cmpl.messages[0].content,
+            "temperature": (
+                max(request_record.chat_cmpl.temperature, 1e-5)
+                if request_record.chat_cmpl.temperature
+                else 1
+            ),
+            "top_p": request_record.chat_cmpl.top_p if request_record.chat_cmpl.top_p else 1,
+            "max_tokens": request_record.chat_cmpl.max_tokens,
+            "stream": request_record.chat_cmpl.stream,
+            "ignore_eos": True,
+        }
+        if self.timeout is not None and "timeout" not in payload:
+            payload["timeout"] = self.timeout
+
+        generated_text = ""
+        url = self.url_stream if request_record.chat_cmpl.stream else self.url_no_stream
+        time_to_first_token_s = None
+        start_time = time.monotonic()
+
+        try:
+            async with self.client.post(url, json=payload) as response:
+                assert response.status == 200, response.reason
+                if payload["stream"]:
+                    async for chunk in response.content:
+                        chunk = chunk.strip()
+                        if not chunk or chunk == b"\n":
+                            continue
+                        # Get rid of the prefix "data:" and suffix "\n"
+                        raw_data = chunk[5:].strip()
+                        data = json.loads(raw_data)
+                        delta = data["text_output"]
+                        if delta is None:
+                            continue
+
+                        if not time_to_first_token_s:
+                            time_to_first_token_s = time.monotonic() - start_time
+                        generated_text += delta
+                else:
+                    data = await response.json()
+                    generated_text = data["text_output"]
+        except Exception:  # pylint: disable=broad-except
+            logger.info("Error sending request: %s", traceback.format_exc())
+            finish_time = time.monotonic()
+            request_record.output_str = generated_text
+            request_record.metrics = Metrics(
+                success=False,
+                start_time=start_time,
+                finish_time=finish_time,
+                end_to_end_latency_s=finish_time - start_time,
+                input_tokens=request_record.metrics.input_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+                exec_feature=request_record.metrics.exec_feature,
+            )
+            return request_record
+
+        finish_time = time.monotonic()
+        request_record.output_str = generated_text
+        request_record.metrics = Metrics(
+            success=len(generated_text) > 0,
+            start_time=start_time,
+            finish_time=finish_time,
+            end_to_end_latency_s=finish_time - start_time,
+            input_tokens=request_record.metrics.input_tokens,
+            time_to_first_token_s=time_to_first_token_s,
+            exec_feature=request_record.metrics.exec_feature,
+        )
+        return request_record
+
+
 # Todo: APIEndPoint with AsyncOpenAI Python interface  # pylint: disable=fixme
 # class OpenAIPythonEndPoint(APIEndPoint):
 #     pass
 
 SUPPORTED_BACKENDS = [
     "openai",
+    "tensorrt-llm",
 ]
 
 
@@ -178,4 +279,6 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
     """Create an API endpoint instance with regard to the specified endpoint kind."""
     if args.api_endpoint == "openai":
         return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
+    if args.api_endpoint == "tensorrt-llm":
+        return TensorRTLLMEndPoint(args.host, args.port, args.timeout)
     raise ValueError(f'Unrecognized endpoint "{args.api_endpoint}"')
