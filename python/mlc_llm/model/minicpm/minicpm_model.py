@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the MiniCPM model."""
 
-    hidden_act: str
     vocab_size: int
     hidden_size: int
     num_hidden_layers: int
