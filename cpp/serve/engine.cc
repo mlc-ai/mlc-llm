@@ -782,7 +782,10 @@ class EngineImpl : public Engine {
     inferrable_cfg = inferrable_cfg_res.Unwrap();
     ICHECK(inferrable_cfg.max_num_sequence.has_value());
     ICHECK(inferrable_cfg.max_total_sequence_length.has_value());
-    ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
+    use_kv_cache = ModelsUseKVCache(model_configs);
+    if (use_kv_cache.Unwrap()) {
+      ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
+    }
     ICHECK(inferrable_cfg.prefill_chunk_size.has_value());
     ICHECK(inferrable_cfg.max_history_size.has_value());
     return TResult::Ok(EngineConfig::FromJSONAndInferredConfig(config, inferrable_cfg));

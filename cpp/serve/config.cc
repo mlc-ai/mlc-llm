@@ -310,7 +310,6 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
     const picojson::object& json, const InferrableEngineConfig& inferred_config) {
   CHECK(inferred_config.max_num_sequence.has_value());
   CHECK(inferred_config.max_total_sequence_length.has_value());
-  CHECK(inferred_config.max_single_sequence_length.has_value());
   CHECK(inferred_config.prefill_chunk_size.has_value());
   CHECK(inferred_config.max_history_size.has_value());
   ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
@@ -350,7 +349,9 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   // - Fields from the inferred engine config.
   n->max_num_sequence = inferred_config.max_num_sequence.value();
   n->max_total_sequence_length = inferred_config.max_total_sequence_length.value();
-  n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
+  if (inferred_config.max_single_sequence_length.has_value()) {
+    n->max_single_sequence_length = inferred_config.max_single_sequence_length.value();
+  }
   n->prefill_chunk_size = inferred_config.prefill_chunk_size.value();
   n->max_history_size = inferred_config.max_history_size.value();
 
