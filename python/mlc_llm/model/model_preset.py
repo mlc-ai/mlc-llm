@@ -1321,6 +1321,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "dim_model_base": 256,
         "scale_depth": 1.4,
         "tie_word_embeddings": False,
-        "rope_theta": 1000000.0
+        "rope_theta": 1000000.0,
     },
 }
