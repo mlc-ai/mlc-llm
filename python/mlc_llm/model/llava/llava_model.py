@@ -19,14 +19,14 @@ from mlc_llm.model.vision import CLIPVisionConfig, CLIPVisionModel
 from mlc_llm.nn import PagedKVCache, RopeMode
 
 from ...support.config import ConfigBase
-from ..llama.llama_model import LlamaConfig, LlamaForCasualLM
+from ..llama.llama_model import LlamaConfig, LlamaForCausalLM
 from ..mistral.mistral_model import MistralConfig, MistralForCasualLM
 
 logger = logging.getLogger(__name__)
 
 
 CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
-ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCasualLM, "MistralForCausalLM": MistralForCasualLM}
+ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCausalLM, "MistralForCausalLM": MistralForCasualLM}
 
 
 @dataclasses.dataclass

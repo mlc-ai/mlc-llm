@@ -2,6 +2,8 @@
 
 from typing import Any, Dict  # pylint: disable=too-many-lines
 
+# pylint: disable=too-many-lines
+
 MODEL_PRESETS: Dict[str, Any] = {
     "llama2_7b": {
         "architectures": ["LlamaForCausalLM"],
@@ -1262,5 +1264,30 @@ MODEL_PRESETS: Dict[str, Any] = {
         "transformers_version": "4.42.3",
         "use_cache": True,
         "vocab_size": 49152,
+    },
+    "aya-23": {
+        "architectures": ["CohereForCausalLM"],
+        "attention_bias": False,
+        "attention_dropout": 0.0,
+        "bos_token_id": 5,
+        "eos_token_id": 255001,
+        "hidden_act": "silu",
+        "hidden_size": 4096,
+        "initializer_range": 0.02,
+        "intermediate_size": 14336,
+        "layer_norm_eps": 1e-05,
+        "logit_scale": 0.0625,
+        "max_position_embeddings": 8192,
+        "model_type": "cohere",
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 8,
+        "pad_token_id": 0,
+        "rope_theta": 10000,
+        "torch_dtype": "float16",
+        "transformers_version": "4.40.0.dev0",
+        "use_cache": True,
+        "use_qk_norm": False,
+        "vocab_size": 256000,
     },
 }
