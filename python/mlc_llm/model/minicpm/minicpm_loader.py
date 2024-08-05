@@ -10,7 +10,6 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-
 from .minicpm_model import MiniCPMConfig, MiniCPMForCausalLM
 
 
