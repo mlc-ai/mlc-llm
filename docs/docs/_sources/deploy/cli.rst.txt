@@ -52,15 +52,14 @@ Once the chat CLI is ready, you can enter the prompt to interact with the model.
   >>> What's the meaning of life?
   The meaning of life is a philosophical and metaphysical question related to the purpose or significance of life or existence in general...
 
-.. note::
+Run CLI with Multi-GPU
+----------------------
 
-  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
-  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
-  For example,
+If you want to enable tensor parallelism to run LLMs on multiple GPUs, please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``. For example,
 
-  .. code:: shell
+.. code:: shell
 
-    mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
+  mlc_llm chat HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 
 The ``mlc_llm chat`` Command

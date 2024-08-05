@@ -52,16 +52,15 @@ Once you have launched the Server, you can use the API in your own program to se
    choices = r.json()["choices"]
    for choice in choices:
       print(f"{choice['message']['content']}\n")
+      
+Run CLI with Multi-GPU
+----------------------
 
-.. note::
+If you want to enable tensor parallelism to run LLMs on multiple GPUs, please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``. For example,
 
-  If you want to enable tensor parallelism to run LLMs on multiple GPUs,
-  please specify argument ``--overrides "tensor_parallel_shards=$NGPU"``.
-  For example,
+.. code:: shell
 
-  .. code:: shell
-
-    mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
+   mlc_llm serve HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC --overrides "tensor_parallel_shards=2"
 
 ------------------------------------------------
 

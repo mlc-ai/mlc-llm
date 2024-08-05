@@ -175,6 +175,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">REST API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#install-mlc-llm-package">Install MLC-LLM Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#run-cli-with-multi-gpu">Run CLI with Multi-GPU</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#launch-the-server">Launch the Server</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#api-endpoints">API Endpoints</a></li>
 </ul>
@@ -297,8 +298,9 @@
 <ul class="simple">
 <li><p><a class="reference internal" href="#install-mlc-llm-package" id="id2">Install MLC-LLM Package</a></p></li>
 <li><p><a class="reference internal" href="#quick-start" id="id3">Quick Start</a></p></li>
-<li><p><a class="reference internal" href="#launch-the-server" id="id4">Launch the Server</a></p></li>
-<li><p><a class="reference internal" href="#api-endpoints" id="id5">API Endpoints</a></p></li>
+<li><p><a class="reference internal" href="#run-cli-with-multi-gpu" id="id4">Run CLI with Multi-GPU</a></p></li>
+<li><p><a class="reference internal" href="#launch-the-server" id="id5">Launch the Server</a></p></li>
+<li><p><a class="reference internal" href="#api-endpoints" id="id6">API Endpoints</a></p></li>
 </ul>
 </nav>
 <p>We provide <a class="reference external" href="https://www.ibm.com/topics/rest-apis#:~:text=the%20next%20step-,What%20is%20a%20REST%20API%3F,representational%20state%20transfer%20architectural%20style.">REST API</a>
@@ -337,19 +339,17 @@ for a user to interact with MLC-LLM in their own programs.</p>
 <span class="w">   </span>print<span class="o">(</span>f<span class="s2">&quot;{choice[&#39;message&#39;][&#39;content&#39;]}\n&quot;</span><span class="o">)</span>
 </pre></div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you want to enable tensor parallelism to run LLMs on multiple GPUs,
-please specify argument <code class="docutils literal notranslate"><span class="pre">--overrides</span> <span class="pre">&quot;tensor_parallel_shards=$NGPU&quot;</span></code>.
-For example,</p>
+</section>
+<section id="run-cli-with-multi-gpu">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Run CLI with Multi-GPU</a><a class="headerlink" href="#run-cli-with-multi-gpu" title="Permalink to this heading">¶</a></h2>
+<p>If you want to enable tensor parallelism to run LLMs on multiple GPUs, please specify argument <code class="docutils literal notranslate"><span class="pre">--overrides</span> <span class="pre">&quot;tensor_parallel_shards=$NGPU&quot;</span></code>. For example,</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC<span class="w"> </span>--overrides<span class="w"> </span><span class="s2">&quot;tensor_parallel_shards=2&quot;</span>
 </pre></div>
-</div>
 </div>
 <hr class="docutils" />
 </section>
 <section id="launch-the-server">
-<span id="rest-launch-server"></span><h2><a class="toc-backref" href="#id4" role="doc-backlink">Launch the Server</a><a class="headerlink" href="#launch-the-server" title="Permalink to this heading">¶</a></h2>
+<span id="rest-launch-server"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Launch the Server</a><a class="headerlink" href="#launch-the-server" title="Permalink to this heading">¶</a></h2>
 <p>To launch the MLC Server for MLC-LLM, run the following command in your terminal.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>serve<span class="w"> </span>MODEL<span class="w"> </span><span class="o">[</span>--model-lib<span class="w"> </span>PATH-TO-MODEL-LIB<span class="o">]</span><span class="w"> </span><span class="o">[</span>--device<span class="w"> </span>DEVICE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--mode<span class="w"> </span>MODE<span class="o">]</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="o">[</span>--additional-models<span class="w"> </span>ADDITIONAL-MODELS<span class="o">]</span><span class="w"> </span><span class="se">\</span>
@@ -460,7 +460,7 @@ include the <code class="docutils literal notranslate"><span class="pre">CORS</s
 supported endpoints.</p>
 </section>
 <section id="api-endpoints">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">API Endpoints</a><a class="headerlink" href="#api-endpoints" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">API Endpoints</a><a class="headerlink" href="#api-endpoints" title="Permalink to this heading">¶</a></h2>
 <p>The REST API provides the following endpoints:</p>
 <dl class="http get">
 <dt class="sig sig-object http" id="get--v1-models">
