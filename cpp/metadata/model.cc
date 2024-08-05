@@ -66,7 +66,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   result.kv_state_kind = KVStateKindFromString(
       json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
-  if (result.kv_state_kind != KVStateKind::kNone) {
+  if (result.kv_state_kind != KVStateKind::kNone &&
+      result.kv_state_kind != KVStateKind::kRNNState) {
     result.kv_cache_metadata =
         KVCacheMetadata::FromJSON(json::Lookup<picojson::object>(metadata, "kv_cache"));
   } else {
