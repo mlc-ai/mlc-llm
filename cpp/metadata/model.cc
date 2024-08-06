@@ -14,10 +14,13 @@ using namespace tvm::runtime;
 ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
     const picojson::object& js, const picojson::object& model_config) {
   Preproc preproc;
-  CHECK_EQ(js.size(), 3) << "ValueError: Invalid preprocessing info in JSON";
+  CHECK_GE(js.size(), 3) << "ValueError: Invalid preprocessing info in JSON";
   preproc.func_name = json::Lookup<std::string>(js, "func_name");
   json::SymShapeTuple sym_out_shape = json::Lookup<json::SymShapeTuple>(js, "out_shape");
   preproc.out_shape = sym_out_shape.ToStatic(model_config);
+  json::SymShapeTuple sym_in_shape =
+      json::LookupOrDefault<json::SymShapeTuple>(js, "in_shape", sym_out_shape);
+  preproc.in_shape = sym_in_shape.ToStatic(model_config);
   preproc.out_dtype = json::Lookup<DataType>(js, "out_dtype");
   return preproc;
 }
@@ -30,11 +33,31 @@ ModelMetadata::Param ModelMetadata::Param::FromJSON(const picojson::object& para
   // A shape being `-1` means that it is dynamic
   json::SymShapeTuple sym_shape = json::Lookup<json::SymShapeTuple>(param, "shape");
   result.shape = sym_shape.ToStatic(model_config);
+  // - "preproc"
   picojson::array preprocs = json::Lookup<picojson::array>(param, "preprocs");
   result.preprocs.reserve(preprocs.size());
   for (int i = 0; i < preprocs.size(); i++) {
     result.preprocs.emplace_back(ModelMetadata::Param::Preproc::FromJSON(
         json::Lookup<picojson::object>(preprocs, i), model_config));
+  }
+  // - "pipeline_stages"
+  int pipeline_parallel_stages =
+      json::LookupOrDefault<int64_t>(model_config, "pipeline_parallel_stages", 1);
+  std::optional<picojson::array> opt_pipeline_stages =
+      json::LookupOptional<picojson::array>(param, "pipeline_stages");
+  if (pipeline_parallel_stages > 1) {
+    CHECK(opt_pipeline_stages.has_value())
+        << "The pipeline stage is undefined for parameter \"" << result.name
+        << "\" when the number of pipeline parallel stages is " << pipeline_parallel_stages;
+  }
+  if (opt_pipeline_stages.has_value()) {
+    result.pipeline_stages.reserve(opt_pipeline_stages.value().size());
+    for (const picojson::value& v : opt_pipeline_stages.value()) {
+      CHECK(v.is<int64_t>()) << "Pipeline stage is not a integer.";
+      result.pipeline_stages.push_back(v.get<int64_t>());
+    }
+  } else {
+    result.pipeline_stages = {0};
   }
   return result;
 }
@@ -64,6 +87,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
     result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
+  result.pipeline_parallel_stages =
+      json::LookupOrDefault<int64_t>(metadata, "pipeline_parallel_stages", 1);
   result.kv_state_kind = KVStateKindFromString(
       json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
   if (result.kv_state_kind != KVStateKind::kNone &&

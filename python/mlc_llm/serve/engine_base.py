@@ -157,6 +157,7 @@ def _process_model_args(
                 "sliding_window_size": engine_config.sliding_window_size,
                 "attention_sink_size": engine_config.attention_sink_size,
                 "tensor_parallel_shards": engine_config.tensor_parallel_shards,
+                "pipeline_parallel_stages": engine_config.pipeline_parallel_stages,
                 "max_batch_size": engine_config.max_num_sequence,
             }
 

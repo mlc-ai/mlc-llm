@@ -119,6 +119,9 @@ The maximum allowed batch size set for the KV cache to concurrently support.
     """tensor_parallel_shards""": """
 Number of shards to split the model into in tensor parallelism multi-gpu inference.
 """.strip(),
+    """pipeline_parallel_stages""": """
+Number of pipeline stages to split the model layers for pipeline parallelism.
+""".strip(),
     "overrides": """
 Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,

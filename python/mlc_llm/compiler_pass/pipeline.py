@@ -21,6 +21,7 @@ from .attach_support_info import (
     AttachAdditionalPrimFuncs,
     AttachCUDAGraphSymbolicCaptureHints,
     AttachMemoryPlanAttr,
+    AttachPipelineParallelStages,
     AttachVariableBounds,
 )
 from .clean_up_tir_attrs import CleanUpTIRAttrs
@@ -35,6 +36,7 @@ from .fuse_ft_dequantize_matmul_epilogue import FuseFTDequantizeEpilogue
 from .fuse_transpose_matmul import FuseTransposeMatmul
 from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .low_batch_specialization import LowBatchGemvSpecialize
+from .pipeline_parallel_rewrite import PipelineParallelRewrite
 from .scatter_tuple_get_item import ScatterTupleGetItem
 
 logger = logging.getLogger(__name__)
@@ -103,6 +105,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachSoftmaxWithTemperature(target),
                 AttachVariableBounds(variable_bounds),
                 AttachCUDAGraphSymbolicCaptureHints(cuda_graph_symbolic_capture_hints),
+                AttachPipelineParallelStages(metadata["pipeline_parallel_stages"]),
                 AttachLogitProcessFunc(target),
                 AttachAdditionalPrimFuncs(additional_tirs),
                 AttachAllocEmbeddingTensorFunc(metadata),
@@ -155,6 +158,8 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                     else tvm.transform.Sequential([])
                 ),
                 ScatterTupleGetItem(),
+                PipelineParallelRewrite(),
+                _DebugDump("after-pipeline-rewrite.py", debug_dump, show_meta=False),
                 tvm.relax.transform.RewriteDataflowReshape(),
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),

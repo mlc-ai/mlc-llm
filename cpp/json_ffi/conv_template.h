@@ -51,6 +51,7 @@ class ModelConfig {
   int sliding_window_size;
   int prefill_chunk_size;
   int tensor_parallel_shards;
+  int pipeline_parallel_stages;
   int max_batch_size;
   std::optional<ModelVisionConfig> vision_config = std::nullopt;
 

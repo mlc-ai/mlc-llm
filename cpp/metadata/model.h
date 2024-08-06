@@ -50,6 +50,7 @@ struct ModelMetadata {
   struct Param {
     struct Preproc {
       tvm::runtime::String func_name;
+      tvm::runtime::ShapeTuple in_shape;
       tvm::runtime::ShapeTuple out_shape;
       tvm::runtime::DataType out_dtype;
       static Preproc FromJSON(const picojson::object& js, const picojson::object& model_config);
@@ -59,6 +60,7 @@ struct ModelMetadata {
     tvm::runtime::ShapeTuple shape;
     tvm::runtime::DataType dtype;
     std::vector<Preproc> preprocs;
+    std::vector<int> pipeline_stages;
     static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);
   };
 
@@ -77,6 +79,7 @@ struct ModelMetadata {
   int64_t max_batch_size;
   int64_t sliding_window_size;
   int64_t tensor_parallel_shards;
+  int64_t pipeline_parallel_stages;
   int64_t attention_sink_size;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;

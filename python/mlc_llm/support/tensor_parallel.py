@@ -39,7 +39,7 @@ class ShardSingleDim:
         segs = self.segs or [shape[self.dim]]
         assert sum(segs) == shape[self.dim]
         w = te.placeholder(
-            [*shape[: self.dim], shape[self.dim] * shards, *shape[self.dim + 1 :]],
+            self._compute_in_shape(shards, weight),
             weight.dtype,
             name="w",
         )
@@ -72,9 +72,15 @@ class ShardSingleDim:
         """Generate shard info for this sharding strategy."""
         return {
             "func_name": self.name,
+            "in_shape": self._compute_in_shape(shards, weight),
             "out_shape": (shards, *weight.shape),
             "out_dtype": weight.dtype,
         }
+
+    def _compute_in_shape(self, shards: int, weight: nn.Tensor) -> List[int]:
+        """Compute the weight shape before sharding."""
+        shape = weight.shape
+        return [*shape[: self.dim], shape[self.dim] * shards, *shape[self.dim + 1 :]]
 
 
 @contextmanager
