@@ -114,7 +114,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     lse_tvm = tvm.nd.array(lse, dev)
 
     target = tvm.target.Target("cuda")
-    kernel = tree_attn(h_kv=h_kv, h_q=h_q, d=d, dtype="float16", target=target)
+    kernel = tree_attn(h_kv=h_kv, h_q=h_q, d=d, dtype="float16", rope_scaling={}, target=target)
     mod = tvm.build(kernel, target=target)
     mod(
         q_tvm,
