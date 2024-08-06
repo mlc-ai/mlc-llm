@@ -506,6 +506,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             @Synchronized get
             @Synchronized set
         private val engine = MLCEngine()
+        private var historyMessages = mutableListOf<ChatCompletionMessage>()
         private var modelLib = ""
         private var modelPath = ""
         private val executorService = Executors.newSingleThreadExecutor()
@@ -513,6 +514,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private fun mainResetChat() {
             executorService.submit {
                 callBackend { engine.reset() }
+                historyMessages = mutableListOf<ChatCompletionMessage>()
                 viewModelScope.launch {
                     clearHistory()
                     switchToReady()
@@ -523,6 +525,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private fun clearHistory() {
             messages.clear()
             report.value = ""
+            historyMessages.clear()
         }
 
 
@@ -660,33 +663,58 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         fun requestGenerate(prompt: String) {
             require(chatable())
             switchToGenerating()
+            appendMessage(MessageRole.User, prompt)
+            appendMessage(MessageRole.Assistant, "")
+
             executorService.submit {
-                appendMessage(MessageRole.User, prompt)
-                appendMessage(MessageRole.Assistant, "")
+                historyMessages.add(ChatCompletionMessage(
+                    role = OpenAIProtocol.ChatCompletionRole.user,
+                    content = prompt
+                ))
+
                 viewModelScope.launch {
-                    val channel = engine.chat.completions.create(
-                        messages = listOf(
-                            ChatCompletionMessage(
-                                role = OpenAIProtocol.ChatCompletionRole.user,
-                                content = prompt
-                            )
-                        ),
+                    val responses = engine.chat.completions.create(
+                        messages = historyMessages,
                         stream_options = OpenAIProtocol.StreamOptions(include_usage = true)
                     )
-                    var texts = ""
-                    for (response in channel) {
+
+                    var finishReasonLength = false
+                    var streamingText = ""
+
+                    for (res in responses) {
                         if (!callBackend {
-                            val finalsage = response.usage
-                            if (finalsage != null) {
-                                report.value = (finalsage.extra?.asTextLabel()?:"")
-                            } else {
-                                if (response.choices.size > 0) {
-                                    texts += response.choices[0].delta.content?.asText().orEmpty()
+                            for (choice in res.choices) {
+                                choice.delta.content?.let { content ->
+                                    streamingText += content.asText()
+                                }
+                                choice.finish_reason?.let { finishReason ->
+                                    if (finishReason == "length") {
+                                        finishReasonLength = true
+                                    }
                                 }
                             }
-                            updateMessage(MessageRole.Assistant, texts)
+                            updateMessage(MessageRole.Assistant, streamingText)
+                            res.usage?.let { finalUsage ->
+                                report.value = finalUsage.extra?.asTextLabel() ?: ""
+                            }
+                            if (finishReasonLength) {
+                                streamingText += " [output truncated due to context length limit...]"
+                                updateMessage(MessageRole.Assistant, streamingText)
+                            }
                         });
                     }
+                    if (streamingText.isNotEmpty()) {
+                        historyMessages.add(ChatCompletionMessage(
+                            role = OpenAIProtocol.ChatCompletionRole.assistant,
+                            content = streamingText
+                        ))
+                        streamingText = ""
+                    } else {
+                        if (historyMessages.isNotEmpty()) {
+                            historyMessages.removeAt(historyMessages.size - 1)
+                        }
+                    }
+
                     if (modelChatState.value == ModelChatState.Generating) switchToReady()
                 }
             }
