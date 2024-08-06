@@ -1291,7 +1291,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "vocab_size": 256000,
     },
     "minicpm_2b": {
-        "_name_or_path": "openbmb/CPM-2B",
         "architectures": ["MiniCPMForCausalLM"],
         "bos_token_id": 1,
         "eos_token_id": 2,
