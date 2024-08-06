@@ -166,6 +166,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     NDArray probs_on_device =
         logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
 
+    // - Commit the prefix cache changes from previous round of action.
+    // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
+    estate->prefix_cache->CommitSequenceExtention();
+
     // - Sample tokens.
     //   For rsentries which have children, sample
     //   one token for each rstate that is depending.
