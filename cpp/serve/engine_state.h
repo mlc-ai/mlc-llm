@@ -47,7 +47,7 @@ struct EngineInternalIDManager {
 };
 
 /*! \brief The data structures used in the action post-process. */
-struct ActionPostProcessStates {
+struct ActionPostProcessWorkspace {
   std::vector<RequestStateEntry> finished_rsentries;
   Array<RequestStreamOutput> callback_delta_outputs;
 };
@@ -74,9 +74,9 @@ class EngineStateObj : public Object {
   bool running_rsentries_changed = true;
   /*!
    * \brief The post-process data structures.
-   * We make it a state to avoid repetitive memory allocation/free in the action post process.
+   * We make it a workspace to avoid repetitive memory allocation/free in the action post process.
    */
-  ActionPostProcessStates postproc_states;
+  ActionPostProcessWorkspace postproc_workspace;
 
   /*! \brief Reset the engine state and clear the metrics. */
   void Reset();

@@ -22,7 +22,7 @@ void EngineStateObj::Reset() {
     prefix_cache->Reset();
   }
   running_rsentries_changed = true;
-  postproc_states = ActionPostProcessStates();
+  postproc_workspace = ActionPostProcessWorkspace();
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {

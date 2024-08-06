@@ -109,10 +109,10 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
                            Optional<EventTraceRecorder> trace_recorder) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
   int num_requests = requests.size();
-  estate->postproc_states.finished_rsentries.clear();
-  estate->postproc_states.callback_delta_outputs.clear();
-  estate->postproc_states.finished_rsentries.reserve(num_requests);
-  estate->postproc_states.callback_delta_outputs.reserve(num_requests * 2);
+  estate->postproc_workspace.finished_rsentries.clear();
+  estate->postproc_workspace.callback_delta_outputs.clear();
+  estate->postproc_workspace.finished_rsentries.reserve(num_requests);
+  estate->postproc_workspace.callback_delta_outputs.reserve(num_requests * 2);
 
   // - Collect new generated tokens and finish reasons for requests.
   for (int r = 0; r < num_requests; ++r) {
@@ -127,7 +127,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
       rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length, &stream_output, i);
       if (stream_output->group_finish_reason[i].defined()) {
         invoke_callback = true;
-        estate->postproc_states.finished_rsentries.push_back(rsentry);
+        estate->postproc_workspace.finished_rsentries.push_back(rsentry);
       }
       if (!stream_output->group_delta_token_ids[i].empty() ||
           !stream_output->group_extra_prefix_string[i].empty()) {
@@ -137,7 +137,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
 
     if (invoke_callback) {
       stream_output->unpacked = false;
-      estate->postproc_states.callback_delta_outputs.push_back(std::move(stream_output));
+      estate->postproc_workspace.callback_delta_outputs.push_back(std::move(stream_output));
     }
 
     // Update prefix cache and metrics.
@@ -171,14 +171,14 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
     }
   }
 
-  ProcessFinishedRequestStateEntries(estate->postproc_states.finished_rsentries, estate, models,
+  ProcessFinishedRequestStateEntries(estate->postproc_workspace.finished_rsentries, estate, models,
                                      max_single_sequence_length,
-                                     &estate->postproc_states.callback_delta_outputs);
+                                     &estate->postproc_workspace.callback_delta_outputs);
 
-  if (!estate->postproc_states.callback_delta_outputs.empty()) {
+  if (!estate->postproc_workspace.callback_delta_outputs.empty()) {
     NVTXScopedRange nvtx_scope("Call request stream callback");
     // - Invoke the stream callback function once for all collected requests.
-    request_stream_callback(estate->postproc_states.callback_delta_outputs);
+    request_stream_callback(estate->postproc_workspace.callback_delta_outputs);
   }
 }  // namespace serve
 

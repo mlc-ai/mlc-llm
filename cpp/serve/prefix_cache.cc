@@ -329,6 +329,9 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \brief The collection of uncommitted extended token ids of sequences.
    * The "ExtendSequence" method only lazily add token ids into this collection,
    * and these uncommitted token ids will be committed when needed.
+   *
+   * Note: Since the tokens stored are references, CommitSequenceExtention should be called after
+   * each action, to avoid the uncaught changes of uncomitted extended token ids.
    */
   std::vector<std::pair<int64_t, const std::vector<int32_t>&>> uncommitted_extended_token_ids_;
 };  // namespace serve
