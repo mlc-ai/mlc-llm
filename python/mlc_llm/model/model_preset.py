@@ -1301,6 +1301,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "intermediate_size": 5760,
         "max_position_embeddings": 65536,
         "max_length": 131072,
+        "model_type": "minicpm",
         "num_attention_heads": 36,
         "num_hidden_layers": 40,
         "num_key_value_heads": 36,
