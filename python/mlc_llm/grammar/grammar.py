@@ -403,4 +403,4 @@ class GrammarStateMatcher(Object):
 
     def set_stop_token_ids(self, stop_token_ids: List[int]) -> None:
         """Set the stop token ids, overriding the default ones."""
-        _ffi_api.GrammarStateMatcherSetStopTokenIds(self, tvm.runtime.ShapeTuple(stop_token_ids))
+        _ffi_api.GrammarStateMatcherSetStopTokenIds(self, tvm.runtime.ShapeTuple(stop_token_ids))  # type: ignore  # pylint: disable=no-member
