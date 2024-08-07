@@ -3,13 +3,18 @@
 import argparse
 import json
 import random
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from datasets import load_dataset  # pylint: disable=import-error
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 from mlc_llm.bench.request_record import Metrics, RequestRecord
-from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest, DebugConfig
+from mlc_llm.protocol.openai_api_protocol import (
+    ChatCompletionRequest,
+    DebugConfig,
+    RequestResponseFormat,
+)
 
 
 class Dataset:  # pylint: disable=too-few-public-methods
@@ -177,6 +182,62 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
                         finish_time=0,
                         end_to_end_latency_s=0,
                         input_tokens=input_length,
+                    ),
+                )
+            )
+        return request_records
+
+
+class JSONDataset(Dataset):  # pylint: disable=too-few-public-methods
+    """The dataset class for JSON dataset."""
+
+    def __init__(self, tokenizer: AutoTokenizer) -> None:
+        raw_dataset = load_dataset("NousResearch/json-mode-eval")
+        self.tokenizer = tokenizer
+        self.dataset = []
+        for data in raw_dataset["train"]:
+            prompt = data["prompt"]
+            schema = {
+                "type": "json_object",
+                "schema": data["schema"],
+            }
+            num_tokens = len(self.tokenizer.encode(prompt[0]["content"]))
+            self.dataset.append((prompt, schema, num_tokens))
+
+    def generate_request_records(
+        self,
+        input_len: Optional[int],
+        output_len: Optional[int],
+        input_len_std: float = 0.0,
+        output_len_std: float = 0.0,
+    ) -> List[RequestRecord]:
+        request_records = []
+        for prompt, schema, num_tokens in self.dataset:
+            # If the request does not have enough length, discard it.
+            if input_len is not None and num_tokens < input_len + 4 * input_len_std:
+                continue
+
+            if output_len is not None:
+                output_length = max(
+                    round(np.random.normal(loc=output_len, scale=output_len_std)), 1
+                )
+            else:
+                output_length = None
+            request_records.append(
+                RequestRecord(
+                    chat_cmpl=ChatCompletionRequest(
+                        messages=prompt,
+                        model="",
+                        max_tokens=output_length,
+                        debug_config=DebugConfig(ignore_eos=True),
+                        response_format=schema,
+                    ),
+                    metrics=Metrics(
+                        success=False,
+                        start_time=0,
+                        finish_time=0,
+                        end_to_end_latency_s=0,
+                        input_tokens=num_tokens,
                     ),
                 )
             )
@@ -372,6 +433,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
 SUPPORTED_DATASET = [
     "sharegpt",
     "llmperf",
+    "json",
 ]
 
 
@@ -390,4 +452,6 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
         return ShareGPTDataset(args.dataset_path, tokenizer)
     if args.dataset == "llmperf":
         return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
+    if args.dataset == "json":
+        return JSONDataset(tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
