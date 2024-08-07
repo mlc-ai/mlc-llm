@@ -248,7 +248,7 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
@@ -258,7 +258,7 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
