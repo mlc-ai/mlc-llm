@@ -520,8 +520,8 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
   ICHECK_GT(model_runtime_max_prefill_chunk_size, 0);
   ICHECK_GT(model_max_batch_size, 0);
   return Result<ModelConfigLimits>::Ok(
-      {model_compile_time_max_single_sequence_length, model_compile_time_max_prefill_chunk_size,
-       model_runtime_max_single_sequence_length, model_runtime_max_prefill_chunk_size,
+      {model_compile_time_max_single_sequence_length, model_runtime_max_single_sequence_length,
+       model_compile_time_max_prefill_chunk_size, model_runtime_max_prefill_chunk_size,
        model_max_sliding_window_size, model_max_batch_size});
 }
 
