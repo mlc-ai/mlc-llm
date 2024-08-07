@@ -101,6 +101,9 @@ class GrammarStateMatcherNode : public Object {
   /*! \brief Reset the matcher to the initial state. */
   virtual void ResetState() = 0;
 
+  /*! \brief Set the stop token ids, overriding the existing defaults ones. */
+  virtual void SetStopTokenIds(const std::vector<int32_t>& stop_token_ids) = 0;
+
   static constexpr const char* _type_key = "mlc.grammar.GrammarStateMatcher";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
