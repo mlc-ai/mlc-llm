@@ -21,12 +21,13 @@ void EngineStateObj::Reset() {
   if (prefix_cache.defined()) {
     prefix_cache->Reset();
   }
+  running_rsentries_changed = true;
+  postproc_workspace = ActionPostProcessWorkspace();
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {
-  auto it = request_states.find(request->id);
-  ICHECK(it != request_states.end());
-  return it->second;
+  ICHECK(request->rstate != nullptr) << "The state of the request has not been defined.";
+  return GetRef<RequestState>(static_cast<RequestStateNode*>(request->rstate));
 }
 
 const std::vector<RequestStateEntry>& EngineStateObj::GetRunningRequestStateEntries() {

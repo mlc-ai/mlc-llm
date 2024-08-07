@@ -114,6 +114,12 @@ ModelConfig ModelConfig::FromJSON(const picojson::object& json_obj) {
     config.tensor_parallel_shards = tensor_parallel_shards_res.Unwrap();
   }
 
+  Result<int64_t> pipeline_parallel_stages_res =
+      json::LookupWithResultReturn<int64_t>(json_obj, "pipeline_parallel_stages");
+  if (pipeline_parallel_stages_res.IsOk()) {
+    config.pipeline_parallel_stages = pipeline_parallel_stages_res.Unwrap();
+  }
+
   Result<int64_t> max_batch_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "max_batch_size");
   if (max_batch_size_res.IsOk()) {

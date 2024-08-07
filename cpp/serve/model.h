@@ -369,12 +369,14 @@ class Model : public ObjectRef {
    * \param device The device to run the model on.
    * \param session The session to run the model on.
    * \param num_shards The number of tensor parallel shards of the model.
+   * \param num_stages The number of pipeline parallel stages of the model.
    * \param trace_enabled A boolean indicating whether tracing is enabled.
    * \return The created runtime module.
    */
   static Model Create(String reload_lib_path, String model_path,
                       const picojson::object& model_config, DLDevice device,
-                      const Optional<Session>& session, int num_shards, bool trace_enabled);
+                      const Optional<Session>& session, int num_shards, int num_stages,
+                      bool trace_enabled);
 
   /*!
    * Load the model config from the given model path.

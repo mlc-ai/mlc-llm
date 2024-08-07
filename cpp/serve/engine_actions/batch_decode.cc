@@ -181,8 +181,12 @@ class BatchDecodeActionObj : public EngineActionObj {
       running_rsentries[i]->rstate->metrics.decode_tokens += lengths[i];
     }
 
-    auto tend = std::chrono::high_resolution_clock::now();
-    double elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
+    double elapsed_time;
+    {
+      NVTXScopedRange nvtx_scope("BatchDecode get time");
+      auto tend = std::chrono::high_resolution_clock::now();
+      elapsed_time = static_cast<double>((tend - tstart).count()) / 1e9;
+    }
     estate->metrics.engine_decode_time_sum += elapsed_time;
     estate->metrics.UpdateDecodeTimeByBatchSize(num_rsentries, elapsed_time);
 

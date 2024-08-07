@@ -432,8 +432,10 @@ String EngineConfigNode::AsJSONString() const {
 
 /*! \brief The class for config limitation from models. */
 struct ModelConfigLimits {
-  int64_t model_max_single_sequence_length;
-  int64_t model_max_prefill_chunk_size;
+  int64_t model_compile_time_max_single_sequence_length;
+  int64_t model_runtime_max_single_sequence_length;
+  int64_t model_compile_time_max_prefill_chunk_size;
+  int64_t model_runtime_max_prefill_chunk_size;
   int64_t model_max_sliding_window_size;
   int64_t model_max_batch_size;
 };
@@ -452,8 +454,10 @@ inline std::string BytesToMegabytesString(double bytes) {
 Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::object>& model_configs,
                                                const std::vector<ModelMetadata>& model_metadata) {
   ICHECK_EQ(model_configs.size(), model_metadata.size());
-  int64_t model_max_single_sequence_length = std::numeric_limits<int64_t>::max();
-  int64_t model_max_prefill_chunk_size = std::numeric_limits<int64_t>::max();
+  int64_t model_compile_time_max_single_sequence_length = std::numeric_limits<int64_t>::max();
+  int64_t model_runtime_max_single_sequence_length = std::numeric_limits<int64_t>::max();
+  int64_t model_compile_time_max_prefill_chunk_size = std::numeric_limits<int64_t>::max();
+  int64_t model_runtime_max_prefill_chunk_size = std::numeric_limits<int64_t>::max();
   int64_t model_max_batch_size = std::numeric_limits<int64_t>::max();
   int64_t model_max_sliding_window_size = std::numeric_limits<int64_t>::max();
   for (int i = 0; i < static_cast<int>(model_configs.size()); ++i) {
@@ -470,9 +474,13 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
       }
     }
 
+    if (compile_time_context_window_size != -1) {
+      model_compile_time_max_single_sequence_length =
+          std::min(model_compile_time_max_single_sequence_length, compile_time_context_window_size);
+    }
     if (runtime_context_window_size != -1) {
-      model_max_single_sequence_length =
-          std::min(model_max_single_sequence_length, runtime_context_window_size);
+      model_runtime_max_single_sequence_length =
+          std::min(model_runtime_max_single_sequence_length, runtime_context_window_size);
     }
     // - The maximum prefill chunk size is the minimum prefill chunk size among all models.
     int64_t runtime_prefill_chunk_size =
@@ -487,9 +495,13 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
       }
     }
 
+    if (compile_time_prefill_chunk_size != -1) {
+      model_compile_time_max_prefill_chunk_size =
+          std::min(model_compile_time_max_prefill_chunk_size, compile_time_prefill_chunk_size);
+    }
     if (runtime_prefill_chunk_size != -1) {
-      model_max_prefill_chunk_size =
-          std::min(model_max_prefill_chunk_size, runtime_prefill_chunk_size);
+      model_runtime_max_prefill_chunk_size =
+          std::min(model_runtime_max_prefill_chunk_size, runtime_prefill_chunk_size);
     }
     // - The maximum batch size is the minimum max batch size among all models.
     model_max_batch_size = std::min(model_max_batch_size, model_metadata[i].max_batch_size);
@@ -501,13 +513,16 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
           std::min(model_max_sliding_window_size, runtime_sliding_window_size);
     }
   }
-  ICHECK_NE(model_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
+  ICHECK_NE(model_compile_time_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
+  ICHECK_NE(model_runtime_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
   ICHECK_NE(model_max_batch_size, std::numeric_limits<int64_t>::max());
-  ICHECK_GT(model_max_prefill_chunk_size, 0);
+  ICHECK_GT(model_compile_time_max_prefill_chunk_size, 0);
+  ICHECK_GT(model_runtime_max_prefill_chunk_size, 0);
   ICHECK_GT(model_max_batch_size, 0);
-  return Result<ModelConfigLimits>::Ok({model_max_single_sequence_length,
-                                        model_max_prefill_chunk_size, model_max_sliding_window_size,
-                                        model_max_batch_size});
+  return Result<ModelConfigLimits>::Ok(
+      {model_compile_time_max_single_sequence_length, model_compile_time_max_prefill_chunk_size,
+       model_runtime_max_single_sequence_length, model_runtime_max_prefill_chunk_size,
+       model_max_sliding_window_size, model_max_batch_size});
 }
 
 /*! \brief The class for memory usage estimation result. */
@@ -546,11 +561,11 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
   // - 2. max_single_sequence_length
   if (!init_config.max_single_sequence_length.has_value()) {
     inferred_config.max_single_sequence_length =
-        model_config_limits.model_max_single_sequence_length;
+        model_config_limits.model_runtime_max_single_sequence_length;
   } else {
     inferred_config.max_single_sequence_length =
         std::min(inferred_config.max_single_sequence_length.value(),
-                 model_config_limits.model_max_single_sequence_length);
+                 model_config_limits.model_compile_time_max_single_sequence_length);
   }
   // - 3. infer the maximum total sequence length that can fit GPU memory.
   double kv_bytes_per_token = 0;
@@ -572,7 +587,9 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     int64_t num_qo_heads = model_metadata[i].kv_cache_metadata.num_attention_heads;
     int64_t num_kv_heads = model_metadata[i].kv_cache_metadata.num_key_value_heads;
     int64_t hidden_size = head_dim * num_qo_heads;
-    kv_bytes_per_token += head_dim * num_kv_heads * num_layers * 4 + 1.25;
+    kv_bytes_per_token +=
+        head_dim * num_kv_heads * (num_layers / model_metadata[i].pipeline_parallel_stages) * 4 +
+        1.25;
     kv_aux_workspace_bytes +=
         (max_num_sequence + 1) * 88 + prefill_chunk_size * (num_qo_heads + 1) * 8 +
         prefill_chunk_size * head_dim * (num_qo_heads + num_kv_heads) * 4 + 48 * 1024 * 1024;
@@ -630,19 +647,18 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
   if (!init_config.max_total_sequence_length.has_value()) {
     if (mode == EngineMode::kLocal) {
       inferred_config.max_total_sequence_length = std::min(
-          {model_max_total_sequence_length, model_config_limits.model_max_single_sequence_length,
+          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value(),
            static_cast<int64_t>(8192)});
     } else if (mode == EngineMode::kInteractive) {
       inferred_config.max_total_sequence_length = std::min(
-          {model_max_total_sequence_length, model_config_limits.model_max_single_sequence_length,
+          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value(),
            model_config_limits.model_max_sliding_window_size});
     } else {
       inferred_config.max_total_sequence_length =
-          model_config_limits.model_max_single_sequence_length ==
-                  std::numeric_limits<int64_t>::max()
+          inferred_config.max_single_sequence_length.value() == std::numeric_limits<int64_t>::max()
               ? model_max_total_sequence_length
               : std::min(model_max_total_sequence_length,
-                         max_num_sequence * model_config_limits.model_max_single_sequence_length);
+                         max_num_sequence * inferred_config.max_single_sequence_length.value());
     }
     os << "max KV cache token capacity will be set to "
        << inferred_config.max_total_sequence_length.value() << ", ";
@@ -654,11 +670,11 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
   if (!init_config.prefill_chunk_size.has_value()) {
     if (mode == EngineMode::kLocal || mode == EngineMode::kInteractive) {
       inferred_config.prefill_chunk_size =
-          std::min({model_config_limits.model_max_prefill_chunk_size,
+          std::min({model_config_limits.model_runtime_max_prefill_chunk_size,
                     inferred_config.max_total_sequence_length.value(),
-                    model_config_limits.model_max_single_sequence_length});
+                    inferred_config.max_single_sequence_length.value()});
     } else {
-      inferred_config.prefill_chunk_size = model_config_limits.model_max_prefill_chunk_size;
+      inferred_config.prefill_chunk_size = model_config_limits.model_runtime_max_prefill_chunk_size;
     }
     os << "prefill chunk size will be set to " << inferred_config.prefill_chunk_size.value()
        << ". ";
@@ -792,8 +808,8 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
   InferrableEngineConfig inferred_config = init_config;
   // - 1. prefill_chunk_size
   if (!init_config.prefill_chunk_size.has_value()) {
-    inferred_config.prefill_chunk_size =
-        std::min(model_config_limits.model_max_prefill_chunk_size, static_cast<int64_t>(4096));
+    inferred_config.prefill_chunk_size = std::min(
+        model_config_limits.model_runtime_max_prefill_chunk_size, static_cast<int64_t>(4096));
     os << "prefill chunk size will be set to " << inferred_config.prefill_chunk_size.value()
        << ", ";
   } else {

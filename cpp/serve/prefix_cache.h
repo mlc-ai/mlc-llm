@@ -75,7 +75,7 @@ class PrefixCacheObj : public Object {
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if the given sequence id is not valid or active.
    */
-  virtual void ExtendSequence(int64_t seq_id, std::vector<int32_t> tokens) = 0;
+  virtual void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) = 0;
 
   /*! \brief Commit the cached sequence extension from "ExtendSequence". */
   virtual void CommitSequenceExtention() = 0;

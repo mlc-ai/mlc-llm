@@ -31,29 +31,15 @@ from ..interface import calibrate  # pylint: disable=unused-import
 
 def main():
     """Main worker function"""
-
-    if len(sys.argv) == 5 or len(sys.argv) == 6:
-        *args, read_fd, write_fd = map(int, sys.argv[1:])
-    else:
-        print(
-            f"Expected exactly either 4 or 5 arguments, "
-            f"but received {len(sys.argv)-1} arguments.: {sys.argv}"
-        )
-        # The <num_groups> argument was added in
-        # https://github.com/apache/tvm/pull/17180.  This script
-        # currently checks the number of arguments present, to
-        # determine whether `num_groups` was provided.  This allows
-        # the worker.py script provided by MLC-LLM to be compatible
-        # with either pre-17180 or post-17180 arguments.
-        #
-        # After the TVM version used by MLC-LLM includes #17180, the
-        # usage can be updated to always require `len(sys.argv)==6`.
-        print("Usage (without num groups): <worker_id> <num_workers> <read_fd> <write_fd>")
-        print(
-            "Usage (with num groups): <worker_id> <num_workers> <num_groups> <read_fd> <write_fd>"
-        )
+    if len(sys.argv) != 6:
+        print("Usage: <worker_id> <num_workers> <num_groups> <read_fd> <write_fd>")
         return
 
+    worker_id = int(sys.argv[1])
+    num_workers = int(sys.argv[2])
+    num_groups = int(sys.argv[3])
+    read_fd = int(sys.argv[4])
+    write_fd = int(sys.argv[5])
     if sys.platform == "win32":
         import msvcrt  # pylint: disable=import-outside-toplevel,import-error
 
@@ -64,7 +50,7 @@ def main():
         writer = write_fd
 
     worker_func = get_global_func("runtime.disco.WorkerProcess")
-    worker_func(*args, reader, writer)
+    worker_func(worker_id, num_workers, num_groups, reader, writer)
 
 
 if __name__ == "__main__":

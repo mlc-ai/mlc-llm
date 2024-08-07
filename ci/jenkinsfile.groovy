@@ -21,9 +21,9 @@ run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:4d61e5d -e GPU cpu -e MLC_CI_SETUP_DE
 run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:4d61e5d -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
 run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:4d61e5d -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
 
-pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
-pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:561ceee -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
-pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm57:561ceee -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
+pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:16b1781 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu121:16b1781 -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
+pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm61:16b1781 -e GPU rocm-6.1 -e MLC_CI_SETUP_DEPS 1"
 
 
 def per_exec_ws(folder) {
@@ -132,20 +132,20 @@ stage('Build') {
         }
       }
     },
-    'ROCm': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-build-rocm')) {
-          init_git(true)
-          sh(script: "ls -alh", label: 'Show work directory')
-          sh(script: "${pkg_rocm} conda env export --name py38", label: 'Checkout version')
-          sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
-          sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
-          sh(script: "${pkg_rocm} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
-          sh(script: "ls -alh ./wheels/", label: 'Build artifact')
-          pack_lib('mlc_wheel_rocm', 'wheels/*.whl')
-        }
-      }
-    },
+    // 'ROCm': {
+    //   node('CPU-SMALL') {
+    //     ws(per_exec_ws('mlc-llm-build-rocm')) {
+    //       init_git(true)
+    //       sh(script: "ls -alh", label: 'Show work directory')
+    //       sh(script: "${pkg_rocm} conda env export --name py38", label: 'Checkout version')
+    //       sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_lib.sh", label: 'Build MLC LLM runtime')
+    //       sh(script: "${pkg_rocm} -j 8 conda run -n py38 ./ci/task/build_wheel.sh", label: 'Build MLC LLM wheel')
+    //       sh(script: "${pkg_rocm} -j 1 conda run -n py38 ./ci/task/build_clean.sh", label: 'Clean up after build')
+    //       sh(script: "ls -alh ./wheels/", label: 'Build artifact')
+    //       pack_lib('mlc_wheel_rocm', 'wheels/*.whl')
+    //     }
+    //   }
+    // },
     'Metal': {
       node('MAC') {
         ws(per_exec_ws('mlc-llm-build-metal')) {
@@ -206,17 +206,17 @@ stage('Model Compilation') {
         }
       }
     },
-    'ROCm': {
-      node('CPU-SMALL') {
-        ws(per_exec_ws('mlc-llm-compile-rocm')) {
-          init_git(false)
-          sh(script: "ls -alh", label: 'Show work directory')
-          unpack_lib('mlc_wheel_rocm', 'wheels/*.whl')
-          sh(script: "${run_rocm} conda env export --name ci-unittest", label: 'Checkout version')
-          sh(script: "${run_rocm} -j 4 conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
-        }
-      }
-    },
+    // 'ROCm': {
+    //   node('CPU-SMALL') {
+    //     ws(per_exec_ws('mlc-llm-compile-rocm')) {
+    //       init_git(false)
+    //       sh(script: "ls -alh", label: 'Show work directory')
+    //       unpack_lib('mlc_wheel_rocm', 'wheels/*.whl')
+    //       sh(script: "${run_rocm} conda env export --name ci-unittest", label: 'Checkout version')
+    //       sh(script: "${run_rocm} -j 4 conda run -n ci-unittest ./ci/task/test_model_compile.sh", label: 'Testing')
+    //     }
+    //   }
+    // },
     'Metal': {
       node('MAC') {
         ws(per_exec_ws('mlc-llm-compile-metal')) {

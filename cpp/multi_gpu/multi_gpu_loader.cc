@@ -25,7 +25,7 @@
 
 namespace mlc {
 namespace llm {
-namespace loader {
+namespace multi_gpu {
 
 using tvm::Device;
 using tvm::runtime::relax_vm::NDArrayCacheMetadata;
@@ -89,23 +89,30 @@ struct ParamInfo {
   const NDArrayCacheMetadata::FileRecord::ParamRecord* param;
 };
 
+NDArray RecvFromGlobalWorker0(Device device, const ModelMetadata::Param& param_info) {
+  ShapeTuple shape =
+      param_info.preprocs.empty() ? param_info.shape : param_info.preprocs[0].in_shape;
+  NDArray result = NDArray::Empty(shape, param_info.dtype, device);
+  RecvFromWorker0(result);
+  return result;
+}
+
 NDArray BroadcastOrShardAndScatter(NDArray param, const ModelMetadata::Param& param_info,
                                    int num_shards, const PreprocessorPool& preprocs) {
   bool needs_sharding = !param_info.preprocs.empty();
   if (!needs_sharding) {
-    BroadcastFromWorker0(param, param);
+    BroadcastFromWorker0(param, /*in_group=*/true, param);
     return param;
   }
   Device device = param->device;
   ShapeTuple shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
   ICHECK(shape.size() >= 1 && shape[0] == num_shards)
-      << "ValueError: The first dimension of the "
-      << "output shape must be equal to the "
+      << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
   NDArray result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
-  ScatterFromWorker0(param, result);
+  ScatterFromWorker0(param, /*in_group=*/true, result);
   return result;
 }
 
@@ -117,10 +124,10 @@ NDArray ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& p
     ShapeTuple shape = param_info.preprocs.back().out_shape;
     DataType dtype = param_info.preprocs.back().out_dtype;
     result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
-    ScatterFromWorker0(tvm::NullOpt, result);
+    ScatterFromWorker0(tvm::NullOpt, /*in_group=*/true, result);
   } else {
     result = NDArray::Empty(param_info.shape, param_info.dtype, device);
-    BroadcastFromWorker0(result, result);
+    BroadcastFromWorker0(result, /*in_group=*/true, result);
   }
   return result;
 }
@@ -132,12 +139,14 @@ std::string FormatDuration(DurationType duration) {
   return os.str();
 }
 
-Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
-                            const std::string& model_config_str) {
+Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
+                                      const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
   int worker_id = worker->worker_id;
-  int num_shards = worker->num_workers;
+  int group_size = worker->num_workers / worker->num_groups;
+  int num_shards = group_size;
+  int group_id = worker_id / group_size;
   LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
   // Step 0. Initialize metadata and paths
   NDArrayCacheMetadata ndarray_cache_metadata = NDArrayCacheMetadata::Load(model_path);
@@ -158,7 +167,7 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
     param_name2info[param.name] = param;
   }
   // Step 2. Load, preprocess and shard all the parameters
-  Map<String, NDArray> sharded_params;
+  std::unordered_map<std::string, NDArray> sharded_params;
   if (worker_id == 0) {
     DurationType time_loading(0);
     DurationType time_preproc(0);
@@ -177,8 +186,17 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
         RangeTimer _(&time_preproc);
         const std::string& param_name = record.records[i].name;
         const ModelMetadata::Param& param_info = param_name2info.at(param_name);
-        sharded_params.Set(param_name, BroadcastOrShardAndScatter(loaded_params[i], param_info,
-                                                                  num_shards, preprocs));
+        for (int group_id : param_info.pipeline_stages) {
+          if (group_id == 0) {
+            // Broadcast or shard-scatter this parameter to all workers in worker group 0.
+            sharded_params[param_name] =
+                BroadcastOrShardAndScatter(loaded_params[i], param_info, num_shards, preprocs);
+          } else {
+            // Send this parameter to the first worker of the worker group of "group_id",
+            // and let that first worker to process this parameter.
+            SendToWorker(loaded_params[i], /*receiver_id=*/group_id * group_size);
+          }
+        }
         TVMSynchronize(device.device_type, device.device_id, nullptr);
       }
     }
@@ -190,19 +208,35 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
       for (size_t i = 0; i < record.records.size(); ++i) {
         const std::string& param_name = record.records[i].name;
         const ModelMetadata::Param& param_info = param_name2info.at(param_name);
-        sharded_params.Set(param_name, ReceiveBroadcastedOrSharded(device, param_info, num_shards));
+        if (std::find(param_info.pipeline_stages.begin(), param_info.pipeline_stages.end(),
+                      group_id) == param_info.pipeline_stages.end()) {
+          // This worker group doesn't need to hold a copy of this parameter.
+          continue;
+        }
+
+        if (worker_id % group_size == 0) {
+          // The worker is the first worker of its worker group (while not the first worker group).
+          // Receive the full parameter from the global worker 0.
+          NDArray full_param = RecvFromGlobalWorker0(device, param_info);
+          // Broadcast or shard-scatter this parameter to all workers in its worker group.
+          sharded_params[param_name] =
+              BroadcastOrShardAndScatter(full_param, param_info, num_shards, preprocs);
+          TVMSynchronize(device.device_type, device.device_id, nullptr);
+        } else {
+          // The worker is not the first worker of its worker group.
+          // Receive from the first worker in the its worker group.
+          sharded_params[param_name] = ReceiveBroadcastedOrSharded(device, param_info, num_shards);
+        }
       }
     }
   }
 
   // Step 3. Reorder the sharded parameters according to the order in model_metadata
-  Array<NDArray> shards;
+  Array<Optional<NDArray>> shards;
   shards.reserve(model_metadata.params.size());
   for (const ModelMetadata::Param& param : model_metadata.params) {
-    std::string param_name = param.name;
-    ICHECK(sharded_params.count(param_name))
-        << "ValueError: Parameter " << param_name << " not found in loaded parameters.";
-    shards.push_back(sharded_params.at(param_name));
+    const auto& it = sharded_params.find(param.name);
+    shards.push_back(it == sharded_params.end() ? Optional<NDArray>() : it->second);
   }
   return shards;
 }
@@ -210,6 +244,9 @@ Array<NDArray> LoadMultiGPU(const std::string& model_path, Module relax_vm_modul
 Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module relax_vm_module,
                                       const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  // Todo: maybe support it
+  CHECK_EQ(worker->num_groups, 1)
+      << "Weight presharding right now does not support pipeline parallelism yet.";
   Device device = worker->default_device;
   int worker_id = worker->worker_id;
   int num_shards = worker->num_workers;
@@ -260,10 +297,10 @@ Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module rela
   return params;
 }
 
-TVM_REGISTER_GLOBAL("mlc.loader.LoadMultiGPU").set_body_typed(LoadMultiGPU);
-TVM_REGISTER_GLOBAL("mlc.loader.LoadMultiGPUPresharded").set_body_typed(LoadMultiGPUPresharded);
+TVM_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPU").set_body_typed(LoadMultiGPU);
+TVM_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPUPresharded").set_body_typed(LoadMultiGPUPresharded);
 
-}  // namespace loader
+}  // namespace multi_gpu
 }  // namespace llm
 }  // namespace mlc
 

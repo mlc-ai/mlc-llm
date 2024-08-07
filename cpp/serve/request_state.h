@@ -54,7 +54,7 @@ class RequestModelStateNode : public Object {
   /*! \brief The list of input data yet for the model to prefill. */
   Array<Data> inputs;
   /*! \brief The list of prefilled input data, used to notify prefix cache. */
-  Array<Data> prefilled_inputs;
+  std::vector<Data> prefilled_inputs;
   /*! \brief The number of tokens already cached in prefix cache. */
   int64_t cached_committed_tokens = 0;
   /*! \brief The number of tokens that is already prefilled from the inputs. */
@@ -176,6 +176,13 @@ enum class RequestStateStatus : int {
   kFinished = 2,
 };
 
+/*! \brief The data structures for each request used in the action post-process. */
+struct RequestActionPostProcWorkspace {
+  std::vector<RequestStreamOutput> stream_outputs;
+
+  RequestStreamOutput GetStreamOutput();
+};
+
 // forward declare request state node.
 class RequestStateNode;
 
@@ -216,6 +223,8 @@ class RequestStateEntryNode : public Object {
   /*! \brief The extra string to prepend the output. */
   std::string extra_prefix_string;
 
+  std::vector<int32_t> token_ids_for_prefix_cache_update;
+
   /*!
    * \brief Back reference to the request state.
    * Use ObjectRef to avoid circulate reference.
@@ -226,13 +235,18 @@ class RequestStateEntryNode : public Object {
    * \brief Get the delta token ids and the logprob JSON strings for this request to return since
    * the last time calling into this function, and return the finish reason if the request
    * generation has finished.
+   * \note This function follows the destination passing style, which means it writes the
+   * output into the "idx"-th slot in "delta_stream_output".
+   * We adopt the destination passing style to reduce the CPU data structure allocation and
+   * construction overhead.
    * \param tokenizer The tokenizer for logprob process.
    * \param max_single_sequence_length The maximum allowed single sequence length.
-   * \return The delta token ids to return, the logprob JSON strings of each delta token id, and
-   * the optional finish reason.
+   * \param delta_stream_output The delta token ids to return, the logprob JSON strings
+   * of each delta token id, and the optional finish reason.
+   * \param idx The index denoting which slot to write results in "delta_request_return".
    */
-  DeltaRequestReturn GetDeltaRequestReturn(const Tokenizer& tokenizer,
-                                           int64_t max_single_sequence_length);
+  void GetDeltaRequestReturn(const Tokenizer& tokenizer, int64_t max_single_sequence_length,
+                             RequestStreamOutput* delta_stream_output, int idx);
 
   static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -254,10 +268,15 @@ class RequestStateEntry : public ObjectRef {
 /*! \brief A request's state, which groups all the request state entries. */
 class RequestStateNode : public Object {
  public:
-  /*! \brief the reuqest state entries */
+  /*! \brief the request state entries */
   std::vector<RequestStateEntry> entries;
   /*! \brief tracks the request metrics. */
   RequestMetrics metrics;
+  /*!
+   * \brief The post-process data structures.
+   * We make it a state to avoid repetitive memory allocation/free in the action post process.
+   */
+  RequestActionPostProcWorkspace postproc_states;
 
   static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
@@ -267,7 +286,12 @@ class RequestStateNode : public Object {
 
 class RequestState : public ObjectRef {
  public:
-  explicit RequestState(std::vector<RequestStateEntry> entries,
+  /*!
+   * \brief Request state constructor. We take the number of response (namely "n" in OpenAI
+   * API) to pre-allocate all the data structure, in order to reduce the CPU data structure
+   * allocation overhead when updating the request state.
+   */
+  explicit RequestState(std::vector<RequestStateEntry> entries, int num_response,
                         std::chrono::high_resolution_clock::time_point add_time_point);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);

@@ -144,10 +144,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if the given sequence id is not valid or active.
    */
-  void ExtendSequence(int64_t seq_id, std::vector<int32_t> tokens) final {
-    const auto& it = seq_states_.find(seq_id);
-    CHECK(it == seq_states_.end() || it->second == SequenceState::kActive);
-    uncommitted_extended_token_ids_.emplace_back(seq_id, std::move(tokens));
+  void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) final {
+    uncommitted_extended_token_ids_.emplace_back(seq_id, tokens);
   }
 
   void CommitSequenceExtention() final {
@@ -160,6 +158,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
         // The sequence has been removed. Hence no action is needed.
         continue;
       }
+      const auto& it = seq_states_.find(seq_id);
+      CHECK(it == seq_states_.end() || it->second == SequenceState::kActive);
       radix_tree_->ExtendSequence(seq_id, uncommitted_token_ids);
     }
     uncommitted_extended_token_ids_.clear();
@@ -329,8 +329,11 @@ class PrefixCacheImpl : public PrefixCacheObj {
    * \brief The collection of uncommitted extended token ids of sequences.
    * The "ExtendSequence" method only lazily add token ids into this collection,
    * and these uncommitted token ids will be committed when needed.
+   *
+   * Note: Since the tokens stored are references, CommitSequenceExtention should be called after
+   * each action, to avoid the uncaught changes of uncomitted extended token ids.
    */
-  std::vector<std::pair<int64_t, std::vector<int32_t>>> uncommitted_extended_token_ids_;
+  std::vector<std::pair<int64_t, const std::vector<int32_t>&>> uncommitted_extended_token_ids_;
 };  // namespace serve
 
 TVM_REGISTER_OBJECT_TYPE(PrefixCacheImpl);
@@ -361,7 +364,7 @@ class NoPrefixCache : public PrefixCacheObj {
    * \param tokens The tokens of tokenized sequence suffix to extend.
    * \throw Error if called since this should never be called.
    */
-  void ExtendSequence(int64_t seq_id, std::vector<int32_t> tokens) final {
+  void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) final {
     // No-op;
   }
 

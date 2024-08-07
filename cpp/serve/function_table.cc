@@ -70,13 +70,14 @@ PackedFunc FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, 
 }
 
 void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
-                         Optional<Session> session, int num_shards) {
+                         Optional<Session> session, int num_shards, int num_stages) {
   local_gpu_device = device;
   Device null_device{DLDeviceType(0), 0};
   this->model_config = model_config;
   this->cached_buffers = Map<String, ObjectRef>();
 
-  if (num_shards > 1) {
+  int num_workers = num_shards * num_stages;
+  if (num_workers > 1) {
     ICHECK(session.defined());
     this->sess = session.value();
     this->use_disco = true;
@@ -92,9 +93,12 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
       }
       return SessionFuncAsPackedFunc(sess, func, name);
     };
-    if (Optional<IntTuple> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
-      IntTuple cpu_ids_value = cpu_ids.value();
-      sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"), cpu_ids_value);
+    if (num_stages == 1) {
+      if (Optional<IntTuple> cpu_ids = GetDiscoWorkerCPUBinding(/*num_workers=*/num_shards)) {
+        IntTuple cpu_ids_value = cpu_ids.value();
+        sess->CallPacked(sess->GetGlobalFunc("runtime.disco.bind_worker_to_cpu_core"),
+                         cpu_ids_value);
+      }
     }
     this->get_global_func = [this](const std::string& name) -> PackedFunc {
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
@@ -139,6 +143,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->_InitFunctions();
   }
   ICHECK_EQ(this->model_metadata_.tensor_parallel_shards, num_shards);
+  ICHECK_EQ(this->model_metadata_.pipeline_parallel_stages, num_stages);
 }
 
 ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device) {
@@ -158,9 +163,10 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       params = loader_load_all(loader);
     } else {
       auto load_func_name = getenv("MLC_INTERNAL_PRESHARD_NUM") == nullptr
-                                ? "mlc.loader.LoadMultiGPU"
-                                : "mlc.loader.LoadMultiGPUPresharded";
+                                ? "mlc.multi_gpu.LoadMultiGPU"
+                                : "mlc.multi_gpu.LoadMultiGPUPresharded";
       PackedFunc loader = this->get_global_func(load_func_name);
+      // Todo: check if the logic makes sense
       params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize());
     }
     return params;
@@ -255,6 +261,7 @@ void FunctionTable::_InitFunctions() {
   this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
   this->tuple_getitem_func_ = get_global_func("vm.builtin.tuple_getitem");
+  this->last_group_send_to_worker_0_ = get_global_func("mlc.multi_gpu.SendFromLastGroupToWorker0");
 
   this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
   this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
@@ -262,11 +269,13 @@ void FunctionTable::_InitFunctions() {
   this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
 }
 
-ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device) const {
+ObjectRef FunctionTable::Empty(ShapeTuple shape, DataType dtype, Device device,
+                               bool worker0_only) const {
   Device null_device{DLDeviceType(0), 0};
   if (this->use_disco) {
     DRef empty_func = sess->GetGlobalFunc("runtime.disco.empty");
-    return sess->CallPacked(empty_func, shape, dtype, null_device, false);
+    return sess->CallPacked(empty_func, shape, dtype, null_device, worker0_only,
+                            /*in_group=*/false);
   } else {
     return NDArray::Empty(shape, dtype, device);
   }
@@ -281,7 +290,8 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
     if (it != this->cached_buffers.end()) {
       buffer = Downcast<DRef>((*it).second);
     } else {
-      buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device));
+      buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device,
+                                          /*worker0_only=*/false));
       this->cached_buffers.Set(buffer_cache_key, buffer);
     }
     ShapeTuple real_shape = host_array.Shape();

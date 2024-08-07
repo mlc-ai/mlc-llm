@@ -9,10 +9,12 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
+#include <cstdlib>
 #include <functional>
 #include <numeric>
 #include <optional>
@@ -63,6 +65,19 @@ inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& mod
     info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
   }
   return TokenizerInfo(info);
+}
+
+inline std::pair<std::optional<std::string>, int> GetEnvSocketHostPort() {
+  char* host_str = std::getenv("MLC_SOCKET_HOST");
+  char* port_str = std::getenv("MLC_SOCKET_PORT");
+  if (host_str == nullptr || port_str == nullptr) {
+    return {std::nullopt, -1};
+  }
+  std::string host(host_str);
+  if (host.empty()) {
+    return {std::nullopt, -1};
+  }
+  return {host, std::atoi(port_str)};
 }
 
 /*!
@@ -131,9 +146,8 @@ class MockEchoEngineImpl : public Engine {
               completion_tokens <= request->generation_cfg->max_tokens) {
             outputs.push_back(RequestStreamOutput(
                 request->id,
-                std::vector<IntTuple>(request->generation_cfg->n, IntTuple({token_id})),
-                Optional<Array<Array<String>>>(),
-                std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
+                std::vector<std::vector<int64_t>>(request->generation_cfg->n, {token_id}),
+                std::nullopt, std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
                 std::vector<String>(request->generation_cfg->n)));
           }
         }
@@ -146,7 +160,7 @@ class MockEchoEngineImpl : public Engine {
         prompt_tokens > request->generation_cfg->max_tokens) {
       finish_reason = "length";
     }
-    Array<IntTuple> group_delta_token_ids;
+    std::vector<std::vector<int64_t>> group_delta_token_ids;
 
     // correct the last output with right finish reason
     if (outputs.size() > 0) {
@@ -154,7 +168,7 @@ class MockEchoEngineImpl : public Engine {
       outputs.pop_back();
     }
     outputs.push_back(RequestStreamOutput(
-        request->id, group_delta_token_ids, Optional<Array<Array<String>>>(),
+        request->id, group_delta_token_ids, std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
         std::vector<String>(request->generation_cfg->n)));
 
@@ -184,8 +198,7 @@ class MockEchoEngineImpl : public Engine {
     // If the request input length exceeds the maximum allowed single sequence length,
     // invoke callback and do not process the request.
     Array<RequestStreamOutput> output{RequestStreamOutput(
-        request_id, std::vector<IntTuple>(request->generation_cfg->n),
-        Optional<Array<Array<String>>>(),
+        request_id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, String("abort")),
         std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
@@ -313,14 +326,15 @@ class EngineImpl : public Engine {
                                         model_configs[0]);
     }
 
-    auto [session, num_shards] = n->CreateDiscoSession(model_libs, model_configs, device);
+    auto [session, num_shards, model_num_pipeline_stages] =
+        n->CreateDiscoSession(model_libs, model_configs, device);
     // - Initialize each model independently.
     n->models_.clear();
     for (int i = 0; i < num_model; ++i) {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
-      Model model =
-          Model::Create(model_lib, model_str, model_configs[i], device, session, num_shards,
-                        /*trace_enabled=*/trace_recorder.defined());
+      Model model = Model::Create(model_lib, model_str, model_configs[i], device, session,
+                                  num_shards, model_num_pipeline_stages[i],
+                                  /*trace_enabled=*/trace_recorder.defined());
       n->models_.push_back(model);
     }
     // - Automatically infer the missing fields in EngineConfig JSON strings
@@ -481,8 +495,7 @@ class EngineImpl : public Engine {
     // If the request input length exceeds the maximum allowed single sequence length,
     // invoke callback and do not process the request.
     Array<RequestStreamOutput> output{RequestStreamOutput(
-        request->id, std::vector<IntTuple>(request->generation_cfg->n),
-        Optional<Array<Array<String>>>(),
+        request->id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
         std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
         std::vector<String>(request->generation_cfg->n))};
     // NOTE: Invariant requirement
@@ -513,6 +526,7 @@ class EngineImpl : public Engine {
   }
 
   void AddRequest(Request request) final {
+    NVTXScopedRange nvtx_scope("Add request " + request->id);
     // special requests do not involve generation
     if (request->generation_cfg->debug_config.special_request != SpecialRequestKind::kNone) {
       this->HandleSpecialRequests(request);
@@ -556,12 +570,13 @@ class EngineImpl : public Engine {
                                /*parent_idx=*/0);
       }
     }
-    RequestState rstate = RequestState(std::move(rsentries), add_time_point);
+    RequestState rstate = RequestState(std::move(rsentries), n, add_time_point);
     for (const RequestStateEntry& rsentry : rstate->entries) {
       // Set the back reference.
       // note, we avoid cyclic reference and use raw ptr.
       rsentry->rstate = rstate.operator->();
     }
+    request->rstate = rstate.operator->();
     estate_->request_states.emplace(request->id, rstate);
   }
 
@@ -629,7 +644,11 @@ class EngineImpl : public Engine {
     CHECK(request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
-      Array<Request> processed_requests = action->Step(estate_);
+      Array<Request> processed_requests;
+      {
+        NVTXScopedRange nvtx_scope("Action step");
+        processed_requests = action->Step(estate_);
+      }
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_, engine_config_->max_single_sequence_length,
@@ -643,13 +662,14 @@ class EngineImpl : public Engine {
   }
 
   /************** Utility Functions **************/
-  std::pair<Optional<Session>, int> CreateDiscoSession(
+  std::tuple<Optional<Session>, int, std::vector<int>> CreateDiscoSession(
       const std::vector<std::string>& model_libs,
       const std::vector<picojson::object>& model_configs, Device device) {
     const auto& base_model_config = model_configs[0];
 
-    auto f_get_num_shards = [&device](const std::string& model_lib,
-                                      const picojson::object& model_config) -> int {
+    auto f_get_num_shards_num_stages =
+        [&device](const std::string& model_lib,
+                  const picojson::object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
         PackedFunc fload_exec = executable->GetFunction("vm_load_executable");
@@ -660,16 +680,23 @@ class EngineImpl : public Engine {
             static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
             static_cast<int>(kDLCPU), 0,
             static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
-        return ModelMetadata::FromModule(local_vm, std::move(model_config)).tensor_parallel_shards;
+        ModelMetadata metadata = ModelMetadata::FromModule(local_vm, std::move(model_config));
+        return {metadata.tensor_parallel_shards, metadata.pipeline_parallel_stages};
       } else {
-        return 1;
+        return {1, 1};
       }
     };
 
     int num_shards = -1;
+    int max_num_stages = 1;
+    std::vector<int> model_num_pipeline_stages;
+    model_num_pipeline_stages.reserve(model_libs.size());
     ICHECK_EQ(model_libs.size(), model_configs.size());
     for (int i = 0; i < static_cast<int>(model_libs.size()); ++i) {
-      int model_num_shards = f_get_num_shards(model_libs[i], model_configs[i]);
+      auto [model_num_shards, model_num_stages] =
+          f_get_num_shards_num_stages(model_libs[i], model_configs[i]);
+      model_num_pipeline_stages.push_back(model_num_stages);
+      max_num_stages = std::max(max_num_stages, model_num_stages);
       if (i == 0) {
         num_shards = model_num_shards;
       } else {
@@ -682,7 +709,8 @@ class EngineImpl : public Engine {
     }
 
     Optional<Session> session = NullOpt;
-    if (num_shards > 1) {
+    int num_workers = num_shards * max_num_stages;
+    if (num_workers > 1) {
 #ifndef MLC_SINGLE_GPU_ONLY
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
       if (Registry::Get(f_create_process_pool) == nullptr) {
@@ -698,17 +726,53 @@ class EngineImpl : public Engine {
         LOG(FATAL) << "ValueError: Multi-GPU on device " << DLDeviceType2Str(device.device_type)
                    << " is not supported. Currently, only NCCL and RCCL are integrated.";
       }
-      std::vector<int64_t> device_ids(num_shards);
-      for (int i = 0; i < num_shards; ++i) {
+      std::vector<int64_t> device_ids(num_workers);
+      for (int i = 0; i < num_workers; ++i) {
         device_ids[i] = i;
       }
-      session = Session::ProcessSession(num_shards, f_create_process_pool, "mlc_llm.cli.worker");
+      const std::string& green_text_begin = "\033[92m";
+      const std::string& yellow_text_begin = "\033[93m";
+      const std::string& colored_text_end = "\033[0m";
+      auto [socket_host, socket_port] = GetEnvSocketHostPort();
+      if (max_num_stages > 1 && socket_host.has_value()) {
+        // Use SocketSession when pipeline parallelism enabled and socket host and port are set.
+        CHECK_GT(socket_port, 0)
+            << "Invalid MLC socket port " << socket_port
+            << ". Please set a valid port value in environment variable \"MLC_SOCKET_PORT\".";
+        LOG(INFO) << "Creating MLC socket session with socket host " << socket_host.value()
+                  << " and port " << socket_port;
+        LOG(INFO) << "Please launch " << green_text_begin << max_num_stages - 1 << colored_text_end
+                  << " remote socket node(s) with the following command to proceed:\n\t"
+                  << green_text_begin << "python -m mlc_llm.cli.disco_remote_socket_session "
+                  << socket_host.value() << " " << socket_port << " " << num_shards
+                  << colored_text_end;
+        const PackedFunc* f_create_socket_sess = Registry::Get("runtime.disco.SocketSession");
+        CHECK(f_create_socket_sess != nullptr)
+            << "SocketSession constructor \"runtime.disco.SocketSession\" not found in TVM "
+               "registry.";
+        Session sess =
+            (*f_create_socket_sess)(max_num_stages, num_shards, /*num_groups=*/max_num_stages,
+                                    socket_host.value(), socket_port);
+        session = std::move(sess);
+      } else {
+        if (max_num_stages > 1) {
+          LOG(INFO)
+              << yellow_text_begin
+              << "Model is enabled with \"pipeline_parallel_stages\" but the socket host/port is "
+                 "not set. If you intend to run the model on multiple nodes, please set "
+                 "environment variable \"MLC_SOCKET_HOST\" and \"MLC_SOCKET_PORT\" and run again."
+              << colored_text_end;
+        }
+        // Use ProcessSession otherwise.
+        session = Session::ProcessSession(num_workers, max_num_stages, f_create_process_pool,
+                                          "mlc_llm.cli.worker");
+      }
       session.value()->InitCCL(ccl, ShapeTuple(device_ids));
 #else
       LOG(FATAL) << "MLC_SINGLE_GPU_ONLY is specified. Multi-GPU is not enabled.";
 #endif  // MLC_SINGLE_GPU_ONLY
     }
-    return {session, num_shards};
+    return {session, num_shards, model_num_pipeline_stages};
   }
 
   /************** Debug/Profile **************/

@@ -104,6 +104,37 @@ void RequestModelStateNode::RemoveAllDraftTokens(std::vector<int>* removed_draft
   }
 }
 
+/****************** RequestActionPostProcWorkspace ******************/
+
+RequestStreamOutput RequestActionPostProcWorkspace::GetStreamOutput() {
+  for (const RequestStreamOutput& stream_output : stream_outputs) {
+    if (stream_output->unpacked) {
+      return stream_output;
+    }
+  }
+
+  ICHECK(!stream_outputs.empty());
+  int num_response = stream_outputs[0]->group_delta_token_ids.size();
+  std::vector<std::vector<int64_t>> group_delta_token_ids;
+  std::vector<std::vector<String>> group_delta_logprob_json_strs;
+  std::vector<Optional<String>> group_finish_reason;
+  std::vector<String> group_extra_prefix_string;
+  group_delta_token_ids.resize(num_response);
+  group_finish_reason.resize(num_response);
+  group_extra_prefix_string.resize(num_response);
+  if (stream_outputs[0]->group_delta_logprob_json_strs.has_value()) {
+    group_delta_logprob_json_strs.resize(num_response);
+  }
+  RequestStreamOutput stream_output(stream_outputs[0]->request_id, std::move(group_delta_token_ids),
+                                    stream_outputs[0]->group_delta_logprob_json_strs.has_value()
+                                        ? std::make_optional(group_delta_logprob_json_strs)
+                                        : std::nullopt,
+                                    std::move(group_finish_reason),
+                                    std::move(group_extra_prefix_string));
+  stream_outputs.push_back(stream_output);
+  return stream_output;
+}
+
 /****************** RequestStateEntry ******************/
 
 TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
@@ -136,13 +167,18 @@ RequestStateEntry::RequestStateEntry(
   data_ = std::move(n);
 }
 
-DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
-    const Tokenizer& tokenizer, int64_t max_single_sequence_length) {
-  std::vector<int64_t> return_token_ids;
-  std::vector<String> logprob_json_strs;
-  Optional<String> finish_reason;
-
-  String extra_prefix_string = this->extra_prefix_string;
+void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
+                                                  int64_t max_single_sequence_length,
+                                                  RequestStreamOutput* delta_stream_output,
+                                                  int idx) {
+  ICHECK_NOTNULL(delta_stream_output);
+  bool needs_logprobs = (*delta_stream_output)->group_delta_logprob_json_strs.has_value();
+  (*delta_stream_output)->group_delta_token_ids[idx].clear();
+  if (needs_logprobs) {
+    (*delta_stream_output)->group_delta_logprob_json_strs.value()[idx].clear();
+  }
+  (*delta_stream_output)->group_finish_reason[idx] = NullOpt;
+  (*delta_stream_output)->group_extra_prefix_string[idx] = this->extra_prefix_string;
   this->extra_prefix_string.clear();
 
   const std::vector<SampleResult>& committed_tokens = this->mstates[0]->committed_tokens;
@@ -151,19 +187,23 @@ DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
 
   // Case 1. There is no new token ids.
   if (this->next_callback_token_pos == num_committed_tokens && extra_prefix_string.empty()) {
-    return {{}, {}, Optional<String>(), std::move(extra_prefix_string)};
+    return;
   }
 
   // Case 2. Any of the stop strings is matched.
   ICHECK(!stop_str_handler->StopTriggered());
   while (next_callback_token_pos < num_committed_tokens) {
     stop_str_handler->Put(committed_tokens[next_callback_token_pos].GetTokenId(),
-                          &return_token_ids);
-    logprob_json_strs.push_back(committed_tokens[next_callback_token_pos].GetLogProbJSON(
-        tokenizer, request->generation_cfg->logprobs));
+                          &(*delta_stream_output)->group_delta_token_ids[idx]);
+    if (needs_logprobs) {
+      (*delta_stream_output)
+          ->group_delta_logprob_json_strs.value()[idx]
+          .push_back(committed_tokens[next_callback_token_pos].GetLogProbJSON(
+              tokenizer, request->generation_cfg->logprobs));
+    }
     ++next_callback_token_pos;
     if (stop_str_handler->StopTriggered()) {
-      finish_reason = "stop";
+      (*delta_stream_output)->group_finish_reason[idx] = "stop";
       break;
     }
   }
@@ -172,15 +212,17 @@ DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
   // `stop_token_ids` includes the stop tokens from conversation template and user-provided tokens.
   // This check will be ignored when `ignore_eos` is set for the benchmarking purpose.
   if (!request->generation_cfg->debug_config.ignore_eos) {
-    for (int i = 0; i < static_cast<int>(return_token_ids.size()); ++i) {
-      if (std::any_of(
-              request->generation_cfg->stop_token_ids.begin(),
-              request->generation_cfg->stop_token_ids.end(),
-              [&return_token_ids, i](int32_t token) { return token == return_token_ids[i]; })) {
+    for (int i = 0; i < static_cast<int>((*delta_stream_output)->group_delta_token_ids[idx].size());
+         ++i) {
+      if (std::any_of(request->generation_cfg->stop_token_ids.begin(),
+                      request->generation_cfg->stop_token_ids.end(),
+                      [delta_stream_output, idx, i](int32_t token) {
+                        return token == (*delta_stream_output)->group_delta_token_ids[idx][i];
+                      })) {
         // Stop token matched. Erase the stop token and all tokens after it.
-        finish_reason = "stop";
-        while (static_cast<int>(return_token_ids.size()) > i) {
-          return_token_ids.pop_back();
+        (*delta_stream_output)->group_finish_reason[idx] = "stop";
+        while (static_cast<int>((*delta_stream_output)->group_delta_token_ids[idx].size()) > i) {
+          (*delta_stream_output)->group_delta_token_ids[idx].pop_back();
         }
         break;
       }
@@ -189,46 +231,62 @@ DeltaRequestReturn RequestStateEntryNode::GetDeltaRequestReturn(
 
   // Case 4. When stop token is not detected (e.g. ignore_eos is set), but the grammar state is
   // terminated, stop the generation and pop the last token (used to trigger the termination).
-  if (finish_reason != "stop" && this->mstates[0]->grammar_state_matcher.defined() &&
+  if ((*delta_stream_output)->group_finish_reason[idx] != "stop" &&
+      this->mstates[0]->grammar_state_matcher.defined() &&
       this->mstates[0]->grammar_state_matcher.value()->IsTerminated()) {
-    return_token_ids.pop_back();
-    finish_reason = "stop";
+    (*delta_stream_output)->group_delta_token_ids[idx].pop_back();
+    (*delta_stream_output)->group_finish_reason[idx] = "stop";
   }
 
-  if (finish_reason.defined()) {
-    return {std::move(return_token_ids), std::move(logprob_json_strs), std::move(finish_reason),
-            std::move(extra_prefix_string)};
+  if ((*delta_stream_output)->group_finish_reason[idx].defined()) {
+    return;
   }
 
   // Case 5. Generation reaches the specified max generation length ==> Finished
   // `max_tokens` means the generation length is limited by model capacity.
   if (request->generation_cfg->max_tokens >= 0 &&
       num_committed_tokens >= request->generation_cfg->max_tokens) {
-    stop_str_handler->Finish(&return_token_ids);
-    return {std::move(return_token_ids), std::move(logprob_json_strs), String("length"),
-            std::move(extra_prefix_string)};
+    stop_str_handler->Finish(&(*delta_stream_output)->group_delta_token_ids[idx]);
+    (*delta_stream_output)->group_finish_reason[idx] = "length";
+    return;
   }
   // Case 6. Total length of the request reaches the maximum single sequence length ==> Finished
   if (request->prompt_tokens + num_committed_tokens >= max_single_sequence_length) {
-    stop_str_handler->Finish(&return_token_ids);
-    return {std::move(return_token_ids), std::move(logprob_json_strs), String("length"),
-            std::move(extra_prefix_string)};
+    stop_str_handler->Finish(&(*delta_stream_output)->group_delta_token_ids[idx]);
+    (*delta_stream_output)->group_finish_reason[idx] = "length";
   }
-  return {std::move(return_token_ids), std::move(logprob_json_strs), Optional<String>(),
-          std::move(extra_prefix_string)};
 }
 
 /****************** RequestState ******************/
 
 TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
-RequestState::RequestState(std::vector<RequestStateEntry> entries,
+RequestState::RequestState(std::vector<RequestStateEntry> entries, int num_response,
                            std::chrono::high_resolution_clock::time_point add_time_point) {
   ICHECK(!entries.empty());
   ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
   n->entries = std::move(entries);
   n->metrics.prompt_tokens = n->entries[0]->request->prompt_tokens;
   n->metrics.add_time_point = add_time_point;
+
+  std::vector<std::vector<int64_t>> group_delta_token_ids;
+  std::vector<std::vector<String>> group_delta_logprob_json_strs;
+  std::vector<Optional<String>> group_finish_reason;
+  std::vector<String> group_extra_prefix_string;
+  group_delta_token_ids.resize(num_response);
+  group_finish_reason.resize(num_response);
+  group_extra_prefix_string.resize(num_response);
+  if (n->entries[0]->request->generation_cfg->logprobs) {
+    group_delta_logprob_json_strs.resize(num_response);
+  }
+  RequestStreamOutput stream_output(n->entries[0]->request->id, std::move(group_delta_token_ids),
+                                    n->entries[0]->request->generation_cfg->logprobs
+                                        ? std::make_optional(group_delta_logprob_json_strs)
+                                        : std::nullopt,
+                                    std::move(group_finish_reason),
+                                    std::move(group_extra_prefix_string));
+  stream_output->unpacked = true;
+  n->postproc_states.stream_outputs = {std::move(stream_output)};
   data_ = std::move(n);
 }
 

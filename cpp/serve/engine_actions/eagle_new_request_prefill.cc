@@ -164,6 +164,11 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         if (model_id == 0) {
           // We only need to sample for model 0 in prefill.
           hidden_states_for_input = hidden_states;
+
+          // - Commit the prefix cache changes from previous round of action.
+          // Note: we commit prefix cache changes here to overlap this commit with the GPU
+          // execution.
+          estate->prefix_cache->CommitSequenceExtention();
         }
 
         // Whether to use base model to get logits.

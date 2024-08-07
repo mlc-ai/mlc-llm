@@ -28,9 +28,9 @@ TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
                     DLDevice device, const Optional<Session>& session, int num_shards,
-                    bool trace_enabled) {
+                    int num_stages, bool trace_enabled) {
   return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device, session,
-                                      num_shards, trace_enabled));
+                                      num_shards, num_stages, trace_enabled));
 }
 
 Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
@@ -58,14 +58,16 @@ class ModelImpl : public ModelObj {
    */
   explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
                      DLDevice device, const Optional<Session>& session, int num_shards,
-                     bool trace_enabled)
+                     int num_stages, bool trace_enabled)
       : model_(model_path), device_(device) {
     // Step 1. Process model config json string.
     LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
     // so there is no explicit abi dependency on these extra
     // classes other than basic tvm runtime.
-    this->ft_.Init(reload_lib_path, device_, model_config, session, num_shards);
+    this->ft_.Init(reload_lib_path, device_, model_config, session, num_shards, num_stages);
+    this->num_shards_ = ft_.model_metadata_.tensor_parallel_shards;
+    this->num_stages_ = ft_.model_metadata_.pipeline_parallel_stages;
     // Step 3. Reset
     this->Reset();
     // Step 4. Set model type
@@ -91,7 +93,11 @@ class ModelImpl : public ModelObj {
     ICHECK_EQ(token_ids_nd->ndim, 1);
     ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
     ICHECK_NE(prefill_chunk_size_, -1);
-    auto token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
+    ObjectRef token_ids_dref_or_nd;
+    {
+      NVTXScopedRange nvtx_scope("Copy to worker 0");
+      token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
+    }
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
     if (dst != nullptr) {
@@ -260,8 +266,14 @@ class ModelImpl : public ModelObj {
     }
     NDArray logits;
     if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      logits = Downcast<NDArray>(result[0]);
+      ret = ft_.tuple_getitem_func_(ret, 0);
+      if (num_stages_ > 1) {
+        // Send the result from the last worker group to worker 0.
+        ShapeTuple shape{1, num_sequences, vocab_size_};
+        DataType dtype = DataType::Float(32);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+      }
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
@@ -386,8 +398,14 @@ class ModelImpl : public ModelObj {
     }
     NDArray logits;
     if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      logits = Downcast<NDArray>(result[0]);
+      ret = ft_.tuple_getitem_func_(ret, 0);
+      if (num_stages_ > 1) {
+        // Send the result from the last worker group to worker 0.
+        ShapeTuple shape{num_sequence, 1, vocab_size_};
+        DataType dtype = DataType::Float(32);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+      }
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
@@ -500,8 +518,14 @@ class ModelImpl : public ModelObj {
     ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_);
     NDArray logits;
     if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
-      logits = Downcast<NDArray>(result[0]);
+      ret = ft_.tuple_getitem_func_(ret, 0);
+      if (num_stages_ > 1) {
+        // Send the result from the last worker group to worker 0.
+        ShapeTuple shape{1, total_length, vocab_size_};
+        DataType dtype = DataType::Float(32);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+      }
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
@@ -586,7 +610,6 @@ class ModelImpl : public ModelObj {
 
   void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
                      int64_t prefill_chunk_size, int max_history_size) final {
-    //  KVStateKind kv_state_kind) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
@@ -700,6 +723,12 @@ class ModelImpl : public ModelObj {
     token_ids_storage_ = memory::Storage(
         allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DataType::Int(32)),
         allocator);
+    if (this->num_stages_ > 1) {
+      // Create a remote NDArray for logits when pipeline parallelism is enabled.
+      disco_logits_arr_ =
+          ft_.Empty({prefill_chunk_size_, vocab_size_}, DataType::Float(32), device_,
+                    /*worker0_only=*/true);
+    }
   }
 
   LogitProcessor CreateLogitProcessor(int max_num_token,
@@ -869,7 +898,6 @@ class ModelImpl : public ModelObj {
     this->attention_sink_size_ =
         json::LookupOrDefault<int64_t>(config, "attention_sink_size", this->attention_sink_size_);
     this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
-    this->num_shards_ = json::Lookup<int64_t>(config, "tensor_parallel_shards");
     this->vocab_size_ = json::Lookup<int64_t>(config, "vocab_size");
   }
 
@@ -880,6 +908,7 @@ class ModelImpl : public ModelObj {
   int sliding_window_size_ = -1;
   int attention_sink_size_ = 0;
   int num_shards_ = -1;
+  int num_stages_ = -1;
   int max_num_sequence_ = -1;
   int prefill_chunk_size_ = -1;
   int hidden_size_ = -1;
@@ -906,6 +935,7 @@ class ModelImpl : public ModelObj {
   // Shared NDArray
   memory::Storage token_ids_storage_{nullptr};
   NDArray logit_pos_arr_{nullptr};
+  ObjectRef disco_logits_arr_{nullptr};
   // A boolean indicating if tracing is enabled.
   bool trace_enabled_;
   // An enum indicating whether it's RNN-based.

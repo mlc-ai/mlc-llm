@@ -38,6 +38,7 @@ class MLCChatConfig(BaseModel):
     prefill_chunk_size: int
     attention_sink_size: int
     tensor_parallel_shards: int
+    pipeline_parallel_stages: int = 1
     # Configuration of text generation
     temperature: Optional[float] = None
     presence_penalty: Optional[float] = None

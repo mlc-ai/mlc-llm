@@ -144,6 +144,10 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         NDArray probs_on_device =
             logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
+        // - Commit the prefix cache changes from previous round of action.
+        // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
+        estate->prefix_cache->CommitSequenceExtention();
+
         // - Sample tokens.
         // Fill range [0, num_rsentries) into `sample_indices`.
         std::vector<int> sample_indices(num_rsentries);

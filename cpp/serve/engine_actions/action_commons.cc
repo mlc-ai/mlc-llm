@@ -11,7 +11,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<Model> models) {
+void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
+                            const Array<Model>& models) {
   // Remove the request from all models (usually the KV cache).
   for (Model model : models) {
     model->RemoveSequence(req_internal_id);
@@ -24,7 +25,8 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id, Array<M
  * \param models The models to remove the given request from.
  * \param rsentry The request state entry to remove.
  */
-void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestStateEntry rsentry) {
+void RemoveRequestStateEntry(EngineState estate, const Array<Model>& models,
+                             RequestStateEntry rsentry) {
   if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
     // If the sequence is stored in prefix cache, call prefix cache to remove.
     if (!(rsentry->request->generation_cfg->debug_config.pinned_system_prompt)) {
@@ -39,8 +41,8 @@ void RemoveRequestStateEntry(EngineState estate, Array<Model> models, RequestSta
   }
 }
 
-void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_rsentries,
-                                        EngineState estate, Array<Model> models,
+void ProcessFinishedRequestStateEntries(const std::vector<RequestStateEntry>& finished_rsentries,
+                                        EngineState estate, const Array<Model>& models,
                                         int max_single_sequence_length,
                                         Array<RequestStreamOutput>* callback_delta_outputs) {
   NVTXScopedRange nvtx_scope("Process finished requests");
@@ -100,121 +102,83 @@ void ProcessFinishedRequestStateEntries(std::vector<RequestStateEntry> finished_
   }
 }
 
-void UpdatePrefixCache(const std::vector<RequestState>& rstates, EngineState estate) {
-  NVTXScopedRange nvtx_scope("Update prefix cache");
-  std::vector<int32_t> token_ids;
-  for (RequestState rstate : rstates) {
-    for (const RequestStateEntry& rsentry : rstate->entries) {
-      if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
-        // Notify the prefix cache of the newly prefilled data.
-        token_ids.clear();
-        for (Data data : rsentry->mstates[0]->prefilled_inputs) {
-          const TokenDataNode* token_data = data.as<TokenDataNode>();
-          if (token_data == nullptr) continue;
-          token_ids.reserve(token_ids.size() + token_data->token_ids.size());
-          token_ids.insert(token_ids.end(), token_data->token_ids->data,
-                           token_data->token_ids->data + token_data->token_ids.size());
-        }
-        estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
-        rsentry->mstates[0]->prefilled_inputs.clear();
-      }
-      if (rsentry->mstates[0]->cached_committed_tokens <
-          static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1) {
-        // Notify the prefix cache of the newly decoded data, except the last token as it is not
-        // in KVCache yet.
-        token_ids.clear();
-        token_ids.reserve((static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) -
-                           rsentry->mstates[0]->cached_committed_tokens));
-        for (int i = rsentry->mstates[0]->cached_committed_tokens;
-             i < static_cast<int32_t>(rsentry->mstates[0]->committed_tokens.size()) - 1; ++i) {
-          token_ids.push_back(rsentry->mstates[0]->committed_tokens[i].GetTokenId());
-        }
-        estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
-        rsentry->mstates[0]->cached_committed_tokens =
-            static_cast<int64_t>(rsentry->mstates[0]->committed_tokens.size()) - 1;
-      }
-    }
-  }
-}
-
-void ActionStepPostProcess(Array<Request> requests, EngineState estate, Array<Model> models,
+void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Array<Model>& models,
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int64_t max_single_sequence_length,
                            Optional<EventTraceRecorder> trace_recorder) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
   int num_requests = requests.size();
-  std::vector<RequestState> rstates;
-  std::vector<RequestStateEntry> finished_rsentries;
-  Array<RequestStreamOutput> callback_delta_outputs;
-  rstates.reserve(num_requests);
-  finished_rsentries.reserve(num_requests);
-  callback_delta_outputs.reserve(num_requests);
-
-  for (int i = 0; i < num_requests; ++i) {
-    RequestState rstate = estate->GetRequestState(requests[i]);
-    rstates.push_back(rstate);
-    for (const RequestStateEntry& rsentry : rstate->entries) {
-      for (Data data : rsentry->mstates[0]->prefilled_inputs) {
-        // note that we are counting prefill tokens across all branches
-        rstate->metrics.prefill_tokens += data->GetLength();
-      }
-    }
-  }
-
-  UpdatePrefixCache(rstates, estate);
+  estate->postproc_workspace.finished_rsentries.clear();
+  estate->postproc_workspace.callback_delta_outputs.clear();
+  estate->postproc_workspace.finished_rsentries.reserve(num_requests);
+  estate->postproc_workspace.callback_delta_outputs.reserve(num_requests * 2);
 
   // - Collect new generated tokens and finish reasons for requests.
   for (int r = 0; r < num_requests; ++r) {
     Request request = requests[r];
     int n = request->generation_cfg->n;
-    RequestState rstate = rstates[r];
-    Array<IntTuple> group_delta_token_ids;
-    Array<Array<String>> group_delta_logprob_json_strs;
-    Array<Optional<String>> group_finish_reason;
-    Array<String> group_extra_prefix_string;
-    group_delta_token_ids.reserve(n);
-    group_delta_logprob_json_strs.reserve(n);
-    group_finish_reason.reserve(n);
-    group_extra_prefix_string.reserve(n);
+    RequestState rstate = estate->GetRequestState(requests[r]);
 
     bool invoke_callback = false;
+    RequestStreamOutput stream_output = rstate->postproc_states.GetStreamOutput();
     for (int i = 0; i < n; ++i) {
       const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
-      DeltaRequestReturn delta_request_ret =
-          rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length);
-      if (delta_request_ret.finish_reason.defined()) {
+      rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length, &stream_output, i);
+      if (stream_output->group_finish_reason[i].defined()) {
         invoke_callback = true;
-        finished_rsentries.push_back(rsentry);
+        estate->postproc_workspace.finished_rsentries.push_back(rsentry);
       }
-      if (!delta_request_ret.delta_token_ids.empty() ||
-          !delta_request_ret.extra_prefix_string.empty()) {
+      if (!stream_output->group_delta_token_ids[i].empty() ||
+          !stream_output->group_extra_prefix_string[i].empty()) {
         invoke_callback = true;
       }
-
-      group_delta_token_ids.push_back(IntTuple(std::move(delta_request_ret.delta_token_ids)));
-      group_delta_logprob_json_strs.push_back(std::move(delta_request_ret.delta_logprob_json_strs));
-      group_finish_reason.push_back(std::move(delta_request_ret.finish_reason));
-      group_extra_prefix_string.push_back(std::move(delta_request_ret.extra_prefix_string));
     }
 
     if (invoke_callback) {
-      callback_delta_outputs.push_back(RequestStreamOutput(
-          request->id, std::move(group_delta_token_ids),
-          request->generation_cfg->logprobs > 0 ? std::move(group_delta_logprob_json_strs)
-                                                : Optional<Array<Array<String>>>(),
-          std::move(group_finish_reason), std::move(group_extra_prefix_string)));
+      stream_output->unpacked = false;
+      estate->postproc_workspace.callback_delta_outputs.push_back(std::move(stream_output));
+    }
+
+    // Update prefix cache and metrics.
+    for (const RequestStateEntry& rsentry : rstate->entries) {
+      std::vector<int32_t>& token_ids = rsentry->token_ids_for_prefix_cache_update;
+      token_ids.clear();
+      if (!rsentry->mstates[0]->prefilled_inputs.empty()) {
+        // Notify the prefix cache of the newly prefilled data.
+        for (const Data& data : rsentry->mstates[0]->prefilled_inputs) {
+          const TokenDataNode* token_data = data.as<TokenDataNode>();
+          if (token_data == nullptr) continue;
+          token_ids.insert(token_ids.end(), token_data->token_ids->data,
+                           token_data->token_ids->data + token_data->token_ids.size());
+          // note that we are counting prefill tokens across all branches
+          rstate->metrics.prefill_tokens += data->GetLength();
+        }
+        rsentry->mstates[0]->prefilled_inputs.clear();
+      }
+      int64_t num_committed_tokens = rsentry->mstates[0]->committed_tokens.size();
+      if (rsentry->mstates[0]->cached_committed_tokens < num_committed_tokens - 1) {
+        // Notify the prefix cache of the newly decoded data, except the last token as it is not
+        // in KVCache yet.
+        for (int64_t& i = rsentry->mstates[0]->cached_committed_tokens;
+             i < num_committed_tokens - 1; ++i) {
+          token_ids.push_back(rsentry->mstates[0]->committed_tokens[i].sampled_token_id.first);
+        }
+      }
+      if (!token_ids.empty()) {
+        estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
+      }
     }
   }
 
-  ProcessFinishedRequestStateEntries(std::move(finished_rsentries), std::move(estate),
-                                     std::move(models), max_single_sequence_length,
-                                     &callback_delta_outputs);
+  ProcessFinishedRequestStateEntries(estate->postproc_workspace.finished_rsentries, estate, models,
+                                     max_single_sequence_length,
+                                     &estate->postproc_workspace.callback_delta_outputs);
 
-  if (!callback_delta_outputs.empty()) {
+  if (!estate->postproc_workspace.callback_delta_outputs.empty()) {
     NVTXScopedRange nvtx_scope("Call request stream callback");
     // - Invoke the stream callback function once for all collected requests.
-    request_stream_callback(callback_delta_outputs);
+    request_stream_callback(estate->postproc_workspace.callback_delta_outputs);
   }
 }  // namespace serve
 
