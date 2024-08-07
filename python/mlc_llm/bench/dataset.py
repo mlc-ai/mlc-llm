@@ -3,18 +3,14 @@
 import argparse
 import json
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from datasets import load_dataset  # pylint: disable=import-error
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 from mlc_llm.bench.request_record import Metrics, RequestRecord
-from mlc_llm.protocol.openai_api_protocol import (
-    ChatCompletionRequest,
-    DebugConfig,
-    RequestResponseFormat,
-)
+from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest, DebugConfig
 
 
 class Dataset:  # pylint: disable=too-few-public-methods
