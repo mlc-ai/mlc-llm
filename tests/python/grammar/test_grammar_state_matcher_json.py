@@ -373,10 +373,12 @@ def test_reset(json_grammar: BNFGrammar):
         "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
         # fmt: on
     ]
-    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}"]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}", "</s>"]
     input_ids = [token_table.index(t) for t in input_splitted]
 
     grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table)
+
+    # grammar_state_matcher.set_stop_token_ids([2]) # will reject </s> as last input, but accept a
 
     orig_result = []
 
