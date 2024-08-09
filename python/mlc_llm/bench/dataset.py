@@ -184,7 +184,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class JSONDataset(Dataset):  # pylint: disable=too-few-public-methods
+class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
     """The dataset class for JSON dataset."""
 
     def __init__(self, tokenizer: AutoTokenizer) -> None:
@@ -429,7 +429,7 @@ class JSONDataset(Dataset):  # pylint: disable=too-few-public-methods
 SUPPORTED_DATASET = [
     "sharegpt",
     "llmperf",
-    "json",
+    "json-mode-eval",
 ]
 
 
@@ -448,6 +448,6 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
         return ShareGPTDataset(args.dataset_path, tokenizer)
     if args.dataset == "llmperf":
         return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
-    if args.dataset == "json":
-        return JSONDataset(tokenizer)
+    if args.dataset == "json-mode-eval":
+        return JSONModeEvalDataset(tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
