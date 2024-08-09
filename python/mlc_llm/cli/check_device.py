@@ -1,5 +1,6 @@
 """Check if a device exists."""
 
+import os
 import sys
 
 from tvm.runtime import Device
@@ -22,6 +23,8 @@ def main():
         if _check_device(as_device(device_str, i)):
             device_ids.append(i)
             i += 1
+            if device_str in ["cpu", "llvm"] and i > os.cpu_count() / 2:
+                break
         else:
             break
     print(f"check_device:{','.join(str(i) for i in device_ids)}")
