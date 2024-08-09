@@ -189,6 +189,16 @@ def _build_android():
             str(output),
             fcompile=tar.tar,
         )
+        if args.debug_dump is not None:
+            lib = relax.build(
+                mod,
+                target=args.target,
+                pipeline=pipeline,
+                system_lib=True,
+            )
+            source = lib.mod.imported_modules[0].imported_modules[0].get_source()
+            with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
+                f.write(source)
 
     return build
 
@@ -207,6 +217,16 @@ def _build_android_so():
             str(output),
             fcompile=ndk.create_shared,
         )
+        if args.debug_dump is not None:
+            lib = relax.build(
+                mod,
+                target=args.target,
+                pipeline=pipeline,
+                system_lib=False,
+            )
+            source = lib.mod.imported_modules[0].imported_modules[0].get_source()
+            with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
+                f.write(source)
 
     return build
 
@@ -419,6 +439,17 @@ PRESET = {
             },
         },
         "build": _build_android_so,
+    },
+    "windows:adreno_x86": {
+        "target": {
+            "kind": "opencl",
+            "device": "adreno",
+            "max_threads_per_block": 512,
+            "host": {
+                "kind": "llvm",
+                "mtriple": "x86_64-pc-windows-msvc",
+            },
+        },
     },
     "metal:x86-64": {
         "target": {
