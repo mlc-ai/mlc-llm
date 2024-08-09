@@ -1,10 +1,8 @@
 """Operators enabled by external modules."""
 
-import math
-
-from tvm import tir
+import tvm
 from tvm.relax.frontend import nn
-from tvm.relax.frontend.nn import op
+from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm.support import logging
 
@@ -17,7 +15,7 @@ WARN_FLASHINFER_GROUP_SIZE = False
 WARN_FLASHINFER_HEAD_DIM = False
 
 
-def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements,too-many-arguments
+def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statements,too-many-arguments, unused-argument
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
@@ -65,6 +63,10 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     group_size = h_q // h_kv
 
     def _fallback():
+        from mlc_llm.nn import (  # pylint: disable=import-outside-toplevel, cyclic-import
+            _attention_sequence_prefill,
+        )
+
         nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
             k = op.reshape(k, [b, t, h_kv, d])
@@ -73,26 +75,19 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         if h_kv != h_q:
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
-        q = op.permute_dims(q, [0, 2, 1, 3])
-        k = op.permute_dims(k, [0, 2, 1, 3])
-        v = op.permute_dims(v, [0, 2, 1, 3])
-        model_dtype = q.dtype
-        if qk_dtype is None:
-            qk_dtype = model_dtype
-        attn_weights = op.matmul(  # [b, h, s, t]
-            q,  # [b, h, s, d]
-            op.permute_dims(k, [0, 1, 3, 2]),  # [b, h, d, t]
-            out_dtype=qk_dtype,
-        ) / math.sqrt(d)
-        if attn_score_scaling_factor != 1.0:
-            attn_weights = attn_weights * attn_score_scaling_factor
-        attn_weights = attn_weights.maximum(tir.min_value(model_dtype)).minimum(
-            casual_mask.astype(qk_dtype)
+
+        target = tvm.target.Target("cuda")
+        attn_output, _ = op.tensor_ir_op(
+            _attention_sequence_prefill(b, h_kv, h_q, d, q.dtype, target),
+            "sequence_prefill",
+            [q, k, v],
+            [
+                Tensor.placeholder([b, s, h_q, d], q.dtype),
+                Tensor.placeholder([b, s, h_q], q.dtype),
+            ],
         )
-        attn_weights = op.softmax(attn_weights.astype("float32"), axis=-1).astype(model_dtype)
-        output = op.matmul(attn_weights, v)  # [b, h, s, d] <= [b, h, s, t] x [b, h, t, d]
-        output = op.permute_dims(output, [0, 2, 1, 3])  #  [b, s, h, d]
-        output = op.reshape(output, [b, s, h_q * d])  # [b, s, h * d]
+
+        output = op.reshape(attn_output, shape=(b, s, h_q * d))
         return output
 
     # FlashInfer Implementation

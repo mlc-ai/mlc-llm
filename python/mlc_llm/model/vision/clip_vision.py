@@ -13,14 +13,13 @@ from tvm.relax.frontend.nn.modules import Conv2D
 from tvm.relax.frontend.nn.op import (
     broadcast_to,
     concat,
-    matmul,
     permute_dims,
     reshape,
-    softmax,
     wrap_nested,
 )
 from tvm.relax.op import arange
 
+from mlc_llm import op as op_ext
 from mlc_llm.support.config import ConfigBase
 
 logger = logging.getLogger(__name__)
@@ -146,40 +145,19 @@ class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
-    def _shape(self, tensor: Tensor, seq_len: int, bsz: int):
-        reshape_tensor = reshape(tensor, shape=(bsz, seq_len, self.num_heads, self.head_dim))
-        permute_tensor = permute_dims(reshape_tensor, axes=(0, 2, 1, 3))
-        return permute_tensor
-
     def forward(
         self,
         hidden_states: Tensor,
     ) -> Tensor:
-        bsz, tgt_len, embed_dim = hidden_states.shape
-        query_states = self._shape(self.q_proj(hidden_states) * self.scale, tgt_len, bsz)
-        key_states = self._shape(self.k_proj(hidden_states), tgt_len, bsz)
-        value_states = self._shape(self.v_proj(hidden_states), tgt_len, bsz)
+        d, h = self.head_dim, self.num_heads
+        b, s, _ = hidden_states.shape  # batch_size, seq_len, embed_dim
 
-        proj_shape = (
-            bsz * self.num_heads,
-            -1,
-            self.head_dim,
-        )  # shape of (batch*num_heads, seq_len,head_dim)
+        q = self.q_proj(hidden_states).reshape(b, s, h, d)
+        k = self.k_proj(hidden_states).reshape(b, s, h, d)
+        v = self.v_proj(hidden_states).reshape(b, s, h, d)
 
-        query_states = reshape(query_states, shape=proj_shape)
-        key_states = reshape(key_states, shape=proj_shape)
-        value_states = reshape(value_states, shape=proj_shape)
-
-        trans_key_states = permute_dims(key_states, axes=(0, 2, 1))
-
-        attn_weights = matmul(query_states, trans_key_states)
-        attn_weights = softmax(attn_weights, axis=-1)
-        attn_output = matmul(attn_weights, value_states)
-        attn_output = reshape(attn_output, shape=(bsz, self.num_heads, tgt_len, self.head_dim))
-        attn_output = permute_dims(attn_output, axes=(0, 2, 1, 3))
-        attn_output = reshape(attn_output, shape=(bsz, tgt_len, embed_dim))
+        attn_output = op_ext.attention(q, k, v, None)
         attn_output = self.out_proj(attn_output)
-
         return attn_output
 
 
