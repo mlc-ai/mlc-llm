@@ -20,7 +20,7 @@ def huggingface(model_config: MiniCPMConfig, quantization: Quantization) -> Exte
     Parameters
     ----------
     model_config : InternLMConfig
-        The configuration of the InternLM model.
+        The configuration of the MiniCPM model.
 
     quantization : Quantization
         The quantization configuration.
