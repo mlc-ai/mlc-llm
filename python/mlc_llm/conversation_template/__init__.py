@@ -20,6 +20,7 @@ from . import (
     oasst,
     orion,
     phi,
+    qwen2,
     redpajama,
     rwkv,
     stablelm,
