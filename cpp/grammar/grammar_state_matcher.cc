@@ -153,6 +153,10 @@ class GrammarStateMatcherNodeImpl : public GrammarStateMatcherNode, public Gramm
     PushInitialState(kInvalidRulePosition, true);
   }
 
+  void SetStopTokenIds(const std::vector<int32_t>& stop_token_ids) final {
+    init_ctx_->stop_token_ids = stop_token_ids;
+  }
+
  private:
   /*!
    * \brief If is_uncertain_saved is true, find the next token in uncertain_indices. Otherwise,
@@ -608,6 +612,12 @@ TVM_REGISTER_GLOBAL("mlc.grammar.GrammarStateMatcherIsTerminated")
 
 TVM_REGISTER_GLOBAL("mlc.grammar.GrammarStateMatcherResetState")
     .set_body_typed([](GrammarStateMatcher matcher) { matcher->ResetState(); });
+
+TVM_REGISTER_GLOBAL("mlc.grammar.GrammarStateMatcherSetStopTokenIds")
+    .set_body_typed([](GrammarStateMatcher matcher, IntTuple stop_token_ids) {
+      std::vector<int32_t> stop_token_ids_vector{stop_token_ids.begin(), stop_token_ids.end()};
+      matcher->SetStopTokenIds(stop_token_ids_vector);
+    });
 
 /*! \brief Check if a matcher can accept the complete string, and then reach the end of the
  * grammar. Does not change the state of the GrammarStateMatcher. For test purpose. */

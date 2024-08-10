@@ -395,6 +395,39 @@ def test_reset(json_grammar: BNFGrammar):
     assert orig_result == result_after_reset
 
 
+def test_set_stop_token_ids(json_grammar: BNFGrammar):
+    token_table = [
+        # fmt: off
+        "<s>", "</s>", "a", "abc", 'b"', '"', ':"', "{", "}", ", ", "6", ":", "\n", " ", '"a":true',
+        # fmt: on
+    ]
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}", "</s>"]
+    input_ids = [token_table.index(t) for t in input_splitted]
+
+    # 1. Will accept </s> as last token for stop token
+    grammar_state_matcher = GrammarStateMatcher(json_grammar, token_table)
+    for i in input_ids:
+        assert grammar_state_matcher.accept_token(i)
+
+    # 2. Will reject </s> as last token for stop token
+    grammar_state_matcher.reset_state()
+    grammar_state_matcher.set_stop_token_ids([2])
+    for i in input_ids:
+        if i == 1:
+            # 1 is </s>, will be rejected
+            assert not grammar_state_matcher.accept_token(i)
+        else:
+            assert grammar_state_matcher.accept_token(i)
+
+    # 3. Will accept "a" as stop token
+    grammar_state_matcher.reset_state()
+    grammar_state_matcher.set_stop_token_ids([2])
+    input_splitted = ["{", '"', "abc", 'b"', ":", "6", ", ", " ", '"a":true', "}", "a"]
+    input_ids = [token_table.index(t) for t in input_splitted]
+    for i in input_ids:
+        assert grammar_state_matcher.accept_token(i)
+
+
 def test_termination(json_grammar: BNFGrammar):
     token_table = [
         # fmt: off

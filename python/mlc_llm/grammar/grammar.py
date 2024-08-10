@@ -291,7 +291,7 @@ class GrammarStateMatcher(Object):
         find_next_rejected_tokens operations can be performed. The termination state can be canceled
         using Rollback().
         """
-        return _ffi_api.GrammarStateMatcherAcceptToken(self, token_id)  # type: ignore  # pylint: disable=no-member
+        return _ffi_api.GrammarStateMatcherAcceptToken(self, token_id, False)  # type: ignore  # pylint: disable=no-member
 
     def find_next_rejected_tokens(self, verbose: bool = False) -> List[int]:
         """Find the ids of the rejected tokens for the next step.
@@ -400,3 +400,7 @@ class GrammarStateMatcher(Object):
             The string to be matched.
         """
         return _ffi_api.GrammarStateMatcherDebugMatchCompleteString(self, string, verbose)  # type: ignore  # pylint: disable=no-member
+
+    def set_stop_token_ids(self, stop_token_ids: List[int]) -> None:
+        """Set the stop token ids, overriding the default ones."""
+        _ffi_api.GrammarStateMatcherSetStopTokenIds(self, tvm.runtime.ShapeTuple(stop_token_ids))  # type: ignore  # pylint: disable=no-member
