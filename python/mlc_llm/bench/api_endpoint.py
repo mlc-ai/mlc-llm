@@ -75,7 +75,11 @@ class OpenAIEndPoint(APIEndPoint):
                 payload["stream_options"] = {"include_usage": True}
             else:
                 payload["stream_options"]["include_usage"] = True
-        payload["ignore_eos"] = True
+        if (
+            request_record.chat_cmpl.debug_config is not None
+            and request_record.chat_cmpl.debug_config.ignore_eos
+        ):
+            payload["ignore_eos"] = True
 
         generated_text = ""
         time_to_first_token_s = None
@@ -97,7 +101,8 @@ class OpenAIEndPoint(APIEndPoint):
                         if not data["choices"]:
                             continue
                         delta = data["choices"][0]["delta"]
-                        if delta.get("content", None) and not time_to_first_token_s:
+                        content = delta.get("content", None)
+                        if content is not None and not time_to_first_token_s:
                             time_to_first_token_s = time.monotonic() - start_time
                         if self.include_server_metrics and data["usage"] is not None:
                             # fmt: off
@@ -115,7 +120,8 @@ class OpenAIEndPoint(APIEndPoint):
                             # pylint: enable=line-too-long
                             # fmt: on
 
-                        generated_text += delta["content"]
+                        if content is not None:
+                            generated_text += content
                 else:
                     data = await response.json()
                     generated_text = data["choices"][0]["message"]["content"]
@@ -205,8 +211,12 @@ class TensorRTLLMEndPoint(APIEndPoint):
             "top_p": request_record.chat_cmpl.top_p if request_record.chat_cmpl.top_p else 1,
             "max_tokens": request_record.chat_cmpl.max_tokens,
             "stream": request_record.chat_cmpl.stream,
-            "ignore_eos": True,
         }
+        if (
+            request_record.chat_cmpl.debug_config is not None
+            and request_record.chat_cmpl.debug_config.ignore_eos
+        ):
+            payload["ignore_eos"] = True
         if self.timeout is not None and "timeout" not in payload:
             payload["timeout"] = self.timeout
 
