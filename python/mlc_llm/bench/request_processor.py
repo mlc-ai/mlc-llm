@@ -58,6 +58,18 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         return sample
 
 
+class AttachModelName(RequestProcessor):  # pylint: disable=too-few-public-methods
+    """The processor that attaches model name to requests."""
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+        for request_record in request_records:
+            request_record.chat_cmpl.model = self.model
+        return request_records
+
+
 class AttachRequestRateTimestamp(RequestProcessor):  # pylint: disable=too-few-public-methods
     """The processor that applies timestamps to the requests."""
 
@@ -100,6 +112,23 @@ class AttachStreamFlag(RequestProcessor):  # pylint: disable=too-few-public-meth
         return request_records
 
 
+class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public-methods
+    """The processor that attaches the stream flag to the requests."""
+
+    def __init__(self, temperature: float, top_p: float) -> None:
+        self.temperature = temperature
+        self.top_p = top_p
+
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+        for request_record in request_records:
+            request_record.chat_cmpl.temperature = self.temperature
+            request_record.chat_cmpl.top_p = self.top_p
+            request_record.chat_cmpl.frequency_penalty = 0.0
+            request_record.chat_cmpl.presence_penalty = 0.0
+            request_record.chat_cmpl.tool_choice = "none"
+        return request_records
+
+
 class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-methods
     """The processor that analyzes the raw benchmark results and computes more detailed metrics."""
 
@@ -114,7 +143,10 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 continue
 
             metrics.output_tokens = len(self.tokenizer.encode(request_record.output_str))
-            assert metrics.input_tokens > 0 and metrics.output_tokens > 0, "Invalid prompt tokens"
+            if metrics.output_tokens < 2:
+                metrics.success = False
+                continue
+            assert metrics.input_tokens > 0, "Invalid prompt tokens"
             metrics.inter_token_latency_s = metrics.end_to_end_latency_s / metrics.output_tokens
             if metrics.time_to_first_token_s is None:
                 metrics.time_to_first_token_s = 0
@@ -430,7 +462,9 @@ def create_pipelines(
                 SequentialProcessor(
                     LogMessage(f"Fixing number of concurrent requests: {num_concurrent_requests}"),
                     SampleRequests(args.num_requests + num_warmup_requests),
+                    AttachModelName(args.tokenizer),
                     AttachStreamFlag(args.stream),
+                    AttachSamplingOptions(args.temperature, args.top_p),
                     AttachExecutionFeature({"num_concurrent_requests": num_concurrent_requests}),
                     WarmupAndRun(
                         num_warmup_requests=num_warmup_requests,
@@ -457,8 +491,10 @@ def create_pipelines(
             SequentialProcessor(
                 LogMessage(f"Fixing request rate: {request_rate}"),
                 SampleRequests(args.num_requests + args.num_warmup_requests),
+                AttachModelName(args.tokenizer),
                 AttachRequestRateTimestamp(request_rate),
                 AttachStreamFlag(args.stream),
+                AttachSamplingOptions(args.temperature, args.top_p),
                 AttachExecutionFeature({"request_rate": request_rate}),
                 WarmupAndRun(
                     num_warmup_requests=args.num_warmup_requests,

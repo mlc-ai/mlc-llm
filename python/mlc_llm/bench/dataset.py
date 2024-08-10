@@ -96,7 +96,6 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
                         ],
                         model="",
                         max_tokens=output_length,
-                        debug_config=DebugConfig(ignore_eos=True),
                     ),
                     metrics=Metrics(
                         success=False,
@@ -225,7 +224,6 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
                         messages=prompt,
                         model="",
                         max_tokens=output_length,
-                        debug_config=DebugConfig(ignore_eos=True),
                         response_format=schema,
                     ),
                     metrics=Metrics(

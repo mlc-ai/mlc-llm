@@ -262,6 +262,18 @@ if __name__ == "__main__":
         help="The random number seed. Default to 0.",
     )
     parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="The temperature value for logit adjustment. Default to 1.",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=1.0,
+        help="The top-p value for sampling. Default to 1.",
+    )
+    parser.add_argument(
         "--num-process-workers",
         type=int,
         help="The number of parallel process workers to send the requests.",
