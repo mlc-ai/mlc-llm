@@ -18,6 +18,13 @@
             "estimated_vram_bytes": 3000000000
         },
         {
+
+            "model": "HF://mlc-ai/Qwen2-Math-1.5B-Instruct-q4f16-MLC",
+            "model_id": "Qwen2-Math-1.5B-Instruct-q4f16-MLC",
+            "estimated_vram_bytes": 
+3000000000
+        },
+        {
             "model": "HF://mlc-ai/Llama-3.1-8B-Instruct-q3f16_1-MLC",
             "estimated_vram_bytes": 4679979417,
             "model_id": "Llama-3.1-8B-Instruct-q3f16_1-MLC",
