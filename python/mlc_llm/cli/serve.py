@@ -3,7 +3,7 @@
 import dataclasses
 import json
 from io import StringIO
-from typing import Optional
+from typing import Literal, Optional
 
 from mlc_llm.interface.help import HELP
 from mlc_llm.interface.serve import serve
@@ -22,7 +22,9 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
     max_history_size: Optional[int] = None
     gpu_memory_utilization: Optional[float] = None
     spec_draft_length: Optional[int] = None
+    prefix_cache_mode: Optional[Literal["disable", "radix"]] = None
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
+    prefill_mode: Optional[Literal["chunked", "hybrid"]] = None
     context_window_size: Optional[int] = None
     sliding_window_size: Optional[int] = None
     attention_sink_size: Optional[int] = None
@@ -37,11 +39,13 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";max_history_size={self.max_history_size}", file=out, end="")
         print(f";gpu_memory_utilization={self.gpu_memory_utilization}", file=out, end="")
         print(f";spec_draft_length={self.spec_draft_length}", file=out, end="")
+        print(f";prefix_cache_mode={self.prefix_cache_mode}", file=out, end="")
         print(
             f";prefix_cache_max_num_recycling_seqs={self.prefix_cache_max_num_recycling_seqs}",
             file=out,
             end="",
         )
+        print(f";prefill_mode={self.prefill_mode}", file=out, end="")
         print(f";context_window_size={self.context_window_size}", file=out, end="")
         print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
@@ -60,7 +64,9 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         parser.add_argument("--max_history_size", type=int, default=None)
         parser.add_argument("--gpu_memory_utilization", type=float, default=None)
         parser.add_argument("--spec_draft_length", type=int, default=None)
+        parser.add_argument("--prefix_cache_mode", type=str, default="radix")
         parser.add_argument("--prefix_cache_max_num_recycling_seqs", type=int, default=None)
+        parser.add_argument("--prefill_mode", type=str, default="hybrid")
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
         parser.add_argument("--attention_sink_size", type=int, default=None)
@@ -74,7 +80,9 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
             max_history_size=results.max_history_size,
             gpu_memory_utilization=results.gpu_memory_utilization,
             spec_draft_length=results.spec_draft_length,
+            prefix_cache_mode=results.prefix_cache_mode,
             prefix_cache_max_num_recycling_seqs=results.prefix_cache_max_num_recycling_seqs,
+            prefill_mode=results.prefill_mode,
             context_window_size=results.context_window_size,
             sliding_window_size=results.sliding_window_size,
             attention_sink_size=results.attention_sink_size,

@@ -547,7 +547,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
     size_t length = GetSequenceLength(parent_seq_id);
     CHECK_LE(forked_offset, length);
     for (RadixPage* page = seq2page[parent_seq_id]; page; page = page->parent) {
-      if (forked_offset >= length - page->length) {
+      if (forked_offset > length - page->length) {
         if (forked_offset < length) {
           // Split radix page if forked position is within page
           page = SplitPage(page, forked_offset + page->length - length);

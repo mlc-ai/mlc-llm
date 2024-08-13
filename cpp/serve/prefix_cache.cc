@@ -96,7 +96,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
           }
         }
       }
-      if (shortest_recycling_seq_id != -1) {
+      if (shortest_recycling_seq_id != -1 && matched_offset > shortest_recycling_seq_length * 0.9) {
         ReuseRecyclingSequence(shortest_recycling_seq_id);
         if (shortest_recycling_seq_length > matched_offset) {
           // Recycling sequence is longer than new sequence, rolling back the redundant trailing

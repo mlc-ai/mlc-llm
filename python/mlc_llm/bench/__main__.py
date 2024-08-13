@@ -64,6 +64,9 @@ def _parse_mlc_engine_config(config_str: Optional[str]) -> EngineConfig:
         max_history_size=engine_config_override.max_history_size,
         gpu_memory_utilization=engine_config_override.gpu_memory_utilization,
         spec_draft_length=engine_config_override.spec_draft_length,
+        prefill_mode=engine_config_override.prefill_mode,
+        prefix_cache_max_num_recycling_seqs=engine_config_override.prefix_cache_max_num_recycling_seqs,  # pylint: disable=line-too-long
+        prefix_cache_mode=engine_config_override.prefix_cache_mode,
     )
 
 
