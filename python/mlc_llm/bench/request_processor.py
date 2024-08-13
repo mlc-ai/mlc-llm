@@ -180,6 +180,7 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
             request_record.timestamp = 0 if request_record.timestamp is not None else None
 
         # Warmup
+        warmup_requests = self._process_warmup_requests(warmup_requests)
         logger.info("Warmup with %d request(s)...", self.num_warmup_requests)
         self.pipeline(warmup_requests)
 
@@ -196,6 +197,22 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
             assert cuda_profiler_stop_response.status_code == 200
 
         return updated_request_records
+
+    def _process_warmup_requests(self, warmup_requests: List[RequestRecord]) -> List[RequestRecord]:
+        if len(warmup_requests) == 0:
+            return warmup_requests
+        # NOTE: to warm up the server for as more different batch sizes as possible,
+        # we usese 128 output tokens for the first request and use two more tokens
+        # for every followup request.
+        # Setting a high temperature and top-p to avoid early stop as much as possible.
+        warmup_requests[0].chat_cmpl.max_tokens = 128
+        for i in range(1, len(warmup_requests)):
+            warmup_requests[i].chat_cmpl.max_tokens = (
+                warmup_requests[i - 1].chat_cmpl.max_tokens + 1
+            )
+            warmup_requests[i].chat_cmpl.temperature = 2.0
+            warmup_requests[i].chat_cmpl.top_p = 1.0
+        return warmup_requests
 
 
 class SequentialProcessor(RequestProcessor):  # pylint: disable=too-few-public-methods
