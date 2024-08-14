@@ -4,9 +4,9 @@ TODO: add docstring
 """
 
 import dataclasses
-import math
 from functools import partial
 from typing import Any, Dict, Optional
+import math
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the MiniCPM model."""
 
+    hidden_act: str
     vocab_size: int
     hidden_size: int
     num_hidden_layers: int
@@ -35,12 +36,11 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     intermediate_size: int
     scale_emb: int
     scale_depth: float
-    max_length: int
-    rope_theta: int
     dim_model_base: int
     use_cache: bool
     bos_token_id: int
-    eos_token_id: int
+    tie_word_embeddings: bool = False
+    rope_theta: int = 10000
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
@@ -109,7 +109,9 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            self.num_heads * self.head_dim, self.hidden_size, bias=False
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
@@ -124,6 +126,7 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         return attn_output
 
 
+
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -131,6 +134,18 @@ ACT2FN = {
     "swish": nn.silu,
     "gelu_new": partial(nn.gelu, approximate=True),
 }
+
+class MiniCPMEmbedding(nn.Embedding):
+    """The embedding module specialized for MiniCPM so that
+    it can be shared with the final lm_head.
+    """
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
 
 
 class MiniCPMMLP(nn.Module):
@@ -161,30 +176,24 @@ class MiniCPMDecoderLayer(nn.Module):
         self.self_attn = MiniCPMAttention(config)
         self.mlp = MiniCPMMLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = residual + hidden_states * (
-            self.scale_depth / math.sqrt(self.num_hidden_layers)
-        )
+        hidden_states = residual + hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers))
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states * (
-            self.scale_depth / math.sqrt(self.num_hidden_layers)
-        )
+        hidden_states = residual + hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers))
         return hidden_states
 
 
 class MiniCPMModel(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = MiniCPMEmbedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [MiniCPMDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -201,7 +210,9 @@ class MiniCPMModel(nn.Module):
 class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: MiniCPMConfig):
         self.model = MiniCPMModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.tie_word_embeddings = config.tie_word_embeddings
+        if not config.tie_word_embeddings:
+            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
         self.num_hidden_layers = config.num_hidden_layers
         self.hidden_size = config.hidden_size
@@ -231,7 +242,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         hidden_states = self.model(input_embeds, paged_kv_cache) / self.scale_width
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
@@ -250,7 +264,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
 
         hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
@@ -259,7 +276,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
