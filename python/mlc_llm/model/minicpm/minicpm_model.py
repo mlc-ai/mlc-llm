@@ -132,6 +132,7 @@ ACT2FN = {
     "gelu_new": partial(nn.gelu, approximate=True),
 }
 
+
 class MiniCPMEmbedding(nn.Embedding):
     """The embedding module specialized for MiniCPM so that
     it can be shared with the final lm_head.
