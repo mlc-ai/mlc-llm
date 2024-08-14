@@ -180,5 +180,5 @@ def pack_weight(
             axis=r,
         ),
         name="packed_weight",
-    )
+    ).astype(storage_dtype)
     return packed_weight
