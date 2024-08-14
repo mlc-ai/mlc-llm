@@ -109,7 +109,7 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=False,
         )
-         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
+        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
