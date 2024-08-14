@@ -261,7 +261,10 @@ void FunctionTable::_InitFunctions() {
   this->nd_copy_embedding_to_offset_func_ = get_global_func("mlc.copy_embedding_to_offset");
   support_backtracking_kv_ = true;
   this->tuple_getitem_func_ = get_global_func("vm.builtin.tuple_getitem");
-  this->last_group_send_to_worker_0_ = get_global_func("mlc.multi_gpu.SendFromLastGroupToWorker0");
+  if (use_disco) {
+    this->last_group_send_to_worker_0_ =
+        get_global_func("mlc.multi_gpu.SendFromLastGroupToWorker0");
+  }
 
   this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
   this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
