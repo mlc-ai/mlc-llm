@@ -588,10 +588,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     },
     "baichuan": {
         "architectures": ["BaichuanForCausalLM"],
-        "auto_map": {
-            "AutoConfig": "configuration_baichuan.BaichuanConfig",
-            "AutoModelForCausalLM": "modeling_baichuan.BaichuanForCausalLM",
-        },
         "tokenizer_class": "BaichuanTokenizer",
         "bos_token_id": 1,
         "eos_token_id": 2,
@@ -614,11 +610,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     },
     "internlm": {
         "architectures": ["InternLMForCausalLM"],
-        "auto_map": {
-            "AutoConfig": "configuration_internlm.InternLMConfig",
-            "AutoModel": "modeling_internlm.InternLMForCausalLM",
-            "AutoModelForCausalLM": "modeling_internlm.InternLMForCausalLM",
-        },
         "bias": True,
         "bos_token_id": 1,
         "eos_token_id": 2,
@@ -821,11 +812,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     "chatglm": {
         "architectures": ["ChatGLMModel"],
         "model_type": "chatglm",
-        "auto_map": {
-            "AutoConfig": "configuration_chatglm.ChatGLMConfig",
-            "AutoModel": "modeling_chatglm.ChatGLMForConditionalGeneration",
-            "AutoModelForCausalLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
-        },
         "add_bias_linear": False,
         "add_qkv_bias": True,
         "apply_query_key_layer_scaling": True,
@@ -1116,11 +1102,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     "internlm2": {
         "architectures": ["InternLM2ForCausalLM"],
         "attn_implementation": "eager",
-        "auto_map": {
-            "AutoConfig": "configuration_internlm2.InternLM2Config",
-            "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
-            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM",
-        },
         "bias": False,
         "bos_token_id": 1,
         "eos_token_id": 2,
@@ -1146,11 +1127,6 @@ MODEL_PRESETS: Dict[str, Any] = {
     "internlm2_5_7b": {
         "architectures": ["InternLM2ForCausalLM"],
         "attn_implementation": "eager",
-        "auto_map": {
-            "AutoConfig": "configuration_internlm2.InternLM2Config",
-            "AutoModelForCausalLM": "modeling_internlm2.InternLM2ForCausalLM",
-            "AutoModel": "modeling_internlm2.InternLM2ForCausalLM",
-        },
         "bias": False,
         "bos_token_id": 1,
         "eos_token_id": 2,
@@ -1340,5 +1316,28 @@ MODEL_PRESETS: Dict[str, Any] = {
         "scale_depth": 1.4,
         "tie_word_embeddings": False,
         "rope_theta": 1000000.0,
+    },
+    "minicpm_2b_sft_bf16": {
+        "architectures": ["MiniCPMForCausalLM"],
+        "bos_token_id": 1,
+        "eos_token_id": 2,
+        "hidden_act": "silu",
+        "hidden_size": 2304,
+        "initializer_range": 0.1,
+        "intermediate_size": 5760,
+        "max_position_embeddings": 4096,
+        "model_type": "minicpm",
+        "num_attention_heads": 36,
+        "num_hidden_layers": 40,
+        "num_key_value_heads": 36,
+        "rms_norm_eps": 1e-05,
+        "torch_dtype": "bfloat16",
+        "tie_word_embeddings": True,
+        "transformers_version": "4.36.0",
+        "use_cache": True,
+        "vocab_size": 122753,
+        "scale_emb": 12,
+        "dim_model_base": 256,
+        "scale_depth": 1.4,
     },
 }
