@@ -16,6 +16,7 @@
 		AEC27EFA2A85C2AC00254E67 /* ParamsConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EF92A85C2AC00254E67 /* ParamsConfig.swift */; };
 		AEC27EFC2A85C3B000254E67 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27EFB2A85C3B000254E67 /* AppConfig.swift */; };
 		AEC27F022A86337E00254E67 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC27F012A86337E00254E67 /* Constants.swift */; };
+		B08647022C6D0293001A8B5E /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = B08647012C6D0293001A8B5E /* MarkdownUI */; };
 		C04105DD2BEBBEA6005A434D /* MLCSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C04105DC2BEBBEA6005A434D /* MLCSwift */; };
 		C0D643B329F99A7F004DDAA4 /* MLCChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D643B229F99A7F004DDAA4 /* MLCChatApp.swift */; };
 		C0D643B729F99A80004DDAA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0D643B629F99A80004DDAA4 /* Assets.xcassets */; };
@@ -77,6 +78,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				C04105DD2BEBBEA6005A434D /* MLCSwift in Frameworks */,
+				B08647022C6D0293001A8B5E /* MarkdownUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -200,6 +202,7 @@
 			name = MLCChat;
 			packageProductDependencies = (
 				C04105DC2BEBBEA6005A434D /* MLCSwift */,
+				B08647012C6D0293001A8B5E /* MarkdownUI */,
 			);
 			productName = MLCChat;
 			productReference = C0D643AF29F99A7F004DDAA4 /* MLCChat.app */;
@@ -232,6 +235,7 @@
 			mainGroup = C0D643A629F99A7F004DDAA4;
 			packageReferences = (
 				C04105DB2BEBBEA6005A434D /* XCLocalSwiftPackageReference "../MLCSwift" */,
+				B08647002C6D0293001A8B5E /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 			);
 			productRefGroup = C0D643B029F99A7F004DDAA4 /* Products */;
 			projectDirPath = "";
@@ -527,7 +531,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		B08647002C6D0293001A8B5E /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		B08647012C6D0293001A8B5E /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B08647002C6D0293001A8B5E /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
 		C04105DC2BEBBEA6005A434D /* MLCSwift */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = MLCSwift;
