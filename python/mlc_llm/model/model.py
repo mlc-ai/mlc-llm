@@ -23,6 +23,7 @@ from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
 from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
+from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .orion import orion_loader, orion_model, orion_quantization
@@ -485,6 +486,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": cohere_quantization.no_quant,
             "group-quant": cohere_quantization.group_quant,
             "ft-quant": cohere_quantization.ft_quant,
+        },
+    ),
+    "minicpm": Model(
+        name="minicpm",
+        model=minicpm_model.MiniCPMForCausalLM,
+        config=minicpm_model.MiniCPMConfig,
+        source={
+            "huggingface-torch": minicpm_loader.huggingface,
+            "huggingface-safetensor": minicpm_loader.huggingface,
+        },
+        quantize={
+            "no-quant": minicpm_quantization.no_quant,
+            "group-quant": minicpm_quantization.group_quant,
+            "ft-quant": minicpm_quantization.ft_quant,
         },
     ),
 }
