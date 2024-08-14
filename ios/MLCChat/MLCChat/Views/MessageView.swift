@@ -4,11 +4,21 @@
 //
 
 import SwiftUI
+import MarkdownUI
 
 struct MessageView: View {
     let role: MessageRole;
     let message: String
+    let isMarkdownSupported: Bool
     
+    @State private var showMarkdown: Bool
+    
+    init(role: MessageRole, message: String, isMarkdownSupported: Bool = true) {
+        self.role = role
+        self.message = message
+        self.isMarkdownSupported = isMarkdownSupported
+        _showMarkdown = State(initialValue: isMarkdownSupported)
+    }
     var body: some View {
         let textColor = role.isUser ? Color.white : Color(UIColor.label)
         let background = role.isUser ? Color.blue : Color(UIColor.secondarySystemBackground)
@@ -16,14 +26,45 @@ struct MessageView: View {
         HStack {
             if role.isUser {
                 Spacer()
+                Text(message)
+                    .padding(10)
+                    .foregroundColor(textColor)
+                    .background(background)
+                    .cornerRadius(10)
+                    .textSelection(.enabled)
             }
-            Text(message)
-                .padding(10)
-                .foregroundColor(textColor)
-                .background(background)
-                .cornerRadius(10)
-                .textSelection(.enabled)
             if !role.isUser {
+                VStack(alignment: .leading) {
+                    // Toggle switch to show/hide Markdown
+                    if(isMarkdownSupported){
+                        Toggle(isOn: $showMarkdown) {
+                            Text("Show as Markdown")
+                                .font(.footnote)
+                                .foregroundColor(.blue)
+                        }
+                        .padding(.bottom, 10)
+                    }
+                    
+                    // Conditionally display Text or Markdown
+                    if showMarkdown {
+                        Markdown {
+                            message
+                        }
+                        .markdownTheme(.gitHub)
+                        .padding(10)
+                        .foregroundColor(textColor)
+                        .background(background)
+                        .cornerRadius(10)
+                        .textSelection(.enabled)
+                    } else {
+                        Text(message)
+                            .padding(10)
+                            .foregroundColor(textColor)
+                            .background(background)
+                            .cornerRadius(10)
+                            .textSelection(.enabled)
+                    }
+                }
                 Spacer()
             }
         }

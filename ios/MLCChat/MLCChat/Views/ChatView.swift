@@ -77,7 +77,7 @@ private extension ChatView {
 
                     // display the system message
                     if hasSystemMessage {
-                        MessageView(role: chatState.displayMessages[0].role, message: chatState.displayMessages[0].message)
+                        MessageView(role: chatState.displayMessages[0].role, message: chatState.displayMessages[0].message, isMarkdownSupported: false)
                     }
 
                     // display image
