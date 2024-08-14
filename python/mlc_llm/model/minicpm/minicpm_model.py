@@ -35,12 +35,12 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     intermediate_size: int
     scale_emb: int
     scale_depth: float
-    max_length: int
-    rope_theta: int
     dim_model_base: int
     use_cache: bool
     bos_token_id: int
     eos_token_id: int
+    tie_word_embeddings: bool = False
+    rope_theta: int = 10000
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
@@ -133,6 +133,19 @@ ACT2FN = {
 }
 
 
+class MiniCPMEmbedding(nn.Embedding):
+    """The embedding module specialized for MiniCPM so that
+    it can be shared with the final lm_head.
+    """
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
+
+
 class MiniCPMMLP(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         self.hidden_size = config.hidden_size
@@ -184,7 +197,7 @@ class MiniCPMDecoderLayer(nn.Module):
 class MiniCPMModel(nn.Module):
     def __init__(self, config: MiniCPMConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = MiniCPMEmbedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [MiniCPMDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
@@ -201,7 +214,9 @@ class MiniCPMModel(nn.Module):
 class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: MiniCPMConfig):
         self.model = MiniCPMModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.tie_word_embeddings = config.tie_word_embeddings
+        if not config.tie_word_embeddings:
+            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.vocab_size = config.vocab_size
         self.num_hidden_layers = config.num_hidden_layers
         self.hidden_size = config.hidden_size
@@ -231,7 +246,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         hidden_states = self.model(input_embeds, paged_kv_cache) / self.scale_width
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
@@ -250,7 +268,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
 
         hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
@@ -259,7 +280,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
-        logits = self.lm_head(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache
