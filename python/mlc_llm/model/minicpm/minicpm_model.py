@@ -4,9 +4,9 @@ TODO: add docstring
 """
 
 import dataclasses
+import math
 from functools import partial
 from typing import Any, Dict, Optional
-import math
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the MiniCPM model."""
 
-    hidden_act: str
     vocab_size: int
     hidden_size: int
     num_hidden_layers: int
@@ -39,6 +38,7 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     dim_model_base: int
     use_cache: bool
     bos_token_id: int
+    eos_token_id: int
     tie_word_embeddings: bool = False
     rope_theta: int = 10000
     context_window_size: int = 0
@@ -109,9 +109,7 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(
-            self.num_heads * self.head_dim, self.hidden_size, bias=False
-        )
+         self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
@@ -124,7 +122,6 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         )
         attn_output = self.o_proj(output)
         return attn_output
-
 
 
 ACT2FN = {
@@ -176,17 +173,23 @@ class MiniCPMDecoderLayer(nn.Module):
         self.self_attn = MiniCPMAttention(config)
         self.mlp = MiniCPMMLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = residual + hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers))
+        hidden_states = residual + hidden_states * (
+            self.scale_depth / math.sqrt(self.num_hidden_layers)
+        )
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers))
+        hidden_states = residual + hidden_states * (
+            self.scale_depth / math.sqrt(self.num_hidden_layers)
+        )
         return hidden_states
 
 
