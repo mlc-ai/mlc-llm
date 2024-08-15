@@ -101,7 +101,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
                            const Array<RequestModelState>& mstates,        //
                            const Array<String>& request_ids,               //
                            const std::vector<int>* cum_num_token,          //
-                           const std::vector<std::vector<SampleResult>>* draft_tokens) final {
+                           const Array<RequestModelState>* draft_mstates,  //
+                           const std::vector<std::vector<int>>* draft_token_indices) final {
     NVTXScopedRange nvtx_scope("Logit inplace update");
     CHECK_EQ(logits->ndim, 2);
     CHECK_EQ(logits->shape[1], vocab_size_);
@@ -111,13 +112,18 @@ class LogitProcessorImpl : public LogitProcessorObj {
     int num_total_token = logits->shape[0];
     int num_sequence = generation_cfg.size();
 
-    CHECK((cum_num_token == nullptr) == (draft_tokens == nullptr));
+    CHECK((draft_mstates == nullptr) == (draft_token_indices == nullptr));
     if (cum_num_token != nullptr) {
-      CHECK_EQ(draft_tokens->size(), num_sequence);
+      ICHECK(draft_mstates != nullptr);
       CHECK_EQ(cum_num_token->size(), num_sequence + 1);
       CHECK_EQ(cum_num_token->back(), num_total_token);
     } else {
       CHECK_EQ(num_sequence, num_total_token);
+    }
+
+    if (draft_mstates != nullptr) {
+      CHECK_EQ(draft_mstates->size(), num_sequence);
+      CHECK_EQ(draft_token_indices->size(), num_sequence);
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "start update logits");
@@ -129,7 +135,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // Update 2. penalties
     RECORD_EVENT(trace_recorder_, request_ids, "start apply penalty");
-    UpdateWithPenalty(logits, generation_cfg, mstates, cum_num_token, draft_tokens);
+    UpdateWithPenalty(logits, generation_cfg, mstates, cum_num_token, draft_mstates,
+                      draft_token_indices);
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply penalty");
 
     // Update 3. Vocabulary mask.
@@ -137,7 +144,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // This is because the masked logits are set to the minimal value.
     // Further logit subtraction may cause issue such as underflow.
     RECORD_EVENT(trace_recorder_, request_ids, "start apply logit mask");
-    UpdateWithMask(logits, mstates, cum_num_token, draft_tokens);
+    UpdateWithMask(logits, mstates, cum_num_token, draft_mstates, draft_token_indices);
     RECORD_EVENT(trace_recorder_, request_ids, "finish apply logit mask");
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish update logits");
@@ -261,7 +268,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
   void UpdateWithPenalty(NDArray logits, const Array<GenerationConfig>& generation_cfg,
                          const Array<RequestModelState>& mstates,
                          const std::vector<int>* cum_num_token,
-                         const std::vector<std::vector<SampleResult>>* draft_tokens) {
+                         const Array<RequestModelState>* draft_mstates,
+                         const std::vector<std::vector<int>>* draft_token_indices) {
     NVTXScopedRange nvtx_scope("UpdateWithPenalty");
     // Construct:
     // - seq_ids (max_num_token,) int32
@@ -286,27 +294,41 @@ class LogitProcessorImpl : public LogitProcessorObj {
             cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
         int token_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
         CHECK(num_token_to_process == 1 || mstates[i]->draft_output_tokens.empty());
+        ICHECK(draft_token_indices == nullptr ||
+               draft_token_indices->at(i).size() == num_token_to_process);
         for (int j = 0; j < num_token_to_process; ++j) {
           p_seq_ids[num_token_for_penalty] = token_offset + j;
-          for (auto [token_id, cnt] : mstates[i]->appeared_token_ids) {
+
+          std::vector<SampleResult> draft_token_seq;
+          // Update appeared_token_ids with draft tokens
+          if (draft_token_indices != nullptr) {
+            int cur_draft_token_index = draft_token_indices->at(i)[j];
+            while (cur_draft_token_index != -1) {
+              draft_token_seq.push_back(
+                  (*draft_mstates)[i]->draft_output_tokens[cur_draft_token_index]);
+              cur_draft_token_index =
+                  (*draft_mstates)[i]->draft_token_parent_idx[cur_draft_token_index];
+            }
+          }
+          auto& appeared_token_ids = mstates[i]->appeared_token_ids;
+          for (const auto& token : draft_token_seq) {
+            appeared_token_ids[token.GetTokenId()] += 1;
+          }
+          for (auto [token_id, cnt] : appeared_token_ids) {
             p_pos2seq_id[num_penalty_appeared_token] = num_token_for_penalty;
             p_token_ids[num_penalty_appeared_token] = token_id;
             p_token_cnt[num_penalty_appeared_token] = cnt;
             ++num_penalty_appeared_token;
           }
+          for (const auto& token : draft_token_seq) {
+            if ((--appeared_token_ids[token.GetTokenId()]) == 0) {
+              appeared_token_ids.erase(token.GetTokenId());
+            }
+          }
           p_penalties[num_token_for_penalty * 3] = generation_cfg[i]->presence_penalty;
           p_penalties[num_token_for_penalty * 3 + 1] = generation_cfg[i]->frequency_penalty;
           p_penalties[num_token_for_penalty * 3 + 2] = generation_cfg[i]->repetition_penalty;
           ++num_token_for_penalty;
-          if (j > 0) {
-            // Assume chain-style token tree.
-            mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1,
-                                      j - 1 - 1);
-          }
-        }
-        if (num_token_to_process != 1) {
-          // Roll back.
-          mstates[i]->RemoveAllDraftTokens();
         }
       }
     }
@@ -347,7 +369,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
   void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
-                      const std::vector<std::vector<SampleResult>>* draft_tokens) {
+                      const Array<RequestModelState>* draft_mstates,
+                      const std::vector<std::vector<int>>* draft_token_indices) {
     NVTXScopedRange nvtx_scope("UpdateWithMask");
     // Construct:
     // - seq_ids (max_num_token,) int32
@@ -368,8 +391,22 @@ class LogitProcessorImpl : public LogitProcessorObj {
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
       CHECK(token_number == 1 || mstates[i]->draft_output_tokens.empty());
       bool require_mask = mstates[i]->RequireNextTokenBitmask();
+      ICHECK(draft_token_indices == nullptr || draft_token_indices->at(i).size() == token_number);
       for (int j = 0; j < token_number; ++j) {
         if (require_mask) {
+          std::vector<SampleResult> draft_token_seq;
+          if (draft_token_indices != nullptr) {
+            int cur_draft_token_index = draft_token_indices->at(i)[j];
+            while (cur_draft_token_index != -1) {
+              draft_token_seq.push_back(
+                  (*draft_mstates)[i]->draft_output_tokens[cur_draft_token_index]);
+              cur_draft_token_index =
+                  (*draft_mstates)[i]->draft_token_parent_idx[cur_draft_token_index];
+            }
+            for (auto it = draft_token_seq.rbegin(); it != draft_token_seq.rend(); ++it) {
+              mstates[i]->grammar_state_matcher.value()->AcceptToken(it->GetTokenId());
+            }
+          }
           // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
           auto bitmask_dltensor = *bitmask_host_.operator->();
           int64_t bitmask_shape[] = {bitmask_size_};
@@ -379,15 +416,11 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
           mstates[i]->FindNextTokenBitmask(&bitmask_dltensor);
           p_seq_ids[token_start_offset + j] = 1;
+
+          if (draft_token_seq.size() > 0) {
+            mstates[i]->grammar_state_matcher.value()->Rollback(draft_token_seq.size());
+          }
         }
-        if (j > 0) {
-          // Assume chain-style token tree.
-          mstates[i]->AddDraftToken(draft_tokens->at(i)[j - 1], /*draft_token_slot=*/-1, j - 1 - 1);
-        }
-      }
-      if (token_number != 1) {
-        // Roll back.
-        mstates[i]->RemoveAllDraftTokens();
       }
     }
 

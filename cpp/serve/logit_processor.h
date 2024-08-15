@@ -41,15 +41,18 @@ class LogitProcessorObj : public Object {
    * \param request_ids The ids of each request.
    * \param cum_num_token The pointer to the cumulative token length of the sequences.
    * If the pointer is nullptr, it means each sequence has only one token.
-   * \param draft_tokens The pointer to the draft tokens of each sequence
-   * when speculation is enabled, in which case some sequences may have
-   * more than one token.
+   * \param draft_mstates Optional. The draft request states of each sequence.
+   * \param draft_token_indices Optional. The pointer to the draft token indices of each draft token
+   * in the model state (-1 indicates the token is not a draft token) when speculation is enabled.
+   * This is used to compute the sequence state with the draft tokens considered (the saved sequence
+   * state is not updated with the draft tokens).
    */
   virtual void InplaceUpdateLogits(
       NDArray logits, const Array<GenerationConfig>& generation_cfg,
       const Array<RequestModelState>& mstates, const Array<String>& request_ids,
       const std::vector<int>* cum_num_token = nullptr,
-      const std::vector<std::vector<SampleResult>>* draft_tokens = nullptr) = 0;
+      const Array<RequestModelState>* draft_mstates = nullptr,
+      const std::vector<std::vector<int>>* draft_token_indices = nullptr) = 0;
 
   /*!
    * \brief Compute probability distributions for the input batch of logits.

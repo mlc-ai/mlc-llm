@@ -62,17 +62,21 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     std::vector<int64_t> request_internal_ids;
     std::vector<int32_t> all_tokens_to_verify;
     Array<RequestModelState> verify_request_mstates;
+    Array<RequestModelState> draft_request_mstates;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
+    std::vector<std::vector<int>> draft_token_indices;
     std::vector<int64_t> token_tree_parent_ptr;
     request_internal_ids.reserve(num_rsentries);
     all_tokens_to_verify.reserve(total_draft_length);
     token_tree_parent_ptr.reserve(total_draft_length);
     verify_request_mstates.reserve(num_rsentries);
+    draft_request_mstates.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
     draft_output_tokens.reserve(num_rsentries);
+    draft_token_indices.reserve(num_rsentries);
     draft_token_slots_.clear();
 
     for (int i = 0; i < num_rsentries; ++i) {
@@ -92,7 +96,11 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
         token_tree_parent_ptr.push_back(draft_mstate->draft_token_parent_idx[j] + 1);
       }
+      std::vector<int> cur_draft_token_indices(draft_mstate->draft_output_tokens.size() + 1);
+      std::iota(cur_draft_token_indices.begin(), cur_draft_token_indices.end(), -1);
+      draft_token_indices.emplace_back(std::move(cur_draft_token_indices));
       verify_request_mstates.push_back(verify_mstate);
+      draft_request_mstates.push_back(draft_mstate);
       generation_cfg.push_back(rsentries[i]->request->generation_cfg);
       rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
@@ -126,7 +134,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
     // - Update logits.
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
-                                          request_ids, &cum_verify_lengths, &draft_output_tokens);
+                                          request_ids, &cum_verify_lengths, &draft_request_mstates,
+                                          &draft_token_indices);
 
     // - Compute probability distributions.
     NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
