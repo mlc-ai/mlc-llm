@@ -69,9 +69,11 @@ class BatchDraftActionObj : public EngineActionObj {
     std::vector<int64_t> request_internal_ids;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
+    std::vector<std::vector<int>> draft_token_indices;
     request_ids.reserve(num_rsentries);
     request_internal_ids.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
+    draft_token_indices.reserve(num_rsentries);
     for (const RequestStateEntry& rsentry : running_rsentries) {
       request_ids.push_back(rsentry->request->id);
       request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
@@ -97,15 +99,20 @@ class BatchDraftActionObj : public EngineActionObj {
         auto tdraft_start = std::chrono::high_resolution_clock::now();
         // prepare new input tokens
         input_tokens.clear();
+        draft_token_indices.clear();
         for (int i = 0; i < num_rsentries; ++i) {
           // The first draft proposal uses the last committed token.
           if (draft_id == 0) {
             ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
             mstates[i]->num_tokens_for_next_decode = 0;
+            input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
+            draft_token_indices.emplace_back(std::vector<int>{-1});
+          } else {
+            ICHECK(!mstates[i]->draft_output_tokens.empty());
+            input_tokens.push_back(mstates[i]->draft_output_tokens.back().GetTokenId());
+            draft_token_indices.emplace_back(
+                std::vector<int>{static_cast<int>(mstates[i]->draft_output_tokens.size()) - 1});
           }
-          input_tokens.push_back(draft_id == 0
-                                     ? mstates[i]->committed_tokens.back().GetTokenId()
-                                     : mstates[i]->draft_output_tokens.back().GetTokenId());
         }
 
         // - Compute embeddings.
@@ -124,7 +131,8 @@ class BatchDraftActionObj : public EngineActionObj {
 
         // - Update logits.
         logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
-        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
+        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids, nullptr,
+                                              &mstates, &draft_token_indices);
 
         // - Compute probability distributions.
         NDArray probs_on_device =

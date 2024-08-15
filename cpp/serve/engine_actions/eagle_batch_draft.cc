@@ -70,9 +70,11 @@ class EagleBatchDraftActionObj : public EngineActionObj {
     std::vector<int64_t> request_internal_ids;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
+    std::vector<std::vector<int>> draft_token_indices;
     request_ids.reserve(num_rsentries);
     request_internal_ids.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
+    draft_token_indices.reserve(num_rsentries);
     for (const RequestStateEntry& rsentry : running_rsentries) {
       request_ids.push_back(rsentry->request->id);
       request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
@@ -112,6 +114,8 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         for (int i = 0; i < num_rsentries; ++i) {
           ICHECK(!mstates[i]->draft_output_tokens.empty());
           input_tokens.push_back(mstates[i]->draft_output_tokens.back().GetTokenId());
+          draft_token_indices.emplace_back(
+              std::vector<int>{static_cast<int>(mstates[i]->draft_output_tokens.size() - 1)});
         }
 
         // - Compute embeddings.
@@ -138,7 +142,8 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         ICHECK_EQ(logits->shape[0], num_rsentries);
 
         // - Update logits.
-        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
+        logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids, nullptr,
+                                              &mstates, &draft_token_indices);
 
         // - Compute probability distributions.
         NDArray probs_on_device =
