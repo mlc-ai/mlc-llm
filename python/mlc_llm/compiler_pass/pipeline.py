@@ -175,7 +175,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 tvm.relax.transform.LowerGPUIPCAllocStorage(),
                 tvm.relax.transform.LowerAllocTensor(),
                 tvm.relax.transform.KillAfterLastUse(),
-                tvm.relax.transform.VMBuiltinLower(),
+                tvm.relax.transform.LowerRuntimeBuiltin(),
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
                 _DebugDump("debug-final.py", debug_dump, show_meta=False),
