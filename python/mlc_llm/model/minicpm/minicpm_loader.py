@@ -16,12 +16,15 @@ from .minicpm_model import MiniCPMConfig, MiniCPMForCausalLM
 def huggingface(model_config: MiniCPMConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
+    
     Parameters
     ----------
     model_config : MiniCPMConfig
-        The configuration of the InternLM model.
+        The configuration of the MiniCPM model.
+        
     quantization : Quantization
         The quantization configuration.
+        
     Returns
     -------
     param_map : ExternMapping
