@@ -29,7 +29,7 @@ def _rope(
     rope_scaling: Dict[str, Any],
 ):
     d = indices[-1]
-    cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+    cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
         offset * scale, d, rotary_dim, theta, "float32"
     )
     cos = cos_freq * buffer[indices].astype("float32")
@@ -38,7 +38,10 @@ def _rope(
         -buffer[indices[:-1] + (d + rotary_dim // 2,)],
         buffer[indices[:-1] + (d - rotary_dim // 2,)],
     ).astype("float32")
-    return (cos + sin).astype(qkv_dtype)
+    expr = (cos + sin).astype(qkv_dtype)
+    for var, value in var_map.items():
+        expr = tir.Let(var, value, expr)
+    return expr
 
 
 def _tree_mask(row, col, mask_ptr, offset, stride, kv_len):

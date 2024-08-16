@@ -31,8 +31,8 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point"""
-        batch_size = tir.Var("batch_size", "int64")
-        vocab_size = tir.Var("vocab_size", "int64")
+        batch_size = tir.SizeVar("batch_size", "int64")
+        vocab_size = tir.SizeVar("vocab_size", "int64")
         dtype = "float32"
         logits = relax.Var("logits", relax.TensorStructInfo([batch_size, 1, vocab_size], dtype))
         temperature = relax.Var("temperature", relax.TensorStructInfo([batch_size], dtype))

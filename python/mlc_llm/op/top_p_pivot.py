@@ -61,8 +61,8 @@ def top_p_pivot(pN, target: tvm.target.Target):
         var_final_lsum: T.handle,
     ):
         T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
-        B = T.int32()
-        N = T.int32()
+        B = T.int32(is_size_var=True)
+        N = T.int32(is_size_var=True)
         prob = T.match_buffer(var_prob, (B, N,), "float32")
         top_p_arr = T.match_buffer(var_top_p_arr, (B,), dtype="float32")
         init_pivots = T.match_buffer(var_init_pivots, (B, pN), "float32")
@@ -309,8 +309,8 @@ def top_p_renorm(target: tvm.target.Target = None):
         var_renorm_prob: T.handle,
     ):
         T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
-        B = T.int32()
-        N = T.int32()
+        B = T.int32(is_size_var=True)
+        N = T.int32(is_size_var=True)
         prob = T.match_buffer(var_prob, (B, N,), "float32")
         final_pivot = T.match_buffer(var_final_pivot, (B,), "float32")
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")
