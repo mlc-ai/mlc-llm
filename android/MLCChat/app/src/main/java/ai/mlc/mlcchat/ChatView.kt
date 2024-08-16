@@ -30,12 +30,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -44,8 +46,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import dev.jeziellago.compose.markdowntext.MarkdownText
 import kotlinx.coroutines.launch
 
 @ExperimentalMaterial3Api
@@ -135,26 +139,63 @@ fun ChatView(
 
 @Composable
 fun MessageView(messageData: MessageData) {
+    // default render the Assistant text as MarkdownText
+    var useMarkdown by remember { mutableStateOf(true) }
+
     SelectionContainer {
         if (messageData.role == MessageRole.Assistant) {
-            Row(
-                horizontalArrangement = Arrangement.Start,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = messageData.text,
-                    textAlign = TextAlign.Left,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            shape = RoundedCornerShape(5.dp)
+            Column {
+                if (messageData.text.isNotEmpty()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "Show as Markdown",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .padding(end = 8.dp)
+                                .widthIn(max = 300.dp)
                         )
-                        .padding(5.dp)
-                        .widthIn(max = 300.dp)
-                )
-
+                        Switch(
+                            checked = useMarkdown,
+                            onCheckedChange = { useMarkdown = it }
+                        )
+                    }
+                }
+                Row(
+                    horizontalArrangement = Arrangement.Start,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (useMarkdown) {
+                        MarkdownText(
+                            isTextSelectable = true,
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                                .padding(5.dp)
+                                .widthIn(max = 300.dp),
+                            markdown = messageData.text,
+                        )
+                    } else {
+                        Text(
+                            text = messageData.text,
+                            textAlign = TextAlign.Left,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                                .padding(5.dp)
+                                .widthIn(max = 300.dp)
+                        )
+                    }
+                }
             }
         } else {
             Row(
@@ -217,4 +258,19 @@ fun SendMessageView(chatState: AppViewModel.ChatState) {
             )
         }
     }
+}
+
+@Preview
+@Composable
+fun MessageViewPreviewWithMarkdown() {
+    MessageView(
+        messageData = MessageData(
+            role = MessageRole.Assistant, text = """
+# Sample  Header
+* Markdown  
+* [Link](https://example.com)  
+<a href="https://www.google.com/">Google</a>
+"""
+        )
+    )
 }
