@@ -189,7 +189,7 @@ class MiniCPMMoE(nn.Module):
         )
         self.dtype = "float32"
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor):  # pylint: disable=too-many-locals
         def _expert_forward(x: Tensor, indptr: Tensor):
             x1_x3 = self.e1_e3(x, indptr)
             x1, x3 = op.split(x1_x3, indices_or_sections=2, axis=-1)
@@ -243,7 +243,7 @@ class MiniCPMMoE(nn.Module):
         return x
 
 
-class MiniCPMDecoderLayer(nn.Module):
+class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: MiniCPMConfig):
         self.scale_depth = config.scale_depth
         self.hidden_size = config.hidden_size
