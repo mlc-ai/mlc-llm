@@ -88,6 +88,7 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 # pylint: disable=invalid-name,missing-docstring
 
+
 class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: MiniCPMConfig):
         super().__init__()  # Make sure to call the parent class constructor
@@ -257,7 +258,6 @@ class MiniCPMDecoderLayer(nn.Module):
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
-
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
