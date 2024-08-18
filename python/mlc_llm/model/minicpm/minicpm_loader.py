@@ -19,7 +19,7 @@ def huggingface(model_config: MiniCPMConfig, quantization: Quantization) -> Exte
 
     Parameters
     ----------
-    model_config : InternLMConfig
+    model_config : MiniCPMConfig
         The configuration of the MiniCPM model.
 
     quantization : Quantization
@@ -59,23 +59,85 @@ def huggingface(model_config: MiniCPMConfig, quantization: Quantization) -> Exte
                     dtype=mlc_param.dtype,
                 ),
             )
-        # map mlp weight
-        mlp = f"model.layers.{i}.mlp"
-        mlc_name = f"{mlp}.gate_up_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        mapping.add_mapping(
-            mlc_name,
-            [
-                f"{mlp}.gate_proj.weight",
-                f"{mlp}.up_proj.weight",
-            ],
-            functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
-        )
+
+    if model_config.num_experts == 0:
+        for i in range(model_config.num_hidden_layers):
+            # map mlp weight
+            mlp = f"model.layers.{i}.mlp"
+            mlc_name = f"{mlp}.gate_up_proj.weight"
+            mlc_param = named_parameters[mlc_name]
+            mapping.add_mapping(
+                mlc_name,
+                [
+                    f"{mlp}.gate_proj.weight",
+                    f"{mlp}.up_proj.weight",
+                ],
+                functools.partial(
+                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                    dtype=mlc_param.dtype,
+                ),
+            )
+    else:
+        for i in range(model_config.num_hidden_layers):
+            # map mlp weight
+            mlp = f"model.layers.{i}.mlp"
+            mlc_mlp = f"model.layers.{i}.mlp"
+            mlc_name = f"{mlc_mlp}.e1_e3.weight"
+            mlc_param = named_parameters[mlc_name]
+
+            def combine_expert_gate_up(*hf_params, dtype):
+                stack = []
+                for i in range(0, len(hf_params), 2):
+                    stack.append(np.concatenate([hf_params[i], hf_params[i + 1]], axis=0))
+                return np.stack(stack, axis=0).astype(dtype)
+
+            mapping.add_mapping(
+                mlc_name,
+                functools.reduce(
+                    lambda a, b: a + b,
+                    [
+                        [
+                            f"{mlp}.experts.{expert_id}.w1.weight",
+                            f"{mlp}.experts.{expert_id}.w3.weight",
+                        ]
+                        for expert_id in range(model_config.num_experts)
+                    ],
+                ),
+                functools.partial(
+                    combine_expert_gate_up,
+                    dtype=mlc_param.dtype,
+                ),
+            )
+
+            mlc_name = f"{mlc_mlp}.e2.weight"
+            mlc_param = named_parameters[mlc_name]
+            mapping.add_mapping(
+                mlc_name,
+                [
+                    f"{mlp}.experts.{expert_id}.w2.weight"
+                    for expert_id in range(model_config.num_experts)
+                ],
+                functools.partial(
+                    lambda *hf_params, dtype: np.stack(hf_params, axis=0).astype(dtype),
+                    dtype=mlc_param.dtype,
+                ),
+            )
+
+            mlc_name = f"{mlc_mlp}.gate.weight"
+            mlc_param = named_parameters[mlc_name]
+            mapping.add_mapping(
+                mlc_name,
+                [f"{mlp}.gate.weight"],
+                functools.partial(
+                    lambda x, dtype: x.astype(dtype),
+                    dtype=mlc_param.dtype,
+                ),
+            )
 
     for mlc_name, mlc_param in named_parameters.items():
+        # Skip lm_head.weight if tie_word_embeddings is enabled
+        if mlc_name == "lm_head.weight" and model_config.tie_word_embeddings:
+            continue
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,

@@ -14,6 +14,7 @@ from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -45,6 +46,8 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    num_experts_per_tok: int = 0
+    num_experts: int = 0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -166,13 +169,91 @@ class MiniCPMMLP(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class MiniCPMDecoderLayer(nn.Module):
+class MiniCPMMoE(nn.Module):
+    def __init__(self, config: MiniCPMConfig):
+        self.num_local_experts = config.num_experts
+        self.num_experts_per_tok = config.num_experts_per_tok
+        self.gate = nn.Linear(config.hidden_size, config.num_experts, bias=False)
+        self.intermediate_size = config.intermediate_size
+        self.e1_e3 = MixtralExperts(
+            self.num_local_experts,
+            in_features=config.hidden_size,
+            out_features=2 * self.intermediate_size,
+            tensor_parallel_shards=config.tensor_parallel_shards,
+        )
+        self.e2 = MixtralExperts(
+            self.num_local_experts,
+            in_features=self.intermediate_size,
+            out_features=config.hidden_size,
+            tensor_parallel_shards=config.tensor_parallel_shards,
+        )
+        self.dtype = "float32"
+
+    def forward(self, x: Tensor):  # pylint: disable=too-many-locals
+        def _expert_forward(x: Tensor, indptr: Tensor):
+            x1_x3 = self.e1_e3(x, indptr)
+            x1, x3 = op.split(x1_x3, indices_or_sections=2, axis=-1)
+            x = self.e2(op.silu(x1) * x3, indptr)
+            return x
+
+        experts_per_tok = self.num_experts_per_tok  # activated experts per token
+        local_experts = self.num_local_experts  # total number of experts
+        batch_size, seq_len, hidden_size = x.shape
+        num_tokens = batch_size * seq_len
+        x = x.reshape(num_tokens, hidden_size)
+        # gate: [num_tokens, local_experts]
+        gate: Tensor = self.gate(x)
+        # expert_weights: [num_tokens, experts_per_tok]
+        # expert_indices: [num_tokens, experts_per_tok]
+        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(gate, experts_per_tok)
+        use_ft = (
+            op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer
+        ) and self.dtype == "float16"
+        if num_tokens == 1:
+            # x: [num_tokens * experts_per_tok, hidden_size]
+            x = _expert_forward(x, expert_indices)
+        else:
+            # cumsum: [num_tokens * local_experts]
+            cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, local_experts)
+            # indices: [num_tokens * experts_per_tok]
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
+            if use_ft:
+                # indptr: [num_local_experts]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, local_experts, num_tokens, inclusive=True, out_dtype="int64"
+                )
+            else:
+                # indptr: [num_local_experts + 1]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, local_experts, num_tokens, inclusive=False, out_dtype="int32"
+                )
+            # x: [num_tokens * experts_per_tok, hidden_size]
+            x = op.take(x, token_indices, axis=0)
+            x = _expert_forward(x, indptr)
+            x = op_ext.moe_misc.scatter_output(x, reverse_indices)
+        # x: [num_tokens, experts_per_tok, hidden_size]
+        x = x.reshape(  # pylint: disable=too-many-function-args
+            num_tokens, experts_per_tok, hidden_size
+        ) * expert_weights.reshape(  # pylint: disable=too-many-function-args
+            num_tokens, experts_per_tok, 1
+        )
+        # x: [num_tokens, hidden_size]
+        x = op_ext.moe_misc.moe_sum(x, dim=1)
+        x = x.reshape(batch_size, seq_len, hidden_size)  # pylint: disable=too-many-function-args
+        return x
+
+
+class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: MiniCPMConfig):
         self.scale_depth = config.scale_depth
         self.hidden_size = config.hidden_size
         self.num_hidden_layers = config.num_hidden_layers
         self.self_attn = MiniCPMAttention(config)
-        self.mlp = MiniCPMMLP(config)
+        self.num_experts = config.num_experts
+        if self.num_experts == 0:
+            self.mlp = MiniCPMMLP(config)
+        else:
+            self.mlp = MiniCPMMoE(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
