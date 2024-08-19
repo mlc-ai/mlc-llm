@@ -221,7 +221,6 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
           // Broadcast or shard-scatter this parameter to all workers in its worker group.
           sharded_params[param_name] =
               BroadcastOrShardAndScatter(full_param, param_info, num_shards, preprocs);
-          TVMSynchronize(device.device_type, device.device_id, nullptr);
         } else {
           // The worker is not the first worker of its worker group.
           // Receive from the first worker in the its worker group.
