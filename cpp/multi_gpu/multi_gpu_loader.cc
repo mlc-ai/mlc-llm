@@ -221,7 +221,6 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
           // Broadcast or shard-scatter this parameter to all workers in its worker group.
           sharded_params[param_name] =
               BroadcastOrShardAndScatter(full_param, param_info, num_shards, preprocs);
-          TVMSynchronize(device.device_type, device.device_id, nullptr);
         } else {
           // The worker is not the first worker of its worker group.
           // Receive from the first worker in the its worker group.
@@ -241,15 +240,16 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
   return shards;
 }
 
-Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module relax_vm_module,
-                                      const std::string& model_config_str) {
+Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
+                                                Module relax_vm_module,
+                                                const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
-  // Todo: maybe support it
-  CHECK_EQ(worker->num_groups, 1)
-      << "Weight presharding right now does not support pipeline parallelism yet.";
   Device device = worker->default_device;
   int worker_id = worker->worker_id;
-  int num_shards = worker->num_workers;
+  int group_size = worker->num_workers / worker->num_groups;
+  int num_shards = group_size;
+  int group_id = worker_id / group_size;
+  int local_worker_id = worker_id % group_size;
   LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
   // Step 0. Initialize metadata and paths
   NDArrayCacheMetadata ndarray_cache_metadata = NDArrayCacheMetadata::Load(model_path);
@@ -266,19 +266,25 @@ Array<NDArray> LoadMultiGPUPresharded(const std::string& model_path, Module rela
     }
   }
 
-  Array<NDArray> params;
+  Array<Optional<NDArray>> params;
   const NDArrayCacheMetadata::FileRecord* current_file_;
   std::string current_file_stream_;
   params.reserve(model_metadata.params.size());
   DurationType time_loading(0);
   for (const ModelMetadata::Param& param : model_metadata.params) {
     RangeTimer _(&time_loading);
+    if (std::find(param.pipeline_stages.begin(), param.pipeline_stages.end(), group_id) ==
+        param.pipeline_stages.end()) {
+      // This worker group doesn't need to hold a copy of this parameter.
+      params.push_back(Optional<NDArray>());
+      continue;
+    }
     bool needs_sharding = !param.preprocs.empty();
-    std::string param_name = needs_sharding
-                                 ? static_cast<const std::stringstream&>(
-                                       std::stringstream() << param.name << "_shard-" << worker_id)
-                                       .str()
-                                 : std::string(param.name);
+    std::string param_name =
+        needs_sharding ? static_cast<const std::stringstream&>(
+                             std::stringstream() << param.name << "_shard-" << local_worker_id)
+                             .str()
+                       : std::string(param.name);
     const ParamInfo& param_info = param_info_map.at(param_name);
     const NDArrayCacheMetadata::FileRecord::ParamRecord* param_record = param_info.param;
     const NDArrayCacheMetadata::FileRecord* file_record = param_info.file;

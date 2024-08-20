@@ -166,7 +166,6 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
                                 ? "mlc.multi_gpu.LoadMultiGPU"
                                 : "mlc.multi_gpu.LoadMultiGPUPresharded";
       PackedFunc loader = this->get_global_func(load_func_name);
-      // Todo: check if the logic makes sense
       params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize());
     }
     return params;
