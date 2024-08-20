@@ -437,7 +437,7 @@ class CPUSampler : public SamplerObj {
 
           CHECK_EQ(token_tree_parent_ptr[verify_start], -1);
           for (int j = verify_start + 1; j < verify_end; ++j) {
-            CHECK_EQ(token_tree_parent_ptr[j], j - verify_start)
+            CHECK_EQ(token_tree_parent_ptr[j], j - verify_start - 1)
                 << "CPU sampler only supports chain-style draft tokens.";
           }
 
