@@ -35,14 +35,15 @@ def rope_freq_default(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype:
     -------
     cos_freq : Tensor
         The cosine of the inverse frequency.
-
     sin_freq : Tensor
         The sine of the inverse frequency.
+    var_map: Dict[tir.Var, tir.PrimExpr]
+        The common expression map.
     """
     freq = s / tir.power(theta, d * 2 % d_range / tir.const(d_range, "float32"))
     cos_freq = tir.cos(freq).astype(dtype)
     sin_freq = tir.sin(freq).astype(dtype)
-    return cos_freq, sin_freq
+    return cos_freq, sin_freq, {}
 
 
 def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
@@ -57,29 +58,22 @@ def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     original_max_position_embeddings: float,
 ):
     """Compute the inverse frequency of RoPE for llama3 RoPE scaling."""
-    freq = tir.const(1, "float32") / tir.power(
+    orig_freq = tir.const(1, "float32") / tir.power(
         theta, d * 2 % d_range / tir.const(d_range, "float32")
     )
-    old_context_len = original_max_position_embeddings
-    low_freq_wavelen = old_context_len / low_freq_factor
-    high_freq_wavelen = old_context_len / high_freq_factor
-    wavelen = 2 * math.pi / freq
-
-    def _smoothen_freq(freq):
-        assert low_freq_wavelen != high_freq_wavelen
-        smooth = (old_context_len / wavelen - low_freq_factor) / (
-            high_freq_factor - low_freq_factor
-        )
-        return (1 - smooth) * freq / factor + smooth * freq
-
-    freq = s * tir.Select(
-        wavelen < high_freq_wavelen,
-        freq,
-        tir.Select(wavelen > low_freq_wavelen, freq / factor, _smoothen_freq(freq)),
+    orig_freq_var = tir.Var("orig_freq", "float32")
+    inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
+    llama3_inv_scaling_factor = 1.0 / factor
+    llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
+    llama3_beta = low_freq_factor * inv_diff_freq_factor
+    smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
+    smoothed_freq = s * (
+        (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor + smooth * orig_freq_var
     )
-    cos_freq = tir.cos(freq).astype(dtype)
-    sin_freq = tir.sin(freq).astype(dtype)
-    return cos_freq, sin_freq
+    smoothed_freq_var = tir.Var("smoothed_freq", "float32")
+    cos_freq = tir.cos(smoothed_freq_var).astype(dtype)
+    sin_freq = tir.sin(smoothed_freq_var).astype(dtype)
+    return cos_freq, sin_freq, {smoothed_freq_var: smoothed_freq, orig_freq_var: orig_freq}
 
 
 def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
@@ -166,7 +160,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         d: tir.Var,
         offset: tir.Var,
     ):
-        cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+        cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
             (s + offset) * scale, d, rotary_dim, theta, dtype
         )
         cos = cos_freq * x[b, s, h, d]
@@ -175,7 +169,10 @@ def llama_rope(  # pylint: disable=too-many-arguments
             -x[b, s, h, d + rotary_dim // 2],
             x[b, s, h, d - rotary_dim // 2],
         )
-        return cos + sin
+        expr = cos + sin
+        for var, value in var_map.items():
+            expr = tir.Let(var, value, expr)
+        return expr
 
     @T.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
@@ -276,7 +273,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         d: tir.Var,
         pos: tir.Var,
     ):
-        cos_freq, sin_freq = switch_rope_freq_func(rope_scaling)(
+        cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
             pos * scale, d, rotary_dim, theta, "float32"
         )
         cos = cos_freq * x[s, h, d].astype("float32")
@@ -285,7 +282,10 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             -x[s, h, d + rotary_dim // 2],
             x[s, h, d - rotary_dim // 2],
         ).astype("float32")
-        return (cos + sin).astype(dtype)
+        expr = (cos + sin).astype(dtype)
+        for var, value in var_map.items():
+            expr = tir.Let(var, value, expr)
+        return expr
 
     @T.prim_func
     def fused_rope(  # pylint: disable=too-many-locals

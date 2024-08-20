@@ -72,9 +72,9 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
 
 
 def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
-    batch_size = tir.Var("batch_size", "int64")
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    batch_size = tir.SizeVar("batch_size", "int64")
+    m = tir.SizeVar("m", "int64")
+    n = tir.SizeVar("n", "int64")
     src = relax.Var("src", struct_info=TensorStructInfo([batch_size, n], dtype))
     indices = relax.Var("indices", struct_info=TensorStructInfo([batch_size], "int32"))
     dst = relax.Var("dst", struct_info=TensorStructInfo([m, n], dtype))
@@ -98,9 +98,9 @@ def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dt
 
 
 def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
-    batch_size = tir.Var("batch_size", "int64")
-    m = tir.Var("m", "int64")
-    n = tir.Var("n", "int64")
+    batch_size = tir.SizeVar("batch_size", "int64")
+    m = tir.SizeVar("m", "int64")
+    n = tir.SizeVar("n", "int64")
     src = relax.Var("src", struct_info=TensorStructInfo([m, n], dtype))
     indices = relax.Var("indices", struct_info=TensorStructInfo([batch_size], "int32"))
     dst = relax.Var("dst", struct_info=TensorStructInfo([batch_size, n], dtype))
