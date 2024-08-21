@@ -5,7 +5,10 @@ plugins {
 
 android {
     namespace 'ai.mlc.mlcchat'
-    compileSdk 34
+    compileSdk 31
+//    ndkVersion "27.0.12077973"
+//    ndkVersion "23.1.7779620"
+    ndkVersion "26.0.10792818"
 
     defaultConfig {
         applicationId "ai.mlc.mlcchat"
@@ -46,6 +49,16 @@ android {
     }
 }
 
+apply plugin: 'org.mozilla.rust-android-gradle.rust-android'
+
+cargo {
+    module  = "../oxigraph"       // Or whatever directory contains your Cargo.toml
+    libname = "oxigraph"          // Or whatever matches Cargo.toml's [package] name.
+//    targets = ["x86_64"]  // See bellow for a longer list of options
+    targets = ["arm64"]  // See bellow for a longer list of options
+    apiLevel = 34
+}
+
 dependencies {
     implementation project(":mlc4j")
     implementation 'androidx.core:core-ktx:1.10.1'
@@ -71,3 +84,9 @@ dependencies {
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
 
 }
+
+//tasks.whenTaskAdded { task ->
+//    if ((task.name == 'javaPreCompileDebug' || task.name == 'javaPreCompileRelease')) {
+//        task.dependsOn 'cargoBuild'
+//    }
+//}

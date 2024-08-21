@@ -13,3 +13,6 @@
 [submodule "3rdparty/stb"]
 	path = 3rdparty/stb
 	url = https://github.com/nothings/stb.git
+[submodule "android/MLCChat/oxigraph"]
+	path = android/MLCChat/oxigraph
+	url = git@github.com:chanijjani/oxigraph.git
