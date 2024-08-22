@@ -6,6 +6,7 @@ import json
 import math
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 from tvm import relax as rx
 from tvm import tir
 from tvm.relax.frontend.nn import Object, Tensor
@@ -103,6 +104,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         qkv: Tensor,
         num_qo_heads: int,
         attn_score_scaling_factor: float = 1.0,
+        rope_ext_factors: Optional[List] = None,
     ) -> Tensor:
         """Compute attention with the given fused q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -119,16 +121,19 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         # pylint: disable=protected-access
         b, s, _, d = qkv._expr.struct_info.shape
         qkv = qkv.reshape(b * s, qkv.shape[2], d)
+        args = [
+            self._expr,
+            rx.PrimValue(layer_id),  # type: ignore[arg-type]
+            rx.PrimValue(attn_score_scaling_factor),
+            qkv._expr,
+        ]
+        if rope_ext_factors is not None:
+            args.append(rx.const(np.array(rope_ext_factors, "float32")))
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
                     "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
-                    [
-                        self._expr,
-                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
-                        rx.PrimValue(attn_score_scaling_factor),
-                        qkv._expr,
-                    ],
+                    args,
                     out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
                 )
             )
