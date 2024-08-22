@@ -16,6 +16,7 @@ from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
 
@@ -45,6 +46,7 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
+    head_dim: int = 0
     max_batch_size: int = 1
     num_experts_per_tok: int = 0
     num_experts: int = 0
@@ -68,6 +70,9 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                     "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
                     "provided in `config.json`."
                 )
+        if self.head_dim == 0:
+            self.head_dim = self.hidden_size // self.num_attention_heads
+        assert self.head_dim * self.num_attention_heads == self.hidden_size
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %d",
@@ -83,7 +88,6 @@ class MiniCPMConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 min(self.context_window_size, 2048),
             )
             self.prefill_chunk_size = min(self.context_window_size, 2048)
-        assert self.tensor_parallel_shards == 1, "MiniCPM currently does not support sharding."
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -102,7 +106,7 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             )
 
         self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
-        self.head_dim = config.hidden_size // self.num_heads
+        self.head_dim = config.head_dim
         self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.context_window_size
@@ -159,8 +163,8 @@ class MiniCPMMLP(nn.Module):
             )
         self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
 
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
+        self.gate_up_proj = nn.Linear(self.hidden_size, 2 * self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
@@ -174,7 +178,7 @@ class MiniCPMMoE(nn.Module):
         self.num_local_experts = config.num_experts
         self.num_experts_per_tok = config.num_experts_per_tok
         self.gate = nn.Linear(config.hidden_size, config.num_experts, bias=False)
-        self.intermediate_size = config.intermediate_size
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.e1_e3 = MixtralExperts(
             self.num_local_experts,
             in_features=config.hidden_size,
@@ -259,20 +263,52 @@ class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attri
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
 
+        def _set_tp():
+            def _set(layer, hint):
+                layer.attrs["shard_strategy"] = hint
+
+            hd = config.head_dim
+            q = self.self_attn.num_heads * hd
+            k = self.self_attn.num_key_value_heads * hd
+            v = self.self_attn.num_key_value_heads * hd
+            i = self.mlp.intermediate_size
+            _set(
+                self.self_attn.wqkv_pack.weight,
+                tp.ShardSingleDim("_shard_qkv_weight", dim=0, segs=[q, k, v]),
+            )
+            _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
+            if self.num_experts == 0:
+                _set(
+                    self.mlp.gate_up_proj.weight,
+                    tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+                )
+                _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+            else:
+                _set(self.mlp.e1_e3.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1))
+                _set(self.mlp.e2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=2))
+
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+        _set_tp()
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = residual + hidden_states * (
-            self.scale_depth / math.sqrt(self.num_hidden_layers)
+        hidden_states = self._apply_residual(
+            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)), residual
         )
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + hidden_states * (
-            self.scale_depth / math.sqrt(self.num_hidden_layers)
+        hidden_states = self._apply_residual(
+            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)), residual
         )
         return hidden_states
+
+    def _apply_residual(self, out, residual):
+        if self.tensor_parallel_shards > 1:
+            return op.ccl_allreduce(out, "sum") + residual
+        return out + residual
 
 
 class MiniCPMModel(nn.Module):
