@@ -408,9 +408,10 @@ For example: <code class="docutils literal notranslate"><span class="pre">--over
 <dd><p>The model paths and (optional) model library paths of additional models (other
 than the main model).</p>
 <p>When engine is enabled with speculative decoding, additional models are needed.
-The way of specifying additional models is:
-<code class="docutils literal notranslate"><span class="pre">--additional-models</span> <span class="pre">model_path_1</span> <span class="pre">model_path_2</span> <span class="pre">...</span></code> or
-<code class="docutils literal notranslate"><span class="pre">--additional-models</span> <span class="pre">model_path_1,model_lib_1</span> <span class="pre">model_path_2</span> <span class="pre">...</span></code>.</p>
+<strong>We only support one additional model for speculative decoding now.</strong>
+The way of specifying the additional model is:
+<code class="docutils literal notranslate"><span class="pre">--additional-models</span> <span class="pre">model_path_1</span></code> or
+<code class="docutils literal notranslate"><span class="pre">--additional-models</span> <span class="pre">model_path_1,model_lib_1</span></code>.</p>
 <p>When the model lib of a model is not given, JIT model compilation will be activated
 to compile the model automatically.</p>
 </dd>
