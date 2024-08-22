@@ -129,9 +129,10 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
                        than the main model).
 
                        When engine is enabled with speculative decoding, additional models are needed.
-                       The way of specifying additional models is:
-                       ``--additional-models model_path_1 model_path_2 ...`` or
-                       ``--additional-models model_path_1,model_lib_1 model_path_2 ...``.
+                       **We only support one additional model for speculative decoding now.**
+                       The way of specifying the additional model is:
+                       ``--additional-models model_path_1`` or
+                       ``--additional-models model_path_1,model_lib_1``.
 
                        When the model lib of a model is not given, JIT model compilation will be activated
                        to compile the model automatically.
