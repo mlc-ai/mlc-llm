@@ -58,6 +58,7 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         dtype: str,
         rotary_dim: Optional[int] = None,
         rope_scaling: Optional[Dict[str, Any]] = None,
+        rope_ext_factors: Optional[List[int]] = None,
         layer_partition: Optional[List[int]] = None,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
@@ -91,6 +92,13 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
                 rx.PrimValue(rope_scale),
                 rx.PrimValue(rope_theta),
                 rx.StringImm(json.dumps(rope_scaling)),
+                (
+                    rx.const(np.array(rope_ext_factors, "float32"))
+                    if rope_ext_factors is not None
+                    else rx.PrimValue(0)
+                    # NOTE: since relax does not have "Optional" type, we use PrimValue(0)
+                    # to represent "undefined".
+                ),
                 rx.PrimValue(rotary_dim),
                 rx.DataTypeImm(dtype),
                 sinfo_args=rx.ObjectStructInfo(),
@@ -104,7 +112,6 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         qkv: Tensor,
         num_qo_heads: int,
         attn_score_scaling_factor: float = 1.0,
-        rope_ext_factors: Optional[List] = None,
     ) -> Tensor:
         """Compute attention with the given fused q/k/v data and in-cache k/v data
         on the specified layer. Rotary position embeddings are applied to k/v
@@ -121,19 +128,16 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
         # pylint: disable=protected-access
         b, s, _, d = qkv._expr.struct_info.shape
         qkv = qkv.reshape(b * s, qkv.shape[2], d)
-        args = [
-            self._expr,
-            rx.PrimValue(layer_id),  # type: ignore[arg-type]
-            rx.PrimValue(attn_score_scaling_factor),
-            qkv._expr,
-        ]
-        if rope_ext_factors is not None:
-            args.append(rx.const(np.array(rope_ext_factors, "float32")))
         return Tensor(
             _expr=rx.BlockBuilder.current().emit(
                 rx.call_dps_packed(
                     "vm.builtin.attention_kv_cache_attention_with_fused_qkv",
-                    args,
+                    [
+                        self._expr,
+                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
+                        qkv._expr,
+                    ],
                     out_sinfo=rx.TensorStructInfo((b * s, num_qo_heads, d), qkv.dtype),
                 )
             )
@@ -186,6 +190,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_scale: int,
         rope_theta: int,
         rope_scaling: Dict[str, Any],
+        rope_ext_factors: rx.Expr,
         rotary_dim: int,
         dtype: str,
         target: Target,
@@ -273,6 +278,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
             bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
+            rope_ext_factors,
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -305,6 +311,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         rope_scale: int,
         rope_theta: int,
         rope_scaling: Dict[str, Any],
+        rope_ext_factors: rx.Expr,
         rotary_dim: int,
         dtype: str,
         target: Target,
@@ -386,6 +393,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
             bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
+            rope_ext_factors,
             # fmt: on
             # pylint: enable=line-too-long
         ]
