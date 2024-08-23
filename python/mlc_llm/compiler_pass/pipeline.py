@@ -24,8 +24,8 @@ from .attach_support_info import (
     AttachPipelineParallelStages,
     AttachVariableBounds,
 )
+from .blas_dispatch import BLASDispatch
 from .clean_up_tir_attrs import CleanUpTIRAttrs
-from .cublas_dispatch import CublasDispatch
 from .dispatch_kv_cache_creation import DispatchKVCacheCreation
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_add_norm import FuseAddRMSNorm
@@ -118,7 +118,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _LogProgress("Running TVM Relax graph-level optimizations"),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),
-                CublasDispatch() if cublas_gemm else tvm.transform.Sequential([]),
+                BLASDispatch(target) if cublas_gemm else tvm.transform.Sequential([]),
                 FuseAddRMSNorm(target=target),
                 FuseTransposeMatmul(),
                 _DebugDump("debug-phase1.py", debug_dump, show_meta=False),

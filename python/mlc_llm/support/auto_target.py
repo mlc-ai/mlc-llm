@@ -51,6 +51,13 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
         )
         target = Target(target_dict)
         _register_cuda_hook(target)
+    elif target.kind.name == "rocm":
+        target_dict = dict(target.export())
+        extra_libs = ["thrust", "rocblas", "miopen", "hipblas"]
+        target_dict["libs"] = (
+            (target_dict["libs"] + extra_libs) if "libs" in target_dict else extra_libs
+        )
+        target = Target(target_dict)
     return target, build_func
 
 
