@@ -84,7 +84,6 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.num_key_value_heads = self.num_attention_heads
         if self.head_dim == 0:
             self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.head_dim * self.num_attention_heads == self.hidden_size
         assert self.num_attention_heads % self.num_key_value_heads == 0
         if self.prefill_chunk_size == 0:
             logger.info(
