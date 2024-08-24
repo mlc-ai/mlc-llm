@@ -46,19 +46,19 @@ Select your operating system/compute platform and run the command in your termin
                     conda activate your-environment
                     python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu122 mlc-ai-nightly-cu122
 
-            .. tab:: ROCm 5.6
+            .. tab:: ROCm 6.1
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm56 mlc-ai-nightly-rocm56
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm61 mlc-ai-nightly-rocm61
 
-            .. tab:: ROCm 5.7
+            .. tab:: ROCm 6.2
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm57 mlc-ai-nightly-rocm57
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-rocm62 mlc-ai-nightly-rocm62
 
             .. tab:: Vulkan
 
