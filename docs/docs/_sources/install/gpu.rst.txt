@@ -31,14 +31,14 @@ ROCm is required to compile and run models with ROCm backend.
 Installation
 ^^^^^^^^^^^^
 
-Right now MLC LLM only supports ROCm 5.6.
+Right now MLC LLM only supports ROCm 6.1/6.2.
 If you have AMD GPU and you want to use models compiled with ROCm
-backend, you should install ROCm 5.6 from `here <https://docs.amd.com/en/docs-5.6.0/deploy/linux/installer/install.html>`__.
+backend, you should install ROCm from `here <https://rocm.docs.amd.com/projects/install-on-linux/en/docs-6.2.0/install/quick-start.html>`__.
 
 Validate Installation
 ^^^^^^^^^^^^^^^^^^^^^
 
-To verify you have correctly installed ROCm 5.6, run ``rocm-smi`` in command line.
+To verify you have correctly installed ROCm, run ``rocm-smi`` in command line.
 If you see the list of AMD devices printed out in a table, it means the ROCm is correctly installed.
 
 .. _vulkan_driver:
