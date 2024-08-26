@@ -744,8 +744,8 @@ class EngineImpl : public Engine {
         LOG(INFO) << "Please launch " << green_text_begin << max_num_stages - 1 << colored_text_end
                   << " remote socket node(s) with the following command to proceed:\n\t"
                   << green_text_begin << "python -m mlc_llm.cli.disco_remote_socket_session "
-                  << socket_host.value() << " " << socket_port << " " << num_shards
-                  << colored_text_end;
+                  << (socket_host.value() == "0.0.0.0" ? "<YOUR_NODE_IP>" : socket_host.value())
+                  << " " << socket_port << " " << num_shards << colored_text_end;
         const PackedFunc* f_create_socket_sess = Registry::Get("runtime.disco.SocketSession");
         CHECK(f_create_socket_sess != nullptr)
             << "SocketSession constructor \"runtime.disco.SocketSession\" not found in TVM "

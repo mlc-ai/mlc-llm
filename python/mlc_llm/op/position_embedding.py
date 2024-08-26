@@ -341,8 +341,8 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
                 "tir.noalias": T.bool(True),
             }
         )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
+        seq_len = T.int32()
+        position_map_elem_offset = T.int32()
         qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
