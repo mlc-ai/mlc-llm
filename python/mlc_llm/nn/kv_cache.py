@@ -1287,7 +1287,7 @@ def _attention_sequence_prefill(
         batch_tiles: T.int32 = T.ceildiv(qo_len * group_size, tile_x)
 
         # kernel code
-        for lbx in T.thread_binding(batch_size * batch_tiles, thread="blockIdx.x"):
+        for lbx in T.thread_binding(T.cast(batch_size, "int32") * batch_tiles, thread="blockIdx.x"):
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
