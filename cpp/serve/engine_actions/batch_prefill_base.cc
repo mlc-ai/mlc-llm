@@ -13,6 +13,16 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+bool HasPrefillSpace(int num_required_pages, bool sliding_window_enabled, int new_batch_size,
+                     int num_available_pages, int current_total_seq_len, int total_input_length,
+                     int max_total_sequence_length) {
+  return num_required_pages + (!sliding_window_enabled ? new_batch_size : 0) <=
+             num_available_pages &&
+         (sliding_window_enabled ||
+          current_total_seq_len + total_input_length + 8 * new_batch_size <=
+              max_total_sequence_length);
+}
+
 BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
                                                      EngineConfig engine_config,
                                                      std::vector<picojson::object> model_configs,
@@ -132,10 +142,10 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
           NVTXScopedRange nvtx_scope("Attempt 1");
           for (int num_child_to_activate = rsentry->child_indices.size();
                num_child_to_activate >= 0; --num_child_to_activate) {
-            while (!CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
-                               total_input_length, total_required_pages, num_available_pages,
-                               current_total_seq_len, num_running_rsentries, kv_state_kind_,
-                               sliding_window_enabled)) {
+            while (!HasPrefillSpace(total_required_pages, sliding_window_enabled,
+                                    (num_running_rsentries + num_prefill_rsentries),
+                                    num_available_pages, current_total_seq_len, total_input_length,
+                                    engine_config_->max_total_sequence_length)) {
               if (!estate->prefix_cache->TryFreeMemory()) break;
               // Update number of available pages after memory free.
               num_available_pages = models_[i]->GetNumAvailablePages();
@@ -280,13 +290,11 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
   // Cond 3: number of total tokens after 8 times of decode does not
   // exceed the limit, where 8 is a watermark number can
   // be configured and adjusted in the future.
-  int new_batch_size = num_running_rsentries + num_prefill_rsentries;
   return total_input_length <= engine_config_->prefill_chunk_size &&
-         num_required_pages + (!sliding_window_enabled ? new_batch_size : 0) <=
-             num_available_pages &&
-         (sliding_window_enabled ||
-          current_total_seq_len + total_input_length + 8 * new_batch_size <=
-              engine_config_->max_total_sequence_length);
+         HasPrefillSpace(num_required_pages, sliding_window_enabled,
+                         (num_running_rsentries + num_prefill_rsentries), num_available_pages,
+                         current_total_seq_len, total_input_length,
+                         engine_config_->max_total_sequence_length);
 }
 
 /*!
