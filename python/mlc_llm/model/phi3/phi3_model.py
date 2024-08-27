@@ -53,6 +53,9 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             if "type" not in self.rope_scaling:
                 self.rope_scaling = None
             else:
+                if self.rope_scaling["type"] == "su":
+                    self.rope_scaling["type"] = "longrope"
+
                 assert (
                     self.rope_scaling["type"] == "longrope"
                 ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Phi3'

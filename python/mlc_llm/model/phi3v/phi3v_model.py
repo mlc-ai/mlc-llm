@@ -47,8 +47,11 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     intermediate_size: int
     rms_norm_eps: float
     num_key_value_heads: int
+    max_position_embeddings: int
     vision_config: CLIPVisionConfig = None
     position_embedding_base: int = 0
+    rope_scaling: Optional[Dict[str, Any]] = None
+    original_max_position_embeddings: int = 0
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     head_dim: int = 0
@@ -74,23 +77,24 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
             else:
                 self.position_embedding_base = 10000
-        if self.context_window_size == 0:
-            for name in ["max_position_embeddings", "max_sequence_length"]:
-                if name in self.kwargs:
-                    self.context_window_size = self.kwargs.pop(name)
-                    logger.info(
-                        "%s not found in config.json. Falling back to %s (%d)",
-                        bold("context_window_size"),
-                        bold(name),
-                        self.context_window_size,
-                    )
-                    break
+        if self.rope_scaling is not None:
+            if "type" not in self.rope_scaling:
+                self.rope_scaling = None
             else:
-                raise ValueError(
-                    "Unable to determine the maxmimum sequence length, because none of "
-                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
-                    "provided in `config.json`."
-                )
+                if self.rope_scaling["type"] == "su":
+                    self.rope_scaling["type"] = "longrope"
+
+                assert (
+                    self.rope_scaling["type"] == "longrope"
+                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Phi3'
+                self.rope_scaling["rope_type"] = self.rope_scaling["type"]
+                (
+                    self.rope_scaling["max_position_embeddings"],
+                    self.rope_scaling["original_max_position_embeddings"],
+                ) = (self.max_position_embeddings, self.original_max_position_embeddings)
+
+        if self.context_window_size == 0:
+            self.context_window_size = self.max_position_embeddings
 
         if self.prefill_chunk_size == 0:
             logger.info(
@@ -135,7 +139,11 @@ class Phi3VForCausalLM(nn.Module):
         self.head_dim = config.head_dim
         self.hidden_size = config.hidden_size
         self.vocab_size = config.vocab_size
+        self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
+        self.rope_ext_factors = (
+            config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
+        )
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
 
@@ -230,8 +238,10 @@ class Phi3VForCausalLM(nn.Module):
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
             head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
+            rope_scaling=self.rope_scaling,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            rope_ext_factors=self.rope_ext_factors,
             dtype=self.dtype,
         )
 
