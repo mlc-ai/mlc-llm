@@ -149,6 +149,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
               if (!estate->prefix_cache->TryFreeMemory()) break;
               // Update number of available pages after memory free.
               num_available_pages = models_[i]->GetNumAvailablePages();
+              current_total_seq_len = models_[i]->GetCurrentTotalSequenceLength();
             }
             if (CanPrefill(estate, num_prefill_rsentries + 1 + num_child_to_activate,
                            total_input_length, total_required_pages, num_available_pages,
