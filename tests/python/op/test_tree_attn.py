@@ -4,8 +4,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-
-from mlc_llm.op.tree_attn import tree_attn
+from tvm.relax.frontend.nn.llm import tree_attn
 
 # test category "op_correctness"
 pytestmark = [pytest.mark.op_correctness]

@@ -124,9 +124,6 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
             "must be divisible by tensor_parallel_shards"
         )
         self.head_dim = config.head_dim
-        self.rope_ext_factors = (
-            config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
-        )
 
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
@@ -143,12 +140,7 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(
-                layer_id,
-                qkv,
-                self.num_q_heads,
-                rope_ext_factors=self.rope_ext_factors,
-            ),
+            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
             (b, s, h_q * d),
         )
         return self.out_proj(output)
@@ -226,6 +218,9 @@ class Phi3ForCausalLM(nn.Module):
         self.vocab_size = config.vocab_size
         self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
+        self.rope_ext_factors = (
+            config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
+        )
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
 
@@ -319,6 +314,7 @@ class Phi3ForCausalLM(nn.Module):
             rope_scaling=self.rope_scaling,
             rope_scale=1,
             rope_theta=self.rope_theta,
+            rope_ext_factors=self.rope_ext_factors,
             dtype=self.dtype,
         )
 

@@ -63,7 +63,7 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     group_size = h_q // h_kv
 
     def _fallback():
-        from mlc_llm.nn import (  # pylint: disable=import-outside-toplevel, cyclic-import
+        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
             _attention_sequence_prefill,
         )
 

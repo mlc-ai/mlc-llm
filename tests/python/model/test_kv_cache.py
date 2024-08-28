@@ -6,7 +6,7 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 
-from mlc_llm.nn.kv_cache import FlashInferPagedKVCache, PagedKVCache, RopeMode
+from mlc_llm.nn.kv_cache import PagedKVCache, RopeMode
 
 # mypy: disable-error-code="attr-defined"
 # pylint: disable=invalid-name,unused-argument,too-many-locals,too-many-statements
