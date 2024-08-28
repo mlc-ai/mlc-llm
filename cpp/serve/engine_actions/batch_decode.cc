@@ -40,8 +40,8 @@ class BatchDecodeActionObj : public EngineActionObj {
         trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
-    // - Do not run decode when there are multiple models or no running requests.
-    if (models_.size() > 1 || estate->running_queue.empty()) {
+    // - Do not run decode when there is no running request.
+    if (estate->running_queue.empty()) {
       return {};
     }
 
