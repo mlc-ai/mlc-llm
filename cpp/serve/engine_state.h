@@ -73,6 +73,13 @@ class EngineStateObj : public Object {
   /*! \brief A boolean flag denoting whether the running request state entry list has changed. */
   bool running_rsentries_changed = true;
   /*!
+   * \brief The current engine speculative decoding draft length.
+   * The length may change across time under the auto speculative decoding mode.
+   * Value 0 means undefined. It must have a positive value for speculative decoding to
+   * properly work.
+   */
+  int spec_draft_length = 0;
+  /*!
    * \brief The post-process data structures.
    * We make it a workspace to avoid repetitive memory allocation/free in the action post process.
    */

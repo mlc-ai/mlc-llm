@@ -210,7 +210,9 @@ The speculative decoding mode. Right now four options are supported:
 The default mode is "disable".
 """.strip(),
     "spec_draft_length_serve": """
-The number of draft tokens to generate in speculative proposal. The default values is 4.
+The number of draft tokens to generate in speculative proposal.
+Being 0 means to enable adaptive speculative mode, where the draft length will be
+automatically adjusted based on engine state. The default values is 0.
 """.strip(),
     "prefix_cache_mode_serve": """
 The prefix cache mode. Right now two options are supported:

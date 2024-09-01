@@ -7,6 +7,7 @@
 #define MLC_LLM_SERVE_METRICS_H_
 
 #include <picojson.h>
+#include <tvm/runtime/logging.h>
 
 #include <chrono>
 #include <string>
@@ -68,6 +69,7 @@ struct SpecDecodeMetrics {
    * \param accept_length The number of accepted tokens in the speculative decoding.
    */
   void Update(int draft_length, int accept_length) {
+    ICHECK_GE(accept_length, 1);
     if (accept_count.size() < draft_length) {
       this->accept_count.resize(draft_length, 0);
       this->draft_count.resize(draft_length, 0);
