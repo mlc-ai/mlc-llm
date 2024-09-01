@@ -14,7 +14,7 @@ ConvTemplateRegistry.register_conv_template(
         seps=["<|im_end|>\n"],
         role_content_sep="\n",
         role_empty_sep="\n",
-        stop_str=["<|endoftext|>, <|im_end|>"],
+        stop_str=["<|endoftext|>", "<|im_end|>"],
         stop_token_ids=[151643, 151645],
     )
 )
