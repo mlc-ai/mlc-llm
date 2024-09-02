@@ -209,7 +209,7 @@ class CohereNorm(nn.Module):
         self,
         hidden_size: Optional[Union[int, list]] = None,
         eps: float = 1e-5,
-        dtype: Optional[str] = None
+        dtype: Optional[str] = None,
     ) -> None:
         self.hidden_size = hidden_size
         self.eps = eps
