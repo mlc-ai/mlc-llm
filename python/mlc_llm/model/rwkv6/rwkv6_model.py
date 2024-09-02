@@ -198,10 +198,19 @@ class RWKV6_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         self.time_maa_v = nn.Parameter((1, 1, config.hidden_size))
         self.time_maa_r = nn.Parameter((1, 1, config.hidden_size))
         self.time_maa_g = nn.Parameter((1, 1, config.hidden_size))
-        self.time_maa_w1 = nn.Parameter((config.hidden_size, 160))
-        self.time_maa_w2 = nn.Parameter((5, 32, config.hidden_size))
-        self.time_decay_w1 = nn.Parameter((config.hidden_size, config.head_size))
-        self.time_decay_w2 = nn.Parameter((config.head_size, config.hidden_size))
+
+        # RWKV v6 7B/14B
+        if config.hidden_size == 4096:
+            time_mix_extra_dim = 64
+            time_decay_extra_dim = 128
+        else:
+            time_mix_extra_dim = 32
+            time_decay_extra_dim = 64
+
+        self.time_maa_w1 = nn.Parameter((config.hidden_size, 5 * time_mix_extra_dim))
+        self.time_maa_w2 = nn.Parameter((5, time_mix_extra_dim, config.hidden_size))
+        self.time_decay_w1 = nn.Parameter((config.hidden_size, time_decay_extra_dim))
+        self.time_decay_w2 = nn.Parameter((time_decay_extra_dim, config.hidden_size))
         self.time_decay = nn.Parameter((1, 1, config.hidden_size))
         self.time_faaaa = nn.Parameter((config.num_heads, config.head_size))
 
