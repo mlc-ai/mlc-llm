@@ -113,7 +113,7 @@ class CohereMLP(nn.Module):
 # pylint: disable=invalid-name,missing-docstring
 
 
-class CohereAttention(nn.Module):
+class CohereAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: CohereConfig):
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         assert config.num_attention_heads % config.tensor_parallel_shards == 0, (
