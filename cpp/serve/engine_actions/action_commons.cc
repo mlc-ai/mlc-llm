@@ -240,6 +240,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     mstate->inputs = std::move(inputs);
     mstate->prefilled_inputs.clear();
     mstate->cached_committed_tokens = 0;
+    mstate->num_tokens_for_next_decode = 0;
   }
   if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
     estate->prefix_cache->RecycleSequence(rsentry->mstates[0]->internal_id, /*lazy=*/false);

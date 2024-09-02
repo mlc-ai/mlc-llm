@@ -85,12 +85,16 @@ class BatchDraftActionObj : public EngineActionObj {
     for (int model_id = 1; model_id < static_cast<int>(models_.size()); ++model_id) {
       // Collect
       // - the last committed token,
-      // - the request model state
-      // of each request.
+      // - the request model state of each request,
+      // - the number of tokens for each request to send into the model (it may
+      // be more than one if the draft model is lagging behind the main model, when
+      // the engine switches from normal batch decode mode to speculative decoding mode).
       std::vector<int> input_tokens;
       Array<RequestModelState> mstates;
+      std::vector<int> lengths;
       input_tokens.reserve(num_rsentries);
       mstates.reserve(num_rsentries);
+      lengths.reserve(num_rsentries);
       for (const RequestStateEntry& rsentry : running_rsentries) {
         mstates.push_back(rsentry->mstates[model_id]);
       }
@@ -100,16 +104,34 @@ class BatchDraftActionObj : public EngineActionObj {
         // prepare new input tokens
         input_tokens.clear();
         draft_token_indices.clear();
+        lengths.clear();
         for (int i = 0; i < num_rsentries; ++i) {
           // The first draft proposal uses the last committed token.
           if (draft_id == 0) {
+            CHECK_LE(mstates[i]->committed_tokens.size(),
+                     running_rsentries[i]->mstates[0]->committed_tokens.size());
             ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
-            mstates[i]->num_tokens_for_next_decode = 0;
             input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
+            lengths.push_back(running_rsentries[i]->mstates[0]->committed_tokens.size() -
+                              mstates[i]->committed_tokens.size() + 1);
+            for (size_t j = mstates[i]->committed_tokens.size();
+                 j < running_rsentries[i]->mstates[0]->committed_tokens.size(); ++j) {
+              // This draft model is lagging behind the main model.
+              // It may happen when the engine just switches from the normal batch decode
+              // mode to the speculative decoding mode.
+              // In this case, we need to prefill the misaligned tokens into the draft model.
+              mstates[i]->CommitToken(running_rsentries[i]->mstates[0]->committed_tokens[j]);
+              input_tokens.push_back(
+                  running_rsentries[i]->mstates[0]->committed_tokens[j].GetTokenId());
+            }
+            mstates[i]->num_tokens_for_next_decode = 0;
             draft_token_indices.emplace_back(std::vector<int>{-1});
           } else {
+            CHECK_EQ(mstates[i]->committed_tokens.size(),
+                     running_rsentries[i]->mstates[0]->committed_tokens.size());
             ICHECK(!mstates[i]->draft_output_tokens.empty());
             input_tokens.push_back(mstates[i]->draft_output_tokens.back().GetTokenId());
+            lengths.push_back(1);
             draft_token_indices.emplace_back(
                 std::vector<int>{static_cast<int>(mstates[i]->draft_output_tokens.size()) - 1});
           }
@@ -123,11 +145,24 @@ class BatchDraftActionObj : public EngineActionObj {
 
         // - Invoke model decode.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal decode");
-        NDArray logits = models_[model_id]->BatchDecode(embeddings, request_internal_ids);
+        NDArray logits{nullptr};
+        if (input_tokens.size() == num_rsentries) {
+          // Each request entry only has one token to feed into the draft model.
+          logits = models_[model_id]->BatchDecode(embeddings, request_internal_ids);
+          ICHECK_EQ(logits->ndim, 3);
+          ICHECK_EQ(logits->shape[0], num_rsentries);
+          ICHECK_EQ(logits->shape[1], 1);
+        } else {
+          // There exists some request entry which has more than one token to feed.
+          // It may happen when the engine just switches from the normal batch decode
+          // mode to the speculative decoding mode.
+          logits = models_[model_id]->BatchPrefill(embeddings, request_internal_ids, lengths);
+          ICHECK_EQ(logits->ndim, 3);
+          ICHECK_EQ(logits->shape[0], 1);
+          ICHECK_EQ(logits->shape[1], num_rsentries);
+        }
+        CHECK_EQ(lengths.size(), num_rsentries);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        ICHECK_EQ(logits->ndim, 3);
-        ICHECK_EQ(logits->shape[0], num_rsentries);
-        ICHECK_EQ(logits->shape[1], 1);
 
         // - Update logits.
         logits = logits.CreateView({num_rsentries, logits->shape[2]}, logits->dtype);
