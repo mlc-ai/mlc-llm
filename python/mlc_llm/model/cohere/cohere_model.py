@@ -128,7 +128,7 @@ class CohereAttention(nn.Module):
 
         self.head_dim = config.head_dim
         self.use_qk_norm = config.use_qk_norm
-        
+
         if self.use_qk_norm:
             self.q_norm = CohereNorm(
                 hidden_size=[self.num_q_heads, self.head_dim], eps=config.layer_norm_eps
@@ -206,7 +206,10 @@ class CohereDecoderLayer(nn.Module):
 
 class CohereNorm(nn.Module):
     def __init__(
-            self, hidden_size: Optional[Union[int, list]] = None, eps: float = 1e-5, dtype: Optional[str] = None
+        self,
+        hidden_size: Optional[Union[int, list]] = None,
+        eps: float = 1e-5,
+        dtype: Optional[str] = None
     ) -> None:
         self.hidden_size = hidden_size
         self.eps = eps
