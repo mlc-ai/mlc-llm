@@ -34,8 +34,7 @@ class Phi3ImageEmbedding(Module):
         super().__init__()
 
         self.img_processor = CLIPVisionModel(config.vision_config)
-        self.image_dim_out = 1024
-        self.num_img_tokens = 144
+        self.image_dim_out = config.img_processor["image_dim_out"]
 
         self.glb_GN = nn.Parameter((1, 1, self.image_dim_out * 4))
         self.sub_GN = nn.Parameter((1, 1, 1, self.image_dim_out * 4))
@@ -48,16 +47,16 @@ class Phi3ImageEmbedding(Module):
         patch_feature = nn.op.split(img_processor_output, indices_or_sections=[1], axis=1)
         return patch_feature[1]
 
-    def forward(self, pixel_values: Tensor) -> Tensor:  # pylint: disable=too-many-locals
+    # pylint: disable=too-many-locals,too-many-locals,unused-argument
+    def forward(self, pixel_values: Tensor, raw_image_h, raw_image_w) -> Tensor:
         h = 3  # raw_image_h // self.image_size
         w = 4  # raw_image_w // self.image_size
         B_ = h * w
         C = self.image_dim_out
 
-        img_embeds = nn.op.squeeze(pixel_values, 0)
-        img_features = self.get_img_features(img_embeds)
+        # img_embeds = nn.op.squeeze(pixel_values, 0)
+        img_features = self.get_img_features(pixel_values)
         H = T.int32((img_features.shape[1] ** 0.5))
-
         img_features = nn.op.split(img_features, indices_or_sections=[1], axis=0)
         global_img_feature = img_features[0]
         global_img_feature = nn.op.reshape(global_img_feature, ([1, H, H, C]))
