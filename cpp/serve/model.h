@@ -175,6 +175,10 @@ class ModelObj : public Object {
    */
   virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
+  virtual NDArray BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                                  const std::vector<int>& lengths,
+                                  const std::vector<int64_t>& token_tree_parent_ptr) = 0;
+
   /*!
    * \brief Batch decode function. Input hidden_states are computed from
    * input embeddings and previous hidden_states, output last hidden_states.
