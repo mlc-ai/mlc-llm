@@ -88,14 +88,6 @@ void RequestModelStateNode::AddDraftToken(SampleResult sampled_token, int draft_
   }
 }
 
-void RequestModelStateNode::RemoveLastDraftToken() {
-  // This method doesn't update the tree structure. It should only be called as part of
-  // `RemoveAllDraftTokens`.
-  ICHECK(!draft_output_tokens.empty());
-  draft_output_tokens.pop_back();
-  draft_token_parent_idx.pop_back();
-}
-
 void RequestModelStateNode::RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots) {
   if (removed_draft_token_slots != nullptr) {
     std::unordered_set<int> dedup;
@@ -110,9 +102,7 @@ void RequestModelStateNode::RemoveAllDraftTokens(std::vector<int>* removed_draft
   draft_token_slots.clear();
   draft_token_parent_idx.clear();
   draft_token_first_child_idx.clear();
-  while (!draft_output_tokens.empty()) {
-    RemoveLastDraftToken();
-  }
+  draft_output_tokens.clear();
 }
 
 /****************** RequestActionPostProcWorkspace ******************/

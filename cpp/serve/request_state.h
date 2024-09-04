@@ -119,10 +119,6 @@ class RequestModelStateNode : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(RequestModelStateNode, Object);
-
- private:
-  /*! \brief Remove the last token from draft_output_tokens. Update appeared_token_ids. */
-  void RemoveLastDraftToken();
 };
 
 class RequestModelState : public ObjectRef {
