@@ -44,9 +44,19 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         # Tokenize the prompts and completions.
         self.tokenizer = tokenizer
         prompts = [prompt for prompt, _ in _dataset]
-        prompt_token_ids = list(tokenizer(prompts).input_ids)
+        prompt_token_ids = list(
+            tokenizer(
+                prompts,
+                truncation=True,
+                max_length=tokenizer.model_max_length,
+            ).input_ids
+        )
         completions = [completion for _, completion in _dataset]
-        completion_token_ids = tokenizer(completions).input_ids
+        completion_token_ids = tokenizer(
+            completions,
+            truncation=True,
+            max_length=tokenizer.model_max_length,
+        ).input_ids
         self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
         for i in range(len(_dataset)):
             self._tokenized_dataset.append(
@@ -119,7 +129,11 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
         with open(dataset_path, encoding="utf-8") as f:
             untokenized_data = f.readlines()
         # Tokenize the prompts and completions.
-        tokenized_data = tokenizer(untokenized_data).input_ids
+        tokenized_data = tokenizer(
+            untokenized_data,
+            truncation=True,
+            max_length=tokenizer.model_max_length,
+        ).input_ids
         tokenized_data_lengths = [len(tokens) for tokens in tokenized_data]
         self.dataset: List[Tuple[str, List[int], int]] = list(
             zip(untokenized_data, tokenized_data, tokenized_data_lengths)
@@ -196,7 +210,13 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
                 "type": "json_object",
                 "schema": data["schema"],
             }
-            num_tokens = len(self.tokenizer.encode(prompt[0]["content"]))
+            num_tokens = len(
+                self.tokenizer(
+                    prompt[0]["content"],
+                    truncation=True,
+                    max_length=tokenizer.model_max_length,
+                )
+            )
             self.dataset.append((prompt, schema, num_tokens))
 
     def generate_request_records(
