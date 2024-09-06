@@ -149,10 +149,9 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg);
-    auto [sample_results_arr, _] =
-        sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
-            renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
-            draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
+    auto [sample_results_arr, _] = sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
+        renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
+        draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
     ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     // We collect the requests whose drafts are fully accepted.

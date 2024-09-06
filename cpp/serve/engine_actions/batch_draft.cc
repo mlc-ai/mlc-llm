@@ -128,7 +128,7 @@ class BatchDraftActionObj : public EngineActionObj {
             ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
             input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
             input_lengths.push_back(running_rsentries[i]->mstates[0]->committed_tokens.size() -
-                              mstates[i]->committed_tokens.size() + 1);
+                                    mstates[i]->committed_tokens.size() + 1);
             for (size_t j = mstates[i]->committed_tokens.size();
                  j < running_rsentries[i]->mstates[0]->committed_tokens.size(); ++j) {
               // This draft model is lagging behind the main model.

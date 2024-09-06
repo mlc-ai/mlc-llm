@@ -469,7 +469,7 @@ class ModelImpl : public ModelObj {
 
     // same as BatchDecode
     ObjectRef ret;
-    if (0&&seq_ids.size() == 1) {
+    if (0 && seq_ids.size() == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
     } else {
       ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);

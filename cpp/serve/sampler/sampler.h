@@ -113,7 +113,8 @@ class SamplerObj : public Object {
    * \return The list of accepted tokens for each request and the index of the last accepted tree
    * node for each request.
    */
-  virtual std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>> BatchVerifyDraftTokensWithProbAfterTopP(
+  virtual std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>>
+  BatchVerifyDraftTokensWithProbAfterTopP(
       NDArray probs, const Array<String>& request_ids, const std::vector<int>& cum_verify_lengths,
       const Array<GenerationConfig>& generation_cfg, const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,

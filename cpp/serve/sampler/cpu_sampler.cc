@@ -408,7 +408,8 @@ class CPUSampler : public SamplerObj {
                                  /*top_p_applied=*/true);
   }
 
-  std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>> BatchVerifyDraftTokensWithProbAfterTopP(
+  std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>>
+  BatchVerifyDraftTokensWithProbAfterTopP(
       NDArray probs_on_host, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,

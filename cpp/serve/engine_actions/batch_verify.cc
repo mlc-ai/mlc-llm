@@ -185,7 +185,8 @@ class BatchVerifyActionObj : public EngineActionObj {
       // it is possible to re-compute prefill for the small models.
       verify_model_seq_internal_ids.push_back(rsentries[i]->mstates[verify_model_id_]->internal_id);
       draft_model_seq_internal_ids.push_back(rsentries[i]->mstates[draft_model_id_]->internal_id);
-      int last_accepted = last_accepted_tree_node_verify_model[i] - 1;  // minus one to get the index in the draft tokens
+      int last_accepted = last_accepted_tree_node_verify_model[i] -
+                          1;  // minus one to get the index in the draft tokens
       if (last_accepted >= 0 &&
           rsentries[i]->mstates[draft_model_id_]->draft_token_first_child_idx[last_accepted] ==
               -1) {  // minus one to get the index in the draft tokens
