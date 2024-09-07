@@ -198,7 +198,8 @@ class GPUSampler : public SamplerObj {
                                  generation_cfg, rngs, /*top_p_applied=*/true);
   }
 
-  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
+  std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>>
+  BatchVerifyDraftTokensWithProbAfterTopP(
       NDArray probs_on_device, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
@@ -329,10 +330,13 @@ class GPUSampler : public SamplerObj {
           CollectSampleResult(host_arrays, num_sequence, need_prob_values, top_prob_offset_indptr);
     }
 
+    std::vector<int> last_accepted_tree_node;
+    last_accepted_tree_node.reserve(num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
       int last_accepted = static_cast<int*>(token_tree_parent_ptr_host->data)[i];
+      last_accepted_tree_node.push_back(last_accepted - start);
       int num_accepted = 0;
       for (int cur_node = last_accepted; cur_node != start;
            cur_node = token_tree_child_to_parent[cur_node]) {
@@ -349,7 +353,7 @@ class GPUSampler : public SamplerObj {
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish draft verification");
-    return sample_results;
+    return {sample_results, last_accepted_tree_node};
   }
 
  private:

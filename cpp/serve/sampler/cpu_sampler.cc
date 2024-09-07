@@ -408,7 +408,8 @@ class CPUSampler : public SamplerObj {
                                  /*top_p_applied=*/true);
   }
 
-  std::vector<std::vector<SampleResult>> BatchVerifyDraftTokensWithProbAfterTopP(
+  std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>>
+  BatchVerifyDraftTokensWithProbAfterTopP(
       NDArray probs_on_host, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
@@ -430,6 +431,7 @@ class CPUSampler : public SamplerObj {
         static_cast<float*>(__builtin_assume_aligned(probs_on_host->data, 4));
     int vocab_size = probs_on_host->shape[1];
 
+    std::vector<int> last_accepted_tree_node(num_sequence, 0);
     tvm::runtime::parallel_for_with_threading_backend(
         [&](int i) {
           int verify_start = cum_verify_lengths[i];
@@ -489,6 +491,7 @@ class CPUSampler : public SamplerObj {
             sample_results[i].push_back(sample_result);
             break;
           }
+          last_accepted_tree_node[i] = cur_token_idx;
           // if cur_token_idx == verify_end - verify_start - 1
           // all draft tokens are accepted
           // we sample a new token
@@ -505,7 +508,7 @@ class CPUSampler : public SamplerObj {
         },
         0, num_sequence);
     RECORD_EVENT(trace_recorder_, request_ids, "finish draft verification");
-    return sample_results;
+    return {sample_results, last_accepted_tree_node};
   }
 
  private:

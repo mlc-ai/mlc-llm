@@ -389,7 +389,6 @@ class LogitProcessorImpl : public LogitProcessorObj {
       int token_start_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
       int token_number =
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
-      CHECK(token_number == 1 || mstates[i]->draft_output_tokens.empty());
       bool require_mask = mstates[i]->RequireNextTokenBitmask();
       ICHECK(draft_token_indices == nullptr || draft_token_indices->at(i).size() == token_number);
       for (int j = 0; j < token_number; ++j) {

@@ -22,6 +22,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
     max_history_size: Optional[int] = None
     gpu_memory_utilization: Optional[float] = None
     spec_draft_length: Optional[int] = None
+    spec_tree_width: Optional[int] = None
     prefix_cache_mode: Optional[Literal["disable", "radix"]] = None
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
     prefill_mode: Optional[Literal["chunked", "hybrid"]] = None
@@ -39,6 +40,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";max_history_size={self.max_history_size}", file=out, end="")
         print(f";gpu_memory_utilization={self.gpu_memory_utilization}", file=out, end="")
         print(f";spec_draft_length={self.spec_draft_length}", file=out, end="")
+        print(f";spec_tree_width={self.spec_tree_width}", file=out, end="")
         print(f";prefix_cache_mode={self.prefix_cache_mode}", file=out, end="")
         print(
             f";prefix_cache_max_num_recycling_seqs={self.prefix_cache_max_num_recycling_seqs}",
@@ -64,6 +66,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         parser.add_argument("--max_history_size", type=int, default=None)
         parser.add_argument("--gpu_memory_utilization", type=float, default=None)
         parser.add_argument("--spec_draft_length", type=int, default=None)
+        parser.add_argument("--spec_tree_width", type=int, default=None)
         parser.add_argument("--prefix_cache_mode", type=str, default="radix")
         parser.add_argument("--prefix_cache_max_num_recycling_seqs", type=int, default=None)
         parser.add_argument("--prefill_mode", type=str, default="hybrid")
@@ -80,6 +83,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
             max_history_size=results.max_history_size,
             gpu_memory_utilization=results.gpu_memory_utilization,
             spec_draft_length=results.spec_draft_length,
+            spec_tree_width=results.spec_tree_width,
             prefix_cache_mode=results.prefix_cache_mode,
             prefix_cache_max_num_recycling_seqs=results.prefix_cache_max_num_recycling_seqs,
             prefill_mode=results.prefill_mode,
@@ -217,6 +221,7 @@ def main(argv):
         max_history_size=parsed.overrides.max_history_size,
         gpu_memory_utilization=parsed.overrides.gpu_memory_utilization,
         spec_draft_length=parsed.overrides.spec_draft_length,
+        spec_tree_width=parsed.overrides.spec_tree_width,
         prefix_cache_max_num_recycling_seqs=parsed.overrides.prefix_cache_max_num_recycling_seqs,
         prefill_mode=parsed.prefill_mode,
         enable_tracing=parsed.enable_tracing,

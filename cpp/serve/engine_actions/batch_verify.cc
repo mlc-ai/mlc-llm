@@ -145,7 +145,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg);
-    std::vector<std::vector<SampleResult>> sample_results_arr =
+    auto [sample_results_arr, last_accepted_tree_node_verify_model] =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
             draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
@@ -157,11 +157,16 @@ class BatchVerifyActionObj : public EngineActionObj {
     // In this case, an additional batch decode step is needed for these requests.
     std::vector<int64_t> fully_accepted_rsentries;
     std::vector<int64_t> verify_model_seq_internal_ids;
-    std::vector<int64_t> accepted_token_tree_leaf_nodes;
+    std::vector<int64_t> draft_model_seq_internal_ids;
     fully_accepted_rsentries.reserve(num_rsentries);
     verify_model_seq_internal_ids.reserve(num_rsentries);
-    accepted_token_tree_leaf_nodes.reserve(num_rsentries);
+    draft_model_seq_internal_ids.reserve(num_rsentries);
 
+    // The index of the last accepted tree node in the draft model. This is different from the
+    // last accepted tree node in the verify model because the first round of draft does not
+    // use tree attention.
+    std::vector<int64_t> last_accepted_tree_node_draft_model;
+    last_accepted_tree_node_draft_model.reserve(num_rsentries);
     for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
       int accept_length = sample_results.size();
@@ -174,25 +179,31 @@ class BatchVerifyActionObj : public EngineActionObj {
       rsentries[i]->rstate->metrics.completion_tokens += accept_length;
       estate->metrics.spec_decode.Update(cum_verify_lengths[i + 1] - cum_verify_lengths[i],
                                          accept_length);
-      int rollback_length =
-          std::max(cum_verify_lengths[i + 1] - cum_verify_lengths[i] - accept_length, 0);
       // Commit accepted tokens to the "verify_model", rollback kv cache
       // in the "draft_model".
       // NOTE: when number of small models is more than 1 (in the future),
       // it is possible to re-compute prefill for the small models.
       verify_model_seq_internal_ids.push_back(rsentries[i]->mstates[verify_model_id_]->internal_id);
-      accepted_token_tree_leaf_nodes.push_back(accept_length - 1);
-      if (rollback_length > 0) {
-        // The last accepted token is not yet added into the draft model.
-        // Therefore, the rollback length for the draft model is one less.
-        models_[draft_model_id_]->PopNFromKVCache(
-            rsentries[i]->mstates[draft_model_id_]->internal_id, rollback_length - 1);
-      } else {
+      draft_model_seq_internal_ids.push_back(rsentries[i]->mstates[draft_model_id_]->internal_id);
+      int last_accepted = last_accepted_tree_node_verify_model[i] -
+                          1;  // minus one to get the index in the draft tokens
+      if (last_accepted >= 0 &&
+          rsentries[i]->mstates[draft_model_id_]->draft_token_first_child_idx[last_accepted] ==
+              -1) {  // minus one to get the index in the draft tokens
+        // is leaf node, fully accepted
+        last_accepted_tree_node_draft_model.push_back(
+            rsentries[i]->mstates[draft_model_id_]->draft_token_parent_idx[last_accepted]);
         fully_accepted_rsentries.push_back(i);
+      } else {
+        last_accepted_tree_node_draft_model.push_back(last_accepted);
       }
     }
     models_[verify_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
-        verify_model_seq_internal_ids, accepted_token_tree_leaf_nodes);
+        verify_model_seq_internal_ids,
+        std::vector<int64_t>{last_accepted_tree_node_verify_model.begin(),
+                             last_accepted_tree_node_verify_model.end()});
+    models_[draft_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
+        draft_model_seq_internal_ids, last_accepted_tree_node_draft_model);
 
     if (!fully_accepted_rsentries.empty()) {
       // - Run a step of batch decode for requests whose drafts are fully accepted.

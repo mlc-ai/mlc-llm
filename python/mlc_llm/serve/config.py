@@ -97,6 +97,9 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     spec_draft_length : int
         The number of tokens to generate in speculative proposal (draft).
 
+    spec_tree_width : int
+        The width of the speculative decoding tree.
+
     prefix_cache_mode : Literal["disable", "radix"]
         The prefix cache mode.
         "disable" means no prefix cache is disabled.
@@ -134,6 +137,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     kv_state_kind: Optional[Literal["kv_cache", "rnn_state"]] = None
     speculative_mode: Literal["disable", "small_draft", "eagle", "medusa"] = "disable"
     spec_draft_length: int = 4
+    spec_tree_width: int = 1
     prefix_cache_mode: Literal["disable", "radix"] = "radix"
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
     prefill_mode: Literal["chunked", "hybrid"] = "hybrid"

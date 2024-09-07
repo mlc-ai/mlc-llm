@@ -421,6 +421,78 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
+  NDArray BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                          const std::vector<int>& lengths,
+                          const std::vector<int64_t>& token_tree_parent_ptr) {
+    // This is similar to BatchDecode, except that it takes 'length', so that each sequence can have
+    // multiple leaf nodes for decoding.
+    NVTXScopedRange nvtx_scope("BatchTreeDecode num_seqs=" + std::to_string(seq_ids.size()));
+    int num_sequence = seq_ids.size();
+    int total_length = 0;
+    for (int i = 0; i < num_sequence; ++i) {
+      total_length += lengths[i];
+    }
+    CHECK_EQ(total_length, token_tree_parent_ptr.size());
+
+    CHECK(ft_.decode_func_.defined())
+        << "`tree_decode_with_embed` function is not found in the model. Please make sure the "
+           "model "
+           "is compiled with flag `--sep-embed` and `--enable-batching`";
+    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    // Reserve in KV cache for the lengths of the input.
+    // Begin forward with the sequence ids and new lengths.
+    IntTuple seq_ids_tuple(seq_ids);
+    IntTuple lengths_tuple(lengths.begin(), lengths.end());
+    IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
+    ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
+                                     token_tree_parent_ptr_tuple);
+
+    ObjectRef embeddings_dref_or_nd;
+    if (!embeddings->IsInstance<DRefObj>()) {
+      // embeddings: (1, n, h)
+      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      ICHECK_NE(hidden_size_, -1);
+      ICHECK_EQ(embeddings_nd->ndim, 2);
+      ICHECK_GE(embeddings_nd->shape[0], total_length);
+      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      embeddings_dref_or_nd =
+          embeddings_nd.CreateView({total_length, 1, hidden_size_}, embeddings_nd->dtype);
+    } else {
+      ShapeTuple embedding_shape{total_length, 1, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+    }
+
+    // same as BatchDecode
+    ObjectRef ret;
+    if (0 && seq_ids.size() == 1) {
+      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    } else {
+      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    }
+    NDArray logits;
+    if (ft_.use_disco) {
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<NDArray>(result[0]);
+    } else {
+      logits = Downcast<Array<NDArray>>(ret)[0];
+    }
+    if (trace_enabled_) {
+      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    }
+    ft_.kv_cache_end_forward_func_(kv_cache_);
+
+    // logits: (b, 1, v)
+    ICHECK_EQ(logits->ndim, 3);
+    ICHECK_EQ(logits->shape[0], total_length);
+    ICHECK_EQ(logits->shape[1], 1);
+    return logits;
+  }
+
   ObjectRef BatchDecodeToLastHidden(const ObjectRef& hidden_states_dref_or_nd,
                                     const std::vector<int64_t>& seq_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecodeToLastHidden num_seqs=" +
