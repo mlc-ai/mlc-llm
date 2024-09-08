@@ -302,6 +302,7 @@ CONV_TEMPLATES = {
     "orion",
     "llava",
     "hermes2_pro_llama3",
+    "hermes3_llama-3_1",
     "tinyllama_v1_0",
     "aya-23",
 }
