@@ -91,4 +91,3 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[128001, 128008, 128009, 128040],
     )
 )
-
