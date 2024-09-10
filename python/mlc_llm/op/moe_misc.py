@@ -423,7 +423,7 @@ def get_indptr(
     out_shape = [num_local_experts if inclusive else num_local_experts + 1]
 
     @T.prim_func(private=True)
-    def _func_exclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int32):
+    def _func_exclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int64):
         T.func_attr({"tir.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
@@ -433,7 +433,7 @@ def get_indptr(
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
     @T.prim_func(private=True)
-    def _func_inclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int32):
+    def _func_inclusive(var_cumsum: T.handle, var_indptr: T.handle, batch_size: T.int64):
         T.func_attr({"tir.noalias": True})
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
