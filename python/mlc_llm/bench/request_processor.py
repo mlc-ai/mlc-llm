@@ -250,7 +250,7 @@ class Executor(RequestProcessor):  # pylint: disable=too-few-public-methods
 class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-public-methods
     """The benchmark executor of fixing the number of concurrent requests."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         f_create_api_endpoint: Callable[[], APIEndPoint],
         num_processes: Optional[int],
