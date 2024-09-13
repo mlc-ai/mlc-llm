@@ -317,5 +317,13 @@ if __name__ == "__main__":
         help="Whether to enable cuda profile on server. "
         "The --mlc-model-lib path should be provided when enabling this option.",
     )
+    parser.add_argument(
+        "--multi-round",
+        default=False,
+        action="store_true",
+        help="Whether to chat like mulit round conversion with history log each request. "
+        "Only enabled when benchmarked with fixed concurrent request mode."
+        "The --num-concurrent-requests should be provided when enabling this option.",
+    )
 
     main(parser.parse_args())
