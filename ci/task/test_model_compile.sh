@@ -16,10 +16,10 @@ elif [[ ${GPU} == rocm* ]]; then
 	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
 elif [[ ${GPU} == metal ]]; then
 	TARGET=metal
-	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly
+	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 elif [[ ${GPU} == wasm* ]]; then
 	TARGET=wasm
-	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 	export TVM_SOURCE_DIR=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
 	export TVM_HOME=${TVM_SOURCE_DIR}
 	export MLC_LLM_SOURCE_DIR=$(pwd)
@@ -27,14 +27,14 @@ elif [[ ${GPU} == wasm* ]]; then
 	cd $MLC_LLM_SOURCE_DIR/web/ && make -j${NUM_THREADS} && cd -
 elif [[ ${GPU} == ios ]]; then
 	TARGET=ios
-	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly
+	pip install --pre -U --force-reinstal -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 elif [[ ${GPU} == android* ]]; then
 	TARGET=android
-	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 	source /android_env_vars.sh
 else
 	TARGET=vulkan
-	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly
+	pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 fi
 
 python tests/python/integration/test_model_compile.py $TARGET $NUM_THREADS
