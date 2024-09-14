@@ -6,13 +6,13 @@ TODO: add docstring
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import te, tir
+from tvm import relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.phi3 import Phi3Model
-from mlc_llm.model.vision import CLIPVisionConfig
+from mlc_llm.model.vision import CLIPVisionConfig, ImageProcessor
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
@@ -49,6 +49,7 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int
     max_position_embeddings: int
     vision_config: CLIPVisionConfig = None
+    img_processor: Optional[Dict[str, Any]] = None
     position_embedding_base: int = 0
     rope_scaling: Optional[Dict[str, Any]] = None
     original_max_position_embeddings: int = 0
@@ -133,6 +134,7 @@ class Phi3VForCausalLM(nn.Module):
         self.model = Phi3Model(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.vision_embed_tokens = Phi3ImageEmbedding(config)
+        self.image_processor = ImageProcessor()
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -215,9 +217,72 @@ class Phi3VForCausalLM(nn.Module):
         embeds = self.model.embd(input_ids)
         return embeds
 
+    # pylint: disable=protected-access
+    def image_preprocess(self, pixel_values: Tensor, num_crops=16) -> Tensor:
+        pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 3, 1))  # NCHW -> NHWC
+        pixel_values = self.image_processor.resize(pixel_values, params={"hd_transform": 336})
+        new_h = tir.Var("new_h", "int64")
+        new_w = tir.Var("new_w", "int64")
+        pixel_values = op.wrap_nested(
+            relax.BlockBuilder()
+            .current()
+            .match_cast(
+                pixel_values._expr,
+                relax.TensorStructInfo(
+                    [pixel_values.shape[0], new_h, new_w, pixel_values.shape[3]], pixel_values.dtype
+                ),
+            ),
+            "pixel_values",
+        )
+
+        pixel_values = self.image_processor.pad(pixel_values)
+        pixel_values = self.image_processor.rescale(pixel_values)
+        pixel_values = self.image_processor.normalize(pixel_values)
+        global_image = self.image_processor.resize(
+            pixel_values, params={"height": 336, "width": 336}
+        )
+        global_image = op.wrap_nested(
+            relax.BlockBuilder()
+            .current()
+            .match_cast(
+                global_image._expr,
+                relax.TensorStructInfo(
+                    [global_image.shape[0], 336, 336, global_image.shape[3]], global_image.dtype
+                ),
+            ),
+            "global_image",
+        )
+
+        global_image = op.permute_dims(global_image, axes=(0, 3, 1, 2))
+        n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
+        pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
+        pixel_values = op.reshape(pixel_values, shape=(1, 3, h // 336, 336, w // 336, 336))
+        pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
+        pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))
+        combined_image = op.concat([pixel_values, global_image], dim=0)
+
+        # pad to max num crops tensor
+        b, c, h, w = combined_image.shape
+        zeros = op.zeros((num_crops + 1 - b, c, h, w))
+        combined_image = op.concat([combined_image, zeros], dim=0)
+
+        combined_image = op.wrap_nested(
+            relax.BlockBuilder()
+            .current()
+            .match_cast(
+                combined_image._expr,
+                relax.TensorStructInfo([num_crops + 1, c, h, w], combined_image.dtype),
+            ),
+            "combined_image",
+        )
+
+        return combined_image
+
     def image_embed(self, pixel_values: Tensor) -> Tensor:
+        n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
+        pixel_values = self.image_preprocess(pixel_values)
         pixel_values = pixel_values.astype(self.dtype)
-        return self.vision_embed_tokens(pixel_values)
+        return self.vision_embed_tokens(pixel_values, h, w)
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
@@ -255,16 +320,7 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "image_embed": {
-                "pixel_values": nn.spec.Tensor(
-                    [
-                        1,
-                        17,
-                        3,
-                        self.config.vision_config.image_size,
-                        self.config.vision_config.image_size,
-                    ],
-                    "float32",
-                ),
+                "pixel_values": nn.spec.Tensor([1, 3, "image_height", "image_width"], "uint8"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
