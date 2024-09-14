@@ -30,7 +30,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
             .. tab:: CUDA 12.1
 
@@ -98,7 +98,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
         .. note::
 
@@ -124,7 +124,7 @@ Select your operating system/compute platform and run the command in your termin
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly mlc-ai-nightly
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
         .. note::
             Please make sure your conda environment comes with python and pip.
