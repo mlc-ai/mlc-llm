@@ -6,18 +6,30 @@
 #ifndef MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 #define MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 
+#include <tvm/runtime/container/array.h>
+
 #include "../../tokenizers/tokenizers.h"
 #include "../draft_token_workspace_manager.h"
 #include "../engine.h"
 #include "../engine_state.h"
 #include "../event_trace_recorder.h"
 #include "../model.h"
+#include "action.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+
+/*! \brief Create the engine actions based on engine config. */
+Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
+                                        std::vector<picojson::object> model_configs,
+                                        std::vector<ModelWorkspace> model_workspaces,
+                                        LogitProcessor logit_processor, Sampler sampler,
+                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                        Tokenizer tokenizer,
+                                        Optional<EventTraceRecorder> trace_recorder);
 
 /*!
  * \brief Remove the given request from models.

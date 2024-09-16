@@ -202,8 +202,10 @@ class BatchVerifyActionObj : public EngineActionObj {
         verify_model_seq_internal_ids,
         std::vector<int64_t>{last_accepted_tree_node_verify_model.begin(),
                              last_accepted_tree_node_verify_model.end()});
-    models_[draft_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
-        draft_model_seq_internal_ids, last_accepted_tree_node_draft_model);
+    if (engine_config_->spec_tree_width > 1) {
+      models_[draft_model_id_]->CommitAcceptedTokenTreeNodesToKVCache(
+          draft_model_seq_internal_ids, last_accepted_tree_node_draft_model);
+    }
 
     if (!fully_accepted_rsentries.empty()) {
       // - Run a step of batch decode for requests whose drafts are fully accepted.
@@ -244,7 +246,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       rsentries[i]->mstates[draft_model_id_]->RemoveAllDraftTokens(&draft_token_slots_);
       draft_token_workspace_manager_->FreeSlots(draft_token_slots_);
       // reset num_tokens_for_next_decode to 1
-      rsentries[i]->mstates[verify_model_id_]->num_tokens_for_next_decode = 0;
+      rsentries[i]->mstates[verify_model_id_]->num_tokens_for_next_decode = 1;
       rsentries[i]->mstates[draft_model_id_]->num_tokens_for_next_decode = 1;
     }
 

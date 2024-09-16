@@ -320,7 +320,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         UpdateRequestStatesWithDraftProposals(mstates, sample_results, draft_model_id_,
                                               renormalized_probs, hidden_states, estate);
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
-        for (int draft_id = 0; draft_id < engine_config_->spec_draft_length; draft_id++) {
+        ICHECK_NE(estate->spec_draft_length, 0);
+        for (int draft_id = 0; draft_id < estate->spec_draft_length; draft_id++) {
           const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
               logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,
               mstates, rngs, sample_indices, generation_cfg, request_ids, sample_indices);
@@ -407,7 +408,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
                                   &model_workspaces_[0].draft_probs_storage);
     if (engine_config_->speculative_mode == SpeculativeMode::kEagle &&
-        engine_config_->spec_draft_length > 1) {
+        estate->spec_draft_length > 1) {
       models_[0]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
                                       &model_workspaces_[0].draft_hidden_states_storage);
     }

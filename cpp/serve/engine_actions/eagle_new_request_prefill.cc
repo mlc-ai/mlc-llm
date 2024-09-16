@@ -318,7 +318,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                                 estate, child_sample_indices);
         }
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
-        for (int draft_id = 0; draft_id < engine_config_->spec_draft_length; ++draft_id) {
+        ICHECK_NE(estate->spec_draft_length, 0);
+        for (int draft_id = 0; draft_id < estate->spec_draft_length; ++draft_id) {
           const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
               logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,
               mstates_for_logitproc, rngs, sample_indices, child_generation_cfg, child_request_ids,
@@ -356,7 +357,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     models_[0]->ScatterDraftProbs(renormalized_probs, draft_token_slots_,
                                   &model_workspaces_[0].draft_probs_storage);
     if (engine_config_->speculative_mode == SpeculativeMode::kEagle &&
-        engine_config_->spec_draft_length > 1) {
+        estate->spec_draft_length > 1) {
       models_[0]->ScatterHiddenStates(hidden_states_for_sample, draft_token_slots_,
                                       &model_workspaces_[0].draft_hidden_states_storage);
     }

@@ -117,14 +117,13 @@ class EngineAction : public ObjectRef {
    * \param draft_token_workspace_manager The draft token workspace manager.
    * \param engine_config The engine config.
    * \param trace_recorder The event trace recorder for requests.
-   * \param draft_length The number of draft proposal rounds.
    * \return The created action object.
    */
   static EngineAction BatchDraft(Array<Model> models, LogitProcessor logit_processor,
                                  Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                  DraftTokenWorkspaceManager draft_token_workspace_manager,
                                  EngineConfig engine_config,
-                                 Optional<EventTraceRecorder> trace_recorder, int draft_length);
+                                 Optional<EventTraceRecorder> trace_recorder);
 
   /*!
    * \brief Create the action that runs one-step speculative draft proposal for
@@ -137,15 +136,13 @@ class EngineAction : public ObjectRef {
    * \param draft_token_workspace_manager The draft token workspace manager.
    * \param engine_config The engine config.
    * \param trace_recorder The event trace recorder for requests.
-   * \param draft_length The number of draft proposal rounds.
    * \return The created action object.
    */
   static EngineAction EagleBatchDraft(Array<Model> models, LogitProcessor logit_processor,
                                       Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                       DraftTokenWorkspaceManager draft_token_workspace_manager,
                                       EngineConfig engine_config,
-                                      Optional<EventTraceRecorder> trace_recorder,
-                                      int draft_length = 4);
+                                      Optional<EventTraceRecorder> trace_recorder);
 
   /*!
    * \brief Create the action that runs one-step speculative verification for requests in the
@@ -198,6 +195,18 @@ class EngineAction : public ObjectRef {
    */
   static EngineAction BatchJumpForward(Array<Model> models, Tokenizer tokenizer,
                                        Optional<EventTraceRecorder> trace_recorder);
+
+  /*!
+   * \brief Create the action that first makes a decision on whether to run speculative
+   * decoding or normal mode batch decode, and then runs the selected actions.
+   * \param spec_decode_actions The actions for speculative decoding.
+   * \param batch_decode_actions The actions for normal mode batch decoding.
+   * \param engine_config The engine config.
+   * \return The created action object
+   */
+  static EngineAction AutoSpecDecode(std::vector<EngineAction> spec_decode_actions,
+                                     std::vector<EngineAction> batch_decode_actions,
+                                     EngineConfig engine_config);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
 };

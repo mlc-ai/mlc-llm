@@ -26,17 +26,14 @@ class BatchDraftActionObj : public EngineActionObj {
                                std::vector<ModelWorkspace> model_workspaces,
                                DraftTokenWorkspaceManager draft_token_workspace_manager,
                                EngineConfig engine_config,
-                               Optional<EventTraceRecorder> trace_recorder, int draft_length)
+                               Optional<EventTraceRecorder> trace_recorder)
       : models_(std::move(models)),
         logit_processor_(std::move(logit_processor)),
         sampler_(std::move(sampler)),
         model_workspaces_(std::move(model_workspaces)),
         draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         engine_config_(std::move(engine_config)),
-        trace_recorder_(std::move(trace_recorder)),
-        draft_length_(draft_length) {
-    ICHECK_GT(draft_length_, 0);
-  }
+        trace_recorder_(std::move(trace_recorder)) {}
 
   Array<Request> Step(EngineState estate) final {
     // - Only run spec decode when there are two models (llm+ssm) and >=1 running requests.
@@ -87,6 +84,8 @@ class BatchDraftActionObj : public EngineActionObj {
       request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
     }
 
+    ICHECK_GT(estate->spec_draft_length, 0)
+        << "The speculative decoding draft length must be positive.";
     // The first model doesn't get involved in draft proposal.
     for (int model_id = 1; model_id < static_cast<int>(models_.size()); ++model_id) {
       // Collect
@@ -104,8 +103,8 @@ class BatchDraftActionObj : public EngineActionObj {
       for (const RequestStateEntry& rsentry : running_rsentries) {
         mstates.push_back(rsentry->mstates[model_id]);
       }
-      // draft_length_ rounds of draft proposal.
-      for (int draft_id = 0; draft_id < draft_length_; ++draft_id) {
+      // "Draft length" rounds of draft proposal.
+      for (int draft_id = 0; draft_id < estate->spec_draft_length; ++draft_id) {
         auto tdraft_start = std::chrono::high_resolution_clock::now();
         // prepare new input tokens
         input_tokens.clear();
@@ -119,8 +118,27 @@ class BatchDraftActionObj : public EngineActionObj {
         request_ids_per_leaf_node.clear();
         std::vector<int> draft_token_parent_idx;
         draft_token_indices.clear();
-        int num_leaf_nodes = 0;
+
+        if (draft_id == 0) {
+          // Compute the total length that needs to be processed by the draft model,
+          // including the lagging-behind part of hte draft model.
+          // When the total length to be processed is larger than the prefill chunk
+          // size, we must do the prefill with multiple rounds by chunk.
+          int total_length = 0;
+          for (int i = 0; i < num_rsentries; ++i) {
+            CHECK_LE(mstates[i]->committed_tokens.size(),
+                     running_rsentries[i]->mstates[0]->committed_tokens.size());
+            total_length += running_rsentries[i]->mstates[0]->committed_tokens.size() -
+                            mstates[i]->committed_tokens.size() + 1;
+          }
+          if (total_length > engine_config_->prefill_chunk_size) {
+            PrefillLaggedTokensByChunk(mstates, running_rsentries, models_[model_id],
+                                       total_length - engine_config_->prefill_chunk_size);
+          }
+        }
+
         for (int i = 0; i < num_rsentries; ++i) {
+          int num_leaf_nodes = 0;
           // Starting from last committed tokens
           if (draft_id == 0) {
             CHECK_LE(mstates[i]->committed_tokens.size(),
@@ -185,6 +203,7 @@ class BatchDraftActionObj : public EngineActionObj {
 
         // - Compute embeddings.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
+        ICHECK_LE(input_tokens.size(), engine_config_->prefill_chunk_size);
         ObjectRef embeddings =
             models_[model_id]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
@@ -208,6 +227,7 @@ class BatchDraftActionObj : public EngineActionObj {
           ICHECK_EQ(logits->shape[0], 1);
           ICHECK_EQ(logits->shape[1], num_rsentries);
         } else {
+          ICHECK_GT(engine_config_->spec_tree_width, 1);
           logits = models_[model_id]->BatchTreeDecode(embeddings, request_internal_ids,
                                                       input_lengths, token_tree_parent_ptr);
           ICHECK_EQ(logits->ndim, 3);
@@ -247,10 +267,13 @@ class BatchDraftActionObj : public EngineActionObj {
         draft_token_workspace_manager_->AllocSlots(cum_num_tokens.back(), &draft_token_slots_);
         models_[model_id]->ScatterDraftProbs(probs_on_device, draft_token_slots_,
                                              &model_workspaces_[0].draft_probs_storage);
-        ICHECK(sample_results.size() == cum_num_tokens.back());
         for (int i = 0; i < num_rsentries; ++i) {
           for (int j = cum_num_tokens[i]; j < cum_num_tokens[i + 1]; ++j) {
             int parent_idx = draft_token_parent_idx[j];
+            if (engine_config_->spec_tree_width == 1) {
+              mstates[i]->AddDraftToken(sample_results[j], draft_token_slots_[j], parent_idx);
+              continue;
+            }
             for (int k = 0; k < sample_results[j].top_prob_tokens.size(); ++k) {
               SampleResult top_k_token{sample_results[j].top_prob_tokens[k]};
               mstates[i]->AddDraftToken(top_k_token, draft_token_slots_[j], parent_idx);
@@ -284,6 +307,67 @@ class BatchDraftActionObj : public EngineActionObj {
     return true;
   }
 
+  void PrefillLaggedTokensByChunk(const Array<RequestModelState>& mstates,
+                                  const std::vector<RequestStateEntry>& running_rsentries,
+                                  Model model, int remaining_prefill_length) {
+    int num_rsentries = mstates.size();
+    std::vector<int> input_tokens;
+    std::vector<int64_t> request_internal_ids;
+    std::vector<int> lengths;
+    input_tokens.reserve(engine_config_->prefill_chunk_size);
+    request_internal_ids.reserve(num_rsentries);
+    lengths.reserve(num_rsentries);
+
+    auto f_run_prefill = [&model, &input_tokens, &request_internal_ids, &lengths]() {
+      ObjectRef embeddings =
+          model->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
+      model->BatchPrefill(embeddings, request_internal_ids, lengths);
+    };
+
+    for (int i = 0; i < num_rsentries; ++i) {
+      int prefill_length =
+          std::min({static_cast<int>(running_rsentries[i]->mstates[0]->committed_tokens.size() -
+                                     mstates[i]->committed_tokens.size()),
+                    static_cast<int>(engine_config_->prefill_chunk_size - input_tokens.size()),
+                    remaining_prefill_length});
+      if (prefill_length == 0) {
+        // This rsentry is done.
+        continue;
+      }
+
+      ICHECK(!mstates[i]->committed_tokens.empty());
+      for (size_t j = mstates[i]->committed_tokens.size();
+           j < running_rsentries[i]->mstates[0]->committed_tokens.size(); ++j) {
+        // Commit the lagging-behind tokens to the draft model.
+        mstates[i]->CommitToken(running_rsentries[i]->mstates[0]->committed_tokens[j - 1]);
+        input_tokens.push_back(
+            running_rsentries[i]->mstates[0]->committed_tokens[j - 1].GetTokenId());
+      }
+      lengths.push_back(prefill_length);
+      request_internal_ids.push_back(running_rsentries[i]->mstates[0]->internal_id);
+      mstates[i]->num_tokens_for_next_decode = 1;
+      remaining_prefill_length -= prefill_length;
+      if (remaining_prefill_length == 0) {
+        // All rsentries are done.
+        break;
+      }
+
+      if (input_tokens.size() == engine_config_->prefill_chunk_size) {
+        // Run prefill if the pending part total length reaches the prefill chunk size.
+        f_run_prefill();
+        input_tokens.clear();
+        request_internal_ids.clear();
+        lengths.clear();
+        --i;
+        continue;
+      }
+    }
+
+    if (!input_tokens.empty()) {
+      f_run_prefill();
+    }
+  }
+
   /*! \brief The model to run draft generation in speculative decoding. */
   Array<Model> models_;
   /*! \brief The logit processor. */
@@ -298,8 +382,6 @@ class BatchDraftActionObj : public EngineActionObj {
   EngineConfig engine_config_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
-  /*! \brief Draft proposal length */
-  int draft_length_;
   /*! \brief Temporary buffer to store the slots of the current draft tokens */
   std::vector<int> draft_token_slots_;
 };
@@ -308,12 +390,11 @@ EngineAction EngineAction::BatchDraft(Array<Model> models, LogitProcessor logit_
                                       Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                       DraftTokenWorkspaceManager draft_token_workspace_manager,
                                       EngineConfig engine_config,
-                                      Optional<EventTraceRecorder> trace_recorder,
-                                      int draft_length) {
+                                      Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(make_object<BatchDraftActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
-      std::move(engine_config), std::move(trace_recorder), draft_length));
+      std::move(engine_config), std::move(trace_recorder)));
 }
 
 }  // namespace serve

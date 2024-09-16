@@ -11,6 +11,106 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
+                                        std::vector<picojson::object> model_configs,
+                                        std::vector<ModelWorkspace> model_workspaces,
+                                        LogitProcessor logit_processor, Sampler sampler,
+                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                        Tokenizer tokenizer,
+                                        Optional<EventTraceRecorder> trace_recorder) {
+  if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
+    // Speculative decoding is only possible for more than one model.
+    ICHECK_GT(models.size(), 1U);
+    if (engine_config->speculative_mode == SpeculativeMode::kEagle) {
+      CHECK_GT(engine_config->spec_draft_length, 0)
+          << "The automatic spec decoding does not support Eagle mode as of now.";
+      return {EngineAction::EagleNewRequestPrefill(models,                         //
+                                                   logit_processor,                //
+                                                   sampler,                        //
+                                                   model_workspaces,               //
+                                                   draft_token_workspace_manager,  //
+                                                   engine_config,                  //
+                                                   model_configs,                  //
+                                                   trace_recorder),
+              EngineAction::EagleBatchDraft(models, logit_processor, sampler, model_workspaces,
+                                            draft_token_workspace_manager, engine_config,
+                                            trace_recorder),
+              EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
+                                             draft_token_workspace_manager, engine_config,
+                                             trace_recorder)};
+    }
+    if (engine_config->speculative_mode == SpeculativeMode::kMedusa) {
+      CHECK_GT(engine_config->spec_draft_length, 0)
+          << "The automatic spec decoding does not support Eagle mode as of now.";
+      return {EngineAction::EagleNewRequestPrefill(models,                         //
+                                                   logit_processor,                //
+                                                   sampler,                        //
+                                                   model_workspaces,               //
+                                                   draft_token_workspace_manager,  //
+                                                   engine_config,                  //
+                                                   model_configs,                  //
+                                                   trace_recorder),
+              EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
+                                             draft_token_workspace_manager, engine_config,
+                                             trace_recorder)};
+    }
+
+    // The "small draft" mode speculative decoding.
+    if (engine_config->spec_draft_length > 0) {
+      // If "engine_config->spec_draft_length" > 0, it means the draft length is
+      // configured to be a fixed value.
+      return {
+          EngineAction::NewRequestPrefill(models,            //
+                                          logit_processor,   //
+                                          sampler,           //
+                                          model_workspaces,  //
+                                          engine_config,     //
+                                          model_configs,     //
+                                          trace_recorder),
+          EngineAction::BatchDraft(models, logit_processor, sampler, model_workspaces,
+                                   draft_token_workspace_manager, engine_config, trace_recorder),
+          EngineAction::BatchVerify(models, logit_processor, sampler, model_workspaces,
+                                    draft_token_workspace_manager, engine_config, trace_recorder)};
+    } else {
+      // "engine_config->spec_draft_length" being 0 means we want to enable
+      // automatic speculative decoding, which decides the spec decoding draft length
+      // automatically.
+      return {EngineAction::NewRequestPrefill(models,            //
+                                              logit_processor,   //
+                                              sampler,           //
+                                              model_workspaces,  //
+                                              engine_config,     //
+                                              model_configs,     //
+                                              trace_recorder),
+              EngineAction::AutoSpecDecode(
+                  /*spec_decode_actions=*/{EngineAction::BatchDraft(models, logit_processor,
+                                                                    sampler, model_workspaces,
+                                                                    draft_token_workspace_manager,
+                                                                    engine_config, trace_recorder),
+                                           EngineAction::BatchVerify(
+                                               models, logit_processor, sampler, model_workspaces,
+                                               draft_token_workspace_manager, engine_config,
+                                               trace_recorder)},
+                  /*batch_decode_actions=*/
+                  {EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler,
+                                             engine_config, trace_recorder)},
+                  engine_config)};
+    }
+  }
+
+  // The normal mode.
+  return {EngineAction::NewRequestPrefill(models,            //
+                                          logit_processor,   //
+                                          sampler,           //
+                                          model_workspaces,  //
+                                          engine_config,     //
+                                          model_configs,     //
+                                          trace_recorder),
+          EngineAction::BatchJumpForward(models, tokenizer, trace_recorder),
+          EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler, engine_config,
+                                    trace_recorder)};
+}
+
 void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
                             const Array<Model>& models) {
   // Remove the request from all models (usually the KV cache).
@@ -215,6 +315,15 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
       mstate->RemoveAllDraftTokens(&draft_token_slots);
       draft_token_workspace_manager.value()->FreeSlots(draft_token_slots);
     }
+
+    // If the commited tokens of the current model lags behind the
+    // committed tokens of the main model (models[0]), we commit those
+    // new tokens to this model.
+    for (size_t i = mstate->committed_tokens.size();
+         i < rsentry->mstates[0]->committed_tokens.size(); ++i) {
+      mstate->CommitToken(rsentry->mstates[0]->committed_tokens[i]);
+    }
+
     std::vector<int32_t> committed_token_ids;
     committed_token_ids.reserve(mstate->committed_tokens.size());
     for (const SampleResult& committed_token : mstate->committed_tokens) {

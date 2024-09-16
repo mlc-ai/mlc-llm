@@ -388,7 +388,6 @@ class EngineImpl : public Engine {
     int max_num_tokens = engine_config->max_num_sequence;
     DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-      max_num_tokens *= engine_config->spec_draft_length + 1;
       // multiply max num_tokens by two so we can do ping-pong swaping during draft/verify process
       draft_token_workspace_manager =
           n->models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens * 2);
@@ -402,67 +401,11 @@ class EngineImpl : public Engine {
         max_num_tokens, static_cast<int>(n->models_.size()), trace_recorder);
     // - Initialize engine actions that represent state transitions.
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-      // Speculative decoding is only possible for more than one model.
-      ICHECK_GT(n->models_.size(), 1U);
-      switch (engine_config->speculative_mode) {
-        case SpeculativeMode::kEagle:
-          n->actions_ = {EngineAction::EagleNewRequestPrefill(n->models_,                     //
-                                                              logit_processor,                //
-                                                              sampler,                        //
-                                                              n->model_workspaces_,           //
-                                                              draft_token_workspace_manager,  //
-                                                              engine_config,                  //
-                                                              model_configs,                  //
-                                                              n->trace_recorder_),
-                         EngineAction::EagleBatchDraft(
-                             n->models_, logit_processor, sampler, n->model_workspaces_,
-                             draft_token_workspace_manager, engine_config, n->trace_recorder_,
-                             engine_config->spec_draft_length),
-                         EngineAction::EagleBatchVerify(
-                             n->models_, logit_processor, sampler, n->model_workspaces_,
-                             draft_token_workspace_manager, engine_config, n->trace_recorder_)};
-          break;
-        case SpeculativeMode::kMedusa:
-          n->actions_ = {EngineAction::EagleNewRequestPrefill(n->models_,                     //
-                                                              logit_processor,                //
-                                                              sampler,                        //
-                                                              n->model_workspaces_,           //
-                                                              draft_token_workspace_manager,  //
-                                                              engine_config,                  //
-                                                              model_configs,                  //
-                                                              n->trace_recorder_),
-                         EngineAction::EagleBatchVerify(
-                             n->models_, logit_processor, sampler, n->model_workspaces_,
-                             draft_token_workspace_manager, engine_config, n->trace_recorder_)};
-          break;
-        default:
-          n->actions_ = {
-              EngineAction::NewRequestPrefill(n->models_,            //
-                                              logit_processor,       //
-                                              sampler,               //
-                                              n->model_workspaces_,  //
-                                              engine_config,         //
-                                              model_configs,         //
-                                              n->trace_recorder_),
-              EngineAction::BatchDraft(n->models_, logit_processor, sampler, n->model_workspaces_,
-                                       draft_token_workspace_manager, engine_config,
-                                       n->trace_recorder_, engine_config->spec_draft_length),
-              EngineAction::BatchVerify(n->models_, logit_processor, sampler, n->model_workspaces_,
-                                        draft_token_workspace_manager, engine_config,
-                                        n->trace_recorder_)};
-      }
-    } else {
-      n->actions_ = {EngineAction::NewRequestPrefill(n->models_,            //
-                                                     logit_processor,       //
-                                                     sampler,               //
-                                                     n->model_workspaces_,  //
-                                                     engine_config,         //
-                                                     model_configs,         //
-                                                     n->trace_recorder_),
-                     EngineAction::BatchJumpForward(n->models_, n->tokenizer_, n->trace_recorder_),
-                     EngineAction::BatchDecode(n->models_, n->tokenizer_, logit_processor, sampler,
-                                               engine_config, n->trace_recorder_)};
+      n->estate_->spec_draft_length = engine_config->spec_draft_length;
     }
+    n->actions_ = CreateEngineActions(
+        n->models_, engine_config, model_configs, n->model_workspaces_, logit_processor, sampler,
+        draft_token_workspace_manager, n->tokenizer_, n->trace_recorder_);
     // - Automatically set the threading backend max concurrency.
     n->engine_config_ = engine_config;
     n->SetThreadMaxConcurrency();

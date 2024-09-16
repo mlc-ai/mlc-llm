@@ -277,7 +277,7 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
   // No exceeding of the maximum allowed requests that can
   // run simultaneously.
   int spec_factor = engine_config_->speculative_mode != SpeculativeMode::kDisable
-                        ? (engine_config_->spec_draft_length + 1)
+                        ? (estate->spec_draft_length + 1)
                         : 1;
   if ((num_running_rsentries + num_prefill_rsentries) * spec_factor >
       std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
