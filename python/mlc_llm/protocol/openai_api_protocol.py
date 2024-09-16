@@ -46,6 +46,13 @@ class LogProbs(BaseModel):
     content: List[LogProbsContent]
 
 
+class CompletionLogProbs(BaseModel):
+    text_offset: Optional[List[int]]
+    token_logprobs: List[float]
+    tokens: List[str]
+    top_logprobs: List[Dict[str, float]]
+
+
 class CompletionUsage(BaseModel):
     prompt_tokens: int
     completion_tokens: int
@@ -148,7 +155,7 @@ class CompletionRequest(BaseModel):
 class CompletionResponseChoice(BaseModel):
     finish_reason: Optional[Literal["stop", "length"]] = None
     index: int = 0
-    logprobs: Optional[LogProbs] = None
+    logprobs: Optional[CompletionLogProbs] = None
     text: str
 
 
