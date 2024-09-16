@@ -96,8 +96,7 @@ class CompletionRequest(BaseModel):
     echo: bool = False
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
-    logprobs: bool = False
-    top_logprobs: int = 0
+    logprobs: Optional[int] = None
     logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
@@ -139,10 +138,10 @@ class CompletionRequest(BaseModel):
     @model_validator(mode="after")
     def check_logprobs(self) -> "CompletionRequest":
         """Check if the logprobs requirements are valid."""
-        if self.top_logprobs < 0 or self.top_logprobs > COMPLETION_MAX_TOP_LOGPROBS:
-            raise ValueError(f'"top_logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}')
-        if not self.logprobs and self.top_logprobs > 0:
-            raise ValueError('"logprobs" must be True to support "top_logprobs"')
+        if self.logprobs is not None and (
+            self.logprobs < 0 or self.logprobs > COMPLETION_MAX_TOP_LOGPROBS
+        ):
+            raise ValueError(f'"logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}]')
         return self
 
 
