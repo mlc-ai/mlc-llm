@@ -255,8 +255,9 @@ class Phi3VForCausalLM(nn.Module):
 
         global_image = op.permute_dims(global_image, axes=(0, 3, 1, 2))
         n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
+        assert isinstance(h, tir.Mul) and isinstance(h.b, tir.IntImm) and h.b.value == 336
         pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
-        pixel_values = op.reshape(pixel_values, shape=(1, 3, h // 336, 336, w // 336, 336))
+        pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
         pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))
         combined_image = op.concat([pixel_values, global_image], dim=0)

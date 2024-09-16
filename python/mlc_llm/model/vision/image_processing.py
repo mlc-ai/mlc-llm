@@ -206,19 +206,17 @@ class ImageProcessor(Module):
 
             return pad_func
 
-        def cal_pad_num(image):
-            h = image.shape[1]
-            tar = tir.generic.cast(tir.ceildiv(h, 336) * 336, "int64")
-            t = tir.generic.cast(tir.div(tar - h, 2), "int64")
-            b = tar - h - t
-            return 0, t, 0, b
+        h = image.shape[1]
+        tar = tir.truncdiv(h + 335, 336) * 336
+        t = tir.div(tar - h, 2)
+        b = tar - h - t
 
         n, h, w, c = image.shape
-        l, t, r, b = cal_pad_num(image)
+        l, t, r, b = 0, t, 0, b
         out = op.tensor_ir_op(
             create_pad_func(l, r),
             "pad",
             [image, t, b],
-            [Tensor.placeholder((n, h + t + b, w + l + r, c), image.dtype)],
+            [Tensor.placeholder((n, tar, w, c), image.dtype)],
         )
         return out
