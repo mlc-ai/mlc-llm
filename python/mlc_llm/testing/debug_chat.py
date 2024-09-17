@@ -41,11 +41,15 @@ def _load_params(
 
 
 def _get_tvm_module(
-    model_weight_path: str, lib_path: str, device: Device, instrument: tvm.runtime.PackedFunc
+    model_weight_path: str,
+    lib_path: str,
+    device: Device,
+    instrument: Union[tvm.runtime.PackedFunc, None],
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
-    # vm.set_instrument(instrument)
+    if instrument is not None:
+        vm.set_instrument(instrument)
     metadata = _extract_metadata(ex)
     params = _load_params(model_weight_path, device, metadata)
     return vm.module, params, metadata
@@ -152,6 +156,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         device: Optional[str] = "auto",
         debug_instrument: Optional[Any] = None,
         is_image_model: Optional[bool] = False,
+        disable_instrument: Optional[bool] = False,
     ):
         """_summary_
 
@@ -201,12 +206,24 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             - before_run: whether it is before or after call.
             - ret_value: the return value of the call, only valid after run.
             - args: the arguments being passed to call.
+
+        is_image_model: Optional[bool]
+            Whether the model support image input. If so, will look for image embedding method.
+            Default to False.
+
+        disable_instrument: Optional[bool]
+            If true, will not use debug instrument for faster generation. Default to False.
         """
         self.debug_dir = debug_dir
         self.device = detect_device(device)
-        self.instrument = (
-            debug_instrument if debug_instrument else DefaultDebugInstrument(debug_dir / "prefill")
-        )
+        if disable_instrument:
+            self.instrument = None
+        else:
+            self.instrument = (
+                debug_instrument
+                if debug_instrument
+                else DefaultDebugInstrument(debug_dir / "prefill")
+            )
         self.mod, self.params, self.metadata = _get_tvm_module(
             model, model_lib, self.device, self.instrument
         )
@@ -307,13 +324,14 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
                 # Process token data
                 data_input = tvm.nd.array(np.array(data_input).astype("int32"), device=self.device)
                 embeddings.append(self.embed_func(data_input, self.params).asnumpy())
-        for embedding in embeddings:
-            print(f"embedding.shape: {embedding.shape}")
+        # for embedding in embeddings:
+        #     print(f"embedding.shape: {embedding.shape}")
 
         # Concatenate
         concat_embeddings = tvm.nd.array(np.concatenate(embeddings, axis=0), device=self.device)
         concat_embeddings = self.nd_view_func(
-            concat_embeddings, ShapeTuple([1, concat_embeddings.shape[0], embedding.shape[1]])
+            concat_embeddings,
+            ShapeTuple([1, concat_embeddings.shape[0], concat_embeddings.shape[1]]),
         )
         input_len = concat_embeddings.shape[1]
 
@@ -394,7 +412,8 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             self._apply_presence_and_freq_penalty(logits_np, presence_penalty, frequency_penalty)
 
         logits_np = self._softmax_with_temperature(logits_np, temperature)
-        np.savez(self.instrument.debug_out / "logits.npz", logits_np)
+        if self.instrument is not None:
+            np.savez(self.instrument.debug_out / "logits.npz", logits_np)
 
         logits = logits.copyfrom(logits_np)
         next_token = self.sample_topp_from_prob_func(logits, top_p, random.random())
@@ -426,17 +445,20 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         logits, kv_caches = self._prefill(embedding, input_len)
         next_token = self._sample_token_from_logits(logits)
         out_tokens.append(next_token)
-        path_str = (self.debug_dir / "prefill").as_posix()
-        print(f"Debug instrument output dumped to {green(path_str)}")
+        if self.instrument is not None:
+            path_str = (self.debug_dir / "prefill").as_posix()
+            print(f"Debug instrument output dumped to {green(path_str)}")
 
         print("======================= Starts Decode =======================")
         for i in range(generate_length - 1):
-            self.instrument.reset(self.debug_dir / f"decode_{i}")
+            if self.instrument is not None:
+                self.instrument.reset(self.debug_dir / f"decode_{i}")
             logits = self._decode(next_token, kv_caches)
             next_token = self._sample_token_from_logits(logits)
             out_tokens.append(next_token)
-            path_str = (self.debug_dir / f"decode_{i}").as_posix()
-            print(f"Debug instrument output dumped to {green(path_str)}")
+            if self.instrument is not None:
+                path_str = (self.debug_dir / f"decode_{i}").as_posix()
+                print(f"Debug instrument output dumped to {green(path_str)}")
 
             if next_token in self.conversation.stop_token_ids:
                 break
@@ -489,6 +511,14 @@ def main():
         required=False,
         help="Image to prefill into the model, can only be set for image models",
     )
+    parser.add_argument(
+        "--disable-instrument",
+        action="store_true",
+        help=(
+            "Disable dumping customizable detailed information of kernel input "
+            + "and output, hence making generation faster."
+        ),
+    )
     parsed = parser.parse_args()
     dc = DebugChat(
         model=parsed.model,
@@ -496,6 +526,7 @@ def main():
         debug_dir=Path(parsed.debug_dir),
         device=parsed.device,
         is_image_model=parsed.image_url is not None,
+        disable_instrument=parsed.disable_instrument,
     )
 
     dc.generate(parsed.prompt, parsed.generate_len, parsed.image_url)
