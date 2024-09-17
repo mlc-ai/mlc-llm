@@ -513,7 +513,7 @@ supported endpoints.</p>
 <li><p><strong>frequency_penalty</strong> (<em>float</em>, optional, default=0.0): Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat tokens.</p></li>
 <li><p><strong>presence_penalty</strong> (<em>float</em>, optional, default=0.0): Positive values penalize new tokens if they are already present in the text so far, decreasing the model’s likelihood to repeat tokens.</p></li>
 <li><p><strong>logprobs</strong> (<em>bool</em>, optional, default=False): Indicates whether to include log probabilities for each token in the response.</p></li>
-<li><p><strong>top_logprobs</strong> (<em>int</em>, optional, default=0): An integer ranging from 0 to 5. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, ‘logprobs’ must be set to true.</p></li>
+<li><p><strong>top_logprobs</strong> (<em>int</em>, optional, default=0): An integer ranging from 0 to 20. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, ‘logprobs’ must be set to true.</p></li>
 <li><p><strong>logit_bias</strong> (<em>Optional[Dict[int, float]]</em>): Allows specifying biases for or against specific tokens during generation.</p></li>
 <li><p><strong>max_tokens</strong> (<em>Optional[int]</em>): The maximum number of tokens to generate in the response(s).</p></li>
 <li><p><strong>n</strong> (<em>int</em>, optional, default=1): Number of responses to generate for the given prompt.</p></li>
