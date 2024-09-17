@@ -138,8 +138,8 @@ Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   if (cfg->repetition_penalty <= 0) {
     return TResult::Error("\"repetition_penalty\" must be positive");
   }
-  if (cfg->top_logprobs < 0 || cfg->top_logprobs > 5) {
-    return TResult::Error("At most 5 top logprob tokens are supported");
+  if (cfg->top_logprobs < 0 || cfg->top_logprobs > 20) {
+    return TResult::Error("At most 20 top logprob tokens are supported");
   }
   if (cfg->top_logprobs != 0 && !(cfg->logprobs)) {
     return TResult::Error("\"logprobs\" must be true to support \"top_logprobs\"");
