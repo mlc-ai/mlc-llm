@@ -5,6 +5,7 @@ import random
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import requests
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 import mlc_llm
@@ -105,6 +106,15 @@ def run_pipeline(
     return report
 
 
+def query_mlc_server_metrics(host: str, port: int):
+    """Try to get the MLC server metrics whenever it exists."""
+    try:
+        r = requests.post(f"http://{host}:{port}/debug/dump_engine_metrics", json={}, timeout=10)
+        print(f"MLC server metrics: {r.json()}")
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+
 def main(args: argparse.argparse.Namespace):
     """Main benchmark entrance."""
     mlc_server = None
@@ -123,6 +133,7 @@ def main(args: argparse.argparse.Namespace):
             report = run_pipeline(pipeline, dataset, tokenizer, args)
             reports.append(report)
             pretty_print_report(report)
+        query_mlc_server_metrics(args.host, args.port)
 
         # Construct data frame
         df = convert_reports_to_df(reports)
