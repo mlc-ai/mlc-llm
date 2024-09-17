@@ -94,17 +94,13 @@ async def debug_dump_engine_metrics(request: fastapi.Request):
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
         )
-    if "model" not in request_dict:
-        return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f"Invalid request {request_json_str}"
-        )
 
     # Check the requested model.
-    model = request_dict["model"]
+    model = request_dict.get("model", None)
 
     server_context: ServerContext = ServerContext.current()
     async_engine = server_context.get_engine(model)
-    res = async_engine.metrics()
+    res = await async_engine.metrics()
     return res
 
 
