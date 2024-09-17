@@ -219,7 +219,7 @@ The REST API provides the following endpoints:
 
 - **logprobs** (*bool*, optional, default=False): Indicates whether to include log probabilities for each token in the response.
 
-- **top_logprobs** (*int*, optional, default=0): An integer ranging from 0 to 5. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, 'logprobs' must be set to true.
+- **top_logprobs** (*int*, optional, default=0): An integer ranging from 0 to 20. It determines the number of tokens, most likely to appear at each position, to be returned. Each token is accompanied by a log probability. If this parameter is used, 'logprobs' must be set to true.
 
 - **logit_bias** (*Optional[Dict[int, float]]*): Allows specifying biases for or against specific tokens during generation.
 
