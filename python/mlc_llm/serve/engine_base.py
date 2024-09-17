@@ -960,6 +960,43 @@ def process_completion_request(  # pylint: disable=too-many-arguments
     return prompt, generation_cfg, prompt_length, echo_response
 
 
+def get_logprobs_from_delta(
+    delta_logprob_json_strs: List[str],
+) -> openai_api_protocol.CompletionLogProbs:
+    """Convert json strings containing logprobs information to
+    completion response format (OpenAI API compatible)
+
+    Parameters
+    ----------
+    delta_logprob_json_strs : List[str]
+        Logprobs information packed in json strings and
+        kept in the delta outputs of a request.
+
+    Returns
+    -------
+    logprobs : openai_api_protocol.CompletionLogProbs
+        Logprobs information extracted from json string and converted to completion response format
+    """
+    token_logprobs = []
+    tokens = []
+    top_logprobs = []
+    for logprob_json_str in delta_logprob_json_strs:
+        content = openai_api_protocol.LogProbsContent.model_validate_json(logprob_json_str)
+        tokens.append(content.token)
+        token_logprobs.append(content.logprob)
+        top_logprob_dict = {}
+        for top_logprob in content.top_logprobs:
+            top_logprob_dict[top_logprob.token] = top_logprob.logprob
+        top_logprobs.append(top_logprob_dict)
+    return openai_api_protocol.CompletionLogProbs(
+        # TODO(vvchernov): support text_offset
+        text_offset=None,
+        token_logprobs=token_logprobs,
+        tokens=tokens,
+        top_logprobs=top_logprobs,
+    )
+
+
 def process_completion_stream_output(  # pylint: disable=too-many-arguments
     delta_outputs: List[CallbackStreamOutput],
     request: openai_api_protocol.CompletionRequest,
@@ -1033,24 +1070,7 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
             continue
 
         if delta_output.delta_logprob_json_strs is not None:
-            token_logprobs = []
-            tokens = []
-            top_logprobs = []
-            for logprob_json_str in delta_output.delta_logprob_json_strs:
-                content = openai_api_protocol.LogProbsContent.model_validate_json(logprob_json_str)
-                tokens.append(content.token)
-                token_logprobs.append(content.logprob)
-                top_logprob_dict = {}
-                for top_logprob in content.top_logprobs:
-                    top_logprob_dict[top_logprob.token] = top_logprob.logprob
-                top_logprobs.append(top_logprob_dict)
-            logprobs = openai_api_protocol.CompletionLogProbs(
-                # TODO(vvchernov): support text_offset
-                text_offset=None,
-                token_logprobs=token_logprobs,
-                tokens=tokens,
-                top_logprobs=top_logprobs,
-            )
+            logprobs = get_logprobs_from_delta(delta_output.delta_logprob_json_strs)
         else:
             logprobs = None
         choices.append(
