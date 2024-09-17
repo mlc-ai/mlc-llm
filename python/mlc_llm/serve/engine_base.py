@@ -1037,9 +1037,7 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
             tokens = []
             top_logprobs = []
             for logprob_json_str in delta_output.delta_logprob_json_strs:
-                content = openai_api_protocol.LogProbsContent.model_validate_json(
-                    logprob_json_str
-                )
+                content = openai_api_protocol.LogProbsContent.model_validate_json(logprob_json_str)
                 tokens.append(content.token)
                 token_logprobs.append(content.logprob)
                 top_logprob_dict = {}
