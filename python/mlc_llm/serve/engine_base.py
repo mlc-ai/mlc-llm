@@ -1032,23 +1032,35 @@ def process_completion_stream_output(  # pylint: disable=too-many-arguments
             # Ignore empty delta text when finish reason is not updated.
             continue
 
+        if delta_output.delta_logprob_json_strs is not None:
+            token_logprobs = []
+            tokens = []
+            top_logprobs = []
+            for logprob_json_str in delta_output.delta_logprob_json_strs:
+                content = openai_api_protocol.LogProbsContent.model_validate_json(
+                    logprob_json_str
+                )
+                tokens.append(content.token)
+                token_logprobs.append(content.logprob)
+                top_logprob_dict = {}
+                for top_logprob in content.top_logprobs:
+                    top_logprob_dict[top_logprob.token] = top_logprob.logprob
+                top_logprobs.append(top_logprob_dict)
+            logprobs = openai_api_protocol.CompletionLogProbs(
+                # TODO(vvchernov): support text_offset
+                text_offset=None,
+                token_logprobs=token_logprobs,
+                tokens=tokens,
+                top_logprobs=top_logprobs,
+            )
+        else:
+            logprobs = None
         choices.append(
             openai_api_protocol.CompletionResponseChoice(
                 index=i,
                 finish_reason=finish_reasons[i],
                 text=delta_output.delta_text,
-                logprobs=(
-                    openai_api_protocol.LogProbs(
-                        content=[
-                            openai_api_protocol.LogProbsContent.model_validate_json(
-                                logprob_json_str
-                            )
-                            for logprob_json_str in delta_output.delta_logprob_json_strs
-                        ]
-                    )
-                    if delta_output.delta_logprob_json_strs is not None
-                    else None
-                ),
+                logprobs=logprobs,
             )
         )
 
@@ -1218,7 +1230,7 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
     model: str,
     output_texts: List[str],
     finish_reasons: List[str],
-    logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]],
+    logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]],
     usage: openai_api_protocol.CompletionUsage,
 ) -> openai_api_protocol.CompletionResponse:
     """Wrap the non-streaming completion results to CompletionResponse instance."""
@@ -1229,11 +1241,7 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
                 index=i,
                 finish_reason=finish_reason,
                 text=output_text,
-                logprobs=(
-                    openai_api_protocol.LogProbs(content=logprob_results[i])
-                    if logprob_results is not None
-                    else None
-                ),
+                logprobs=logprob_results[i],
             )
             for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
         ],

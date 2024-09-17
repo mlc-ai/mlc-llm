@@ -47,6 +47,8 @@ class LogProbs(BaseModel):
 
 
 class CompletionLogProbs(BaseModel):
+    # The position of the token in the concatenated str: prompt + completion_text
+    # TODO(vvchernov): skip optional after support
     text_offset: Optional[List[int]]
     token_logprobs: List[float]
     tokens: List[str]
