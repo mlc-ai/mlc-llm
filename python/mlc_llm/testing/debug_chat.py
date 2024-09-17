@@ -4,7 +4,7 @@
 import json
 import random
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tvm
@@ -16,7 +16,7 @@ from tvm.runtime.relax_vm import VirtualMachine
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
-from mlc_llm.serve import engine_utils
+from mlc_llm.serve import data, engine_utils
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green, red
@@ -45,7 +45,7 @@ def _get_tvm_module(
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
-    vm.set_instrument(instrument)
+    # vm.set_instrument(instrument)
     metadata = _extract_metadata(ex)
     params = _load_params(model_weight_path, device, metadata)
     return vm.module, params, metadata
@@ -151,6 +151,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         debug_dir: Path,
         device: Optional[str] = "auto",
         debug_instrument: Optional[Any] = None,
+        is_image_model: Optional[bool] = False,
     ):
         """_summary_
 
@@ -234,6 +235,14 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         except AttributeError as exc:
             raise RuntimeError("DebugChat only supports separate embedding layer") from exc
 
+        if is_image_model:
+            try:
+                self.embed_image_func = self.mod["image_embed"]
+            except AttributeError as exc:
+                raise RuntimeError(
+                    "Expect the model to be an image model, but cannot find `image_embed`."
+                ) from exc
+
         self.prefill_func = self.mod["prefill"]
         self.decode_func = self.mod["decode"]
         self.create_kv_cache_func = None
@@ -247,11 +256,25 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
         self.appeared_token_freq: Dict[int, int] = {}
 
-    def _tokenize(self, prompt: str) -> tvm.nd.array:
+    def _preprocess_prompts(
+        self, prompt: str, image_url: Optional[str] = None
+    ) -> List[Union[List[int], data.ImageData]]:
         print("======================= Starts Tokenization & Embedding =======================")
         # Step 0. Generate prompt string using conversation template
-        self.conversation.messages.append(("user", prompt))
+        if image_url is None:
+            self.conversation.messages.append(("user", prompt))
+        else:
+            self.conversation.messages.append(
+                (
+                    "user",
+                    [
+                        {"type": "image_url", "image_url": image_url},
+                        {"type": "text", "text": prompt},
+                    ],
+                )
+            )
         self.conversation.messages.append(("assistant", None))
+
         with open(self.config_file_path, "r", encoding="utf-8") as file:
             config = json.load(file)
         parsed_prompt = self.conversation.as_prompt(config)
@@ -261,19 +284,40 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         )
         tokens = engine_utils.process_prompts(parsed_prompt, self.tokenizer.encode)  # type: ignore
 
-        # TODO: Handle ImageData in DebugChat # pylint: disable=fixme
-        assert len(tokens) == 1, "DebugChat will only handle TextData for now"
         if self.conversation.system_prefix_token_ids is not None:
             tokens[0] = self.conversation.system_prefix_token_ids + tokens[0]
 
-        tokens = tvm.nd.array(np.array(tokens[0]).astype("int32"), device=self.device)
         return tokens
 
-    def _embed(self, tokens: tvm.nd.array) -> Tuple[tvm.nd.NDArray, int]:
-        input_len = tokens.shape[0]
-        embedding = self.embed_func(tokens, self.params)
-        embedding = self.nd_view_func(embedding, ShapeTuple([1, input_len, embedding.shape[1]]))
-        return embedding, input_len
+    def _embed(
+        self, data_inputs: List[Union[List[int], data.ImageData]]
+    ) -> Tuple[tvm.nd.NDArray, int]:
+        # We currently convert to numpy after embedded, concat in numpy, then convert back to
+        # tvm ndarray; could be more optimized; but may suffice for debug purposes.
+        embeddings = []
+        for data_input in data_inputs:
+            if isinstance(data_input, data.ImageData):
+                # Process image data
+                # print(f"data_input.get_embed_size(): {data_input.embed_size}")
+                image_input = data_input.image
+                if data_input.image.device != self.device:
+                    image_input = data_input.image.copyto(self.device)
+                embeddings.append(self.embed_image_func(image_input, self.params).asnumpy())
+            else:
+                # Process token data
+                data_input = tvm.nd.array(np.array(data_input).astype("int32"), device=self.device)
+                embeddings.append(self.embed_func(data_input, self.params).asnumpy())
+        for embedding in embeddings:
+            print(f"embedding.shape: {embedding.shape}")
+
+        # Concatenate
+        concat_embeddings = tvm.nd.array(np.concatenate(embeddings, axis=0), device=self.device)
+        concat_embeddings = self.nd_view_func(
+            concat_embeddings, ShapeTuple([1, concat_embeddings.shape[0], embedding.shape[1]])
+        )
+        input_len = concat_embeddings.shape[1]
+
+        return concat_embeddings, input_len
 
     def _prefill(self, embedding: tvm.nd.NDArray, input_len: int):
         print("======================= Starts Prefill =======================")
@@ -314,9 +358,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         return logits, kv_caches
 
     def _decode(self, token: int, kv_caches: Object):
-        embedding, _ = self._embed(
-            tvm.nd.array(np.array([token]).astype("int32"), device=self.device)
-        )
+        embedding, _ = self._embed([[token]])
         self.begin_forward_func(kv_caches, ShapeTuple([0]), ShapeTuple([1]))
         logits, kv_caches = self.decode_func(embedding, kv_caches, self.params)
         self.end_forward_func(kv_caches)
@@ -362,6 +404,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         self,
         prompt: str,
         generate_length: int,
+        image_url: Optional[str] = None,
     ):
         """Generates the response from the model given a user prompt. User will need to
         specify the generation length for debugging purpose. For example, a generation
@@ -377,9 +420,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         """
         out_tokens = []
 
-        input_tokens = self._tokenize(prompt)
-        print(f"{green('Input tokens')}: {input_tokens.numpy()}")
-        embedding, input_len = self._embed(input_tokens)
+        data_inputs = self._preprocess_prompts(prompt, image_url)
+        print(f"{green('Data inputs: ')}: {data_inputs}")
+        embedding, input_len = self._embed(data_inputs)
         logits, kv_caches = self._prefill(embedding, input_len)
         next_token = self._sample_token_from_logits(logits)
         out_tokens.append(next_token)
@@ -440,15 +483,22 @@ def main():
         default="auto",
         help=HELP["device_compile"] + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--image-url",
+        type=str,
+        required=False,
+        help="Image to prefill into the model, can only be set for image models",
+    )
     parsed = parser.parse_args()
     dc = DebugChat(
         model=parsed.model,
         model_lib=parsed.model_lib,
         debug_dir=Path(parsed.debug_dir),
         device=parsed.device,
+        is_image_model=parsed.image_url is not None,
     )
 
-    dc.generate(parsed.prompt, parsed.generate_len)
+    dc.generate(parsed.prompt, parsed.generate_len, parsed.image_url)
 
 
 if __name__ == "__main__":
