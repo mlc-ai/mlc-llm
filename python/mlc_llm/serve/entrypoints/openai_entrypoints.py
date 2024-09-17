@@ -9,6 +9,7 @@ import fastapi
 from mlc_llm.protocol import error_protocol
 from mlc_llm.protocol.openai_api_protocol import (
     ChatCompletionRequest,
+    CompletionLogProbs,
     CompletionRequest,
     ListResponse,
     LogProbsContent,
@@ -80,11 +81,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 
     # Normal response.
     request_final_usage = None
-    output_texts = ["" for _ in range(request.n)]
-    finish_reasons: List[Optional[str]] = [None for _ in range(request.n)]
-    logprob_results: Optional[List[List[LogProbsContent]]] = (
-        [[] for _ in range(request.n)] if request.logprobs else None
-    )
+    output_texts = [""] * request.n
+    finish_reasons: List[Optional[str]] = [None] * request.n
+    logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
 
     async for response in async_engine._handle_completion(  # pylint: disable=protected-access
         request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
@@ -110,8 +109,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
-                assert logprob_results is not None
-                logprob_results[choice.index] += choice.logprobs.content
+                logprob_results[choice.index] = choice.logprobs
 
     assert all(finish_reason is not None for finish_reason in finish_reasons)
     return engine_base.wrap_completion_response(

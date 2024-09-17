@@ -30,6 +30,11 @@ import requests
 from openai import OpenAI
 from pydantic import BaseModel
 
+from mlc_llm.protocol.openai_api_protocol import (
+    CHAT_COMPLETION_MAX_TOP_LOGPROBS,
+    COMPLETION_MAX_TOP_LOGPROBS,
+)
+
 OPENAI_BASE_URL = "http://127.0.0.1:8000/v1"
 OPENAI_V1_MODELS_URL = "http://127.0.0.1:8000/v1/models"
 OPENAI_V1_COMPLETION_URL = "http://127.0.0.1:8000/v1/completions"
@@ -813,8 +818,33 @@ def test_openai_v1_completions_invalid_logprobs(
         "prompt": "What is the meaning of life?",
         "max_tokens": 256,
         "stream": stream,
+        "logprobs": COMPLETION_MAX_TOP_LOGPROBS + 1,
+    }
+
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.json()["detail"][0]["msg"].endswith(
+        f'"top_logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}]'
+    )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_openai_v1_chat_completions_invalid_logprobs(
+    served_model: Tuple[str, str],
+    launch_server,  # pylint: disable=unused-argument
+    stream: bool,
+):
+    # `served_model` and `launch_server` are pytest fixtures
+    # defined in conftest.py.
+
+    payload = {
+        "model": served_model[0],
+        "messages": [{"role": "user", "content": "Hello! Our project is MLC LLM."}],
+        "max_tokens": 256,
+        "stream": stream,
         "logprobs": False,
-        "top_logprobs": 4,
+        "top_logprobs": CHAT_COMPLETION_MAX_TOP_LOGPROBS - 1,
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
@@ -824,12 +854,14 @@ def test_openai_v1_completions_invalid_logprobs(
     )
 
     payload["logprobs"] = True
-    payload["top_logprobs"] = 6
+    payload["top_logprobs"] = CHAT_COMPLETION_MAX_TOP_LOGPROBS + 1
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()["detail"][0]["msg"].endswith('"top_logprobs" must be in range [0, 5]')
+    assert response.json()["detail"][0]["msg"].endswith(
+        f'"top_logprobs" must be in range [0, {CHAT_COMPLETION_MAX_TOP_LOGPROBS}]'
+    )
 
 
 def test_openai_v1_completions_unsupported_args(

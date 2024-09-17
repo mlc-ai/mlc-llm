@@ -465,8 +465,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -520,8 +519,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -573,8 +571,7 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -620,7 +617,6 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
             logprobs=logprobs,
-            top_logprobs=top_logprobs,
             logit_bias=logit_bias,
             max_tokens=max_tokens,
             n=n,
@@ -664,8 +660,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -719,8 +714,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -772,8 +766,7 @@ class Completion:  # pylint: disable=too-few-public-methods
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -819,7 +812,6 @@ class Completion:  # pylint: disable=too-few-public-methods
             frequency_penalty=frequency_penalty,
             presence_penalty=presence_penalty,
             logprobs=logprobs,
-            top_logprobs=top_logprobs,
             logit_bias=logit_bias,
             max_tokens=max_tokens,
             n=n,
@@ -1087,8 +1079,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -1136,7 +1127,6 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
                 logprobs=logprobs,
-                top_logprobs=top_logprobs,
                 logit_bias=logit_bias,
                 max_tokens=max_tokens,
                 n=n,
@@ -1171,11 +1161,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             return cmpl_generator
         # Normal response.
         request_final_usage = None
-        output_texts = ["" for _ in range(n)]
-        finish_reasons: List[Optional[str]] = [None for _ in range(n)]
-        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (
-            [[] for _ in range(n)] if logprobs else None
-        )
+        output_texts = [""] * n
+        finish_reasons: List[Optional[str]] = [None] * n
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
 
         async for response in cmpl_generator:
             # this is the final chunk
@@ -1187,10 +1175,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
-                    assert logprob_results is not None
-                    logprob_results[  # pylint: disable=unsupported-assignment-operation
-                        choice.index
-                    ] += choice.logprobs.content
+                    logprob_results[choice.index] = choice.logprobs
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
 
@@ -1304,7 +1289,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         if echo_response is not None:
             yield echo_response
 
-        finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
+        finish_reasons: List[Optional[str]] = [None] * generation_cfg.n
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
@@ -1655,8 +1640,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         echo: bool = False,
         frequency_penalty: Optional[float] = None,
         presence_penalty: Optional[float] = None,
-        logprobs: bool = False,
-        top_logprobs: int = 0,
+        logprobs: Optional[int] = None,
         logit_bias: Optional[Dict[int, float]] = None,
         max_tokens: Optional[int] = None,
         n: int = 1,
@@ -1705,7 +1689,6 @@ class MLCEngine(engine_base.MLCEngineBase):
                 frequency_penalty=frequency_penalty,
                 presence_penalty=presence_penalty,
                 logprobs=logprobs,
-                top_logprobs=top_logprobs,
                 logit_bias=logit_bias,
                 max_tokens=max_tokens,
                 n=n,
@@ -1739,11 +1722,9 @@ class MLCEngine(engine_base.MLCEngineBase):
             return cmpl_generator
         # Normal response.
         request_final_usage = None
-        output_texts = ["" for _ in range(n)]
-        finish_reasons: List[Optional[str]] = [None for _ in range(n)]
-        logprob_results: Optional[List[List[openai_api_protocol.LogProbsContent]]] = (
-            [[] for _ in range(n)] if logprobs else None
-        )
+        output_texts = [""] * n
+        finish_reasons: List[Optional[str]] = [None] * n
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
 
         for response in cmpl_generator:
             # this is the final chunk
@@ -1755,10 +1736,7 @@ class MLCEngine(engine_base.MLCEngineBase):
                 if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
-                    assert logprob_results is not None
-                    logprob_results[  # pylint: disable=unsupported-assignment-operation
-                        choice.index
-                    ] += choice.logprobs.content
+                    logprob_results[choice.index] = choice.logprobs
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         return engine_base.wrap_completion_response(

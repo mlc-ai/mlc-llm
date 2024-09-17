@@ -19,6 +19,11 @@ from .error_protocol import BadRequestError
 ################ Commons ################
 
 
+# OPenAI API compatible limits
+CHAT_COMPLETION_MAX_TOP_LOGPROBS = 20
+COMPLETION_MAX_TOP_LOGPROBS = 5
+
+
 class ListResponse(BaseModel):
     object: str = "list"
     data: List[Any]
@@ -39,6 +44,15 @@ class LogProbsContent(BaseModel):
 
 class LogProbs(BaseModel):
     content: List[LogProbsContent]
+
+
+class CompletionLogProbs(BaseModel):
+    # The position of the token in the concatenated str: prompt + completion_text
+    # TODO(vvchernov): skip optional after support
+    text_offset: Optional[List[int]]
+    token_logprobs: List[float]
+    tokens: List[str]
+    top_logprobs: List[Dict[str, float]]
 
 
 class CompletionUsage(BaseModel):
@@ -91,8 +105,7 @@ class CompletionRequest(BaseModel):
     echo: bool = False
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
-    logprobs: bool = False
-    top_logprobs: int = 0
+    logprobs: Optional[int] = None
     logit_bias: Optional[Dict[int, float]] = None
     max_tokens: Optional[int] = None
     n: int = 1
@@ -134,17 +147,17 @@ class CompletionRequest(BaseModel):
     @model_validator(mode="after")
     def check_logprobs(self) -> "CompletionRequest":
         """Check if the logprobs requirements are valid."""
-        if self.top_logprobs < 0 or self.top_logprobs > 5:
-            raise ValueError('"top_logprobs" must be in range [0, 5]')
-        if not self.logprobs and self.top_logprobs > 0:
-            raise ValueError('"logprobs" must be True to support "top_logprobs"')
+        if self.logprobs is not None and (
+            self.logprobs < 0 or self.logprobs > COMPLETION_MAX_TOP_LOGPROBS
+        ):
+            raise ValueError(f'"logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}]')
         return self
 
 
 class CompletionResponseChoice(BaseModel):
     finish_reason: Optional[Literal["stop", "length"]] = None
     index: int = 0
-    logprobs: Optional[LogProbs] = None
+    logprobs: Optional[CompletionLogProbs] = None
     text: str
 
 
@@ -249,8 +262,10 @@ class ChatCompletionRequest(BaseModel):
     @model_validator(mode="after")
     def check_logprobs(self) -> "ChatCompletionRequest":
         """Check if the logprobs requirements are valid."""
-        if self.top_logprobs < 0 or self.top_logprobs > 5:
-            raise ValueError('"top_logprobs" must be in range [0, 5]')
+        if self.top_logprobs < 0 or self.top_logprobs > CHAT_COMPLETION_MAX_TOP_LOGPROBS:
+            raise ValueError(
+                f'"top_logprobs" must be in range [0, {CHAT_COMPLETION_MAX_TOP_LOGPROBS}]'
+            )
         if not self.logprobs and self.top_logprobs > 0:
             raise ValueError('"logprobs" must be True to support "top_logprobs"')
         return self
