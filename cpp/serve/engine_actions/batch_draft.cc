@@ -163,6 +163,7 @@ class BatchDraftActionObj : public EngineActionObj {
             draft_token_parent_idx.push_back(-1);
             request_ids_per_leaf_node.push_back(request_ids[i]);
             num_leaf_nodes = 1;
+            cum_num_tokens.push_back(cum_num_tokens.back() + 1);
           } else {
             CHECK_EQ(mstates[i]->committed_tokens.size(),
                      running_rsentries[i]->mstates[0]->committed_tokens.size());
@@ -182,6 +183,7 @@ class BatchDraftActionObj : public EngineActionObj {
               }
             }
             input_lengths.push_back(num_leaf_nodes);
+            cum_num_tokens.push_back(cum_num_tokens.back() + input_lengths.back());
           }
           GenerationConfig generation_cfg_for_draft = [&]() {
             if (engine_config_->spec_tree_width == 1) {
@@ -198,7 +200,6 @@ class BatchDraftActionObj : public EngineActionObj {
             generation_cfg.push_back(generation_cfg_for_draft);
           }
           generation_cfg_for_logitproc.push_back(generation_cfg_for_draft);
-          cum_num_tokens.push_back(cum_num_tokens.back() + input_lengths.back());
         }
 
         // - Compute embeddings.
