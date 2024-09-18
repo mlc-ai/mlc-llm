@@ -87,9 +87,9 @@ class MistralConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             logger.info(
                 "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                min(*prefill_chunk_size_candidates, 2048),
+                min(*prefill_chunk_size_candidates, 8192),
             )
-            self.prefill_chunk_size = min(*prefill_chunk_size_candidates, 2048)
+            self.prefill_chunk_size = min(*prefill_chunk_size_candidates, 8192)
 
 
 # pylint: disable=invalid-name,missing-docstring
