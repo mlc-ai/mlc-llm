@@ -54,15 +54,19 @@ class AutoSpecDecodeActionObj : public EngineActionObj {
   int CalculateDraftLength(EngineState estate, int num_running_rsentries) {
     // Right now we use the fixed table to select the draft length (only based on
     // the batch size). We will follow up to adopt powerful draft length selection.
+    int draft_length = 0;
     if (num_running_rsentries < 10) {
-      return 4;
+      draft_length = 4;
     } else if (num_running_rsentries < 20) {
-      return 3;
+      draft_length = 3;
     } else if (num_running_rsentries < 30) {
-      return 2;
+      draft_length = 2;
     } else {
-      return 0;
+      draft_length = 0;
     }
+
+    int effective_batch_size = num_running_rsentries * (draft_length + 1);
+    return effective_batch_size > engine_config_->max_num_sequence ? 0 : draft_length;
   }
 
   /*! \brief The speculative decode actions. */
