@@ -86,7 +86,7 @@ def main(argv):
     parser.add_argument(
         "--max-batch-size",
         type=int,
-        default=80,
+        default=128,
         help=HELP["max_batch_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(

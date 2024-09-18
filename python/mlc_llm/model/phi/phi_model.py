@@ -67,17 +67,17 @@ class Phi1Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             logger.info(
                 "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                min(self.context_window_size, 2048),
+                min(self.context_window_size, 8192),
             )
-            self.prefill_chunk_size = min(self.context_window_size, 2048)
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
         elif self.prefill_chunk_size > self.context_window_size:
             logger.info(
                 "Overriding %s from %d to %d",
                 bold("prefill_chunk_size"),
                 self.prefill_chunk_size,
-                min(self.context_window_size, 2048),
+                min(self.context_window_size, 8192),
             )
-            self.prefill_chunk_size = min(self.context_window_size, 2048)
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
         if self.num_key_value_heads == 0 or self.num_key_value_heads is None:
             self.num_key_value_heads = self.num_attention_heads
         if self.intermediate_size == 0 or self.intermediate_size is None:
