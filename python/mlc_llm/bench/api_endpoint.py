@@ -34,8 +34,8 @@ class APIEndPoint:
         raise NotImplementedError()
 
 
-class OpenAIEndPoint(APIEndPoint):
-    """The backend of sending HTTP requests in OpenAI API."""
+class OpenAIChatEndPoint(APIEndPoint):
+    """The backend of sending HTTP requests in OpenAI API through "v1/chat/completions"."""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -64,7 +64,7 @@ class OpenAIEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches
+    async def __call__(  # pylint: disable=too-many-branches,too-many-statements
         self, request_record: RequestRecord
     ) -> RequestRecord:
         payload = request_record.chat_cmpl.model_dump()
@@ -82,6 +82,7 @@ class OpenAIEndPoint(APIEndPoint):
             payload["ignore_eos"] = True
 
         generated_text = ""
+        first_chunk_output_str = ""
         time_to_first_token_s = None
         start_time = time.monotonic()
         server_metrics = None
@@ -104,6 +105,7 @@ class OpenAIEndPoint(APIEndPoint):
                         content = delta.get("content", None)
                         if content is not None and not time_to_first_token_s:
                             time_to_first_token_s = time.monotonic() - start_time
+                            first_chunk_output_str = content
                         if self.include_server_metrics and data["usage"] is not None:
                             # fmt: off
                             # pylint: disable=line-too-long
@@ -144,6 +146,7 @@ class OpenAIEndPoint(APIEndPoint):
             logger.info("Error sending request: %s", traceback.format_exc())
             finish_time = time.monotonic()
             request_record.output_str = generated_text
+            request_record.first_chunk_output_str = first_chunk_output_str
             request_record.metrics = Metrics(
                 success=False,
                 start_time=start_time,
@@ -158,6 +161,7 @@ class OpenAIEndPoint(APIEndPoint):
 
         finish_time = time.monotonic()
         request_record.output_str = generated_text
+        request_record.first_chunk_output_str = first_chunk_output_str
         request_record.metrics = Metrics(
             success=len(generated_text) > 0,
             start_time=start_time,
@@ -166,6 +170,123 @@ class OpenAIEndPoint(APIEndPoint):
             input_tokens=request_record.metrics.input_tokens,
             time_to_first_token_s=time_to_first_token_s,
             server_metrics=server_metrics,
+            exec_feature=request_record.metrics.exec_feature,
+        )
+        return request_record
+
+
+class OpenAIEndPoint(APIEndPoint):
+    """The backend of sending HTTP requests in OpenAI API through "v1/completions"."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        host: str,
+        port: int,
+        timeout: Optional[float] = None,
+        include_server_metrics: bool = False,
+    ) -> None:
+        super().__init__(include_server_metrics=include_server_metrics)
+
+        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+
+        self.timeout = timeout
+        self.client: aiohttp.ClientSession = None
+        self.url = f"http://{host}:{port}/v1/completions"
+        self.headers = {"Content-Type": "application/json"}
+        if os.getenv("MLC_LLM_API_KEY"):
+            self.headers["Authorization"] = f"Bearer {os.getenv('MLC_LLM_API_KEY')}"
+        assert (
+            not include_server_metrics
+        ), '"include_server_metrics" only works for "openai-chat" endpoint for now'
+
+    async def __aenter__(self) -> Self:
+        import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+
+        self.client = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, tb) -> None:
+        await self.client.close()
+
+    async def __call__(  # pylint: disable=too-many-branches,too-many-statements
+        self, request_record: RequestRecord
+    ) -> RequestRecord:
+        assert (
+            len(request_record.chat_cmpl.messages) == 1
+        ), 'Endpoint "openai" does not support system prompt and multi-round conversation.'
+        assert isinstance(request_record.chat_cmpl.messages[0].content, str)
+        payload = {
+            "model": request_record.chat_cmpl.model,
+            "prompt": request_record.chat_cmpl.messages[0].content,
+            "temperature": request_record.chat_cmpl.temperature,
+            "top_p": request_record.chat_cmpl.top_p,
+            "max_tokens": request_record.chat_cmpl.max_tokens,
+            "stream": True,
+        }
+        if self.timeout is not None and "timeout" not in payload:
+            payload["timeout"] = self.timeout
+        if (
+            request_record.chat_cmpl.debug_config is not None
+            and request_record.chat_cmpl.debug_config.ignore_eos
+        ):
+            payload["ignore_eos"] = True
+
+        generated_text = ""
+        first_chunk_output_str = ""
+        time_to_first_token_s = None
+        start_time = time.monotonic()
+
+        try:
+            async with self.client.post(self.url, json=payload, headers=self.headers) as response:
+                if payload["stream"]:
+                    async for chunk in response.content:
+                        chunk = chunk.strip()
+                        if not chunk or chunk == b"\n":
+                            continue
+                        # Get rid of the prefix "data: " and suffix "\n"
+                        raw_data = chunk[6:].strip()
+                        if raw_data == b"[DONE]":
+                            continue
+                        data = json.loads(raw_data)
+                        if not data["choices"]:
+                            continue
+                        content = data["choices"][0]["text"]
+                        if content is not None and not time_to_first_token_s:
+                            time_to_first_token_s = time.monotonic() - start_time
+                            first_chunk_output_str = content
+                        if content is not None:
+                            generated_text += content
+                else:
+                    data = await response.json()
+                    generated_text = data["choices"][0]["message"]["content"]
+        except Exception:  # pylint: disable=broad-except
+            logger.info("Error sending request: %s", traceback.format_exc())
+            finish_time = time.monotonic()
+            request_record.output_str = generated_text
+            request_record.first_chunk_output_str = first_chunk_output_str
+            request_record.metrics = Metrics(
+                success=False,
+                start_time=start_time,
+                finish_time=finish_time,
+                end_to_end_latency_s=finish_time - start_time,
+                input_tokens=request_record.metrics.input_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+                server_metrics=None,
+                exec_feature=request_record.metrics.exec_feature,
+            )
+            return request_record
+
+        finish_time = time.monotonic()
+        request_record.output_str = generated_text
+        request_record.first_chunk_output_str = first_chunk_output_str
+        request_record.metrics = Metrics(
+            success=len(generated_text) > 0,
+            start_time=start_time,
+            finish_time=finish_time,
+            end_to_end_latency_s=finish_time - start_time,
+            input_tokens=request_record.metrics.input_tokens,
+            time_to_first_token_s=time_to_first_token_s,
+            server_metrics=None,
             exec_feature=request_record.metrics.exec_feature,
         )
         return request_record
@@ -221,6 +342,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
             payload["timeout"] = self.timeout
 
         generated_text = ""
+        first_chunk_output_str = ""
         url = self.url_stream if request_record.chat_cmpl.stream else self.url_no_stream
         time_to_first_token_s = None
         start_time = time.monotonic()
@@ -242,6 +364,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
 
                         if not time_to_first_token_s:
                             time_to_first_token_s = time.monotonic() - start_time
+                            first_chunk_output_str = delta
                         generated_text += delta
                 else:
                     data = await response.json()
@@ -250,6 +373,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
             logger.info("Error sending request: %s", traceback.format_exc())
             finish_time = time.monotonic()
             request_record.output_str = generated_text
+            request_record.first_chunk_output_str = first_chunk_output_str
             request_record.metrics = Metrics(
                 success=False,
                 start_time=start_time,
@@ -263,6 +387,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
 
         finish_time = time.monotonic()
         request_record.output_str = generated_text
+        request_record.first_chunk_output_str = first_chunk_output_str
         request_record.metrics = Metrics(
             success=len(generated_text) > 0,
             start_time=start_time,
@@ -281,6 +406,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
 
 SUPPORTED_BACKENDS = [
     "openai",
+    "openai-chat",
     "tensorrt-llm",
 ]
 
@@ -289,6 +415,8 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
     """Create an API endpoint instance with regard to the specified endpoint kind."""
     if args.api_endpoint == "openai":
         return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
+    if args.api_endpoint == "openai-chat":
+        return OpenAIChatEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
     if args.api_endpoint == "tensorrt-llm":
         return TensorRTLLMEndPoint(args.host, args.port, args.timeout)
     raise ValueError(f'Unrecognized endpoint "{args.api_endpoint}"')
