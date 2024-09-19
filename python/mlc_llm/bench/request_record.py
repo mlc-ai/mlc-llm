@@ -48,6 +48,7 @@ class RequestRecord(BaseModel):
 
     chat_cmpl: ChatCompletionRequest
     output_str: Optional[str] = None
+    first_chunk_output_str: str = ""
     timestamp: Optional[float] = None
     metrics: Optional[Metrics] = None
 

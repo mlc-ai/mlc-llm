@@ -110,7 +110,8 @@ def query_mlc_server_metrics(host: str, port: int):
     """Try to get the MLC server metrics whenever it exists."""
     try:
         r = requests.post(f"http://{host}:{port}/debug/dump_engine_metrics", json={}, timeout=10)
-        print(f"MLC server metrics: {r.json()}")
+        if r.status_code == 200:
+            print(f"MLC server metrics: {r.json()}")
     except Exception:  # pylint: disable=broad-exception-caught
         pass
 

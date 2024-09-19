@@ -144,7 +144,10 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 continue
 
             metrics.output_tokens = len(self.tokenizer.encode(request_record.output_str))
-            if metrics.output_tokens < 2:
+            first_chunk_output_tokens = len(
+                self.tokenizer.encode(request_record.first_chunk_output_str)
+            )
+            if metrics.output_tokens <= first_chunk_output_tokens:
                 metrics.success = False
                 continue
             assert metrics.input_tokens > 0, "Invalid prompt tokens"
@@ -153,7 +156,7 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 metrics.time_to_first_token_s = 0
             metrics.time_per_output_token_s = (
                 metrics.end_to_end_latency_s - metrics.time_to_first_token_s
-            ) / (metrics.output_tokens - 1)
+            ) / (metrics.output_tokens - first_chunk_output_tokens)
             updated_records.append(request_record)
         return updated_records
 
