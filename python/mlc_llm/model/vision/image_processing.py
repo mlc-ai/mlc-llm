@@ -210,9 +210,10 @@ class ImageProcessor(Module):
         tar = tir.truncdiv(h + 335, 336) * 336
         t = tir.div(tar - h, 2)
         b = tar - h - t
+        l = 0
+        r = 0
 
         n, h, w, c = image.shape
-        l, t, r, b = 0, t, 0, b
         out = op.tensor_ir_op(
             create_pad_func(l, r),
             "pad",
