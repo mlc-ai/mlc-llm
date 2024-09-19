@@ -153,7 +153,7 @@ class ImageProcessor(Module):
                 image_buf = T.match_buffer(image, (n, h, w, c), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, h, w, c), dtype=o_dtype)
                 mean = _var(o_dtype)
-                std = _var(o_dtype)
+                stddev = _var(o_dtype)
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for h_idx, w_idx, c_idx in T.grid(h, w, c):
                         with T.block("compute"):
@@ -161,17 +161,17 @@ class ImageProcessor(Module):
                             T.writes(out_buf[n_idx, h_idx, w_idx, c_idx])
                             if 0 == c_idx:
                                 mean[0] = 0.48145466
-                                std[0] = 0.26862954
+                                stddev[0] = 0.26862954
                             elif 1 == c_idx:
                                 mean[0] = 0.4578275
-                                std[0] = 0.26130258
+                                stddev[0] = 0.26130258
                             elif 2 == c_idx:
                                 mean[0] = 0.40821073
-                                std[0] = 0.27577711
+                                stddev[0] = 0.27577711
 
                             out_buf[n_idx, h_idx, w_idx, c_idx] = (
                                 T.cast(image_buf[n_idx, h_idx, w_idx, c_idx], o_dtype) - mean[0]
-                            ) / std[0]
+                            ) / stddev[0]
 
             return normalize_func
 
