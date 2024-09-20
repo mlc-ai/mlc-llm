@@ -177,6 +177,7 @@ class Conversation(BaseModel):
                     assert config is not None, "Model config is required"
                     image_url = _get_url_from_item(item)
                     message_list.append(data.ImageData.from_url(image_url, config))
+                    message_list.append("\n")
                 else:
                     raise ValueError(f"Unsupported content type: {item['type']}")
 
