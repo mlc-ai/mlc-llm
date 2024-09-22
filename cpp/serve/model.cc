@@ -81,6 +81,17 @@ class ModelImpl : public ModelObj {
     int num_tokens = token_ids.size();
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
+    if (ft_.model_metadata_.quantization == "e4m3_e4m3_f16" && num_tokens < kE4M3PadLength &&
+        num_tokens != 1) {
+      // We pad the input tokens to at least "kE4M3PadLength" for quantization "e4m3_e4m3_f16"
+      // to work around the cuBLASLt performance issue.
+      std::vector<int64_t> token_ids_vec{token_ids.begin(), token_ids.end()};
+      for (int i = 0; i < kE4M3PadLength - num_tokens; ++i) {
+        token_ids_vec.push_back(0);
+      }
+      token_ids = IntTuple(std::move(token_ids_vec));
+      num_tokens = kE4M3PadLength;
+    }
     NDArray token_ids_nd;
     {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
@@ -356,8 +367,8 @@ class ModelImpl : public ModelObj {
   }
 
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
-    NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
+    NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(num_sequence));
 
     CHECK(ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
@@ -369,8 +380,16 @@ class ModelImpl : public ModelObj {
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
-    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
+    IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/num_sequence, /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+
+    int padded_num_sequence = num_sequence;
+    if (ft_.model_metadata_.quantization == "e4m3_e4m3_f16" && num_sequence < kE4M3PadLength &&
+        num_sequence != 1) {
+      // We pad the input tokens to at least "kE4M3PadLength" for quantization "e4m3_e4m3_f16"
+      // to work around the cuBLASLt performance issue.
+      padded_num_sequence = kE4M3PadLength;
+    }
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
@@ -378,20 +397,20 @@ class ModelImpl : public ModelObj {
       NDArray embeddings_nd = Downcast<NDArray>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], num_sequence);
+      ICHECK_GE(embeddings_nd->shape[0], padded_num_sequence);
       ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
       ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
       ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
-          embeddings_nd.CreateView({num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
+          embeddings_nd.CreateView({padded_num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{num_sequence, 1, hidden_size_};
+      ShapeTuple embedding_shape{padded_num_sequence, 1, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
     }
 
     // args: embeddings, kv_cache, params
     ObjectRef ret;
-    if (seq_ids.size() == 1) {
+    if (num_sequence == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
     } else {
       ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
@@ -401,7 +420,7 @@ class ModelImpl : public ModelObj {
       ret = ft_.tuple_getitem_func_(ret, 0);
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
-        ShapeTuple shape{num_sequence, 1, vocab_size_};
+        ShapeTuple shape{padded_num_sequence, 1, vocab_size_};
         DataType dtype = DataType::Float(32);
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
       }
@@ -416,9 +435,11 @@ class ModelImpl : public ModelObj {
 
     // logits: (b, 1, v)
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], num_sequence);
+    ICHECK_EQ(logits->shape[0], padded_num_sequence);
     ICHECK_EQ(logits->shape[1], 1);
-    return logits;
+    return padded_num_sequence == num_sequence
+               ? logits
+               : logits.CreateView({num_sequence, 1, logits->shape[2]}, logits->dtype);
   }
 
   NDArray BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
@@ -1012,6 +1033,12 @@ class ModelImpl : public ModelObj {
   bool trace_enabled_;
   // An enum indicating whether it's RNN-based.
   KVStateKind kind;
+
+  /*!
+   * \brief We pad the input tokens to at least 17 for quantization "e4m3_e4m3_f16"
+   * to work around the cuBLASLt performance issue.
+   */
+  static constexpr const int kE4M3PadLength = 17;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
