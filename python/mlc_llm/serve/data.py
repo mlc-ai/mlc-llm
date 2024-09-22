@@ -108,7 +108,10 @@ class ImageData(Data):
             raise ValueError(f"Unsupported image URL format: {url}")
 
         # image_embed_size = ImageData.get_embed_size(config)
-        image_embed_size = 1921  # TODO: fix this hard-coded value, which is for phi3.5-vision
+        # TODO: fix these hard-coded values for phi3.5-vision and llava # pylint: disable=fixme
+        image_embed_size = 576
+        if config["model_type"] == "phi3_v":
+            image_embed_size = 1921
         image_tensor = np.expand_dims(image_tensor, axis=0)  # HWC -> NHWC
         image_features = tvm.nd.array(image_tensor)
         image_data = ImageData(image_features, image_embed_size)
