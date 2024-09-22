@@ -41,7 +41,7 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="phi-3-vision",
         system_template=f"{MessagePlaceholders.SYSTEM.value}",
-        system_message="\n",
+        system_message="",
         roles={"user": "<|user|>", "assistant": "<|assistant|>"},
         seps=["<|end|>\n"],
         role_content_sep="\n",

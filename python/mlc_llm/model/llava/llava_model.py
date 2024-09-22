@@ -155,7 +155,7 @@ class LlavaForCasualLM(Module):
         return self.language_model.embed(input_ids)
 
     def image_preprocess(self, pixel_values: Tensor) -> Tensor:
-        pixel_values = permute_dims(pixel_values, axes=(0, 2, 3, 1))  # NCHW -> NHWC
+        # pixel_values shape is NHWC
         pixel_values = self.image_processor.resize(
             pixel_values, {"shortest_edge": self.config.vision_config.image_size}
         )
@@ -256,7 +256,7 @@ class LlavaForCasualLM(Module):
             },
             "image_embed": {
                 "pixel_values": nn.spec.Tensor(
-                    [1, 3, "image_height", "image_width"],
+                    [1, "image_height", "image_width", 3],
                     "uint8",
                 ),
                 "$": {

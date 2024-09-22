@@ -219,7 +219,6 @@ class Phi3VForCausalLM(nn.Module):
 
     # pylint: disable=protected-access
     def image_preprocess(self, pixel_values: Tensor, num_crops=16) -> Tensor:
-        pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 3, 1))  # NCHW -> NHWC
         pixel_values = self.image_processor.resize(pixel_values, params={"hd_transform": 336})
         new_h = tir.Var("new_h", "int64")
         new_w = tir.Var("new_w", "int64")
@@ -280,7 +279,7 @@ class Phi3VForCausalLM(nn.Module):
         return combined_image
 
     def image_embed(self, pixel_values: Tensor) -> Tensor:
-        n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
+        n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
         pixel_values = self.image_preprocess(pixel_values)
         pixel_values = pixel_values.astype(self.dtype)
         return self.vision_embed_tokens(pixel_values, h, w)
@@ -321,7 +320,7 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "image_embed": {
-                "pixel_values": nn.spec.Tensor([1, 3, "image_height", "image_width"], "uint8"),
+                "pixel_values": nn.spec.Tensor([1, "image_height", "image_width", 3], "uint8"),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
