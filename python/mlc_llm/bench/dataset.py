@@ -10,7 +10,11 @@ from datasets import load_dataset  # pylint: disable=import-error
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 from mlc_llm.bench.request_record import Metrics, RequestRecord
-from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest, DebugConfig
+from mlc_llm.protocol.openai_api_protocol import (
+    ChatCompletionMessage,
+    ChatCompletionRequest,
+    DebugConfig,
+)
 
 
 class Dataset:  # pylint: disable=too-few-public-methods
@@ -205,19 +209,15 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
         self.tokenizer = tokenizer
         self.dataset = []
         for data in raw_dataset["train"]:
-            prompt = data["prompt"]
+            messages = data["prompt"]
             schema = {
                 "type": "json_object",
                 "schema": data["schema"],
             }
-            num_tokens = len(
-                self.tokenizer(
-                    prompt[0]["content"],
-                    truncation=True,
-                    max_length=tokenizer.model_max_length,
-                )
-            )
-            self.dataset.append((prompt, schema, num_tokens))
+            num_tokens = 0
+            for message in messages:
+                num_tokens += len(self.tokenizer.encode(message["content"]))
+            self.dataset.append((messages, schema, num_tokens))
 
     def generate_request_records(
         self,
@@ -227,7 +227,7 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
         request_records = []
-        for prompt, schema, num_tokens in self.dataset:
+        for messages, schema, num_tokens in self.dataset:
             # If the request does not have enough length, discard it.
             if input_len is not None and num_tokens < input_len + 4 * input_len_std:
                 continue
@@ -241,7 +241,10 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
             request_records.append(
                 RequestRecord(
                     chat_cmpl=ChatCompletionRequest(
-                        messages=prompt,
+                        messages=[
+                            ChatCompletionMessage(content=message["content"], role=message["role"])
+                            for message in messages
+                        ],
                         model="",
                         max_tokens=output_length,
                         response_format=schema,
