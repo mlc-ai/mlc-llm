@@ -4,12 +4,14 @@ import functools
 from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Type, Union
 
-from tvm import DataType, DataTypeCode, IRModule, nd, te, tir, topi
+import numpy as np
+from tvm import DataType, DataTypeCode, IRModule, nd, relax, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
+from mlc_llm.op import cutlass, extern
 from mlc_llm.support import logging
 
 from .utils import (
@@ -435,6 +437,21 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
             self.config.weight_dtype == self.config.storage_dtype
             and self.config.calibration_mode == "inference"
         ):
+            if (
+                extern.get_store().cutlass_gemm
+                and functools.reduce(lambda x, y: x * y, x_q.shape[:-1]) != 1
+            ):
+                # Dispatch to cutlass kernel for gemm when cutlass is available.
+                scale = (
+                    x_scale * self.q_scale
+                    if self.config.use_scale
+                    else nn.wrap_nested(
+                        relax.Constant(nd.array(np.array([1.0]).astype("float32"))), "scale"
+                    )
+                )
+                return cutlass.fp8_gemm(
+                    x_q, self.q_weight, scale, self.config.weight_dtype, self.config.model_dtype
+                )
             x = nn.op.matmul(x_q, nn.permute_dims(self.q_weight), out_dtype="float32")
             if self.config.use_scale:
                 scale = x_scale * self.q_scale
