@@ -133,7 +133,6 @@ class GPUSampler : public SamplerObj {
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
     ICHECK_LE(num_probs, max_num_sample_);
-    ICHECK_EQ(request_ids.size(), num_samples);
     ICHECK_EQ(generation_cfg.size(), num_samples);
 
     // - Check if there is need for applying top p.

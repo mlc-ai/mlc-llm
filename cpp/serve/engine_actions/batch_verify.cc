@@ -64,6 +64,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     Array<RequestModelState> verify_request_mstates;
     Array<RequestModelState> draft_request_mstates;
     Array<GenerationConfig> generation_cfg;
+    Array<GenerationConfig> generation_cfg_for_top_p_norm;
     std::vector<RandomGenerator*> rngs;
     std::vector<std::vector<SampleResult>> draft_output_tokens;
     std::vector<int64_t> token_tree_parent_ptr;
@@ -76,6 +77,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     draft_request_mstates.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
+    generation_cfg_for_top_p_norm.reserve(total_verify_length);
     draft_output_tokens.reserve(num_rsentries);
     draft_token_slots_.clear();
 
@@ -90,6 +92,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
       token_tree_parent_ptr.push_back(-1);
+      generation_cfg_for_top_p_norm.push_back(rsentries[i]->request->generation_cfg);
       std::vector<int> cur_draft_token_indices;
       cur_draft_token_indices.resize(draft_mstate->draft_output_tokens.size() + 1);
       std::iota(cur_draft_token_indices.begin(), cur_draft_token_indices.end(), -1);
@@ -97,6 +100,7 @@ class BatchVerifyActionObj : public EngineActionObj {
         all_tokens_to_verify.push_back(draft_mstate->draft_output_tokens[j].GetTokenId());
         draft_token_slots_.push_back(draft_mstate->draft_token_slots[j]);
         token_tree_parent_ptr.push_back(draft_mstate->draft_token_parent_idx[j] + 1);
+        generation_cfg_for_top_p_norm.push_back(rsentries[i]->request->generation_cfg);
       }
       draft_token_indices.emplace_back(std::move(cur_draft_token_indices));
       verify_request_mstates.push_back(verify_mstate);
@@ -141,10 +145,11 @@ class BatchVerifyActionObj : public EngineActionObj {
     // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
     estate->prefix_cache->CommitSequenceExtention();
 
-    std::vector<int> sample_indices(num_rsentries);
+    // Fill range [0, total_verify_length) into `sample_indices`.
+    std::vector<int> sample_indices(total_verify_length);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
     NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
-        probs_on_device, sample_indices, request_ids, generation_cfg);
+        probs_on_device, sample_indices, request_ids, generation_cfg_for_top_p_norm);
     auto [sample_results_arr, last_accepted_tree_node_verify_model] =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
