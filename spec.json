@@ -1,0 +1,21 @@
+
+//new protocol 
+
+{
+    "id": "dispatch-1234"
+    "context": "what is the weather"
+
+    "stop" : "<perplexity>" //okay if null
+    "max_tokens"  : 2048
+
+}
+
+
+{
+    "id" : "dispatch-1234"
+    "response" : "hot as hell"
+    "finish_reason" : "MAX_TOKENS, STOP_STR etc"
+    "usage" : {
+        "tok/s" : ...
+    }
+}
