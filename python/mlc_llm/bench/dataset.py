@@ -20,6 +20,9 @@ from mlc_llm.protocol.openai_api_protocol import (
 class Dataset:  # pylint: disable=too-few-public-methods
     """The dataset base class."""
 
+    # We set a truncation limit of 100k.
+    truncate_length = int(1e5)
+
     def generate_request_records(
         self,
         input_len: Optional[int],
@@ -52,14 +55,14 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
             tokenizer(
                 prompts,
                 truncation=True,
-                max_length=tokenizer.model_max_length,
+                max_length=min(tokenizer.model_max_length, self.truncate_length),
             ).input_ids
         )
         completions = [completion for _, completion in _dataset]
         completion_token_ids = tokenizer(
             completions,
             truncation=True,
-            max_length=tokenizer.model_max_length,
+            max_length=min(tokenizer.model_max_length, self.truncate_length),
         ).input_ids
         self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
         for i in range(len(_dataset)):
@@ -136,7 +139,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
         tokenized_data = tokenizer(
             untokenized_data,
             truncation=True,
-            max_length=tokenizer.model_max_length,
+            max_length=min(tokenizer.model_max_length, self.truncate_length),
         ).input_ids
         tokenized_data_lengths = [len(tokens) for tokens in tokenized_data]
         self.dataset: List[Tuple[str, List[int], int]] = list(
