@@ -119,7 +119,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
                         penalties[pos2seq_id[vp], 0] + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
                     )
                     logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] = T.if_then_else(
-                        logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] > 0,
+                        logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] < 0,
                         logits[seq_ids[pos2seq_id[vp]], token_ids[vp]]
                         * penalties[pos2seq_id[vp], 2],
                         logits[seq_ids[pos2seq_id[vp]], token_ids[vp]]
