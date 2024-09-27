@@ -1,12 +1,17 @@
 #for dylan with broken python :( 
 PY:=python3
 
+BUILDDIR=$(CURDIR)/build
+
+$(BUILDDIR):
+	mkdir -p build
+
 .PHONY: init
-init:
+init: $(BUILDDIR)
 # git submodule update --init --recursive
 #install rust, i had issues with brew version - script from site/rustup worked
-	mkdir -p build
-	cd build && $(PY) ../cmake/gen_cmake_config.py
+	
+	cd $(BUILDDIR) && $(PY) ../cmake/gen_cmake_config.py
 #we can just make our own gen cfg script
 #set(TVM_SOURCE_DIR 3rdparty/tvm)
 #set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -22,6 +27,5 @@ init:
 
 
 .PHONY: shared_lib
-shared_lib:
-	mkdir -p build
-	cd build && cmake .. && cmake --build . --parallel $(nproc)
+shared_lib: $(BUILDDIR)
+	cd $(BUILDDIR) && cmake .. && cmake --build . --parallel $(shell nproc)
