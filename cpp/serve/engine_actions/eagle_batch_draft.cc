@@ -107,6 +107,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
       }
       // The first draft token has been generated in prefill/verify stage
       for (int draft_id = 1; draft_id < estate->spec_draft_length; ++draft_id) {
+        draft_token_indices.clear();
         auto tdraft_start = std::chrono::high_resolution_clock::now();
         // prepare new input tokens
         input_tokens.clear();
