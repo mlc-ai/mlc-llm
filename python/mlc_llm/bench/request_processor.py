@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import concurrent.futures
+import copy
 import os
 import random
 import time
@@ -54,8 +55,9 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         remaining_num_requests = self.num_requests
         while remaining_num_requests > 0:
             current_num_sample = min(remaining_num_requests, len(request_records))
-            sample += random.sample(request_records, current_num_sample)
+            sample += copy.deepcopy(random.sample(request_records, current_num_sample))
             remaining_num_requests -= current_num_sample
+
         return sample
 
 
