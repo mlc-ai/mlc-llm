@@ -293,7 +293,6 @@ CONV_TEMPLATES = {
     "wizardlm_7b",
     "wizard_coder_or_math",
     "glm",
-    "custom",  # for web-llm only
     "phi-2",
     "phi-3",
     "phi-3-vision",
