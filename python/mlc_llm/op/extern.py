@@ -30,6 +30,7 @@ class ExternModuleStore:
     flashinfer: bool = False
     faster_transformer: bool = False
     cutlass_group_gemm: bool = False
+    cutlass_gemm: bool = False
 
 
 STORE: ExternModuleStore = ExternModuleStore()
@@ -39,14 +40,14 @@ STORE: ExternModuleStore = ExternModuleStore()
 def enable(target: Target, flashinfer: bool, faster_transformer: bool, cutlass: bool) -> None:
     """Enable external modules. It should be called before any compilation happens."""
     global STORE  # pylint: disable=global-statement
+    cutlass = cutlass and target.kind.name == "cuda" and target.attrs.get("arch", "") == "sm_90a"
     STORE = ExternModuleStore(
         configured=False,
         target=target,
         flashinfer=flashinfer,
         faster_transformer=faster_transformer,
-        cutlass_group_gemm=cutlass
-        and target.kind.name == "cuda"
-        and target.attrs.get("arch", "") == "sm_90a",
+        cutlass_group_gemm=cutlass,
+        cutlass_gemm=cutlass,
     )
 
 

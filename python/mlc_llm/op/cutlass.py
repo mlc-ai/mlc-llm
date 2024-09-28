@@ -73,3 +73,61 @@ def group_gemm(
         args=[x, weight, indptr, workspace] + ([scale] if scale is not None else []),
         out=nn.Tensor.placeholder((x.shape[0], weight.shape[1]), dtype=out_dtype),
     )
+
+
+def fp8_gemm(
+    x: nn.Tensor,
+    weight: nn.Tensor,
+    scale: nn.Tensor,
+    weight_dtype: Optional[str] = None,
+    out_dtype: Optional[str] = None,
+):  # pylint: disable=too-many-arguments
+    """
+    Cutlass fp8 gemm operator.
+
+    Parameters
+    ----------
+    x : nn.Tensor
+        The input tensor, with shape of [m, k].
+
+    weight : nn.Tensor
+        The weight tensor, with shape of [num_groups, n, k].
+
+    scale : Optional[nn.Tensor]
+        The scale tensor, with shape of [1].
+
+    weight_dtype: Optional[str]
+        The data type of the weight tensor.
+
+    out_dtype: Optional[str]
+        The data type of the output tensor.
+
+    Returns
+    -------
+    nn.Tensor
+        The output tensor, with shape of [m, n].
+    """
+    assert x.ndim >= 2
+    assert weight.ndim == 2
+    assert scale.ndim == 1 and scale.shape[0] == 1
+    out_dtype = out_dtype if out_dtype else x.dtype
+    weight_dtype = weight_dtype if weight_dtype else weight.dtype
+
+    if x.dtype == "e5m2_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+        func_name = "cutlass.gemm_e5m2_e5m2_fp16"
+    elif x.dtype == "e4m3_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+        func_name = "cutlass.gemm_e5m2_e4m3_fp16"
+    elif x.dtype == "e4m3_float8" and weight_dtype == "e4m3_float8" and out_dtype == "float16":
+        func_name = "cutlass.gemm_e4m3_e4m3_fp16"
+    else:
+        raise NotImplementedError(
+            f"Unsupported data type: x={x.dtype}, weight={weight_dtype}, out={out_dtype}"
+        )
+
+    workspace = op.empty((4096 * 1024,), dtype="uint8", name="workspace")
+
+    return op.extern(
+        func_name,
+        args=[x, weight, workspace, scale],
+        out=nn.Tensor.placeholder((*x.shape[:-1], weight.shape[0]), dtype=out_dtype),
+    )
