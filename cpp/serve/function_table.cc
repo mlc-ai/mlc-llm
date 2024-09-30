@@ -123,6 +123,14 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     } else {
       executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
       fload_exec = executable->GetFunction("vm_load_executable");
+      /* precompile opencl kernel programs */
+      if (device.device_type == kDLOpenCL) {
+        auto f_get = executable->GetFunction("opencl.GetPreCompiledPrograms", true);
+        std::string ss = f_get();
+        auto bytes = tvm::String(ss);
+        auto f_set = executable->GetFunction("opencl.SetPreCompiledPrograms", true);
+        f_set(tvm::String(bytes));
+      }
       ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
