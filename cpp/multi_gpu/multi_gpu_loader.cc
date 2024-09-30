@@ -285,7 +285,9 @@ Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
                              std::stringstream() << param.name << "_shard-" << local_worker_id)
                              .str()
                        : std::string(param.name);
-    const ParamInfo& param_info = param_info_map.at(param_name);
+    auto it = param_info_map.find(param_name);
+    CHECK(it != param_info_map.end()) << "ValueError: Cannot find parameter: " << param_name;
+    const ParamInfo& param_info = (*it).second;
     const NDArrayCacheMetadata::FileRecord::ParamRecord* param_record = param_info.param;
     const NDArrayCacheMetadata::FileRecord* file_record = param_info.file;
 
