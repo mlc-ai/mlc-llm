@@ -126,7 +126,15 @@ void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
  * \param rsentry The request state entry to remove.
  */
 void RemoveRequestStateEntry(EngineState estate, const Array<Model>& models,
-                             RequestStateEntry rsentry) {
+                             RequestStateEntry rsentry,
+                             Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager) {
+  if (draft_token_workspace_manager.defined()) {
+    std::vector<int> draft_token_slots;
+    for (const RequestModelState& mstate : rsentry->mstates) {
+      mstate->RemoveAllDraftTokens(&draft_token_slots);
+      draft_token_workspace_manager.value()->FreeSlots(draft_token_slots);
+    }
+  }
   if (estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
     // If the sequence is stored in prefix cache, call prefix cache to remove.
     if (!(rsentry->request->generation_cfg->debug_config.pinned_system_prompt)) {
@@ -141,10 +149,11 @@ void RemoveRequestStateEntry(EngineState estate, const Array<Model>& models,
   }
 }
 
-void ProcessFinishedRequestStateEntries(const std::vector<RequestStateEntry>& finished_rsentries,
-                                        EngineState estate, const Array<Model>& models,
-                                        int max_single_sequence_length,
-                                        Array<RequestStreamOutput>* callback_delta_outputs) {
+void ProcessFinishedRequestStateEntries(
+    const std::vector<RequestStateEntry>& finished_rsentries, EngineState estate,
+    const Array<Model>& models, int max_single_sequence_length,
+    Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
+    Array<RequestStreamOutput>* callback_delta_outputs) {
   NVTXScopedRange nvtx_scope("Process finished requests");
   // - Remove the finished request state entries.
   for (const RequestStateEntry& rsentry : finished_rsentries) {
@@ -153,7 +162,7 @@ void ProcessFinishedRequestStateEntries(const std::vector<RequestStateEntry>& fi
     // Mark the status of this entry as finished.
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
-    RemoveRequestStateEntry(estate, models, rsentry);
+    RemoveRequestStateEntry(estate, models, rsentry, draft_token_workspace_manager);
 
     RequestState rstate = estate->GetRequestState(rsentry->request);
     int parent_idx = rsentry->parent_idx;
@@ -174,7 +183,8 @@ void ProcessFinishedRequestStateEntries(const std::vector<RequestStateEntry>& fi
       rstate->entries[parent_idx]->status = RequestStateStatus::kFinished;
       // Remove the request state entry from all the models.
 
-      RemoveRequestStateEntry(estate, models, rstate->entries[parent_idx]);
+      RemoveRequestStateEntry(estate, models, rstate->entries[parent_idx],
+                              draft_token_workspace_manager);
       // Climb up to the parent.
       parent_idx = rstate->entries[parent_idx]->parent_idx;
     }
@@ -206,6 +216,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
                            const Tokenizer& tokenizer,
                            FRequestStreamCallback request_stream_callback,
                            int64_t max_single_sequence_length,
+                           Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
                            Optional<EventTraceRecorder> trace_recorder) {
   NVTXScopedRange nvtx_scope("EngineAction postproc");
   int num_requests = requests.size();
@@ -272,7 +283,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
   }
 
   ProcessFinishedRequestStateEntries(estate->postproc_workspace.finished_rsentries, estate, models,
-                                     max_single_sequence_length,
+                                     max_single_sequence_length, draft_token_workspace_manager,
                                      &estate->postproc_workspace.callback_delta_outputs);
 
   if (!estate->postproc_workspace.callback_delta_outputs.empty()) {

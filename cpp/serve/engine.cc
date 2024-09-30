@@ -406,6 +406,7 @@ class EngineImpl : public Engine {
     n->actions_ = CreateEngineActions(
         n->models_, engine_config, model_configs, n->model_workspaces_, logit_processor, sampler,
         draft_token_workspace_manager, n->tokenizer_, n->trace_recorder_);
+    n->draft_token_workspace_manager_ = draft_token_workspace_manager;
     // - Automatically set the threading backend max concurrency.
     n->engine_config_ = engine_config;
     n->SetThreadMaxConcurrency();
@@ -595,7 +596,7 @@ class EngineImpl : public Engine {
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
                               request_stream_callback_, engine_config_->max_single_sequence_length,
-                              trace_recorder_);
+                              draft_token_workspace_manager_, trace_recorder_);
         return;
       }
     }
@@ -844,6 +845,8 @@ class EngineImpl : public Engine {
   FRequestStreamCallback request_stream_callback_;
   // Engine actions.
   Array<EngineAction> actions_;
+  // Draft token workspace manager for speculative decoding.
+  Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager_;
   // Event trace recorder.
   Optional<EventTraceRecorder> trace_recorder_;
 };
