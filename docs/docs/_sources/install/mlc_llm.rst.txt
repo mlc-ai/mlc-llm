@@ -32,19 +32,19 @@ Select your operating system/compute platform and run the command in your termin
                     conda activate your-environment
                     python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
-            .. tab:: CUDA 12.1
-
-                .. code-block:: bash
-
-                    conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu121 mlc-ai-nightly-cu121
-
             .. tab:: CUDA 12.2
 
                 .. code-block:: bash
 
                     conda activate your-environment
                     python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu122 mlc-ai-nightly-cu122
+
+            .. tab:: CUDA 12.3
+
+                .. code-block:: bash
+
+                    conda activate your-environment
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu123 mlc-ai-nightly-cu123
 
             .. tab:: ROCm 6.1
 
