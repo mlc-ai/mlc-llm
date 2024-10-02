@@ -59,7 +59,9 @@ picojson::object SpecDecodeMetrics::AsJSON() const {
       std::ostringstream accept_rate_label;
       accept_rate_label << "accept_rate{step=" << i << "}";
       double accept_rate_value =
-          (static_cast<double>(accept_count[i]) / static_cast<double>(accept_count[i - 1]));
+          accept_count[i - 1] == 0
+              ? 0.0f
+              : (static_cast<double>(accept_count[i]) / static_cast<double>(accept_count[i - 1]));
       accept_rate_metrics[accept_rate_label.str()] = picojson::value(accept_rate_value);
     }
   }
