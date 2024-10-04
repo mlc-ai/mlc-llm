@@ -64,7 +64,7 @@ class OpenAIChatEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches,too-many-statements
+    async def __call__(  # pylint: disable=too-many-branches,too-many-statements,too-many-locals
         self, request_record: RequestRecord
     ) -> RequestRecord:
         payload = request_record.chat_cmpl.model_dump()
@@ -89,6 +89,7 @@ class OpenAIChatEndPoint(APIEndPoint):
 
         try:
             async with self.client.post(self.url, json=payload, headers=self.headers) as response:
+                assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:
                         chunk = chunk.strip()
@@ -143,7 +144,8 @@ class OpenAIChatEndPoint(APIEndPoint):
                         # pylint: enable=line-too-long
                         # fmt: on
         except Exception:  # pylint: disable=broad-except
-            logger.info("Error sending request: %s", traceback.format_exc())
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
+            logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
             request_record.first_chunk_output_str = first_chunk_output_str
@@ -157,13 +159,19 @@ class OpenAIChatEndPoint(APIEndPoint):
                 server_metrics=server_metrics,
                 exec_feature=request_record.metrics.exec_feature,
             )
+            request_record.error_msg = error_msg
             return request_record
 
         finish_time = time.monotonic()
         request_record.output_str = generated_text
         request_record.first_chunk_output_str = first_chunk_output_str
+        success = True
+        error_msg = None
+        if len(generated_text) == 0:
+            success = False
+            error_msg = "Empty generated text."
         request_record.metrics = Metrics(
-            success=len(generated_text) > 0,
+            success=success,
             start_time=start_time,
             finish_time=finish_time,
             end_to_end_latency_s=finish_time - start_time,
@@ -172,6 +180,7 @@ class OpenAIChatEndPoint(APIEndPoint):
             server_metrics=server_metrics,
             exec_feature=request_record.metrics.exec_feature,
         )
+        request_record.error_msg = error_msg
         return request_record
 
 
@@ -230,6 +239,7 @@ class OpenAIEndPoint(APIEndPoint):
             and request_record.chat_cmpl.debug_config.ignore_eos
         ):
             payload["ignore_eos"] = True
+            payload["debug_config"] = {"ignore_eos": True}
 
         generated_text = ""
         first_chunk_output_str = ""
@@ -238,6 +248,7 @@ class OpenAIEndPoint(APIEndPoint):
 
         try:
             async with self.client.post(self.url, json=payload, headers=self.headers) as response:
+                assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:
                         chunk = chunk.strip()
@@ -260,7 +271,8 @@ class OpenAIEndPoint(APIEndPoint):
                     data = await response.json()
                     generated_text = data["choices"][0]["message"]["content"]
         except Exception:  # pylint: disable=broad-except
-            logger.info("Error sending request: %s", traceback.format_exc())
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
+            logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
             request_record.first_chunk_output_str = first_chunk_output_str
@@ -274,13 +286,19 @@ class OpenAIEndPoint(APIEndPoint):
                 server_metrics=None,
                 exec_feature=request_record.metrics.exec_feature,
             )
+            request_record.error_msg = error_msg
             return request_record
 
         finish_time = time.monotonic()
         request_record.output_str = generated_text
         request_record.first_chunk_output_str = first_chunk_output_str
+        success = True
+        error_msg = None
+        if len(generated_text) == 0:
+            success = False
+            error_msg = "Empty generated text."
         request_record.metrics = Metrics(
-            success=len(generated_text) > 0,
+            success=success,
             start_time=start_time,
             finish_time=finish_time,
             end_to_end_latency_s=finish_time - start_time,
@@ -289,6 +307,7 @@ class OpenAIEndPoint(APIEndPoint):
             server_metrics=None,
             exec_feature=request_record.metrics.exec_feature,
         )
+        request_record.error_msg = error_msg
         return request_record
 
 
@@ -316,7 +335,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
         await self.client.close()
 
-    async def __call__(  # pylint: disable=too-many-branches
+    async def __call__(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
         self, request_record: RequestRecord
     ) -> RequestRecord:
         assert len(request_record.chat_cmpl.messages) == 1
@@ -337,7 +356,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
             request_record.chat_cmpl.debug_config is not None
             and request_record.chat_cmpl.debug_config.ignore_eos
         ):
-            payload["ignore_eos"] = True
+            payload["min_length"] = payload["max_tokens"]
         if self.timeout is not None and "timeout" not in payload:
             payload["timeout"] = self.timeout
 
@@ -349,7 +368,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
 
         try:
             async with self.client.post(url, json=payload) as response:
-                assert response.status == 200, response.reason
+                assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:
                         chunk = chunk.strip()
@@ -370,7 +389,8 @@ class TensorRTLLMEndPoint(APIEndPoint):
                     data = await response.json()
                     generated_text = data["text_output"]
         except Exception:  # pylint: disable=broad-except
-            logger.info("Error sending request: %s", traceback.format_exc())
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
+            logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
             request_record.first_chunk_output_str = first_chunk_output_str
@@ -383,13 +403,19 @@ class TensorRTLLMEndPoint(APIEndPoint):
                 time_to_first_token_s=time_to_first_token_s,
                 exec_feature=request_record.metrics.exec_feature,
             )
+            request_record.error_msg = error_msg
             return request_record
 
         finish_time = time.monotonic()
         request_record.output_str = generated_text
         request_record.first_chunk_output_str = first_chunk_output_str
+        success = True
+        error_msg = None
+        if len(generated_text) == 0:
+            success = False
+            error_msg = "Empty generated text."
         request_record.metrics = Metrics(
-            success=len(generated_text) > 0,
+            success=success,
             start_time=start_time,
             finish_time=finish_time,
             end_to_end_latency_s=finish_time - start_time,
@@ -397,6 +423,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
             time_to_first_token_s=time_to_first_token_s,
             exec_feature=request_record.metrics.exec_feature,
         )
+        request_record.error_msg = error_msg
         return request_record
 
 
