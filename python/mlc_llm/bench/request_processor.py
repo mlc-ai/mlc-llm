@@ -16,7 +16,7 @@ from transformers import AutoTokenizer  # pylint: disable=import-error
 
 from mlc_llm.bench.api_endpoint import APIEndPoint
 from mlc_llm.bench.request_record import RequestRecord
-from mlc_llm.protocol.openai_api_protocol import ChatCompletionMessage
+from mlc_llm.protocol.openai_api_protocol import ChatCompletionMessage, DebugConfig
 from mlc_llm.support import logging
 
 logging.enable_logging()
@@ -51,14 +51,16 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         self.num_requests = num_requests
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
-        sample = []
-        remaining_num_requests = self.num_requests
-        while remaining_num_requests > 0:
-            current_num_sample = min(remaining_num_requests, len(request_records))
-            sample += copy.deepcopy(random.sample(request_records, current_num_sample))
-            remaining_num_requests -= current_num_sample
-
-        return sample
+        samples: List[RequestRecord] = []
+        while len(samples) < self.num_requests:
+            # Create a new list so that the in-place shuffle does not mutate the input list.
+            records = list(request_records)
+            random.shuffle(records)
+            samples += copy.deepcopy(records)
+        samples = samples[: self.num_requests]
+        for i, record in enumerate(samples):
+            record.request_id = i
+        return samples
 
 
 class AttachModelName(RequestProcessor):  # pylint: disable=too-few-public-methods
@@ -118,9 +120,10 @@ class AttachStreamFlag(RequestProcessor):  # pylint: disable=too-few-public-meth
 class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public-methods
     """The processor that attaches the stream flag to the requests."""
 
-    def __init__(self, temperature: float, top_p: float) -> None:
+    def __init__(self, temperature: float, top_p: float, ignore_eos: bool) -> None:
         self.temperature = temperature
         self.top_p = top_p
+        self.ignore_eos = ignore_eos
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         for request_record in request_records:
@@ -129,6 +132,8 @@ class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public
             request_record.chat_cmpl.frequency_penalty = 0.0
             request_record.chat_cmpl.presence_penalty = 0.0
             request_record.chat_cmpl.tool_choice = "none"
+            if self.ignore_eos:
+                request_record.chat_cmpl.debug_config = DebugConfig(ignore_eos=True)
         return request_records
 
 
@@ -143,6 +148,7 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
         for request_record in request_records:
             metrics = request_record.metrics
             if not metrics.success:
+                assert request_record.error_msg is not None
                 continue
 
             metrics.output_tokens = len(self.tokenizer.encode(request_record.output_str))
@@ -151,6 +157,11 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
             )
             if metrics.output_tokens <= first_chunk_output_tokens:
                 metrics.success = False
+                request_record.error_msg = (
+                    f"Total output token num ({metrics.output_tokens}) equals "
+                    f'the first chunk output token. Output text "{request_record.output_str}", '
+                    f'first chunk output text "{request_record.first_chunk_output_str}"'
+                )
                 continue
             assert metrics.input_tokens > 0, "Invalid prompt tokens"
             metrics.inter_token_latency_s = metrics.end_to_end_latency_s / metrics.output_tokens
@@ -180,8 +191,8 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         assert len(request_records) == self.num_warmup_requests + self.num_benchmark_requests
-        warmup_requests = request_records[: self.num_warmup_requests]
-        benchmark_requests = request_records[self.num_warmup_requests :]
+        warmup_requests = request_records[-self.num_warmup_requests :]
+        benchmark_requests = request_records[: -self.num_warmup_requests]
         for request_record in warmup_requests:
             request_record.timestamp = 0 if request_record.timestamp is not None else None
 
@@ -509,7 +520,7 @@ def create_pipelines(
                     SampleRequests(args.num_requests + num_warmup_requests),
                     AttachModelName(args.tokenizer),
                     AttachStreamFlag(args.stream),
-                    AttachSamplingOptions(args.temperature, args.top_p),
+                    AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
                     AttachExecutionFeature({"num_concurrent_requests": num_concurrent_requests}),
                     WarmupAndRun(
                         num_warmup_requests=num_warmup_requests,
@@ -540,8 +551,8 @@ def create_pipelines(
                 AttachModelName(args.tokenizer),
                 AttachRequestRateTimestamp(request_rate),
                 AttachStreamFlag(args.stream),
-                AttachSamplingOptions(args.temperature, args.top_p),
-                AttachExecutionFeature({"request_rate": request_rate}),
+                AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
+                AttachExecutionFeature({"request_rate": float(request_rate)}),
                 WarmupAndRun(
                     num_warmup_requests=args.num_warmup_requests,
                     num_benchmark_requests=args.num_requests,
