@@ -38,8 +38,12 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
     """The dataset class for ShareGPT dataset."""
 
     _tokenized_dataset: List[Tuple[str, List[int], int]]
+    apply_chat_template: bool
 
-    def __init__(self, dataset_path: str, tokenizer: AutoTokenizer) -> None:
+    def __init__(
+        self, dataset_path: str, tokenizer: AutoTokenizer, apply_chat_template: bool
+    ) -> None:
+        self.apply_chat_template = apply_chat_template
         with open(dataset_path, encoding="utf-8") as f:
             raw_dataset = json.load(f)
         # Filter out the conversations with less than 2 turns.
@@ -51,6 +55,19 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         # Tokenize the prompts and completions.
         self.tokenizer = tokenizer
         prompts = [prompt for prompt, _ in _dataset]
+        if apply_chat_template:
+            assert (
+                getattr(tokenizer, "chat_template", None) is not None
+            ), '"--apply-chat-template" is set but the tokenizer does not have chat template.'
+            prompts = [
+                tokenizer.apply_chat_template(
+                    [{"role": "user", "content": prompt}],
+                    add_generation_prompt=True,
+                    tokenize=False,
+                )
+                for prompt in prompts
+            ]
+
         prompt_token_ids = list(
             tokenizer(
                 prompts,
@@ -82,6 +99,11 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         input_len_std: float = 0.0,
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
+        if self.apply_chat_template:
+            assert (
+                input_len is None
+            ), '"--apply-chat-template" is not supported when "--input-len" is specified.'
+
         request_records = []
         for prompt, input_token_ids, output_length in self._tokenized_dataset:
             input_length = len(input_token_ids)
@@ -479,9 +501,15 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
                 'Please specify the dataset kind via "--dataset".'
             )
     if args.dataset == "sharegpt":
-        return ShareGPTDataset(args.dataset_path, tokenizer)
+        return ShareGPTDataset(args.dataset_path, tokenizer, args.apply_chat_template)
     if args.dataset == "llmperf":
+        assert (
+            args.apply_chat_template is False
+        ), "LLMPerf dataset does not support applying chat template"
         return LLMPerfDataset(args.dataset_path, args.num_requests * 4, tokenizer)
     if args.dataset == "json-mode-eval":
+        assert (
+            args.apply_chat_template is False
+        ), "JSON mode evaluation does not support applying chat template"
         return JSONModeEvalDataset(tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")
