@@ -318,6 +318,13 @@ if __name__ == "__main__":
         help='Whether to set the "ignore_eos" field.',
     )
     parser.add_argument(
+        "--apply-chat-template",
+        default=False,
+        action="store_true",
+        help="Whether to apply chat template to the request input text. "
+        'It is not supported when "--input-len" is specified.',
+    )
+    parser.add_argument(
         "--num-process-workers",
         type=int,
         help="The number of parallel process workers to send the requests.",
