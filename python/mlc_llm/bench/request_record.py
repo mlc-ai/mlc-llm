@@ -236,6 +236,8 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
 
         input_tokens = report["input_tokens"]
         print(" Input Tokens ".center(50, "-"))
+        print(f"{'Mean:':<40} {input_tokens['mean']:<1}")
+        print(f"{'Stddev:':<40} {input_tokens['stddev']:<1}")
         print(f"{'P25:':<40} {input_tokens['quantiles']['p25']:<1}")
         print(f"{'P50:':<40} {input_tokens['quantiles']['p50']:<1}")
         print(f"{'P95:':<40} {input_tokens['quantiles']['p95']:<1}")
@@ -244,11 +246,13 @@ def pretty_print_report(report: Dict[str, Any]) -> None:  # pylint: disable=too-
 
         output_tokens = report["output_tokens"]
         print(" Output Tokens ".center(50, "-"))
-        print(f"{'P25:':<40} {output_tokens['quantiles']['p25']:<10}")
-        print(f"{'P50:':<40} {output_tokens['quantiles']['p50']:<10}")
-        print(f"{'P95:':<40} {output_tokens['quantiles']['p95']:<10}")
-        print(f"{'Min:':<40} {output_tokens['min']:<10}")
-        print(f"{'Max:':<40} {output_tokens['max']:<10}")
+        print(f"{'Mean:':<40} {output_tokens['mean']:<1}")
+        print(f"{'Stddev:':<40} {output_tokens['stddev']:<1}")
+        print(f"{'P25:':<40} {output_tokens['quantiles']['p25']:<1}")
+        print(f"{'P50:':<40} {output_tokens['quantiles']['p50']:<1}")
+        print(f"{'P95:':<40} {output_tokens['quantiles']['p95']:<1}")
+        print(f"{'Min:':<40} {output_tokens['min']:<1}")
+        print(f"{'Max:':<40} {output_tokens['max']:<1}")
 
         print("=" * 50)
 
