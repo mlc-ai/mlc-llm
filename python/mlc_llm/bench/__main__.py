@@ -1,8 +1,9 @@
 """MLC LLM benchmark main entrance"""
 
 import functools
+import json
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import requests
@@ -17,6 +18,7 @@ from mlc_llm.bench.request_processor import (
     create_pipelines,
 )
 from mlc_llm.bench.request_record import (
+    RequestRecord,
     convert_reports_to_df,
     generate_metrics_summary,
     pretty_print_report,
@@ -88,7 +90,7 @@ def run_pipeline(
     dataset: Dataset,
     tokenizer: AutoTokenizer,
     args: argparse.argparse.Namespace,
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[RequestRecord]]:
     """Run the pipeline with the given dataset and args. Return the benchmark report dict."""
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -100,10 +102,15 @@ def run_pipeline(
     )
     request_records = pipeline(request_records)
     assert len(request_records) == args.num_requests
+    sorted_requests: List[RequestRecord] = [None] * args.num_requests
+    for request_record in request_records:
+        assert request_record.request_id is not None
+        assert sorted_requests[request_record.request_id] is None
+        sorted_requests[request_record.request_id] = request_record
 
     request_records = MetricAnalyzer(tokenizer)(request_records)
     report = generate_metrics_summary(request_records, args.num_requests, args.num_gpus)
-    return report
+    return report, sorted_requests
 
 
 def query_mlc_server_metrics(host: str, port: int):
@@ -130,8 +137,17 @@ def main(args: argparse.argparse.Namespace):
         f_create_api_endpoint = functools.partial(create_api_endpoint, args)
         pipelines = create_pipelines(args, f_create_api_endpoint)
         reports = []
-        for pipeline in pipelines:
-            report = run_pipeline(pipeline, dataset, tokenizer, args)
+        alltime_records = {}
+        for i, pipeline in enumerate(pipelines):
+            report, request_records = run_pipeline(pipeline, dataset, tokenizer, args)
+            exec_feature = (
+                json.dumps(report["exec_feature"])
+                if report["exec_feature"] is not None
+                else f"pipeline{i}"
+            )
+            alltime_records[exec_feature] = [
+                request_record.model_dump() for request_record in request_records
+            ]
             reports.append(report)
             pretty_print_report(report)
         query_mlc_server_metrics(args.host, args.port)
@@ -141,6 +157,13 @@ def main(args: argparse.argparse.Namespace):
         print(df)
         df.to_csv(args.output, index=False)
         logger.info("Benchmark results dumped to file %s", args.output)
+        if args.debug_dump:
+            debug_dump_filepath = (
+                args.output[:-4] if args.output.endswith(".csv") else args.output
+            ) + "_debug_dump.log"
+            with open(debug_dump_filepath, "w", encoding="utf-8") as file:
+                json.dump(alltime_records, file, indent=4)
+            logger.info("Debug log dumped to file %s", debug_dump_filepath)
 
     if mlc_server is not None:
         with mlc_server:
@@ -289,6 +312,12 @@ if __name__ == "__main__":
         help="The top-p value for sampling. Default to 1.",
     )
     parser.add_argument(
+        "--ignore-eos",
+        default=False,
+        action="store_true",
+        help='Whether to set the "ignore_eos" field.',
+    )
+    parser.add_argument(
         "--num-process-workers",
         type=int,
         help="The number of parallel process workers to send the requests.",
@@ -328,6 +357,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether to enable cuda profile on server. "
         "The --mlc-model-lib path should be provided when enabling this option.",
+    )
+    parser.add_argument(
+        "--debug-dump",
+        default=False,
+        action="store_true",
+        help="Whether to dump all request record raw data to file.",
     )
     parser.add_argument(
         "--multi-round",

@@ -46,11 +46,13 @@ class Metrics(BaseModel):
 class RequestRecord(BaseModel):
     """The request records collected from LLM inference requests."""
 
+    request_id: Optional[int] = None
     chat_cmpl: ChatCompletionRequest
     output_str: Optional[str] = None
     first_chunk_output_str: str = ""
     timestamp: Optional[float] = None
     metrics: Optional[Metrics] = None
+    error_msg: Optional[str] = None
 
 
 def generate_metrics_summary(
@@ -93,9 +95,12 @@ def generate_metrics_summary(
     if server_report is not None and len(server_report) > 0:
         report["server_metrics"] = server_report
 
-    report["exec_feature"] = (
-        request_records[0].metrics.exec_feature if num_completed_requests > 0 else None
-    )
+    report = {
+        "exec_feature": (
+            request_records[0].metrics.exec_feature if num_completed_requests > 0 else None
+        ),
+        **report,
+    }
     return report
 
 

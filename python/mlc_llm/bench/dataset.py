@@ -46,7 +46,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         _dataset = [
             (data["conversations"][0]["value"], data["conversations"][1]["value"])
             for data in raw_dataset
-            if len(data["conversations"]) >= 2
+            if len(data["conversations"]) >= 2 and data["conversations"][0]["from"] == "human"
         ]
         # Tokenize the prompts and completions.
         self.tokenizer = tokenizer
@@ -56,6 +56,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
                 prompts,
                 truncation=True,
                 max_length=min(tokenizer.model_max_length, self.truncate_length),
+                add_special_tokens=False,
             ).input_ids
         )
         completions = [completion for _, completion in _dataset]
@@ -63,9 +64,13 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
             completions,
             truncation=True,
             max_length=min(tokenizer.model_max_length, self.truncate_length),
+            add_special_tokens=False,
         ).input_ids
         self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
         for i in range(len(_dataset)):
+            if len(prompt_token_ids[i]) < 4:
+                # Filter out sequences that are too short
+                continue
             self._tokenized_dataset.append(
                 (prompts[i], prompt_token_ids[i], len(completion_token_ids[i]))
             )
@@ -140,6 +145,7 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
             untokenized_data,
             truncation=True,
             max_length=min(tokenizer.model_max_length, self.truncate_length),
+            add_special_tokens=False,
         ).input_ids
         tokenized_data_lengths = [len(tokens) for tokens in tokenized_data]
         self.dataset: List[Tuple[str, List[int], int]] = list(
@@ -169,7 +175,9 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
                 "Don't generate eos tokens:\n\n"
             )
 
-            remaining_token_length = input_length - len(self.tokenizer.encode(prompt))
+            remaining_token_length = input_length - len(
+                self.tokenizer.encode(prompt, add_special_tokens=False)
+            )
 
             random.shuffle(self.dataset)
 
@@ -219,7 +227,9 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
             }
             num_tokens = 0
             for message in messages:
-                num_tokens += len(self.tokenizer.encode(message["content"]))
+                num_tokens += len(
+                    self.tokenizer.encode(message["content"], add_special_tokens=False)
+                )
             self.dataset.append((messages, schema, num_tokens))
 
     def generate_request_records(
