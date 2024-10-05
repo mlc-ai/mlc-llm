@@ -193,6 +193,7 @@ class OpenAIEndPoint(APIEndPoint):
         port: int,
         timeout: Optional[float] = None,
         include_server_metrics: bool = False,
+        no_debug_config: bool = False,
     ) -> None:
         super().__init__(include_server_metrics=include_server_metrics)
 
@@ -207,6 +208,7 @@ class OpenAIEndPoint(APIEndPoint):
         assert (
             not include_server_metrics
         ), '"include_server_metrics" only works for "openai-chat" endpoint for now'
+        self.no_debug_config = no_debug_config
 
     async def __aenter__(self) -> Self:
         import aiohttp  # pylint: disable=import-outside-toplevel,import-error
@@ -239,7 +241,8 @@ class OpenAIEndPoint(APIEndPoint):
             and request_record.chat_cmpl.debug_config.ignore_eos
         ):
             payload["ignore_eos"] = True
-            payload["debug_config"] = {"ignore_eos": True}
+            if not self.no_debug_config:
+                payload["debug_config"] = {"ignore_eos": True}
 
         generated_text = ""
         first_chunk_output_str = ""
@@ -433,6 +436,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
 
 SUPPORTED_BACKENDS = [
     "openai",
+    "openai-no-debug-config",
     "openai-chat",
     "tensorrt-llm",
 ]
@@ -442,6 +446,10 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
     """Create an API endpoint instance with regard to the specified endpoint kind."""
     if args.api_endpoint == "openai":
         return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
+    if args.api_endpoint == "openai-no-debug-config":
+        return OpenAIEndPoint(
+            args.host, args.port, args.timeout, args.include_server_metrics, no_debug_config=True
+        )
     if args.api_endpoint == "openai-chat":
         return OpenAIChatEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
     if args.api_endpoint == "tensorrt-llm":

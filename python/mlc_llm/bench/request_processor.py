@@ -151,9 +151,13 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 assert request_record.error_msg is not None
                 continue
 
-            metrics.output_tokens = len(self.tokenizer.encode(request_record.output_str))
+            metrics.output_tokens = len(
+                self.tokenizer.encode(request_record.output_str, add_special_tokens=False)
+            )
             first_chunk_output_tokens = len(
-                self.tokenizer.encode(request_record.first_chunk_output_str)
+                self.tokenizer.encode(
+                    request_record.first_chunk_output_str, add_special_tokens=False
+                )
             )
             if metrics.output_tokens <= first_chunk_output_tokens:
                 metrics.success = False
