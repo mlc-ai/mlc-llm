@@ -85,8 +85,13 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         ).input_ids
         self._tokenized_dataset: List[Tuple[str, List[int], int]] = []
         for i in range(len(_dataset)):
-            if len(prompt_token_ids[i]) < 4:
-                # Filter out sequences that are too short
+            if (
+                len(prompt_token_ids[i]) < 4
+                or len(completion_token_ids[i]) < 4
+                or len(prompt_token_ids[i]) + len(completion_token_ids[i])
+                >= min(tokenizer.model_max_length, 8192)
+            ):
+                # Filter out sequences that are too short or too long
                 continue
             self._tokenized_dataset.append(
                 (prompts[i], prompt_token_ids[i], len(completion_token_ids[i]))
