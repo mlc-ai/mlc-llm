@@ -26,5 +26,6 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
+    deepseek_v2,
 )
 from .registry import ConvTemplateRegistry

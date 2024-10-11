@@ -104,6 +104,63 @@ def rope_freq_longrope(  # pylint: disable=too-many-arguments
     return cos_freq, sin_freq, {freq_var: freq}
 
 
+def yarn_find_correction_dim(
+    num_rotations: int,
+    d: tir.Var,
+    theta: float,
+    max_position_embeddings: int,
+):
+    return (d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (
+        2 * math.log(theta)
+    )
+
+
+def yarn_find_correction_range(
+    low_rot: int,
+    high_rot: int,
+    d: tir.Var,
+    theta: float,
+    max_position_embeddings: int,
+):
+    low = tir.floor(yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings))
+    high = tir.ceil(yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings))
+    return tir.max(low, 0), tir.min(high, d - 1)
+
+
+def rope_freq_yarn(
+    s: tir.Var,
+    d: tir.Var,
+    d_range: int,
+    theta: float,
+    dtype: str,
+    original_max_position_embeddings: int,
+    scaling_factor: float,
+    beta_fast: float,
+    beta_slow: float,
+):
+    freq_extra = tir.const(1, "float32") / tir.power(
+        theta, d * 2 % d_range / tir.const(d_range, "float32")
+    )
+
+    freq_inter = tir.const(1, "float32") / tir.power(
+        scaling_factor * theta, d * 2 % d_range / tir.const(d_range, "float32")
+    )
+
+    low, high = yarn_find_correction_range(
+        beta_fast, beta_slow, d, theta, original_max_position_embeddings
+    )
+    high = tir.if_then_else(low == high, high + 0.001, high)
+    inv_freq_mask = tir.const(1, "float32") - tir.max(
+        tir.min((d - low) / (high - low), 1.0), 0.0
+    ).astype("float32")
+    inv_freq = freq_inter * (1 - inv_freq_mask) + freq_extra * inv_freq_mask
+    freq = s * inv_freq
+    freq_var = tir.Var("freq", "float32")
+    cos_freq = tir.cos(freq_var).astype(dtype)
+    sin_freq = tir.sin(freq_var).astype(dtype)
+    return cos_freq, sin_freq, {freq_var: freq}
+
+
 def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
     """Return the RoPE inverse frequency computation function based
     on the given RoPE scaling.
@@ -123,6 +180,14 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
             rope_freq_longrope,
             max_position_embeddings=rope_scaling["max_position_embeddings"],
             original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
+        )
+    if rope_scaling["rope_type"] == "yarn":
+        return partial(
+            rope_freq_yarn,
+            original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
+            scaling_factor=rope_scaling["factor"],
+            beta_fast=rope_scaling["beta_fast"],
+            beta_slow=rope_scaling["beta_slow"],
         )
     raise ValueError(f'Unsupported RoPE scaling type: {rope_scaling["rope_type"]}')
 

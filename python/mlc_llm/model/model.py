@@ -37,6 +37,7 @@ from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
 from .starcoder2 import starcoder2_loader, starcoder2_model, starcoder2_quantization
+from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model, deepseek_v2_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -292,6 +293,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen2_moe_quantization.no_quant,
             "group-quant": qwen2_moe_quantization.group_quant,
             "ft-quant": qwen2_moe_quantization.ft_quant,
+        },
+    ),
+    "deepseek_v2": Model(
+        name="deepseek_v2",
+        model=deepseek_v2_model.DeepseekV2ForCausalLM,
+        config=deepseek_v2_model.DeepseekV2Config,
+        source={
+            "huggingface-torch": deepseek_v2_loader.huggingface,
+            "huggingface-safetensor": deepseek_v2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": deepseek_v2_quantization.no_quant,
+            "group-quant": deepseek_v2_quantization.group_quant,
+            "ft-quant": deepseek_v2_quantization.ft_quant,
         },
     ),
     "stablelm": Model(
