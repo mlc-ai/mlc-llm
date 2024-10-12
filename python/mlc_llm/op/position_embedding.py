@@ -110,6 +110,7 @@ def yarn_find_correction_dim(
     theta: float,
     max_position_embeddings: int,
 ):
+    """Inverse dim formula to find dim based on number of rotations"""
     return (d * math.log(max_position_embeddings / (num_rotations * 2 * math.pi))) / (
         2 * math.log(theta)
     )
@@ -122,6 +123,7 @@ def yarn_find_correction_range(
     theta: float,
     max_position_embeddings: int,
 ):
+    """Find the correction range based on the number of rotations"""
     low = tir.floor(yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings))
     high = tir.ceil(yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings))
     return tir.max(low, 0), tir.min(high, d - 1)
@@ -135,9 +137,10 @@ def rope_freq_yarn(
     dtype: str,
     original_max_position_embeddings: int,
     scaling_factor: float,
-    beta_fast: float,
-    beta_slow: float,
-):
+    beta_fast: int,
+    beta_slow: int,
+):  # pylint: disable=too-many-arguments, too-many-locals
+    """Compute the inverse frequency of RoPE for yarn RoPE scaling."""
     freq_extra = tir.const(1, "float32") / tir.power(
         theta, d * 2 % d_range / tir.const(d_range, "float32")
     )

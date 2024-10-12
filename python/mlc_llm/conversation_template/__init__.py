@@ -8,6 +8,7 @@
 # model preset templates
 from . import (
     cohere,
+    deepseek_v2,
     dolly,
     gemma,
     glm,
@@ -26,6 +27,5 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
-    deepseek_v2,
 )
 from .registry import ConvTemplateRegistry

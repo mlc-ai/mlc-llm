@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class DeepseekV2Config(ConfigBase):
+class DeepseekV2Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Deepseek V2 model."""
 
     vocab_size: int
     hidden_size: int
@@ -35,7 +36,6 @@ class DeepseekV2Config(ConfigBase):
     n_shared_experts: int
     n_routed_experts: int
     num_experts_per_tok: int
-    moe_intermediate_size: int
     norm_topk_prob: bool
     first_k_dense_replace: int
     moe_layer_freq: int
@@ -47,7 +47,7 @@ class DeepseekV2Config(ConfigBase):
     v_head_dim: int
     qk_nope_head_dim: int
     rms_norm_eps: float
-    rope_theta: float
+    rope_theta: int
     rope_scaling: Optional[Dict[str, Any]] = None
     context_window_size: int = 0
     prefill_chunk_size: int = 0
@@ -93,6 +93,9 @@ class DeepseekV2Config(ConfigBase):
 
         if self.tensor_parallel_shards != 1:
             raise ValueError("Only support single device at this moment.")
+
+
+# pylint: disable=invalid-name,missing-docstring,too-many-locals
 
 
 class DeepseekV2MLP(nn.Module):
@@ -165,7 +168,7 @@ class DeepseekV2YarnRotaryEmbedding(nn.Module):
         return q_embed, k_embed
 
 
-class DeepseekV2Attention(nn.Module):
+class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: DeepseekV2Config):
         super().__init__()
         self.config = config
@@ -227,7 +230,7 @@ class DeepseekV2Attention(nn.Module):
                 self.q_a_layernorm(self.q_a_proj(hidden_states))
             )  # (b, s, num_heads * q_head_dim)
         q = op.reshape(q, (b, s, self.num_heads, self.q_head_dim))  # (b, s, num_heads, q_head_dim)
-        q_nope, q_pe = op.split(
+        _, q_pe = op.split(
             q, [self.qk_nope_head_dim], axis=-1
         )  # (b, s, num_heads, qk_nope_head_dim), (b, s, num_heads, qk_rope_head_dim)
 
@@ -308,7 +311,7 @@ class DeepseekV2Attention(nn.Module):
         return self.o_proj(output)
 
 
-class DeepseekV2MoE(nn.Module):
+class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: DeepseekV2Config):
         super().__init__()
         self.num_experts_per_tok = config.num_experts_per_tok
@@ -406,7 +409,7 @@ class DeepseekV2DecoderLayer(nn.Module):
         out = self.self_attn(out, paged_kv_cache, layer_id)
         hidden_states = hidden_states + out
         out = self.post_attention_layernorm(hidden_states)
-        out = self.mlp(out)
+        out = self.mlp(out)  # type: ignore[operator]
         hidden_states = hidden_states + out
         return hidden_states
 
@@ -430,7 +433,7 @@ class DeepseekV2Model(nn.Module):
         return hidden_states
 
 
-class DeepseekV2ForCausalLM(nn.Module):
+class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: DeepseekV2Config):
         self.model = DeepseekV2Model(config)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
