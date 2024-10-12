@@ -155,9 +155,12 @@ class LlavaForCasualLM(Module):
         return self.language_model.embed(input_ids)
 
     def image_preprocess(self, pixel_values: Tensor) -> Tensor:
-        # pixel_values shape is NHWC
+        pixel_values = permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
         pixel_values = self.image_processor.resize(
-            pixel_values, {"shortest_edge": self.config.vision_config.image_size}
+            pixel_values,
+            {
+                "shortest_edge": self.config.vision_config.image_size,
+            },
         )
         pixel_values = self.image_processor.crop(
             pixel_values,
@@ -168,7 +171,6 @@ class LlavaForCasualLM(Module):
         )
         pixel_values = self.image_processor.rescale(pixel_values)
         pixel_values = self.image_processor.normalize(pixel_values)
-        pixel_values = permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
         return pixel_values
 
     def image_embed(self, pixel_values: Tensor) -> Tensor:
