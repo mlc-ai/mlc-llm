@@ -42,12 +42,12 @@ class DeepseekV2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     routed_scaling_factor: float
     attention_bias: bool
     kv_lora_rank: int
-    q_lora_rank: int
     qk_rope_head_dim: int
     v_head_dim: int
     qk_nope_head_dim: int
     rms_norm_eps: float
     rope_theta: int
+    q_lora_rank: Optional[int] = None
     rope_scaling: Optional[Dict[str, Any]] = None
     context_window_size: int = 0
     prefill_chunk_size: int = 0
