@@ -8,6 +8,7 @@
 # model preset templates
 from . import (
     cohere,
+    deepseek_v2,
     dolly,
     gemma,
     glm,
