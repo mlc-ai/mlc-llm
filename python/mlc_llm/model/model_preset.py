@@ -1788,7 +1788,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "num_experts": 8,
         "num_experts_per_tok": 2,
     },
-    "deepseek":{
+    "deepseek": {
         "architectures": ["DeepseekForCausalLM"],
         "attention_bias": False,
         "attention_dropout": 0.0,
@@ -1819,6 +1819,6 @@ MODEL_PRESETS: Dict[str, Any] = {
         "torch_dtype": "bfloat16",
         "transformers_version": "4.36.2",
         "use_cache": True,
-        "vocab_size": 102400
+        "vocab_size": 102400,
     },
 }
