@@ -162,8 +162,8 @@ class DeepseekMLP(nn.Module):
         return self.down_proj(op.silu(x1) * x2)
 
 
-class DeepseekMoE(nn.Module):
-    def __init__(self, config: DeepseekConfig):  # pylint: disable=too-many-instance-attributes
+class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: DeepseekConfig):
         self.num_local_experts = config.n_routed_experts
         self.num_experts_per_tok = config.num_experts_per_tok
         self.gate = nn.Linear(config.hidden_size, config.n_routed_experts, bias=False)
