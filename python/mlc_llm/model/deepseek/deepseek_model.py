@@ -256,14 +256,12 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
         )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        residual = hidden_states
-        hidden_states = self.input_layernorm(hidden_states)
-        hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = hidden_states + residual
-        residual = hidden_states
-        hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states = self.mlp(hidden_states)
-        hidden_states = hidden_states + residual
+        out = self.input_layernorm(hidden_states)
+        out = self.self_attn(out, paged_kv_cache, layer_id)
+        hidden_states = hidden_states + out
+        out = self.post_attention_layernorm(hidden_states)
+        out = self.mlp(out)  # type: ignore[operator]
+        hidden_states = hidden_states + out
         return hidden_states
 
 
