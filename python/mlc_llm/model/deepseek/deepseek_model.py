@@ -149,7 +149,9 @@ class DeepseekMLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = (config.intermediate_size if intermediate_size is None else intermediate_size)
+        self.intermediate_size = (
+            config.intermediate_size if intermediate_size is None else intermediate_size
+        )
 
         self.gate_up_proj = nn.Linear(self.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
@@ -183,7 +185,6 @@ class DeepseekMoE(nn.Module):
         if config.n_shared_experts is not None:
             intermediate_size = self.moe_intermediate_size * config.n_shared_experts
             self.shared_experts = DeepseekMLP(config, intermediate_size=intermediate_size)
-
 
     def forward(self, x: Tensor):  # pylint: disable=too-many-locals
         def _expert_forward(x: Tensor, indptr: Tensor):
@@ -254,7 +255,6 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
 
-
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
@@ -265,7 +265,6 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
         hidden_states = self.mlp(hidden_states)
         hidden_states = hidden_states + residual
         return hidden_states
-
 
 
 class DeepseekModel(nn.Module):
