@@ -12,6 +12,7 @@ from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .bert import bert_loader, bert_model, bert_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .cohere import cohere_loader, cohere_model, cohere_quantization
+from .deepseek import deepseek_loader, deepseek_model, deepseek_quantization
 from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model, deepseek_v2_quantization
 from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
@@ -515,6 +516,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": minicpm_quantization.no_quant,
             "group-quant": minicpm_quantization.group_quant,
             "ft-quant": minicpm_quantization.ft_quant,
+        },
+    ),
+    "deepseek": Model(
+        name="deepseek",
+        model=deepseek_model.DeepseekForCausalLM,
+        config=deepseek_model.DeepseekConfig,
+        source={
+            "huggingface-torch": deepseek_loader.huggingface,
+            "huggingface-safetensor": deepseek_loader.huggingface,
+        },
+        quantize={
+            "no-quant": deepseek_quantization.no_quant,
+            "group-quant": deepseek_quantization.group_quant,
+            "ft-quant": deepseek_quantization.ft_quant,
         },
     ),
 }
