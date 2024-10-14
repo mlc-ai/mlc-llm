@@ -305,4 +305,5 @@ CONV_TEMPLATES = {
     "tinyllama_v1_0",
     "aya-23",
     "deepseek_v2",
+    "deepseek",
 }
