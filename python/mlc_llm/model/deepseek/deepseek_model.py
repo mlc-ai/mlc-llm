@@ -4,7 +4,6 @@ TODO: add docstring
 """
 
 import dataclasses
-import math
 from functools import partial
 from typing import Any, Dict, Optional
 
@@ -164,7 +163,7 @@ class DeepseekMLP(nn.Module):
 
 
 class DeepseekMoE(nn.Module):
-    def __init__(self, config: DeepseekConfig):
+    def __init__(self, config: DeepseekConfig):  # pylint: disable=too-many-instance-attributes
         self.num_local_experts = config.n_routed_experts
         self.num_experts_per_tok = config.num_experts_per_tok
         self.gate = nn.Linear(config.hidden_size, config.n_routed_experts, bias=False)
