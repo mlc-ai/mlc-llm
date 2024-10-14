@@ -64,7 +64,8 @@ std::string TextStreamerObj::Put(const std::vector<int32_t>& delta_tokens) {
                  0) {
         new_pending_tokens.push_back(pending_tokens_.back());
         pending_tokens_.pop_back();
-        validated_str = validated_str.substr(0, validated_str.length() - 3);
+        all_tokens.pop_back();
+        validated_str = tokenizer_->Decode(all_tokens).substr(prefix_str.length());
       }
     } else {
       // Case 2. prefix_str is not a prefix of `full_str`.
