@@ -59,7 +59,7 @@ The only difference is that we need to specify the quantization mode as ``e4m3_e
 
 We will run the calibration model on the dataset such as ShareGPT to collect the statistics of the
 activations. The calibration model will updates the quantization parameters in the weights file
-in-place.
+in-place. We turn off the cuda graph as it is not yet supported in the calibration process.
 
 .. code-block:: bash
 
@@ -68,6 +68,7 @@ in-place.
        --model-lib <model-lib-path> \
        --dataset <dataset-path> \
        --num-calibration-samples <num-samples> \
+       --opt "cudagraph=0"
        --output <output-path>
 
 3. Compile the quantized model for inference.
