@@ -219,6 +219,7 @@ class Phi3VForCausalLM(nn.Module):
 
     # pylint: disable=protected-access
     def image_preprocess(self, pixel_values: Tensor, num_crops=16) -> Tensor:
+        pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
         pixel_values = self.image_processor.resize(pixel_values, params={"hd_transform": 336})
         new_h = tir.Var("new_h", "int64")
         new_w = tir.Var("new_w", "int64")
@@ -228,7 +229,7 @@ class Phi3VForCausalLM(nn.Module):
             .match_cast(
                 pixel_values._expr,
                 relax.TensorStructInfo(
-                    [pixel_values.shape[0], new_h, new_w, pixel_values.shape[3]], pixel_values.dtype
+                    [pixel_values.shape[0], pixel_values.shape[1], new_h, new_w], pixel_values.dtype
                 ),
             ),
             "pixel_values",
@@ -246,16 +247,14 @@ class Phi3VForCausalLM(nn.Module):
             .match_cast(
                 global_image._expr,
                 relax.TensorStructInfo(
-                    [global_image.shape[0], 336, 336, global_image.shape[3]], global_image.dtype
+                    [global_image.shape[0], global_image.shape[1], 336, 336], global_image.dtype
                 ),
             ),
             "global_image",
         )
 
-        global_image = op.permute_dims(global_image, axes=(0, 3, 1, 2))
-        n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
+        n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
         assert isinstance(h, tir.Mul) and isinstance(h.b, tir.IntImm) and h.b.value == 336
-        pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))  # NHWC -> NCHW
         pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
         pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))
