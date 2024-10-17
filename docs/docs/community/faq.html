@@ -186,6 +186,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">Configure Quantization</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -290,7 +291,7 @@
 <dl class="simple">
 <dt>… How can I customize the temperature, and repetition penalty of models?</dt><dd><p>Please check our <a class="reference internal" href="../deploy/mlc_chat_config.html#configure-mlc-chat-json"><span class="std std-ref">Customize MLC Chat Config</span></a> tutorial.</p>
 </dd>
-<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <a class="reference internal" href="../compilation/configure_quantization.html"><span class="doc">🚧 Configure Quantization</span></a> tutorial.</p>
+<dt>… What’s the quantization algorithm MLC-LLM using?</dt><dd><p>Please check our <a class="reference internal" href="../compilation/configure_quantization.html"><span class="doc">Configure Quantization</span></a> tutorial.</p>
 </dd>
 <dt>… Why do I encounter an error <code class="docutils literal notranslate"><span class="pre">free():</span> <span class="pre">invalid</span> <span class="pre">pointer,</span> <span class="pre">Aborted</span> <span class="pre">(core</span> <span class="pre">dumped)</span></code> at the end of model compilation?</dt><dd><p>This happens if you compiled TVM-Unity from source and didn’t hide LLVM symbols in cmake configurations.
 Please follow our instructions in <a class="reference internal" href="../install/tvm.html#tvm-unity-build-from-source"><span class="std std-ref">Building TVM Unity from Source</span></a> tutorial to compile TVM-Unity which hides LLVM symbols, or use our pre-built MLC-LLM <a class="reference internal" href="../install/mlc_llm.html"><span class="doc">pip wheels</span></a>.</p>

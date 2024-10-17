@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>🚧 Configure Quantization &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Configure Quantization &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -45,7 +45,9 @@
     
     <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
-    <link rel="search" title="Search" href="../search.html" /> 
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Install TVM Unity Compiler" href="../install/tvm.html" />
+    <link rel="prev" title="Define New Model Architectures" href="define_new_models.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -179,11 +181,22 @@
 <li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Chat Config</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
-<ul>
+<ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="compile_models.html">Compile Model Libraries</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_libraries_and_weights.html">Package Libraries and Weights</a></li>
 <li class="toctree-l1"><a class="reference internal" href="define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configure Quantization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#quantization-algorithm">Quantization Algorithm</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quantization-mode">Quantization Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#calibration">Calibration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#compile-the-calibration-model">1. Compile the calibration model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#run-the-calibration-model">2. Run the calibration model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compile-the-quantized-model-for-inference">3. Compile the quantized model for inference.</a></li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
@@ -257,7 +270,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>🚧 Configure Quantization</li>
+      <li>Configure Quantization</li>
     
     
       
@@ -283,19 +296,77 @@
            <div itemprop="articleBody">
             
   <section id="configure-quantization">
-<h1>🚧 Configure Quantization<a class="headerlink" href="#configure-quantization" title="Permalink to this heading">¶</a></h1>
+<h1>Configure Quantization<a class="headerlink" href="#configure-quantization" title="Permalink to this heading">¶</a></h1>
 <section id="quantization-algorithm">
 <h2>Quantization Algorithm<a class="headerlink" href="#quantization-algorithm" title="Permalink to this heading">¶</a></h2>
 <p>The default quantization algorithm used in MLC-LLM is grouping quantization method discussed in the papers <a class="reference external" href="https://arxiv.org/abs/2212.09720">The case for 4-bit precision: k-bit Inference Scaling Laws</a> and <a class="reference external" href="https://arxiv.org/abs/2206.09557">LUT-GEMM: Quantized Matrix Multiplication based on LUTs for Efficient Inference in Large-Scale Generative Language Models</a>.</p>
 </section>
 <section id="quantization-mode">
 <span id="id1"></span><h2>Quantization Mode<a class="headerlink" href="#quantization-mode" title="Permalink to this heading">¶</a></h2>
-<p>In MLC-LLM we use a short code that indicates the quantization mode to use.</p>
-<p>The format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_id)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number
+<p>In MLC-LLM we use a short code that indicates the quantization mode to use. MLC-LLM supports both
+weight-only quantization and weight-activation quantization.</p>
+<p>For the weight-only quantization, he format of the code is <code class="docutils literal notranslate"><span class="pre">qAfB(_id)</span></code>, where <code class="docutils literal notranslate"><span class="pre">A</span></code> represents the number
 of bits for storing weights and <code class="docutils literal notranslate"><span class="pre">B</span></code> represents the number of bits for storing activations.
 The <code class="docutils literal notranslate"><span class="pre">_id</span></code> is an integer identifier to distinguish different quantization algorithms (e.g. symmetric, non-symmetric, AWQ, etc).</p>
 <p>Currently, available options are: <code class="docutils literal notranslate"><span class="pre">q0f16</span></code>, <code class="docutils literal notranslate"><span class="pre">q0f32</span></code>, <code class="docutils literal notranslate"><span class="pre">q3f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code>, <code class="docutils literal notranslate"><span class="pre">q4f32_1</span></code>, and <code class="docutils literal notranslate"><span class="pre">q4f16_awq</span></code> (not stable).</p>
-<p>More details to come.</p>
+<p>For the weight-activation quantization, currently MLC-LLM supports FP8 quantization on CUDA.
+The available options are: <code class="docutils literal notranslate"><span class="pre">e4m3_e4m3_f16</span></code> and <code class="docutils literal notranslate"><span class="pre">e5m2_e5m2_f16</span></code>. In these modes, both weights and activations are quantized to FP8 format.
+The output of each layer is in higher precision (FP16) and then requantized to FP8.</p>
+</section>
+<section id="calibration">
+<span id="id2"></span><h2>Calibration<a class="headerlink" href="#calibration" title="Permalink to this heading">¶</a></h2>
+<p>For <code class="docutils literal notranslate"><span class="pre">e4m3_e4m3_f16</span></code> quantization, we need to calibrate the quantization parameters for the activations.
+The calibration process is done by running the following command:</p>
+<section id="compile-the-calibration-model">
+<h3>1. Compile the calibration model<a class="headerlink" href="#compile-the-calibration-model" title="Permalink to this heading">¶</a></h3>
+<p>We use the same compilation workflow to compile the model in calibration mode.
+The only difference is that we need to specify the quantization mode as <code class="docutils literal notranslate"><span class="pre">e4m3_e4m3_f16_calibrate</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>gen_config<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;model-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>e4m3_e4m3_f16_max_calibrate<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+
+mlc_llm<span class="w"> </span>convert_weights<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;model-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>e4m3_e4m3_f16_max_calibrate<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+
+mlc_llm<span class="w"> </span>compile<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;config-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+</pre></div>
+</div>
+</section>
+<section id="run-the-calibration-model">
+<h3>2. Run the calibration model<a class="headerlink" href="#run-the-calibration-model" title="Permalink to this heading">¶</a></h3>
+<p>We will run the calibration model on the dataset such as ShareGPT to collect the statistics of the
+activations. The calibration model will updates the quantization parameters in the weights file
+in-place. We turn off the cuda graph as it is not yet supported in the calibration process.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>calibrate<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;model-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--model-lib<span class="w"> </span>&lt;model-lib-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--dataset<span class="w"> </span>&lt;dataset-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-calibration-samples<span class="w"> </span>&lt;num-samples&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--opt<span class="w"> </span><span class="s2">&quot;cudagraph=0&quot;</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+</pre></div>
+</div>
+</section>
+<section id="compile-the-quantized-model-for-inference">
+<h3>3. Compile the quantized model for inference.<a class="headerlink" href="#compile-the-quantized-model-for-inference" title="Permalink to this heading">¶</a></h3>
+<p>After the calibration process, we can compile the model for inference. In this step, we only need
+to generate the configuration file using the desired quantization format and compile the model.
+Weights are already quantized and calibrated in the previous steps and do not need to be converted again.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mlc_llm<span class="w"> </span>gen_config<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;model-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--quantization<span class="w"> </span>e4m3_e4m3_f16<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+mlc_llm<span class="w"> </span>compile<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>&lt;config-path&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>&lt;output-path&gt;
+</pre></div>
+</div>
+</section>
 </section>
 </section>
 
@@ -306,6 +377,15 @@ The <code class="docutils literal notranslate"><span class="pre">_id</span></cod
           
 
 <footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../install/tvm.html" class="btn btn-neutral float-right" title="Install TVM Unity Compiler" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="define_new_models.html" class="btn btn-neutral float-left" title="Define New Model Architectures" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
 
 <div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
 <section class="footerSec">
