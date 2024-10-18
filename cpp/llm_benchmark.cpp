@@ -24,7 +24,7 @@ void exitProgram() {
 
 // Define the callback function that processes the responses
 void RequestStreamCallback(const std::string& response) {
-    mlc::llm::Result<ChatCompletionStreamResponse> stream_response_result = 
+    mlc::llm::Result<ChatCompletionStreamResponse> stream_response_result =
         ChatCompletionStreamResponse::FromJSON(
             response.substr(1, response.size() - 2)
         );
@@ -54,9 +54,9 @@ void RequestStreamCallback(const std::string& response) {
 
 
 void benchmark_llm(
-    const std::string& model_path, 
-    const std::string& modellib_path, 
-    const std::string& mode, 
+    const std::string& model_path,
+    const std::string& modellib_path,
+    const std::string& mode,
     const int device_type,
     const int timeout,
     const std::string& input_text) {
@@ -101,8 +101,7 @@ void benchmark_llm(
     std::cerr << engine_json << std::endl;
     engine->Reload(engine_json);
     std::cerr << "\engine->Reload\n";
-    
-    
+
     // Prepare input
     std::string request_json = "{\"messages\":[{\"role\":\"user\",\"content\":\"" + input_text + "\"}], \"max_tokens\": " + std::to_string(glob_max_tokens) + "}";
     std::string request_id = "benchmark_request";
@@ -148,7 +147,7 @@ int main(int argc, char* argv[]) {
         << "Device types: kDLCPU = 1; kDLOpenCL = 4; kDLVulkan = 7;\n" << "Be carefull with number of iterations.\n 1 iteration gives you text outputs.";
         return 1;
     }
-    
+
     std::string model_path = argv[1];
     std::string modellib_path = argv[2];
     std::string mode = argv[3];
@@ -158,7 +157,7 @@ int main(int argc, char* argv[]) {
     std::string input_text = argv[7];
     iterations = std::stoi(argv[8]);
 
-    benchmark_llm(model_path, modellib_path, mode, device_type, timeout, input_text);  
+    benchmark_llm(model_path, modellib_path, mode, device_type, timeout, input_text);
 
     return 0;
 }
