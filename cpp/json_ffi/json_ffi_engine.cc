@@ -150,24 +150,8 @@ void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); 
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 
-class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
- public:
-  TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
-  TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
-  TVM_MODULE_VTABLE_ENTRY("reload", &JSONFFIEngineImpl::Reload);
-  TVM_MODULE_VTABLE_ENTRY("unload", &JSONFFIEngineImpl::Unload);
-  TVM_MODULE_VTABLE_ENTRY("reset", &JSONFFIEngineImpl::Reset);
-  TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
-  TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
-  TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
-  TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
-  TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
-                          &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
-  TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
-  TVM_MODULE_VTABLE_END();
-
-  void InitBackgroundEngine(int device_type, int device_id,
-                            Optional<PackedFunc> request_stream_callback) {
+void JSONFFIEngineImpl::InitBackgroundEngine(int device_type, int device_id,
+                                             Optional<PackedFunc> request_stream_callback) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
     this->device_ = device;
     CHECK(request_stream_callback.defined())
@@ -175,17 +159,17 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     this->request_stream_callback_ = request_stream_callback.value();
 
     auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
-      ICHECK_EQ(args.size(), 1);
-      Array<RequestStreamOutput> delta_outputs = args[0];
-      std::string responses = this->GetResponseFromStreamOutput(delta_outputs);
-      this->request_stream_callback_(responses);
+        ICHECK_EQ(args.size(), 1);
+        Array<RequestStreamOutput> delta_outputs = args[0];
+        std::string responses = this->GetResponseFromStreamOutput(delta_outputs);
+        this->request_stream_callback_(responses);
     };
 
     request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
     this->engine_->InitThreadedEngine(device, std::move(request_stream_callback), NullOpt);
-  }
+}
 
-  void Reload(String engine_config_json_str) {
+void JSONFFIEngineImpl::Reload(String engine_config_json_str) {
     this->engine_->Reload(engine_config_json_str);
     this->default_generation_config_ = this->engine_->GetDefaultGenerationConfig();
     auto engine_config = this->engine_->GetCompleteEngineConfig();
@@ -203,17 +187,26 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
     this->model_config_ = ModelConfig::FromJSON(
         json::Lookup<picojson::object>(model_config_json_unwrapped, "model_config"));
     this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
-  }
+}
 
-  void Unload() { this->engine_->Unload(); }
+void JSONFFIEngineImpl::Unload() {
+    this->engine_->Unload();
+}
 
-  void Reset() { this->engine_->Reset(); }
+void JSONFFIEngineImpl::Reset() {
+    this->engine_->Reset();
+}
 
-  void RunBackgroundLoop() { this->engine_->RunBackgroundLoop(); }
+void JSONFFIEngineImpl::RunBackgroundLoop() {
+    this->engine_->RunBackgroundLoop();
+}
 
-  void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
+void JSONFFIEngineImpl::RunBackgroundStreamBackLoop() {
+    this->engine_->RunBackgroundStreamBackLoop();
+}
 
-  String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
+String JSONFFIEngineImpl::GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
+    
     picojson::array json_response_arr;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
@@ -292,8 +285,14 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       }
     }
     return picojson::value(json_response_arr).serialize();
-  }
-};
+}
+
+Module JSONFFIEngineImpl::Create() {
+    auto n = make_object<JSONFFIEngineImpl>();
+    return Module(n);
+}
+
+// TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed(JSONFFIEngineImpl::Create);
 
 TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed([]() {
   return Module(make_object<JSONFFIEngineImpl>());
