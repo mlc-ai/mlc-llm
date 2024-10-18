@@ -69,38 +69,37 @@ class JSONFFIEngine {
   std::unordered_map<String, RequestState> request_map_;
 };
 
-
-
 class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
-public:
-    static Module Create();
+ public:
+  static Module Create();
 
-    TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
-    TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
-    TVM_MODULE_VTABLE_ENTRY("reload", &JSONFFIEngineImpl::Reload);
-    TVM_MODULE_VTABLE_ENTRY("unload", &JSONFFIEngineImpl::Unload);
-    TVM_MODULE_VTABLE_ENTRY("reset", &JSONFFIEngineImpl::Reset);
-    TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
-    TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
-    TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
-    TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
-    TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
-                            &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
-    TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
-    TVM_MODULE_VTABLE_END();
+  TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
+  TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
+  TVM_MODULE_VTABLE_ENTRY("reload", &JSONFFIEngineImpl::Reload);
+  TVM_MODULE_VTABLE_ENTRY("unload", &JSONFFIEngineImpl::Unload);
+  TVM_MODULE_VTABLE_ENTRY("reset", &JSONFFIEngineImpl::Reset);
+  TVM_MODULE_VTABLE_ENTRY("chat_completion", &JSONFFIEngineImpl::ChatCompletion);
+  TVM_MODULE_VTABLE_ENTRY("abort", &JSONFFIEngineImpl::Abort);
+  TVM_MODULE_VTABLE_ENTRY("get_last_error", &JSONFFIEngineImpl::GetLastError);
+  TVM_MODULE_VTABLE_ENTRY("run_background_loop", &JSONFFIEngineImpl::RunBackgroundLoop);
+  TVM_MODULE_VTABLE_ENTRY("run_background_stream_back_loop",
+                          &JSONFFIEngineImpl::RunBackgroundStreamBackLoop);
+  TVM_MODULE_VTABLE_ENTRY("exit_background_loop", &JSONFFIEngineImpl::ExitBackgroundLoop);
+  TVM_MODULE_VTABLE_END();
 
-    void InitBackgroundEngine(int device_type, int device_id, Optional<PackedFunc> request_stream_callback);
-    void Reload(String engine_config_json_str);
-    void Unload();
-    void Reset();
-    void RunBackgroundLoop();
-    void RunBackgroundStreamBackLoop();
+  void InitBackgroundEngine(int device_type, int device_id,
+                            Optional<PackedFunc> request_stream_callback);
+  void Reload(String engine_config_json_str);
+  void Unload();
+  void Reset();
+  void RunBackgroundLoop();
+  void RunBackgroundStreamBackLoop();
 
-    // Implement the TVM_MODULE_VTABLE
-    // TVM_DEFINE_OBJECT_REF_METHODS(JSONFFIEngineImpl, ModuleNode, JSONFFIEngineImplNode);
+  // Implement the TVM_MODULE_VTABLE
+  // TVM_DEFINE_OBJECT_REF_METHODS(JSONFFIEngineImpl, ModuleNode, JSONFFIEngineImplNode);
 
-private:
-    String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs);
+ private:
+  String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs);
 };
 
 }  // namespace json_ffi

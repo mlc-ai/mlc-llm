@@ -500,7 +500,8 @@ picojson::object ChatCompletionStreamResponseChoice::AsJSON() const {
   return obj;
 }
 
-Result<ChatCompletionStreamResponseChoice> ChatCompletionStreamResponseChoice::FromJSON(const picojson::object& json_obj) {
+Result<ChatCompletionStreamResponseChoice> ChatCompletionStreamResponseChoice::FromJSON(
+    const picojson::object& json_obj) {
   using TResult = Result<ChatCompletionStreamResponseChoice>;
   ChatCompletionStreamResponseChoice choice;
 
@@ -512,7 +513,8 @@ Result<ChatCompletionStreamResponseChoice> ChatCompletionStreamResponseChoice::F
   // choice.index = index_res.Unwrap();
 
   // delta
-  Result<picojson::object> delta_obj_res = json::LookupWithResultReturn<picojson::object>(json_obj, "delta");
+  Result<picojson::object> delta_obj_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "delta");
   if (delta_obj_res.IsErr()) {
     return TResult::Error(delta_obj_res.UnwrapErr());
   }
@@ -523,8 +525,9 @@ Result<ChatCompletionStreamResponseChoice> ChatCompletionStreamResponseChoice::F
   choice.delta = delta_res.Unwrap();
 
   // // finish_reason (optional)
-  // Result<std::optional<std::string>> finish_reason_res = json::LookupOptionalWithResultReturn<std::string>(json_obj, "finish_reason");
-  // if (finish_reason_res.IsErr()) {
+  // Result<std::optional<std::string>> finish_reason_res =
+  // json::LookupOptionalWithResultReturn<std::string>(json_obj, "finish_reason"); if
+  // (finish_reason_res.IsErr()) {
   //   return TResult::Error(finish_reason_res.UnwrapErr());
   // }
   // std::optional<std::string> finish_reason_str = finish_reason_res.Unwrap();
@@ -580,7 +583,8 @@ picojson::object ChatCompletionStreamResponse::AsJSON() const {
   return obj;
 }
 
-Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(const std::string& json_str) {
+Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(
+    const std::string& json_str) {
   using TResult = Result<ChatCompletionStreamResponse>;
   Result<picojson::object> json_obj_res = json::ParseToJSONObjectWithResultReturn(json_str);
   if (json_obj_res.IsErr()) {
@@ -618,14 +622,16 @@ Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(cons
   // response.model = model_res.Unwrap();
 
   // // system_fingerprint
-  // Result<std::string> system_fingerprint_res = json::LookupWithResultReturn<std::string>(json_obj, "system_fingerprint");
-  // if (system_fingerprint_res.IsErr()) {
+  // Result<std::string> system_fingerprint_res =
+  // json::LookupWithResultReturn<std::string>(json_obj, "system_fingerprint"); if
+  // (system_fingerprint_res.IsErr()) {
   //   return TResult::Error(system_fingerprint_res.UnwrapErr());
   // }
   // response.system_fingerprint = system_fingerprint_res.Unwrap();
 
   // choices
-  Result<picojson::array> choices_arr_res = json::LookupWithResultReturn<picojson::array>(json_obj, "choices");
+  Result<picojson::array> choices_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "choices");
   if (choices_arr_res.IsErr()) {
     return TResult::Error(choices_arr_res.UnwrapErr());
   }
@@ -634,7 +640,8 @@ Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(cons
     if (!item.is<picojson::object>()) {
       return TResult::Error("A choice in chat completion stream response is not an object");
     }
-    Result<ChatCompletionStreamResponseChoice> choice = ChatCompletionStreamResponseChoice::FromJSON(item.get<picojson::object>());
+    Result<ChatCompletionStreamResponseChoice> choice =
+        ChatCompletionStreamResponseChoice::FromJSON(item.get<picojson::object>());
     if (choice.IsErr()) {
       return TResult::Error(choice.UnwrapErr());
     }
@@ -643,8 +650,9 @@ Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(cons
   response.choices = choices;
 
   // // usage (optional)
-  // Result<std::optional<picojson::object>> usage_res = json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "usage");
-  // if (usage_res.IsErr()) {
+  // Result<std::optional<picojson::object>> usage_res =
+  // json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "usage"); if
+  // (usage_res.IsErr()) {
   //   return TResult::Error(usage_res.UnwrapErr());
   // }
   // std::optional<picojson::object> usage_obj = usage_res.Unwrap();
