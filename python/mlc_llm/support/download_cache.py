@@ -138,7 +138,7 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     mlc_prefix = next(p for p in prefixes if model_url.startswith(p))
     assert mlc_prefix
 
-    git_url_template = "https://huggingface.co/{user}/{repo}.git"
+    git_url_template = "https://huggingface.co/{user}/{repo}"
     bin_url_template = "https://huggingface.co/{user}/{repo}/resolve/main/{record_name}"
 
     if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
