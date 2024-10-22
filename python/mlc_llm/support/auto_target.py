@@ -187,23 +187,18 @@ def _build_android():
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=True)
         assert output.suffix == ".tar"
-        relax.build(
+        ex = relax.build(
             mod,
             target=args.target,
             pipeline=pipeline,
             system_lib=True,
-        ).export_library(
+        )
+        ex.export_library(
             str(output),
             fcompile=tar.tar,
         )
         if args.debug_dump is not None:
-            lib = relax.build(
-                mod,
-                target=args.target,
-                pipeline=pipeline,
-                system_lib=True,
-            )
-            source = lib.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
@@ -215,23 +210,18 @@ def _build_android_so():
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".so"
-        relax.build(
+        ex = relax.build(
             mod,
             target=args.target,
             pipeline=pipeline,
             system_lib=False,
-        ).export_library(
+        )
+        ex.export_library(
             str(output),
             fcompile=ndk.create_shared,
         )
         if args.debug_dump is not None:
-            lib = relax.build(
-                mod,
-                target=args.target,
-                pipeline=pipeline,
-                system_lib=False,
-            )
-            source = lib.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
