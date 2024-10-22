@@ -285,11 +285,14 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
 
             if (
-                    config.n_routed_experts is not None
-                    and layer_idx >= config.first_k_dense_replace
-                    and layer_idx % config.moe_layer_freq == 0
+                config.n_routed_experts is not None
+                and layer_idx >= config.first_k_dense_replace
+                and layer_idx % config.moe_layer_freq == 0
             ):
-                _set(self.mlp.moe_gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1))
+                _set(
+                    self.mlp.moe_gate_up_proj.weight,
+                    tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1),
+                )
                 _set(self.mlp.moe_down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=2))
 
             else:
@@ -315,6 +318,7 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
+
 
 class DeepseekModel(nn.Module):
     def __init__(self, config: DeepseekConfig):
