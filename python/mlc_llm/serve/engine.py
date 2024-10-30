@@ -1856,7 +1856,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         generation_config: GenerationConfig,
         request_id: str,
     ) -> Iterator[List[engine_base.CallbackStreamOutput]]:
-        """Internal synchronous text generation interface of AsyncMLCEngine.
+        """Internal synchronous text generation interface of MLCEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
         at a time via yield. The returned list length is the number of
         parallel generations specified by `generation_config.n`
