@@ -424,7 +424,7 @@ in the <code class="docutils literal notranslate"><span class="pre">model_list</
 </ul>
 <p>We have a one-line command to build and prepare all the model libraries:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/MLCChat<span class="w">  </span><span class="c1"># e.g., &quot;android/MLCChat&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_SOURCE_DIR</span><span class="o">=</span>/path/to/mlc-llm<span class="w">  </span><span class="c1"># e.g., &quot;../..&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MLC_LLM_SOURCE_DIR</span><span class="o">=</span>/path/to/mlc-llm<span class="w">  </span><span class="c1"># has to be absolute path, ../.. does not work</span>
 mlc_llm<span class="w"> </span>package
 </pre></div>
 </div>
