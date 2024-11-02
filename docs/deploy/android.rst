@@ -136,7 +136,7 @@ We have a one-line command to build and prepare all the model libraries:
 .. code:: bash
 
    cd /path/to/MLCChat  # e.g., "android/MLCChat"
-   export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm  # e.g., "../.."
+   export MLC_LLM_SOURCE_DIR=/path/to/mlc-llm  # has to be absolute path, ../.. does not work
    mlc_llm package
 
 This command mainly executes the following two steps:
