@@ -47,15 +47,9 @@ def rope_freq_default(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype:
     return cos_freq, sin_freq, {freq_var: freq}
 
 
-def rope_freq_gptj(
-    s: tir.Var,
-    d: tir.Var,
-    d_range: int,
-    theta: float,
-    dtype: str
-):
+def rope_freq_gptj(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
     """Compute the inverse frequency of RoPE for gptj RoPE scaling."""
-    freq = s / tir.power(theta, 2 * (d//2)% d_range / tir.const(d_range, "float32"))
+    freq = s / tir.power(theta, 2 * (d // 2) % d_range / tir.const(d_range, "float32"))
     freq_var = tir.Var("freq", "float32")
     cos_freq = tir.cos(freq_var).astype(dtype)
     sin_freq = tir.sin(freq_var).astype(dtype)
@@ -410,7 +404,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         cos = cos_freq * x[s, h, d].astype("float32")
         if rope_scaling["rope_type"] == "gptj":
             sin = sin_freq * tir.if_then_else(
-                 d % 2 == 0,
+                d % 2 == 0,
                 -x[s, h, d + 1],
                 x[s, h, d - 1],
             ).astype("float32")
