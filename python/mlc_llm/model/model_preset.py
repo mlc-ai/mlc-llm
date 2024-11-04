@@ -1845,9 +1845,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "summary_proj_to_labels": True,
         "summary_type": "cls_index",
         "summary_use_proj": True,
-        "rope_scaling": {
-            "rope_type": "gptj"
-        },
+        "rope_scaling": {"rope_type": "gptj"},
         "tie_word_embeddings": False,
         "tokenizer_class": "GPT2Tokenizer",
         "transformers_version": "4.18.0.dev0",
