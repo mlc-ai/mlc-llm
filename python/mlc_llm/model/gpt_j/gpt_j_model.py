@@ -74,7 +74,9 @@ class GPTJConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
         assert self.tensor_parallel_shards == 1, "GPTJ currently does not support sharding."
 
+
 # pylint: disable=invalid-name,missing-docstring
+
 
 class GPTJAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTJConfig):
@@ -108,7 +110,6 @@ class GPTJAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         return self.out_proj(output)
 
 
-
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -121,10 +122,8 @@ ACT2FN = {
 
 class GPTJMLP(nn.Module):
     def __init__(self, config: GPTJConfig):  # in MLP: intermediate_size= 4 * embed_dim
-
         embed_dim = config.n_embd
-        inner_dim = (4 * config.n_embd
-                     if config.n_inner is None else config.n_inner)
+        inner_dim = 4 * config.n_embd if config.n_inner is None else config.n_inner
         self.fc_in = nn.Linear(embed_dim, inner_dim, bias=True)
         self.fc_out = nn.Linear(inner_dim, embed_dim, bias=True)
         self.act_fn = ACT2FN[config.activation_function]
@@ -151,7 +150,6 @@ class GPTJBlock(nn.Module):
         return hidden_states
 
 
-
 class GPTJModel(nn.Module):
     def __init__(self, config: GPTJConfig):
         self.embed_dim = config.n_embd
@@ -169,15 +167,14 @@ class GPTJModel(nn.Module):
 
 
 
-class GPTJForCausalLM(nn.Module):   # pylint: disable=too-many-instance-attributes
+class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTJConfig):
         self.transformer = GPTJModel(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, dtype="float32")
         self.dtype = "float32"
         self.hidden_size = config.n_embd
         self.num_hidden_layers = config.n_layer
-        self.intermediate_size = (4 * config.n_embd
-                     if config.n_inner is None else config.n_inner)
+        self.intermediate_size = 4 * config.n_embd if config.n_inner is None else config.n_inner
         self.num_attention_heads = config.n_head
         self.rope_theta = 10000
         self.rope_scaling = config.rope_scaling
@@ -192,10 +189,10 @@ class GPTJForCausalLM(nn.Module):   # pylint: disable=too-many-instance-attribut
             self.dtype = dtype
 
     def batch_forward(
-            self,
-            input_embeds: Tensor,
-            paged_kv_cache: PagedKVCache,
-            logit_positions: Optional[Tensor] = None,
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
     ):
         op_ext.configure()
 
@@ -236,7 +233,7 @@ class GPTJForCausalLM(nn.Module):   # pylint: disable=too-many-instance-attribut
         return logits, paged_kv_cache
 
     def batch_prefill(
-            self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -252,12 +249,12 @@ class GPTJForCausalLM(nn.Module):   # pylint: disable=too-many-instance-attribut
         return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
-            self,
-            max_batch_size: tir.Var,
-            max_total_seq_len: tir.Var,
-            prefill_chunk_size: tir.Var,
-            page_size: tir.Var,
-            support_sliding_window: tir.Var,
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             max_batch_size=max_batch_size,
@@ -274,7 +271,7 @@ class GPTJForCausalLM(nn.Module):   # pylint: disable=too-many-instance-attribut
             rope_theta=self.rope_theta,
             rotary_dim=self.rotary_dim,
             rope_scaling=self.rope_scaling,
-            dtype=self.dtype
+            dtype=self.dtype,
         )
 
     def get_default_spec(self):
