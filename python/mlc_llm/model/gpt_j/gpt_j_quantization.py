@@ -25,6 +25,7 @@ def group_quant(
     )
     return model, quant_map
 
+
 def ft_quant(
     model_config: GPTJConfig,
     quantization: FTQuantize,
@@ -40,6 +41,7 @@ def ft_quant(
     )
     return model, quant_map
 
+
 def no_quant(
     model_config: GPTJConfig,
     quantization: NoQuantize,
@@ -49,3 +51,4 @@ def no_quant(
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map
+    
