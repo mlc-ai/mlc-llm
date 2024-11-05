@@ -119,7 +119,6 @@ ACT2FN = {
 }
 
 
-
 class GPTJMLP(nn.Module):
     def __init__(self, config: GPTJConfig):  # in MLP: intermediate_size= 4 * embed_dim
         embed_dim = config.n_embd
@@ -164,7 +163,6 @@ class GPTJModel(nn.Module):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.ln_f(hidden_states)
         return hidden_states
-
 
 
 class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
