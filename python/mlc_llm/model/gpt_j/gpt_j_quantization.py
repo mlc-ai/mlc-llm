@@ -51,4 +51,3 @@ def no_quant(
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map
-    
