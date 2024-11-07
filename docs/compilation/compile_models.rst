@@ -996,7 +996,7 @@ Note that ``CONFIG`` is a positional argument. Arguments wrapped with ``[ ]`` ar
 
 --conv-template CONV_TEMPLATE                   Conversation template. It depends on how the model is tuned. Use "LM" for vanilla base model
                                                 For existing pre-defined templates, see ``CONV_TEMPLATES``
-                                                `here <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/compiler/model/model.py>`_.
+                                                `here <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/model/model.py>`_.
 
 --context-window-size CONTEXT_WINDOW_SIZE       Option to provide the maximum sequence length supported by the model.
                                                 This is usually explicitly shown as context length or context window in the model card.
