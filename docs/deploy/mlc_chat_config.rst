@@ -110,7 +110,7 @@ supported conversation templates:
 - ``phi-2``
 - ...
 
-Please refer to `conversation_template.py <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template.py>`_ for the full list of supported templates and their implementations.
+Please refer to `conversation_template <https://github.com/mlc-ai/mlc-llm/blob/main/python/mlc_llm/conversation_template>`_ directory for the full list of supported templates and their implementations.
 
 Below is a generic structure of a JSON conversation configuration (we use vicuna as an example):
 
