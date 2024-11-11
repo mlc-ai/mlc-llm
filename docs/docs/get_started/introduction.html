@@ -537,7 +537,7 @@ In some cases, it is beneficial to explicitly compile the model libraries.
 We can deploy LLMs with reduced dependencies by shipping the library for deployment without going through compilation.
 It will also enable advanced options such as cross-compiling the libraries for web and mobile deployments.</p>
 <p>Below is an example command of compiling model libraries in MLC LLM:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">$MODEL_LIB</span><span class="o">=</span><span class="nv">$MLC_MODEL_PATH</span>/lib.so<span class="w">  </span><span class="c1"># &quot;.dylib&quot; for Intel Macs.</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MODEL_LIB</span><span class="o">=</span><span class="nv">$MLC_MODEL_PATH</span>/lib.so<span class="w">  </span><span class="c1"># &quot;.dylib&quot; for Intel Macs.</span>
 <span class="w">                                          </span><span class="c1"># &quot;.dll&quot; for Windows.</span>
 <span class="w">                                          </span><span class="c1"># &quot;.wasm&quot; for web.</span>
 <span class="w">                                          </span><span class="c1"># &quot;.tar&quot; for iPhone/Android.</span>
