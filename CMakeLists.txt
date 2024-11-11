@@ -68,8 +68,11 @@ set(MLC_LLM_RUNTIME_LINKER_LIB "")
 set(TOKENZIER_CPP_PATH 3rdparty/tokenizers-cpp)
 add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 
-
+set(XGRAMMAR_PATH 3rdparty/xgrammar)
 tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
+tvm_file_glob(GLOB_RECURSE XGRAMMAR_SRCS ${XGRAMMAR_PATH}/cpp/*.cc)
+list(FILTER XGRAMMAR_SRCS EXCLUDE REGEX "${XGRAMMAR_PATH}/cpp/pybind/.*\\.cc")
+list(APPEND MLC_LLM_SRCS ${XGRAMMAR_SRCS})
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
 set(
@@ -83,12 +86,14 @@ set(
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} __STDC_FORMAT_MACROS=1)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} PICOJSON_USE_INT64)
+set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} XGRAMMAR_ENABLE_LOG_DEBUG=0)
 
-target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
-target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_compile_definitions(mlc_llm_objs PRIVATE -DMLC_LLM_EXPORTS)
+target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_include_directories(mlc_llm_objs PRIVATE 3rdparty/stb)
+target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
+target_include_directories(mlc_llm_objs PRIVATE ${XGRAMMAR_PATH}/include)
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)
@@ -134,7 +139,6 @@ endif()
 add_library(mlc_llm_module SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 target_link_libraries(mlc_llm_module PUBLIC tvm)
 target_link_libraries(mlc_llm_module PRIVATE tokenizers_cpp)
-
 
 set_property(TARGET mlc_llm_module APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
 set_property(TARGET mlc_llm APPEND PROPERTY LINK_OPTIONS "${MLC_VISIBILITY_FLAG}")
