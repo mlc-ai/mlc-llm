@@ -276,7 +276,7 @@ Below is an example command of compiling model libraries in MLC LLM:
 
 .. code:: bash
 
-  export $MODEL_LIB=$MLC_MODEL_PATH/lib.so  # ".dylib" for Intel Macs.
+  export MODEL_LIB=$MLC_MODEL_PATH/lib.so  # ".dylib" for Intel Macs.
                                             # ".dll" for Windows.
                                             # ".wasm" for web.
                                             # ".tar" for iPhone/Android.
