@@ -65,7 +65,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
       }
 
       auto mstate = rsentry->mstates[0];
-      auto jump_forward_str = mstate->grammar_state_matcher.value()->FindJumpForwardString();
+      auto jump_forward_str = mstate->grammar_matcher->FindJumpForwardString();
 
       if (jump_forward_str.empty()) {
         continue;
@@ -116,7 +116,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
     if (rsentry->request->generation_cfg->logprobs) {
       return false;
     }
-    if (!rsentry->mstates[0]->grammar_state_matcher) {
+    if (!rsentry->mstates[0]->grammar_matcher) {
       return false;
     }
     return true;

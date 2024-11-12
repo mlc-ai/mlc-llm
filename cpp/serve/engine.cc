@@ -13,6 +13,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+#include <xgrammar/xgrammar.h>
 
 #include <cstdlib>
 #include <functional>
@@ -21,7 +22,6 @@
 #include <tuple>
 #include <unordered_set>
 
-#include "../grammar/grammar_state_matcher.h"
 #include "../support/json_parser.h"
 #include "../support/result.h"
 #include "../support/utils.h"
@@ -382,7 +382,7 @@ class EngineImpl : public Engine {
     // - Initialize tokenizer and grammar
     n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
     n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-    n->grammar_init_context_cache_ = GrammarInitContextCache(n->token_table_);
+    n->cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(n->token_table_);
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -495,13 +495,12 @@ class EngineImpl : public Engine {
 
     int n = request->generation_cfg->n;
     int rng_seed = request->generation_cfg->seed;
-    auto grammar_state_init_ctx =
-        GetGrammarInitCtxFromResponseFormat(request->generation_cfg->response_format);
+    auto compiled_grammar = GetGrammarFromResponseFormat(request->generation_cfg->response_format);
 
     std::vector<RequestStateEntry> rsentries;
     // Create the request state entry for the input.
     rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
-                           token_table_, grammar_state_init_ctx);
+                           token_table_, compiled_grammar);
     if (n > 1) {
       // Then create a request state entry for each parallel generation branch.
       // We add a offset to the rng seed so that to make generations different.
@@ -510,7 +509,7 @@ class EngineImpl : public Engine {
       for (int i = 0; i < n; ++i) {
         rsentries[0]->child_indices.push_back(rsentries.size());
         rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
-                               rng_seed + i + 1, token_table_, grammar_state_init_ctx,
+                               rng_seed + i + 1, token_table_, compiled_grammar,
                                /*parent_idx=*/0);
       }
     }
@@ -814,14 +813,14 @@ class EngineImpl : public Engine {
 
   /*! \brief Create a grammar init context according to the response format. If the response format
    * is not JSON, return std::nullopt. */
-  std::optional<std::shared_ptr<GrammarStateInitContext>> GetGrammarInitCtxFromResponseFormat(
+  std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
     if (response_format.type != "json_object") {
       return std::nullopt;
     } else if (!response_format.schema) {
-      return grammar_init_context_cache_->GetInitContextForJSON();
+      return cached_grammar_compiler_.GetCompiledGrammarForJSON();
     } else {
-      return grammar_init_context_cache_->GetInitContextForJSONSchema(
+      return cached_grammar_compiler_.GetCompiledGrammarForJSONSchema(
           response_format.schema.value());
     }
   }
@@ -833,8 +832,8 @@ class EngineImpl : public Engine {
   // internal tokenizer
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
-  // Helper to get the grammar init context for requests.
-  GrammarInitContextCache grammar_init_context_cache_;
+  // Cached grammar compiler for grammar matching.
+  xgrammar::CachedGrammarCompiler cached_grammar_compiler_;
   // Models
   Array<Model> models_;
   // Device that the models run on.
