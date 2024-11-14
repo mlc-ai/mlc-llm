@@ -232,7 +232,7 @@ void FunctionTable::_InitFunctions() {
   this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
   this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
-  if (!this->create_kv_cache_func_.defined()) {
+  if (this->model_metadata_.sliding_window_size != -1 || !this->create_kv_cache_func_.defined()) {
     PackedFunc f_create_rnn_state = mod_get_func("create_rnn_state");
     if (f_create_rnn_state.defined()) {
       this->create_kv_cache_func_ = f_create_rnn_state;
