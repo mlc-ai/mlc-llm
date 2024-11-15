@@ -159,6 +159,7 @@ def _process_model_args(
                 "tensor_parallel_shards": engine_config.tensor_parallel_shards,
                 "pipeline_parallel_stages": engine_config.pipeline_parallel_stages,
                 "max_batch_size": engine_config.max_num_sequence,
+                "opt": engine_config.opt,
             }
 
             model_lib = jit.jit(

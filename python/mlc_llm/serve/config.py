@@ -46,9 +46,22 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
 
     tensor_parallel_shards : Optional[int]
         Number of shards to split the model into in tensor parallelism multi-gpu inference.
+        When "model_lib" is given, this field will be ignored, and the tensor_parallel_shards
+        in the model_lib metadata will be used.
 
     pipeline_parallel_stages : Optional[int]
         Number of pipeline stages to split the model layers for pipeline parallelism.
+        When "model_lib" is given, this field will be ignored, and the pipeline_parallel_stages
+        in the model_lib metadata will be used.
+
+    opt : Optional[str]
+        The optimization flags for JIT compilation.
+        When "model_lib" is given, this field will be ignored.
+        MLC LLM maintains a predefined set of optimization flags,
+        denoted as O0, O1, O2, O3, where O0 means no optimization, O2 means majority of them,
+        and O3 represents extreme optimization that could potentially break the system.
+        Meanwhile, optimization flags could be explicitly specified via details knobs, e.g.
+        "cublas_gemm=1;cudagraph=0".
 
     gpu_memory_utilization : Optional[float]
         A number in (0, 1) denoting the fraction of GPU memory used by the server in total.
@@ -127,6 +140,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     mode: Optional[Literal["local", "interactive", "server"]] = None
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
+    opt: Optional[str] = None
     gpu_memory_utilization: Optional[float] = None
     kv_cache_page_size: int = 16
     max_num_sequence: Optional[int] = None
