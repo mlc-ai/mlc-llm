@@ -111,6 +111,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                 ret_node: Any
                     The new node to replace current node.
                 """
+                if getattr(node, "no_quantization", False):
+                    return node
+
                 if (
                     isinstance(node, nn.Linear)
                     and (not is_final_fc(name) or self.config.quantize_final_fc)
