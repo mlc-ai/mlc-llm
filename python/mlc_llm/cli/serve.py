@@ -31,6 +31,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
     attention_sink_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
+    opt: Optional[str] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -53,6 +54,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(f";opt={self.opt}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -75,6 +77,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         parser.add_argument("--attention_sink_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
+        parser.add_argument("--opt", type=str, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return EngineConfigOverride(
             max_num_sequence=results.max_num_sequence,
@@ -92,6 +95,7 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
             attention_sink_size=results.attention_sink_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
             pipeline_parallel_stages=results.pipeline_parallel_stages,
+            opt=results.opt,
         )
 
 
@@ -210,6 +214,7 @@ def main(argv):
         additional_models=additional_models,
         tensor_parallel_shards=parsed.overrides.tensor_parallel_shards,
         pipeline_parallel_stages=parsed.overrides.pipeline_parallel_stages,
+        opt=parsed.overrides.opt,
         speculative_mode=parsed.speculative_mode,
         prefix_cache_mode=parsed.prefix_cache_mode,
         max_num_sequence=parsed.overrides.max_num_sequence,
