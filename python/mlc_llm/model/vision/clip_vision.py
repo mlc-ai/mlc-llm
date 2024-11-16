@@ -218,6 +218,8 @@ class CLIPVisionTransformer(Module):
 
 
 class CLIPVisionModel(Module):
+    no_quantization: bool = True
+
     def __init__(self, config: CLIPVisionConfig):
         super().__init__()
         self.vision_model = CLIPVisionTransformer(config)
