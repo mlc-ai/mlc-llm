@@ -402,7 +402,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             pos * scale, d, rotary_dim, theta, "float32", **kwargs
         )
         cos = cos_freq * x[s, h, d].astype("float32")
-        if rope_scaling["rope_type"] == "gptj":
+        if "rope_type" in rope_scaling and rope_scaling["rope_type"] == "gptj":
             sin = sin_freq * tir.if_then_else(
                 d % 2 == 0,
                 -x[s, h, d + 1],
