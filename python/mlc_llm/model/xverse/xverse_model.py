@@ -101,15 +101,17 @@ class XverseAttention(nn.Module):  # pylint: disable=too-many-instance-attribute
         self.head_dim = self.hidden_size // self.num_heads
         self.max_position_embeddings = config.context_window_size
 
-        self.qkv_proj = nn.Linear(config.hidden_size, 3 * self.num_heads * self.head_dim, bias=False)
+        self.qkv_proj = nn.Linear(
+            config.hidden_size, 3 * self.num_heads * self.head_dim, bias=False
+        )
 
         self.o_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=False)
 
     def forward(  # pylint: disable=too-many-locals
-            self,
-            hidden_states: Tensor,
-            paged_kv_cache: PagedKVCache,
-            layer_id: int,
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        layer_id: int,
     ):
         d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
@@ -173,7 +175,6 @@ class XverseModel(nn.Module):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
         return hidden_states
-
 
 
 class XverseForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
