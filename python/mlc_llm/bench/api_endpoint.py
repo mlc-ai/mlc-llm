@@ -41,19 +41,23 @@ class OpenAIChatEndPoint(APIEndPoint):
         self,
         host: str,
         port: int,
+        backend: str,
         timeout: Optional[float] = None,
         include_server_metrics: bool = False,
+        no_debug_config: bool = False,
     ) -> None:
         super().__init__(include_server_metrics=include_server_metrics)
 
         import aiohttp  # pylint: disable=import-outside-toplevel,import-error
 
+        self.backend = backend
         self.timeout = timeout
         self.client: aiohttp.ClientSession = None
         self.url = f"http://{host}:{port}/v1/chat/completions"
         self.headers = {"Content-Type": "application/json"}
         if os.getenv("MLC_LLM_API_KEY"):
             self.headers["Authorization"] = f"Bearer {os.getenv('MLC_LLM_API_KEY')}"
+        self.no_debug_config = no_debug_config
 
     async def __aenter__(self) -> Self:
         import aiohttp  # pylint: disable=import-outside-toplevel,import-error
@@ -67,7 +71,7 @@ class OpenAIChatEndPoint(APIEndPoint):
     async def __call__(  # pylint: disable=too-many-branches,too-many-statements,too-many-locals
         self, request_record: RequestRecord
     ) -> RequestRecord:
-        payload = request_record.chat_cmpl.model_dump()
+        payload = request_record.chat_cmpl.model_dump(exclude_unset=True, exclude_none=True)
         if self.timeout is not None and "timeout" not in payload:
             payload["timeout"] = self.timeout
         if self.include_server_metrics:
@@ -80,7 +84,28 @@ class OpenAIChatEndPoint(APIEndPoint):
             and request_record.chat_cmpl.debug_config.ignore_eos
         ):
             payload["ignore_eos"] = True
+            if not self.no_debug_config:
+                payload["debug_config"] = {"ignore_eos": True}
 
+        if self.backend == "vllm":
+            if payload["debug_config"] and "ignore_eos" in payload["debug_config"]:
+                payload["ignore_eos"] = payload["debug_config"]["ignore_eos"]
+            payload.pop("debug_config")
+            if "response_format" in payload:
+                if "json_schema" in payload["response_format"]:
+                    payload["guided_json"] = json.loads(payload["response_format"]["json_schema"])
+                payload["guided_decoding_backend"] = "outlines"
+                payload.pop("response_format")
+        elif self.backend == "llama.cpp":
+            if "response_format" in payload and "schema" in payload["response_format"]:
+                payload["response_format"]["schema"] = json.loads(
+                    payload["response_format"]["json_schema"]
+                )
+                payload["response_format"].pop("json_schema")
+        else:
+            if "response_format" in payload and "json_schema" in payload["response_format"]:
+                payload["response_format"]["schema"] = payload["response_format"]["json_schema"]
+                payload["response_format"].pop("json_schema")
         generated_text = ""
         first_chunk_output_str = ""
         time_to_first_token_s = None
@@ -441,6 +466,8 @@ SUPPORTED_BACKENDS = [
     "sglang",
     "tensorrt-llm",
     "vllm",
+    "vllm-chat",
+    "llama.cpp-chat",
 ]
 
 
@@ -448,12 +475,24 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
     """Create an API endpoint instance with regard to the specified endpoint kind."""
     if args.api_endpoint in ["openai", "mlc", "sglang"]:
         return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
-    if args.api_endpoint == "vllm":
+    if args.api_endpoint in ["vllm", "llama.cpp"]:
         return OpenAIEndPoint(
             args.host, args.port, args.timeout, include_server_metrics=False, no_debug_config=True
         )
     if args.api_endpoint == "openai-chat":
-        return OpenAIChatEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
+        return OpenAIChatEndPoint(
+            args.host, args.port, args.timeout, args.api_endpoint, args.include_server_metrics
+        )
+    if args.api_endpoint in ["vllm-chat", "llama.cpp-chat"]:
+        return OpenAIChatEndPoint(
+            args.host,
+            args.port,
+            args.api_endpoint[:-5],
+            args.timeout,
+            include_server_metrics=False,
+            no_debug_config=True,
+        )
+
     if args.api_endpoint == "tensorrt-llm":
         return TensorRTLLMEndPoint(args.host, args.port, args.timeout)
     raise ValueError(f'Unrecognized endpoint "{args.api_endpoint}"')
