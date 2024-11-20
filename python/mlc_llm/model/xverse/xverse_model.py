@@ -140,13 +140,16 @@ class XverseMLP(nn.Module):
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(op.silu(x1) * x2)
 
+
 class XverseDecoderLayer(nn.Module):
     def __init__(self, config: XverseConfig):
         self.hidden_size = config.hidden_size
         self.self_attn = XverseAttention(config)
         self.mlp = XverseMLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         residual = hidden_states
