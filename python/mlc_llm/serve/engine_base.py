@@ -659,6 +659,8 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         if hasattr(self, "_terminated") and self._terminated:
             return
         self._terminated = True
+        if not hasattr(self, "_ffi"):
+            return
         self._ffi["exit_background_loop"]()
         if hasattr(self, "_background_loop_thread"):
             self._background_loop_thread.join()
