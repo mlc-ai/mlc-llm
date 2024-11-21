@@ -99,6 +99,7 @@ struct FunctionTable {
   PackedFunc apply_penalty_func_;
   PackedFunc apply_bitmask_func_;
   PackedFunc alloc_embedding_tensor_func_;
+  PackedFunc cuda_graph_alloc_init_func_;
   PackedFunc create_kv_cache_func_;
   PackedFunc reset_kv_cache_func_;
   bool support_backtracking_kv_;

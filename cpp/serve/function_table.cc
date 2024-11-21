@@ -152,6 +152,10 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   }
   ICHECK_EQ(this->model_metadata_.tensor_parallel_shards, num_shards);
   ICHECK_EQ(this->model_metadata_.pipeline_parallel_stages, num_stages);
+  // Invoke the CUDA graph allocation init function if it is defined.
+  if (cuda_graph_alloc_init_func_.defined()) {
+    this->cuda_graph_alloc_init_func_();
+  }
 }
 
 ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device) {
@@ -231,6 +235,7 @@ void FunctionTable::_InitFunctions() {
   this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
   this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
   this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
+  this->cuda_graph_alloc_init_func_ = mod_get_func("cuda_graph_alloc_init");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (this->model_metadata_.sliding_window_size != -1 || !this->create_kv_cache_func_.defined()) {
     PackedFunc f_create_rnn_state = mod_get_func("create_rnn_state");
