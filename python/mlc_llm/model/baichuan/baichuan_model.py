@@ -1,6 +1,5 @@
 """
 Implementation for BAICHUAN architecture.
-TODO: add docstring
 """
 
 import dataclasses

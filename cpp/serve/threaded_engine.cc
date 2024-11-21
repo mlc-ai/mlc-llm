@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/threaded_engine.cc
  * \brief The implementation for threaded serving engine in MLC LLM.
  */

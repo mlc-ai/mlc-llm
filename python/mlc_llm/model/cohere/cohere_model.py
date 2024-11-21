@@ -1,6 +1,5 @@
 """
 Implementation for Aya23 architecture
-TODO: add docstring
 """
 
 import dataclasses

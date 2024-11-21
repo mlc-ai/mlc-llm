@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file json_ffi/json_ffi_engine.h
  * \brief The header of JSON FFI engine in MLC LLM.
  */

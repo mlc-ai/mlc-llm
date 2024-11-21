@@ -1,6 +1,5 @@
 """
 Implementation for InternLM architecture.
-TODO: add docstring
 """
 
 import dataclasses

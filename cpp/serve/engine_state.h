@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine_state.h
  */
 #ifndef MLC_LLM_SERVE_ENGINE_STATE_H_

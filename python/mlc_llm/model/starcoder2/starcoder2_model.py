@@ -1,6 +1,5 @@
 """
 Implementation for Starcoder2 architecture.
-TODO: add docstring
 """
 
 import dataclasses

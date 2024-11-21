@@ -1,6 +1,5 @@
 """
 Implementation for StableLM architecture.
-TODO: add docstring
 """
 
 import dataclasses

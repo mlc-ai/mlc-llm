@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 by Contributors
+ * Copyright (c) 2023-2024 by Contributors
  * \file support/progress_bar.h
  * \brief A simple progress bar in C++.
  */

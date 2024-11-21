@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/config.h
  */
 #ifndef MLC_LLM_SERVE_CONFIG_H_

@@ -1,6 +1,5 @@
 """
 Implementation for Orion-14B architecture.
-TODO: add docstring
 """
 
 import dataclasses
