@@ -1,6 +1,5 @@
 """
 Implementation for GPTBigCode architecture.
-TODO: add docstring
 """
 
 import dataclasses

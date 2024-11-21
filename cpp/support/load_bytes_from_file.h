@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 by Contributors
+ * Copyright (c) 2023-2024 by Contributors
  * \file support/load_bytes_from_file.h
  * \brief Utility methods to load from files.
  */

@@ -75,10 +75,10 @@ Please consider citing our project if you find it useful:
 
 ```bibtex
 @software{mlc-llm,
-    author = {MLC team},
+    author = {{MLC team}},
     title = {{MLC-LLM}},
     url = {https://github.com/mlc-ai/mlc-llm},
-    year = {2023}
+    year = {2023-2024}
 }
 ```
 

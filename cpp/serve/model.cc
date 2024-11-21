@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/model.cc
  * \brief The implementation of runtime module of LLM functions (prefill/decode/etc.)
  */

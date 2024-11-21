@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023 by Contributors
+ * Copyright (c) 2023-2024 by Contributors
  * \file support/utils.h
  * \brief Utility functions.
  */

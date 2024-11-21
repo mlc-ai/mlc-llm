@@ -1,6 +1,5 @@
 """
 Implementation for CHATGLM3 architecture.
-TODO: add docstring
 """
 
 import dataclasses

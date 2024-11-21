@@ -1,6 +1,5 @@
 """
 Implementation for QWEN architecture.
-TODO: add docstring
 """
 
 import dataclasses
