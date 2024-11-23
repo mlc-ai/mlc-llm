@@ -306,4 +306,5 @@ CONV_TEMPLATES = {
     "aya-23",
     "deepseek_v2",
     "deepseek",
+    "olmo",
 }

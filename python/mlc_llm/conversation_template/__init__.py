@@ -28,5 +28,6 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
+    olmo,
 )
 from .registry import ConvTemplateRegistry
