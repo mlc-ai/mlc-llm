@@ -35,6 +35,7 @@ from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
+from .olmo import olmo_loader, olmo_model, olmo_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
@@ -530,6 +531,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": deepseek_quantization.no_quant,
             "group-quant": deepseek_quantization.group_quant,
             "ft-quant": deepseek_quantization.ft_quant,
+        },
+    ),
+    "olmo": Model(
+        name="olmo",
+        model=olmo_model.OlmoForCausalLM,
+        config=olmo_model.OlmoConfig,
+        source={
+            "huggingface-torch": olmo_loader.huggingface,
+            "huggingface-safetensor": olmo_loader.huggingface,
+        },
+        quantize={
+            "no-quant": olmo_quantization.no_quant,
+            "group-quant": olmo_quantization.group_quant,
+            "ft-quant": olmo_quantization.ft_quant,
         },
     ),
 }
