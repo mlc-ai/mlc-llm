@@ -41,7 +41,6 @@ def huggingface(model_config: OlmoConfig, quantization: Quantization) -> ExternM
 
     mapping = ExternMapping()
 
-
     for i in range(model_config.num_hidden_layers):
         # map attention weight
         attn = f"model.layers.{i}.self_attn"
@@ -74,7 +73,6 @@ def huggingface(model_config: OlmoConfig, quantization: Quantization) -> ExternM
                 dtype=mlc_param.dtype,
             ),
         )
-
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
