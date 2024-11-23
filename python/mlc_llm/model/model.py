@@ -28,6 +28,7 @@ from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
+from .olmo import olmo_loader, olmo_model, olmo_quantization
 from .orion import orion_loader, orion_model, orion_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .phi3 import phi3_loader, phi3_model, phi3_quantization
@@ -35,7 +36,6 @@ from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
-from .olmo import olmo_loader, olmo_model, olmo_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
