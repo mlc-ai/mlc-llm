@@ -85,7 +85,7 @@ class OlmoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 
 class OlmoAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
-    def __init__(self, config:OlmoConfig):
+    def __init__(self, config: OlmoConfig):
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.hidden_size // self.num_heads
@@ -121,6 +121,7 @@ class OlmoAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         attn_output = self.o_proj(output)
         return attn_output
 
+
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -128,6 +129,7 @@ ACT2FN = {
     "swish": nn.silu,
     "gelu_new": partial(nn.gelu, approximate=True),
 }
+
 
 class OlmoMLP(nn.Module):
     def __init__(self, config: OlmoConfig):
@@ -165,6 +167,7 @@ class OlmoDecoderLayer(nn.Module):
         hidden_states = self.mlp(hidden_states)
         hidden_states = hidden_states + residual
         return hidden_states
+
 
 class OLMoModel(nn.Module):
     def __init__(self, config: OlmoConfig):
