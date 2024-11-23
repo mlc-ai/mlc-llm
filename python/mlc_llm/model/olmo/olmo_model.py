@@ -103,7 +103,9 @@ class OlmoAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             self.num_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
         )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):# pylint: disable=W0511
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):# pylint: disable=W0511
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.qkv_proj(hidden_states)
