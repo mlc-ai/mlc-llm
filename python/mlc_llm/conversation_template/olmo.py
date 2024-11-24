@@ -6,8 +6,10 @@ from .registry import ConvTemplateRegistry
 
 # Note that eos_token id is "50279" both in Allenai and AMD version.
 # So use the number instead of text.
-# Allenai version chat_template and eos_token: https://huggingface.co/allenai/OLMo-7B-Instruct/blob/main/tokenizer_config.json
-# AMD version chat_template and eos_token: https://huggingface.co/amd/AMD-OLMo-1B-SFT-DPO/blob/main/tokenizer_config.json
+# Allenai version chat_template and eos_token:
+# https://huggingface.co/allenai/OLMo-7B-Instruct/blob/main/tokenizer_config.json
+# AMD version chat_template and eos_token:
+# https://huggingface.co/amd/AMD-OLMo-1B-SFT-DPO/blob/main/tokenizer_config.json
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="olmo",
