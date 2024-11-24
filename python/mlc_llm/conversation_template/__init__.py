@@ -20,6 +20,7 @@ from . import (
     llava,
     mistral,
     oasst,
+    olmo,
     orion,
     phi,
     qwen2,
@@ -28,6 +29,5 @@ from . import (
     stablelm,
     tinyllama,
     wizardlm,
-    olmo,
 )
 from .registry import ConvTemplateRegistry
