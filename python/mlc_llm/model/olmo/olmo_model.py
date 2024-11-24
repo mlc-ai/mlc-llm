@@ -56,7 +56,7 @@ class OLMoConfig(ConfigBase):
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
             else:
                 self.position_embedding_base = 10000
-        
+
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -77,9 +77,7 @@ class OLMoConfig(ConfigBase):
 
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %d",
-                bold("prefill_chunk_size"),
-                min(self.context_window_size, 8192)
+                "%s defaults to %d", bold("prefill_chunk_size"), min(self.context_window_size, 8192)
             )
             self.prefill_chunk_size = min(self.context_window_size, 8192)
         elif self.prefill_chunk_size > self.context_window_size:
@@ -98,12 +96,10 @@ class OLMoConfig(ConfigBase):
             raise ValueError(
                 f'Invalid "pipeline_parallel_stages" value({self.pipeline_parallel_stages}). '
             )
-        
+
         if self.clip_qkv is not None:
             if self.clip_qkv <= 0:
-                raise ValueError(
-                    f"'clip_qkv'({self.clip_qkv}) should be non-negative"
-                )
+                raise ValueError(f"'clip_qkv'({self.clip_qkv}) should be non-negative")
 
 
 class OLMoEebedding(nn.Embedding):
@@ -135,11 +131,11 @@ class OLMoAttention(nn.Module):
         )
         self.clip_qkv = config.clip_qkv
         self.o_proj = nn.Linear(
-            in_features=self.num_q_heads * self.head_dim, 
-            out_features=config.hidden_size, 
-            bias=False
+            in_features=self.num_q_heads * self.head_dim,
+            out_features=config.hidden_size,
+            bias=False,
         )
-    
+
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
@@ -148,11 +144,9 @@ class OLMoAttention(nn.Module):
         qkv = self.qkv_proj(hidden_states)
 
         # Clamp after qkv projection if needed
-        dtype = hidden_states.dtype
         if self.clip_qkv is not None:
-            qkv = nn.maximum(qkv, nn.Tensor.from_scalar(-self.clip_qkv, dtype=dtype))
-            qkv = nn.minimum(qkv, nn.Tensor.from_scalar(self.clip_qkv, dtype=dtype))
-        
+            qkv = qkv.maximum(-self.clip_qkv).minimum(self.clip_qkv)
+
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
@@ -160,7 +154,7 @@ class OLMoAttention(nn.Module):
             (b, s, h_q * d),
         )
         return self.o_proj(output)
-    
+
 
 # Copied from qwen2_model.ACT2FN
 ACT2FN = {
@@ -197,27 +191,27 @@ class OLMoFFN(nn.Module):
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(self.act_fn(x1) * x2)
-    
+
 
 class OLMoDecoderLayer(nn.Module):
     def __init__(self, config: OLMoConfig):
         self.input_layernorm = nn.LayerNorm(
-            normalized_shape = config.hidden_size,
-            eps= 1e-5,
+            normalized_shape=config.hidden_size,
+            eps=1e-5,
             elementwise_affine=False,
         )
         self.self_attn = OLMoAttention(config)
         self.post_attention_layernorm = nn.LayerNorm(
-            normalized_shape = config.hidden_size,
-            eps= 1e-5,
+            normalized_shape=config.hidden_size,
+            eps=1e-5,
             elementwise_affine=False,
         )
         self.mlp = OLMoFFN(config)
-        
+
         def _set_tp():
             def _set(layer, hint):
                 layer.weight.attrs["shard_strategy"] = hint
-            
+
             hd = config.head_dim
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
@@ -252,11 +246,11 @@ class OLMoModel(nn.Module):
             [OLMoDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
         self.norm = nn.LayerNorm(
-            normalized_shape = config.hidden_size,
-            eps= 1e-5,
+            normalized_shape=config.hidden_size,
+            eps=1e-5,
             elementwise_affine=False,
         )
-        
+
         self.num_layers_per_stage = (
             config.num_hidden_layers + config.pipeline_parallel_stages - 1
         ) // config.pipeline_parallel_stages
@@ -267,7 +261,7 @@ class OLMoModel(nn.Module):
         self.layer_partition = [
             i * layers_per_stage for i in range(config.pipeline_parallel_stages)
         ] + [config.num_hidden_layers]
-    
+
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
@@ -302,7 +296,7 @@ class OLMoForCausalLM(nn.Module):
                 stage = layer_id // (config.num_hidden_layers // config.pipeline_parallel_stages)
                 for _, param in self.model.layers[layer_id].named_parameters():
                     param.attrs["pipeline_stages"] = [stage]
-            
+
             # embedding table and lm_head is required by all stages
             all_stages = list(range(config.pipeline_parallel_stages))
             self.model.embed_tokens.weight.attrs["pipeline_stages"] = all_stages
@@ -320,7 +314,7 @@ class OLMoForCausalLM(nn.Module):
         self,
         input_embeds: Tensor,
         paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None
+        logit_positions: Optional[Tensor] = None,
     ):
         op_ext.configure()
 
@@ -344,7 +338,7 @@ class OLMoForCausalLM(nn.Module):
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
-    
+
     def get_logits(self, hidden_states: Tensor):
         op_ext.configure()
         if self.tie_word_embeddings:
@@ -365,7 +359,7 @@ class OLMoForCausalLM(nn.Module):
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        def _index(x: te.Tensor): # get tensor of the last sequence 
+        def _index(x: te.Tensor):  # get tensor of the last sequence
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k])
 
@@ -415,7 +409,7 @@ class OLMoForCausalLM(nn.Module):
     ):
         hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
-    
+
     def batch_verify_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
@@ -428,7 +422,7 @@ class OLMoForCausalLM(nn.Module):
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
         page_size: tir.Var,
-        support_sliding_window: tir.Var
+        support_sliding_window: tir.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             max_batch_size=max_batch_size,
@@ -447,7 +441,7 @@ class OLMoForCausalLM(nn.Module):
             layer_partition=self.model.layer_partition,
             dtype=self.dtype,
         )
-    
+
     def get_default_spec(self):
         mod_spec = {
             "embed": {
