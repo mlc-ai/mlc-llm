@@ -468,7 +468,7 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
             dtype=self.dtype,
         )
 
-    def get_default_spec(self):
+    def get_default_spec(self):  # pylint: disable=missing-function-docstring
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
