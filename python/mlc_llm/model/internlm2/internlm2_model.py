@@ -68,17 +68,17 @@ class InternLM2Config(ConfigBase):  # pylint: disable=too-many-instance-attribut
             logger.info(
                 "%s defaults to %d",
                 bold("prefill_chunk_size"),
-                min(self.context_window_size, 8192),
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = min(self.context_window_size, 8192)
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
         elif self.prefill_chunk_size > self.context_window_size:
             logger.info(
                 "Overriding %s from %d to %d",
                 bold("prefill_chunk_size"),
                 self.prefill_chunk_size,
-                min(self.context_window_size, 8192),
+                min(self.context_window_size, 2048),
             )
-            self.prefill_chunk_size = min(self.context_window_size, 8192)
+            self.prefill_chunk_size = min(self.context_window_size, 2048)
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -178,11 +178,11 @@ class InternLM2DecoderLayer(nn.Module):
         residual = hidden_states
         hidden_states = self.attention_norm(hidden_states)
         hidden_states = self.attention(hidden_states, paged_kv_cache, layer_id)
-        hidden_states = self._apply_residual(residual, residual=hidden_states)
+        hidden_states = self._apply_residual(hidden_states, residual=residual)
         residual = hidden_states
         hidden_states = self.ffn_norm(hidden_states)
         hidden_states = self.feed_forward(hidden_states)
-        hidden_states = self._apply_residual(residual, residual=hidden_states)
+        hidden_states = self._apply_residual(hidden_states, residual=residual)
         return hidden_states
 
     def _apply_residual(self, out, residual):
