@@ -20,6 +20,7 @@ from . import (
     llava,
     mistral,
     oasst,
+    olmo,
     orion,
     phi,
     qwen2,
