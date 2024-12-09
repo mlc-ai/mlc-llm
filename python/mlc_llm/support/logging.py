@@ -3,11 +3,14 @@ Logging support for MLC. It derives from Python's logging module, and in the fut
 it can be easily replaced by other logging modules such as structlog.
 """
 
+import os
 import logging
 
 
 def enable_logging():
     """Enable MLC's default logging format"""
+    if os.getenv('MLC_UNSET_LOGGING'):
+        return
     logging.basicConfig(
         level=logging.INFO,
         style="{",
