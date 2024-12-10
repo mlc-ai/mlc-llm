@@ -9,7 +9,7 @@ import logging
 
 def enable_logging():
     """Enable MLC's default logging format"""
-    if os.getenv('MLC_UNSET_LOGGING'):
+    if os.getenv("MLC_UNSET_LOGGING"):
         return
     logging.basicConfig(
         level=logging.INFO,
