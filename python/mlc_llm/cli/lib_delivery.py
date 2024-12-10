@@ -16,7 +16,6 @@ from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.constants import MLC_TEMP_DIR
 from mlc_llm.support.style import bold, green, red
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 

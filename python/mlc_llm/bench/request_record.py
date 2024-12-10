@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest
 from mlc_llm.support import logging
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
