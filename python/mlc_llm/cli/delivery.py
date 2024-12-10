@@ -16,7 +16,6 @@ from mlc_llm.support import logging
 from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.style import bold, green, red
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 GEN_CONFIG_OPTIONAL_ARGS = [

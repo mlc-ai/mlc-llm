@@ -30,7 +30,6 @@ from mlc_llm.tokenizers import TextStreamer
 
 from . import engine_base
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 

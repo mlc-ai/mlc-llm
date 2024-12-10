@@ -28,7 +28,6 @@ from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green
 from mlc_llm.tokenizers import TextStreamer, Tokenizer
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 

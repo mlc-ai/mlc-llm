@@ -13,7 +13,6 @@ from mlc_llm.support.argparse import ArgumentParser
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import green, red
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
