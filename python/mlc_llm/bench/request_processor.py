@@ -19,7 +19,6 @@ from mlc_llm.bench.request_record import RequestRecord
 from mlc_llm.protocol.openai_api_protocol import ChatCompletionMessage, DebugConfig
 from mlc_llm.support import logging
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
