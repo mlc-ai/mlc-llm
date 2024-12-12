@@ -243,11 +243,17 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
     """The dataset class for JSON dataset."""
 
     def __init__(self, tokenizer: AutoTokenizer) -> None:
-        raw_dataset = load_dataset("NousResearch/json-mode-eval")
+        raw_dataset = load_dataset("NousResearch/json-mode-eval", split="train")
         self.tokenizer = tokenizer
         self.dataset = []
-        for data in raw_dataset["train"]:
-            messages = data["prompt"]
+        for data in raw_dataset:
+            data = self._process_data(data)
+            messages = [
+                {
+                    "content": data["prompt"][0]["content"] + " " + data["prompt"][1]["content"],
+                    "role": data["prompt"][1]["role"],
+                },
+            ]
             schema = {
                 "type": "json_object",
                 "schema": data["schema"],
@@ -258,6 +264,42 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
                     self.tokenizer.encode(message["content"], add_special_tokens=False)
                 )
             self.dataset.append((messages, schema, num_tokens))
+
+    def _process_data(self, data):
+        data["prompt"][0]["content"] = data["prompt"][0]["content"].replace(
+            ", 'format': 'email'", ""
+        )
+        data["schema"] = data["schema"].replace(', "format": "email"', "")
+
+        data["prompt"][0]["content"] = data["prompt"][0]["content"].replace(
+            ", 'pattern': '\\\\d{5}'", ""
+        )
+        data["schema"] = data["schema"].replace(', "pattern": "\\\\d{5}"', "")
+
+        schema_str = data["schema"]
+        schema = json.loads(schema_str)
+        new_schema = None
+        if "type" not in schema:
+            if len(schema.keys()) == 1:
+                key = list(schema.keys())[0]
+                new_schema = {"title": key, **schema[key]}
+            else:
+                new_schema = {"type": "object", **schema}
+        if new_schema is None:
+            return data
+        return {
+            "prompt": [
+                {
+                    "content": "You are a helpful assistant that answers in JSON. "
+                    "Here's the json schema you must adhere to:"
+                    f"\n<schema>\n{new_schema}\n</schema>\n",
+                    "role": "system",
+                },
+                data["prompt"][1],
+            ],
+            "completion": data["completion"],
+            "schema": json.dumps(new_schema),
+        }
 
     def generate_request_records(
         self,
@@ -288,6 +330,9 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
                         model="",
                         max_tokens=output_length,
                         response_format=schema,
+                        debug_config=DebugConfig(
+                            grammar_execution_mode="constraint",
+                        ),
                     ),
                     metrics=Metrics(
                         success=False,
