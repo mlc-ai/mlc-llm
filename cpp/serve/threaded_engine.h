@@ -83,7 +83,7 @@ class ThreadedEngine {
   virtual EngineConfig GetCompleteEngineConfig() const = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 };
 
 }  // namespace serve

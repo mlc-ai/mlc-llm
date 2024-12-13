@@ -58,6 +58,9 @@ class BatchDecodeActionObj : public EngineActionObj {
           running_rsentries.pop_back();
         }
       }
+      while(running_rsentries.size()>std::min(static_cast<int64_t>(engine_config_->max_num_sequence), engine_config_->prefill_chunk_size)){
+        running_rsentries.pop_back();
+      }
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();

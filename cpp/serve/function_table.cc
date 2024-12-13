@@ -253,6 +253,9 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_remove_sequence_func_ = get_global_func("vm.builtin.kv_state_remove_sequence");
   this->kv_cache_begin_forward_func_ = get_global_func("vm.builtin.kv_state_begin_forward");
   this->kv_cache_end_forward_func_ = get_global_func("vm.builtin.kv_state_end_forward");
+  this->kv_cache_disagg_prepare_recv_func_ =
+      get_global_func("vm.builtin.kv_cache_disagg_prepare_recv");
+  this->kv_cache_disagg_mark_send_func_ = get_global_func("vm.builtin.kv_cache_disagg_mark_send");
   this->kv_cache_popn_func_ = get_global_func("vm.builtin.kv_state_popn");
   this->kv_cache_commit_accepted_token_tree_nodes_func_ =
       get_global_func("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes");
@@ -329,13 +332,24 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
   }
 }
 
-void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name) const {
-  if (this->use_disco) {
-    sess->CallPacked(sess->GetGlobalFunc(func_name));
+void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) const {
+  if (func_args) { 
+   std::string args = func_args.value();
+    if (this->use_disco) {
+      sess->CallPacked(sess->GetGlobalFunc(func_name), args);
+    } else {
+      const PackedFunc* func = Registry::Get(func_name);
+      CHECK(func != nullptr) << "Global function name \"" << func_name << "\" is not found";
+      (*func)(args);
+    }
   } else {
-    const PackedFunc* func = Registry::Get(func_name);
-    CHECK(func != nullptr) << "Global function name \"" << func_name << "\" is not found";
-    (*func)();
+     if (this->use_disco) {
+      sess->CallPacked(sess->GetGlobalFunc(func_name));
+    } else {
+      const PackedFunc* func = Registry::Get(func_name);
+      CHECK(func != nullptr) << "Global function name \"" << func_name << "\" is not found";
+      (*func)();
+    }
   }
 }
 

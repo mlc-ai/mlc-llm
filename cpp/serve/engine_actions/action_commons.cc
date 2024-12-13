@@ -11,55 +11,52 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
-                                        std::vector<picojson::object> model_configs,
-                                        std::vector<ModelWorkspace> model_workspaces,
-                                        LogitProcessor logit_processor, Sampler sampler,
-                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
-                                        Tokenizer tokenizer,
-                                        Optional<EventTraceRecorder> trace_recorder) {
+Array<EngineAction> CreateEngineActions(
+    Array<Model> models, EngineConfig engine_config, std::vector<picojson::object> model_configs,
+    std::vector<ModelWorkspace> model_workspaces, LogitProcessor logit_processor, Sampler sampler,
+    DraftTokenWorkspaceManager draft_token_workspace_manager, Tokenizer tokenizer,
+    Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
+    Device device) {
+  Array<EngineAction> actions;
   if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
     // Speculative decoding is only possible for more than one model.
     ICHECK_GT(models.size(), 1U);
     if (engine_config->speculative_mode == SpeculativeMode::kEagle) {
       CHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
-      return {EngineAction::EagleNewRequestPrefill(models,                         //
-                                                   logit_processor,                //
-                                                   sampler,                        //
-                                                   model_workspaces,               //
-                                                   draft_token_workspace_manager,  //
-                                                   engine_config,                  //
-                                                   model_configs,                  //
-                                                   trace_recorder),
-              EngineAction::EagleBatchDraft(models, logit_processor, sampler, model_workspaces,
-                                            draft_token_workspace_manager, engine_config,
-                                            trace_recorder),
-              EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
-                                             draft_token_workspace_manager, engine_config,
-                                             trace_recorder)};
-    }
-    if (engine_config->speculative_mode == SpeculativeMode::kMedusa) {
+      actions = {EngineAction::EagleNewRequestPrefill(models,                         //
+                                                      logit_processor,                //
+                                                      sampler,                        //
+                                                      model_workspaces,               //
+                                                      draft_token_workspace_manager,  //
+                                                      engine_config,                  //
+                                                      model_configs,                  //
+                                                      trace_recorder),
+                 EngineAction::EagleBatchDraft(models, logit_processor, sampler, model_workspaces,
+                                               draft_token_workspace_manager, engine_config,
+                                               trace_recorder),
+                 EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
+                                                draft_token_workspace_manager, engine_config,
+                                                trace_recorder)};
+    } else if (engine_config->speculative_mode == SpeculativeMode::kMedusa) {
       CHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
-      return {EngineAction::EagleNewRequestPrefill(models,                         //
-                                                   logit_processor,                //
-                                                   sampler,                        //
-                                                   model_workspaces,               //
-                                                   draft_token_workspace_manager,  //
-                                                   engine_config,                  //
-                                                   model_configs,                  //
-                                                   trace_recorder),
-              EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
-                                             draft_token_workspace_manager, engine_config,
-                                             trace_recorder)};
-    }
-
-    // The "small draft" mode speculative decoding.
-    if (engine_config->spec_draft_length > 0) {
+      actions = {EngineAction::EagleNewRequestPrefill(models,                         //
+                                                      logit_processor,                //
+                                                      sampler,                        //
+                                                      model_workspaces,               //
+                                                      draft_token_workspace_manager,  //
+                                                      engine_config,                  //
+                                                      model_configs,                  //
+                                                      trace_recorder),
+                 EngineAction::EagleBatchVerify(models, logit_processor, sampler, model_workspaces,
+                                                draft_token_workspace_manager, engine_config,
+                                                trace_recorder)};
+    } else if (engine_config->spec_draft_length > 0) {
+      // The "small draft" mode speculative decoding.
       // If "engine_config->spec_draft_length" > 0, it means the draft length is
       // configured to be a fixed value.
-      return {
+      actions = {
           EngineAction::NewRequestPrefill(models,            //
                                           logit_processor,   //
                                           sampler,           //
@@ -72,43 +69,57 @@ Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine
           EngineAction::BatchVerify(models, logit_processor, sampler, model_workspaces,
                                     draft_token_workspace_manager, engine_config, trace_recorder)};
     } else {
+      // The "small draft" mode speculative decoding.
       // "engine_config->spec_draft_length" being 0 means we want to enable
       // automatic speculative decoding, which decides the spec decoding draft length
       // automatically.
-      return {EngineAction::NewRequestPrefill(models,            //
-                                              logit_processor,   //
-                                              sampler,           //
-                                              model_workspaces,  //
-                                              engine_config,     //
-                                              model_configs,     //
-                                              trace_recorder),
-              EngineAction::AutoSpecDecode(
-                  /*spec_decode_actions=*/{EngineAction::BatchDraft(models, logit_processor,
-                                                                    sampler, model_workspaces,
-                                                                    draft_token_workspace_manager,
-                                                                    engine_config, trace_recorder),
-                                           EngineAction::BatchVerify(
-                                               models, logit_processor, sampler, model_workspaces,
-                                               draft_token_workspace_manager, engine_config,
-                                               trace_recorder)},
-                  /*batch_decode_actions=*/
-                  {EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler,
-                                             engine_config, trace_recorder)},
-                  engine_config)};
+      actions = {EngineAction::NewRequestPrefill(models,            //
+                                                 logit_processor,   //
+                                                 sampler,           //
+                                                 model_workspaces,  //
+                                                 engine_config,     //
+                                                 model_configs,     //
+                                                 trace_recorder),
+                 EngineAction::AutoSpecDecode(
+                     /*spec_decode_actions=*/{EngineAction::BatchDraft(
+                                                  models, logit_processor, sampler,
+                                                  model_workspaces, draft_token_workspace_manager,
+                                                  engine_config, trace_recorder),
+                                              EngineAction::BatchVerify(
+                                                  models, logit_processor, sampler,
+                                                  model_workspaces, draft_token_workspace_manager,
+                                                  engine_config, trace_recorder)},
+                     /*batch_decode_actions=*/
+                     {EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler,
+                                                engine_config, trace_recorder)},
+                     engine_config)};
     }
+  } else {
+    // The normal mode.
+    actions = {EngineAction::NewRequestPrefill(models,            //
+                                               logit_processor,   //
+                                               sampler,           //
+                                               model_workspaces,  //
+                                               engine_config,     //
+                                               model_configs,     //
+                                               trace_recorder),
+               //  EngineAction::BatchJumpForward(models, tokenizer, trace_recorder),
+               EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler, engine_config,
+                                         trace_recorder)};
   }
 
-  // The normal mode.
-  return {EngineAction::NewRequestPrefill(models,            //
-                                          logit_processor,   //
-                                          sampler,           //
-                                          model_workspaces,  //
-                                          engine_config,     //
-                                          model_configs,     //
-                                          trace_recorder),
-          EngineAction::BatchJumpForward(models, tokenizer, trace_recorder),
-          EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler, engine_config,
-                                    trace_recorder)};
+  ModelMetadata model_metadata = models[0]->GetMetadata();
+  if (model_metadata.disaggregation) {
+    // Insert the disaggregation actions.
+    Array<EngineAction> disaggregation_actions = {
+        EngineAction::DisaggPreparePrefill(models, engine_config, model_configs, trace_recorder,
+                                           request_stream_callback),
+        EngineAction::NewRequestPrefillWithKVSend(models, model_workspaces, engine_config,
+                                                  model_configs, trace_recorder,
+                                                  request_stream_callback, device)};
+    actions.insert(actions.begin(), disaggregation_actions.begin(), disaggregation_actions.end());
+  }
+  return actions;
 }
 
 void RemoveRequestFromModel(EngineState estate, int64_t req_internal_id,
@@ -280,6 +291,18 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
         estate->prefix_cache->ExtendSequence(rsentry->mstates[0]->internal_id, token_ids);
       }
     }
+
+    // - For all disaggregation requests with "remote_prefill",
+    // if it does not appear in the waiting queue, it means the prefill has been finished.
+    // In this case, we mark the request as finished.
+    if (request->generation_cfg->debug_config.disagg_config.kind ==
+        DisaggRequestKind::kRemotePrefill) {
+      auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
+      if (it == estate->waiting_queue.end()) {
+        CHECK_EQ(rstate->entries.size(), 1);
+        estate->postproc_workspace.finished_rsentries.push_back(rstate->entries[0]);
+      }
+    }
   }
 
   ProcessFinishedRequestStateEntries(estate->postproc_workspace.finished_rsentries, estate, models,
@@ -311,6 +334,10 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
   }
   ICHECK_NE(preempt_rstate_idx, -1);
   RequestStateEntry rsentry = rstate->entries[preempt_rstate_idx];
+  if(estate->disaggregation){
+    AbortRequestImpl(estate, models, request->id, "preempt");
+    return rsentry;
+  }
   // When the request state entry still has pending inputs,
   // it means the request is still in the waiting queue.
   bool partially_alive = !rsentry->mstates[0]->inputs.empty();

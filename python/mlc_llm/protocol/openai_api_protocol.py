@@ -155,7 +155,7 @@ class CompletionRequest(BaseModel):
 
 
 class CompletionResponseChoice(BaseModel):
-    finish_reason: Optional[Literal["stop", "length"]] = None
+    finish_reason: Optional[Literal["stop", "length", "preempt"]] = None
     index: int = 0
     logprobs: Optional[CompletionLogProbs] = None
     text: str

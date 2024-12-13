@@ -46,6 +46,13 @@ enum class SpecialRequestKind : int {
   kQueryEngineMetrics = 1,
 };
 
+enum class DisaggRequestKind : int {
+  kNone = 0,
+  kPreparePrefill = 1,
+  kRemotePrefill = 2,
+  kStartDecode = 3,
+};
+
 /*! \brief Controls the behavior of inference with grammar constraint. */
 enum class GrammarExecutionMode : int {
   /*! \brief If grammar is provided for a request, use the grammar to constrain the output token. */
@@ -53,6 +60,28 @@ enum class GrammarExecutionMode : int {
   /*! \brief If grammar is provided for a request, not only constrain the output, but also use the
    * jump-forward decoding to predict the next tokens. This is the default option. */
   kJumpForward = 1,
+};
+
+/*! \brief The config for disaggregation requests. */
+class DisaggConfig {
+ public:
+  DisaggRequestKind kind = DisaggRequestKind::kNone;
+  std::vector<IntTuple> kv_append_metadata;
+  // "kv_window_begin" and "kv_window_end" denote the KV interval of interests.
+  // "kv_window_end" supports Python style negative indexing.
+  // The concrete meaning varies for different special request kind:
+  // - For "prepare_prefill", the begin is always 0, and "[0:end]" denotes
+  // the KV range to prefill on a prefill instance.
+  // - For "remote_prefill", "[begin:end]" means the KV range to compute prefill
+  // and send to the decode instance.
+  // - For "start_decode", the end is always nullopt, and "[begin:]" denotes
+  // the KV range to prefill locally on the decode instance.
+  std::optional<int> kv_window_begin = std::nullopt;
+  std::optional<int> kv_window_end = std::nullopt;
+  std::optional<int> dst_group_offset = std::nullopt;
+
+  static Result<DisaggConfig> FromJSON(const picojson::object& config_json);
+  picojson::object AsJSON() const;
 };
 
 /*! \brief The debug configuration of a request. */
@@ -63,6 +92,7 @@ class DebugConfig {
   SpecialRequestKind special_request = SpecialRequestKind::kNone;
   /*! \brief The grammar execution mode. */
   GrammarExecutionMode grammar_execution_mode = GrammarExecutionMode::kJumpForward;
+  DisaggConfig disagg_config;
 
   /*!
    * \brief Create debug config from JSON.

@@ -20,6 +20,8 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
+
 /*! \brief The manager of internal id for requests in engine. */
 struct EngineInternalIDManager {
   std::vector<int64_t> available_ids;
@@ -79,6 +81,10 @@ class EngineStateObj : public Object {
    * properly work.
    */
   int spec_draft_length = 0;
+  /*! \brief A boolean flag denoting whether the engine is in disaggregation mode. */
+  bool disaggregation = false;
+  // Request stream callback function
+  FRequestStreamCallback request_stream_callback_;
   /*!
    * \brief The post-process data structures.
    * We make it a workspace to avoid repetitive memory allocation/free in the action post process.

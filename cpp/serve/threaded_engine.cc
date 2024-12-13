@@ -13,6 +13,8 @@
 #include <condition_variable>
 #include <mutex>
 
+#include <optional>
+
 #include "../support/json_parser.h"
 #include "../support/result.h"
 #include "engine.h"
@@ -173,7 +175,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
           }
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
-          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(arg));
+          Array<ObjectRef> packed_args = Downcast<Array<ObjectRef>>(arg);
+          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(packed_args[0]), Downcast<String>(packed_args[1]));
         } else {
           LOG(FATAL) << "Cannot reach here";
         }
@@ -249,11 +252,11 @@ class ThreadedEngineImpl : public ThreadedEngine {
     return GetCompleteEngineConfig()->AsJSONString();
   }
 
-  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+  void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
-      instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker, func_name);
+      instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker, Array<ObjectRef>{func_name, func_args});
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }

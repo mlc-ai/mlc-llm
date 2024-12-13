@@ -97,6 +97,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     attention_sink_size: Optional[int],
     tensor_parallel_shards: Optional[int],
     pipeline_parallel_stages: Optional[int],
+    disaggregation: Optional[bool],
     max_batch_size: int,
     output: Path,
 ):
@@ -121,6 +122,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         max_batch_size=max_batch_size,
         tensor_parallel_shards=tensor_parallel_shards,
         pipeline_parallel_stages=pipeline_parallel_stages,
+        disaggregation=disaggregation,
     ).apply(model.config.from_file(config))
     mlc_chat_config = MLCChatConfig(
         model_type=model.name,
@@ -133,6 +135,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         attention_sink_size=getattr(model_config, "attention_sink_size", -1),
         tensor_parallel_shards=model_config.tensor_parallel_shards,
         pipeline_parallel_stages=getattr(model_config, "pipeline_parallel_stages", 1),
+        disaggregation=getattr(model_config, "disaggregation", False),
         conv_template=conversation,  # type: ignore
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs

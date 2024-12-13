@@ -80,7 +80,6 @@ class BatchVerifyActionObj : public EngineActionObj {
     generation_cfg_for_top_p_norm.reserve(total_verify_length);
     draft_output_tokens.reserve(num_rsentries);
     draft_token_slots_.clear();
-
     for (int i = 0; i < num_rsentries; ++i) {
       RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
       RequestModelState draft_mstate = rsentries[i]->mstates[draft_model_id_];
@@ -297,11 +296,17 @@ class BatchVerifyActionObj : public EngineActionObj {
     int num_available_pages = models_[verify_model_id_]->GetNumAvailablePages();
 
     // Preempt the request state entries that cannot fit the large model for verification.
-    std::vector<RequestStateEntry> running_rsentries = estate->GetRunningRequestStateEntries();
+    std::vector<RequestStateEntry> init_running_rsentries = estate->GetRunningRequestStateEntries();
     std::vector<int> num_page_requirement;
-    num_page_requirement.reserve(running_rsentries.size());
-    for (const RequestStateEntry& rsentry : running_rsentries) {
+    num_page_requirement.reserve(init_running_rsentries.size());
+    std::vector<RequestStateEntry> running_rsentries;
+    running_rsentries.reserve(init_running_rsentries.size());
+    for (const RequestStateEntry& rsentry : init_running_rsentries) {
       int draft_length = rsentry->mstates[draft_model_id_]->draft_output_tokens.size();
+      if(draft_length == 0){
+        continue;
+      }
+      running_rsentries.push_back(rsentry);
       int num_require_pages = (draft_length + engine_config_->kv_cache_page_size - 1) /
                               engine_config_->kv_cache_page_size;
       verify_lengths.push_back(draft_length + 1);
@@ -321,6 +326,10 @@ class BatchVerifyActionObj : public EngineActionObj {
         running_rsentries.pop_back();
       }
     }
+    CHECK_LE(total_verify_length, std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
+                                           engine_config_->prefill_chunk_size)) << total_verify_length
+                                                                                << " "
+                                                                                << engine_config_->max_num_sequence;
 
     return {running_rsentries, verify_lengths, total_verify_length};
   }

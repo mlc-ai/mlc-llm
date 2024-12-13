@@ -52,7 +52,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
-    request_id = f"cmpl-{engine_utils.random_uuid()}"
+    request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
@@ -145,7 +145,7 @@ async def request_chat_completion(
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
-    request_id = f"chatcmpl-{engine_utils.random_uuid()}"
+    request_id = request.user if request.user is not None else f"chatcmpl-{engine_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
