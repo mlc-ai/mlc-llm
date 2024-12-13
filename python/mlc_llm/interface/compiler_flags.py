@@ -138,7 +138,7 @@ class OptimizationFlags:
 
 
 @dataclasses.dataclass
-class ModelConfigOverride(ConfigOverrideBase):
+class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None

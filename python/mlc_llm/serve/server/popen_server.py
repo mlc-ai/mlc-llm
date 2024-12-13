@@ -56,10 +56,13 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.base_url = ""
         self.openai_v1_base_url = ""
 
-    def start(self, extra_env={}) -> None:  # pylint: disable=too-many-branches,too-many-statements
+    def start(
+        self, extra_env=None
+    ) -> None:  # pylint: disable=too-many-branches,too-many-statements
         """Launch the server in a popen subprocess.
         Wait until the server becomes ready before return.
         """
+        extra_env = extra_env or {}
         cmd = [sys.executable]
         cmd += ["-m", "mlc_llm", "serve", self.model]
         if self.model_lib is not None:

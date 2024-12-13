@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 
 class DisaggConfig(BaseModel):
+    """The class of metadata used in microserving APIs."""
     kind: Optional[Literal["prepare_prefill", "remote_prefill", "start_decode"]] = None
     # "kv_append_metadata" is base64-encoded and is thus a string.
     kv_append_metadata: Optional[str] = None

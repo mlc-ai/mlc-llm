@@ -1,9 +1,11 @@
+""" Programmable router for dispatching OpenAI API to Microserving API"""
+
 import json
 import math
 import threading
 from typing import Any, AsyncGenerator, Iterable, List, Literal, Optional, Tuple
 
-import aiohttp
+import aiohttp  # pylint: disable=import-outside-toplevel,import-error
 import tvm
 
 from mlc_llm.protocol import debug_protocol, openai_api_protocol
@@ -11,7 +13,8 @@ from mlc_llm.serve import EngineConfig, PopenServer
 from mlc_llm.tokenizers import Tokenizer
 
 
-class Router:
+class Router:  # pylint: disable=too-many-instance-attributes
+    """Programmable Router Implementation"""
 
     def __init__(
         self,
@@ -23,7 +26,7 @@ class Router:
         enable_prefix_cache: bool = False,
         router_mode: Literal["disagg", "round-robin"] = "disagg",
         pd_balance_factor: float = 0.0,
-    ):
+    ):  # pylint: disable=too-many-arguments,too-many-locals,dangerous-default-value
         """
         Spawn len(host_list) server endpoints with Popen.
         """
@@ -113,7 +116,7 @@ class Router:
             ):
                 yield response
         elif self.router_mode == "round-robin":
-            async for response in self._handle_completion_round_robin(request, request_id):
+            async for response in self._handle_completion_round_robin(request):
                 yield response
         else:
             raise ValueError("Cannot reach here")
@@ -132,7 +135,6 @@ class Router:
     async def _handle_completion_round_robin(
         self,
         request: openai_api_protocol.CompletionRequest,
-        request_id: str,
     ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         """
         Handle a completion request from API. Given a streaming request, yields multiple response
@@ -171,7 +173,7 @@ class Router:
                                 reason = response.choices[0].finish_reason
                                 if reason == "preempt":
                                     break
-                                elif reason != None:
+                                if reason is not None:
                                     completed = True
                             yield response
                     else:
@@ -181,7 +183,7 @@ class Router:
                             reason = response.choices[0].finish_reason
                             if reason == "preempt":
                                 break
-                            elif reason != None:
+                            if reason is not None:
                                 completed = True
                         yield response
             self.num_running_requests[cur_endpoint] -= 1
@@ -196,7 +198,9 @@ class Router:
         original_request: openai_api_protocol.CompletionRequest,
         request_id: str,
         pd_balance_factor=0,
-    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+    ) -> AsyncGenerator[
+        openai_api_protocol.CompletionResponse, Any
+    ]:  # pylint: disable=too-many-locals
         """
         Handle a completion request from API with disaggregated scheduling. Given two servers
         P (prefill) and D (decode), the router does the following:
@@ -290,7 +294,7 @@ class Router:
                             reason = response_json["choices"][0]["finish_reason"]
                             if reason == "preempt":
                                 break
-                            elif reason != None:
+                            if reason is not None:
                                 completed = True
                         yield response
             except Exception as e:
