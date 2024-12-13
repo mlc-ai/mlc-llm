@@ -250,7 +250,9 @@ class OpenAIEndPoint(APIEndPoint):
         start_time = time.monotonic()
 
         try:
-            async with self.client.post(self.url, json=payload, headers=self.headers, timeout=3600) as response:
+            async with self.client.post(
+                self.url, json=payload, headers=self.headers, timeout=3600
+            ) as response:
                 assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:

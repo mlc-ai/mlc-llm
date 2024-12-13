@@ -263,7 +263,6 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
 
-
         # Warmup
         if self.fake_warmup:
             assert len(request_records) == self.num_benchmark_requests
@@ -628,7 +627,7 @@ def create_pipelines(
         if args.fake_warmup:
             num_samples = int(args.num_requests * args.num_gpus)
         else:
-            num_samples = int(args.num_requests * args.num_gpus)  + args.num_warmup_requests
+            num_samples = int(args.num_requests * args.num_gpus) + args.num_warmup_requests
         return [
             SequentialProcessor(
                 LogMessage(f"Fixing request rate: {request_rate}"),

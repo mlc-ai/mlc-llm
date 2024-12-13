@@ -109,7 +109,9 @@ def run_pipeline(
         sorted_requests[request_record.request_id] = request_record
 
     request_records = MetricAnalyzer(tokenizer)(request_records)
-    report = generate_metrics_summary(request_records, args.num_requests * args.num_gpus, args.num_gpus)
+    report = generate_metrics_summary(
+        request_records, args.num_requests * args.num_gpus, args.num_gpus
+    )
     return report, sorted_requests
 
 
@@ -382,9 +384,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--testset-name",
-        type=str,
-        help="The name of the testset. Only used for Loogle dataset"
+        "--testset-name", type=str, help="The name of the testset. Only used for Loogle dataset"
     )
 
     main(parser.parse_args())
