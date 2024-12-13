@@ -55,6 +55,16 @@ class RequestRecord(BaseModel):
     error_msg: Optional[str] = None
 
 
+class GroupedRequestRecord(RequestRecord):
+    """The data structure for request record groups.
+    For datasets that have common prefix sharing, the request records
+    that share a same common prefix will be wrapped in a GroupedRequestRecord
+    at the beginning.
+    """
+
+    records: List[RequestRecord]
+
+
 def generate_metrics_summary(
     request_records: List[RequestRecord],
     num_total_requests: int,

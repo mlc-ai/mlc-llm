@@ -58,7 +58,7 @@ class OpenAIChatEndPoint(APIEndPoint):
     async def __aenter__(self) -> Self:
         import aiohttp  # pylint: disable=import-outside-toplevel,import-error
 
-        self.client = aiohttp.ClientSession()
+        self.client = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(self.timeout))
         return self
 
     async def __aexit__(self, exc_type, exc_value, tb) -> None:
@@ -250,7 +250,7 @@ class OpenAIEndPoint(APIEndPoint):
         start_time = time.monotonic()
 
         try:
-            async with self.client.post(self.url, json=payload, headers=self.headers) as response:
+            async with self.client.post(self.url, json=payload, headers=self.headers, timeout=3600) as response:
                 assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:
