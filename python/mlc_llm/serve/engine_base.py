@@ -666,7 +666,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         if hasattr(self, "_background_stream_back_loop_thread"):
             self._background_stream_back_loop_thread.join()
 
-    def _debug_call_func_on_all_worker(self, func_name: str, func_args: Optional[str]) -> None:
+    def _debug_call_func_on_all_worker(self, func_name: str, func_args: Optional[str] = None) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
         self._ffi["debug_call_func_on_all_worker"](func_name, func_args)
 
