@@ -175,8 +175,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           Array<ObjectRef> packed_args = Downcast<Array<ObjectRef>>(arg);
-          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(packed_args[0]),
-                                                          Downcast<String>(packed_args[1]));
+          background_engine_->DebugCallFuncOnAllAllWorker(
+              Downcast<String>(packed_args[0]), Downcast<Optional<String>>(packed_args[1]));
         } else {
           LOG(FATAL) << "Cannot reach here";
         }
