@@ -51,7 +51,9 @@ class BatchDraftActionObj : public EngineActionObj {
         running_rsentries.pop_back();
       }
     }
-    while(running_rsentries.size()*(engine_config_->spec_draft_length+1)>std::min(static_cast<int64_t>(engine_config_->max_num_sequence), engine_config_->prefill_chunk_size)){
+    while (running_rsentries.size() * (engine_config_->spec_draft_length + 1) >
+           std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
+                    engine_config_->prefill_chunk_size)) {
       running_rsentries.pop_back();
     }
 

@@ -1,7 +1,7 @@
 import asyncio
 
-from mlc_llm.router import Router
 from mlc_llm.protocol import openai_api_protocol
+from mlc_llm.router import Router
 
 model_tp1 = "./dist/Llama-3.2-1B-Instruct-q0f16-MLC/"
 model_lib_tp1 = "./dist/lib/Llama-3.2-1B-q0f16-cuda.so"

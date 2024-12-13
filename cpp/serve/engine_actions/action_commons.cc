@@ -334,7 +334,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
   }
   ICHECK_NE(preempt_rstate_idx, -1);
   RequestStateEntry rsentry = rstate->entries[preempt_rstate_idx];
-  if(estate->disaggregation){
+  if (estate->disaggregation) {
     AbortRequestImpl(estate, models, request->id, "preempt");
     return rsentry;
   }

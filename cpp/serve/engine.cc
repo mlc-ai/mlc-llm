@@ -111,10 +111,8 @@ void AbortRequestImpl(EngineState estate, const Array<Model>& models, const Stri
   Request request = rstate->entries[0]->request;
 
   // - Check if the request is running or pending.
-  auto it_running =
-      std::find(estate->running_queue.begin(), estate->running_queue.end(), request);
-  auto it_waiting =
-      std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
+  auto it_running = std::find(estate->running_queue.begin(), estate->running_queue.end(), request);
+  auto it_waiting = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
 
   estate->request_states.erase(request->id);
   if (it_running != estate->running_queue.end()) {
@@ -124,7 +122,7 @@ void AbortRequestImpl(EngineState estate, const Array<Model>& models, const Stri
     for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
       if (estate->prefix_cache->HasSequence(rstate->entries[i]->mstates[0]->internal_id)) {
         estate->prefix_cache->RecycleSequence(rstate->entries[i]->mstates[0]->internal_id,
-                                               /*lazy=*/false);
+                                              /*lazy=*/false);
       } else {
         if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
           estate->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
@@ -388,8 +386,8 @@ class EngineImpl : public Engine {
 
     // kick in mock path so we don't have to load in models
     if (models_and_model_libs[0].second == "mock://echo") {
-      return MockEchoEngineImpl::Create(engine_config_json_str, n->estate_->request_stream_callback_,
-                                        model_configs[0]);
+      return MockEchoEngineImpl::Create(engine_config_json_str,
+                                        n->estate_->request_stream_callback_, model_configs[0]);
     }
 
     auto [session, num_shards, model_num_pipeline_stages] =
@@ -516,7 +514,9 @@ class EngineImpl : public Engine {
 
   String JSONMetrics() final { return picojson::value(estate_->metrics.AsJSON()).serialize(true); }
 
-  FRequestStreamCallback GetRequestStreamCallback() final { return estate_->request_stream_callback_; }
+  FRequestStreamCallback GetRequestStreamCallback() final {
+    return estate_->request_stream_callback_;
+  }
 
   void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) final {
     estate_->request_stream_callback_ = std::move(request_stream_callback);
@@ -754,7 +754,8 @@ class EngineImpl : public Engine {
       }
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
-                              estate_->request_stream_callback_, engine_config_->max_single_sequence_length,
+                              estate_->request_stream_callback_,
+                              engine_config_->max_single_sequence_length,
                               draft_token_workspace_manager_, trace_recorder_);
         return;
       }

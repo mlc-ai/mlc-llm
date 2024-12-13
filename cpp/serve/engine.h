@@ -9,17 +9,16 @@
 #include <tvm/runtime/packed_func.h>
 
 #include "data.h"
+#include "engine_state.h"
 #include "event_trace_recorder.h"
 #include "request.h"
 #include "request_state.h"
-#include "engine_state.h"
 
 namespace mlc {
 namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
-
 
 class Engine;
 

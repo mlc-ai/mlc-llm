@@ -332,9 +332,10 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
   }
 }
 
-void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) const {
-  if (func_args) { 
-   std::string args = func_args.value();
+void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name,
+                                                Optional<String> func_args) const {
+  if (func_args) {
+    std::string args = func_args.value();
     if (this->use_disco) {
       sess->CallPacked(sess->GetGlobalFunc(func_name), args);
     } else {
@@ -343,7 +344,7 @@ void FunctionTable::DebugCallFuncOnAllAllWorker(const String& func_name, Optiona
       (*func)(args);
     }
   } else {
-     if (this->use_disco) {
+    if (this->use_disco) {
       sess->CallPacked(sess->GetGlobalFunc(func_name));
     } else {
       const PackedFunc* func = Registry::Get(func_name);

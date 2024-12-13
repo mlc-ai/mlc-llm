@@ -303,7 +303,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     running_rsentries.reserve(init_running_rsentries.size());
     for (const RequestStateEntry& rsentry : init_running_rsentries) {
       int draft_length = rsentry->mstates[draft_model_id_]->draft_output_tokens.size();
-      if(draft_length == 0){
+      if (draft_length == 0) {
         continue;
       }
       running_rsentries.push_back(rsentry);
@@ -327,9 +327,8 @@ class BatchVerifyActionObj : public EngineActionObj {
       }
     }
     CHECK_LE(total_verify_length, std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
-                                           engine_config_->prefill_chunk_size)) << total_verify_length
-                                                                                << " "
-                                                                                << engine_config_->max_num_sequence;
+                                           engine_config_->prefill_chunk_size))
+        << total_verify_length << " " << engine_config_->max_num_sequence;
 
     return {running_rsentries, verify_lengths, total_verify_length};
   }

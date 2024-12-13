@@ -323,7 +323,6 @@ class DisaggPreparePrefillActionObj : public BatchPrefillBaseActionObj {
                   int num_required_pages, int num_available_pages, int current_total_seq_len,
                   int num_running_rsentries, KVStateKind kv_state_kind,
                   bool sliding_window_enabled) {
-
     // No exceeding of the maximum allowed requests that can
     // run simultaneously.
     int spec_factor = engine_config_->speculative_mode != SpeculativeMode::kDisable

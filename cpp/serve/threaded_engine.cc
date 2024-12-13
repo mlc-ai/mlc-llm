@@ -12,7 +12,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-
 #include <optional>
 
 #include "../support/json_parser.h"
@@ -176,9 +175,10 @@ class ThreadedEngineImpl : public ThreadedEngine {
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           Array<ObjectRef> packed_args = Downcast<Array<ObjectRef>>(arg);
-          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(packed_args[0]), Downcast<String>(packed_args[1]));
+          background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(packed_args[0]),
+                                                          Downcast<String>(packed_args[1]));
         } else {
-          LOG(FATAL) << "Cannot reach here";
+          LOG(FATAL) << "Cannot reach here";`
         }
       }
       if (background_engine_ != nullptr) {
@@ -256,7 +256,8 @@ class ThreadedEngineImpl : public ThreadedEngine {
     bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
-      instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker, Array<ObjectRef>{func_name, func_args});
+      instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker,
+                                      Array<ObjectRef>{func_name, func_args});
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }
