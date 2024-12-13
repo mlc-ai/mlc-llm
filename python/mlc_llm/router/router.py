@@ -10,6 +10,7 @@ from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.serve import EngineConfig, PopenServer
 from mlc_llm.tokenizers import Tokenizer
 
+
 class Router:
 
     def __init__(
@@ -20,7 +21,7 @@ class Router:
         ports: List[int] = [8080],
         num_gpus: List[int] = [1],
         enable_prefix_cache: bool = False,
-        router_mode: Literal["disagg", "round-robin"] = "disagg", 
+        router_mode: Literal["disagg", "round-robin"] = "disagg",
         pd_balance_factor: float = 0.0,
     ):
         """
@@ -71,7 +72,7 @@ class Router:
                 mode="server",
                 engine_config=EngineConfig(
                     prefix_cache_mode="radix" if enable_prefix_cache else "disable",
-                    gpu_memory_utilization=0.8
+                    gpu_memory_utilization=0.8,
                 ),
             )
             self.servers.append(server)
@@ -105,7 +106,7 @@ class Router:
         Handle a completion request from API with a schedule.
         """
         if isinstance(request.prompt, str):
-            request.prompt = self.tokenizer.encode(request.prompt) 
+            request.prompt = self.tokenizer.encode(request.prompt)
         if self.router_mode == "disagg":
             async for response in self._handle_completion_disagg(
                 request, request_id, pd_balance_factor=self.pd_balance_factor
@@ -212,10 +213,14 @@ class Router:
         if original_request.debug_config is None:
             original_request.debug_config = openai_api_protocol.DebugConfig()
 
-        # Tell D to prepare metadata for prompt[0:kv_window_end]. 
+        # Tell D to prepare metadata for prompt[0:kv_window_end].
         # P does not need to sample. Ask D to treat the last
         # token like the first sampled token.
-        kv_window_end = -1 if math.fabs(pd_balance_factor)<1e-5 else int((1-pd_balance_factor) * len(original_request.prompt))
+        kv_window_end = (
+            -1
+            if math.fabs(pd_balance_factor) < 1e-5
+            else int((1 - pd_balance_factor) * len(original_request.prompt))
+        )
 
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
@@ -241,7 +246,9 @@ class Router:
                             decode_endpoint=self.endpoints[decode_server_id],
                         )
                     )
-                    kv_window_end =  prompt_length + kv_window_end if kv_window_end <0 else kv_window_end
+                    kv_window_end = (
+                        prompt_length + kv_window_end if kv_window_end < 0 else kv_window_end
+                    )
                     assert prefix_matched_length <= kv_window_end
 
                     # 2. Send P the prefill request and D's metadata. When it returns, it means that
@@ -320,7 +327,9 @@ class Router:
                     raw_data = chunk[6:].strip()
                     if raw_data == b"[DONE]":
                         continue
-                    assert data is None, f"Expecting only one effective chunk response. data: {data}, current={json.loads(raw_data)}"
+                    assert (
+                        data is None
+                    ), f"Expecting only one effective chunk response. data: {data}, current={json.loads(raw_data)}"
                     data = json.loads(raw_data)
                 else:
                     data = await response.json()

@@ -22,7 +22,7 @@ def main():
             "serve",
             "package",
             "calibrate",
-            "router"
+            "router",
         ],
         help="Subcommand to to run. (choices: %(choices)s)",
     )

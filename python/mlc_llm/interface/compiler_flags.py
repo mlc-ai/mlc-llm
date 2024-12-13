@@ -173,7 +173,11 @@ class ModelConfigOverride(ConfigOverrideBase):
         parser.add_argument("--max_batch_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
-        parser.add_argument("--disaggregation", type=lambda x: (str(x).lower() in ['true','1', 'yes','True']), default=None)
+        parser.add_argument(
+            "--disaggregation",
+            type=lambda x: (str(x).lower() in ["true", "1", "yes", "True"]),
+            default=None,
+        )
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
