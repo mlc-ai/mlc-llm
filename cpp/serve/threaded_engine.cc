@@ -178,7 +178,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
           background_engine_->DebugCallFuncOnAllAllWorker(Downcast<String>(packed_args[0]),
                                                           Downcast<String>(packed_args[1]));
         } else {
-          LOG(FATAL) << "Cannot reach here";`
+          LOG(FATAL) << "Cannot reach here";
         }
       }
       if (background_engine_ != nullptr) {
