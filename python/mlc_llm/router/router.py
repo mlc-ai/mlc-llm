@@ -193,18 +193,17 @@ class Router:  # pylint: disable=too-many-instance-attributes
     # Note that only _handle_completion_disagg() has scheduling logics. The other three
     # helper methods only reflect our flow.
     #
-    async def _handle_completion_disagg(
+    async def _handle_completion_disagg(  # pylint: disable=too-many-locals
         self,
         original_request: openai_api_protocol.CompletionRequest,
         request_id: str,
         pd_balance_factor=0,
-    ) -> AsyncGenerator[
-        openai_api_protocol.CompletionResponse, Any
-    ]:  # pylint: disable=too-many-locals
+    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         """
         Handle a completion request from API with disaggregated scheduling. Given two servers
         P (prefill) and D (decode), the router does the following:
-            1. Ask D to prepare metadata, receive D's metadata (prefix cache, KV append positions, etc.)
+            1. Ask D to prepare metadata, receive D's metadata
+            (prefix cache, KV append positions, etc.)
             2. Send P the prefill request and D's metadata, receive ack
             3. Ask D to start decoding, receive response as a normal streaming
         """
@@ -380,7 +379,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
             assert "extra" in data["usage"]
             return
 
-    async def send_decode(
+    async def send_decode(  # pylint: disable=fixme
         self,
         session: aiohttp.ClientSession,
         decode_request: openai_api_protocol.CompletionRequest,

@@ -12,10 +12,6 @@ from mlc_llm.protocol.openai_api_protocol import CompletionLogProbs, CompletionR
 from mlc_llm.router import Router
 from mlc_llm.serve import engine_base, engine_utils
 
-#
-# Global variables
-#
-
 
 def serve(
     model: str,
@@ -29,6 +25,7 @@ def serve(
     router_mode: Literal["disagg", "round-robin"],
     pd_balance_factor: float,
 ):  # pylint: disable=too-many-arguments
+    """Start the router with the specified configuration."""
     # 1. Instantiate router
     router = Router(
         model=model,
