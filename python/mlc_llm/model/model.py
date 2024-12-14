@@ -28,6 +28,7 @@ from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
+from .olmo import olmo_loader, olmo_model, olmo_quantization
 from .orion import orion_loader, orion_model, orion_quantization
 from .phi import phi_loader, phi_model, phi_quantization
 from .phi3 import phi3_loader, phi3_model, phi3_quantization
@@ -530,6 +531,23 @@ MODELS: Dict[str, Model] = {
             "no-quant": deepseek_quantization.no_quant,
             "group-quant": deepseek_quantization.group_quant,
             "ft-quant": deepseek_quantization.ft_quant,
+        },
+    ),
+    "olmo": Model(
+        name="olmo",
+        model=olmo_model.OLMoForCausalLM,
+        config=olmo_model.OLMoConfig,
+        source={
+            "huggingface-torch": olmo_loader.huggingface,
+            "huggingface-safetensor": olmo_loader.huggingface,
+            "awq": olmo_loader.awq,
+        },
+        quantize={
+            "no-quant": olmo_quantization.no_quant,
+            "group-quant": olmo_quantization.group_quant,
+            "ft-quant": olmo_quantization.ft_quant,
+            "awq": olmo_quantization.awq_quant,
+            "per-tensor-quant": olmo_quantization.per_tensor_quant,
         },
     ),
 }
