@@ -161,13 +161,15 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
-class LoogleDataset(Dataset):
-    # task2maxlen = {"shortdep_qa": 300, "longdep_qa": 500, "longdep_summarization": 500, "shortdep_cloze": 50}
+class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
+    """The dataset class for Loogle dataset."""
+
     task2prompt = {
         "shortdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
         "longdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
         "longdep_summarization": "Please generate a summary of the below paper. \n{input}\n Summarization: ",
         "shortdep_cloze": "Please fill in the clozes based on the given long texts below. Each of the placeholder '<mask-n>' in the question could be an entity of Person, Location or Organiocation. The same masks represent the same entity. Output a json format answer, for example: {{'<mask-0>': 'Bob', '<mask-1>': 'Gorrosion Magazine','<mask-2>': 'Bethel Horizon'}}\n{input}\n Question: {Q} What are the masked entities? \nAnswer:",
+        # pylint: disable=line-too-long
     }
     require_fake_warmup: bool = True
 
@@ -183,7 +185,7 @@ class LoogleDataset(Dataset):
         for data in raw_dataset:
             prompt = data["input"]
             prompts.append(prompt)
-            qa_pairs = eval(data["qa_pairs"])
+            qa_pairs = eval(data["qa_pairs"])  # pylint: disable=eval-used
             questions.append([j["Q"] for j in qa_pairs])
             generate_lens.append(
                 [len(tokenizer.encode(j["A"], add_special_tokens=False)) for j in qa_pairs]
@@ -194,10 +196,12 @@ class LoogleDataset(Dataset):
             max_length=min(tokenizer.model_max_length, self.truncate_length),
             add_special_tokens=False,
         ).input_ids
-        for i in range(len(prompts)):
-            self.dataset.append((prompts[i], prompt_token_ids[i], questions[i], generate_lens[i]))
+        for prompt, prompt_token_id, question, generate_len in zip(
+            prompts, prompt_token_ids, questions, generate_lens
+        ):
+            self.dataset.append((prompt, prompt_token_id, question, generate_len))
 
-    def generate_request_records(
+    def generate_request_records(  # pylint: disable=too-many-locals
         self,
         input_len: Optional[int],
         output_len: Optional[int],
@@ -285,7 +289,6 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
             output_len = 150
 
         request_records = []
-        original_dataset = self.dataset.copy()
         for _ in range(self.num_requests):
             input_length = round(float(np.random.normal(loc=input_len, scale=input_len_std)))
             output_length = round(float(np.random.normal(loc=output_len, scale=output_len_std)))
@@ -469,11 +472,13 @@ Action 2: Search[Leonid Levin]
 Observation 2: Leonid Anatolievich Levin is a Soviet-American mathematician and computer scientist.
 Thought 3: Leonid Levin is a mathematician and computer scientist. So Pavel Urysohn and Leonid Levin have the same type of work.
 Action 3: Finish[yes]
-"""
+"""  # pylint: disable=line-too-long
 
-    def __init__(self, dataset_path: str, tokenizer: AutoTokenizer) -> None:
+    def __init__(
+        self, dataset_path: str, tokenizer: AutoTokenizer
+    ) -> None:  # pylint: disable=too-many-locals
         raw_entries: List[Dict] = []
-        with open(dataset_path) as fin:
+        with open(dataset_path) as fin:  # pylint: disable=unspecified-encoding
             for line in fin:
                 line_content = json.loads(line)
                 raw_entries += list({"question": k, "triplets": v} for k, v in line_content.items())

@@ -225,10 +225,10 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
         return updated_records
 
 
-class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
+class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,line-too-long
     """The processor that runs warmup first and then runs the benchmark with the given pipeline."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         num_warmup_requests: int,
         num_benchmark_requests: int,
@@ -242,12 +242,12 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
         self.cuda_profile_url = cuda_profile_url
         self.fake_warmup = fake_warmup
 
-    def generate_fake_warmup_requests(
+    def generate_fake_warmup_requests(  # pylint: disable=missing-function-docstring
         self, num_warmup_requests: int, example_request: RequestRecord
     ) -> List[RequestRecord]:
         records = []
-        for i in range(num_warmup_requests):
-            record = example_request.__deepcopy__()
+        for _ in range(num_warmup_requests):
+            record = copy.deepcopy(example_request)
             record.chat_cmpl = ChatCompletionRequest(
                 messages=[
                     {
