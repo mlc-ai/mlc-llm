@@ -262,7 +262,6 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
         return records
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
-
         # Warmup
         if self.fake_warmup:
             assert len(request_records) == self.num_benchmark_requests

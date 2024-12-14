@@ -162,7 +162,6 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
 
 
 class LoogleDataset(Dataset):
-
     # task2maxlen = {"shortdep_qa": 300, "longdep_qa": 500, "longdep_summarization": 500, "shortdep_cloze": 50}
     task2prompt = {
         "shortdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
