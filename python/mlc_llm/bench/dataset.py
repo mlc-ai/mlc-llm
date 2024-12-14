@@ -164,13 +164,14 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
 class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
     """The dataset class for Loogle dataset."""
 
+    # pylint: disable=line-too-long
     task2prompt = {
         "shortdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
         "longdep_qa": "Please answer the question based on the long texts below. \n{input}\nQuestion: {Q}\nAnswer: ",
         "longdep_summarization": "Please generate a summary of the below paper. \n{input}\n Summarization: ",
         "shortdep_cloze": "Please fill in the clozes based on the given long texts below. Each of the placeholder '<mask-n>' in the question could be an entity of Person, Location or Organiocation. The same masks represent the same entity. Output a json format answer, for example: {{'<mask-0>': 'Bob', '<mask-1>': 'Gorrosion Magazine','<mask-2>': 'Bethel Horizon'}}\n{input}\n Question: {Q} What are the masked entities? \nAnswer:",
-        # pylint: disable=line-too-long
     }
+    # pylint: enable=line-too-long
     require_fake_warmup: bool = True
 
     def __init__(self, tokenizer: AutoTokenizer, testset_name) -> None:
@@ -405,7 +406,7 @@ class ReActDataset(Dataset):  # pylint: disable=too-few-public-methods
 
     _dataset: List[List[Tuple[str, int, int]]]
     require_fake_warmup: bool = True
-
+    # pylint: disable=line-too-long
     prefix: str = """Solve a question answering task with interleaving Thought, Action, Observation steps. Thought can reason about the current situation, and Action can be three types:
 (1) Search[entity], which searches the exact entity on Wikipedia and returns the first paragraph if it exists. If not, it will return some similar entities to search.
 (2) Lookup[keyword], which returns the next sentence containing keyword in the current passage.
@@ -472,11 +473,12 @@ Action 2: Search[Leonid Levin]
 Observation 2: Leonid Anatolievich Levin is a Soviet-American mathematician and computer scientist.
 Thought 3: Leonid Levin is a mathematician and computer scientist. So Pavel Urysohn and Leonid Levin have the same type of work.
 Action 3: Finish[yes]
-"""  # pylint: disable=line-too-long
+"""
 
-    def __init__(
+    # pylint: enable=line-too-long
+    def __init__(  # pylint: disable=too-many-locals
         self, dataset_path: str, tokenizer: AutoTokenizer
-    ) -> None:  # pylint: disable=too-many-locals
+    ) -> None:
         raw_entries: List[Dict] = []
         with open(dataset_path) as fin:  # pylint: disable=unspecified-encoding
             for line in fin:

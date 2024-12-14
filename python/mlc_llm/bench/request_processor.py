@@ -252,7 +252,7 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
                 messages=[
                     {
                         "role": "user",
-                        "content": "Please output arbitrary coherent sentences. Do not output eos token.",
+                        "content": "Please output arbitrary coherent sentences. Do not output eos token.",  # pylint: disable=line-too-long
                     }
                 ],
                 model="",
