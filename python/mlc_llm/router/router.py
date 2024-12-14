@@ -242,13 +242,16 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     prepare_request.stream_options = openai_api_protocol.StreamOptions(
                         include_usage=True
                     )
-                    prompt_length, prefix_matched_length, kv_append_metadata_base64 = (
-                        await self.send_decode_prepare(
-                            session=session,
-                            prepare_request=prepare_request,
-                            decode_endpoint=self.endpoints[decode_server_id],
-                        )
+                    (
+                        prompt_length,
+                        prefix_matched_length,
+                        kv_append_metadata_base64,
+                    ) = await self.send_decode_prepare(
+                        session=session,
+                        prepare_request=prepare_request,
+                        decode_endpoint=self.endpoints[decode_server_id],
                     )
+
                     kv_window_end = (
                         prompt_length + kv_window_end if kv_window_end < 0 else kv_window_end
                     )
@@ -330,9 +333,10 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     raw_data = chunk[6:].strip()
                     if raw_data == b"[DONE]":
                         continue
-                    assert (
-                        data is None
-                    ), f"Expecting only one effective chunk response. data: {data}, current={json.loads(raw_data)}"
+                    assert data is None, (
+                        f"Expecting only one effective chunk response. "
+                        f"data: {data}, current={json.loads(raw_data)}"
+                    )
                     data = json.loads(raw_data)
                 else:
                     data = await response.json()

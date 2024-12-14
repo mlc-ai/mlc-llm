@@ -13,41 +13,57 @@ model_lib_tp2 = "./dist/lib/Llama-3.2-1B-q0f16-cuda-tp2.so"
 
 
 def get_router_1tp1():
-    return Router(
+    return (
+        Router(
+            model_tp1,
+            model_lib=model_lib_tp1,
+            hosts=["127.0.0.1"],
+            ports=[8080],
+        ),
         model_tp1,
-        model_lib=model_lib_tp1,
-        hosts=["127.0.0.1"],
-        ports=[8080],
-    ), model_tp1
+    )
+
 
 def get_router_2tp1():
-    return Router(
+    return (
+        Router(
+            model_tp1,
+            model_lib=model_lib_tp1,
+            hosts=["127.0.0.1", "127.0.0.1"],
+            ports=[8080, 8081],
+            device_id_starts=[0, 1],
+            npes=2,
+        ),
         model_tp1,
-        model_lib=model_lib_tp1,
-        hosts=["127.0.0.1", "127.0.0.1"],
-        ports=[8080, 8081],
-        device_id_starts=[0, 1],
-        npes=2,
-    ), model_tp1
+    )
+
 
 def get_router_1tp2():
-    return Router(
+    return (
+        Router(
+            model_tp2,
+            model_lib=model_lib_tp2,
+            hosts=["127.0.0.1"],
+            ports=[8080],
+            npes=2,
+        ),
         model_tp2,
-        model_lib=model_lib_tp2,
-        hosts=["127.0.0.1"],
-        ports=[8080],
-        npes=2,
-    ), model_tp2
+    )
+
 
 def get_router_2tp2():
-    return Router(
+    return (
+        Router(
+            model_tp2,
+            model_lib=model_lib_tp2,
+            hosts=["127.0.0.1", "127.0.0.1"],
+            ports=[8080, 8081],
+            device_id_starts=[0, 2],
+            npes=4,
+        ),
         model_tp2,
-        model_lib=model_lib_tp2,
-        hosts=["127.0.0.1", "127.0.0.1"],
-        ports=[8080, 8081],
-        device_id_starts=[0, 2],
-        npes=4,
-    ), model_tp2
+    )
+
 
 CONFIG_TO_ROUTER = {
     "1tp1": get_router_1tp1,
@@ -55,6 +71,7 @@ CONFIG_TO_ROUTER = {
     "1tp2": get_router_1tp2,
     "2tp2": get_router_2tp2,
 }
+
 
 async def test_router(schedule: str = "round_robin", endpoints_config: str = "1tp1"):
     router, model_id = CONFIG_TO_ROUTER[endpoints_config]()

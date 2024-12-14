@@ -7,6 +7,7 @@ from mlc_llm.support.argparse import ArgumentParser
 
 def main(argv):
     """Parse command line arguments and call `mlc_llm.interface.router`."""
+
     # Define a custom argument type for a list of strings
     def list_of_strings(arg):
         return arg.split(",")
