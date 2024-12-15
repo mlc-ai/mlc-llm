@@ -15,8 +15,13 @@ from tqdm import tqdm
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
 from mlc_llm.bench.api_endpoint import APIEndPoint
-from mlc_llm.bench.request_record import RequestRecord
-from mlc_llm.protocol.openai_api_protocol import ChatCompletionMessage, DebugConfig
+from mlc_llm.bench.dataset import Dataset
+from mlc_llm.bench.request_record import GroupedRequestRecord, RequestRecord
+from mlc_llm.protocol.openai_api_protocol import (
+    ChatCompletionMessage,
+    ChatCompletionRequest,
+    DebugConfig,
+)
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
@@ -50,6 +55,19 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         self.num_requests = num_requests
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+        assert len(request_records) > 0, "Empty input request record."
+
+        # We expect the input request records to be all grouped or all plain.
+        if isinstance(request_records[0], GroupedRequestRecord):
+            assert all(isinstance(record, GroupedRequestRecord) for record in request_records)
+            return self._sample_from_grouped_request_records(request_records)
+
+        assert all(not isinstance(record, GroupedRequestRecord) for record in request_records)
+        return self._sample_from_plain_request_records(request_records)
+
+    def _sample_from_plain_request_records(
+        self, request_records: List[RequestRecord]
+    ) -> List[RequestRecord]:
         samples: List[RequestRecord] = []
         while len(samples) < self.num_requests:
             # Create a new list so that the in-place shuffle does not mutate the input list.
@@ -57,6 +75,35 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
             random.shuffle(records)
             samples += copy.deepcopy(records)
         samples = samples[: self.num_requests]
+        for i, record in enumerate(samples):
+            record.request_id = i
+        return samples
+
+    def _sample_from_grouped_request_records(
+        self, grouped_request_records: List[GroupedRequestRecord]
+    ) -> List[RequestRecord]:
+        num_total_available_requests = sum(
+            len(record.records) for record in grouped_request_records
+        )
+        if self.num_requests > num_total_available_requests:
+            raise ValueError(
+                "Due to the existence of shared common prefixes, we do not allow "
+                "benchmarking with requests more than the available requests in the dataset. "
+                f"The required number of requests {self.num_requests} exceeds the "
+                f"number of total available requests {num_total_available_requests}."
+            )
+
+        # Create a new list so that the in-place shuffle does not mutate the input list.
+        records = list(grouped_request_records)
+        random.shuffle(records)
+        remaining = self.num_requests
+        samples: List[RequestRecord] = []
+        for grouped_request_record in grouped_request_records:
+            num_used_requests = min(len(grouped_request_record.records), remaining)
+            samples += grouped_request_record.records[:num_used_requests]
+            remaining -= num_used_requests
+            if remaining == 0:
+                break
         for i, record in enumerate(samples):
             record.request_id = i
         return samples
@@ -177,29 +224,57 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
         return updated_records
 
 
-class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods
+class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,line-too-long
     """The processor that runs warmup first and then runs the benchmark with the given pipeline."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
         num_warmup_requests: int,
         num_benchmark_requests: int,
         pipeline: RequestProcessor,
         cuda_profile_url: Optional[str],
+        fake_warmup: bool = False,
     ) -> None:
         self.num_warmup_requests = num_warmup_requests
         self.num_benchmark_requests = num_benchmark_requests
         self.pipeline = pipeline
         self.cuda_profile_url = cuda_profile_url
+        self.fake_warmup = fake_warmup
+
+    def generate_fake_warmup_requests(  # pylint: disable=missing-function-docstring
+        self, num_warmup_requests: int, example_request: RequestRecord
+    ) -> List[RequestRecord]:
+        records = []
+        for _ in range(num_warmup_requests):
+            record = copy.deepcopy(example_request)
+            record.chat_cmpl = ChatCompletionRequest(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": "Please output arbitrary coherent sentences. Do not output eos token.",  # pylint: disable=line-too-long
+                    }
+                ],
+                model="",
+                max_tokens=128,
+            )
+            records.append(record)
+        return records
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
-        assert len(request_records) == self.num_warmup_requests + self.num_benchmark_requests
-        warmup_requests = request_records[-self.num_warmup_requests :]
-        benchmark_requests = request_records[: -self.num_warmup_requests]
+        # Warmup
+        if self.fake_warmup:
+            assert len(request_records) == self.num_benchmark_requests
+            benchmark_requests = request_records
+            example_request = benchmark_requests[0]
+            warmup_requests = self.generate_fake_warmup_requests(
+                self.num_warmup_requests, example_request=example_request
+            )
+        else:
+            assert len(request_records) == self.num_warmup_requests + self.num_benchmark_requests
+            benchmark_requests = request_records[: -self.num_warmup_requests]
+            warmup_requests = request_records[-self.num_warmup_requests :]
         for request_record in warmup_requests:
             request_record.timestamp = 0 if request_record.timestamp is not None else None
-
-        # Warmup
         warmup_requests = self._process_warmup_requests(warmup_requests)
         logger.info("Warmup with %d request(s)...", self.num_warmup_requests)
         self.pipeline(warmup_requests)
@@ -500,7 +575,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
 
 
 def create_pipelines(
-    args: argparse.Namespace, f_create_api_endpoint: Callable[[], APIEndPoint]
+    args: argparse.Namespace, f_create_api_endpoint: Callable[[], APIEndPoint], dataset: Dataset
 ) -> List[RequestProcessor]:
     """Creating request processing pipelines with regard to the specified args."""
     cuda_profile_url = f"http://{args.host}:{args.port}" if args.cuda_profile else None
@@ -536,6 +611,7 @@ def create_pipelines(
                             args.multi_round,
                         ),
                         cuda_profile_url=cuda_profile_url,
+                        fake_warmup=dataset.require_fake_warmup,
                     ),
                 )
             )
@@ -546,19 +622,22 @@ def create_pipelines(
                 "Please specify the number of warmup requests via "
                 '"--num-warmup-requests" when fixing request rate.'
             )
-        # for request_rate in args.request_rate:
+        if args.fake_warmup:
+            num_samples = int(args.num_requests * args.num_gpus)
+        else:
+            num_samples = int(args.num_requests * args.num_gpus) + args.num_warmup_requests
         return [
             SequentialProcessor(
                 LogMessage(f"Fixing request rate: {request_rate}"),
-                SampleRequests(args.num_requests + args.num_warmup_requests),
+                SampleRequests(num_samples),
                 AttachModelName(args.tokenizer),
-                AttachRequestRateTimestamp(request_rate),
+                AttachRequestRateTimestamp(request_rate * args.num_gpus),
                 AttachStreamFlag(args.stream),
                 AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
                 AttachExecutionFeature({"request_rate": float(request_rate)}),
                 WarmupAndRun(
                     num_warmup_requests=args.num_warmup_requests,
-                    num_benchmark_requests=args.num_requests,
+                    num_benchmark_requests=int(args.num_requests * args.num_gpus),
                     pipeline=FixTimestampExecutor(
                         f_create_api_endpoint,
                         args.num_process_workers,
@@ -568,6 +647,7 @@ def create_pipelines(
                         request_rate,
                     ),
                     cuda_profile_url=cuda_profile_url,
+                    fake_warmup=dataset.require_fake_warmup,
                 ),
             )
             for request_rate in args.request_rate
