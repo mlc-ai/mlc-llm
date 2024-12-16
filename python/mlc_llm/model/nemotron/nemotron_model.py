@@ -30,7 +30,7 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     num_hidden_layers: int
     num_attention_heads: int
     num_key_value_heads: int
-    rope_theta: float = 10000.0
+    rope_theta: int = 10000
     partial_rotary_factor: float = 0.5
     rope_scaling: Optional[Dict[str, Any]] = None
     norm_eps: float = 1e-5
