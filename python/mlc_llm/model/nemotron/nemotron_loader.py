@@ -59,21 +59,7 @@ def huggingface(model_config: NemotronConfig, quantization: Quantization) -> Ext
                 dtype=mlc_param.dtype,
             ),
         )
-        # # Add gates in MLP
-        # mlp = f"model.layers.{i}.mlp"
-        # mlc_name = f"{mlp}.gate_up_proj.weight"
-        # mlc_param = named_parameters[mlc_name]
-        # mapping.add_mapping(
-        #     mlc_name,
-        #     [
-        #         f"{mlp}.gate_proj.weight",
-        #         f"{mlp}.up_proj.weight",
-        #     ],
-        #     functools.partial(
-        #         lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-        #         dtype=mlc_param.dtype,
-        #     ),
-        # )
+
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
@@ -88,5 +74,4 @@ def huggingface(model_config: NemotronConfig, quantization: Quantization) -> Ext
                 ),
             )
 
-    print(mapping.param_map)
     return mapping
