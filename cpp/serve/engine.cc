@@ -410,10 +410,8 @@ class EngineImpl : public Engine {
       CHECK(nvshmem_init_config_json_char != nullptr)
           << "The environment variables MLC_NVSHMEM_INIT_CONFIG_JSON_STR should be set.";
       std::string f_name = "runtime.disco.nvshmem.init_nvshmem_wrapper";
-      // Same as DebugCallFuncOnAllAllWorker, but we do not have models_ yet
       if (session != nullptr) {
-        session.value()->CallPacked(session.value()->GetGlobalFunc(f_name),
-                                    nvshmem_init_config_json_char);
+        n->DebugCallFuncOnAllAllWorker(f_name, String(nvshmem_init_config_json_char));
       } else {
         const PackedFunc* func = Registry::Get(f_name);
         CHECK(func != nullptr) << "Global function name \"" << f_name << "\" is not found";
