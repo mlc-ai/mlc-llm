@@ -18,6 +18,7 @@ Array<EngineAction> CreateEngineActions(
     Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
     Device device) {
   Array<EngineAction> actions;
+  ModelMetadata model_metadata = models[0]->GetMetadata();
   if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
     // Speculative decoding is only possible for more than one model.
     ICHECK_GT(models.size(), 1U);
@@ -94,6 +95,16 @@ Array<EngineAction> CreateEngineActions(
                                                 engine_config, trace_recorder)},
                      engine_config)};
     }
+  } else if (model_metadata.disaggregation) {
+    actions = {EngineAction::NewRequestPrefill(models,            //
+                                               logit_processor,   //
+                                               sampler,           //
+                                               model_workspaces,  //
+                                               engine_config,     //
+                                               model_configs,     //
+                                               trace_recorder),
+               EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler, engine_config,
+                                         trace_recorder)};
   } else {
     // The normal mode.
     actions = {EngineAction::NewRequestPrefill(models,            //
@@ -103,12 +114,11 @@ Array<EngineAction> CreateEngineActions(
                                                engine_config,     //
                                                model_configs,     //
                                                trace_recorder),
-               //  EngineAction::BatchJumpForward(models, tokenizer, trace_recorder),
+               EngineAction::BatchJumpForward(models, tokenizer, trace_recorder),
                EngineAction::BatchDecode(models, tokenizer, logit_processor, sampler, engine_config,
                                          trace_recorder)};
   }
 
-  ModelMetadata model_metadata = models[0]->GetMetadata();
   if (model_metadata.disaggregation) {
     // Insert the disaggregation actions.
     Array<EngineAction> disaggregation_actions = {
