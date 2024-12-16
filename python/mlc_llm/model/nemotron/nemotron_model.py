@@ -74,20 +74,15 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
 
 class NemotronMLP(nn.Module):
     """Nemotron MLP module."""
+
     def __init__(self, config: NemotronConfig):
         super().__init__()
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size
 
-        self.up_proj = nn.Linear(
-            config.hidden_size,
-            config.intermediate_size,
-            bias=config.mlp_bias
-        )
+        self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=config.mlp_bias)
         self.down_proj = nn.Linear(
-            config.intermediate_size,
-            config.hidden_size,
-            bias=config.mlp_bias
+            config.intermediate_size, config.hidden_size, bias=config.mlp_bias
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -111,6 +106,7 @@ class NemotronEmbedding(nn.Embedding):
 
 class NemotronLayerNorm1P(nn.LayerNorm):
     """Nemotron LayerNorm1P module."""
+
     def __init__(self, normalized_shape: int, eps: float = 1e-5, elementwise_affine: bool = True):
         super().__init__(normalized_shape, eps, elementwise_affine)
 
@@ -119,7 +115,7 @@ class NemotronLayerNorm1P(nn.LayerNorm):
         return op.layer_norm(
             input,
             normalized_shape=self.normalized_shape,
-            weight=self.weight+1,
+            weight=self.weight + 1,
             bias=self.bias,
             eps=self.eps,
         )
@@ -155,6 +151,7 @@ class NemotronAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
             (b, s, h_q * d),
         )
         return self.o_proj(output)
+
 
 class NemotronDecoderLayer(nn.Module):
     def __init__(self, config: NemotronConfig):
