@@ -110,10 +110,10 @@ class NemotronLayerNorm1P(nn.LayerNorm):
     def __init__(self, normalized_shape: int, eps: float = 1e-5, elementwise_affine: bool = True):
         super().__init__(normalized_shape, eps, elementwise_affine)
 
-    def forward(self, input: Tensor) -> Tensor:
+    def forward(self, x: Tensor) -> Tensor:
         """Forward pass of the tweaked LayerNorm module."""
         return op.layer_norm(
-            input,
+            x,
             normalized_shape=self.normalized_shape,
             weight=self.weight + 1,
             bias=self.bias,
