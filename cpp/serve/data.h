@@ -57,6 +57,10 @@ class Data : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Data, ObjectRef, DataNode);
 };
 
+/*! \brief Split the given data array into two arrays at the "split_pos" position. */
+std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
+                                              int split_pos);
+
 /****************** TextDataNode ******************/
 
 /*! \brief The class of text data, containing a text string. */

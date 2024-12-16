@@ -1,6 +1,6 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
-# pylint: disable=too-many-locals,too-many-return-statements,too-many-statements
+# pylint: disable=too-many-locals,too-many-return-statements,too-many-statements,fixme
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
@@ -52,7 +52,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
-    request_id = f"cmpl-{engine_utils.random_uuid()}"
+    # FIXME: This is a temporary solution to make sure
+    # prep_recv, remote_send and start_generation process the same request
+    request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
@@ -145,7 +147,11 @@ async def request_chat_completion(
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
-    request_id = f"chatcmpl-{engine_utils.random_uuid()}"
+    # FIXME: This is a temporary solution to make sure
+    # prep_recv, remote_send and start_generation process the same request
+    request_id = (
+        request.user if request.user is not None else f"chatcmpl-{engine_utils.random_uuid()}"
+    )
 
     # Streaming response.
     if request.stream:

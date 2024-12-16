@@ -9,6 +9,7 @@
 #include <tvm/runtime/packed_func.h>
 
 #include "data.h"
+#include "engine_state.h"
 #include "event_trace_recorder.h"
 #include "request.h"
 #include "request_state.h"
@@ -18,8 +19,6 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
-
-typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
 
 class Engine;
 
@@ -116,8 +115,11 @@ class Engine {
   virtual String JSONMetrics() = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 };
+
+void AbortRequestImpl(EngineState estate, const Array<Model>& models, const String& request_id,
+                      String finish_reason = "abort");
 
 }  // namespace serve
 }  // namespace llm

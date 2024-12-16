@@ -39,6 +39,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     tensor_parallel_shards: int = 1
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
+    disaggregation: bool = False
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):  # pylint: disable=too-many-branches
@@ -252,6 +253,7 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.disaggregation = config.disaggregation
         self.dtype = "float32"
 
         def _set_pp():
@@ -409,6 +411,7 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             rope_theta=self.rope_theta,
             rope_scaling=self.rope_scaling,
             layer_partition=self.model.layer_partition,
+            enable_disaggregation=self.disaggregation,
             dtype=self.dtype,
         )
 

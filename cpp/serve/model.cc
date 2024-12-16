@@ -754,6 +754,38 @@ class ModelImpl : public ModelObj {
     }
   }
 
+  IntTuple DisaggPrepareKVRecv(int64_t seq_id, int length) final {
+    NVTXScopedRange nvtx_scope("DisaggPrepareKVRecv length=" + std::to_string(length));
+
+    ICHECK(ft_.kv_cache_disagg_prepare_recv_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    // Run KV receive preparation.
+    ObjectRef ret;
+    ret = ft_.kv_cache_disagg_prepare_recv_func_(kv_cache_, seq_id, length);
+    IntTuple compressed_kv_append_metadata;
+    if (ft_.use_disco) {
+      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+    } else {
+      compressed_kv_append_metadata = Downcast<IntTuple>(ret);
+    }
+
+    return compressed_kv_append_metadata;
+  }
+
+  void DisaggMarkKVSend(int64_t seq_id, int begin_pos, IntTuple compressed_kv_append_metadata,
+                        int dst_group_offset) final {
+    NVTXScopedRange nvtx_scope("DisaggMarkKVSend seq_id=" + std::to_string(seq_id) +
+                               " begin_pos=" + std::to_string(begin_pos));
+
+    ICHECK(ft_.kv_cache_disagg_mark_send_func_.defined());
+    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+
+    // Run KV send preparation.
+    ft_.kv_cache_disagg_mark_send_func_(kv_cache_, seq_id, begin_pos, compressed_kv_append_metadata,
+                                        dst_group_offset);
+  }
+
   /************** Raw Info Query **************/
 
   ModelMetadata GetMetadata() const final { return ft_.model_metadata_; }
@@ -956,8 +988,8 @@ class ModelImpl : public ModelObj {
 
   /************** Debug/Profile **************/
 
-  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
-    ft_.DebugCallFuncOnAllAllWorker(func_name);
+  void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {
+    ft_.DebugCallFuncOnAllAllWorker(func_name, func_args);
   }
 
  private:

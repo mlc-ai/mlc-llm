@@ -16,6 +16,45 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(DataNode);
 
+std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
+                                              int split_pos) {
+  CHECK_GE(split_pos, 0);
+  CHECK_GE(total_length, split_pos)
+      << "Cannot truncate when the current length is already less than the target length";
+  std::vector<Data> lhs(original_data.begin(), original_data.end());
+  std::vector<Data> rhs;
+  while (total_length > split_pos) {
+    ICHECK(!lhs.empty());
+    Data last_data = lhs.back();
+    int last_data_length = last_data->GetLength();
+    ICHECK_GE(total_length - last_data_length, 0);
+    if (total_length - last_data_length >= split_pos) {
+      // Pop the entire last data.
+      rhs.push_back(lhs.back());
+      lhs.pop_back();
+      total_length -= last_data_length;
+      continue;
+    }
+    // Partially truncate the last data.
+    const auto* token_data = last_data.as<TokenDataNode>();
+    CHECK(token_data != nullptr) << "Only TokenData supports partial truncation.";
+    int length_to_truncate = total_length - split_pos;
+    CHECK_GT(length_to_truncate, 0);
+    CHECK_LT(length_to_truncate, last_data_length);
+    TokenData lhs_token_data(
+        IntTuple{token_data->token_ids.begin(), token_data->token_ids.end() - length_to_truncate});
+    TokenData rhs_token_data(
+        IntTuple{token_data->token_ids.end() - length_to_truncate, token_data->token_ids.end()});
+    CHECK_EQ(total_length - last_data_length + lhs_token_data->GetLength(), split_pos);
+    lhs.pop_back();
+    lhs.push_back(lhs_token_data);
+    rhs.push_back(rhs_token_data);
+    std::reverse(rhs.begin(), rhs.end());
+    total_length = split_pos;
+  }
+  return {lhs, rhs};
+}
+
 /****************** TextData ******************/
 
 TVM_REGISTER_OBJECT_TYPE(TextDataNode);

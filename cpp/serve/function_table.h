@@ -63,7 +63,7 @@ struct FunctionTable {
   ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
                           ShapeTuple max_reserved_shape, bool local_only = false);
 
-  void DebugCallFuncOnAllAllWorker(const String& func_name) const;
+  void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) const;
 
   bool use_disco = false;
   Device local_gpu_device;
@@ -109,6 +109,8 @@ struct FunctionTable {
   PackedFunc kv_cache_remove_sequence_func_;
   PackedFunc kv_cache_begin_forward_func_;
   PackedFunc kv_cache_end_forward_func_;
+  PackedFunc kv_cache_disagg_prepare_recv_func_;
+  PackedFunc kv_cache_disagg_mark_send_func_;
   PackedFunc kv_cache_popn_func_;
   PackedFunc kv_cache_commit_accepted_token_tree_nodes_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;

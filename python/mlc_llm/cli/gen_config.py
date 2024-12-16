@@ -84,6 +84,12 @@ def main(argv):
         help=HELP["pipeline_parallel_stages"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--disaggregation",
+        type=bool,
+        default=None,
+        help=HELP["disaggregation"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--max-batch-size",
         type=int,
         default=128,
@@ -109,6 +115,7 @@ def main(argv):
         attention_sink_size=parsed.attention_sink_size,
         tensor_parallel_shards=parsed.tensor_parallel_shards,
         pipeline_parallel_stages=parsed.pipeline_parallel_stages,
+        disaggregation=parsed.disaggregation,
         max_batch_size=parsed.max_batch_size,
         output=parsed.output,
     )

@@ -23,13 +23,12 @@ namespace serve {
 using namespace tvm::runtime;
 
 /*! \brief Create the engine actions based on engine config. */
-Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
-                                        std::vector<picojson::object> model_configs,
-                                        std::vector<ModelWorkspace> model_workspaces,
-                                        LogitProcessor logit_processor, Sampler sampler,
-                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
-                                        Tokenizer tokenizer,
-                                        Optional<EventTraceRecorder> trace_recorder);
+Array<EngineAction> CreateEngineActions(
+    Array<Model> models, EngineConfig engine_config, std::vector<picojson::object> model_configs,
+    std::vector<ModelWorkspace> model_workspaces, LogitProcessor logit_processor, Sampler sampler,
+    DraftTokenWorkspaceManager draft_token_workspace_manager, Tokenizer tokenizer,
+    Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
+    Device device);
 
 /*!
  * \brief Remove the given request from models.
