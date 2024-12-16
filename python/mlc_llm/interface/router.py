@@ -1,5 +1,6 @@
 """Python entrypoint of router."""
 
+# pylint: disable=fixme
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Literal, Optional
 
