@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine_actions/batch_draft.cc
  */
 
@@ -50,6 +50,11 @@ class BatchDraftActionObj : public EngineActionObj {
       if (preempted.same_as(running_rsentries.back())) {
         running_rsentries.pop_back();
       }
+    }
+    while (running_rsentries.size() * (engine_config_->spec_draft_length + 1) >
+           std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
+                    engine_config_->prefill_chunk_size)) {
+      running_rsentries.pop_back();
     }
 
     auto tstart = std::chrono::high_resolution_clock::now();

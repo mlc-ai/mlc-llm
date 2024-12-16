@@ -138,7 +138,7 @@ class OptimizationFlags:
 
 
 @dataclasses.dataclass
-class ModelConfigOverride(ConfigOverrideBase):
+class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-instance-attributes
     """Flags for overriding model config."""
 
     context_window_size: Optional[int] = None
@@ -148,6 +148,7 @@ class ModelConfigOverride(ConfigOverrideBase):
     max_batch_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
+    disaggregation: Optional[bool] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -158,6 +159,7 @@ class ModelConfigOverride(ConfigOverrideBase):
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(f";disaggregation={self.disaggregation}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -171,6 +173,11 @@ class ModelConfigOverride(ConfigOverrideBase):
         parser.add_argument("--max_batch_size", type=int, default=None)
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
+        parser.add_argument(
+            "--disaggregation",
+            type=lambda x: (str(x).lower() in ["true", "1", "yes", "True"]),
+            default=None,
+        )
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
@@ -180,6 +187,7 @@ class ModelConfigOverride(ConfigOverrideBase):
             max_batch_size=results.max_batch_size,
             tensor_parallel_shards=results.tensor_parallel_shards,
             pipeline_parallel_stages=results.pipeline_parallel_stages,
+            disaggregation=results.disaggregation,
         )
 
 
@@ -202,6 +210,7 @@ OPT_FLAG_PRESET = {
         faster_transformer=False,
         cudagraph=True,
         cutlass=True,
+        ipc_allreduce_strategy=IPCAllReduceStrategyType.AUTO,
     ),
     "O3": OptimizationFlags(
         flashinfer=True,

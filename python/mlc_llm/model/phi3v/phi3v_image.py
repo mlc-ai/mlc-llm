@@ -1,6 +1,5 @@
 """
 Implementation for Phi architecture.
-TODO: add docstring
 """
 
 from tvm.relax.frontend import nn

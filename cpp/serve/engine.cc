@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine.cc
  * \brief The implementation for runtime module of serving engine module in MLC LLM.
  */
@@ -13,6 +13,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
+#include <xgrammar/xgrammar.h>
 
 #include <cstdlib>
 #include <functional>
@@ -21,7 +22,6 @@
 #include <tuple>
 #include <unordered_set>
 
-#include "../grammar/grammar_state_matcher.h"
 #include "../support/json_parser.h"
 #include "../support/result.h"
 #include "../support/utils.h"
@@ -78,6 +78,70 @@ inline std::pair<std::optional<std::string>, int> GetEnvSocketHostPort() {
     return {std::nullopt, -1};
   }
   return {host, std::atoi(port_str)};
+}
+
+// string back error node
+void StreamBackErrorImpl(Request request, FRequestStreamCallback request_stream_callback,
+                         String finish_reason) {
+  // If the request input length exceeds the maximum allowed single sequence length,
+  // invoke callback and do not process the request.
+  Array<RequestStreamOutput> output{RequestStreamOutput(
+      request->id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
+      std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
+      std::vector<String>(request->generation_cfg->n))};
+  // NOTE: Invariant requirement
+  // always stream back final usage
+  // otherwise frontend may have issues deciding
+  String dummy_usage = ("{ \"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0 }");
+  output.push_back(RequestStreamOutput::Usage(request->id, dummy_usage));
+  if (request_stream_callback != nullptr) {
+    request_stream_callback(output);
+  }
+}
+
+void AbortRequestImpl(EngineState estate, const Array<Model>& models, const String& request_id,
+                      String finish_reason) {
+  auto it_rstate = estate->request_states.find(request_id);
+  if (it_rstate == estate->request_states.end()) {
+    // The request to abort does not exist.
+    return;
+  }
+
+  RequestState rstate = it_rstate->second;
+  Request request = rstate->entries[0]->request;
+
+  // - Check if the request is running or pending.
+  auto it_running = std::find(estate->running_queue.begin(), estate->running_queue.end(), request);
+  auto it_waiting = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
+
+  estate->request_states.erase(request->id);
+  if (it_running != estate->running_queue.end()) {
+    // The request to abort is in running queue
+    estate->running_queue.erase(it_running);
+
+    for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
+      if (estate->prefix_cache->HasSequence(rstate->entries[i]->mstates[0]->internal_id)) {
+        estate->prefix_cache->RecycleSequence(rstate->entries[i]->mstates[0]->internal_id,
+                                              /*lazy=*/false);
+      } else {
+        if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
+          estate->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
+          continue;
+        }
+        RemoveRequestFromModel(estate, rstate->entries[i]->mstates[0]->internal_id, models);
+        estate->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
+      }
+    }
+  }
+  if (it_waiting != estate->waiting_queue.end()) {
+    // The request to abort is in waiting queue
+    estate->waiting_queue.erase(it_waiting);
+  }
+  // Todo: abortion when the request is not in either queue?
+
+  // Send a callback to notice the abortion.
+  StreamBackErrorImpl(request, estate->request_stream_callback_, finish_reason);
+  estate->running_rsentries_changed = true;
 }
 
 /*!
@@ -254,7 +318,7 @@ class MockEchoEngineImpl : public Engine {
   String JSONMetrics() final { return "{}"; }
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  void DebugCallFuncOnAllAllWorker(const String& func_name) final {}
+  void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {}
 
  private:
   struct MockRequestState {
@@ -300,7 +364,7 @@ class EngineImpl : public Engine {
     ICHECK_GE(num_model, 1);
     // - Initialize singleton states inside the engine.
     n->estate_->Reset();
-    n->request_stream_callback_ = std::move(request_stream_callback);
+    n->estate_->request_stream_callback_ = std::move(request_stream_callback);
     n->trace_recorder_ = trace_recorder;
     n->device_ = device;
     // - Load model config, create a shared disco session when tensor
@@ -322,12 +386,13 @@ class EngineImpl : public Engine {
 
     // kick in mock path so we don't have to load in models
     if (models_and_model_libs[0].second == "mock://echo") {
-      return MockEchoEngineImpl::Create(engine_config_json_str, n->request_stream_callback_,
-                                        model_configs[0]);
+      return MockEchoEngineImpl::Create(engine_config_json_str,
+                                        n->estate_->request_stream_callback_, model_configs[0]);
     }
 
     auto [session, num_shards, model_num_pipeline_stages] =
         n->CreateDiscoSession(model_libs, model_configs, device);
+
     // - Initialize each model independently.
     n->models_.clear();
     for (int i = 0; i < num_model; ++i) {
@@ -337,6 +402,24 @@ class EngineImpl : public Engine {
                                   /*trace_enabled=*/trace_recorder.defined());
       n->models_.push_back(model);
     }
+    // - Initialize NVSHMEM
+    n->estate_->disaggregation = n->models_[0]->GetMetadata().disaggregation;
+    if (n->estate_->disaggregation) {
+      LOG(INFO) << "Intiailizing NVSHMEM";
+      char* nvshmem_init_config_json_char = std::getenv("MLC_NVSHMEM_INIT_CONFIG_JSON_STR");
+      CHECK(nvshmem_init_config_json_char != nullptr)
+          << "The environment variables MLC_NVSHMEM_INIT_CONFIG_JSON_STR should be set.";
+      std::string f_name = "runtime.disco.nvshmem.init_nvshmem_wrapper";
+      if (session != nullptr) {
+        n->DebugCallFuncOnAllAllWorker(f_name, String(nvshmem_init_config_json_char));
+      } else {
+        const PackedFunc* func = Registry::Get(f_name);
+        CHECK(func != nullptr) << "Global function name \"" << f_name << "\" is not found";
+        (*func)(nvshmem_init_config_json_char);
+      }
+      LOG(INFO) << "NVSHMEM initialized successfully.";
+    }
+
     // - Automatically infer the missing fields in EngineConfig JSON strings
     // and get the final EngineConfig.
     Result<EngineConfig> engine_config_res =
@@ -382,7 +465,7 @@ class EngineImpl : public Engine {
     // - Initialize tokenizer and grammar
     n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
     n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-    n->grammar_init_context_cache_ = GrammarInitContextCache(n->token_table_);
+    n->cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(n->token_table_);
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -403,9 +486,10 @@ class EngineImpl : public Engine {
     if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
       n->estate_->spec_draft_length = engine_config->spec_draft_length;
     }
-    n->actions_ = CreateEngineActions(
-        n->models_, engine_config, model_configs, n->model_workspaces_, logit_processor, sampler,
-        draft_token_workspace_manager, n->tokenizer_, n->trace_recorder_);
+    n->actions_ =
+        CreateEngineActions(n->models_, engine_config, model_configs, n->model_workspaces_,
+                            logit_processor, sampler, draft_token_workspace_manager, n->tokenizer_,
+                            n->trace_recorder_, n->estate_->request_stream_callback_, device);
     n->draft_token_workspace_manager_ = draft_token_workspace_manager;
     // - Automatically set the threading backend max concurrency.
     n->engine_config_ = engine_config;
@@ -424,33 +508,21 @@ class EngineImpl : public Engine {
     }
   }
 
-  bool Empty() final { return estate_->request_states.empty(); }
+  bool Empty() final { return estate_->running_queue.empty() && estate_->waiting_queue.empty(); }
 
   String JSONMetrics() final { return picojson::value(estate_->metrics.AsJSON()).serialize(true); }
 
-  FRequestStreamCallback GetRequestStreamCallback() final { return request_stream_callback_; }
+  FRequestStreamCallback GetRequestStreamCallback() final {
+    return estate_->request_stream_callback_;
+  }
 
   void SetRequestStreamCallback(FRequestStreamCallback request_stream_callback) final {
-    request_stream_callback_ = std::move(request_stream_callback);
+    estate_->request_stream_callback_ = std::move(request_stream_callback);
   }
 
   // string back error node
   void StreamBackError(Request request, String finish_reason) {
-    // If the request input length exceeds the maximum allowed single sequence length,
-    // invoke callback and do not process the request.
-    Array<RequestStreamOutput> output{RequestStreamOutput(
-        request->id, std::vector<std::vector<int64_t>>(request->generation_cfg->n), std::nullopt,
-        std::vector<Optional<String>>(request->generation_cfg->n, finish_reason),
-        std::vector<String>(request->generation_cfg->n))};
-    // NOTE: Invariant requirement
-    // always stream back final usage
-    // otherwise frontend may have issues deciding
-    String dummy_usage =
-        ("{ \"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0 }");
-    output.push_back(RequestStreamOutput::Usage(request->id, dummy_usage));
-    if (request_stream_callback_ != nullptr) {
-      request_stream_callback_(output);
-    }
+    StreamBackErrorImpl(request, estate_->request_stream_callback_, finish_reason);
   }
 
   /***************** High-level Request Management *****************/
@@ -461,12 +533,131 @@ class EngineImpl : public Engine {
       case SpecialRequestKind::kQueryEngineMetrics: {
         Array<RequestStreamOutput> output = {
             RequestStreamOutput::Usage(request->id, estate_->metrics.AsUsageJSONStr())};
-        request_stream_callback_(output);
+        estate_->request_stream_callback_(output);
         break;
       }
       default:
         break;
     }
+  }
+
+  /*!
+   * \brief Handle the given disaggregation request.
+   * Return true if skipping the subsequent AddRequest process.
+   */
+  bool HandleDisaggRequest(Request request) {
+    DisaggConfig disagg_config = request->generation_cfg->debug_config.disagg_config;
+    DisaggRequestKind kind = disagg_config.kind;
+    if (kind == DisaggRequestKind::kPreparePrefill) {
+      // No-op.
+      return false;
+    } else if (kind == DisaggRequestKind::kRemotePrefill) {
+      int input_length = 0;
+      for (Data input : request->inputs) {
+        input_length += input->GetLength();
+      }
+      // - Truncate the inputs to the desired prefill length (specified by "end").
+      int kv_window_begin = disagg_config.kv_window_begin.value_or(0);
+      int kv_window_end = disagg_config.kv_window_end.value_or(input_length);
+      CHECK_GE(kv_window_begin, 0);
+      if (kv_window_end < 0) {
+        kv_window_end = input_length + kv_window_end;
+      }
+      CHECK_LT(kv_window_end, input_length)
+          << "Prefill the full input on the remote machine is not supported.";
+      CHECK_LT(kv_window_begin, kv_window_end)
+          << "\"begin >= end\" is not supported by remote prefill";
+      request->inputs = SplitData(request->inputs, input_length, kv_window_end).first;
+      // - Check the invariant: "end - begin" equals the expanded metadata length.
+      CHECK_EQ(disagg_config.kv_append_metadata.size(), models_.size());
+      for (const IntTuple& compressed_kv_append_metadata : disagg_config.kv_append_metadata) {
+        ICHECK(!compressed_kv_append_metadata.empty());
+        int num_segments = compressed_kv_append_metadata[0];
+        ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);
+        int transmission_length = 0;
+        for (int i = 0; i < num_segments; ++i) {
+          transmission_length += compressed_kv_append_metadata[i * 2 + 2];
+        }
+        CHECK_EQ(transmission_length, kv_window_end - kv_window_begin);
+      }
+      // - Override the "n" in generation config to 1.
+      ObjectPtr<GenerationConfigNode> updated_generation_cfg =
+          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+      updated_generation_cfg->n = 1;
+      request->generation_cfg = GenerationConfig(updated_generation_cfg);
+      return false;
+    } else if (kind == DisaggRequestKind::kStartDecode) {
+      auto it_rstate = estate_->request_states.find(request->id);
+      CHECK(it_rstate != estate_->request_states.end());
+      ICHECK(!it_rstate->second->entries.empty());
+      request = it_rstate->second->entries[0]->request;
+      CHECK(request->generation_cfg->debug_config.disagg_config.kind ==
+            DisaggRequestKind::kPreparePrefill);
+      int input_length = 0;
+      for (Data input : request->inputs) {
+        input_length += input->GetLength();
+      }
+      // - Truncate the inputs to the desired prefill length (specified by "end").
+      int kv_window_begin = disagg_config.kv_window_begin.value_or(0);
+      int kv_window_end = disagg_config.kv_window_end.value_or(input_length);
+      CHECK_EQ(kv_window_end, input_length);
+      if (kv_window_begin < 0) {
+        kv_window_begin = input_length + kv_window_begin;
+      }
+      CHECK_GE(kv_window_begin, 0);
+      CHECK_LT(kv_window_begin, input_length);
+      // The request is not supposed to be in running queue nor waiting queue.
+      auto it_running =
+          std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
+      auto it_waiting =
+          std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
+      CHECK(it_running == estate_->running_queue.end());
+      CHECK(it_waiting == estate_->waiting_queue.end());
+
+      RequestState rstate = it_rstate->second;
+      ObjectPtr<GenerationConfigNode> updated_generation_cfg =
+          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+      // - Split the input data into two parts at the position "kv_window_begin".
+      CHECK(!request->inputs.empty());
+      auto [lhs_data, rhs_data] = SplitData(request->inputs, input_length, kv_window_begin);
+      if (input_length - kv_window_begin == 1 && request->generation_cfg->n == 1) {
+        // - Commit the last token id to the request states.
+        CHECK_EQ(rhs_data.size(), 1);
+        const auto* token_data = rhs_data.back().as<TokenDataNode>();
+        CHECK(token_data != nullptr);
+        CHECK_EQ(token_data->GetLength(), 1);
+        SampleResult last_token;
+        last_token.sampled_token_id = {token_data->token_ids.back(), 1.0};
+        for (RequestModelState mstate : rstate->entries[0]->mstates) {
+          mstate->CommitToken(last_token);
+          CHECK_EQ(mstate->committed_tokens.size(), 1);
+        }
+        // - Set "next_callback_token_pos" so that this token will not be streamed back to user.
+        rstate->entries[0]->next_callback_token_pos = 1;
+        // - Update the request input.
+        request->inputs = lhs_data;
+        // - Increment the max_tokens in generation config.
+        if (request->generation_cfg->max_tokens != -1) {
+          ++updated_generation_cfg->max_tokens;
+        }
+      } else {
+        // Since there are multiple tokens to prefill, we add the remaining inputs
+        // to the request's RequestModelStates for prefill.
+        for (RequestModelState mstate : rstate->entries[0]->mstates) {
+          mstate->inputs = rhs_data;
+        }
+        // Add to waiting queue for prefill.
+        estate_->waiting_queue.insert(estate_->waiting_queue.begin(), request);
+      }
+      estate_->running_queue.push_back(request);
+      // Erase the disaggregation request kind.
+      updated_generation_cfg->debug_config.disagg_config.kind = DisaggRequestKind::kNone;
+      request->generation_cfg = GenerationConfig(updated_generation_cfg);
+      estate_->running_rsentries_changed = true;
+      return true;
+    }
+    LOG(FATAL) << "Cannot reach here";
+    throw;
   }
 
   void AddRequest(Request request) final {
@@ -485,9 +676,17 @@ class EngineImpl : public Engine {
     ICHECK_NE(request->prompt_tokens, -1);
 
     if (request->prompt_tokens >= engine_config_->max_single_sequence_length &&
-        request_stream_callback_ != nullptr) {
+        estate_->request_stream_callback_ != nullptr) {
       this->StreamBackError(request, "length");
       return;
+    }
+
+    // Handle disaggregation requests.
+    if (request->generation_cfg->debug_config.disagg_config.kind != DisaggRequestKind::kNone) {
+      bool return_now = this->HandleDisaggRequest(request);
+      if (return_now) {
+        return;
+      }
     }
 
     // Append to the waiting queue and create the request state.
@@ -495,13 +694,12 @@ class EngineImpl : public Engine {
 
     int n = request->generation_cfg->n;
     int rng_seed = request->generation_cfg->seed;
-    auto grammar_state_init_ctx =
-        GetGrammarInitCtxFromResponseFormat(request->generation_cfg->response_format);
+    auto compiled_grammar = GetGrammarFromResponseFormat(request->generation_cfg->response_format);
 
     std::vector<RequestStateEntry> rsentries;
     // Create the request state entry for the input.
     rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(), rng_seed,
-                           token_table_, grammar_state_init_ctx);
+                           token_table_, compiled_grammar);
     if (n > 1) {
       // Then create a request state entry for each parallel generation branch.
       // We add a offset to the rng seed so that to make generations different.
@@ -510,7 +708,7 @@ class EngineImpl : public Engine {
       for (int i = 0; i < n; ++i) {
         rsentries[0]->child_indices.push_back(rsentries.size());
         rsentries.emplace_back(request, models_.size(), estate_->id_manager.GetNewId(),
-                               rng_seed + i + 1, token_table_, grammar_state_init_ctx,
+                               rng_seed + i + 1, token_table_, compiled_grammar,
                                /*parent_idx=*/0);
       }
     }
@@ -525,48 +723,7 @@ class EngineImpl : public Engine {
   }
 
   void AbortRequest(const String& request_id) final {
-    auto it_rstate = estate_->request_states.find(request_id);
-    if (it_rstate == estate_->request_states.end()) {
-      // The request to abort does not exist.
-      return;
-    }
-
-    RequestState rstate = it_rstate->second;
-    Request request = rstate->entries[0]->request;
-
-    // - Check if the request is running or pending.
-    auto it_running =
-        std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
-    auto it_waiting =
-        std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
-
-    estate_->request_states.erase(request->id);
-    if (it_running != estate_->running_queue.end()) {
-      // The request to abort is in running queue
-      estate_->running_queue.erase(it_running);
-
-      for (int i = static_cast<int>(rstate->entries.size()) - 1; i >= 0; --i) {
-        if (estate_->prefix_cache->HasSequence(rstate->entries[i]->mstates[0]->internal_id)) {
-          estate_->prefix_cache->RecycleSequence(rstate->entries[i]->mstates[0]->internal_id,
-                                                 /*lazy=*/false);
-        } else {
-          if (rstate->entries[i]->status != RequestStateStatus::kAlive) {
-            estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
-            continue;
-          }
-          RemoveRequestFromModel(estate_, rstate->entries[i]->mstates[0]->internal_id, models_);
-          estate_->id_manager.RecycleId(rstate->entries[i]->mstates[0]->internal_id);
-        }
-      }
-    }
-    if (it_waiting != estate_->waiting_queue.end()) {
-      // The request to abort is in waiting queue
-      estate_->waiting_queue.erase(it_waiting);
-    }
-
-    // Send a callback to notice the abortion.
-    this->StreamBackError(request, "abort");
-    estate_->running_rsentries_changed = true;
+    AbortRequestImpl(estate_, models_, request_id);
   }
 
   void AbortAllRequests() final {
@@ -585,7 +742,7 @@ class EngineImpl : public Engine {
   /*********************** Engine Action ***********************/
 
   void Step() final {
-    CHECK(request_stream_callback_ != nullptr)
+    CHECK(estate_->request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
       Array<Request> processed_requests;
@@ -595,7 +752,8 @@ class EngineImpl : public Engine {
       }
       if (!processed_requests.empty()) {
         ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
-                              request_stream_callback_, engine_config_->max_single_sequence_length,
+                              estate_->request_stream_callback_,
+                              engine_config_->max_single_sequence_length,
                               draft_token_workspace_manager_, trace_recorder_);
         return;
       }
@@ -672,7 +830,8 @@ class EngineImpl : public Engine {
       }
       std::vector<int64_t> device_ids(num_workers);
       for (int i = 0; i < num_workers; ++i) {
-        device_ids[i] = i;
+        // device.device_id is the start of the worker 0 of this model
+        device_ids[i] = device.device_id + i;
       }
       const std::string& green_text_begin = "\033[92m";
       const std::string& yellow_text_begin = "\033[93m";
@@ -721,9 +880,9 @@ class EngineImpl : public Engine {
 
   /************** Debug/Profile **************/
 
-  void DebugCallFuncOnAllAllWorker(const String& func_name) final {
+  void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {
     CHECK(!models_.empty()) << "There is no model running in Engine.";
-    models_[0]->DebugCallFuncOnAllAllWorker(func_name);
+    models_[0]->DebugCallFuncOnAllAllWorker(func_name, func_args);
   }
 
  private:
@@ -814,14 +973,14 @@ class EngineImpl : public Engine {
 
   /*! \brief Create a grammar init context according to the response format. If the response format
    * is not JSON, return std::nullopt. */
-  std::optional<std::shared_ptr<GrammarStateInitContext>> GetGrammarInitCtxFromResponseFormat(
+  std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
     if (response_format.type != "json_object") {
       return std::nullopt;
     } else if (!response_format.schema) {
-      return grammar_init_context_cache_->GetInitContextForJSON();
+      return cached_grammar_compiler_.GetCompiledGrammarForJSON();
     } else {
-      return grammar_init_context_cache_->GetInitContextForJSONSchema(
+      return cached_grammar_compiler_.GetCompiledGrammarForJSONSchema(
           response_format.schema.value());
     }
   }
@@ -833,16 +992,14 @@ class EngineImpl : public Engine {
   // internal tokenizer
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
-  // Helper to get the grammar init context for requests.
-  GrammarInitContextCache grammar_init_context_cache_;
+  // Cached grammar compiler for grammar matching.
+  xgrammar::CachedGrammarCompiler cached_grammar_compiler_;
   // Models
   Array<Model> models_;
   // Device that the models run on.
   Device device_;
   // Workspace of each model.
   std::vector<ModelWorkspace> model_workspaces_;
-  // Request stream callback function
-  FRequestStreamCallback request_stream_callback_;
   // Engine actions.
   Array<EngineAction> actions_;
   // Draft token workspace manager for speculative decoding.

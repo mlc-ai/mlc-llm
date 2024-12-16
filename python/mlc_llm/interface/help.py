@@ -122,6 +122,9 @@ Number of shards to split the model into in tensor parallelism multi-gpu inferen
     """pipeline_parallel_stages""": """
 Number of pipeline stages to split the model layers for pipeline parallelism.
 """.strip(),
+    """disaggregation""": """
+Whether enable disaggregation when compiling the model.
+""".strip(),
     "overrides": """
 Model configuration override. Configurations to override `mlc-chat-config.json`. Supports
 `context_window_size`, `prefill_chunk_size`, `sliding_window_size`, `attention_sink_size`,
@@ -259,4 +262,8 @@ The output directory to save the calibration params.
     """.strip(),
     "seed_calibrate": """
 The seed to sample the calibration dataset.""",
+    "pd_balance_factor": """
+How much prefill to move to decode engine. For example, 
+0.1 means the last 10 percent tokens are prefilled by decode engine.
+    """.strip(),
 }

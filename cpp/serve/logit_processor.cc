@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/logit_processor.cc
  * \brief The implementation of logit processor.
  */
@@ -62,7 +62,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
         NDArray::Empty({max_num_token * vocab_size}, dtype_f32_, preferred_host_device);
     penalties_host_ = NDArray::Empty({max_num_token, 3}, dtype_f32_, preferred_host_device);
     bitmask_host_ =
-        NDArray::Empty({max_num_token, bitmask_size_}, dtype_u32_, preferred_host_device);
+        NDArray::Empty({max_num_token, bitmask_size_}, dtype_i32_, preferred_host_device);
     temperature_host_ = NDArray::Empty({max_num_token}, dtype_f32_, preferred_host_device);
     // Initialize auxiliary arrays on GPU.
     seq_ids_device_ = NDArray::Empty({max_num_token}, dtype_i32_, device);
@@ -403,7 +403,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
                   (*draft_mstates)[i]->draft_token_parent_idx[cur_draft_token_index];
             }
             for (auto it = draft_token_seq.rbegin(); it != draft_token_seq.rend(); ++it) {
-              mstates[i]->grammar_state_matcher.value()->AcceptToken(it->GetTokenId());
+              mstates[i]->grammar_matcher.value().AcceptToken(it->GetTokenId());
             }
           }
           // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
@@ -413,11 +413,11 @@ class LogitProcessorImpl : public LogitProcessorObj {
           bitmask_dltensor.shape = bitmask_shape;
           bitmask_dltensor.ndim = 1;
 
-          mstates[i]->FindNextTokenBitmask(&bitmask_dltensor);
+          mstates[i]->GetNextTokenBitmask(&bitmask_dltensor);
           p_seq_ids[token_start_offset + j] = 1;
 
           if (draft_token_seq.size() > 0) {
-            mstates[i]->grammar_state_matcher.value()->Rollback(draft_token_seq.size());
+            mstates[i]->grammar_matcher.value().Rollback(draft_token_seq.size());
           }
         }
       }

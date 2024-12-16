@@ -28,7 +28,6 @@ from mlc_llm.support.auto_device import detect_device
 from mlc_llm.support.style import green
 from mlc_llm.tokenizers import TextStreamer, Tokenizer
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -159,6 +158,7 @@ def _process_model_args(
                 "tensor_parallel_shards": engine_config.tensor_parallel_shards,
                 "pipeline_parallel_stages": engine_config.pipeline_parallel_stages,
                 "max_batch_size": engine_config.max_num_sequence,
+                "opt": engine_config.opt,
             }
 
             model_lib = jit.jit(
@@ -658,15 +658,19 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         if hasattr(self, "_terminated") and self._terminated:
             return
         self._terminated = True
+        if not hasattr(self, "_ffi"):
+            return
         self._ffi["exit_background_loop"]()
         if hasattr(self, "_background_loop_thread"):
             self._background_loop_thread.join()
         if hasattr(self, "_background_stream_back_loop_thread"):
             self._background_stream_back_loop_thread.join()
 
-    def _debug_call_func_on_all_worker(self, func_name: str) -> None:
+    def _debug_call_func_on_all_worker(
+        self, func_name: str, func_args: Optional[str] = None
+    ) -> None:
         """Call the given global function on all workers. Only for debug purpose."""
-        self._ffi["debug_call_func_on_all_worker"](func_name)
+        self._ffi["debug_call_func_on_all_worker"](func_name, func_args)
 
     def reset(self):
         """Reset the engine, clear the running data and metrics."""

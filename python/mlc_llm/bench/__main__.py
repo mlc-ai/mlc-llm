@@ -101,15 +101,17 @@ def run_pipeline(
         args.output_len_std,
     )
     request_records = pipeline(request_records)
-    assert len(request_records) == args.num_requests
-    sorted_requests: List[RequestRecord] = [None] * args.num_requests
+    assert len(request_records) == args.num_requests * args.num_gpus
+    sorted_requests: List[RequestRecord] = [None] * args.num_requests * args.num_gpus
     for request_record in request_records:
         assert request_record.request_id is not None
         assert sorted_requests[request_record.request_id] is None
         sorted_requests[request_record.request_id] = request_record
 
     request_records = MetricAnalyzer(tokenizer)(request_records)
-    report = generate_metrics_summary(request_records, args.num_requests, args.num_gpus)
+    report = generate_metrics_summary(
+        request_records, args.num_requests * args.num_gpus, args.num_gpus
+    )
     return report, sorted_requests
 
 
@@ -135,7 +137,7 @@ def main(args: argparse.argparse.Namespace):
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer)
         dataset = create_dataset(args, tokenizer)
         f_create_api_endpoint = functools.partial(create_api_endpoint, args)
-        pipelines = create_pipelines(args, f_create_api_endpoint)
+        pipelines = create_pipelines(args, f_create_api_endpoint, dataset)
         reports = []
         alltime_records = {}
         for i, pipeline in enumerate(pipelines):
@@ -291,6 +293,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--timeout",
         type=float,
+        default=3 * 60 * 60,
         help="The timeout limit of each request.",
     )
     parser.add_argument(
@@ -378,6 +381,10 @@ if __name__ == "__main__":
         help="Whether to chat like mulit round conversion with history log each request. "
         "Only enabled when benchmarked with fixed concurrent request mode."
         "The --num-concurrent-requests should be provided when enabling this option.",
+    )
+
+    parser.add_argument(
+        "--testset-name", type=str, help="The name of the testset. Only used for Loogle dataset"
     )
 
     main(parser.parse_args())

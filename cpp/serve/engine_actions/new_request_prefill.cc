@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine_actions/new_request_prefill.cc
  */
 
@@ -274,11 +274,12 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    * request in the KVCache, depending on the matching result from prefix cache.
    * \param estate The engine state.
    * \param[in, out] input The prefill input to be matched and updated.
+   * \return The matched length in prefix cache.
    */
-  void MatchPrefixCache(EngineState estate, PrefillInput* input) final {
+  int MatchPrefixCache(EngineState estate, PrefillInput* input) final {
     RequestStateEntry rsentry = input->rsentry;
     if (estate->prefix_cache->Mode() == PrefixCacheMode::kDisable) {
-      return;
+      return 0;
     }
     if (rsentry->parent_idx == -1 && rsentry->status == RequestStateStatus::kPending &&
         !estate->prefix_cache->HasSequence(rsentry->mstates[0]->internal_id)) {
@@ -286,7 +287,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       if (tokens.empty()) {
         // If the RequestStateEntry is of empty input data, or not fully tokenized, do nothing
         // and return.
-        return;
+        return 0;
       }
       PrefixCacheMatchedResult result = estate->prefix_cache->InsertSequence(
           rsentry->mstates[0]->internal_id, tokens, models_[0]->GetSlidingWindowSize(),
@@ -341,7 +342,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       // Update max prefill length
       input->max_prefill_length =
           std::min(input->max_prefill_length, rsentry->mstates[0]->GetInputLength());
+      return result.prefilled_offset;
     }
+    return 0;
   }
 };  // namespace serve
 

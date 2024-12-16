@@ -56,10 +56,13 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.base_url = ""
         self.openai_v1_base_url = ""
 
-    def start(self) -> None:  # pylint: disable=too-many-branches,too-many-statements
+    def start(  # pylint: disable=too-many-branches,too-many-statements
+        self, extra_env=None
+    ) -> None:
         """Launch the server in a popen subprocess.
         Wait until the server becomes ready before return.
         """
+        extra_env = extra_env or {}
         cmd = [sys.executable]
         cmd += ["-m", "mlc_llm", "serve", self.model]
         if self.model_lib is not None:
@@ -116,8 +119,12 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]
         process_path = str(Path(__file__).resolve().parents[4])
+        final_env = os.environ.copy()
+        for key, value in extra_env.items():
+            final_env[key] = value
+        print(f"cmd = {cmd}")
         self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
-            cmd, cwd=process_path, env=os.environ
+            cmd, cwd=process_path, env=final_env
         )
         # NOTE: DO NOT USE `stdout=subprocess.PIPE, stderr=subprocess.PIPE`
         # in subprocess.Popen here. PIPE has a fixed-size buffer with may block

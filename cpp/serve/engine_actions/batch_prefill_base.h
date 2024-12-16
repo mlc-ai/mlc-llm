@@ -117,8 +117,9 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
    * request in the KVCache, depending on the matching result from prefix cache.
    * \param estate The engine state.
    * \param[in, out] input The prefill input to be matched and updated.
+   * \return The matched length in prefix cache.
    */
-  virtual void MatchPrefixCache(EngineState estate, PrefillInput* input) = 0;
+  virtual int MatchPrefixCache(EngineState estate, PrefillInput* input) = 0;
 
   /*! \brief The models to run prefill in. */
   Array<Model> models_;
@@ -131,6 +132,14 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 };
+
+/*!
+ * \brief A utility function to check whether there is enough spare space in
+ * KV cache for the number of required pages and total input length.
+ */
+bool HasPrefillSpace(int num_required_pages, bool sliding_window_enabled, int new_batch_size,
+                     int num_available_pages, int current_total_seq_len, int total_input_length,
+                     int max_total_sequence_length);
 
 }  // namespace serve
 }  // namespace llm

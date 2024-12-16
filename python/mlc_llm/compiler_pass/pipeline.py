@@ -12,6 +12,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.interface.compiler_flags import IPCAllReduceStrategyType
 from mlc_llm.support import logging
 
+from .attach_cuda_graph_alloc_init_func import AttachCUDAGraphAllocInitFunc
 from .attach_embedding_allocator import AttachAllocEmbeddingTensorFunc
 from .attach_logit_processor import AttachLogitProcessFunc
 from .attach_sampler import AttachGPUSamplingFunc
@@ -159,7 +160,6 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 ),
                 ScatterTupleGetItem(),
                 PipelineParallelRewrite(),
-                _DebugDump("after-pipeline-rewrite.py", debug_dump, show_meta=False),
                 tvm.relax.transform.RewriteDataflowReshape(),
                 tvm.relax.transform.ToNonDataflow(),
                 tvm.relax.transform.RemovePurityChecking(),
@@ -172,6 +172,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 tvm.relax.transform.StaticPlanBlockMemory(),
                 AttachMetadataWithMemoryUsage(metadata),
                 tvm.relax.transform.RewriteCUDAGraph(),
+                AttachCUDAGraphAllocInitFunc(),
                 tvm.relax.transform.LowerGPUIPCAllocStorage(),
                 tvm.relax.transform.LowerAllocTensor(),
                 tvm.relax.transform.KillAfterLastUse(),

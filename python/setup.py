@@ -104,6 +104,7 @@ def main():
             "safetensors",
             "requests",
             "tqdm",
+            "sentencepiece",
             "tiktoken",
             "prompt_toolkit",
             "openai",

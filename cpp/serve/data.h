@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/data.h
  */
 #ifndef MLC_LLM_SERVE_DATA_H_
@@ -56,6 +56,10 @@ class Data : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(Data, ObjectRef, DataNode);
 };
+
+/*! \brief Split the given data array into two arrays at the "split_pos" position. */
+std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
+                                              int split_pos);
 
 /****************** TextDataNode ******************/
 

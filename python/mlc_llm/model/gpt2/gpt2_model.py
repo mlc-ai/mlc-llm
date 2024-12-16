@@ -1,6 +1,5 @@
 """
 Implementation for GPT-2 architecture.
-TODO: add docstring
 """
 
 import dataclasses

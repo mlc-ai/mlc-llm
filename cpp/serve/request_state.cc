@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/request_state.cc
  */
 
@@ -15,15 +15,16 @@ TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
 
 RequestModelState::RequestModelState(
     Request request, int model_id, int64_t internal_id, Array<Data> inputs,
-    const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx) {
+    const std::optional<xgrammar::CompiledGrammar>& compiled_grammar) {
   ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
   n->model_id = model_id;
   n->internal_id = internal_id;
   n->inputs = std::move(inputs);
 
-  if (grammar_state_init_ctx.has_value()) {
+  if (compiled_grammar.has_value()) {
     // TODO(yixin): set rollback limit to a configurable value.
-    n->grammar_state_matcher = GrammarStateMatcher(grammar_state_init_ctx.value(), 10);
+    n->grammar_matcher =
+        xgrammar::GrammarMatcher(compiled_grammar.value(), std::nullopt, false, std::nullopt, 10);
   }
 
   n->request = std::move(request);
@@ -38,12 +39,12 @@ int RequestModelStateNode::GetInputLength() const {
   return total_length;
 }
 
-bool RequestModelStateNode::RequireNextTokenBitmask() { return grammar_state_matcher.defined(); }
+bool RequestModelStateNode::RequireNextTokenBitmask() { return grammar_matcher.has_value(); }
 
-void RequestModelStateNode::FindNextTokenBitmask(DLTensor* bitmask) {
-  ICHECK(grammar_state_matcher.defined());
+void RequestModelStateNode::GetNextTokenBitmask(DLTensor* bitmask) {
+  ICHECK(grammar_matcher.has_value());
 
-  grammar_state_matcher.value()->FindNextTokenBitmask(bitmask);
+  grammar_matcher->GetNextTokenBitmask(bitmask);
 }
 
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
@@ -53,8 +54,8 @@ void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   ++num_tokens_for_next_decode;
 
   // Update the grammar matcher state if it exists.
-  if (grammar_state_matcher) {
-    bool accepted = grammar_state_matcher.value()->AcceptToken(sampled_token.GetTokenId());
+  if (grammar_matcher) {
+    bool accepted = grammar_matcher->AcceptToken(sampled_token.GetTokenId());
     ICHECK(accepted) << "Token id " << sampled_token.GetTokenId()
                      << " is not accepted by the grammar state matcher.";
   }
@@ -69,8 +70,8 @@ void RequestModelStateNode::RollbackTokens(int count) {
       appeared_token_ids.erase(it);
     }
     committed_tokens.pop_back();
-    if (grammar_state_matcher) {
-      grammar_state_matcher.value()->Rollback(1);
+    if (grammar_matcher) {
+      grammar_matcher->Rollback(1);
     }
   }
 }
@@ -143,8 +144,7 @@ TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
 RequestStateEntry::RequestStateEntry(
     Request request, int num_models, int64_t internal_id, int rng_seed,
     const std::vector<std::string>& token_table,
-    const std::optional<std::shared_ptr<GrammarStateInitContext>>& grammar_state_init_ctx,
-    int parent_idx) {
+    const std::optional<xgrammar::CompiledGrammar>& compiled_grammar, int parent_idx) {
   ObjectPtr<RequestStateEntryNode> n = make_object<RequestStateEntryNode>();
   Array<RequestModelState> mstates;
   Array<Data> inputs;
@@ -153,7 +153,7 @@ RequestStateEntry::RequestStateEntry(
   }
   mstates.reserve(num_models);
   for (int i = 0; i < num_models; ++i) {
-    mstates.push_back(RequestModelState(request, i, internal_id, inputs, grammar_state_init_ctx));
+    mstates.push_back(RequestModelState(request, i, internal_id, inputs, compiled_grammar));
   }
   n->status = RequestStateStatus::kPending;
   n->rng = RandomGenerator(rng_seed);
@@ -233,8 +233,8 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
   // Case 4. When stop token is not detected (e.g. ignore_eos is set), but the grammar state is
   // terminated, stop the generation and pop the last token (used to trigger the termination).
   if ((*delta_stream_output)->group_finish_reason[idx] != "stop" &&
-      this->mstates[0]->grammar_state_matcher.defined() &&
-      this->mstates[0]->grammar_state_matcher.value()->IsTerminated()) {
+      this->mstates[0]->grammar_matcher.has_value() &&
+      this->mstates[0]->grammar_matcher->IsTerminated()) {
     (*delta_stream_output)->group_delta_token_ids[idx].pop_back();
     (*delta_stream_output)->group_finish_reason[idx] = "stop";
   }

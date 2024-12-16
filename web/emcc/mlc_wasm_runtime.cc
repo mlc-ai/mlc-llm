@@ -33,15 +33,3 @@
 #define PICOJSON_USE_INT64
 
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
-
-// Grammar related
-#include "grammar/grammar.cc"
-#include "grammar/grammar_functor.cc"
-#include "grammar/grammar_parser.cc"
-#include "grammar/grammar_serializer.cc"
-#include "grammar/grammar_state_matcher.cc"
-#include "grammar/json_schema_converter.cc"
-#include "support/encoding.cc"
-
-// Only compiles necessary functions for mlc.PostProcessTokenTable
-#include "tokenizers/tokenizers.cc"

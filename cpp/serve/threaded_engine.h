@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/threaded_engine.h
  * \brief The header of threaded serving engine in MLC LLM.
  */
@@ -83,7 +83,7 @@ class ThreadedEngine {
   virtual EngineConfig GetCompleteEngineConfig() const = 0;
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 };
 
 }  // namespace serve

@@ -1,6 +1,5 @@
 """
 Implementation for GPTNeoX architecture.
-TODO: add docstring
 """
 
 import dataclasses

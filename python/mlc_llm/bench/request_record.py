@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from mlc_llm.protocol.openai_api_protocol import ChatCompletionRequest
 from mlc_llm.support import logging
 
-logging.enable_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -53,6 +52,16 @@ class RequestRecord(BaseModel):
     timestamp: Optional[float] = None
     metrics: Optional[Metrics] = None
     error_msg: Optional[str] = None
+
+
+class GroupedRequestRecord(RequestRecord):
+    """The data structure for request record groups.
+    For datasets that have common prefix sharing, the request records
+    that share a same common prefix will be wrapped in a GroupedRequestRecord
+    at the beginning.
+    """
+
+    records: List[RequestRecord]
 
 
 def generate_metrics_summary(

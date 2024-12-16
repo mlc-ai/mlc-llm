@@ -89,6 +89,7 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   result.pipeline_parallel_stages =
       json::LookupOrDefault<int64_t>(metadata, "pipeline_parallel_stages", 1);
+  result.disaggregation = json::LookupOrDefault<bool>(metadata, "disaggregation", false);
   result.kv_state_kind = KVStateKindFromString(
       json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
   if (result.kv_state_kind != KVStateKind::kNone &&

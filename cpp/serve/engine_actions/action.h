@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine_actions/action.h
  * \brief The abstraction of actions (e.g., prefill/decode) that an
  * Engine can take at each time step.
@@ -9,6 +9,7 @@
 
 #include "../config.h"
 #include "../draft_token_workspace_manager.h"
+#include "../engine.h"
 #include "../engine_state.h"
 #include "../event_trace_recorder.h"
 #include "../model.h"
@@ -207,6 +208,40 @@ class EngineAction : public ObjectRef {
   static EngineAction AutoSpecDecode(std::vector<EngineAction> spec_decode_actions,
                                      std::vector<EngineAction> batch_decode_actions,
                                      EngineConfig engine_config);
+
+  /*!
+   * \brief Create the action that runs the disaggregation preparation for prefill.
+   * \param models The underlying models whose KV cache are to be updated.
+   * \param engine_config The engine config.
+   * \param model_configs The config of each model.
+   * \param trace_recorder The event trace recorder for requests.
+   * \param request_stream_callback The stream callback function to pass the prefill
+   * preparation result back, including the KV cache append metadata and the prefix
+   * matched length in the prefix cache.
+   * \return The created action object.
+   */
+  static EngineAction DisaggPreparePrefill(Array<Model> models, EngineConfig engine_config,
+                                           std::vector<picojson::object> model_configs,
+                                           Optional<EventTraceRecorder> trace_recorder,
+                                           FRequestStreamCallback request_stream_callback);
+
+  /*!
+   * \brief Create the action that runs the prefill and sends KV data to remote instance.
+   * \param models The underlying models whose KV cache are to be updated.
+   * \param model_workspaces The workspace of each model.
+   * \param engine_config The engine config.
+   * \param model_configs The config of each model.
+   * \param trace_recorder The event trace recorder for requests.
+   * \param request_stream_callback The stream callback function to pass the prefill
+   * preparation result back, including the KV cache append metadata and the prefix
+   * matched length in the prefix cache.
+   * \param device The device of the model for synchronization.
+   * \return The created action object.
+   */
+  static EngineAction NewRequestPrefillWithKVSend(
+      Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
+      std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
+      FRequestStreamCallback request_stream_callback, Device device);
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
 };

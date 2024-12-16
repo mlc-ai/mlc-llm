@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file json_ffi/openai_api_protocol.cc
  * \brief The implementation of OpenAI API Protocol in MLC LLM.
  */

@@ -33,6 +33,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
         rope_scaling: Optional[Dict[str, Any]] = None,
         rope_ext_factors: Optional[List[int]] = None,
         layer_partition: Optional[List[int]] = None,
+        enable_disaggregation: bool = False,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
         """The generic function of creating a PagedKVCache,
@@ -73,6 +74,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
                     # to represent "undefined".
                 ),
                 rx.PrimValue(rotary_dim),
+                rx.PrimValue(int(enable_disaggregation)),
                 rx.DataTypeImm(dtype),
                 sinfo_args=rx.ObjectStructInfo(),
             ),

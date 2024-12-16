@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/model.h
  * \brief The header for runtime module of LLM functions (prefill/decode/etc.)
  */
@@ -271,6 +271,13 @@ class ModelObj : public Object {
    */
   virtual void EnableSlidingWindowForSeq(int64_t seq_id) = 0;
 
+  /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
+  virtual IntTuple DisaggPrepareKVRecv(int64_t seq_id, int length) = 0;
+
+  /*! \brief Prepare for the disaggregation KV data send for the specified sequence and length.*/
+  virtual void DisaggMarkKVSend(int64_t seq_id, int begin_pos,
+                                IntTuple compressed_kv_append_metadata, int dst_group_offset) = 0;
+
   /************** Raw Info Query **************/
 
   /*! \brief Return the metadata JSON object of the model. */
@@ -355,7 +362,7 @@ class ModelObj : public Object {
   /************** Debug/Profile **************/
 
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
-  virtual void DebugCallFuncOnAllAllWorker(const String& func_name) = 0;
+  virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 
   static constexpr const char* _type_key = "mlc.serve.Model";
   static constexpr const bool _type_has_method_sequal_reduce = false;

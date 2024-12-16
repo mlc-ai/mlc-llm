@@ -1,14 +1,18 @@
 /*!
- * Copyright (c) 2023 by Contributors
+ * Copyright (c) 2023-2024 by Contributors
  * \file support/utils.h
  * \brief Utility functions.
  */
 #ifndef MLC_LLM_SUPPORT_UTILS_H_
 #define MLC_LLM_SUPPORT_UTILS_H_
 
+#include <dmlc/memory_io.h>
+
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "../../3rdparty/tvm/src/support/base64.h"
 
 namespace mlc {
 namespace llm {
@@ -41,21 +45,31 @@ inline bool StartsWith(const std::string& str, const char* prefix) {
 }
 
 /*!
- * \brief Hash and combine value into seed.
- * \ref https://www.boost.org/doc/libs/1_84_0/boost/intrusive/detail/hash_combine.hpp
+ * \brief Get the base64 encoded result of a string.
+ * \param str The string to encode.
+ * \return The base64 encoded string.
  */
-inline void HashCombineBinary(uint32_t& seed, uint32_t value) {
-  seed ^= value + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+inline std::string Base64Encode(std::string str) {
+  std::string result;
+  dmlc::MemoryStringStream m_stream(&result);
+  tvm::support::Base64OutStream b64stream(&m_stream);
+  static_cast<dmlc::Stream*>(&b64stream)->Write(str);
+  b64stream.Finish();
+  return result;
 }
 
 /*!
- * \brief Find the hash sum of several uint32_t args.
+ * \brief Get the base64 decoded result of a string.
+ * \param str The string to decode.
+ * \return The base64 decoded string.
  */
-template <typename... Args>
-uint32_t HashCombine(Args... args) {
-  uint32_t seed = 0;
-  (..., HashCombineBinary(seed, args));
-  return seed;
+inline std::string Base64Decode(std::string str) {
+  std::string result;
+  dmlc::MemoryStringStream m_stream(&str);
+  tvm::support::Base64InStream b64stream(&m_stream);
+  b64stream.InitPosition();
+  static_cast<dmlc::Stream*>(&b64stream)->Read(&result);
+  return result;
 }
 
 }  // namespace llm

@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file json_ffi/image_utils.h
  * \brief The header of Image utils for JSON FFI Engine in MLC LLM.
  */

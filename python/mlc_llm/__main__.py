@@ -22,6 +22,7 @@ def main():
             "serve",
             "package",
             "calibrate",
+            "router",
         ],
         help="Subcommand to to run. (choices: %(choices)s)",
     )
@@ -53,6 +54,10 @@ def main():
         cli.main(sys.argv[2:])
     elif parsed.subcommand == "calibrate":
         from mlc_llm.cli import calibrate as cli
+
+        cli.main(sys.argv[2:])
+    elif parsed.subcommand == "router":
+        from mlc_llm.cli import router as cli
 
         cli.main(sys.argv[2:])
     else:

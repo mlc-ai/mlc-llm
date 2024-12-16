@@ -89,6 +89,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
     attention_sink_size: Optional[int] = None
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
+    opt: Optional[str] = None
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":
@@ -96,6 +97,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         parser = argparse.ArgumentParser(description="model config override values")
         parser.add_argument("--tensor_parallel_shards", type=int, default=None)
         parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
+        parser.add_argument("--opt", type=str, default=None)
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
         parser.add_argument("--prefill_chunk_size", type=int, default=None)
@@ -105,6 +107,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         return ModelConfigOverride(
             tensor_parallel_shards=results.tensor_parallel_shards,
             pipeline_parallel_stages=results.pipeline_parallel_stages,
+            opt=results.opt,
             context_window_size=results.context_window_size,
             sliding_window_size=results.sliding_window_size,
             prefill_chunk_size=results.prefill_chunk_size,
@@ -294,6 +297,7 @@ def chat(
                 attention_sink_size=overrides.attention_sink_size,
                 tensor_parallel_shards=overrides.tensor_parallel_shards,
                 pipeline_parallel_stages=overrides.pipeline_parallel_stages,
+                opt=overrides.opt,
             ),
         )
     ).chat()

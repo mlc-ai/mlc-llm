@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023 by Contributors
+ *  Copyright (c) 2023-2024 by Contributors
  * \file serve/engine_actions/batch_decode.cc
  */
 
@@ -57,6 +57,11 @@ class BatchDecodeActionObj : public EngineActionObj {
         if (preempted.same_as(running_rsentries.back())) {
           running_rsentries.pop_back();
         }
+      }
+      while (running_rsentries.size() >
+             std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
+                      engine_config_->prefill_chunk_size)) {
+        running_rsentries.pop_back();
       }
     }
 
