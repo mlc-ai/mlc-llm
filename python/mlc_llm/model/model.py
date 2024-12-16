@@ -546,6 +546,8 @@ MODELS: Dict[str, Model] = {
             "no-quant": gpt_j_quantization.no_quant,
             "group-quant": gpt_j_quantization.group_quant,
             "ft-quant": gpt_j_quantization.ft_quant,
+        },
+    ),
     "olmo": Model(
         name="olmo",
         model=olmo_model.OLMoForCausalLM,
