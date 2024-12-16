@@ -622,7 +622,7 @@ def create_pipelines(
                 "Please specify the number of warmup requests via "
                 '"--num-warmup-requests" when fixing request rate.'
             )
-        if args.fake_warmup:
+        if dataset.require_fake_warmup:
             num_samples = int(args.num_requests * args.num_gpus)
         else:
             num_samples = int(args.num_requests * args.num_gpus) + args.num_warmup_requests
