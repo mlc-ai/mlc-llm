@@ -28,6 +28,7 @@ from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
+from .nemotron import nemotron_loader, nemotron_model, nemotron_quantization
 from .olmo import olmo_loader, olmo_model, olmo_quantization
 from .orion import orion_loader, orion_model, orion_quantization
 from .phi import phi_loader, phi_model, phi_quantization
@@ -548,6 +549,22 @@ MODELS: Dict[str, Model] = {
             "ft-quant": olmo_quantization.ft_quant,
             "awq": olmo_quantization.awq_quant,
             "per-tensor-quant": olmo_quantization.per_tensor_quant,
+        },
+    ),
+    "nemotron": Model(
+        name="nemotron",
+        model=nemotron_model.NemotronForCausalLM,
+        config=nemotron_model.NemotronConfig,
+        source={
+            "huggingface-torch": nemotron_loader.huggingface,
+            "huggingface-safetensor": nemotron_loader.huggingface,
+        },
+        quantize={
+            "no-quant": nemotron_quantization.no_quant,
+            "group-quant": nemotron_quantization.group_quant,
+            "ft-quant": nemotron_quantization.ft_quant,
+            "awq": nemotron_quantization.awq_quant,
+            "per-tensor-quant": nemotron_quantization.per_tensor_quant,
         },
     ),
 }
