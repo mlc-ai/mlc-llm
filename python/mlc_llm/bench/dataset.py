@@ -174,12 +174,11 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
     # pylint: enable=line-too-long
     require_fake_warmup: bool = True
 
-    def __init__(self, tokenizer: AutoTokenizer, testset_name) -> None:
+    def __init__(self, tokenizer: AutoTokenizer, testset_name: str) -> None:
         raw_dataset = load_dataset("bigainlco/LooGLE", testset_name, split="test")
         self.tokenizer = tokenizer
         self.dataset = []
         self.prompt_format = self.task2prompt[testset_name]
-        # self.max_gen = self.task2maxlen[testset_name]
         prompts = []
         generate_lens = []
         questions = []
@@ -806,7 +805,7 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
         assert (
             args.apply_chat_template is False
         ), "Loogle dataset does not support applying chat template"
-        return LoogleDataset(tokenizer, args.testset_name)
+        return LoogleDataset(tokenizer, testset_name=args.dataset_path)
     if args.dataset == "react":
         assert (
             args.apply_chat_template is False
