@@ -75,7 +75,7 @@ def serve(
             return fastapi.responses.StreamingResponse(
                 completion_stream_generator(), media_type="text/event-stream"
             )
-            
+
         # FIXME: Non-streaming response not fully implemented
         request_final_usage = None
         output_texts = [""] * request.n

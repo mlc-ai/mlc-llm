@@ -52,7 +52,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         return error_protocol.create_error_response(
             HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
         )
-    # FIXME: This is a temporary solution to make sure 
+    # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
     request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
 
