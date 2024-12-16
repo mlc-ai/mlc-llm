@@ -11,7 +11,6 @@ from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
 from .nemotron_model import NemotronConfig, NemotronForCausalLM
-from .nemotron_quantization import awq_quant
 
 
 def huggingface(model_config: NemotronConfig, quantization: Quantization) -> ExternMapping:
