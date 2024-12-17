@@ -45,7 +45,7 @@ class NemotronConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     disaggregation: bool = False
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self):  # pylint: disable=too-many-branches
         if self.context_window_size == 0:
             self.context_window_size = self.max_position_embeddings
         if self.head_dim == 0:
@@ -219,7 +219,7 @@ class NemotronModel(nn.Module):
         return hidden_states
 
 
-class NemotronForCausalLM(nn.Module):
+class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: NemotronConfig):
         self.model = NemotronModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
