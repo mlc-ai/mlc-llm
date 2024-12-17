@@ -19,6 +19,7 @@ from .gemma import gemma_loader, gemma_model, gemma_quantization
 from .gemma2 import gemma2_loader, gemma2_model, gemma2_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
+from .gpt_j import gpt_j_loader, gpt_j_model, gpt_j_quantization
 from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
@@ -531,6 +532,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": deepseek_quantization.no_quant,
             "group-quant": deepseek_quantization.group_quant,
             "ft-quant": deepseek_quantization.ft_quant,
+        },
+    ),
+    "gptj": Model(
+        name="gptj",
+        model=gpt_j_model.GPTJForCausalLM,
+        config=gpt_j_model.GPTJConfig,
+        source={
+            "huggingface-torch": gpt_j_loader.huggingface,
+            "huggingface-safetensor": gpt_j_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gpt_j_quantization.no_quant,
+            "group-quant": gpt_j_quantization.group_quant,
+            "ft-quant": gpt_j_quantization.ft_quant,
         },
     ),
     "olmo": Model(

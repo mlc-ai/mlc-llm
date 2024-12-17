@@ -47,6 +47,15 @@ def rope_freq_default(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype:
     return cos_freq, sin_freq, {freq_var: freq}
 
 
+def rope_freq_gptj(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
+    """Compute the inverse frequency of RoPE for gptj RoPE scaling."""
+    freq = s / tir.power(theta, 2 * (d // 2) % d_range / tir.const(d_range, "float32"))
+    freq_var = tir.Var("freq", "float32")
+    cos_freq = tir.cos(freq_var).astype(dtype)
+    sin_freq = tir.sin(freq_var).astype(dtype)
+    return cos_freq, sin_freq, {freq_var: freq}
+
+
 def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     s: tir.Var,
     d: tir.Var,
@@ -170,6 +179,8 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
     """
     if "rope_type" not in rope_scaling:
         return rope_freq_default
+    if rope_scaling["rope_type"] == "gptj":
+        return rope_freq_gptj
     if rope_scaling["rope_type"] == "llama3":
         return partial(
             rope_freq_llama3,
@@ -266,11 +277,18 @@ def llama_rope(  # pylint: disable=too-many-arguments
             (s + offset) * scale, d, rotary_dim, theta, dtype
         )
         cos = cos_freq * x[b, s, h, d]
-        sin = sin_freq * tir.if_then_else(
-            d < rotary_dim // 2,
-            -x[b, s, h, d + rotary_dim // 2],
-            x[b, s, h, d - rotary_dim // 2],
-        )
+        if rope_scaling["rope_type"] == "gptj":
+            sin = sin_freq * tir.if_then_else(
+                d % 2 == 0,
+                -x[b, s, h, d + 1],
+                x[b, s, h, d - 1],
+            )
+        else:
+            sin = sin_freq * tir.if_then_else(
+                d < rotary_dim // 2,
+                -x[b, s, h, d + rotary_dim // 2],
+                x[b, s, h, d - rotary_dim // 2],
+            )
         expr = cos + sin
         for var, value in var_map.items():
             expr = tir.Let(var, value, expr)
@@ -384,11 +402,18 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
             pos * scale, d, rotary_dim, theta, "float32", **kwargs
         )
         cos = cos_freq * x[s, h, d].astype("float32")
-        sin = sin_freq * tir.if_then_else(
-            d < rotary_dim // 2,
-            -x[s, h, d + rotary_dim // 2],
-            x[s, h, d - rotary_dim // 2],
-        ).astype("float32")
+        if "rope_type" in rope_scaling and rope_scaling["rope_type"] == "gptj":
+            sin = sin_freq * tir.if_then_else(
+                d % 2 == 0,
+                -x[s, h, d + 1],
+                x[s, h, d - 1],
+            ).astype("float32")
+        else:
+            sin = sin_freq * tir.if_then_else(
+                d < rotary_dim // 2,
+                -x[s, h, d + rotary_dim // 2],
+                x[s, h, d - rotary_dim // 2],
+            ).astype("float32")
         expr = (cos + sin).astype(dtype)
         for var, value in var_map.items():
             expr = tir.Let(var, value, expr)
