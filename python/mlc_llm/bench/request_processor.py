@@ -622,22 +622,27 @@ def create_pipelines(
                 "Please specify the number of warmup requests via "
                 '"--num-warmup-requests" when fixing request rate.'
             )
+        num_total_requests = int(
+            args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
+        )
         if dataset.require_fake_warmup:
-            num_samples = int(args.num_requests * args.num_gpus)
+            num_samples = num_total_requests
         else:
-            num_samples = int(args.num_requests * args.num_gpus) + args.num_warmup_requests
+            num_samples = num_total_requests + args.num_warmup_requests
         return [
             SequentialProcessor(
                 LogMessage(f"Fixing request rate: {request_rate}"),
                 SampleRequests(num_samples),
                 AttachModelName(args.tokenizer),
-                AttachRequestRateTimestamp(request_rate * args.num_gpus),
+                AttachRequestRateTimestamp(
+                    request_rate if not args.per_gpu_workload else request_rate * args.num_gpus
+                ),
                 AttachStreamFlag(args.stream),
                 AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
                 AttachExecutionFeature({"request_rate": float(request_rate)}),
                 WarmupAndRun(
                     num_warmup_requests=args.num_warmup_requests,
-                    num_benchmark_requests=int(args.num_requests * args.num_gpus),
+                    num_benchmark_requests=num_total_requests,
                     pipeline=FixTimestampExecutor(
                         f_create_api_endpoint,
                         args.num_process_workers,
