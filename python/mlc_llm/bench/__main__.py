@@ -101,17 +101,18 @@ def run_pipeline(
         args.output_len_std,
     )
     request_records = pipeline(request_records)
-    assert len(request_records) == args.num_requests * args.num_gpus
-    sorted_requests: List[RequestRecord] = [None] * args.num_requests * args.num_gpus
+    num_total_requests = (
+        args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
+    )
+    assert len(request_records) == num_total_requests
+    sorted_requests: List[RequestRecord] = [None] * num_total_requests
     for request_record in request_records:
         assert request_record.request_id is not None
         assert sorted_requests[request_record.request_id] is None
         sorted_requests[request_record.request_id] = request_record
 
     request_records = MetricAnalyzer(tokenizer)(request_records)
-    report = generate_metrics_summary(
-        request_records, args.num_requests * args.num_gpus, args.num_gpus
-    )
+    report = generate_metrics_summary(request_records, num_total_requests, args.num_gpus)
     return report, sorted_requests
 
 
@@ -220,6 +221,15 @@ if __name__ == "__main__":
         type=int,
         help="The number of requests for warmup. "
         "It is optional when fixing the number of concurrent requests, and is required otherwise.",
+    )
+    parser.add_argument(
+        "--per-gpu-workload",
+        default=False,
+        action="store_true",
+        help='When set to True, the specified "num_concurrent_requests"/"request_rate" '
+        "denote the workload **per GPU**, which means that the real values of "
+        '"num_concurrent_requests"/"request_rate" used in benchmark'
+        'will be multiplied by "num_gpus".',
     )
     parser.add_argument(
         "--num-concurrent-requests",
@@ -355,13 +365,6 @@ if __name__ == "__main__":
         help="The engine config used when launch MLC server.",
     )
     parser.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        default="mlc_benchmark.csv",
-        help="The path of the output file where to dump the benchmark results.",
-    )
-    parser.add_argument(
         "--cuda-profile",
         default=False,
         action="store_true",
@@ -378,13 +381,16 @@ if __name__ == "__main__":
         "--multi-round",
         default=False,
         action="store_true",
-        help="Whether to chat like mulit round conversion with history log each request. "
+        help="Whether to chat like multi round conversion with history log each request. "
         "Only enabled when benchmarked with fixed concurrent request mode."
         "The --num-concurrent-requests should be provided when enabling this option.",
     )
-
     parser.add_argument(
-        "--testset-name", type=str, help="The name of the testset. Only used for Loogle dataset"
+        "--output",
+        "-o",
+        type=str,
+        default="mlc_benchmark.csv",
+        help="The path of the output file where to dump the benchmark results.",
     )
 
     main(parser.parse_args())
