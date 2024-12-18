@@ -178,6 +178,7 @@ class GPTJBlock(nn.Module):
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
+
 class GPTJModel(nn.Module):
     def __init__(self, config: GPTJConfig):
         self.embed_dim = config.n_embd
