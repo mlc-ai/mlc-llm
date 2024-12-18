@@ -11,6 +11,7 @@ from mlc_llm.serve import engine
 from mlc_llm.serve.entrypoints import (
     debug_entrypoints,
     metrics_entrypoints,
+    microserving_entrypoints,
     openai_entrypoints,
 )
 from mlc_llm.serve.server import ServerContext
@@ -95,6 +96,7 @@ def serve(
 
         app.include_router(openai_entrypoints.app)
         app.include_router(metrics_entrypoints.app)
+        app.include_router(microserving_entrypoints.app)
 
         server_context.enable_debug = enable_debug
 

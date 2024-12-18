@@ -548,10 +548,10 @@ class EngineImpl : public Engine {
   bool HandleDisaggRequest(Request request) {
     DisaggConfig disagg_config = request->generation_cfg->debug_config.disagg_config;
     DisaggRequestKind kind = disagg_config.kind;
-    if (kind == DisaggRequestKind::kPreparePrefill) {
+    if (kind == DisaggRequestKind::kPrepareReceive) {
       // No-op.
       return false;
-    } else if (kind == DisaggRequestKind::kRemotePrefill) {
+    } else if (kind == DisaggRequestKind::kRemoteSend) {
       int input_length = 0;
       for (Data input : request->inputs) {
         input_length += input->GetLength();
@@ -586,13 +586,13 @@ class EngineImpl : public Engine {
       updated_generation_cfg->n = 1;
       request->generation_cfg = GenerationConfig(updated_generation_cfg);
       return false;
-    } else if (kind == DisaggRequestKind::kStartDecode) {
+    } else if (kind == DisaggRequestKind::kStartGeneration) {
       auto it_rstate = estate_->request_states.find(request->id);
       CHECK(it_rstate != estate_->request_states.end());
       ICHECK(!it_rstate->second->entries.empty());
       request = it_rstate->second->entries[0]->request;
       CHECK(request->generation_cfg->debug_config.disagg_config.kind ==
-            DisaggRequestKind::kPreparePrefill);
+            DisaggRequestKind::kPrepareReceive);
       int input_length = 0;
       for (Data input : request->inputs) {
         input_length += input->GetLength();

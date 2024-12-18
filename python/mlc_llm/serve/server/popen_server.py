@@ -122,7 +122,6 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         final_env = os.environ.copy()
         for key, value in extra_env.items():
             final_env[key] = value
-        print(f"cmd = {cmd}")
         self._proc = subprocess.Popen(  # pylint: disable=consider-using-with
             cmd, cwd=process_path, env=final_env
         )

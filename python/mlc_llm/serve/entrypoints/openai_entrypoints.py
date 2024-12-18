@@ -113,7 +113,6 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             if choice.logprobs is not None:
                 logprob_results[choice.index] = choice.logprobs
 
-    assert all(finish_reason is not None for finish_reason in finish_reasons)
     return engine_base.wrap_completion_response(
         request_id=request_id,
         model=request.model,

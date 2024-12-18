@@ -5,11 +5,12 @@ import math
 import threading
 from typing import Any, AsyncGenerator, Iterable, List, Literal, Optional, Tuple
 
-import aiohttp  # pylint: disable=import-outside-toplevel,import-error
+import aiohttp  # pylint: disable=import-error
 import tvm
 
-from mlc_llm.protocol import debug_protocol, openai_api_protocol
+from mlc_llm.protocol import openai_api_protocol
 from mlc_llm.serve import EngineConfig, PopenServer
+from mlc_llm.serve.entrypoints import microserving_entrypoints
 from mlc_llm.tokenizers import Tokenizer
 
 
@@ -20,36 +21,43 @@ class Router:  # pylint: disable=too-many-instance-attributes
         self,
         model: str,
         model_lib: Optional[str] = None,
-        hosts: List[str] = ["127.0.0.1"],
-        ports: List[int] = [8080],
-        num_gpus: List[int] = [1],
+        hosts: Optional[List[str]] = None,
+        ports: Optional[List[int]] = None,
+        num_gpus: Optional[List[int]] = None,
         enable_prefix_cache: bool = False,
         router_mode: Literal["disagg", "round-robin"] = "disagg",
         pd_balance_factor: float = 0.0,
-    ):  # pylint: disable=too-many-arguments,too-many-locals,dangerous-default-value
+    ):  # pylint: disable=too-many-arguments,too-many-locals
         """
         Spawn len(host_list) server endpoints with Popen.
         """
+        if hosts is None:
+            hosts = ["127.0.0.1"]
+        if ports is None:
+            ports = [8080]
+        if num_gpus is None:
+            num_gpus = [1]
+
         self.router_mode = router_mode
         self.pd_balance_factor = pd_balance_factor
         # Get endpoint urls
-        self.num_endpoints = len(hosts)
-        assert self.num_endpoints == len(ports) == len(num_gpus)
+        self.num_servers = len(hosts)
+        assert self.num_servers == len(ports) == len(num_gpus)
         self.hosts = hosts
         self.ports = ports
-        self.endpoints = []
-        for i in range(self.num_endpoints):
-            self.endpoints.append(f"http://{hosts[i]}:{ports[i]}/v1/completions")
+        self.server_urls = []
+        for i in range(self.num_servers):
+            self.server_urls.append(f"http://{hosts[i]}:{ports[i]}")
 
         # Misc
         self.headers = {"Content-Type": "application/json"}
-        self.num_running_requests = [0] * self.num_endpoints
+        self.num_running_requests = [0] * self.num_servers
 
         # Call nvshmem_init here to get uid, then pass to env variables to server.start() below
         f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = list(f_init_nvshmem_uid())
 
-        # Start underlying endpoints concurrently. Otherwise 1 server cannot start on its own
+        # Start underlying servers concurrently. Otherwise 1 server cannot start on its own
         # since initializing nvhsmem world requires all GPUs.
         self.servers: List[PopenServer] = []
 
@@ -83,7 +91,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
 
         threads = []
         num_used_gpus = 0
-        for i in range(self.num_endpoints):
+        for i in range(self.num_servers):
             thread = threading.Thread(
                 target=start_server,
                 args=[i],
@@ -96,7 +104,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         self.tokenizer = Tokenizer(model)
 
     def terminate(self):
-        """Terminate the underlying endpoints"""
+        """Terminate the underlying servers"""
         for server in self.servers:
             server.terminate()
 
@@ -142,14 +150,14 @@ class Router:  # pylint: disable=too-many-instance-attributes
         endpoints with round-robin scheduling at a request level.
         """
         # Round robin
-        cur_endpoint = self._pick_endpoint(range(self.num_endpoints))
+        cur_endpoint = self._pick_endpoint(range(self.num_servers))
         self.num_running_requests[cur_endpoint] += 1
         payload = request.model_dump()
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
             async with session.post(
-                self.endpoints[cur_endpoint], json=payload, headers=self.headers
+                self.server_urls[cur_endpoint], json=payload, headers=self.headers
             ) as response:
                 assert response.status == 200, await response.text()
                 completed = False
@@ -210,7 +218,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         original_request.user = request_id
         # Arbitrarily determine server 0 is P, other servers are D
         prefill_server_id = 0
-        decode_server_id = self._pick_endpoint(range(1, self.num_endpoints))
+        decode_server_id = self._pick_endpoint(range(1, self.num_servers))
 
         # Add a debugConfig if not present
         if original_request.debug_config is None:
@@ -233,23 +241,17 @@ class Router:  # pylint: disable=too-many-instance-attributes
                 completed = False
                 while not completed:
                     # 1. Ask D to prepare metadata
-                    prepare_request = original_request.model_copy()
-                    prepare_request.debug_config.disagg_config = debug_protocol.DisaggConfig(
-                        kind="prepare_prefill",
-                        kv_window_begin=0,  # always zero for prepare_prefill
-                        kv_window_end=kv_window_end,
-                    )
-                    prepare_request.stream_options = openai_api_protocol.StreamOptions(
-                        include_usage=True
+                    prep_recv_request = microserving_entrypoints.PrepRecvRequest(
+                        **original_request.model_dump(), kv_window_end=kv_window_end
                     )
                     (
                         prompt_length,
                         prefix_matched_length,
                         kv_append_metadata_base64,
-                    ) = await self.send_decode_prepare(
+                    ) = await self.send_prepare_receive(
                         session=session,
-                        prepare_request=prepare_request,
-                        decode_endpoint=self.endpoints[decode_server_id],
+                        request=prep_recv_request,
+                        server_url=self.server_urls[decode_server_id],
                     )
 
                     kv_window_end = (
@@ -261,42 +263,36 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     # KV transfer has finished prefilling and transferring the KV of
                     # prompt[prefix_matched_length:kv_window_end]. So D is ready to decode.
                     if prefix_matched_length < kv_window_end:
-                        prefill_request = original_request.model_copy()
-                        prefill_request.stream_options = openai_api_protocol.StreamOptions(
-                            include_usage=True
-                        )
-                        prefill_request.debug_config.disagg_config = debug_protocol.DisaggConfig(
-                            kind="remote_prefill",
+                        remote_send_request = microserving_entrypoints.RemoteSendRequest(
+                            **original_request.model_dump(),
                             kv_window_begin=prefix_matched_length,
                             kv_window_end=kv_window_end,
                             kv_append_metadata=kv_append_metadata_base64,
                             dst_group_offset=self.device_id_starts[decode_server_id],
                         )
-                        await self.send_prefill(
+                        await self.send_remote_send(
                             session=session,
-                            prefill_request=prefill_request,
-                            prefill_endpoint=self.endpoints[prefill_server_id],
+                            request=remote_send_request,
+                            server_url=self.server_urls[prefill_server_id],
                         )
 
                     # 3. Start decoding, receive and yield back response as a normal request
                     # The kv window passed through denotes the range to prefill on the
                     # decode server, which should be [-1:] here.
-                    decode_request = original_request.model_copy()
-                    decode_request.debug_config.disagg_config = debug_protocol.DisaggConfig(
-                        kind="start_decode",
+                    start_generate_request = microserving_entrypoints.StartGenerateRequest(
+                        **original_request.model_dump(),
                         kv_window_begin=kv_window_end,
                     )
-                    async for response in self.send_decode(
+                    async for response in self.send_start_generate(
                         session=session,
-                        decode_request=decode_request,
-                        decode_endpoint=self.endpoints[decode_server_id],
+                        request=start_generate_request,
+                        server_url=self.server_urls[decode_server_id],
                     ):
-                        response_json = response.dict()
-                        if response_json["choices"]:
-                            reason = response_json["choices"][0]["finish_reason"]
-                            if reason == "preempt":
+                        if len(response.choices) > 0:
+                            finish_reason = response.choices[0].finish_reason
+                            if finish_reason == "preempt":
                                 break
-                            if reason is not None:
+                            if finish_reason is not None:
                                 completed = True
                         yield response
             except Exception as e:
@@ -304,11 +300,11 @@ class Router:  # pylint: disable=too-many-instance-attributes
                 raise e
             self.num_running_requests[decode_server_id] -= 1
 
-    async def send_decode_prepare(
+    async def send_prepare_receive(
         self,
         session: aiohttp.ClientSession,
-        prepare_request: openai_api_protocol.CompletionRequest,
-        decode_endpoint: str,
+        request: openai_api_protocol.CompletionRequest,
+        server_url: str,
     ) -> Tuple[int, int, str]:
         """
         Performs step 1 of disaggregated serving: ask D to prepare metadata.
@@ -319,85 +315,60 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     i.e. prompt[0:prefix_matched_length] is the matched prefix
                 - kv_append_metadata_base64: str, info about KV append encoded in base64 string
         """
-        # Send request to D and get metadata
-        async with session.post(decode_endpoint, json=prepare_request.model_dump()) as response:
+        # Send request to the decode server for receive preparation.
+        # Get the prompt length, matched prefix length and the KV metadata.
+        async with session.post(
+            server_url + "/microserving/prep_recv",
+            json=request.model_dump(),
+            headers=self.headers,
+        ) as response:
             assert response.status == 200, await response.text()
-            # Expect decode to only return a single usage chunk
-            data = None
-            async for chunk in response.content:
-                if prepare_request.stream:
-                    chunk = chunk.strip()
-                    if not chunk or chunk == b"\n":
-                        continue
-                    # Get rid of the prefix "data: " and suffix "\n"
-                    raw_data = chunk[6:].strip()
-                    if raw_data == b"[DONE]":
-                        continue
-                    assert data is None, (
-                        f"Expecting only one effective chunk response. "
-                        f"data: {data}, current={json.loads(raw_data)}"
-                    )
-                    data = json.loads(raw_data)
-                else:
-                    data = await response.json()
-
-            assert "extra" in data["usage"]
-            assert "prefix_matched_length" in data["usage"]["extra"]
-            assert "kv_append_metadata" in data["usage"]["extra"]
+            data = await response.json()
 
             return (
-                data["usage"]["extra"]["prompt_length"],
-                data["usage"]["extra"]["prefix_matched_length"],
-                data["usage"]["extra"]["kv_append_metadata"],
+                data["prompt_length"],
+                data["prefix_matched_length"],
+                data["kv_append_metadata"],
             )
 
-    async def send_prefill(
+    async def send_remote_send(
         self,
         session: aiohttp.ClientSession,
-        prefill_request: openai_api_protocol.CompletionRequest,
-        prefill_endpoint: str,
+        request: openai_api_protocol.CompletionRequest,
+        server_url: str,
     ) -> None:
         """
         Performs step 2 of disaggregated serving: ask P to prefill and transfer KV to D.
         P returns an empty chunk to acknowledge completion.
         """
         # Send request to P and get ack
-        async with session.post(prefill_endpoint, json=prefill_request.model_dump()) as response:
+        async with session.post(
+            server_url + "/microserving/remote_send",
+            json=request.model_dump(),
+            headers=self.headers,
+        ) as response:
             assert response.status == 200, await response.text()
-            # Expect decode to only return an empty chunk
-            data = None
-            async for chunk in response.content:
-                if prefill_request.stream:
-                    chunk = chunk.strip()
-                    if not chunk or chunk == b"\n":
-                        continue
-                    # Get rid of the prefix "data: " and suffix "\n"
-                    raw_data = chunk[6:].strip()
-                    if raw_data == b"[DONE]":
-                        continue
-                    assert data is None, "Expecting only one effective chunk response."
-                    data = json.loads(raw_data)
-                else:
-                    data = await response.json()
+            await response.json()
 
-            assert "extra" in data["usage"]
-            return
-
-    async def send_decode(  # pylint: disable=fixme
+    async def send_start_generate(
         self,
         session: aiohttp.ClientSession,
-        decode_request: openai_api_protocol.CompletionRequest,
-        decode_endpoint: str,
+        request: openai_api_protocol.CompletionRequest,
+        server_url: str,
     ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         """
         Performs step 3 of disaggregated serving: ask D to decode and return normal response.
         """
+        # pylint: disable=fixme
         # Todo: return string directly to reduce str->json->str roundtrip overhead
+        # pylint: enable=fixme
         async with session.post(
-            decode_endpoint, json=decode_request.model_dump(), headers=self.headers
+            server_url + "/microserving/start_generate",
+            json=request.model_dump(),
+            headers=self.headers,
         ) as response:
             assert response.status == 200, await response.text()
-            if decode_request.stream:
+            if request.stream:
                 async for chunk in response.content:
                     # Convert raw bytes to CompletionResponse
                     chunk = chunk.strip()
