@@ -48,9 +48,9 @@ enum class SpecialRequestKind : int {
 
 enum class DisaggRequestKind : int {
   kNone = 0,
-  kPreparePrefill = 1,
-  kRemotePrefill = 2,
-  kStartDecode = 3,
+  kPrepareReceive = 1,
+  kRemoteSend = 2,
+  kStartGeneration = 3,
 };
 
 /*! \brief Controls the behavior of inference with grammar constraint. */
@@ -70,11 +70,11 @@ class DisaggConfig {
   // "kv_window_begin" and "kv_window_end" denote the KV interval of interests.
   // "kv_window_end" supports Python style negative indexing.
   // The concrete meaning varies for different special request kind:
-  // - For "prepare_prefill", the begin is always 0, and "[0:end]" denotes
+  // - For "prepare_receive", the begin is always 0, and "[0:end]" denotes
   // the KV range to prefill on a prefill instance.
-  // - For "remote_prefill", "[begin:end]" means the KV range to compute prefill
+  // - For "remote_send", "[begin:end]" means the KV range to compute prefill
   // and send to the decode instance.
-  // - For "start_decode", the end is always nullopt, and "[begin:]" denotes
+  // - For "start_generation", the end is always nullopt, and "[begin:]" denotes
   // the KV range to prefill locally on the decode instance.
   std::optional<int> kv_window_begin = std::nullopt;
   std::optional<int> kv_window_end = std::nullopt;

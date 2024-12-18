@@ -220,7 +220,7 @@ class EngineAction : public ObjectRef {
    * matched length in the prefix cache.
    * \return The created action object.
    */
-  static EngineAction DisaggPreparePrefill(Array<Model> models, EngineConfig engine_config,
+  static EngineAction DisaggPrepareReceive(Array<Model> models, EngineConfig engine_config,
                                            std::vector<picojson::object> model_configs,
                                            Optional<EventTraceRecorder> trace_recorder,
                                            FRequestStreamCallback request_stream_callback);
@@ -238,7 +238,7 @@ class EngineAction : public ObjectRef {
    * \param device The device of the model for synchronization.
    * \return The created action object.
    */
-  static EngineAction NewRequestPrefillWithKVSend(
+  static EngineAction DisaggRemoteSend(
       Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
       std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
       FRequestStreamCallback request_stream_callback, Device device);

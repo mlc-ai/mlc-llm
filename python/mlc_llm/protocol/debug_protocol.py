@@ -8,17 +8,17 @@ from pydantic import BaseModel
 class DisaggConfig(BaseModel):
     """The class of metadata used in microserving APIs."""
 
-    kind: Optional[Literal["prepare_prefill", "remote_prefill", "start_decode"]] = None
+    kind: Optional[Literal["prepare_receive", "remote_send", "start_generation"]] = None
     # "kv_append_metadata" is base64-encoded and is thus a string.
     kv_append_metadata: Optional[str] = None
     # "kv_window_begin" and "kv_window_end" denote the KV interval of interests.
     # "kv_window_end" supports Python style negative indexing.
     # The concrete meaning varies for different special request kind:
-    # - For "prepare_prefill", the begin is always 0, and "[0:end]" denotes
+    # - For "prepare_receive", the begin is always 0, and "[0:end]" denotes
     # the KV range to prefill on a prefill instance.
-    # - For "remote_prefill", "[begin:end]" means the KV range to compute prefill
+    # - For "remote_send", "[begin:end]" means the KV range to compute prefill
     # and send to the decode instance.
-    # - For "start_decode", the end is always None, and "[begin:]" denotes
+    # - For "start_generation", the end is always None, and "[begin:]" denotes
     # the KV range to prefill locally on the decode instance.
     kv_window_begin: Optional[int] = None
     kv_window_end: Optional[int] = None

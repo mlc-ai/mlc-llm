@@ -18,9 +18,9 @@ namespace serve {
  * It picks a new request, reserve its KV data locations, and returns the
  * KV data locations and the matched prefix length in prefix cache.
  */
-class DisaggPreparePrefillActionObj : public BatchPrefillBaseActionObj {
+class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
  public:
-  explicit DisaggPreparePrefillActionObj(Array<Model> models, EngineConfig engine_config,
+  explicit DisaggPrepareReceiveActionObj(Array<Model> models, EngineConfig engine_config,
                                          std::vector<picojson::object> model_configs,
                                          Optional<EventTraceRecorder> trace_recorder,
                                          FRequestStreamCallback request_stream_callback)
@@ -51,7 +51,7 @@ class DisaggPreparePrefillActionObj : public BatchPrefillBaseActionObj {
       }
 
       {
-        NVTXScopedRange nvtx_scope("DisaggPreparePrefill matching prefix");
+        NVTXScopedRange nvtx_scope("DisaggPrepareReceive matching prefix");
         prefix_matched_length = MatchPrefixCache(estate, &prefill_input);
       }
 
@@ -199,7 +199,7 @@ class DisaggPreparePrefillActionObj : public BatchPrefillBaseActionObj {
     Request request{nullptr};
     for (const Request& request_candidate : estate->waiting_queue) {
       if (request_candidate->generation_cfg->debug_config.disagg_config.kind ==
-          DisaggRequestKind::kPreparePrefill) {
+          DisaggRequestKind::kPrepareReceive) {
         request = request_candidate;
         break;
       }
@@ -427,11 +427,11 @@ class DisaggPreparePrefillActionObj : public BatchPrefillBaseActionObj {
   FRequestStreamCallback request_stream_callback_;
 };
 
-EngineAction EngineAction::DisaggPreparePrefill(Array<Model> models, EngineConfig engine_config,
+EngineAction EngineAction::DisaggPrepareReceive(Array<Model> models, EngineConfig engine_config,
                                                 std::vector<picojson::object> model_configs,
                                                 Optional<EventTraceRecorder> trace_recorder,
                                                 FRequestStreamCallback request_stream_callback) {
-  return EngineAction(make_object<DisaggPreparePrefillActionObj>(
+  return EngineAction(make_object<DisaggPrepareReceiveActionObj>(
       std::move(models), std::move(engine_config), std::move(model_configs),
       std::move(trace_recorder), std::move(request_stream_callback)));
 }

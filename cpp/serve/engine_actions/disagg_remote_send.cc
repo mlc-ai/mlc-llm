@@ -16,12 +16,14 @@ namespace serve {
  * Aside from that, this action sends the computed KV data to remote
  * instances after computing the KV data.
  */
-class NewRequestPrefillWithKVSendActionObj : public BatchPrefillBaseActionObj {
+class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
  public:
-  explicit NewRequestPrefillWithKVSendActionObj(
-      Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
-      std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
-      FRequestStreamCallback request_stream_callback, Device device)
+  explicit DisaggRemoteSendActionObj(Array<Model> models,
+                                     std::vector<ModelWorkspace> model_workspaces,
+                                     EngineConfig engine_config,
+                                     std::vector<picojson::object> model_configs,
+                                     Optional<EventTraceRecorder> trace_recorder,
+                                     FRequestStreamCallback request_stream_callback, Device device)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
                                   std::move(model_configs), std::move(trace_recorder)),
         model_workspaces_(std::move(model_workspaces)),
@@ -39,7 +41,7 @@ class NewRequestPrefillWithKVSendActionObj : public BatchPrefillBaseActionObj {
     // - Find the requests in `waiting_queue` that can prefill in this step.
     std::vector<PrefillInput> prefill_inputs;
     {
-      NVTXScopedRange nvtx_scope("NewRequestPrefillWithKVSend getting requests");
+      NVTXScopedRange nvtx_scope("DisaggRemoteSend getting requests");
       prefill_inputs = GetRequestStateEntriesToPrefill(estate);
       if (prefill_inputs.empty()) {
         return {};
@@ -48,7 +50,7 @@ class NewRequestPrefillWithKVSendActionObj : public BatchPrefillBaseActionObj {
 
     int num_rsentries = prefill_inputs.size();
     {
-      NVTXScopedRange nvtx_scope("NewRequestPrefillWithKVSend matching prefix");
+      NVTXScopedRange nvtx_scope("DisaggRemoteSend matching prefix");
       for (int i = 0; i < num_rsentries; ++i) {
         MatchPrefixCache(estate, &prefill_inputs[i]);
       }
@@ -183,12 +185,12 @@ class NewRequestPrefillWithKVSendActionObj : public BatchPrefillBaseActionObj {
     }
 
     // Explicitly filter the waiting queue to only keep the requests
-    // with disaggregation request kind "kRemotePrefill".
+    // with disaggregation request kind "kRemoteSend".
     std::vector<Request> waiting_queue;
     waiting_queue.reserve(estate->waiting_queue.size());
     for (Request request : estate->waiting_queue) {
       if (request->generation_cfg->debug_config.disagg_config.kind ==
-          DisaggRequestKind::kRemotePrefill) {
+          DisaggRequestKind::kRemoteSend) {
         waiting_queue.push_back(request);
       }
     }
@@ -481,11 +483,11 @@ class NewRequestPrefillWithKVSendActionObj : public BatchPrefillBaseActionObj {
   TVMStreamHandle compute_stream_ = nullptr;
 };
 
-EngineAction EngineAction::NewRequestPrefillWithKVSend(
+EngineAction EngineAction::DisaggRemoteSend(
     Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
     std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
     FRequestStreamCallback request_stream_callback, Device device) {
-  return EngineAction(make_object<NewRequestPrefillWithKVSendActionObj>(
+  return EngineAction(make_object<DisaggRemoteSendActionObj>(
       std::move(models), std::move(model_workspaces), std::move(engine_config),
       std::move(model_configs), std::move(trace_recorder), std::move(request_stream_callback),
       device));

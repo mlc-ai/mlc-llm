@@ -70,12 +70,12 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const picojson::object& config) {
   DisaggConfig res;
   std::optional<std::string> kind = json::LookupOptional<std::string>(config, "kind");
   if (kind.has_value()) {
-    if (kind.value() == "prepare_prefill") {
-      res.kind = DisaggRequestKind::kPreparePrefill;
-    } else if (kind.value() == "remote_prefill") {
-      res.kind = DisaggRequestKind::kRemotePrefill;
-    } else if (kind.value() == "start_decode") {
-      res.kind = DisaggRequestKind::kStartDecode;
+    if (kind.value() == "prepare_receive") {
+      res.kind = DisaggRequestKind::kPrepareReceive;
+    } else if (kind.value() == "remote_send") {
+      res.kind = DisaggRequestKind::kRemoteSend;
+    } else if (kind.value() == "start_generation") {
+      res.kind = DisaggRequestKind::kStartGeneration;
     } else {
       return TResult::Error("Unknown disaggregation request kind " + kind.value());
     }
@@ -125,16 +125,16 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const picojson::object& config) {
 picojson::object DisaggConfig::AsJSON() const {
   picojson::object config;
   switch (kind) {
-    case DisaggRequestKind::kPreparePrefill: {
-      config["kind"] = picojson::value("prepare_prefill");
+    case DisaggRequestKind::kPrepareReceive: {
+      config["kind"] = picojson::value("prepare_receive");
       break;
     }
-    case DisaggRequestKind::kRemotePrefill: {
-      config["kind"] = picojson::value("remote_prefill");
+    case DisaggRequestKind::kRemoteSend: {
+      config["kind"] = picojson::value("remote_send");
       break;
     }
-    case DisaggRequestKind::kStartDecode: {
-      config["kind"] = picojson::value("start_decode");
+    case DisaggRequestKind::kStartGeneration: {
+      config["kind"] = picojson::value("start_generation");
       break;
     }
     default:

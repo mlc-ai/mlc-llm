@@ -122,11 +122,10 @@ Array<EngineAction> CreateEngineActions(
   if (model_metadata.disaggregation) {
     // Insert the disaggregation actions.
     Array<EngineAction> disaggregation_actions = {
-        EngineAction::DisaggPreparePrefill(models, engine_config, model_configs, trace_recorder,
+        EngineAction::DisaggPrepareReceive(models, engine_config, model_configs, trace_recorder,
                                            request_stream_callback),
-        EngineAction::NewRequestPrefillWithKVSend(models, model_workspaces, engine_config,
-                                                  model_configs, trace_recorder,
-                                                  request_stream_callback, device)};
+        EngineAction::DisaggRemoteSend(models, model_workspaces, engine_config, model_configs,
+                                       trace_recorder, request_stream_callback, device)};
     actions.insert(actions.begin(), disaggregation_actions.begin(), disaggregation_actions.end());
   }
   return actions;
@@ -302,11 +301,11 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
       }
     }
 
-    // - For all disaggregation requests with "remote_prefill",
+    // - For all disaggregation requests with "remote_send",
     // if it does not appear in the waiting queue, it means the prefill has been finished.
     // In this case, we mark the request as finished.
     if (request->generation_cfg->debug_config.disagg_config.kind ==
-        DisaggRequestKind::kRemotePrefill) {
+        DisaggRequestKind::kRemoteSend) {
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
       if (it == estate->waiting_queue.end()) {
         CHECK_EQ(rstate->entries.size(), 1);
