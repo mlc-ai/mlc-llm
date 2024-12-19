@@ -102,7 +102,7 @@ class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 raise ValueError(f"'clip_qkv'({self.clip_qkv}) should be non-negative")
 
 
-class OLMoEebedding(nn.Embedding):
+class OLMoEmbedding(nn.Embedding):
     """The embedding module that can be shared with the final lm_head. From Qwen2Embedding."""
 
     def lm_head_forward(self, x: nn.Tensor):
@@ -248,7 +248,7 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
 class OLMoModel(nn.Module):  # pylint: disable=missing-class-docstring
     def __init__(self, config: OLMoConfig):
         assert config.hidden_size % config.num_attention_heads == 0
-        self.embed_tokens = OLMoEebedding(config.vocab_size, config.hidden_size)
+        self.embed_tokens = OLMoEmbedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
             [OLMoDecoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
