@@ -19,6 +19,7 @@ from . import (
     llama,
     llava,
     mistral,
+    nemotron,
     oasst,
     olmo,
     orion,

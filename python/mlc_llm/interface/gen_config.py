@@ -310,4 +310,5 @@ CONV_TEMPLATES = {
     "deepseek_v2",
     "deepseek",
     "olmo",
+    "nemotron",
 }
