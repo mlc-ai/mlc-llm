@@ -10,6 +10,7 @@ from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .bert import bert_loader, bert_model, bert_quantization
+from .jina import jina_loader, jina_model, jina_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .cohere import cohere_loader, cohere_model, cohere_quantization
 from .deepseek import deepseek_loader, deepseek_model, deepseek_quantization
@@ -580,6 +581,18 @@ MODELS: Dict[str, Model] = {
             "ft-quant": nemotron_quantization.ft_quant,
             "awq": nemotron_quantization.awq_quant,
             "per-tensor-quant": nemotron_quantization.per_tensor_quant,
+        },
+    ),
+    "jina": Model(
+        name="jina",
+        model=jina_model.JinaModel,
+        config=jina_model.JinaConfig,
+        source={
+            "huggingface-torch": jina_loader.huggingface,
+            "huggingface-safetensor": jina_loader.huggingface,
+        },
+        quantize={
+            "no-quant": jina_quantization.no_quant,
         },
     ),
 }
