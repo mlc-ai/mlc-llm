@@ -172,6 +172,7 @@ class ChatCompletionStreamResponseChoice {
   // TODO: logprobs
 
   picojson::object AsJSON() const;
+  static Result<ChatCompletionStreamResponseChoice> FromJSON(const picojson::object& json_obj);
 };
 
 class ChatCompletionResponse {
@@ -198,6 +199,7 @@ class ChatCompletionStreamResponse {
   std::optional<picojson::value> usage;
 
   picojson::object AsJSON() const;
+  static Result<ChatCompletionStreamResponse> FromJSON(const std::string& json_str);
 };
 
 }  // namespace json_ffi
