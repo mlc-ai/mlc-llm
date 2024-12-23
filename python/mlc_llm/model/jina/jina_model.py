@@ -31,6 +31,7 @@ class JinaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     lora_alpha: float = 1.
     lora_num_task: int = 5
     lora_rank: int = 4
+    rotary_emb_base: float = 10000.0
     max_position_embeddings: int = 8194
     
     context_window_size: int = 0
@@ -149,12 +150,7 @@ class JinaEmbeddings(nn.Module):
             config.lora_alpha,
             config.lora_rank,
         )
-        
-        # RoPE 사용 시 position embedding은 필요 없음
-        
-        # type_vocab_size의 값은 항상 1
         type_vocab_size = 1
-
         self.token_type_embeddings = LoRAEmbedding(
             type_vocab_size,
             config.hidden_size,
@@ -166,12 +162,8 @@ class JinaEmbeddings(nn.Module):
 
     def forward(self, input_ids: Tensor, task_id: Tensor):
         words_embeddings = self.word_embeddings(input_ids, task_id)
-        
-        # position_embeddings = self.position_embeddings(position_ids)
-        
         token_type_ids = op.zeros(input_ids.shape, dtype="int32")
         token_type_embeddings = self.token_type_embeddings(token_type_ids, task_id)
-
         embeddings = words_embeddings + token_type_embeddings
         embeddings = self.layer_norm(embeddings)
         return embeddings
@@ -184,6 +176,7 @@ class JinaMultiHeadAttention(nn.Module):
                 f"Cannot split {config.num_attention_heads} attention heads"
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
+        self.rotary_emb_base = config.rotary_emb_base
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.hidden_size // self.num_heads
 
@@ -209,15 +202,10 @@ class JinaMultiHeadAttention(nn.Module):
         d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
 
-        # Calculate qkv
         qkv = self.qkv(hidden_states, task_id)
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
-        q_rot, k_rot, v = llama_rope(qkv, s, 20000., 1., h, h, {})
-
-        # Attention
+        q_rot, k_rot, v = llama_rope(qkv, s, self.rotary_emb_base, 1., h, h, {})
         output = op_ext.attention(q_rot, k_rot, v, attention_mask, attn_score_scaling_factor=self.softmax_scale)
-
-        # Out projection
         output = self.out_proj(output, task_id)
 
         return output
