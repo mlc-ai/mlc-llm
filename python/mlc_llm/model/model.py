@@ -10,7 +10,6 @@ from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .bert import bert_loader, bert_model, bert_quantization
-from .jina import jina_loader, jina_model, jina_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
 from .cohere import cohere_loader, cohere_model, cohere_quantization
 from .deepseek import deepseek_loader, deepseek_model, deepseek_quantization
@@ -43,6 +42,10 @@ from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
 from .starcoder2 import starcoder2_loader, starcoder2_model, starcoder2_quantization
+
+# Custom
+from .jina import jina_loader, jina_model, jina_quantization
+from .bge import bge_loader, bge_model, bge_quantization
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -593,6 +596,20 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "no-quant": jina_quantization.no_quant,
+        },
+    ),
+    "bge": Model(
+        name="bge",
+        model=bge_model.BGEModel,
+        config=bge_model.BGEConfig,
+        source={
+            "huggingface-torch": bge_loader.huggingface,
+            "huggingface-safetensor": bge_loader.huggingface,
+        },
+        quantize={
+            "group-quant": bge_quantization.group_quant,
+            "ft-quant": bge_quantization.ft_quant,
+            "no-quant": bge_quantization.no_quant,
         },
     ),
 }
