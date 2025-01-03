@@ -321,6 +321,13 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
     NDArray buffer{nullptr};
     if (it != this->cached_buffers.end()) {
       buffer = Downcast<NDArray>((*it).second);
+      if (buffer_cache_key == "image") {
+        if (runtime::GetDataSize(*buffer.operator->()) <
+            runtime::GetDataSize(*host_array.operator->())) {
+          buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+          this->cached_buffers.Set(buffer_cache_key, buffer);
+        }
+      }
     } else {
       buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
       this->cached_buffers.Set(buffer_cache_key, buffer);

@@ -40,7 +40,8 @@ class LowBatchGemvSpecialize:  # pylint: disable=too-few-public-methods
                 symbolic_vars = set(
                     expr for shape in shapes for expr in shape if isinstance(expr, tir.Var)
                 )
-                assert len(symbolic_vars) == 1, symbolic_vars
+                if len(symbolic_vars) != 1:
+                    continue
                 gemm_mod = IRModule({})
                 gemm_mod["main"] = func
                 gemm_mod = dl.ApplyDefaultSchedule(
