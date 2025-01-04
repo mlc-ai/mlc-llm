@@ -21,7 +21,7 @@ namespace llm {
  * the variable where the calculated target width will be stored.
  */
 void CalculateResizeShape(tvm::runtime::NDArray image_data, std::string model_type,
-                          int& target_height, int& target_width);
+                          int* p_target_height, int* p_target_width);
 /*!
  * \brief Calculate the padding height and width for an image based on the input data and model
  * type. \param image_data The input image data as a TVM NDArray. \param model_type The type of the
@@ -29,8 +29,8 @@ void CalculateResizeShape(tvm::runtime::NDArray image_data, std::string model_ty
  * variable where the calculated padding height will be stored. \param pad_width Reference to the
  * variable where the calculated padding width will be stored.
  */
-void CalculatePadShape(tvm::runtime::NDArray image_data, std::string model_type, int& pad_height,
-                       int& pad_width);
+void CalculatePadShape(tvm::runtime::NDArray image_data, std::string model_type, int* p_pad_height,
+                       int* p_pad_width);
 
 /*!
  * \brief Calculate the cropping height and width for an image based on the input data and model
@@ -39,8 +39,8 @@ void CalculatePadShape(tvm::runtime::NDArray image_data, std::string model_type,
  * variable where the calculated cropping height will be stored. \param crop_width Reference to the
  * variable where the calculated cropping width will be stored.
  */
-void CalculateCropShape(tvm::runtime::NDArray image_data, std::string model_type, int& crop_height,
-                        int& crop_width);
+void CalculateCropShape(tvm::runtime::NDArray image_data, std::string model_type,
+                        int* p_crop_height, int* p_crop_width);
 
 }  // namespace llm
 }  // namespace mlc

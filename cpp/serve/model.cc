@@ -116,11 +116,11 @@ class ModelImpl : public ModelObj {
     CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
 
     int tmp_h = 0, tmp_w = 0;
-    CalculateResizeShape(image, this->model_type_, tmp_h, tmp_w);
+    CalculateResizeShape(image, this->model_type_, &tmp_h, &tmp_w);
     ShapeTuple resize_h = {tmp_h};
     ShapeTuple resize_w = {tmp_w};
 
-    CalculateCropShape(image, this->model_type_, tmp_h, tmp_w);
+    CalculateCropShape(image, this->model_type_, &tmp_h, &tmp_w);
     ShapeTuple crop_h = {tmp_h};
     ShapeTuple crop_w = {tmp_w};
 
