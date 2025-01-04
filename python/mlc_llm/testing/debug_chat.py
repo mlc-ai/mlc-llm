@@ -100,7 +100,11 @@ class DefaultDebugInstrument:
             return
         if self.first_inf_occurred:
             return
-        if name.startswith("vm.builtin.") and "attention_with_fused_qkv" not in name:
+        if (
+            name.startswith("vm.builtin.")
+            and "call_tir_dyn" not in name
+            and "attention_with_fused_qkv" not in name
+        ):
             return
 
         # Decide what to print or save about the function's arguments (where args[-1] is the
@@ -108,21 +112,22 @@ class DefaultDebugInstrument:
         func_name = f"f{self.counter}_{name}"
 
         # Write your own behavior below. For example, we can count the number of INF/NaN in args[-1]
-        num_nans = np.sum(np.isnan(args[-1].numpy()))
-        num_infs = np.sum(np.isinf(args[-1].numpy()))
-        if num_nans > 0:
-            print(f"{red(f'{func_name} has NaN')}: {num_nans}")
-            self.first_nan_occurred = True
-        if num_infs > 0:
-            print(f"{red(f'{func_name} has INF')}: {num_infs}")
-            self.first_inf_occurred = True
+        def _check_nan_inf(npy):
+            num_nans = np.sum(np.isnan(npy))
+            num_infs = np.sum(np.isinf(npy))
+            if num_nans > 0:
+                print(f"{red(f'{func_name} has NaN')}: {num_nans}")
+                self.first_nan_occurred = True
+            if num_infs > 0:
+                print(f"{red(f'{func_name} has INF')}: {num_infs}")
+                self.first_inf_occurred = True
 
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
             if isinstance(arg, tvm.nd.NDArray):
                 arg_dict[f"arg_{i}"] = arg.numpy()
-
+                _check_nan_inf(arg.numpy())
         np.savez(self.debug_out / f"{func_name}.npz", **arg_dict)
 
         self.counter += 1

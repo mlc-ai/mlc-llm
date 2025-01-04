@@ -13,6 +13,7 @@
 #include <fstream>
 
 #include "../support/json_parser.h"
+#include "../support/vlm_utils.h"
 #include "config.h"
 #include "logit_processor.h"
 
@@ -113,8 +114,19 @@ class ModelImpl : public ModelObj {
   ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("ImageEmbed");
     CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
+
+    int tmp_h = 0, tmp_w = 0;
+    CalculateResizeShape(image, this->model_type_, tmp_h, tmp_w);
+    ShapeTuple resize_h = {tmp_h};
+    ShapeTuple resize_w = {tmp_w};
+
+    CalculateCropShape(image, this->model_type_, tmp_h, tmp_w);
+    ShapeTuple crop_h = {tmp_h};
+    ShapeTuple crop_w = {tmp_w};
+
     auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
-    ObjectRef embeddings = ft_.image_embed_func_(image_dref_or_nd, params_);
+    ObjectRef embeddings =
+        ft_.image_embed_func_(image_dref_or_nd, resize_h, resize_w, crop_h, crop_w, params_);
     if (dst != nullptr) {
       CHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
@@ -1003,6 +1015,7 @@ class ModelImpl : public ModelObj {
         json::LookupOrDefault<int64_t>(config, "attention_sink_size", this->attention_sink_size_);
     this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
     this->vocab_size_ = json::Lookup<int64_t>(config, "vocab_size");
+    this->model_type_ = json::Lookup<std::string>(config, "model_type");
   }
 
   //----------------------------
@@ -1019,6 +1032,7 @@ class ModelImpl : public ModelObj {
   DLDataType hidden_states_dtype_;
   int vocab_size_ = -1;
   int image_embed_size_ = -1;
+  std::string model_type_;
   //----------------------------
   // TVM related states
   //----------------------------
