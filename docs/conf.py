@@ -13,7 +13,7 @@ autodoc_mock_imports = ["torch"]
 # General information about the project.
 project = "mlc-llm"
 author = "MLC LLM Contributors"
-copyright = "2023-2024, %s" % author
+copyright = "2023-2025, %s" % author
 
 # Version information.
 
@@ -56,7 +56,7 @@ templates_path = []
 
 html_static_path = []
 
-footer_copyright = "© 2023-2024 MLC LLM"
+footer_copyright = "© 2023-2025 MLC LLM"
 footer_note = " "
 
 html_logo = "_static/img/mlc-logo-with-text-landscape.svg"

@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/engine_actions/action.h
  * \brief The abstraction of actions (e.g., prefill/decode) that an
  * Engine can take at each time step.
