@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/engine_actions/batch_draft.cc
  */
 

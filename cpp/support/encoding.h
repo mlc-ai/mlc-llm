@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file support/encoding.h
  * \brief Encoding and decoding from/to UTF-8 and escape sequence to/from codepoints.
  */

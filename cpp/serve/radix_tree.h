@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/radix_tree.h
  */
 #ifndef MLC_LLM_SERVE_RADIX_TREE_H_

@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/engine.cc
  * \brief The implementation for runtime module of serving engine module in MLC LLM.
  */

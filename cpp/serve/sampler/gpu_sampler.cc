@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/sampler/gpu_sampler.cc
  * \brief The implementation for GPU sampler functions.
  */

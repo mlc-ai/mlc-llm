@@ -78,7 +78,7 @@ Please consider citing our project if you find it useful:
     author = {{MLC team}},
     title = {{MLC-LLM}},
     url = {https://github.com/mlc-ai/mlc-llm},
-    year = {2023-2024}
+    year = {2023-2025}
 }
 ```
 

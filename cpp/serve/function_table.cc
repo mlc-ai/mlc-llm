@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2023-2024 by Contributors
+ *  Copyright (c) 2023-2025 by Contributors
  * \file serve/function_table.cc
  * \brief The implementation of function table in serving for distributed inference.
  */

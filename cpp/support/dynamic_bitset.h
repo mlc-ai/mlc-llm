@@ -1,5 +1,5 @@
 /*!
- * Copyright (c) 2023-2024 by Contributors
+ * Copyright (c) 2023-2025 by Contributors
  * \file support/dynamic_bitset.h
  * \brief The header for utilities used in grammar-guided generation.
  */
