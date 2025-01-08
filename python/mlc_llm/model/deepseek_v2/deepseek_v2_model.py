@@ -229,7 +229,13 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
                 self.softmax_scale = self.softmax_scale * mscale * mscale
         self.rotary_emb = DeepseekV2YarnRotaryEmbedding(config)
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        layer_id: int,
+        query_positions: Tensor,
+    ):
         b, s, _ = hidden_states.shape
 
         if self.q_lora_rank is None:
@@ -260,7 +266,7 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             kv, [self.qk_nope_head_dim], axis=-1
         )  # (b, s, num_heads, qk_nope_head_dim), (b, s, num_heads, v_head_dim)
 
-        q_pe, k_pe = self.rotary_emb(q_pe, k_pe, paged_kv_cache.get_query_positions(s))
+        q_pe, k_pe = self.rotary_emb(q_pe, k_pe, query_positions)
 
         @T.prim_func
         def inplace_q(var_q: T.handle, var_pe: T.handle):
@@ -471,9 +477,15 @@ class DeepseekV2DecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        layer_id: int,
+        query_positions: Tensor,
+    ):
         out = self.input_layernorm(hidden_states)
-        out = self.self_attn(out, paged_kv_cache, layer_id)
+        out = self.self_attn(out, paged_kv_cache, layer_id, query_positions)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.post_attention_layernorm(hidden_states)
         out = self.mlp(out)  # type: ignore[operator]
@@ -499,8 +511,10 @@ class DeepseekV2Model(nn.Module):
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
+        print(f"inputs.shape = {inputs.shape}")
+        query_positions = paged_kv_cache.get_query_positions(inputs.shape[0] * inputs.shape[1])
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id, query_positions)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
