@@ -16,7 +16,7 @@ class PrepRecvRequest(CompletionRequest):
         The entries of this KV range will be allocated on the decode instance.
     """
 
-    kv_window_end: int
+    end: int
 
 
 class PrepRecvResponse(BaseModel):
@@ -24,9 +24,6 @@ class PrepRecvResponse(BaseModel):
 
     Attributes
     ----------
-    prompt_length : int
-        The length of the request prompt in tokens.
-
     prefix_matched_length : int
         The matched common prefix length on the decode instance when
         prefix cache is enabled, or 0 if there is no prefix cache.
@@ -34,10 +31,9 @@ class PrepRecvResponse(BaseModel):
     kv_append_metadata : str
         The metadata of the KV range on the destination decode instance.
     """
-
-    prompt_length: int
-    prefix_matched_length: int
+    
     kv_append_metadata: str
+    prefix_matched_length: int
 
 
 class RemoteSendRequest(CompletionRequest):
@@ -58,10 +54,10 @@ class RemoteSendRequest(CompletionRequest):
         The node group offset of the destination decode instance.
     """
 
-    kv_window_begin: int
-    kv_window_end: int
-    kv_append_metadata: str
-    dst_group_offset: int
+    begin: int
+    end: int
+    kv_addr_info: str
+    recv_rank: int
 
 
 class StartGenerateRequest(CompletionRequest):
@@ -73,4 +69,4 @@ class StartGenerateRequest(CompletionRequest):
         Denote the start of the KV range to prefill on the decode instance.
     """
 
-    kv_window_begin: int
+    begin: int
