@@ -67,6 +67,13 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
 
 .. toctree::
    :maxdepth: 1
+   :caption: Microserving API
+   :hidden:
+
+   microserving/tutorial.rst
+
+.. toctree::
+   :maxdepth: 1
    :caption: Community
    :hidden:
 
@@ -80,3 +87,4 @@ Check out :ref:`introduction-to-mlc-llm` for the introduction and tutorial of a 
    :hidden:
 
    privacy.rst
+

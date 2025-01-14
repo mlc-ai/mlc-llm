@@ -1,0 +1,542 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8">
+  <meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Implement LLM Cross-engine Orchestration Patterns &mdash; mlc-llm 0.1.0 documentation</title>
+  
+
+  
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/tabs.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <link rel="stylesheet" href="../_static/css/tlcpack_theme.css" type="text/css" />
+
+  
+  
+
+  
+  
+  
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+    
+    <script type="text/javascript" src="../_static/js/theme.js"></script>
+
+    
+    <script type="text/javascript" src="../_static/js/tlcpack_theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Community Guideline" href="../community/guideline.html" />
+    <link rel="prev" title="Install Wasm Build Environment" href="../install/emcc.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    
+<header class="header">
+    <div class="innercontainer">
+      <div class="headerInner d-flex justify-content-between align-items-center">
+          <div class="headerLogo">
+          </div>
+
+          <div id="headMenu" class="headerNav">
+            <button type="button" id="closeHeadMenu" class="navCloseBtn"><img src="../_static/img/close-icon.svg" alt="Close"></button>
+             <ul class="nav">
+                <li class="nav-item">
+                   <a class="nav-link" href=https://llm.mlc.ai/>Home</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://github.com/mlc-ai/mlc-llm>Github</a>
+                </li>
+                <li class="nav-item">
+                   <a class="nav-link" href=https://discord.gg/9Xpy2HGBuD>Discord Server</a>
+                </li>
+             </ul>
+               <div class="responsivetlcdropdown">
+                 <button type="button" class="btn-link">
+                   Other Resources
+                 </button>
+                 <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                 </ul>
+               </div>
+          </div>
+            <div class="responsiveMenuIcon">
+              <button type="button" id="menuBtn" class="btn-menu"><img src="../_static/img/menu-icon.svg" alt="Menu Icon"></button>
+            </div>
+
+            <div class="tlcDropdown">
+              <div class="dropdown">
+                <button type="button" class="btn-link dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Other Resources
+                </button>
+                <div class="dropdown-menu dropdown-menu-right">
+                  <ul>
+                     <li>
+                       <a href=https://mlc.ai/>MLC Course</a>
+                     </li>
+                     <li>
+                       <a href=https://blog.mlc.ai/>MLC Blog</a>
+                     </li>
+                     <li>
+                       <a href=https://webllm.mlc.ai/>Web LLM</a>
+                     </li>
+                  </ul>
+                </div>
+              </div>
+          </div>
+       </div>
+    </div>
+ </header>
+ 
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side fixed">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../index.html">
+          
+
+          
+            
+            <img src="../_static/mlc-logo-with-text-landscape.svg" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+                <div class="version">
+                  0.1.0
+                </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption" role="heading"><span class="caption-text">Get Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/quick_start.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../get_started/introduction.html">Introduction to MLC LLM</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build and Deploy Apps</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/webllm.html">WebLLM Javascript SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/rest.html">REST API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/cli.html">CLI</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/python_engine.html">Python API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ios.html">iOS Swift SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/android.html">Android SDK</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/ide_integration.html">IDE Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../deploy/mlc_chat_config.html">Customize MLC Chat Config</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Compile Models</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/convert_weights.html">Convert Model Weights</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/compile_models.html">Compile Model Libraries</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/package_libraries_and_weights.html">Package Libraries and Weights</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/define_new_models.html">Define New Model Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../compilation/configure_quantization.html">Configure Quantization</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/emcc.html">Install Wasm Build Environment</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Microserving API</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Implement LLM Cross-engine Orchestration Patterns</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../community/guideline.html">Community Guideline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../community/faq.html">Frequently Asked Questions</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Privacy</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../privacy.html">MLC Chat App Privacy</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      
+      <nav class="wy-nav-top" aria-label="top navigation" data-toggle="wy-nav-top">
+        
+            <div class="togglemenu">
+
+            </div>
+            <div class="nav-content">
+              <!-- mlc-llm -->
+              Table of Contents
+            </div>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
+        
+      <li>Implement LLM Cross-engine Orchestration Patterns</li>
+    
+    
+      
+      
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            
+              <a href="https://github.com/mlc-ai/mlc-llm/edit/main/docs/microserving/tutorial.rst" class="fa fa-github"> Edit on GitHub</a>
+            
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <section id="implement-llm-cross-engine-orchestration-patterns">
+<h1>Implement LLM Cross-engine Orchestration Patterns<a class="headerlink" href="#implement-llm-cross-engine-orchestration-patterns" title="Permalink to this heading">¶</a></h1>
+<p>In this tutorial, we will introduce how to implement LLM cross-engine
+orchestration patterns, like prefill-decode disaggregation, in MLC-LLM
+via microserving API. Aiming to make disaggregated serving programmable,
+MicroServing provides a new RISC-style approach to design LLM serving
+API at sub-request level. It enables programmable cross-engine serving
+patterns in a few lines of python code. For more information of
+microserving API, check out
+<a class="reference external" href="https://blog.mlc.ai/2025/01/07/microserving-llm-engines">https://blog.mlc.ai/2025/01/07/microserving-llm-engines</a>.</p>
+<p>Below is an example of prefill-decode disaggregation implementation. An
+LLM cross-engine orchestration pattern is implemented in a router, which
+dispatches original OpenAI-style completion requests to a chain of
+microserving API calls. In this code example, we create a subclass of
+Router (which includes wrappers for calling microserving APIs), and
+override <code class="docutils literal notranslate"><span class="pre">translate_request</span></code> function. The <code class="docutils literal notranslate"><span class="pre">translate_request</span></code>
+function takes in a request and a unique identifier of the request
+(<code class="docutils literal notranslate"><span class="pre">request_id</span></code>), and returns an AsyncGenerator of response. We launch
+the CustomRouter and 2 engines, each of which has tensor parallel degree
+2. Engine 0 is prefill engine and engine 1 is decode engine.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm.router</span> <span class="kn">import</span> <span class="n">Router</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.protocol</span> <span class="kn">import</span> <span class="n">openai_api_protocol</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.serve.entrypoints</span> <span class="kn">import</span> <span class="n">microserving_entrypoints</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.interface.router</span> <span class="kn">import</span> <span class="n">serve</span>
+
+<span class="kn">import</span> <span class="nn">aiohttp</span>
+
+<span class="k">class</span> <span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="k">pass</span>
+
+
+<span class="n">serve</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;/path/to/model&quot;</span><span class="p">,</span> <span class="c1"># replace this with actual path</span>
+    <span class="n">model_lib</span><span class="o">=</span><span class="s2">&quot;/path/to/model_lib&quot;</span><span class="p">,</span> <span class="c1"># replace this with actual path</span>
+    <span class="n">router_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">router_port</span><span class="o">=</span><span class="mi">9123</span><span class="p">,</span>
+    <span class="n">endpoint_hosts</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">],</span>
+    <span class="n">endpoint_ports</span><span class="o">=</span><span class="p">[</span><span class="mi">9124</span><span class="p">,</span><span class="mi">9125</span><span class="p">],</span>
+    <span class="n">endpoint_num_gpus</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span>
+    <span class="n">enable_prefix_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">router_type</span><span class="o">=</span><span class="n">CustomRouter</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>In the <code class="docutils literal notranslate"><span class="pre">translate_request</span></code> function, we first assign <code class="docutils literal notranslate"><span class="pre">request_id</span></code> to
+request.user, and later the request id will be passed as an argument to
+the microserving API.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># we will pass request_id as an argument in microserving API calls</span>
+<span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">request_id</span>
+</pre></div>
+</div>
+<p>Next, call <code class="docutils literal notranslate"><span class="pre">prep_recv</span></code> on the decode engine to prepare KV entries for
+receiving from remote. <code class="docutils literal notranslate"><span class="pre">end=-1</span></code> means that we will let the prefill
+engine prefill all except the last token, which makes sure that the
+prefill engine does not need sampling logic. <code class="docutils literal notranslate"><span class="pre">prep_recv</span></code> returns
+address to receive KV from remote and matched prefix length. For
+simplicity, we do not enable prefix cache in the tutorial, so we only
+need the kv address here.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">(</span>
+    <span class="n">timeout</span><span class="o">=</span><span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientTimeout</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="mi">3</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">),</span> <span class="n">trust_env</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+    <span class="n">decode_start</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">prompt</span><span class="p">)</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="c1"># 1. Ask decode engine to prepare KV entries to receive from prefill engine</span>
+    <span class="n">prep_recv_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">PrepRecvRequest</span><span class="p">(</span>
+        <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span> <span class="n">end</span><span class="o">=</span><span class="n">decode_start</span>
+    <span class="p">)</span>
+    <span class="p">(</span>
+        <span class="n">kv_addr_info</span><span class="p">,</span>
+        <span class="n">_</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_prepare_receive</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">request</span><span class="o">=</span><span class="n">prep_recv_request</span><span class="p">,</span>
+        <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="c1"># engine 0 is prefill, engine 1 is decode. Here is decode engine</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<p>Then, call <code class="docutils literal notranslate"><span class="pre">remote_send</span></code> on the prefill engine to compute and send KV
+to decode engine. <code class="docutils literal notranslate"><span class="pre">recv_rank=self.device_id_starts[1]</span></code> means that we
+are sending KV to engine 1 (decode engine).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># 2. Ask prefill engine to send KV to decode engine</span>
+<span class="n">remote_send_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">RemoteSendRequest</span><span class="p">(</span>
+    <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+    <span class="n">begin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">end</span><span class="o">=</span><span class="n">decode_start</span><span class="p">,</span>
+    <span class="n">kv_addr_info</span><span class="o">=</span><span class="n">kv_addr_info</span><span class="p">,</span>
+    <span class="n">recv_rank</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device_id_starts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="c1"># the rank of decode engine</span>
+<span class="p">)</span>
+<span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_remote_send</span><span class="p">(</span>
+    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+    <span class="n">request</span><span class="o">=</span><span class="n">remote_send_request</span><span class="p">,</span>
+    <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="c1"># prefill engine</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Finally, call <code class="docutils literal notranslate"><span class="pre">start_generate</span></code> on the decode engine to start
+generating tokens. <code class="docutils literal notranslate"><span class="pre">begin=decode_start</span></code> means we will prefill the last
+token in the prompt and start decoding. Notably, the decode process of
+the request may be preempted. In such case, we yield None, so that the
+router will rerun the <code class="docutils literal notranslate"><span class="pre">translate_request</span></code> function.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># 3. Start decoding</span>
+<span class="n">start_generate_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">StartGenerateRequest</span><span class="p">(</span>
+    <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+    <span class="n">begin</span><span class="o">=</span><span class="n">decode_start</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_start_generate</span><span class="p">(</span>
+    <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+    <span class="n">request</span><span class="o">=</span><span class="n">start_generate_request</span><span class="p">,</span>
+    <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+<span class="p">):</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">finish_reason</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">finish_reason</span>
+        <span class="k">if</span> <span class="n">finish_reason</span> <span class="o">==</span> <span class="s2">&quot;preempt&quot;</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="kc">None</span>
+    <span class="k">yield</span> <span class="n">response</span>
+</pre></div>
+</div>
+<p>Bringing everything together, the complete code is as below:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">mlc_llm.router</span> <span class="kn">import</span> <span class="n">Router</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.protocol</span> <span class="kn">import</span> <span class="n">openai_api_protocol</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">AsyncGenerator</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.serve.entrypoints</span> <span class="kn">import</span> <span class="n">microserving_entrypoints</span>
+<span class="kn">from</span> <span class="nn">mlc_llm.interface.router</span> <span class="kn">import</span> <span class="n">serve</span>
+
+<span class="kn">import</span> <span class="nn">aiohttp</span>
+<span class="k">class</span> <span class="nc">CustomRouter</span><span class="p">(</span><span class="n">Router</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span> <span class="nf">translate_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionRequest</span><span class="p">,</span> <span class="n">request_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="n">AsyncGenerator</span><span class="p">[</span><span class="n">openai_api_protocol</span><span class="o">.</span><span class="n">CompletionResponse</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+        <span class="c1"># we will pass request_id as an argument in microserving API calls</span>
+        <span class="n">request</span><span class="o">.</span><span class="n">user</span> <span class="o">=</span> <span class="n">request_id</span>
+
+        <span class="k">async</span> <span class="k">with</span> <span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientSession</span><span class="p">(</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="n">aiohttp</span><span class="o">.</span><span class="n">ClientTimeout</span><span class="p">(</span><span class="n">total</span><span class="o">=</span><span class="mi">3</span> <span class="o">*</span> <span class="mi">3600</span><span class="p">),</span> <span class="n">trust_env</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span> <span class="k">as</span> <span class="n">session</span><span class="p">:</span>
+            <span class="n">decode_start</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">prompt</span><span class="p">)</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="c1"># 1. Ask decode engine to prepare KV entries to receive from prefill engine</span>
+            <span class="n">prep_recv_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">PrepRecvRequest</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span> <span class="n">end</span><span class="o">=</span><span class="n">decode_start</span>
+            <span class="p">)</span>
+            <span class="p">(</span>
+                <span class="n">kv_addr_info</span><span class="p">,</span>
+                <span class="n">_</span><span class="p">,</span>
+            <span class="p">)</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_prepare_receive</span><span class="p">(</span>
+                <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+                <span class="n">request</span><span class="o">=</span><span class="n">prep_recv_request</span><span class="p">,</span>
+                <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="c1"># engine 0 is prefill, engine 1 is decode. Here is decode engine</span>
+            <span class="p">)</span>
+            <span class="c1"># 2. Ask prefill engine to send KV to decode engine</span>
+            <span class="n">remote_send_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">RemoteSendRequest</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+                <span class="n">begin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">end</span><span class="o">=</span><span class="n">decode_start</span><span class="p">,</span>
+                <span class="n">kv_addr_info</span><span class="o">=</span><span class="n">kv_addr_info</span><span class="p">,</span>
+                <span class="n">recv_rank</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">device_id_starts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="c1"># the rank of decode engine</span>
+            <span class="p">)</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_remote_send</span><span class="p">(</span>
+                <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+                <span class="n">request</span><span class="o">=</span><span class="n">remote_send_request</span><span class="p">,</span>
+                <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="c1"># prefill engine</span>
+            <span class="p">)</span>
+            <span class="c1"># 3. Start decoding</span>
+            <span class="n">start_generate_request</span> <span class="o">=</span> <span class="n">microserving_entrypoints</span><span class="o">.</span><span class="n">StartGenerateRequest</span><span class="p">(</span>
+                <span class="o">**</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+                <span class="n">begin</span><span class="o">=</span><span class="n">decode_start</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">async</span> <span class="k">for</span> <span class="n">response</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">send_start_generate</span><span class="p">(</span>
+                <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+                <span class="n">request</span><span class="o">=</span><span class="n">start_generate_request</span><span class="p">,</span>
+                <span class="n">server_url</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">server_urls</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="p">):</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">)</span> <span class="o">&amp;</span><span class="n">gt</span><span class="p">;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">finish_reason</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">choices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">finish_reason</span>
+                    <span class="k">if</span> <span class="n">finish_reason</span> <span class="o">==</span> <span class="s2">&quot;preempt&quot;</span><span class="p">:</span>
+                        <span class="k">yield</span> <span class="kc">None</span>
+                <span class="k">yield</span> <span class="n">response</span>
+
+
+<span class="n">serve</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">&quot;/path/to/model&quot;</span><span class="p">,</span> <span class="c1"># replace this with actual path</span>
+    <span class="n">model_lib</span><span class="o">=</span><span class="s2">&quot;/path/to/model_lib&quot;</span><span class="p">,</span> <span class="c1"># replace this with actual path</span>
+    <span class="n">router_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">router_port</span><span class="o">=</span><span class="mi">9123</span><span class="p">,</span>
+    <span class="n">endpoint_hosts</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">],</span>
+    <span class="n">endpoint_ports</span><span class="o">=</span><span class="p">[</span><span class="mi">9124</span><span class="p">,</span><span class="mi">9125</span><span class="p">],</span>
+    <span class="n">endpoint_num_gpus</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span>
+    <span class="n">enable_prefix_cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">router_type</span><span class="o">=</span><span class="n">CustomRouter</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+           </div>
+           
+          </div>
+          
+
+<footer>
+
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="../community/guideline.html" class="btn btn-neutral float-right" title="Community Guideline" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+        <a href="../install/emcc.html" class="btn btn-neutral float-left" title="Install Wasm Build Environment" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+
+<div id="button" class="backtop"><img src="../_static/img/right.svg" alt="backtop"/> </div>
+<section class="footerSec">
+    <div class="footerHeader">
+      <div class="d-flex align-md-items-center justify-content-between flex-column flex-md-row">
+        <div class="copywrite d-flex align-items-center">
+          <h5 id="copy-right-info">© 2023-2025 MLC LLM</h5>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div class="footernote"> </div>
+    </div>
+
+</section>
+</footer>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+
+  </body>
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
