@@ -34,7 +34,7 @@ the CustomRouter and 2 engines, each of which has tensor parallel degree
    class CustomRouter(Router):
        async def translate_request(self, request: openai_api_protocol.CompletionRequest, request_id: str) -&gt; AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
            pass
-                   
+
 
    serve(
        model="/path/to/model", # replace this with actual path
@@ -56,7 +56,7 @@ the microserving API.
 
    # we will pass request_id as an argument in microserving API calls
    request.user = request_id
-           
+
 
 Next, call ``prep_recv`` on the decode engine to prepare KV entries for
 receiving from remote. ``end=-1`` means that we will let the prefill
@@ -145,7 +145,7 @@ Bringing everything together, the complete code is as below:
        async def translate_request(self, request: openai_api_protocol.CompletionRequest, request_id: str) -&gt; AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
            # we will pass request_id as an argument in microserving API calls
            request.user = request_id
-           
+
            async with aiohttp.ClientSession(
                timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
            ) as session:
@@ -190,7 +190,7 @@ Bringing everything together, the complete code is as below:
                        if finish_reason == "preempt":
                            yield None
                    yield response
-                   
+
 
    serve(
        model="/path/to/model", # replace this with actual path
