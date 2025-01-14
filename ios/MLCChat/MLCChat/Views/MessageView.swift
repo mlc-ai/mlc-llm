@@ -10,9 +10,9 @@ struct MessageView: View {
     let role: MessageRole;
     let message: String
     let isMarkdownSupported: Bool
-    
+
     @State private var showMarkdown: Bool
-    
+
     init(role: MessageRole, message: String, isMarkdownSupported: Bool = true) {
         self.role = role
         self.message = message
@@ -22,7 +22,7 @@ struct MessageView: View {
     var body: some View {
         let textColor = role.isUser ? Color.white : Color(UIColor.label)
         let background = role.isUser ? Color.blue : Color(UIColor.secondarySystemBackground)
-        
+
         HStack {
             if role.isUser {
                 Spacer()
@@ -44,7 +44,7 @@ struct MessageView: View {
                         }
                         .padding(.bottom, 10)
                     }
-                    
+
                     // Conditionally display Text or Markdown
                     if showMarkdown {
                         Markdown {

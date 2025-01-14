@@ -52,7 +52,7 @@ Once you have launched the Server, you can use the API in your own program to se
    choices = r.json()["choices"]
    for choice in choices:
       print(f"{choice['message']['content']}\n")
-      
+
 Run CLI with Multi-GPU
 ----------------------
 
@@ -433,6 +433,3 @@ Function Calling with streaming is also supported. Below is an example on how to
 
 .. note::
    The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.
-
-
-

@@ -26,7 +26,7 @@ do
    *)
                           echo "$script: illegal option $1"
                           usage
-						                  exit 1 # error
+                                          exit 1 # error
                           ;;
     esac
     shift

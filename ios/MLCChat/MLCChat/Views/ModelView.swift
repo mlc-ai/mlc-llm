@@ -13,7 +13,7 @@ struct ModelView: View {
     @Binding var isRemoving: Bool
 
     @State private var isShowingDeletionConfirmation: Bool = false
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             if (modelState.modelDownloadState == .finished) {
@@ -60,7 +60,7 @@ struct ModelView: View {
                     Image(systemName: "exclamationmark.triangle")
                         .foregroundColor(.red)
                 }
-                
+
                 if isRemoving {
                     Button(role: .destructive) {
                         isShowingDeletionConfirmation = true

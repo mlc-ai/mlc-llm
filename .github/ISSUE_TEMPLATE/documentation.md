@@ -13,5 +13,5 @@ assignees: ''
 <!-- Please leave your general suggestion to our documentation here. -->
 
 ### Bug
-- Link to the buggy documentation/tutorial: 
+- Link to the buggy documentation/tutorial:
 - Description of the bug:

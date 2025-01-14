@@ -6,5 +6,6 @@ set -x
 : ${GPU:="cpu"}
 
 black --diff --check --workers $NUM_THREADS \
-	./python/ \
-	./tests/python
+    ./python/ \
+    ./tests/python \
+    ./examples/python

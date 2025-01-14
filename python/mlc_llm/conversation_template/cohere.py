@@ -1,4 +1,5 @@
 """Cohere default templates"""
+
 # pylint: disable=line-too-long
 
 # Referred from: https://huggingface.co/CohereForAI/aya-23-8B/blob/main/tokenizer_config.json

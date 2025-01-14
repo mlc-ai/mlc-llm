@@ -5,7 +5,7 @@ import { PromptTemplate } from "langchain/prompts";
 import {TextLoader } from "langchain/document_loaders/fs/text";
 import { loadQAStuffChain } from "langchain/chains";
 
-const color = { 
+const color = {
     PURPLE : '\x1b[95m',
     CYAN : '\x1b[96m',
     DARKCYAN : '\x1b[36m',
@@ -25,14 +25,14 @@ function print(str: string) {
 const newline = () => {
     print('\n');
 }
-  
+
   const chat = new OpenAI( {
       openAIApiKey: "empty",
-      temperature: 0 
+      temperature: 0
     },   {
         basePath: 'http://127.0.0.1:8000/v1'
     });
- 
+
 // Conversational LLMChain example
   const memory = new BufferWindowMemory({ memoryKey: "history", k: 1 });
 
@@ -61,7 +61,7 @@ const newline = () => {
   newline();
   print(color.GREEN + res.text + color.END);
   newline();
-  
+
 // Question and answer stuff chain example with text loader
 const loader = new TextLoader('../resources/linux.txt');
 const documents = await loader.load();
@@ -72,4 +72,3 @@ print(color.BOLD + "Query: " + color.END + color.BLUE + query + color.END);
 newline();
 const result = await schain.call({ input_documents: documents,  question: query});
 print(color.BOLD + "Response: " + color.END +  color.GREEN + result.text  + color.END);
-

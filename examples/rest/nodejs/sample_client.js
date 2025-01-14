@@ -1,7 +1,7 @@
 import request from 'needle';
 
 ( async () => {
-const color = { 
+const color = {
     PURPLE : '\x1b[95m',
     CYAN : '\x1b[96m',
     DARKCYAN : '\x1b[36m',
@@ -68,7 +68,5 @@ r =  request.post( "http://127.0.0.1:8000/v1/chat/completions", payload, {json: 
     print(color.BOLD + "Runtime stats:" + color.END + txtresp.body);
 
 })
- 
+
 })()
-
-

@@ -267,8 +267,8 @@ fun MessageViewPreviewWithMarkdown() {
         messageData = MessageData(
             role = MessageRole.Assistant, text = """
 # Sample  Header
-* Markdown  
-* [Link](https://example.com)  
+* Markdown
+* [Link](https://example.com)
 <a href="https://www.google.com/">Google</a>
 """
         )

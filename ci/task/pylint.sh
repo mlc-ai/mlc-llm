@@ -15,3 +15,4 @@ fi
 
 pylint --jobs $NUM_THREADS ./python/
 pylint --jobs $NUM_THREADS --recursive=y ./tests/python/
+pylint --jobs $NUM_THREADS --recursive=y ./examples/python/
