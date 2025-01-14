@@ -124,15 +124,18 @@ class Router:  # pylint: disable=too-many-instance-attributes
         completed = False
         while not completed:
             completed = True
-            async for response in self.translate_request(
-                request, request_id
-            ):
+            async for response in self.translate_request(request, request_id):
                 if response is None:
                     completed = False
                     break
                 yield response
 
-    async def translate_request(self, request: openai_api_protocol.CompletionRequest, request_id: str) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+    async def translate_request(
+        self, request: openai_api_protocol.CompletionRequest, request_id: str
+    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+        """
+        Translate OpenAI API request to microserving API calls.
+        """
         if self.router_mode == "disagg":
             async for response in self._handle_completion_disagg(
                 request, request_id, pd_balance_factor=self.pd_balance_factor
@@ -171,9 +174,13 @@ class Router:  # pylint: disable=too-many-instance-attributes
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
+            # pylint: disable=fixme
             # todo: replace this with start_generate
+            # pylint: enable=fixme
             async with session.post(
-                self.server_urls[cur_endpoint]+"/v1/completions", json=payload, headers=self.headers
+                self.server_urls[cur_endpoint] + "/v1/completions",
+                json=payload,
+                headers=self.headers,
             ) as response:
                 assert response.status == 200, await response.text()
                 if payload["stream"]:
@@ -257,7 +264,9 @@ class Router:  # pylint: disable=too-many-instance-attributes
                 )
 
                 kv_window_end = (
-                    len(original_request.prompt) + kv_window_end if kv_window_end < 0 else kv_window_end
+                    len(original_request.prompt) + kv_window_end
+                    if kv_window_end < 0
+                    else kv_window_end
                 )
                 assert prefix_matched_length <= kv_window_end
 
@@ -305,14 +314,14 @@ class Router:  # pylint: disable=too-many-instance-attributes
         session: aiohttp.ClientSession,
         request: openai_api_protocol.CompletionRequest,
         server_url: str,
-    ) -> Tuple[int, str]:
+    ) -> Tuple[str, int]:
         """
         Performs step 1 of disaggregated serving: ask D to prepare metadata.
         Returns:
             The metadata received from D, which is a tuple of 2 elements:
+                - kv_append_metadata_base64: str, info about KV append encoded in base64 string
                 - prefix_matched_length: int, length of the matched prefix.
                     i.e. prompt[0:prefix_matched_length] is the matched prefix
-                - kv_append_metadata_base64: str, info about KV append encoded in base64 string
         """
         # Send request to the decode server for receive preparation.
         # Get the prompt length, matched prefix length and the KV metadata.

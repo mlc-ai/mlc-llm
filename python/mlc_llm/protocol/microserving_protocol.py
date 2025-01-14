@@ -31,7 +31,7 @@ class PrepRecvResponse(BaseModel):
     kv_append_metadata : str
         The metadata of the KV range on the destination decode instance.
     """
-    
+
     kv_append_metadata: str
     prefix_matched_length: int
 

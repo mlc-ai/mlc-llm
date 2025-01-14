@@ -25,7 +25,7 @@ def serve(
     enable_prefix_cache: bool,
     router_mode: Literal["disagg", "round-robin"] = "round-robin",
     pd_balance_factor: float = 0.0,
-    router_type: Type[Router] = Router
+    router_type: Type[Router] = Router,
 ):  # pylint: disable=too-many-arguments
     """Start the router with the specified configuration."""
     # 1. Instantiate router
