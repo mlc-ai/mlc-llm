@@ -2,7 +2,7 @@
 
 # pylint: disable=fixme
 from http import HTTPStatus
-from typing import AsyncGenerator, List, Literal, Optional
+from typing import AsyncGenerator, List, Literal, Optional, Type
 
 import fastapi
 import uvicorn
@@ -23,12 +23,13 @@ def serve(
     endpoint_ports: List[int],
     endpoint_num_gpus: List[int],
     enable_prefix_cache: bool,
-    router_mode: Literal["disagg", "round-robin"],
-    pd_balance_factor: float,
+    router_mode: Literal["disagg", "round-robin"] = "round-robin",
+    pd_balance_factor: float = 0.0,
+    router_type: Type[Router] = Router,
 ):  # pylint: disable=too-many-arguments
     """Start the router with the specified configuration."""
     # 1. Instantiate router
-    router = Router(
+    router = router_type(
         model=model,
         model_lib=model_lib,
         hosts=endpoint_hosts,

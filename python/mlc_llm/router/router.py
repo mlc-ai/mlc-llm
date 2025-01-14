@@ -118,6 +118,24 @@ class Router:  # pylint: disable=too-many-instance-attributes
         """
         if isinstance(request.prompt, str):
             request.prompt = self.tokenizer.encode(request.prompt)
+        # Add a debugConfig if not present
+        if request.debug_config is None:
+            request.debug_config = openai_api_protocol.DebugConfig()
+        completed = False
+        while not completed:
+            completed = True
+            async for response in self.translate_request(request, request_id):
+                if response is None:
+                    completed = False
+                    break
+                yield response
+
+    async def translate_request(
+        self, request: openai_api_protocol.CompletionRequest, request_id: str
+    ) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+        """
+        Translate OpenAI API request to microserving API calls.
+        """
         if self.router_mode == "disagg":
             async for response in self._handle_completion_disagg(
                 request, request_id, pd_balance_factor=self.pd_balance_factor
@@ -156,44 +174,43 @@ class Router:  # pylint: disable=too-many-instance-attributes
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
+            # pylint: disable=fixme
+            # todo: replace this with start_generate
+            # pylint: enable=fixme
             async with session.post(
-                self.server_urls[cur_endpoint], json=payload, headers=self.headers
+                self.server_urls[cur_endpoint] + "/v1/completions",
+                json=payload,
+                headers=self.headers,
             ) as response:
                 assert response.status == 200, await response.text()
-                completed = False
-                while not completed:
-                    if payload["stream"]:
-                        async for chunk in response.content:
-                            # Convert raw bytes to CompletionResponse
-                            chunk = chunk.strip()
-                            if not chunk or chunk == b"\n":
-                                continue
-                            # Get rid of the prefix "data: " and suffix "\n"
-                            raw_data = chunk[6:].strip()
-                            if raw_data == b"[DONE]":
-                                continue
-                            data = json.loads(raw_data)
-                            # Commented because we still want usage chunk to be passed back
-                            # if not data["choices"]:
-                            #     continue
-                            response = openai_api_protocol.CompletionResponse.model_validate(data)
-                            if response.choices:
-                                reason = response.choices[0].finish_reason
-                                if reason == "preempt":
-                                    break
-                                if reason is not None:
-                                    completed = True
-                            yield response
-                    else:
-                        data = await response.json()
+                if payload["stream"]:
+                    async for chunk in response.content:
+                        # Convert raw bytes to CompletionResponse
+                        chunk = chunk.strip()
+                        if not chunk or chunk == b"\n":
+                            continue
+                        # Get rid of the prefix "data: " and suffix "\n"
+                        raw_data = chunk[6:].strip()
+                        if raw_data == b"[DONE]":
+                            continue
+                        data = json.loads(raw_data)
+                        # Commented because we still want usage chunk to be passed back
+                        # if not data["choices"]:
+                        #     continue
                         response = openai_api_protocol.CompletionResponse.model_validate(data)
                         if response.choices:
                             reason = response.choices[0].finish_reason
                             if reason == "preempt":
-                                break
-                            if reason is not None:
-                                completed = True
+                                yield None
                         yield response
+                else:
+                    data = await response.json()
+                    response = openai_api_protocol.CompletionResponse.model_validate(data)
+                    if response.choices:
+                        reason = response.choices[0].finish_reason
+                        if reason == "preempt":
+                            yield None
+                    yield response
             self.num_running_requests[cur_endpoint] -= 1
 
     #
@@ -220,10 +237,6 @@ class Router:  # pylint: disable=too-many-instance-attributes
         prefill_server_id = 0
         decode_server_id = self._pick_endpoint(range(1, self.num_servers))
 
-        # Add a debugConfig if not present
-        if original_request.debug_config is None:
-            original_request.debug_config = openai_api_protocol.DebugConfig()
-
         # Tell D to prepare metadata for prompt[0:kv_window_end].
         # P does not need to sample. Ask D to treat the last
         # token like the first sampled token.
@@ -232,69 +245,65 @@ class Router:  # pylint: disable=too-many-instance-attributes
             if math.fabs(pd_balance_factor) < 1e-5
             else int((1 - pd_balance_factor) * len(original_request.prompt))
         )
-
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
             self.num_running_requests[decode_server_id] += 1
             try:
-                completed = False
-                while not completed:
-                    # 1. Ask D to prepare metadata
-                    prep_recv_request = microserving_entrypoints.PrepRecvRequest(
-                        **original_request.model_dump(), kv_window_end=kv_window_end
-                    )
-                    (
-                        prompt_length,
-                        prefix_matched_length,
-                        kv_append_metadata_base64,
-                    ) = await self.send_prepare_receive(
-                        session=session,
-                        request=prep_recv_request,
-                        server_url=self.server_urls[decode_server_id],
-                    )
+                # 1. Ask D to prepare metadata
+                prep_recv_request = microserving_entrypoints.PrepRecvRequest(
+                    **original_request.model_dump(), end=kv_window_end
+                )
+                (
+                    kv_append_metadata_base64,
+                    prefix_matched_length,
+                ) = await self.send_prepare_receive(
+                    session=session,
+                    request=prep_recv_request,
+                    server_url=self.server_urls[decode_server_id],
+                )
 
-                    kv_window_end = (
-                        prompt_length + kv_window_end if kv_window_end < 0 else kv_window_end
-                    )
-                    assert prefix_matched_length <= kv_window_end
+                kv_window_end = (
+                    len(original_request.prompt) + kv_window_end
+                    if kv_window_end < 0
+                    else kv_window_end
+                )
+                assert prefix_matched_length <= kv_window_end
 
-                    # 2. Send P the prefill request and D's metadata. When it returns, it means that
-                    # KV transfer has finished prefilling and transferring the KV of
-                    # prompt[prefix_matched_length:kv_window_end]. So D is ready to decode.
-                    if prefix_matched_length < kv_window_end:
-                        remote_send_request = microserving_entrypoints.RemoteSendRequest(
-                            **original_request.model_dump(),
-                            kv_window_begin=prefix_matched_length,
-                            kv_window_end=kv_window_end,
-                            kv_append_metadata=kv_append_metadata_base64,
-                            dst_group_offset=self.device_id_starts[decode_server_id],
-                        )
-                        await self.send_remote_send(
-                            session=session,
-                            request=remote_send_request,
-                            server_url=self.server_urls[prefill_server_id],
-                        )
-
-                    # 3. Start decoding, receive and yield back response as a normal request
-                    # The kv window passed through denotes the range to prefill on the
-                    # decode server, which should be [-1:] here.
-                    start_generate_request = microserving_entrypoints.StartGenerateRequest(
+                # 2. Send P the prefill request and D's metadata. When it returns, it means that
+                # KV transfer has finished prefilling and transferring the KV of
+                # prompt[prefix_matched_length:kv_window_end]. So D is ready to decode.
+                if prefix_matched_length < kv_window_end:
+                    remote_send_request = microserving_entrypoints.RemoteSendRequest(
                         **original_request.model_dump(),
-                        kv_window_begin=kv_window_end,
+                        begin=prefix_matched_length,
+                        end=kv_window_end,
+                        kv_addr_info=kv_append_metadata_base64,
+                        recv_rank=self.device_id_starts[decode_server_id],
                     )
-                    async for response in self.send_start_generate(
+                    await self.send_remote_send(
                         session=session,
-                        request=start_generate_request,
-                        server_url=self.server_urls[decode_server_id],
-                    ):
-                        if len(response.choices) > 0:
-                            finish_reason = response.choices[0].finish_reason
-                            if finish_reason == "preempt":
-                                break
-                            if finish_reason is not None:
-                                completed = True
-                        yield response
+                        request=remote_send_request,
+                        server_url=self.server_urls[prefill_server_id],
+                    )
+
+                # 3. Start decoding, receive and yield back response as a normal request
+                # The kv window passed through denotes the range to prefill on the
+                # decode server, which should be [-1:] here.
+                start_generate_request = microserving_entrypoints.StartGenerateRequest(
+                    **original_request.model_dump(),
+                    begin=kv_window_end,
+                )
+                async for response in self.send_start_generate(
+                    session=session,
+                    request=start_generate_request,
+                    server_url=self.server_urls[decode_server_id],
+                ):
+                    if len(response.choices) > 0:
+                        finish_reason = response.choices[0].finish_reason
+                        if finish_reason == "preempt":
+                            yield None
+                    yield response
             except Exception as e:
                 self.num_running_requests[decode_server_id] -= 1
                 raise e
@@ -305,15 +314,14 @@ class Router:  # pylint: disable=too-many-instance-attributes
         session: aiohttp.ClientSession,
         request: openai_api_protocol.CompletionRequest,
         server_url: str,
-    ) -> Tuple[int, int, str]:
+    ) -> Tuple[str, int]:
         """
         Performs step 1 of disaggregated serving: ask D to prepare metadata.
         Returns:
             The metadata received from D, which is a tuple of 2 elements:
-                - prompt_length, which is the raw prompt length of the request.
+                - kv_append_metadata_base64: str, info about KV append encoded in base64 string
                 - prefix_matched_length: int, length of the matched prefix.
                     i.e. prompt[0:prefix_matched_length] is the matched prefix
-                - kv_append_metadata_base64: str, info about KV append encoded in base64 string
         """
         # Send request to the decode server for receive preparation.
         # Get the prompt length, matched prefix length and the KV metadata.
@@ -326,9 +334,8 @@ class Router:  # pylint: disable=too-many-instance-attributes
             data = await response.json()
 
             return (
-                data["prompt_length"],
-                data["prefix_matched_length"],
                 data["kv_append_metadata"],
+                data["prefix_matched_length"],
             )
 
     async def send_remote_send(

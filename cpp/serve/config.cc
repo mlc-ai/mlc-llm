@@ -186,12 +186,13 @@ Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
   } else {
     return TResult::Error("Unknown grammar execution mode " + grammar_execution_mode);
   }
-  Result<DisaggConfig> disagg_config =
-      DisaggConfig::FromJSON(json::Lookup<picojson::object>(config, "disagg_config"));
-  if (disagg_config.IsErr()) {
-    return TResult::Error(disagg_config.UnwrapErr());
+  if (auto disagg_config_obj = json::LookupOptional<picojson::object>(config, "disagg_config")) {
+    Result<DisaggConfig> disagg_config = DisaggConfig::FromJSON(disagg_config_obj.value());
+    if (disagg_config.IsErr()) {
+      return TResult::Error(disagg_config.UnwrapErr());
+    }
+    res.disagg_config = disagg_config.Unwrap();
   }
-  res.disagg_config = disagg_config.Unwrap();
   return TResult::Ok(res);
 }
 
