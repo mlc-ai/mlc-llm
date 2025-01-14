@@ -1,19 +1,22 @@
-from langchain.chat_models import ChatOpenAI
 from langchain import LLMChain, PromptTemplate
-from langchain.memory import ConversationBufferWindowMemory
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.document_loaders import TextLoader, UnstructuredRSTLoader, DirectoryLoader
-from langchain.chains.question_answering import load_qa_chain
-from langchain.llms import OpenAI
-from langchain.text_splitter import CharacterTextSplitter
 from langchain.chains import RetrievalQA
+from langchain.chains.question_answering import load_qa_chain
+from langchain.chat_models import ChatOpenAI
+from langchain.document_loaders import (
+    DirectoryLoader,
+    TextLoader,
+    UnstructuredRSTLoader,
+)
+from langchain.llms import OpenAI
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.text_splitter import CharacterTextSplitter
 from langchain.vectorstores import Chroma
 
 # Note that Langchain support for embedding documents using MLC is currently blocked on
 # https://github.com/langchain-ai/langchain/pull/7815
 # We have subclassed `OpenAIEmbeddings` in the meantime to get around this dependency.
 from mlc_llm.contrib.embeddings.openai import MLCEmbeddings
-
 
 # First set the following in your environment:
 # export OPENAI_API_BASE=http://127.0.0.1:8000/v1

@@ -263,7 +263,7 @@ The output directory to save the calibration params.
     "seed_calibrate": """
 The seed to sample the calibration dataset.""",
     "pd_balance_factor": """
-How much prefill to move to decode engine. For example, 
+How much prefill to move to decode engine. For example,
 0.1 means the last 10 percent tokens are prefilled by decode engine.
     """.strip(),
 }

@@ -6,5 +6,6 @@ set -x
 : ${GPU:="cpu"}
 
 isort --check-only -j $NUM_THREADS --profile black \
-	./python/ \
-	./tests/python/
+    ./python/ \
+    ./tests/python/ \
+    ./examples/python

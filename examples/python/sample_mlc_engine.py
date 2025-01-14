@@ -1,7 +1,9 @@
+"""MLC Engine Python example."""
+
 from mlc_llm import MLCEngine
 
 # Create engine
-model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"
+model = "HF://mlc-ai/Llama-3-8B-Instruct-q4f16_1-MLC"  # pylint: disable=invalid-name
 engine = MLCEngine(model)
 
 # Run chat completion in OpenAI API.

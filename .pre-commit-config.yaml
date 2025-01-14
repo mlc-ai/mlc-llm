@@ -1,0 +1,60 @@
+# To use:
+#
+#     pre-commit run -a
+#
+# Or:
+#
+#     pre-commit install  # (runs every time you commit in git)
+#
+# To update this file:
+#
+#     pre-commit autoupdate
+#
+# See https://github.com/pre-commit/pre-commit
+# Note the pre-commit hooks shoule only be used for formatting, but not for linting.
+# For linting consider using CI.
+repos:
+  # Standard hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: requirements-txt-fixer
+      - id: trailing-whitespace
+
+  # Changes tabs to spaces
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.5
+    hooks:
+      - id: remove-tabs
+      - id: remove-crlf
+
+  # Formatters
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 24.8.0
+    hooks:
+      - id: black
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.1
+    hooks:
+      - id: clang-format
+        types_or: [c++, c, cuda]
+        exclude: |
+          (?x)^(.*cubin.cpp$ | .*fmha_cubin.h | 3rdparty/.*)$
+
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        additional_dependencies: [pyyaml>=5.1]

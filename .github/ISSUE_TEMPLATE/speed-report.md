@@ -15,7 +15,7 @@ assignees: ''
 
 
 - The model configuration (e.g. quantization mode, running data type, etc.):
-- Device (e.g. MacBook Pro M2, PC+RTX 3080): 
+- Device (e.g. MacBook Pro M2, PC+RTX 3080):
 - OS (if applicable):
 - Encode speed (Token/s):
 - Decode speed (Token/s):

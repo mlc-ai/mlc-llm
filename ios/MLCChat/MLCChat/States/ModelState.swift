@@ -82,22 +82,22 @@ final class ModelState: ObservableObject, Identifiable {
             displayName: modelConfig.modelID!.components(separatedBy: "-")[0]
         )
     }
-    
+
     func handleStart() {
         // start downloading
         switchToDownloading()
     }
-    
+
     func handlePause() {
         // pause downloading
         switchToPausing()
     }
-    
+
     func handleClear() {
         assert(modelDownloadState == .downloading || modelDownloadState == .paused || modelDownloadState == .finished)
         switchToClearing()
     }
-    
+
     func handleDelete() {
         assert(modelDownloadState == .downloading || modelDownloadState == .paused || modelDownloadState == .finished || modelDownloadState == .failed)
         switchToDeleting()

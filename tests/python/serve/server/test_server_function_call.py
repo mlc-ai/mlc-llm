@@ -1,7 +1,7 @@
 # pylint: disable=line-too-long
 """
 Test script for function call in chat completion. To run this script, use the following command:
-MLC_SERVE_MODEL_LIB=dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so 
+MLC_SERVE_MODEL_LIB=dist/gorilla-openfunctions-v1-q4f16_1_MLC/gorilla-openfunctions-v1-q4f16_1-cuda.so
 MLC_SERVE_MODEL_LIB=${MLC_SERVE_MODEL_LIB} python -m pytest -x tests/python/serve/server/test_server_function_call.py
 """
 

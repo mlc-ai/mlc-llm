@@ -11,7 +11,7 @@ const configuration = new Configuration({
 const openai = new OpenAIApi(configuration);
 let model = "vicuna-v1-7b"
 
-const color = { 
+const color = {
     PURPLE : '\x1b[95m',
     CYAN : '\x1b[96m',
     DARKCYAN : '\x1b[36m',
@@ -47,7 +47,7 @@ print(color.GREEN + completion.data.choices[0].message.content + color.END)
 newline();  newline();
 
 
-// Chat completion example with streaming  
+// Chat completion example with streaming
 // (raw implementation since npm module does not support it yet - it will have support in upcoming 4.x)
 
 print(color.BOLD + "OpenAI chat completion example with streaming:" + color.END);
@@ -73,5 +73,5 @@ completion.data.on('close', async ()  => {
     print(color.GREEN + res.data.choices[0].text + color.END);
     newline();  newline();
 
-    });       
+    });
 })()

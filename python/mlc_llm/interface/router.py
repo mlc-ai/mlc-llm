@@ -18,7 +18,7 @@ def serve(
     model: str,
     model_lib: Optional[str],
     router_host: str,
-    router_port: str,
+    router_port: int,
     endpoint_hosts: List[str],
     endpoint_ports: List[int],
     endpoint_num_gpus: List[int],

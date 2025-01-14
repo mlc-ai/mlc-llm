@@ -194,4 +194,3 @@ class Completions(
         return create(request)
     }
 }
-

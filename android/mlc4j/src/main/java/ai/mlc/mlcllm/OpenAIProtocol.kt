@@ -223,4 +223,3 @@ class OpenAIProtocol {
         val schema: String? = null
     )
 }
-

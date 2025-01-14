@@ -1,7 +1,8 @@
-import requests
 import argparse
 import re
 from pathlib import Path
+
+import requests
 
 
 def find_urls_in_file(file_path):
@@ -19,12 +20,8 @@ def find_urls_in_file(file_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Check validity of links in documentation"
-    )
-    parser.add_argument(
-        "--directory", type=str, default="docs", help="Directory of documentation."
-    )
+    parser = argparse.ArgumentParser(description="Check validity of links in documentation")
+    parser.add_argument("--directory", type=str, default="docs", help="Directory of documentation.")
     args = parser.parse_args()
 
     # traversal the directory and find all rst files
