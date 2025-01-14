@@ -118,10 +118,13 @@ class Router:  # pylint: disable=too-many-instance-attributes
         """
         if isinstance(request.prompt, str):
             request.prompt = self.tokenizer.encode(request.prompt)
+        # Add a debugConfig if not present
+        if request.debug_config is None:
+            request.debug_config = openai_api_protocol.DebugConfig()
         completed = False
         while not completed:
             completed = True
-            async for response in self.pick_strategy(
+            async for response in self.translate_request(
                 request, request_id
             ):
                 if response is None:
@@ -129,7 +132,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
                     break
                 yield response
 
-    async def pick_strategy(self, request: openai_api_protocol.CompletionRequest, request_id: str) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
+    async def translate_request(self, request: openai_api_protocol.CompletionRequest, request_id: str) -> AsyncGenerator[openai_api_protocol.CompletionResponse, Any]:
         if self.router_mode == "disagg":
             async for response in self._handle_completion_disagg(
                 request, request_id, pd_balance_factor=self.pd_balance_factor
@@ -168,8 +171,9 @@ class Router:  # pylint: disable=too-many-instance-attributes
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=3 * 3600), trust_env=True
         ) as session:
+            # todo: replace this with start_generate
             async with session.post(
-                self.server_urls[cur_endpoint], json=payload, headers=self.headers
+                self.server_urls[cur_endpoint]+"/v1/completions", json=payload, headers=self.headers
             ) as response:
                 assert response.status == 200, await response.text()
                 if payload["stream"]:
@@ -225,10 +229,6 @@ class Router:  # pylint: disable=too-many-instance-attributes
         # Arbitrarily determine server 0 is P, other servers are D
         prefill_server_id = 0
         decode_server_id = self._pick_endpoint(range(1, self.num_servers))
-
-        # Add a debugConfig if not present
-        if original_request.debug_config is None:
-            original_request.debug_config = openai_api_protocol.DebugConfig()
 
         # Tell D to prepare metadata for prompt[0:kv_window_end].
         # P does not need to sample. Ask D to treat the last
