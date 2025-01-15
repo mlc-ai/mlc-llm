@@ -47,6 +47,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # tvm runtime config: minimize runtime components
 set(USE_RPC OFF)
 set(USE_MICRO OFF)
+# set(USE_VULKAN ON)
 set(USE_GRAPH_EXECUTOR OFF)
 set(USE_GRAPH_EXECUTOR_DEBUG OFF)
 set(USE_AOT_EXECUTOR OFF)
@@ -183,3 +184,16 @@ else()
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib${LIB_SUFFIX})
 endif()
+
+add_executable(llm_benchmark cpp/llm_benchmark.cpp)
+
+target_include_directories(llm_benchmark PRIVATE
+    ${TVM_SOURCE_DIR}/include
+    ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
+    ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
+    ${TVM_SOURCE_DIR}/3rdparty/picojson
+    ${TOKENZIER_CPP_PATH}/include
+)
+target_link_libraries(llm_benchmark PUBLIC mlc_llm_module)
+
+# target_link_libraries(tvm PRIVATE log)
