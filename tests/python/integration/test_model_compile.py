@@ -114,6 +114,9 @@ def test_model_compile():  # pylint: disable=too-many-locals
                 if not target.startswith("cuda") and quant == "q4f16_ft":
                     # FasterTransformer only works with cuda
                     continue
+                if "deepseek_v2" in model and "32" in quant:
+                    # Skip f32 for deepseek v2 model for now.
+                    continue
                 log_file = os.path.join(tmp_dir, f"lib{idx}.log")
                 cmd = [
                     sys.executable,
