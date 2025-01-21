@@ -36,10 +36,10 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
-# Deepseek V3
+# DeepSeek-R1-Distill-Qwen
 ConvTemplateRegistry.register_conv_template(
     Conversation(
-        name="deepseek_v3",
+        name="deepseek_r1_qwen",
         system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
         system_message="You are a helpful assistant.",
         roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
@@ -47,5 +47,19 @@ ConvTemplateRegistry.register_conv_template(
         role_content_sep="",
         role_empty_sep="",
         stop_token_ids=[151643],
+    )
+)
+
+# DeepSeek-R1-Distill-Llama, exactly the same as DeepSeek-R1-Distill-Qwen, but different stop token
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="deepseek_r1_llama",
+        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
+        system_message="You are a helpful assistant.",
+        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
+        seps=["", "<｜end▁of▁sentence｜>"],
+        role_content_sep="",
+        role_empty_sep="",
+        stop_token_ids=[128001],
     )
 )
