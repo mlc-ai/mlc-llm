@@ -187,7 +187,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dataset-path",
         type=str,
-        required=True,
         help="The dataset file path.",
     )
     parser.add_argument(
