@@ -51,8 +51,11 @@ class LogMessage(RequestProcessor):  # pylint: disable=too-few-public-methods
 class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-methods
     """The processor that samples requests out from the given request list."""
 
-    def __init__(self, num_requests: int) -> None:
+    def __init__(self, num_requests: int, take_first_x_requests: bool = False) -> None:
         self.num_requests = num_requests
+        # If `take_first_x_requests` is True, the first `num_requests` requests
+        # are returned and sampling will not happen.
+        self.take_first_x_requests = take_first_x_requests
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         assert len(request_records) > 0, "Empty input request record."
@@ -69,12 +72,20 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
         self, request_records: List[RequestRecord]
     ) -> List[RequestRecord]:
         samples: List[RequestRecord] = []
-        while len(samples) < self.num_requests:
-            # Create a new list so that the in-place shuffle does not mutate the input list.
-            records = list(request_records)
-            random.shuffle(records)
-            samples += copy.deepcopy(records)
-        samples = samples[: self.num_requests]
+        if self.take_first_x_requests:
+            if len(request_records) < self.num_requests:
+                raise ValueError(
+                    f"Insufficient requests. Requiring {self.num_requests} requests "
+                    f"but only {len(request_records)} are available."
+                )
+            samples = copy.deepcopy(list(request_records[: self.num_requests]))
+        else:
+            while len(samples) < self.num_requests:
+                # Create a new list so that the in-place shuffle does not mutate the input list.
+                records = list(request_records)
+                random.shuffle(records)
+                samples += copy.deepcopy(records)
+            samples = samples[: self.num_requests]
         for i, record in enumerate(samples):
             record.request_id = i
         return samples
@@ -95,7 +106,8 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
 
         # Create a new list so that the in-place shuffle does not mutate the input list.
         records = list(grouped_request_records)
-        random.shuffle(records)
+        if not self.take_first_x_requests:
+            random.shuffle(records)
         remaining = self.num_requests
         samples: List[RequestRecord] = []
         for grouped_request_record in grouped_request_records:
@@ -180,6 +192,22 @@ class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public
             request_record.chat_cmpl.tool_choice = "none"
             if self.ignore_eos:
                 request_record.chat_cmpl.debug_config = DebugConfig(ignore_eos=True)
+        return request_records
+
+
+class ScaleTimestamp(RequestProcessor):  # pylint: disable=too-few-public-methods
+    """Scale the timestamp of requests by the given scale factor."""
+
+    def __init__(self, timestamp_scale: float):
+        self.timestamp_scale = timestamp_scale
+
+    def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
+        for request_record in request_records:
+            if request_record.timestamp is None:
+                raise ValueError(
+                    f"The timestamp of request {request_record} has not been initialized."
+                )
+            request_record.timestamp *= self.timestamp_scale
         return request_records
 
 
@@ -463,7 +491,6 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         disable_tqdm: bool,
         max_schedule_gap: float,
         num_requests: int,
-        request_rate: Optional[np.float32] = None,
     ) -> None:
         if num_processes is None:
             # We assign each process at most 32 requests to send
@@ -472,7 +499,6 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         super().__init__(f_create_api_endpoint, num_processes, disable_tqdm)
         self.max_schedule_gap = max_schedule_gap
         self.num_requests = num_requests
-        self.request_rate = request_rate
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         assert len(request_records) > 0
@@ -574,7 +600,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         )
 
 
-def create_pipelines(
+def create_pipelines(  # pylint: disable=too-many-branches
     args: argparse.Namespace, f_create_api_endpoint: Callable[[], APIEndPoint], dataset: Dataset
 ) -> List[RequestProcessor]:
     """Creating request processing pipelines with regard to the specified args."""
@@ -585,6 +611,10 @@ def create_pipelines(
             raise ValueError(
                 'Both "num_concurrent_requests" and "request_rate" are specified. '
                 "Please specify only one of them."
+            )
+        if args.replay_timestamp_scale is not None:
+            raise ValueError(
+                "Dataset replay is unsupported when fixing number of concurrent requests."
             )
         for num_concurrent_requests in args.num_concurrent_requests:
             num_warmup_requests = (
@@ -622,6 +652,8 @@ def create_pipelines(
                 "Please specify the number of warmup requests via "
                 '"--num-warmup-requests" when fixing request rate.'
             )
+        if args.replay_timestamp_scale is not None:
+            raise ValueError("Dataset replay is unsupported when fixing request rates.")
         num_total_requests = int(
             args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
         )
@@ -649,7 +681,6 @@ def create_pipelines(
                         args.disable_tqdm,
                         args.max_schedule_gap,
                         args.num_requests,
-                        request_rate,
                     ),
                     cuda_profile_url=cuda_profile_url,
                     fake_warmup=dataset.require_fake_warmup,
@@ -657,7 +688,48 @@ def create_pipelines(
             )
             for request_rate in args.request_rate
         ]
-    raise ValueError(
-        'Unable to create executor. Please specify one of "num_concurrent_requests" '
-        'and "request_rate".'
-    )
+
+    # Default: dataset replay mode
+    # The dataset must come with timestamps.
+    if not dataset.timestamp_available:
+        raise ValueError(
+            "The dataset does not have timestamps, so dataset replay is unsupported. "
+            'Please specify one of "num_concurrent_requests" '
+            'and "request_rate".'
+        )
+    if args.per_gpu_workload:
+        raise ValueError("Fixing per-GPU workload is not compatible with dataset replay.")
+    if args.num_warmup_requests is None:
+        raise ValueError(
+            "Please specify the number of warmup requests via "
+            '"--num-warmup-requests" for dataset replay.'
+        )
+    timestamp_scale = args.replay_timestamp_scale or 1.0
+    if dataset.require_fake_warmup:
+        num_samples = args.num_requests
+    else:
+        num_samples = args.num_requests + args.num_warmup_requests
+    return [
+        SequentialProcessor(
+            LogMessage(f"Dataset replay with time scaling of {timestamp_scale}"),
+            SampleRequests(num_samples, take_first_x_requests=True),
+            AttachModelName(args.tokenizer),
+            ScaleTimestamp(timestamp_scale),
+            AttachStreamFlag(args.stream),
+            AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
+            AttachExecutionFeature({"timestamp_scale": timestamp_scale}),
+            WarmupAndRun(
+                num_warmup_requests=args.num_warmup_requests,
+                num_benchmark_requests=args.num_requests,
+                pipeline=FixTimestampExecutor(
+                    f_create_api_endpoint,
+                    args.num_process_workers,
+                    args.disable_tqdm,
+                    args.max_schedule_gap,
+                    args.num_requests,
+                ),
+                cuda_profile_url=cuda_profile_url,
+                fake_warmup=dataset.require_fake_warmup,
+            ),
+        )
+    ]
