@@ -3,9 +3,11 @@
 import argparse
 import json
 import random
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd  # pylint: disable=import-error
 from datasets import load_dataset  # pylint: disable=import-error
 from transformers import AutoTokenizer  # pylint: disable=import-error
 
@@ -25,6 +27,10 @@ class Dataset:  # pylint: disable=too-few-public-methods
     # For some that datasets (e.g., dataset that has shared common prefix),
     # we need fake warmup requests to avoid prefilling common prefixes to the engine.
     require_fake_warmup: bool = False
+    # Whether the dataset contains timestamps already.
+    # If the dataset comes with timestamps, the benchmark can just replay
+    # the requests according to their timestamps.
+    timestamp_available: bool = False
 
     def generate_request_records(
         self,
@@ -702,6 +708,93 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
         return request_records
 
 
+class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-methods
+    """The dataset class for AzureLLMInference dataset.
+    Reference: https://github.com/Azure/AzurePublicDataset
+    """
+
+    timestamp_available: bool = True
+
+    def __init__(self, dataset_path: str, tokenizer: AutoTokenizer) -> None:
+        df = pd.read_csv(dataset_path)
+        self.tokenizer = tokenizer
+
+        # Filter out the conversations with less than 2 turns.
+        self.dataset = [
+            (
+                entry["TIMESTAMP"],
+                min(entry["ContextTokens"], tokenizer.model_max_length, self.truncate_length),
+                min(entry["GeneratedTokens"], tokenizer.model_max_length, self.truncate_length),
+            )
+            for _, entry in df.iterrows()
+            if entry["ContextTokens"] >= 4 and entry["GeneratedTokens"] >= 4
+        ]
+
+    def generate_request_records(  # pylint: disable=too-many-locals
+        self,
+        input_len: Optional[int],
+        output_len: Optional[int],
+        input_len_std: float = 0.0,
+        output_len_std: float = 0.0,
+    ) -> List[RequestRecord]:
+        time_fmt = "%Y-%m-%d %H:%M:%S.%f"
+        start_time = datetime.strptime(self.dataset[0][0][:-1], time_fmt)
+        request_records = []
+        for timestamp, input_length, output_length in self.dataset:
+            # If the request does not have enough length, discard it.
+            if input_len is not None and input_length < input_len + 4 * input_len_std:
+                continue
+
+            if input_len is not None:
+                input_length = round(
+                    float(np.random.normal(loc=input_len, scale=input_len_std, size=1)[0])
+                )
+            if output_len is not None:
+                output_length = round(
+                    float(np.random.normal(loc=output_len, scale=output_len_std, size=1)[0])
+                )
+            elif output_length <= 1:
+                continue
+
+            prompt_token_ids = [
+                random.randint(0, self.tokenizer.vocab_size - 1) for _ in range(input_length)
+            ]
+            while True:
+                # Adjust the token ids until the retokenization on the decoded string
+                # matches the required input length.
+                prompt = self.tokenizer.decode(prompt_token_ids)
+                retokenized_token_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
+                if len(retokenized_token_ids) < input_length:
+                    prompt_token_ids = retokenized_token_ids + [
+                        random.randint(0, self.tokenizer.vocab_size - 1)
+                        for _ in range(input_length - len(retokenized_token_ids))
+                    ]
+                elif len(retokenized_token_ids) > input_length:
+                    prompt_token_ids = retokenized_token_ids[:input_length]
+                else:
+                    break
+
+            time_diff = (datetime.strptime(timestamp[:-1], time_fmt) - start_time).total_seconds()
+            request_records.append(
+                RequestRecord(
+                    chat_cmpl=ChatCompletionRequest(
+                        messages=[{"role": "user", "content": prompt}],
+                        model="",
+                        max_tokens=output_length,
+                    ),
+                    timestamp=time_diff,
+                    metrics=Metrics(
+                        success=False,
+                        start_time=0,
+                        finish_time=0,
+                        end_to_end_latency_s=0,
+                        input_tokens=input_length,
+                    ),
+                )
+            )
+        return request_records
+
+
 SUPPORTED_DATASET = [
     "sharegpt",
     "llmperf",
@@ -709,12 +802,17 @@ SUPPORTED_DATASET = [
     "loogle",
     "react",
     "wildchat",
+    "azure-llm-inference",
 ]
 
 
-def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Dataset":
+def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branches
+    args: argparse.Namespace, tokenizer: AutoTokenizer
+) -> Dataset:
     """Create a dataset instance with regard to the specified dataset kind and file path."""
-    if args.dataset is None:
+    if args.dataset_path is not None and not isinstance(args.dataset_path, str):
+        raise TypeError(f"Invalid dataset path {args.dataset_path}. Please use a string.")
+    if args.dataset is None and args.dataset_path is not None:
         # Auto-detect the dataset kind by looking into the dataset path.
         if "sharegpt" in args.dataset_path.lower():
             args.dataset = "sharegpt"
@@ -724,8 +822,16 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
                 'Please specify the dataset kind via "--dataset".'
             )
     if args.dataset == "sharegpt":
+        if args.dataset_path is None:
+            raise ValueError(
+                'ShareGPT dataset requires dataset path. Please specify it with "--dataset-path".'
+            )
         return ShareGPTDataset(args.dataset_path, tokenizer, args.apply_chat_template)
     if args.dataset == "llmperf":
+        if args.dataset_path is None:
+            raise ValueError(
+                'LLMPerf dataset requires dataset path. Please specify it with "--dataset-path".'
+            )
         assert (
             args.apply_chat_template is False
         ), "LLMPerf dataset does not support applying chat template"
@@ -738,15 +844,33 @@ def create_dataset(args: argparse.Namespace, tokenizer: AutoTokenizer) -> "Datas
         ), "JSON mode evaluation does not support applying chat template"
         return JSONModeEvalDataset(tokenizer)
     if args.dataset == "loogle":
+        if args.dataset_path is None:
+            raise ValueError(
+                'Loogle dataset requires a testset name. Please specify it with "--dataset-path".'
+            )
         assert (
             args.apply_chat_template is False
         ), "Loogle dataset does not support applying chat template"
         return LoogleDataset(tokenizer, testset_name=args.dataset_path)
     if args.dataset == "react":
+        if args.dataset_path is None:
+            raise ValueError(
+                'ReAct dataset requires dataset path. Please specify it with "--dataset-path".'
+            )
         assert (
             args.apply_chat_template is False
         ), "ReAct dataset does not support applying chat template"
         return ReActDataset(args.dataset_path, tokenizer)
     if args.dataset == "wildchat":
         return WildChatDataset(tokenizer, args.apply_chat_template)
+    if args.dataset == "azure-llm-inference":
+        if args.dataset_path is None:
+            raise ValueError(
+                "AzureLLMInference dataset requires dataset path. "
+                'Please specify it with "--dataset-path".'
+            )
+        assert (
+            args.apply_chat_template is False
+        ), "AzureLLMInference dataset does not support applying chat template"
+        return AzureLLMInferenceDataset(args.dataset_path, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")

@@ -248,6 +248,14 @@ if __name__ == "__main__":
         'If it is "inf", all requests will be sent together at once.',
     )
     parser.add_argument(
+        "--replay-timestamp-scale",
+        type=float,
+        help="The timestamp scale when replaying the timestamps in a dataset. "
+        'The dataset replay mode is enabled when neither "--num-concurrent-requests" and '
+        '"--request-rate" is specified. '
+        "The scale is 1 by default in the replay mode.",
+    )
+    parser.add_argument(
         "--input-len",
         type=int,
         help="The benchmark request average input length. Default to None, "
