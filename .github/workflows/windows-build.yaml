@@ -25,7 +25,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: 'recursive'
-    - uses: conda-incubator/setup-miniconda@v2
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         activate-environment: mlc-llm-build
         channel-priority: strict
