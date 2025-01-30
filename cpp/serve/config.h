@@ -12,6 +12,7 @@
 
 #include <optional>
 
+#include "../base.h"
 #include "../metadata/model.h"
 #include "../support/result.h"
 
@@ -219,7 +220,7 @@ enum class PrefillMode : int {
 class InferrableEngineConfig;
 
 /*! \brief The configuration of engine execution config. */
-class EngineConfigNode : public Object {
+class MLC_LLM_DLL EngineConfigNode : public Object {
  public:
   /*************** Models ***************/
 
