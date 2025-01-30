@@ -33,8 +33,7 @@ void printHelp() {
       << "  --model-lib         [optional] the full path to the model library file to use\n"
       << "  --device            (default: auto)\n"
       << "  --with-prompt       [optional] runs one session with given prompt\n"
-      << "  --help              [optional] Tool usage information\n"
-      ;
+      << "  --help              [optional] Tool usage information\n";
 }
 
 // Method to parse the args

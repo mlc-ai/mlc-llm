@@ -70,8 +70,9 @@ std::function<void(const std::string&)> EngineStateCli::get_request_stream_callb
 }
 
 std::string EngineStateCli::handle_chat_completion(tvm::runtime::Module mod,
-                                                const std::string& request_json, bool include_usage,
-                                                const std::string& request_id) {
+                                                   const std::string& request_json,
+                                                   bool include_usage,
+                                                   const std::string& request_id) {
   // Clear the queue making sure that queue is empty
   // Not really required since this process should ideally make the queue empty
   {
