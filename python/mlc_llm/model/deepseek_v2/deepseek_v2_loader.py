@@ -117,6 +117,43 @@ def huggingface(model_config: DeepseekV2Config, quantization: Quantization) -> E
                 ),
             )
 
+        # map MLA kv_b_proj weight
+        attn = f"model.layers.{i}.self_attn"
+        mapping.add_mapping(
+            f"{attn}.w_uk",
+            [f"{attn}.kv_b_proj.weight"],
+            functools.partial(
+                lambda kv_b_proj, dtype: np.split(
+                    kv_b_proj.reshape(
+                        model_config.num_key_value_heads,
+                        model_config.qk_nope_head_dim + model_config.v_head_dim,
+                        model_config.kv_lora_rank,
+                    ),
+                    indices_or_sections=[model_config.qk_nope_head_dim],
+                    axis=1,
+                )[0]
+                .transpose(0, 2, 1)
+                .astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
+        mapping.add_mapping(
+            f"{attn}.w_uv",
+            [f"{attn}.kv_b_proj.weight"],
+            functools.partial(
+                lambda kv_b_proj, dtype: np.split(
+                    kv_b_proj.reshape(
+                        model_config.num_key_value_heads,
+                        model_config.qk_nope_head_dim + model_config.v_head_dim,
+                        model_config.kv_lora_rank,
+                    ),
+                    indices_or_sections=[model_config.qk_nope_head_dim],
+                    axis=1,
+                )[1].astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
+
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
