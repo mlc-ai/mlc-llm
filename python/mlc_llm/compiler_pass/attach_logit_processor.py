@@ -28,9 +28,9 @@ class AttachLogitProcessFunc:  # pylint: disable=too-few-public-methods
         """Entrypoint"""
         mod = mod.clone()
         if str(self.target.kind) == "llvm":
-            mod["apply_logit_bias_inplace"] = _get_apply_logit_bias_inplace_cpu(self.target)
-            mod["apply_penalty_inplace"] = _get_apply_penalty_inplace_cpu(self.target)
-            mod["apply_bitmask_inplace"] = _get_apply_bitmask_inplace_cpu(self.target)
+            mod["apply_logit_bias_inplace"] = _get_apply_logit_bias_inplace_cpu()
+            mod["apply_penalty_inplace"] = _get_apply_penalty_inplace_cpu()
+            mod["apply_bitmask_inplace"] = _get_apply_bitmask_inplace_cpu()
         else:
             mod["apply_logit_bias_inplace"] = _get_apply_logit_bias_inplace(self.target)
             mod["apply_penalty_inplace"] = _get_apply_penalty_inplace(self.target)
@@ -38,7 +38,7 @@ class AttachLogitProcessFunc:  # pylint: disable=too-few-public-methods
         return mod
 
 
-def _get_apply_logit_bias_inplace_cpu(target: tvm.target.Target):
+def _get_apply_logit_bias_inplace_cpu():
     @T.prim_func
     def _apply_logit_bias_inplace(
         var_logits: T.handle,
@@ -110,7 +110,7 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
     return _apply_logit_bias_inplace
 
 
-def _get_apply_penalty_inplace_cpu(target: tvm.target.Target):
+def _get_apply_penalty_inplace_cpu():
     @T.prim_func
     def _apply_penalty_inplace(  # pylint: disable=too-many-arguments,too-many-locals
         var_logits: T.handle,
@@ -209,7 +209,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
     return _apply_penalty_inplace
 
 
-def _get_apply_bitmask_inplace_cpu(target: tvm.target.Target):
+def _get_apply_bitmask_inplace_cpu():
     @T.prim_func
     def _apply_bitmask_inplace(
         var_logits: T.handle,

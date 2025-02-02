@@ -555,7 +555,7 @@ class CPUSampler : public SamplerObj {
   NDArray CopyProbsToCPU(NDArray probs_on_device) {
     // probs_on_device: (n, v)
     if (probs_on_device->device.device_type == kDLCPU) {
-        return probs_on_device;
+      return probs_on_device;
     }
 
     ICHECK(probs_on_device->device.device_type != kDLCPU);

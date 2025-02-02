@@ -246,5 +246,4 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
 
     if target.kind.name == "llvm":
         return chunk_lse, sch.mod["softmax_with_chunked_sum"]
-    else:
-        return apply_gpu_schedule(target, sch)
+    return apply_gpu_schedule(target, sch)
