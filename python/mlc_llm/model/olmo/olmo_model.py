@@ -450,7 +450,7 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic(
+        return PagedKVCache.create_generic_mha(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
