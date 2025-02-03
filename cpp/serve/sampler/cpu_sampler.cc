@@ -554,6 +554,10 @@ class CPUSampler : public SamplerObj {
   /*! \brief Copy prob distributions from device to CPU. */
   NDArray CopyProbsToCPU(NDArray probs_on_device) {
     // probs_on_device: (n, v)
+    if (probs_on_device->device.device_type == kDLCPU) {
+      return probs_on_device;
+    }
+
     ICHECK(probs_on_device->device.device_type != kDLCPU);
     if (probs_host_.defined()) {
       ICHECK_EQ(probs_host_->shape[1], probs_on_device->shape[1]);

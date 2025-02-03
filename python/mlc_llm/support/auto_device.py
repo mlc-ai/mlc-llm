@@ -13,7 +13,7 @@ from .style import bold, green, red
 
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
-AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan", "opencl"]
+AUTO_DETECT_DEVICES = ["cpu", "cuda", "rocm", "metal", "vulkan", "opencl"]
 _RESULT_CACHE: Dict[str, bool] = {}
 
 

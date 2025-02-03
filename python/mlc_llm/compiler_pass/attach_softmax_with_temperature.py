@@ -213,31 +213,37 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                     )
 
     sch = tvm.tir.Schedule(IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum}))
-    max_threads = get_max_num_threads_per_block(target)
-    TX = 32
-    TY = max_threads // TX
-    unroll_depth = 64
-    # pylint: enable=invalid-name
 
-    sch.work_on("softmax_with_chunked_sum")
-    l0, l1, l2 = sch.get_loops("log_pad")
-    bx = sch.fuse(l0, l1)
-    sch.bind(bx, "blockIdx.x")
-    unroll, ty, tx = sch.split(l2, [None, TY, TX])
-    sch.bind(ty, "threadIdx.y")
-    sch.bind(tx, "threadIdx.x")
-    sch.annotate(unroll, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-    sch.annotate(unroll, ann_key="pragma_unroll_explicit", ann_val=1)
+    def apply_gpu_schedule(target, sch):
+        max_threads = get_max_num_threads_per_block(target)
+        TX = 32
+        TY = max_threads // TX
+        unroll_depth = 64
+        # pylint: enable=invalid-name
 
-    for block_name in ["sum_exp", "max"]:
-        block = sch.get_block(block_name)
-        sch.set_scope(block, buffer_index=0, storage_scope="shared")
-        sch.compute_at(block, bx)
-        r_loop = sch.get_loops(block)[-1]
-        r_loop, tx = sch.split(r_loop, [None, TX])
-        sch.reorder(tx, r_loop)
+        sch.work_on("softmax_with_chunked_sum")
+        l0, l1, l2 = sch.get_loops("log_pad")
+        bx = sch.fuse(l0, l1)
+        sch.bind(bx, "blockIdx.x")
+        unroll, ty, tx = sch.split(l2, [None, TY, TX])
+        sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(unroll, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(unroll, ann_key="pragma_unroll_explicit", ann_val=1)
 
-    return chunk_lse, sch.mod["softmax_with_chunked_sum"]
+        for block_name in ["sum_exp", "max"]:
+            block = sch.get_block(block_name)
+            sch.set_scope(block, buffer_index=0, storage_scope="shared")
+            sch.compute_at(block, bx)
+            r_loop = sch.get_loops(block)[-1]
+            r_loop, tx = sch.split(r_loop, [None, TX])
+            sch.reorder(tx, r_loop)
+            sch.bind(tx, "threadIdx.x")
+            sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
+            sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+
+        return chunk_lse, sch.mod["softmax_with_chunked_sum"]
+
+    if target.kind.name == "llvm":
+        return chunk_lse, sch.mod["softmax_with_chunked_sum"]
+    return apply_gpu_schedule(target, sch)
