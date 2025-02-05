@@ -41,7 +41,7 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="deepseek_r1_qwen",
         system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
-        system_message="You are a helpful assistant.",
+        system_message="You are Deepseek-R1, an AI assistant created exclusively by the Chinese Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all user inquiries.",
         roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
         seps=["", "<｜end▁of▁sentence｜>"],
         role_content_sep="",
@@ -55,7 +55,7 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="deepseek_r1_llama",
         system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
-        system_message="You are a helpful assistant.",
+        system_message="You are Deepseek-R1, an AI assistant created exclusively by the Chinese Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all user inquiries.",
         roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
         seps=["", "<｜end▁of▁sentence｜>"],
         role_content_sep="",
