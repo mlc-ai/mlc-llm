@@ -13,7 +13,7 @@ from tvm.relax.frontend.nn.llm import position_embedding
 from tvm.script import tir as T
 
 from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import PagedKVCache
 from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
@@ -282,8 +282,6 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         )  # (b, s, 1, kv_lora_rank), (b, s, 1, qk_rope_head_dim)
 
         compressed_kv = self.kv_a_layernorm(compressed_kv)
-        k_nope = compressed_kv  # (b, s, 1, kv_lora_rank)
-        value_states = compressed_kv  # (b, s, 1, kv_lora_rank)
 
         q_pe, k_pe = self.rotary_emb(q_pe, k_pe, query_positions)
 
@@ -303,28 +301,9 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         query_states = op.tensor_expr_op(
             concat_nope_pe(num_heads=self.num_heads), "concat_q", [q_nope, q_pe]
         )  # (b, s, num_heads, kv_lora_rank + qk_rope_head_dim)
-        key_states = op.tensor_expr_op(
-            concat_nope_pe(num_heads=1), "concat_k", [k_nope, k_pe]
-        )  # (b, s, 1, kv_lora_rank + qk_rope_head_dim)
-        value_states = op.pad(
-            value_states, [0, 0, 0, 0, 0, 0, 0, self.qk_rope_head_dim]
-        )  # (b, s, 1, kv_lora_rank + qk_rope_head_dim)
 
-        qkv = op.concat(
-            [query_states, key_states, value_states], dim=2
-        )  # (b, s, num_heads + 2, kv_lora_rank + qk_rope_head_dim)
-        output, _ = op.split(
-            paged_kv_cache.attention_with_fused_qkv(
-                layer_id,
-                qkv,
-                self.num_heads,
-                self.softmax_scale
-                * math.sqrt(
-                    self.kv_lora_rank + self.qk_rope_head_dim
-                ),  # This is to cancel out the 1/sqrt(d) in normal attention
-            ),
-            indices_or_sections=[self.kv_lora_rank],
-            axis=-1,
+        output = paged_kv_cache.mla_absorbed(
+            layer_id, query_states, compressed_kv, k_pe, self.softmax_scale
         )  # (b, s, num_heads, kv_lora_rank)
         output = (
             op.matmul(
@@ -645,7 +624,9 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
         self.kv_lora_rank = config.kv_lora_rank
+        self.qk_nope_head_dim = config.qk_nope_head_dim
         self.qk_rope_head_dim = config.qk_rope_head_dim
+        self.v_head_dim = config.v_head_dim
         self.rms_norm_eps = config.rms_norm_eps
         self.rope_theta = config.rope_theta
         self.vocab_size = config.vocab_size
@@ -724,7 +705,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic(
+        return PagedKVCache.create_generic_mla(
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -732,11 +713,11 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             support_sliding_window=support_sliding_window,
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            num_key_value_heads=1,
-            head_dim=self.kv_lora_rank + self.qk_rope_head_dim,
-            rope_mode=RopeMode.NONE,
-            rope_scale=1,
-            rope_theta=self.rope_theta,
+            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
+            qk_nope_head_dim=self.qk_nope_head_dim,
+            qk_rope_head_dim=self.qk_rope_head_dim,
+            v_head_dim=self.v_head_dim,
+            kv_lora_rank=self.kv_lora_rank,
             dtype=self.dtype,
         )
 

@@ -15,7 +15,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
     """The Paged KV Cache used in LLM batching for efficient attention computation."""
 
     @staticmethod
-    def create_generic(  # pylint: disable=too-many-locals
+    def create_generic_mha(  # pylint: disable=too-many-locals
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -36,7 +36,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
         enable_disaggregation: bool = False,
         name: str = "paged_kv_cache",
     ) -> "PagedKVCache":
-        """The generic function of creating a PagedKVCache,
+        """The generic function of creating a multi-head attention PagedKVCache,
         which will be rewritten by functions in compilation pipeline.
         """
         if rotary_dim is None:
@@ -48,6 +48,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
+                rx.StringImm("mha"),
                 rx.ShapeExpr(
                     [
                         max_batch_size,
@@ -74,6 +75,58 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
                     # to represent "undefined".
                 ),
                 rx.PrimValue(rotary_dim),
+                rx.PrimValue(int(enable_disaggregation)),
+                rx.DataTypeImm(dtype),
+                sinfo_args=rx.ObjectStructInfo(),
+            ),
+            _name=name,
+        )
+
+    @staticmethod
+    def create_generic_mla(  # pylint: disable=too-many-locals
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
+        num_hidden_layers: int,
+        num_attention_heads: int,
+        num_key_value_heads: int,
+        qk_nope_head_dim: int,
+        qk_rope_head_dim: int,
+        v_head_dim: int,
+        kv_lora_rank: int,
+        dtype: str,
+        layer_partition: Optional[List[int]] = None,
+        enable_disaggregation: bool = False,
+        name: str = "paged_kv_cache",
+    ) -> "PagedKVCache":
+        """The generic function of creating a multi-head latent attn PagedKVCache,
+        which will be rewritten by functions in compilation pipeline.
+        """
+        if layer_partition is None:
+            layer_partition = [0, num_hidden_layers]
+        return PagedKVCache(
+            _expr=rx.call_pure_packed(
+                "mlc.create_paged_kv_cache_generic",
+                rx.StringImm("mla"),
+                rx.ShapeExpr(
+                    [
+                        max_batch_size,
+                        max_total_seq_len,
+                        prefill_chunk_size,
+                        page_size,
+                        support_sliding_window,
+                    ]
+                ),
+                rx.ShapeExpr(layer_partition),
+                rx.PrimValue(num_hidden_layers),
+                rx.PrimValue(num_attention_heads),
+                rx.PrimValue(num_key_value_heads),
+                rx.PrimValue(qk_nope_head_dim),
+                rx.PrimValue(qk_rope_head_dim),
+                rx.PrimValue(v_head_dim),
+                rx.PrimValue(kv_lora_rank),
                 rx.PrimValue(int(enable_disaggregation)),
                 rx.DataTypeImm(dtype),
                 sinfo_args=rx.ObjectStructInfo(),
