@@ -13,7 +13,7 @@ from .style import bold, green, red
 
 FOUND = green("Found")
 NOT_FOUND = red("Not found")
-AUTO_DETECT_DEVICES = ["cpu", "cuda", "rocm", "metal", "vulkan", "opencl"]
+AUTO_DETECT_DEVICES = ["cuda", "rocm", "metal", "vulkan", "opencl", "cpu"]
 _RESULT_CACHE: Dict[str, bool] = {}
 
 
@@ -78,6 +78,8 @@ def _device_exists(device: Device) -> bool:
             for i in subproc_outputs[0].split(","):
                 logger.info("%s device: %s:%s", FOUND, device_type, i)
                 _RESULT_CACHE[f"{device_type}:{i}"] = True
+                if device.device_type == Device.kDLCPU:
+                    break
     else:
         logger.error(
             "GPU device detection failed. Please report this issue with the output of command: %s",
