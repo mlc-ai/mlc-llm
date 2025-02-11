@@ -1,10 +1,16 @@
 """A compiler pass that dispatches patterns to CUBLAS."""
 
 import tvm
-import tvm.relax.backend.contrib.cublas as _cublas
-import tvm.relax.backend.contrib.hipblas as _hipblas
 from tvm import IRModule, relax
 from tvm.relax.backend import get_patterns_with_prefix
+
+try:
+    import tvm.relax.backend.cuda.cublas as _cublas
+    import tvm.relax.backend.rocm.hipblas as _hipblas
+except ImportError:
+    # Note: legacy path of cublas/hipblas for backward compatibility
+    import tvm.relax.backend.contrib.cublas as _cublas
+    import tvm.relax.backend.contrib.hipblas as _hipblas
 
 
 @tvm.transform.module_pass(opt_level=0, name="BLASDispatch")
