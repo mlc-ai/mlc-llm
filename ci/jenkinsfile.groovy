@@ -18,8 +18,8 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:4d61e5d -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
-run_cuda = "bash ci/bash.sh mlcaidev/ci-cu128:4d61e5d -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
-run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm63:4d61e5d -e GPU rocm-6.3 -e MLC_CI_SETUP_DEPS 1"
+run_cuda = "bash ci/bash.sh mlcaidev/ci-cu121:4d61e5d -e GPU cuda-12.1 -e MLC_CI_SETUP_DEPS 1"
+run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:4d61e5d -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
 
 pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:5b6f876 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
 pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu128:5b6f876 -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"

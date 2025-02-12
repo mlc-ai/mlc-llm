@@ -88,7 +88,9 @@ if __name__ == "__main__":
                 cmake_config_str += f"set(CMAKE_CUDA_ARCHITECTURES {user_input})\n"
                 break
             else:
-                print(f"Invalid input: {user_input}. FlashInfer requires 80, 86, 89, 90, 100 or 120")
+                print(
+                    f"Invalid input: {user_input}. FlashInfer requires 80, 86, 89, 90, 100 or 120"
+                )
 
     print("\nWriting the following configuration to config.cmake...")
     print(cmake_config_str)

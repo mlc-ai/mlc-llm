@@ -9,11 +9,11 @@ pip install --force-reinstall wheels/*.whl
 
 if [[ ${GPU} == cuda* ]]; then
     TARGET=cuda
-    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cu128
+    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cu123
     export LD_LIBRARY_PATH=/usr/local/cuda/compat/:$LD_LIBRARY_PATH
 elif [[ ${GPU} == rocm* ]]; then
     TARGET=rocm
-    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-rocm63
+    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-rocm57
 elif [[ ${GPU} == metal ]]; then
     TARGET=metal
     pip install --pre -U --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cpu

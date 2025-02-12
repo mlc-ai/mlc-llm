@@ -8,7 +8,7 @@ if [[ -n ${MLC_CI_SETUP_DEPS:-} ]]; then
     # Install dependency
     pip install --force-reinstall wheels/*.whl
     pip install --quiet pytest
-    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cu128
+    pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cu123
     export LD_LIBRARY_PATH=/usr/local/cuda/compat/:$LD_LIBRARY_PATH
 fi
 
