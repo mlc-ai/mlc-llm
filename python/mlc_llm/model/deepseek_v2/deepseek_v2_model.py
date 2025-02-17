@@ -243,8 +243,12 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         paged_kv_cache: PagedKVCache,
         layer_id: int,
         query_positions: Tensor,
+        use_absorption = True,
     ):
-        return self.forward_absorb(hidden_states, paged_kv_cache, layer_id, query_positions)
+        if use_absorption:
+            return self.forward_absorb(hidden_states, paged_kv_cache, layer_id, query_positions)
+        else:
+            return self.forward_normal(hidden_states, paged_kv_cache, layer_id, query_positions)
 
     def forward_absorb(
         self,
@@ -393,18 +397,15 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             concat_k, "concat_k", [k_nope, k_pe]
         )  # (b, s, num_heads, q_head_dim)
 
-        q_pad = op.pad(query_states, [0, 0, 0, 0, 0, 0, 0, 256 - self.q_head_dim])
-        k_pad = op.pad(key_states, [0, 0, 0, 0, 0, 0, 0, 256 - self.q_head_dim])
-        v_pad = op.pad(value_states, [0, 0, 0, 0, 0, 0, 0, 256 - self.v_head_dim])
-
-        qkv = op.concat([q_pad, k_pad, v_pad], dim=2)  # (b, s, 3 * num_heads, 256)
         output = op.split(
-            paged_kv_cache.attention_with_fused_qkv(
+            paged_kv_cache.mla_normal(
                 layer_id,
-                qkv,
-                self.num_heads,
+                query_states,
+                key_states,
+                value_states,
+                compressed_kv,
+                k_pe,
                 self.softmax_scale
-                * math.sqrt(256),  # This is to cancel out the 1/sqrt(d) in normal attention
             ),
             [self.v_head_dim],
             axis=-1,
@@ -578,9 +579,10 @@ class DeepseekV2DecoderLayer(nn.Module):
         paged_kv_cache: PagedKVCache,
         layer_id: int,
         query_positions: Tensor,
+        use_absorption: bool = True
     ):
         out = self.input_layernorm(hidden_states)
-        out = self.self_attn(out, paged_kv_cache, layer_id, query_positions)
+        out = self.self_attn(out, paged_kv_cache, layer_id, query_positions, use_absorption=use_absorption)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.post_attention_layernorm(hidden_states)
         out = self.mlp(out)  # type: ignore[operator]
@@ -604,11 +606,11 @@ class DeepseekV2Model(nn.Module):
         )
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
-    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
+    def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache, use_absorption: bool = True):
         hidden_states = inputs
         query_positions = paged_kv_cache.get_query_positions(inputs.shape[0] * inputs.shape[1])
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(hidden_states, paged_kv_cache, layer_id, query_positions)
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id, query_positions, use_absorption=use_absorption)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -642,10 +644,11 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         input_embeds: Tensor,
         paged_kv_cache: PagedKVCache,
         logit_positions: Optional[Tensor] = None,
+        use_absorption: bool = True
     ):
         op_ext.configure()
 
-        hidden_states = self.model(input_embeds, paged_kv_cache)
+        hidden_states = self.model(input_embeds, paged_kv_cache, use_absorption=use_absorption)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.lm_head(hidden_states)
@@ -665,7 +668,21 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states = self.model(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache, use_absorption=True)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache
+    
+    def prefill_mla_normal(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+
+        hidden_states = self.model(input_embed, paged_kv_cache, use_absorption=False)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
@@ -686,7 +703,15 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions, use_absorption=True)
+        return logits, paged_kv_cache
+
+    def batch_prefill_mla_normal(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions, use_absorption=False)
         return logits, paged_kv_cache
 
     def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
