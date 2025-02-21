@@ -111,6 +111,7 @@ def main():
             "transformers",
             "pandas",
             "datasets",
+            "flashinfer-python==0.2.2",
         ],
         distclass=BinaryDistribution,
         **setup_kwargs,

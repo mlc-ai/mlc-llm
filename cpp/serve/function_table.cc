@@ -217,8 +217,10 @@ void FunctionTable::_InitFunctions() {
   this->image_embed_func_ = mod_get_func("image_embed");
   this->single_batch_prefill_func_ = mod_get_func("prefill");
   this->single_batch_decode_func_ = mod_get_func("decode");
+  this->single_batch_extend_func_ = mod_get_func("extend");
   this->prefill_func_ = mod_get_func("batch_prefill");
   this->decode_func_ = mod_get_func("batch_decode");
+  this->extend_func_ = mod_get_func("batch_extend");
   this->verify_func_ = mod_get_func("batch_verify");
   this->single_batch_prefill_to_last_hidden_func_ = mod_get_func("prefill_to_last_hidden_states");
   this->single_batch_decode_to_last_hidden_func_ = mod_get_func("decode_to_last_hidden_states");

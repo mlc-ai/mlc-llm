@@ -120,7 +120,10 @@ class GPTBigCodeAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, h_q), (b, s, h_q * d)
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, h_q, sm_scale=self.head_dim**-0.5
+            ),
+            (b, s, h_q * d),
         )
         return self.c_proj(output)
 
@@ -264,7 +267,8 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic_mha(
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -273,7 +277,8 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             num_hidden_layers=self.n_layer,
             num_attention_heads=self.num_q_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_kv_heads // self.tensor_parallel_shards,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
             rope_mode=RopeMode.NONE,
             rope_scale=-1,
             rope_theta=-1,
