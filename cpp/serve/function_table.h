@@ -82,8 +82,10 @@ struct FunctionTable {
   PackedFunc image_embed_func_;
   PackedFunc single_batch_prefill_func_;
   PackedFunc single_batch_decode_func_;
+  PackedFunc single_batch_extend_func_;
   PackedFunc prefill_func_;
   PackedFunc decode_func_;
+  PackedFunc extend_func_;
   PackedFunc verify_func_;
   PackedFunc single_batch_prefill_to_last_hidden_func_;
   PackedFunc single_batch_decode_to_last_hidden_func_;

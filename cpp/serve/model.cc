@@ -269,12 +269,34 @@ class ModelImpl : public ModelObj {
     ICHECK_NE(max_num_sequence_, -1);
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
+
+    PackedFunc single_batch_prefill_func = ft_.single_batch_prefill_func_;
+    PackedFunc prefill_func = ft_.prefill_func_;
+    if (ft_.single_batch_extend_func_.defined()) {
+      CHECK(ft_.extend_func_.defined()) << "`batch_extend` function is not found in the model.";
+      bool has_existing_sequence = false;
+      for (int64_t seq_id : seq_ids) {
+        if (prefilled_seq_ids_.count(seq_id)) {
+          has_existing_sequence = true;
+          break;
+        }
+      }
+      if (has_existing_sequence) {
+        single_batch_prefill_func = ft_.single_batch_extend_func_;
+        prefill_func = ft_.extend_func_;
+      }
+
+      for (int64_t seq_id : seq_ids) {
+        prefilled_seq_ids_.insert(seq_id);
+      }
+    }
+
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef ret;
     if (seq_ids.size() == 1) {
-      ret = ft_.single_batch_prefill_func_(embeddings_dref_or_nd, kv_cache_, params_);
+      ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_);
     } else {
-      ret = ft_.prefill_func_(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
+      ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
     }
     NDArray logits;
     if (ft_.use_disco) {
@@ -731,12 +753,14 @@ class ModelImpl : public ModelObj {
       return;
     }
     ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id, fork_pos);
+    prefilled_seq_ids_.insert(child_seq_id);
   }
 
   void RemoveSequence(int64_t seq_id) final {
     if (this->kind == KVStateKind::kNone) {
       return;
     }
+    prefilled_seq_ids_.erase(seq_id);
     ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);
   }
 
@@ -1058,6 +1082,8 @@ class ModelImpl : public ModelObj {
   bool trace_enabled_;
   // An enum indicating whether it's RNN-based.
   KVStateKind kind;
+  // A set of sequence IDs that have been prefilled.
+  std::unordered_set<int64_t> prefilled_seq_ids_;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
