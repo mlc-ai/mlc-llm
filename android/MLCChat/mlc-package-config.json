@@ -13,7 +13,6 @@
             "model": "HF://mlc-ai/Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
             "estimated_vram_bytes": 3980990464,
             "model_id": "Qwen2.5-1.5B-Instruct-q4f16_1-MLC"
-
         },
         {
             "model": "HF://mlc-ai/gemma-2-2b-it-q4f16_1-MLC",
