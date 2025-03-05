@@ -111,7 +111,14 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
-                logprob_results[choice.index] = choice.logprobs
+                if logprob_results[choice.index] is None:
+                    logprob_results[choice.index] = choice.logprobs
+                else:
+                    logprob_results[choice.index].token_logprobs.extend(
+                        choice.logprobs.token_logprobs
+                    )
+                    logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
+                    logprob_results[choice.index].top_logprobs.extend(choice.logprobs.top_logprobs)
 
     return engine_base.wrap_completion_response(
         request_id=request_id,
