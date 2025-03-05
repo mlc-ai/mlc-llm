@@ -114,7 +114,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                 if logprob_results[choice.index] is None:
                     logprob_results[choice.index] = choice.logprobs
                 else:
-                    logprob_results[choice.index].token_logprobs.extend(choice.logprobs.token_logprobs)
+                    logprob_results[choice.index].token_logprobs.extend(
+                        choice.logprobs.token_logprobs
+                    )
                     logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
                     logprob_results[choice.index].top_logprobs.extend(choice.logprobs.top_logprobs)
 
