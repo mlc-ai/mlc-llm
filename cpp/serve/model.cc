@@ -60,7 +60,7 @@ class ModelImpl : public ModelObj {
   explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
                      DLDevice device, const Optional<Session>& session, int num_shards,
                      int num_stages, bool trace_enabled)
-      : model_(model_path), device_(device) {
+      : model_(model_path), device_(device), trace_enabled_(trace_enabled) {
     // Step 1. Process model config json string.
     LoadModelConfigJSON(model_config);
     // Step 2. Initialize vm, we use the packed function mechanism
