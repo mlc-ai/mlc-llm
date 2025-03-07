@@ -147,12 +147,18 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 4. Low-level Optimizations
                 _LogProgress("Running TVM Dlight low-level optimizations"),
                 LowBatchGemvSpecialize(),
-                dl.ApplyDefaultSchedule(
-                    dl.gpu.Matmul(),
-                    dl.gpu.GEMV(),
-                    dl.gpu.Reduction(),
-                    dl.gpu.GeneralReduction(),
-                    dl.gpu.Fallback(),
+                (
+                    dl.ApplyDefaultSchedule(
+                        dl.gpu.Matmul(),
+                        dl.gpu.GEMV(),
+                        dl.gpu.Reduction(),
+                        dl.gpu.GeneralReduction(),
+                        dl.gpu.Fallback(),
+                    )
+                    if target.kind.name != "llvm"
+                    else dl.ApplyDefaultSchedule(
+                        dl.cpu.GEMV(),
+                    )
                 ),
                 _DebugDump("debug-phase4.py", debug_dump, show_meta=False),
                 _LogProgress("Lowering to VM bytecode"),

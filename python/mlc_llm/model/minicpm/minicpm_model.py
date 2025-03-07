@@ -123,7 +123,9 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_heads),
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
+            ),
             (b, s, h_q * d),
         )
         attn_output = self.o_proj(output)
@@ -428,7 +430,8 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic_mha(
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -437,7 +440,8 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,

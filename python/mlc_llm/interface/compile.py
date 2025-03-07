@@ -137,7 +137,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             cutlass=args.opt.cutlass,
         )
         # Step 1. Create the quantized model
-        logger.info("Creating model from: %s", args.config)
+        logger.info("Creating model from: %s", model_config)
         if (
             args.quantization.kind == "ft-quant"
             and hasattr(model_config, "tensor_parallel_shards")
