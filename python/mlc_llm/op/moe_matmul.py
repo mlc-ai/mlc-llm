@@ -182,7 +182,7 @@ def dequantize_float8_gemv(
     w: Tensor,
     scale: Optional[Tensor],
     indptr: Tensor,
-    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"],
+    quantize_dtype: Literal["float8_e5m2", "float8_e4m3fn"],
 ) -> Tensor:
     """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
     fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
@@ -204,8 +204,8 @@ def dequantize_float8_gemv(
         The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
         number of activated experts per token.
 
-    quantize_dtype : Literal["e5m2_float8", "e4m3_float8"]
-        The quantize dtype of the weight tensor, which is either e5m2_float8 or e4m3_float8.
+    quantize_dtype : Literal["float8_e5m2", "float8_e4m3fn"]
+        The quantize dtype of the weight tensor, which is either float8_e5m2 or float8_e4m3fn.
     """
     (x_leading_dim, in_features), model_dtype = x.shape, x.dtype
     (local_experts, out_features, _), storage_dtype = w.shape, w.dtype
