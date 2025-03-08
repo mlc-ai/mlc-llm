@@ -50,7 +50,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         model_dtype = DataType(self.model_dtype)
         assert quantize_dtype.type_code == DataTypeCode.INT
         assert storage_dtype.type_code == DataTypeCode.UINT
-        assert model_dtype.type_code == DataTypeCode.FLOAT
+        assert (model_dtype.type_code == DataTypeCode.FLOAT or model_dtype.type_code == DataTypeCode.BFLOAT)
         if storage_dtype.bits < quantize_dtype.bits:
             raise ValueError("Storage unit should be greater or equal to quantized element")
 
