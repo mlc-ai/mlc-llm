@@ -170,8 +170,8 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)  # type: ignore
         max_query_length = max(len(token_seq) for token_seq in tokens)
 
-        token_inputs = np.zeros((len(tokens), max_query_length), dtype=np.int32)
-        attention_mask = np.zeros((len(tokens), max_query_length), dtype=np.int32)
+        token_inputs: np.ndarray = np.zeros((len(tokens), max_query_length), dtype=np.int32)
+        attention_mask: np.ndarray = np.zeros((len(tokens), max_query_length), dtype=np.int32)
 
         for i, token_seq in enumerate(tokens):
             token_inputs[i, : len(token_seq)] = token_seq

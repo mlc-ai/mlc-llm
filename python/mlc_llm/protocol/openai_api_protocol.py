@@ -409,7 +409,7 @@ class ChatCompletionStreamResponse(BaseModel):
 
 
 def openai_api_get_unsupported_fields(
-    request: Union[CompletionRequest, ChatCompletionRequest]
+    request: Union[CompletionRequest, ChatCompletionRequest],
 ) -> List[str]:
     """Get the unsupported fields in the request."""
     unsupported_field_default_values: List[Tuple[str, Any]] = [

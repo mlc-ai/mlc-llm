@@ -1,4 +1,4 @@
-""" Quantization techniques for FP8 """
+"""Quantization techniques for FP8"""
 
 import numpy as np
 from tvm import nd, relax

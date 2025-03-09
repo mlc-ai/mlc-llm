@@ -72,8 +72,7 @@ def _get_apply_logit_bias_inplace_cpu():
 def _get_apply_logit_bias_inplace(target: tvm.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
-    if max_num_threads_per_block < tx:
-        tx = max_num_threads_per_block
+    tx = min(tx, max_num_threads_per_block)
     check_thread_limits(target, bdx=tx, bdy=1, bdz=1, gdz=1)
 
     @T.prim_func
@@ -157,8 +156,7 @@ def _get_apply_penalty_inplace_cpu():
 def _get_apply_penalty_inplace(target: tvm.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
-    if max_num_threads_per_block < tx:
-        tx = max_num_threads_per_block
+    tx = min(tx, max_num_threads_per_block)
     check_thread_limits(target, bdx=tx, bdy=1, bdz=1, gdz=1)
 
     @T.prim_func
@@ -248,8 +246,7 @@ def _get_apply_bitmask_inplace_cpu():
 def _get_apply_bitmask_inplace(target: tvm.target.Target):
     tx = 1024  # default
     max_num_threads_per_block = get_max_num_threads_per_block(target)
-    if max_num_threads_per_block < tx:
-        tx = max_num_threads_per_block
+    tx = min(tx, max_num_threads_per_block)
     check_thread_limits(target, bdx=tx, bdy=1, bdz=1, gdz=1)
 
     @T.prim_func
