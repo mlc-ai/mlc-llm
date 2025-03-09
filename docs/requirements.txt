@@ -1,5 +1,6 @@
 --find-links https://mlc.ai/wheels
 fastapi
+ml_dtypes>=0.5.1
 mlc-ai-nightly
 openai
 prompt_toolkit

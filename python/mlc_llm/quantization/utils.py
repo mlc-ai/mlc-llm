@@ -104,7 +104,7 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     out_shape: Optional[Sequence[tir.PrimExpr]] = None,
 ) -> te.Tensor:
     """Unpack a fp8 value from the storage dtype and convert to float."""
-    assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
+    assert quant_dtype in ["float8_e4m3fn", "float8_e5m2"]
     assert DataType(storage_dtype).type_code == DataTypeCode.UINT
     bits = DataType(quant_dtype).bits
     elem_storage_dtype = DataType(f"uint{bits}")

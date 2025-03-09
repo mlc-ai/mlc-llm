@@ -50,11 +50,11 @@ def group_gemm(
     out_dtype = out_dtype if out_dtype else x.dtype
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
-    if x.dtype == "e5m2_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+    if x.dtype == "float8_e5m2" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e5m2_e5m2_fp16"
-    elif x.dtype == "e4m3_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e5m2_fp16"
-    elif x.dtype == "e4m3_float8" and weight_dtype == "e4m3_float8" and out_dtype == "float16":
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e4m3fn" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e4m3_fp16"
     elif x.dtype == "float16" and weight_dtype == "float16" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_fp16_sm90"
@@ -113,11 +113,11 @@ def fp8_gemm(
     out_dtype = out_dtype if out_dtype else x.dtype
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
-    if x.dtype == "e5m2_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+    if x.dtype == "float8_e5m2" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.gemm_e5m2_e5m2_fp16"
-    elif x.dtype == "e4m3_float8" and weight_dtype == "e5m2_float8" and out_dtype == "float16":
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.gemm_e5m2_e4m3_fp16"
-    elif x.dtype == "e4m3_float8" and weight_dtype == "e4m3_float8" and out_dtype == "float16":
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e4m3fn" and out_dtype == "float16":
         func_name = "cutlass.gemm_e4m3_e4m3_fp16"
     else:
         raise NotImplementedError(
