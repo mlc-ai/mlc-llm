@@ -180,7 +180,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         )
 
         # Remove the 'enable_disaggregation' argument
-        kwargs.pop('enable_disaggregation', None)
+        kwargs.pop("enable_disaggregation", None)
 
         with bb.function(
             name="create_tir_paged_kv_cache",
