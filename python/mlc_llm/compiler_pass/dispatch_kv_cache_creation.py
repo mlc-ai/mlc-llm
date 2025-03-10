@@ -179,8 +179,9 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             "support_sliding_window_", relax.ShapeStructInfo([kwargs["support_sliding_window"]])
         )
 
-        # Remove the 'enable_disaggregation' argument
-        kwargs.pop("enable_disaggregation", None)
+        # Ensure 'enable_disaggregation' is optional
+        enable_disaggregation = kwargs.pop("enable_disaggregation", False)
+        kwargs["enable_disaggregation"] = enable_disaggregation
 
         with bb.function(
             name="create_tir_paged_kv_cache",
