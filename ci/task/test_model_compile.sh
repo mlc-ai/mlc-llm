@@ -31,7 +31,6 @@ elif [[ ${GPU} == ios ]]; then
 elif [[ ${GPU} == android* ]]; then
     TARGET=android
     pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cpu
-    source /android_env_vars.sh
 else
     TARGET=vulkan
     pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cpu

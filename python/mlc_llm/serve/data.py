@@ -12,10 +12,10 @@ from . import _ffi_api
 
 
 @tvm._ffi.register_object("mlc.serve.Data")  # pylint: disable=protected-access
-class Data(Object):
+class Data(Object):  # pylint: disable=too-few-public-methods
     """The base class of multi-modality data (text, tokens, embedding, etc)."""
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         pass
 
 

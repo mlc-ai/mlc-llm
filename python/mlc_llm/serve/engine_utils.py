@@ -160,7 +160,7 @@ def process_prompts(
 
 
 def convert_prompts_to_data(
-    prompts: Union[str, List[int], List[Union[str, List[int], data.Data]]]
+    prompts: Union[str, List[int], List[Union[str, List[int], data.Data]]],
 ) -> List[data.Data]:
     """Convert the given prompts in the combination of token id lists
     and/or data to all data."""

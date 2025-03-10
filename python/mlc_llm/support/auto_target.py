@@ -147,7 +147,7 @@ def _build_metal_x86_64():
         relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
         ).export_library(
             str(output),
             fcompile=xcode.create_dylib,
@@ -172,7 +172,7 @@ def _build_iphone():
         relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -190,7 +190,7 @@ def _build_android():
         ex = relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=True,
         )
         ex.export_library(
@@ -213,7 +213,7 @@ def _build_android_so():
         ex = relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=False,
         )
         ex.export_library(
@@ -258,7 +258,7 @@ def _build_webgpu():
         relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=True,
         ).export_library(
             str(output),
@@ -276,7 +276,7 @@ def _build_mali():
         mod = relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=True,
         )
         if "TVM_NDK_CC" in os.environ:
@@ -301,7 +301,7 @@ def _build_default():
         relax.build(
             mod,
             target=args.target,
-            pipeline=pipeline,
+            relax_pipeline=pipeline,
             system_lib=system_lib,
         ).export_library(
             str(output),
