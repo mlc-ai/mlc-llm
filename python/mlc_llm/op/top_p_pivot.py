@@ -1,4 +1,4 @@
-"""Operators for choosing the pivot to cut-off top-p percentile """
+"""Operators for choosing the pivot to cut-off top-p percentile"""
 
 import tvm
 from tvm.script import tir as T
@@ -42,8 +42,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
     eps_LR = 1e-7
 
     max_num_threads_per_block = get_max_num_threads_per_block(target)
-    if max_num_threads_per_block < TX:
-        TX = max_num_threads_per_block
+    TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
         return T.alloc_buffer((1,), dtype, scope="local")
@@ -294,8 +293,7 @@ def top_p_renorm(target: tvm.target.Target = None):
 
     if target:
         max_num_threads_per_block = get_max_num_threads_per_block(target)
-        if max_num_threads_per_block < TX:
-            TX = max_num_threads_per_block
+        TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
         return T.alloc_buffer((1,), dtype, scope="local")

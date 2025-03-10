@@ -10,7 +10,7 @@ from . import _ffi_api
 class EventTraceRecorder(Object):
     """The event trace recorder for requests."""
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # pylint: disable=super-init-not-called
         """Initialize a trace recorder."""
         self.__init_handle_by_constructor__(
             _ffi_api.EventTraceRecorder  # type: ignore  # pylint: disable=no-member

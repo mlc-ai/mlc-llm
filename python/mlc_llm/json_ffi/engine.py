@@ -194,7 +194,7 @@ class Completions:
             ),
             request_id=request_id,
         )
-        for response in chatcmpl_generator:
+        for response in chatcmpl_generator:  # pylint: disable=use-yield-from
             yield response
 
 
