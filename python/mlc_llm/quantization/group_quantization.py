@@ -33,7 +33,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     group_size: int
     quantize_dtype: Literal["int3", "int4", "int8"]
     storage_dtype: Literal["uint32"]
-    model_dtype: Literal["float16", "float32"]
+    model_dtype: Literal["float16", "float32", "bfloat16"]
     linear_weight_layout: Literal["KN", "NK"]
     quantize_embedding: bool = True
     quantize_final_fc: bool = True
@@ -50,7 +50,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         model_dtype = DataType(self.model_dtype)
         assert quantize_dtype.type_code == DataTypeCode.INT
         assert storage_dtype.type_code == DataTypeCode.UINT
-        assert model_dtype.type_code == DataTypeCode.FLOAT
+        assert model_dtype.type_code in (DataTypeCode.FLOAT, DataTypeCode.BFLOAT)
         if storage_dtype.bits < quantize_dtype.bits:
             raise ValueError("Storage unit should be greater or equal to quantized element")
 

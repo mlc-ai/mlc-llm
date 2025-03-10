@@ -7,6 +7,7 @@ if [[ -n ${MLC_CI_SETUP_DEPS:-} ]]; then
     echo "MLC_CI_SETUP_DEPS=1 start setup deps.."
     # Install dependency
     pip install --force-reinstall wheels/*.whl
+    pip install "ml_dtypes>=0.5.1" --no-binary ml_dtypes
     pip install --quiet pytest
     pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cu123
     export LD_LIBRARY_PATH=/usr/local/cuda/compat/:$LD_LIBRARY_PATH
