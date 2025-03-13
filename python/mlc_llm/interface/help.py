@@ -266,4 +266,7 @@ The seed to sample the calibration dataset.""",
 How much prefill to move to decode engine. For example,
 0.1 means the last 10 percent tokens are prefilled by decode engine.
     """.strip(),
+    "max_loras_per_batch": """
+Maxmum number of lora adapters for a running batch, exclude base-only request
+    """.strip(),
 }

@@ -336,6 +336,8 @@ class FTQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribut
             )
         else:
             self.bias = None
+        self.lora_A = None
+        self.lora_B = None
 
     @staticmethod
     def from_linear(src: nn.Linear, config: FTQuantize) -> "FTQuantizeLinear":
@@ -380,9 +382,12 @@ class FTQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribut
         ret : nn.Tensor
             The output tensor for the FasterTransformer quantized linear layer.
         """
-        return faster_transformer_dequantize_gemm(
+        y = faster_transformer_dequantize_gemm(
             x, self.q_weight, self.q_scale, self.bias, group_size=self.config.group_size
         )
+        if self.lora_A:
+            return y + self.lora_B.forward(self.lora_A.forward(x))
+        return y
 
     def to(self, dtype: Optional[str] = None) -> None:
         """

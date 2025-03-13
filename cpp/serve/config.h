@@ -266,6 +266,8 @@ class EngineConfigNode : public Object {
   int64_t prefill_chunk_size = 1024;
   /*! \brief The maximum history size for RNN state. KV cache does not need this. */
   int max_history_size = 0;
+  /*! \brief The maximum number of lora adapters for a running batch, exclude base-only request */
+  int max_loras_per_batch = 0;
 
   /*************** Prefix cache ***************/
 

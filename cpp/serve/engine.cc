@@ -155,7 +155,7 @@ void AbortRequestImpl(EngineState estate, const Array<Model>& models, const Stri
  */
 class MockEchoEngineImpl : public Engine {
  public:
-  static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
+  static Result<EngineCreationOutput> Create(const picojson::object& engine_config_json,
                                              FRequestStreamCallback request_stream_callback,
                                              const picojson::object& model_config) {
     using TResult = Result<EngineCreationOutput>;
@@ -166,13 +166,8 @@ class MockEchoEngineImpl : public Engine {
     inferrable_config.max_single_sequence_length = 4096;
     inferrable_config.prefill_chunk_size = 1024;
     inferrable_config.max_history_size = 1024;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
-    if (!err.empty()) {
-      return TResult::Error(err);
-    }
     EngineConfig engine_config = EngineConfig::FromJSONAndInferredConfig(
-        config_json.get<picojson::object>(), inferrable_config);
+        engine_config_json, inferrable_config);
 
     auto n = std::make_unique<MockEchoEngineImpl>();
     n->request_stream_callback_ = request_stream_callback;
@@ -384,9 +379,21 @@ class EngineImpl : public Engine {
       model_configs.push_back(model_config_res.Unwrap());
     }
 
+    picojson::value engine_config_json_value;
+    std::string err = picojson::parse(engine_config_json_value, engine_config_json_str);
+    if (!err.empty()) {
+      return TResult::Error(err);
+    }
+    picojson::object engine_config_json = engine_config_json_value.get<picojson::object>();
+    // update max_loras_per_batch by engine_config
+    std::optional<int64_t> max_loras_per_batch = json::LookupOptional<int64_t>(engine_config_json, "max_loras_per_batch");
+    if (max_loras_per_batch.has_value()) {
+      model_configs[0]["max_loras_per_batch"] = picojson::value(max_loras_per_batch.value());
+    }
+
     // kick in mock path so we don't have to load in models
     if (models_and_model_libs[0].second == "mock://echo") {
-      return MockEchoEngineImpl::Create(engine_config_json_str,
+      return MockEchoEngineImpl::Create(engine_config_json,
                                         n->estate_->request_stream_callback_, model_configs[0]);
     }
 
@@ -423,7 +430,7 @@ class EngineImpl : public Engine {
     // - Automatically infer the missing fields in EngineConfig JSON strings
     // and get the final EngineConfig.
     Result<EngineConfig> engine_config_res =
-        n->AutoDecideEngineConfig(engine_config_json_str, model_configs);
+        n->AutoDecideEngineConfig(engine_config_json, model_configs);
     if (engine_config_res.IsErr()) {
       return TResult::Error(engine_config_res.UnwrapErr());
     }
@@ -886,15 +893,9 @@ class EngineImpl : public Engine {
   }
 
  private:
-  Result<EngineConfig> AutoDecideEngineConfig(const std::string& engine_config_json_str,
+  Result<EngineConfig> AutoDecideEngineConfig(const picojson::object& config,
                                               const std::vector<picojson::object>& model_configs) {
     using TResult = Result<EngineConfig>;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
-    if (!err.empty()) {
-      return TResult::Error(err);
-    }
-    picojson::object config = config_json.get<picojson::object>();
     ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.
@@ -1056,11 +1057,11 @@ class EngineModule : public ModuleNode {
   /*! \brief Redirection to `Engine::AbortRequest`. */
   void Abort(const String& request_id) { return GetEngine()->AbortRequest(request_id); }
   /*! \brief Create request with given arguments and the engine default generation config. */
-  Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) {
+  Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str, Optional<String> lora_uid) {
     auto config = json::ParseToJSONObject(generation_cfg_json_str);
     auto gen_config = GenerationConfig::FromJSON(config, default_generation_config_);
     CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
-    return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
+    return Request(std::move(id), std::move(inputs), gen_config.Unwrap(), lora_uid);
   }
   /*! \brief Redirection to `Engine::Step`. */
   void Step() { return GetEngine()->Step(); }

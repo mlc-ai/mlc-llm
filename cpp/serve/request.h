@@ -56,6 +56,9 @@ class RequestNode : public Object {
   /*! \brief Backward reference to the request state. */
   Object* rstate = nullptr;
 
+   /*! \brief lora id for the request. */
+  Optional<String> lora_uid;
+
   static constexpr const char* _type_key = "mlc.serve.Request";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
@@ -64,7 +67,7 @@ class RequestNode : public Object {
 
 class Request : public ObjectRef {
  public:
-  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg);
+  explicit Request(String id, Array<Data> inputs, GenerationConfig generation_cfg, Optional<String> lora_uid);
 
   /*!
    * \brief Return a request object with all text data tokenized,

@@ -204,6 +204,8 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
             )
         else:
             self.bias = None
+        self.lora_A = None
+        self.lora_B = None
 
     @staticmethod
     def from_linear(linear: nn.Linear, config: AWQQuantize) -> "AWQQuantizeLinear":
@@ -256,10 +258,12 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
             args=[self.qweight, self.qzeros, self.scales],
         )
         w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
-        x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
+        y = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
-            x = x + self.bias
-        return x
+            y = y + self.bias
+        if self.lora_A:
+            return y + self.lora_B.forward(self.lora_A.forward(x))
+        return y
 
     def to(self, dtype: Optional[str] = None) -> None:
         """

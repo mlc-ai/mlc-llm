@@ -61,7 +61,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     NDArray logits_for_sample{nullptr};
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
       std::vector<int64_t> request_internal_ids;
+      Array<Optional<String>> request_lora_ids;
       request_internal_ids.reserve(num_rsentries);
+      request_lora_ids.reserve(num_rsentries);
       ObjectRef embeddings = model_workspaces_[model_id].embeddings;
       int cum_prefill_length = 0;
       bool single_input =
@@ -99,6 +101,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           }
         }
         request_internal_ids.push_back(mstate->internal_id);
+        request_lora_ids.push_back(mstate->request->lora_uid);
         RECORD_EVENT(trace_recorder_, rsentry->request->id, "start embedding");
         for (int j = 0; j < static_cast<int>(input_data.size()); ++j) {
           if (!model_id && !prefill_inputs[i].is_decode) {
@@ -132,7 +135,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         cum_prefill_length += cached_token_data.size();
         cached_token_data.clear();
       }
-
+      models_[model_id]->SetLoraWeightIndices(request_lora_ids);
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
       NDArray logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);

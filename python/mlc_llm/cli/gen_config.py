@@ -96,6 +96,12 @@ def main(argv):
         help=HELP["max_batch_size"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--max_loras_per_batch",
+        type=int,
+        default=1,
+        help=HELP["max_loras_per_batch"] + ' (default: "%(default)s")',
+    )
+    parser.add_argument(
         "--output",
         "-o",
         type=_parse_output,
@@ -117,5 +123,6 @@ def main(argv):
         pipeline_parallel_stages=parsed.pipeline_parallel_stages,
         disaggregation=parsed.disaggregation,
         max_batch_size=parsed.max_batch_size,
+        max_loras_per_batch=parsed.max_loras_per_batch,
         output=parsed.output,
     )

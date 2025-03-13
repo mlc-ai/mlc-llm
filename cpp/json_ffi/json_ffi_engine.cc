@@ -19,8 +19,8 @@ using namespace tvm::runtime;
 
 JSONFFIEngine::JSONFFIEngine() { engine_ = serve::ThreadedEngine::Create(); }
 
-bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string request_id) {
-  bool success = this->AddRequest(request_json_str, request_id);
+bool JSONFFIEngine::ChatCompletion(std::string request_json_str, std::string request_id, Optional<String> lora_uid) {
+  bool success = this->AddRequest(request_json_str, request_id, lora_uid);
   if (!success) {
     this->StreamBackError(request_id);
   }
@@ -61,7 +61,7 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
   this->request_stream_callback_(stream_back_json);
 }
 
-bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id) {
+bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request_id, Optional<String> lora_uid) {
   Result<ChatCompletionRequest> request_res = ChatCompletionRequest::FromJSON(request_json_str);
   if (request_res.IsErr()) {
     err_ = request_res.UnwrapErr();
@@ -120,7 +120,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
     return false;
   }
 
-  Request engine_request(request_id, inputs, res_gen_config.Unwrap());
+  Request engine_request(request_id, inputs, res_gen_config.Unwrap(), lora_uid);
 
   // setup request state
   RequestState rstate;

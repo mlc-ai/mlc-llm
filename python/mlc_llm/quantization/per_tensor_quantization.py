@@ -354,6 +354,8 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
             )
         else:
             self.bias = None
+        self.lora_A = None
+        self.lora_B = None
 
     @classmethod
     def from_linear(
@@ -410,6 +412,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
             The output tensor for the per-tensor quantized linear layer.
         """
         # Note: Use calibration scale when calibration is enabled
+        input = x
         if self.config.calibration_mode == "inference":
             if self.q_calibration_scale:
                 x /= self.q_calibration_scale.astype(x.dtype)
@@ -477,6 +480,8 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
             x = nn.op.matmul(x, nn.permute_dims(w), out_dtype=self.out_dtype)
         if self.bias is not None:
             x = x + self.bias
+        if self.lora_A:
+            return x + self.lora_B.forwad(self.lora_A.forward(input))
         return x
 
     def to(self, dtype: Optional[str] = None) -> None:

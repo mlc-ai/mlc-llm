@@ -418,6 +418,26 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             enable_disaggregation=self.disaggregation,
             dtype=self.dtype,
         )
+    
+    def get_module_name(self, name: str):
+        params_mapping = {
+            "q_proj": "qkv_proj",
+            "k_proj": "qkv_proj",
+            "v_proj": "qkv_proj",
+            "gate_proj": "gate_up_proj",
+            "up_proj": "gate_up_proj",
+        }
+        return params_mapping.get(name, name)
+
+    def get_q_kv_output_dim(self):
+        """Get the output dimensions for Query and Key-Value.
+
+        Returns:
+            Tuple[int, int]: A tuple containing the output dimensions for Query and Key-Value.
+        """
+        query_output_dim = self.num_attention_heads * self.head_dim
+        kv_output_dim = self.num_key_value_heads * self.head_dim
+        return query_output_dim, kv_output_dim
 
     def get_default_spec(self):
         mod_spec = {

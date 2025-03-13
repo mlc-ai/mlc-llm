@@ -119,6 +119,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
       memory_usage[func_name] = json::Lookup<int64_t>(json_memory_usage, func_name);
     }
   }
+  result.enable_lora = json::Lookup<bool>(metadata, "enable_lora");
+  result.max_loras_per_batch = json::Lookup<int64_t>(model_config, "max_loras_per_batch");
   return result;
 }
 

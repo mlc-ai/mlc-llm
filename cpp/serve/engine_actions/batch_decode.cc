@@ -86,6 +86,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     std::vector<int> lengths;
     Array<String> request_ids;
     std::vector<int64_t> request_internal_ids;
+    Array<Optional<String>> request_lora_ids;
     Array<RequestModelState> mstates;
     Array<GenerationConfig> generation_cfg;
     std::vector<RandomGenerator*> rngs;
@@ -93,6 +94,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     input_tokens.reserve(num_rsentries);
     request_ids.reserve(num_rsentries);
     request_internal_ids.reserve(num_rsentries);
+    request_lora_ids.reserve(num_rsentries);
     mstates.reserve(num_rsentries);
     generation_cfg.reserve(num_rsentries);
     rngs.reserve(num_rsentries);
@@ -115,12 +117,14 @@ class BatchDecodeActionObj : public EngineActionObj {
 
         request_ids.push_back(rsentry->request->id);
         request_internal_ids.push_back(mstate->internal_id);
+        request_lora_ids.push_back(mstate->request->lora_uid);
         mstates.push_back(mstate);
         generation_cfg.push_back(rsentry->request->generation_cfg);
         rngs.push_back(&rsentry->rng);
       }
     }
 
+    models_[0]->SetLoraWeightIndices(request_lora_ids);
     // - Compute embeddings.
     RECORD_EVENT(trace_recorder_, request_ids, "start embedding");
     ObjectRef embeddings =

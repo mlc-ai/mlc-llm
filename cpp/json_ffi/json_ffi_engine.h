@@ -31,9 +31,9 @@ class JSONFFIEngine {
 
   ~JSONFFIEngine();
 
-  bool ChatCompletion(std::string request_json_str, std::string request_id);
+  bool ChatCompletion(std::string request_json_str, std::string request_id, Optional<String> lora_uid=NullOpt);
 
-  bool AddRequest(std::string request_json_str, std::string request_id);
+  bool AddRequest(std::string request_json_str, std::string request_id,  Optional<String> lora_uid=NullOpt);
 
   void StreamBackError(std::string request_id);
 

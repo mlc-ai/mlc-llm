@@ -8,3 +8,4 @@ from .ft_gemm import faster_transformer_dequantize_gemm
 from .pipeline_parallel import pipeline_stage_boundary
 from .position_embedding import llama_rope
 from .top_p_pivot import top_p_pivot, top_p_renorm
+from .segment_gemm import segment_gemm

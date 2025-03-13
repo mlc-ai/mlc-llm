@@ -51,6 +51,10 @@ def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, Config
         if isinstance(s, int):
             param_shape.append(s)
         else:
+            # max_loras_per_batch is not a model_config but engine_confifg, so set 1 as default here
+            if s == "max_loras_per_batch":
+                param_shape.append(1)
+                continue
             if config is None:
                 logger.error(
                     "%s: Encountered dynamic shape %s, need to specify `--mlc-chat-config` for "

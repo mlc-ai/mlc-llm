@@ -16,6 +16,7 @@
 #include "../support/vlm_utils.h"
 #include "config.h"
 #include "logit_processor.h"
+#include "../lora/lora_manager.h"
 
 namespace mlc {
 namespace llm {
@@ -73,6 +74,8 @@ class ModelImpl : public ModelObj {
     this->Reset();
     // Step 4. Set model type
     this->kind = GetMetadata().kv_state_kind;
+    // Step 5. Set lora manager
+    this->lora_manager_ = LoraManager(&ft_.model_metadata_, model_path, device);
   }
 
   /*********************** Model Computation  ***********************/
@@ -846,7 +849,13 @@ class ModelImpl : public ModelObj {
 
   /*********************** Utilities  ***********************/
 
-  void LoadParams() final { this->params_ = ft_.LoadParams(model_, device_); }
+  void LoadParams() final { this->params_ = ft_.LoadParams(model_, device_, lora_manager_); }
+
+  void SetLoraWeightIndices(Array<Optional<String>> lora_uids) final {
+    if (!ft_.model_metadata_.enable_lora) return;
+    ICHECK(ft_.kv_cache_set_lora_weight_indices_func_.defined());
+    ft_.kv_cache_set_lora_weight_indices_func_(local_kv_cache_, IntTuple(lora_manager_.GetLoraWeightIndices(lora_uids)));
+  }
 
   void SetMaxNumSequence(int max_num_sequence) final {
     this->max_num_sequence_ = max_num_sequence;
@@ -1084,6 +1093,8 @@ class ModelImpl : public ModelObj {
   KVStateKind kind;
   // A set of sequence IDs that have been prefilled.
   std::unordered_set<int64_t> prefilled_seq_ids_;
+  // Lora manager for multi lira managerment
+  LoraManager lora_manager_;
 };
 
 TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")

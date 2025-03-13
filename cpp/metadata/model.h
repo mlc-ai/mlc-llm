@@ -10,6 +10,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
+#include <tvm/ir/expr.h>
 
 #include <unordered_map>
 
@@ -86,6 +87,8 @@ struct ModelMetadata {
   std::unordered_map<std::string, int64_t> memory_usage;
   KVStateKind kv_state_kind;
   KVCacheMetadata kv_cache_metadata;
+  bool enable_lora;
+  int64_t max_loras_per_batch;
 
   static ModelMetadata FromJSON(const picojson::object& json_str,
                                 const picojson::object& model_config);

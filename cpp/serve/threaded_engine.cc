@@ -236,11 +236,11 @@ class ThreadedEngineImpl : public ThreadedEngine {
     return default_generation_config_.value();
   }
 
-  Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) const {
+  Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str, Optional<String> lora_uid) const {
     picojson::object config = json::ParseToJSONObject(generation_cfg_json_str);
     auto gen_config = GenerationConfig::FromJSON(config, GetDefaultGenerationConfig());
     CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
-    return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
+    return Request(std::move(id), std::move(inputs), gen_config.Unwrap(), lora_uid);
   }
 
   EngineConfig GetCompleteEngineConfig() const final {

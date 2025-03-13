@@ -16,6 +16,7 @@
 #include <string>
 
 #include "../metadata/model.h"
+#include "../lora/lora_manager.h"
 
 namespace mlc {
 namespace llm {
@@ -44,7 +45,7 @@ struct FunctionTable {
   void Init(String reload_lib_path, Device device, picojson::object model_config,
             Optional<Session> session, int num_shards, int num_stages);
 
-  ObjectRef LoadParams(const std::string& model_path, Device device);
+  ObjectRef LoadParams(const std::string& model_path, Device device, LoraManager& lora_manager);
 
   void _InitFunctions();
 
@@ -117,6 +118,7 @@ struct FunctionTable {
   PackedFunc kv_cache_commit_accepted_token_tree_nodes_func_;
   PackedFunc kv_cache_get_num_available_pages_func_;
   PackedFunc kv_cache_get_total_sequence_length_func_;
+  PackedFunc kv_cache_set_lora_weight_indices_func_;
   PackedFunc gpu_multinomial_from_uniform_func_;
   PackedFunc gpu_argsort_probs_func_;
   PackedFunc gpu_sample_with_top_p_func_;

@@ -1326,6 +1326,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
         generation_config: GenerationConfig,
         request_id: str,
+        lora_uid: Optional[str] = None,
     ) -> AsyncGenerator[List[engine_base.CallbackStreamOutput], Any]:
         """Internal asynchronous text generation interface of AsyncMLCEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
@@ -1359,7 +1360,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
         request = self._ffi["create_request"](
-            request_id, input_data, generation_config.model_dump_json(by_alias=True)
+            request_id, input_data, generation_config.model_dump_json(by_alias=True), lora_uid
         )
 
         # Create the unique async request stream of the request.
@@ -1854,6 +1855,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         prompt: Union[str, List[int], List[Union[str, List[int], data.Data]]],
         generation_config: GenerationConfig,
         request_id: str,
+        lora_uid: Optional[str] = None,
     ) -> Iterator[List[engine_base.CallbackStreamOutput]]:
         """Internal synchronous text generation interface of MLCEngine.
         The method is a coroutine that streams a list of CallbackStreamOutput
@@ -1886,7 +1888,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         # config and the created callback.
         input_data = engine_utils.convert_prompts_to_data(prompt)
         request = self._ffi["create_request"](
-            request_id, input_data, generation_config.model_dump_json(by_alias=True)
+            request_id, input_data, generation_config.model_dump_json(by_alias=True), lora_uid
         )
 
         # Record the stream in the tracker

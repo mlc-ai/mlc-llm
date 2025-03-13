@@ -30,6 +30,22 @@ def main(argv):
         if not path.is_dir():
             path.mkdir(parents=True, exist_ok=True)
         return path
+    
+    class LoRAPathAction(argparse.Action):
+        def parse_path(self, path: Union[str, Path]) -> Path:
+            path = Path(path)
+            if not path.exists():
+                raise argparse.ArgumentTypeError(f"Model source does not exist: {path}")
+            return path
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(namespace, self.dest, {})
+            for lora_path in values:
+                if "=" in lora_path:
+                    name, path = lora_path.split("=", 1)
+                    getattr(namespace, self.dest)[name] = self.parse_path(path)
+                else:
+                    getattr(namespace, self.dest)[lora_path] = self.parse_path(lora_path)
 
     parser = ArgumentParser("MLC AutoLLM Quantization Framework")
     parser.add_argument(
@@ -77,6 +93,19 @@ def main(argv):
         required=True,
         help=HELP["output_quantize"] + " (required)",
     )
+    parser.add_argument(
+        "--lora-paths",
+        type=str,
+        nargs="*",
+        action=LoRAPathAction,
+        default=None,
+        help="The list of LoRA adapters. You can provide a list of either path in str or renamed path in the format (name)=(path)."
+    )
+    parser.add_argument(
+        "--lora-only",
+        action="store_true",
+        help="Only convert lora weights",
+    )
 
     parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
@@ -92,5 +121,7 @@ def main(argv):
         device=parsed.device,
         source=parsed.source,
         source_format=parsed.source_format,
+        lora_paths=parsed.lora_paths,
+        lora_only=parsed.lora_only,
         output=parsed.output,
     )

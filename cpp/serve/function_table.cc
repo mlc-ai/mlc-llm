@@ -21,6 +21,7 @@
 #include "../support/load_bytes_from_file.h"
 #include "../support/utils.h"
 #include "sampler/sampler.h"
+#include "../lora/lora_manager.h"
 
 namespace mlc {
 namespace llm {
@@ -158,7 +159,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   }
 }
 
-ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device) {
+ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device, LoraManager& lora_manager) {
   if (this->use_disco) {
     DRef params{nullptr};
     if (this->model_metadata_.params.empty()) {
@@ -191,7 +192,7 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
       ICHECK(fload_params) << "Cannot find env function: " << name_loader;
       params = (*fload_params)("param", -1);
-    } else {
+    } else if (!this->model_metadata_.enable_lora) {
       constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
       const PackedFunc* fload_params = tvm::runtime::Registry::Get(name_loader);
       ICHECK(fload_params) << "Cannot find env function: " << name_loader;
@@ -201,6 +202,8 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
         param_names.push_back(param.name);
       }
       params = (*fload_params)(param_names);
+    } else {
+      params = lora_manager.LoadBaseParamsAndAllocateLoraBuffers();
     }
     // after we get params, it is safe to simply clear the cached version
     // as these params are referenced by params_
@@ -265,6 +268,7 @@ void FunctionTable::_InitFunctions() {
       *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_num_available_pages");
   this->kv_cache_get_total_sequence_length_func_ =
       *tvm::runtime::Registry::Get("vm.builtin.attention_kv_cache_get_total_sequence_length");
+  this->kv_cache_set_lora_weight_indices_func_ = get_global_func("vm.builtin.kv_state_set_lora_weight_indices");
   if (Sampler::SupportGPUSampler(local_gpu_device)) {
     gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
     gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);

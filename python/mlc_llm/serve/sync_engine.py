@@ -157,6 +157,7 @@ class SyncMLCEngine:
         self,
         prompts: Union[str, List[str], List[int], List[List[int]], List[List[data.Data]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
+        lora_uids: Optional[Union[str, List[Optional[str]]]] = None,
     ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:
         """Generate texts for a list of input prompts.
         Each prompt can be a string or a list of token ids.
@@ -175,6 +176,9 @@ class SyncMLCEngine:
             this config will be shared by all the prompts.
             Otherwise, one generation config is required for every
             prompt.
+        
+        lora_uids: Optional[Union[str, List[Optional[str]]]]
+            None for all requests or 1:1 loras for each request
 
         Returns
         -------
@@ -267,6 +271,8 @@ class SyncMLCEngine:
                 return [data.TokenData(prompt)]  # type: ignore
             return prompt  # type: ignore
 
+        if lora_uids:
+            assert len(prompts) == len(lora_uids)
         # Add requests to engine.
         for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
             input_data = convert_to_data(prompt)  # type: ignore
@@ -275,6 +281,7 @@ class SyncMLCEngine:
                     request_id=str(req_id),
                     inputs=input_data,
                     generation_config=generation_cfg,
+                    lora_uid=lora_uids[req_id] if lora_uids else None
                 )
             )
 
@@ -290,6 +297,7 @@ class SyncMLCEngine:
         request_id: str,
         inputs: Union[data.Data, List[data.Data]],
         generation_config: GenerationConfig,
+        lora_uid: Optional[str] = None,
     ):
         """Create a new request that can be added to engine.
 
@@ -312,7 +320,7 @@ class SyncMLCEngine:
         if not isinstance(inputs, list):
             inputs = [inputs]
         return self._ffi["create_request"](
-            request_id, inputs, generation_config.model_dump_json(by_alias=True)
+            request_id, inputs, generation_config.model_dump_json(by_alias=True), lora_uid
         )
 
     def add_request(self, request: Request) -> None:

@@ -18,6 +18,8 @@ from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
+from mlc_llm.lora.lora import set_lora
+from mlc_llm.lora.lora_config import LoRAConfig
 
 from .compiler_flags import ModelConfigOverride, OptimizationFlags
 
@@ -37,6 +39,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
     system_lib_prefix: str
     output: Path
     overrides: ModelConfigOverride
+    lora_paths: Optional[Dict[str, Path]]
     debug_dump: Optional[Path]
 
     def __post_init__(self) -> None:
@@ -53,6 +56,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
         print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
+        print(f"  {bold('--lora-paths'):<25} {self.lora_paths}", file=out)
         print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
         # As it's debug only, no need to display
         # print(f"  {bold('--debug-dump'):<25} {self.debug_dump}", file=out)
@@ -154,6 +158,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
             )
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
+        if args.lora_paths:
+            set_lora(model, model_config, args.lora_paths, args.quantization.model_dtype)
         # Step 2. Exporting the model to TVM Unity
         logger.info("Exporting the model to TVM Unity compiler")
         mod, named_params, ext_mods = model.export_tvm(
@@ -182,6 +188,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "disaggregation": getattr(model_config, "disaggregation", False),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
+            "enable_lora": True if args.lora_paths else False,
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
@@ -219,6 +226,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     output: Path,
     overrides: ModelConfigOverride,
     debug_dump: Optional[Path] = None,
+    lora_paths: Optional[Dict[str, Path]] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
     if "model_config" in config:
@@ -238,6 +246,7 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
         system_lib_prefix,
         output,
         overrides,
+        lora_paths,
         debug_dump,
     )
     args.display()

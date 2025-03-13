@@ -18,7 +18,7 @@ namespace serve {
 
 TVM_REGISTER_OBJECT_TYPE(RequestNode);
 
-Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
+Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg, Optional<String> lora_uid) {
   if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
     CHECK(!inputs.empty()) << "No input data is given.";
   }
@@ -41,6 +41,7 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
   n->inputs = std::move(inputs);
   n->prompt_tokens = prompt_tokens;
   n->generation_cfg = std::move(generation_cfg);
+  n->lora_uid = lora_uid;
   data_ = std::move(n);
 }
 
@@ -64,7 +65,7 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
     ICHECK_NE(request->prompt_tokens, -1);
     return request;
   } else {
-    return Request(request->id, std::move(inputs), request->generation_cfg);
+    return Request(request->id, std::move(inputs), request->generation_cfg, request->lora_uid);
   }
 }
 

@@ -534,6 +534,7 @@ String EngineConfigNode::AsJSONString() const {
   config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
   config["prefill_mode"] = picojson::value(PrefillModeToString(this->prefill_mode));
   config["verbose"] = picojson::value(static_cast<bool>(this->verbose));
+  config["max_loras_per_batch"] = picojson::value(static_cast<int64_t>(this->max_loras_per_batch));
 
   return picojson::value(config).serialize(true);
 }

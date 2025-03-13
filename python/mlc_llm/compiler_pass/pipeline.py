@@ -39,6 +39,7 @@ from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .low_batch_specialization import LowBatchGemvSpecialize
 from .pipeline_parallel_rewrite import PipelineParallelRewrite
 from .scatter_tuple_get_item import ScatterTupleGetItem
+from .lora_batch_info_rewrite import LoraBatchInfoRewrite
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 DispatchKVCacheCreation(target, flashinfer, metadata),
                 AttachSoftmaxWithTemperature(target),
+                LoraBatchInfoRewrite(),
                 AttachVariableBounds(variable_bounds),
                 AttachCUDAGraphSymbolicCaptureHints(cuda_graph_symbolic_capture_hints),
                 AttachPipelineParallelStages(metadata["pipeline_parallel_stages"]),

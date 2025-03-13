@@ -149,6 +149,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
     disaggregation: Optional[bool] = None
+    max_loras_per_batch: Optional[int] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -160,6 +161,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
         print(f";disaggregation={self.disaggregation}", file=out, end="")
+        print(f";max_loras_per_batch={self.max_loras_per_batch}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -178,6 +180,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
             type=lambda x: (str(x).lower() in ["true", "1", "yes", "True"]),
             default=None,
         )
+        parser.add_argument("--max_loras_per_batch", type=int, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
@@ -188,6 +191,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
             tensor_parallel_shards=results.tensor_parallel_shards,
             pipeline_parallel_stages=results.pipeline_parallel_stages,
             disaggregation=results.disaggregation,
+            max_loras_per_batch=results.max_loras_per_batch,
         )
 
 

@@ -52,6 +52,22 @@ def main(argv):
             "Invalid prefix. It should only consist of "
             "numbers (0-9), alphabets (A-Z, a-z) and underscore (_)."
         )
+    
+    class LoRAPathAction(argparse.Action):
+        def parse_path(self, path: Union[str, Path]) -> Path:
+            path = Path(path)
+            if not path.exists():
+                raise argparse.ArgumentTypeError(f"Model source does not exist: {path}")
+            return path
+
+        def __call__(self, parser, namespace, values, option_string=None):
+            setattr(namespace, self.dest, {})
+            for lora_path in values:
+                if "=" in lora_path:
+                    name, path = lora_path.split("=", 1)
+                    getattr(namespace, self.dest)[name] = self.parse_path(path)
+                else:
+                    getattr(namespace, self.dest)[lora_path] = self.parse_path(lora_path)
 
     parser = ArgumentParser("mlc_llm compile")
     parser.add_argument(
@@ -116,6 +132,14 @@ def main(argv):
         default=None,
         help=HELP["debug_dump"] + " (default: %(default)s)",
     )
+    parser.add_argument(
+        "--lora-paths",
+        type=str,
+        nargs="*",
+        action=LoRAPathAction,
+        default=None,
+        help="The list of LoRA adapters. You can provide a list of either path in str or renamed path in the format (name)=(path)."
+    )
     parsed = parser.parse_args(argv)
     target, build_func = detect_target_and_host(parsed.device, parsed.host)
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
@@ -137,4 +161,5 @@ def main(argv):
         output=parsed.output,
         overrides=parsed.overrides,
         debug_dump=parsed.debug_dump,
+        lora_paths=parsed.lora_paths,
     )

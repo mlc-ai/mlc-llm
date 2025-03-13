@@ -294,6 +294,9 @@ class ModelObj : public Object {
   /*! \brief Load the model's weight parameters, which is not loaded at construction time. */
   virtual void LoadParams() = 0;
 
+  /*! \brief Set lora index for each request. */
+  virtual void SetLoraWeightIndices(Array<Optional<String>> lora_uids) = 0;
+
   /*!
    * \brief Set the maximum number of sequences to be processed for the model,
    * which is not initialized at construction time.

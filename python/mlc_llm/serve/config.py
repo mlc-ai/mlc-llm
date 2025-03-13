@@ -129,6 +129,9 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         "chunked" means the basic prefill with chunked input enabled.
         "hybrid" means the hybrid prefill or split-fuse,
         so that decode step will be converted into prefill.
+    
+    max_loras_per_batch: Optional[int]
+        Maximum number of adapters for a running batch, exclude base-only request
 
     verbose : bool
         A boolean indicating whether to print logging info in engine.
@@ -157,6 +160,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefix_cache_mode: Literal["disable", "radix"] = "radix"
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
     prefill_mode: Literal["chunked", "hybrid"] = "hybrid"
+    max_loras_per_batch: Optional[int] = None
     verbose: bool = True
 
     def asjson(self) -> str:

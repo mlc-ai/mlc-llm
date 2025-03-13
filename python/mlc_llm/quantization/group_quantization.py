@@ -334,6 +334,8 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             )
         else:
             self.bias = None
+        self.lora_A = None
+        self.lora_B = None
 
     @staticmethod
     def from_linear(src: nn.Linear, config: GroupQuantize) -> "GroupQuantizeLinear":
@@ -414,10 +416,12 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         )
         if self.config.linear_weight_layout == "NK":
             w = nn.op.permute_dims(w)  # pylint: disable=invalid-name
-        x = nn.op.matmul(x, w, out_dtype=self.out_dtype)
+        y = nn.op.matmul(x, w, out_dtype=self.out_dtype)
         if self.bias is not None:
-            x = x + self.bias
-        return x
+            y = y + self.bias
+        if self.lora_A:
+            return y + self.lora_B.forward(self.lora_A.forward(x))
+        return y
 
     def to(self, dtype: Optional[str] = None) -> None:
         """

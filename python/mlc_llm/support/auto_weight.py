@@ -90,9 +90,10 @@ def detect_weight(
     return weight_config_path, weight_format
 
 
-def _guess_weight_format(weight_path: Path) -> Tuple[Path, str]:
+def _guess_weight_format(weight_path: Path, is_lora: bool = False) -> Tuple[Path, str]:
     possible_formats: List[Tuple[Path, str]] = []
-    for weight_format, check_func in CHECK_FORMAT_METHODS.items():
+    methods = CHECK_FORMAT_METHODS_LORA if is_lora else CHECK_FORMAT_METHODS
+    for weight_format, check_func in methods.items():
         weight_config_path = check_func(weight_path)
         if weight_config_path:
             possible_formats.append((weight_config_path, weight_format))
@@ -169,9 +170,40 @@ def _check_safetensor(weight_path: Path) -> Optional[Path]:
     return None
 
 
+def _check_pytorch_lora(weight_path: Path) -> Optional[Path]:
+    pytorch_file_path = weight_path / "adapter_model.bin"
+    if pytorch_file_path.exists():
+        logger.info(
+            "%s source weight format: huggingface-torch. Source configuration: %s",
+            FOUND,
+            pytorch_file_path,
+        )
+        return pytorch_file_path
+
+    logger.info("%s Huggingface PyTorch", NOT_FOUND)
+    return None
+
+
+def _check_safetensor_lora(weight_path: Path) -> Optional[Path]:
+    safetensor_file_path = weight_path / "adapter_model.safetensors"
+    if safetensor_file_path.exists():
+        from safetensors.torch import (  # pylint: disable=import-outside-toplevel,import-error
+            load_file,
+        )
+        return safetensor_file_path
+
+    logger.info("%s Huggingface Safetensor", NOT_FOUND)
+    return None
+
+
 CHECK_FORMAT_METHODS = {
     "huggingface-torch": _check_pytorch,
     "huggingface-safetensor": _check_safetensor,
+}
+
+CHECK_FORMAT_METHODS_LORA = {
+    "huggingface-torch": _check_pytorch_lora,
+    "huggingface-safetensor": _check_safetensor_lora,
 }
 
 # "ggml", "gguf" are not supported yet.
