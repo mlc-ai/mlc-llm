@@ -1,0 +1,323 @@
+"""Implementation for Gemma3 architecture."""
+
+import dataclasses
+from typing import Any, Dict, Optional
+
+from tvm import te, tir
+from tvm.relax.frontend import nn
+from tvm.relax.frontend.nn import Tensor, op
+
+from mlc_llm.model.gemma2.gemma2_model import (
+    Gemma2Attention,
+    Gemma2Config,
+    Gemma2DecoderLayer,
+    Gemma2ForCausalLM,
+    Gemma2Model,
+)
+from mlc_llm import op as op_ext
+from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.support import logging
+from mlc_llm.support import tensor_parallel as tp
+from mlc_llm.support.style import bold
+
+from ...support.config import ConfigBase
+
+logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class Gemma3TextConfig(ConfigBase):
+    """Configuration of the text model inside Gemma3"""
+
+    # NOTE More fields have defaults due Huggingface Gemma3 models missing many fields in the config file
+    # The defaults for these fields can be found in the transformers library
+    hidden_size: int
+    intermediate_size: int
+    num_hidden_layers: int
+    attention_bias: bool = False
+    num_attention_heads: int = 8
+    num_key_value_heads: int = 4
+    head_dim: int = 256
+    rms_norm_eps: float = 1e-6
+    hidden_activation: Optional[str] = "gelu_pytorch_tanh"
+    position_embedding_base: int = 0
+    context_window_size: int = 131_072
+    prefill_chunk_size: int = 0
+
+    attn_logit_softcapping: float = None
+    final_logit_softcapping: float = None
+    query_pre_attn_scalar: int = 256
+    sliding_window: int = None
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.hidden_activation is None:
+            self.hidden_activation = self.kwargs.get("hidden_act", None)
+        if self.hidden_activation not in ("gelu", "gelu_pytorch_tanh"):
+            raise ValueError("Only GeLU is supported as the activation for gemma.")
+        if self.attention_bias:
+            raise ValueError('Only "False" attention_bias is supported for gemma')
+        if self.position_embedding_base == 0:
+            if "rope_theta" in self.kwargs:
+                self.position_embedding_base = self.kwargs.pop("rope_theta")
+            else:
+                self.position_embedding_base = 10000
+        if self.context_window_size == 0:
+            for name in ["max_position_embeddings", "max_sequence_length"]:
+                if name in self.kwargs:
+                    self.context_window_size = self.kwargs.pop(name)
+                    logger.info(
+                        "%s not found in config.json. Falling back to %s (%d)",
+                        bold("context_window_size"),
+                        bold(name),
+                        self.context_window_size,
+                    )
+                    break
+            else:
+                raise ValueError(
+                    "Unable to determine the maximum sequence length, because none of "
+                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
+                    "provided in `config.json`."
+                )
+        assert self.num_attention_heads % self.num_key_value_heads == 0
+        if self.prefill_chunk_size == 0:
+            logger.info(
+                "%s defaults to %d",
+                bold("prefill_chunk_size"),
+                min(self.context_window_size, 8192),
+            )
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
+        elif self.prefill_chunk_size > self.context_window_size:
+            logger.info(
+                "Overriding %s from %d to %d",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                min(self.context_window_size, 8192),
+            )
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
+        # NOTE: override the context window size with the Gemma2 sliding window size,
+        # as the sliding window attention every other layer is yet to be supported.
+        self.context_window_size = self.sliding_window
+
+
+@dataclasses.dataclass
+class Gemma3Config(ConfigBase):
+    """Configuration of the Gemma3 model"""
+
+    text_config: Gemma3TextConfig
+    vocab_size: int = 262_208
+    tensor_parallel_shards: int = 1
+    max_batch_size: int = 1
+    context_window_size: int = -1
+    sliding_window_size: int = -1
+    prefill_chunk_size: int = -1
+    kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+    def __post_init__(self):
+        text_config_dict: Dict[str, Any]
+        if isinstance(self.text_config, Gemma3TextConfig):
+            text_config_dict = dataclasses.asdict(self.text_config)
+        else:
+            text_config_dict = dict(self.text_config)
+
+        for k, v in text_config_dict.pop("kwargs", {}).items():
+            text_config_dict[k] = v
+
+        self.text_config = Gemma3TextConfig.from_dict(text_config_dict)
+
+        for k in ["context_window_size", "prefill_chunk_size"]:
+            if getattr(self, k) <= 0:
+                if hasattr(self.text_config, k):
+                    setattr(self, k, getattr(self.text_config, k))
+
+        if getattr(self, "sliding_window_size") <= 0:
+            if hasattr(self.text_config, "sliding_window"):
+                setattr(self, k, getattr(self.text_config, "sliding_window"))
+
+    def toGemma2Config(self):
+        return Gemma2Config(**self.text_config.__dict__, vocab_size=self.vocab_size)
+
+
+# pylint: disable=invalid-name,missing-docstring
+
+
+class Gemma3Attention(Gemma2Attention):
+    def __init__(self, config: Gemma3Config):
+        super().__init__(config.toGemma2Config())
+
+
+class Gemma3DecoderLayer(Gemma2DecoderLayer):
+    def __init__(self, config: Gemma3Config):
+        super().__init__(config.toGemma2Config())
+
+
+class Gemma3Model(Gemma2Model):
+    def __init__(self, config: Gemma3Config):
+        super().__init__(config.toGemma2Config())
+
+
+class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+    def __init__(self, config: Gemma3Config):
+        super().__init__()
+        self.config = config
+        self.language_model = Gemma2ForCausalLM(Gemma2Config(**config.text_config.__dict__, vocab_size=config.vocab_size))
+        self.vocab_size = config.vocab_size
+        self.dtype = "bfloat16"
+        self.tensor_parallel_shards = config.tensor_parallel_shards
+
+    def to(self, dtype: Optional[str] = None):
+        super().to(dtype=dtype)
+        self.language_model.to(dtype=dtype)
+        if dtype is not None:
+            self.dtype = dtype
+
+    def get_logits(self, hidden_states: Tensor):
+        logits = self.language_model.model.embed_tokens.lm_head_forward(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
+    def batch_forward(
+        self,
+        input_embeds: Tensor,
+        paged_kv_cache: PagedKVCache,
+        logit_positions: Optional[Tensor] = None,
+    ):
+        op_ext.configure()
+
+        hidden_states = self.language_model.model(input_embeds, paged_kv_cache)
+        if logit_positions is not None:
+            hidden_states = op.take(hidden_states, logit_positions, axis=1)
+        logits = self.get_logits(hidden_states)
+        return logits
+
+    def embed(self, input_ids: Tensor):
+        if self.tensor_parallel_shards > 1:
+            input_ids = op.ccl_broadcast_from_worker0(input_ids)
+        return self.language_model.model.embed_tokens(input_ids)
+
+    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        def _index(x: te.Tensor):  # x[:-1,:]
+            b, s, d = x.shape
+            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
+
+        hidden_states = self.language_model.model(input_embed, paged_kv_cache)
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        logits = self.get_logits(hidden_states)
+        return logits, paged_kv_cache
+
+    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+
+        hidden_states = self.language_model.model(input_embed, paged_kv_cache)
+        logits = self.get_logits(hidden_states)
+        return logits, paged_kv_cache
+
+    def batch_prefill(
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        if self.tensor_parallel_shards > 1:
+            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
+        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return logits, paged_kv_cache
+
+    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
+
+    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
+        logits = self.batch_forward(input_embeds, paged_kv_cache)
+        return logits, paged_kv_cache
+
+    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            support_sliding_window=support_sliding_window,
+            num_hidden_layers=self.language_model.num_hidden_layers,
+            num_attention_heads=self.language_model.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.language_model.num_key_value_heads // self.tensor_parallel_shards,
+            qk_head_dim=self.language_model.head_dim,
+            v_head_dim=self.language_model.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.language_model.rope_theta,
+            dtype=self.dtype,
+        )
+
+    def get_default_spec(self):
+        mod_spec = {
+            "embed": {
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.language_model.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode": {
+                "input_embed": nn.spec.Tensor([1, 1, self.language_model.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.language_model.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.language_model.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.language_model.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
+                "support_sliding_window": int,
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+        }
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
