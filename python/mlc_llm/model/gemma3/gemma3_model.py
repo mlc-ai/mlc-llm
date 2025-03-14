@@ -127,7 +127,7 @@ class Gemma3Config(ConfigBase):
 
         if getattr(self, "sliding_window_size") <= 0:
             if hasattr(self.text_config, "sliding_window"):
-                setattr(self, k, getattr(self.text_config, "sliding_window"))
+                setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
 
 
 class Gemma3MLP(nn.Module):
