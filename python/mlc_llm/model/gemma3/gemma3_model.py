@@ -121,9 +121,9 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
 
-        if getattr(self, "sliding_window_size") <= 0:
-            if hasattr(self.text_config, "sliding_window"):
-                setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
+        # if getattr(self, "sliding_window_size") <= 0:
+        #     if hasattr(self.text_config, "sliding_window"):
+        #         setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
 
 
 # pylint: disable=invalid-name,missing-docstring
