@@ -463,9 +463,11 @@ class EngineImpl : public Engine {
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
     // - Initialize tokenizer and grammar
+
     n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
     n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-    n->cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(n->token_table_);
+    // TODO: check 'vocab_size' of TokenizerInfo
+    n->grammar_compiler_ = xgrammar::GrammarCompiler(xgrammar::TokenizerInfo(n->token_table_));
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -975,13 +977,13 @@ class EngineImpl : public Engine {
    * is not JSON, return std::nullopt. */
   std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
+    // TODO: add other grammar type
     if (response_format.type != "json_object") {
       return std::nullopt;
     } else if (!response_format.schema) {
-      return cached_grammar_compiler_.GetCompiledGrammarForJSON();
+      return grammar_compiler_.CompileBuiltinJSONGrammar();
     } else {
-      return cached_grammar_compiler_.GetCompiledGrammarForJSONSchema(
-          response_format.schema.value());
+      return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
     }
   }
 
@@ -992,8 +994,8 @@ class EngineImpl : public Engine {
   // internal tokenizer
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
-  // Cached grammar compiler for grammar matching.
-  xgrammar::CachedGrammarCompiler cached_grammar_compiler_;
+  // Grammar compiler for grammar matching.
+  xgrammar::GrammarCompiler grammar_compiler_;
   // Models
   Array<Model> models_;
   // Device that the models run on.
