@@ -3,18 +3,17 @@
 import dataclasses
 from typing import Any, Dict, Optional
 
+from tvm import te, tir
+from tvm.relax.frontend import nn
+from tvm.relax.frontend.nn import Tensor, op
+
 from mlc_llm import op as op_ext
 from mlc_llm.model.gemma.gemma_model import GemmaEmbedding
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
+from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
-
-from tvm import te, tir
-from tvm.relax.frontend import nn
-from tvm.relax.frontend.nn import Tensor, op
-
-from ...support.config import ConfigBase
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +193,7 @@ class Gemma3Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         self.k_norm = nn.RMSNorm(
             config.text_config.head_dim, -1, config.text_config.rms_norm_eps, bias=False
         )
-        # self.scaling_factor = (config.text_config.head_dim / config.text_config.query_pre_attn_scalar) ** 0.5
+        # self.scaling_factor = (self.head_dim / config.text_config.query_pre_attn_scalar) ** 0.5
         self.scaling = config.text_config.query_pre_attn_scalar**-0.5
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
