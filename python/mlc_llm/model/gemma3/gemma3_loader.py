@@ -42,22 +42,6 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
     mapping = ExternMapping()
 
     for i in range(model_config.text_config.num_hidden_layers):
-        # Add QKV in self attention
-        attn = f"language_model.model.layers.{i}.self_attn"
-        mlc_name = f"{attn}.qkv_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        mapping.add_mapping(
-            mlc_name,
-            [
-                f"{attn}.q_proj.weight",
-                f"{attn}.k_proj.weight",
-                f"{attn}.v_proj.weight",
-            ],
-            functools.partial(
-                lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
-        )
         # Add gates in MLP
         mlp = f"language_model.model.layers.{i}.mlp"
         mlc_name = f"{mlp}.gate_up_proj.weight"
@@ -109,6 +93,28 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
         )
 
         mlc_name = f"language_model.model.layers.{i}.post_feedforward_layernorm.weight"
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [mlc_name],
+            functools.partial(
+                lambda x, dtype: (x + 1).astype(dtype),
+                dtype=named_parameters[mlc_name].dtype,
+            ),
+        )
+
+        mlc_name = f"language_model.model.layers.{i}.self_attn.k_norm.weight"
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [mlc_name],
+            functools.partial(
+                lambda x, dtype: (x + 1).astype(dtype),
+                dtype=named_parameters[mlc_name].dtype,
+            ),
+        )
+
+        mlc_name = f"language_model.model.layers.{i}.self_attn.q_norm.weight"
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
