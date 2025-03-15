@@ -88,7 +88,7 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             self.prefill_chunk_size = min(self.context_window_size, 8192)
         # NOTE: override the context window size with the Gemma2 sliding window size,
         # as the sliding window attention every other layer is yet to be supported.
-        self.context_window_size = self.sliding_window
+        self.context_window_size = max(self.sliding_window, 8192)
 
 
 @dataclasses.dataclass
@@ -121,9 +121,9 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
 
-        if getattr(self, "sliding_window_size") <= 0:
-            if hasattr(self.text_config, "sliding_window"):
-                setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
+        # if getattr(self, "sliding_window_size") <= 0:
+        #     if hasattr(self.text_config, "sliding_window"):
+        #         setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
 
 
 # pylint: disable=invalid-name,missing-docstring
