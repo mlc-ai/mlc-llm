@@ -84,7 +84,7 @@ class ImageProcessor(Module):
                 assert False, "not supported resize parameter"
 
         (new_h, new_w) = get_output_image_size(image)
-        out = op.interpolate(image, (new_h, new_w), data_layout="NCHW", mode="linear")
+        out = op.interpolate(image, (new_h, new_w), data_layout="NCHW", mode="bicubic")
         return out
 
     # pylint: disable=too-many-arguments,too-many-locals
