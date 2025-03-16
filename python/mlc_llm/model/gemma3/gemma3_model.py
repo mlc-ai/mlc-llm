@@ -95,16 +95,21 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Gemma3 model"""
 
-    text_config: Gemma3TextConfig
+    text_config: Gemma3TextConfig = None
     vocab_size: int = 262_208
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     context_window_size: int = -1
     sliding_window_size: int = -1
     prefill_chunk_size: int = -1
+    is_text_model: bool = False
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if self.text_config is None:
+            self.is_text_model = True
+            self.text_config = Gemma3TextConfig.from_dict(self.kwargs)
+
         text_config_dict: Dict[str, Any]
         if isinstance(self.text_config, Gemma3TextConfig):
             text_config_dict = dataclasses.asdict(self.text_config)
@@ -120,10 +125,6 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             if getattr(self, k) <= 0:
                 if hasattr(self.text_config, k):
                     setattr(self, k, getattr(self.text_config, k))
-
-        # if getattr(self, "sliding_window_size") <= 0:
-        #     if hasattr(self.text_config, "sliding_window"):
-        #         setattr(self, "sliding_window_size", getattr(self.text_config, "sliding_window"))
 
 
 # pylint: disable=invalid-name,missing-docstring

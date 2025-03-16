@@ -158,6 +158,19 @@ MODELS: Dict[str, Model] = {
             "group-quant": gemma3_quantization.group_quant,
         },
     ),
+    "gemma3_text": Model(
+        name="gemma3_text",
+        model=gemma3_model.Gemma3ForCausalLM,
+        config=gemma3_model.Gemma3Config,
+        source={
+            "huggingface-torch": gemma3_loader.huggingface,
+            "huggingface-safetensor": gemma3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": gemma3_quantization.no_quant,
+            "group-quant": gemma3_quantization.group_quant,
+        },
+    ),
     "gpt2": Model(
         name="gpt2",
         model=gpt2_model.GPT2LMHeadModel,
