@@ -179,7 +179,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         if (  # pylint: disable=too-many-boolean-expressions
             not self.flashinfer
             or self.target.kind.name != "cuda"
-            or str(kwargs["dtype"]) not in ["float16"]
+            or str(kwargs["dtype"]) not in ["float16", "bfloat16"]
             or (
                 kwargs["rope_mode"] == RopeMode.INLINE
                 and (
