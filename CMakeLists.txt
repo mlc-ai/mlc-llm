@@ -71,7 +71,7 @@ add_subdirectory(${TOKENZIER_CPP_PATH} tokenizers EXCLUDE_FROM_ALL)
 set(XGRAMMAR_PATH 3rdparty/xgrammar)
 tvm_file_glob(GLOB_RECURSE MLC_LLM_SRCS cpp/*.cc)
 tvm_file_glob(GLOB_RECURSE XGRAMMAR_SRCS ${XGRAMMAR_PATH}/cpp/*.cc)
-list(FILTER XGRAMMAR_SRCS EXCLUDE REGEX "${XGRAMMAR_PATH}/cpp/pybind/.*\\.cc")
+list(FILTER XGRAMMAR_SRCS EXCLUDE REGEX "${XGRAMMAR_PATH}/cpp/nanobind/.*\\.cc")
 list(APPEND MLC_LLM_SRCS ${XGRAMMAR_SRCS})
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
