@@ -14,6 +14,7 @@
 
 #include "../metadata/model.h"
 #include "../support/result.h"
+#include "tvm/runtime/container/optional.h"
 
 namespace mlc {
 namespace llm {
@@ -28,6 +29,8 @@ using namespace tvm::runtime;
 struct ResponseFormat {
   String type = "text";
   Optional<String> schema = NullOpt;
+  Optional<Array<Array<String>>> tags = NullOpt;
+  Optional<Array<String>> triggers = NullOpt;
   /*!
    * \brief Create debug config from JSON.
    * \param config_json The json string for generation config

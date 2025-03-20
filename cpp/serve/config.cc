@@ -10,11 +10,14 @@
 
 #include <limits>
 #include <random>
+#include <string>
+#include <vector>
 
 #include "../json_ffi/openai_api_protocol.h"
 #include "../support/json_parser.h"
 #include "../support/utils.h"
 #include "data.h"
+#include "tvm/runtime/container/array.h"
 
 namespace mlc {
 namespace llm {
@@ -42,13 +45,43 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
   ResponseFormat res;
   res.type = json::LookupOrDefault<std::string>(config, "type", "text");
 
+  if (res.type != "text" && res.type != "function" && res.type != "json_object" &&
+      res.type != "structural_tag") {
+    return TResult::Error("Uknonwn response_format type " + res.type);
+  }
+
   std::optional<std::string> schema = json::LookupOptional<std::string>(config, "schema");
   if (schema.has_value()) {
     res.schema = schema.value();
   }
 
-  if (res.type != "text" && res.type != "function" && res.type != "json_object") {
-    return TResult::Error("Uknonwn response_format type " + res.type);
+  if (auto tags_obj = json::LookupOptional<picojson::array>(config, "tags")) {
+    auto tags = Array<Array<String>>();
+    for (auto tag_obj : tags_obj.value()) {
+      Array<String> tag = Array<String>();
+      std::optional<std::string> begin =
+          json::LookupOptional<std::string>(tag_obj.get<picojson::object>(), "begin");
+      std::optional<std::string> schema =
+          json::LookupOptional<std::string>(tag_obj.get<picojson::object>(), "schema");
+      std::optional<std::string> end =
+          json::LookupOptional<std::string>(tag_obj.get<picojson::object>(), "end");
+      if (!(begin.has_value() && schema.has_value() && end.has_value())) {
+        return TResult::Error("Miss tag attribute.");
+      }
+      tag.push_back(begin.value());
+      tag.push_back(schema.value());
+      tag.push_back(end.value());
+      tags.push_back(std::move(tag));
+    }
+    res.tags = tags;
+  }
+
+  if (auto triggers_obj = json::LookupOptional<picojson::array>(config, "triggers")) {
+    auto triggers = Array<String>();
+    for (auto trigger : triggers_obj.value()) {
+      triggers.push_back(trigger.get<std::string>());
+    }
+    res.triggers = triggers;
   }
 
   return TResult::Ok(res);
@@ -59,6 +92,24 @@ picojson::object ResponseFormat::AsJSON() const {
   config["type"] = picojson::value(type);
   if (schema.defined()) {
     config["schema"] = picojson::value(schema.value().operator std::string());
+  }
+  if (tags.defined()) {
+    picojson::array tags_obj = picojson::array();
+    for (auto tag : tags.value()) {
+      picojson::array tag_obj = picojson::array();
+      tag_obj.emplace_back(tag[0]);
+      tag_obj.emplace_back(tag[1]);
+      tag_obj.emplace_back(tag[2]);
+      tags_obj.emplace_back(tag_obj);
+    }
+    config["tags"] = picojson::value(tags_obj);
+  }
+  if (triggers.defined()) {
+    picojson::array trigger_obj = picojson::array();
+    for (std::string trigger : triggers.value()) {
+      trigger_obj.emplace_back(trigger);
+    }
+    config["triggers"] = picojson::value(trigger_obj);
   }
   return config;
 }

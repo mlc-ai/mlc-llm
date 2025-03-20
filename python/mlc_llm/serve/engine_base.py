@@ -7,6 +7,7 @@ import asyncio
 import json
 import numbers
 import queue
+import re
 import sys
 import threading
 from dataclasses import dataclass
@@ -1146,29 +1147,52 @@ def create_completion_suffix_response(
     return response
 
 
-def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+def convert_function_str_to_json(stringified_calls: str):
     """Convert a (possibly list) of function call string to a list of json objects.
     Return None for invalid function call string."""
+    function_calls_json = []
+    for call in re.finditer(r"<function=(.*?)>(.*?)</function>", stringified_calls, re.DOTALL):
+        function_name = call.group(1)
+        params_str = call.group(2).strip()
+        params = ast.literal_eval(params_str)
+        function_calls_json.append({"name": function_name, "arguments": params})
 
-    def parse_function_call(call_str: str):
-        node = ast.parse(call_str, mode="eval")
-        call_node = node.body
-        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
-            name = call_node.func.id
-            arguments = {}
-            for keyword in call_node.keywords:
-                arguments[keyword.arg] = ast.literal_eval(keyword.value)
-            return {"name": name, "arguments": arguments}
-        return None
-
-    if (
-        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
-    ):  # hacky way to check if string list
-        calls = ast.literal_eval(stringified_calls)
-    else:
-        calls = [stringified_calls]
-    function_calls_json = [parse_function_call(call_str) for call_str in calls]
     return function_calls_json
+
+
+def set_structural_tag_from_tools(
+    tools: Optional[List[openai_api_protocol.ChatTool]],
+    response_format: Optional[openai_api_protocol.RequestResponseFormat],
+):
+    """Add the corresponding structural tag to the response format according to the tools to ensure valid function calling.
+    Return the updated response format.
+    """
+    if tools is None:
+        return response_format
+    else:
+        if response_format is None or response_format.type == "text":
+            response_format = openai_api_protocol.RequestResponseFormat.model_validate(
+                {"type": "structural_tag", "tags": [], "triggers": []}
+            )
+        elif response_format.type == "json_object":
+            response_format.tags = []
+            response_format.triggers = []
+
+        response_format.triggers.append("<function=")
+        for tool in tools:
+            schema = {
+                "properties": tool.function.parameters["properties"],
+                "required": tool.function.parameters["required"],
+                "type": tool.function.parameters["type"],
+            }
+            response_format.tags.append(
+                {
+                    "begin": f"<function={tool.function.name}>",
+                    "schema": json.dumps(schema),
+                    "end": "</function>",
+                }
+            )
+        return response_format
 
 
 def process_function_call_output(

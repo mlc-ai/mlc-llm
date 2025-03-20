@@ -976,6 +976,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
 
+        tools = (
+            [openai_api_protocol.ChatTool.model_validate(tool) for tool in tools]
+            if tools is not None
+            else None
+        )
+
         chatcmpl_generator = self._handle_chat_completion(
             openai_api_protocol.ChatCompletionRequest(
                 messages=[
@@ -1207,6 +1213,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
+        request.response_format = engine_base.set_structural_tag_from_tools(
+            request.tools, request.response_format
+        )
+
         (
             prompts,
             generation_cfg,
@@ -1764,6 +1774,10 @@ class MLCEngine(engine_base.MLCEngineBase):
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
+        request.response_format = engine_base.set_structural_tag_from_tools(
+            request.tools, request.response_format
+        )
+
         (
             prompts,
             generation_cfg,

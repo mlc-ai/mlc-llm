@@ -19,8 +19,10 @@
 #include <functional>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <tuple>
 #include <unordered_set>
+#include <utility>
 
 #include "../support/json_parser.h"
 #include "../support/result.h"
@@ -35,6 +37,7 @@
 #include "request.h"
 #include "request_state.h"
 #include "sampler/sampler.h"
+#include "xgrammar/grammar.h"
 
 namespace mlc {
 namespace llm {
@@ -978,12 +981,24 @@ class EngineImpl : public Engine {
   std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
     // TODO: add other grammar type
-    if (response_format.type != "json_object") {
+    if (response_format.type == "text") {
       return std::nullopt;
-    } else if (!response_format.schema) {
-      return grammar_compiler_.CompileBuiltinJSONGrammar();
+    } else if (response_format.type == "json_object") {
+      if (!response_format.schema) {
+        return grammar_compiler_.CompileBuiltinJSONGrammar();
+      } else {
+        return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
+      }
     } else {
-      return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
+      std::vector<xgrammar::StructuralTagItem> tags;
+      std::vector<std::string> triggers;
+      for (auto tag : response_format.tags.value()) {
+        tags.emplace_back(xgrammar::StructuralTagItem{tag[0], tag[1], tag[2]});
+      }
+      for (auto trigger : response_format.triggers.value()) {
+        triggers.emplace_back(trigger);
+      }
+      return grammar_compiler_.CompileStructuralTag(std::move(tags), std::move(triggers));
     }
   }
 

@@ -86,12 +86,33 @@ class ModelResponse(BaseModel):
 
 
 class RequestResponseFormat(BaseModel):
-    type: Literal["text", "json_object"] = "text"
-    json_schema: Optional[str] = Field(default=None, alias="schema")
+    type: Literal["text", "json_object", "structural_tag"] = "text"
     """This field is named json_schema instead of schema because BaseModel defines a method called
     schema. During construction of RequestResponseFormat, key "schema" still should be used:
     `RequestResponseFormat(type="json_object", schema="{}")`
     """
+    json_schema: Optional[str] = Field(default=None, alias="schema")
+
+    """These field are only used for type="structural_tag"."""
+    tags: Optional[List[Dict[str, str]]] = Field(default=None, alias="tags")
+    triggers: Optional[List[str]] = Field(default=None, alias="triggers")
+
+    @model_validator(mode="after")
+    def check_request_response_format(self) -> "RequestResponseFormat":
+        """Check if the RequestResponseFormat is valid."""
+        if self.type == "structural_tag":
+            if self.tags is None or self.triggers is None:
+                raise ValueError("structural_tag type must contain keys 'tags' and 'triggers'.")
+            for tag in self.tags:
+                if set(tag.keys()) != {"begin", "schema", "end"}:
+                    raise ValueError(
+                        f"Each tag must contain exactly 'begin', 'schema' and 'end' keys. Got keys: {list(tag.keys())}."
+                    )
+        elif self.tags is not None or self.triggers is not None:
+            raise Warning(
+                "'tags' and 'triggers' attributes should be used when type='structural_tag'"
+            )
+        return self
 
 
 class CompletionRequest(BaseModel):
