@@ -20,9 +20,9 @@
 #include <runtime/opencl/opencl_device_api.cc>
 #include <runtime/opencl/opencl_module.cc>
 #include <runtime/opencl/opencl_wrapper/opencl_wrapper.cc>
-#include <runtime/opencl/texture_pool.cc>
 #include <runtime/profiling.cc>
 #include <runtime/registry.cc>
+#include <runtime/relax_vm/attn_backend.cc>
 #include <runtime/relax_vm/builtin.cc>
 #include <runtime/relax_vm/bytecode.cc>
 #include <runtime/relax_vm/executable.cc>
