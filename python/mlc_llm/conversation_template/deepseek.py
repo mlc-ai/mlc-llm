@@ -36,6 +36,22 @@ ConvTemplateRegistry.register_conv_template(
     )
 )
 
+# DeepSeek-V3
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="deepseek_v3",
+        system_template=f"<｜begin▁of▁sentence｜>{MessagePlaceholders.SYSTEM.value}",
+        system_message="You are Deepseek-V3, an AI assistant created exclusively by the Chinese "
+        "Company DeepSeek. You'll provide helpful, harmless, and detailed responses to all "
+        "user inquiries.",
+        roles={"user": "<｜User｜>", "assistant": "<｜Assistant｜>"},
+        seps=["", "<｜end▁of▁sentence｜>"],
+        role_content_sep="",
+        role_empty_sep="",
+        stop_token_ids=[1],
+    )
+)
+
 # DeepSeek-R1-Distill-Qwen
 ConvTemplateRegistry.register_conv_template(
     Conversation(

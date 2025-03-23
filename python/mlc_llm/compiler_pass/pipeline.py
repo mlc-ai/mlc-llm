@@ -28,6 +28,7 @@ from .attach_support_info import (
 from .blas_dispatch import BLASDispatch
 from .clean_up_tir_attrs import CleanUpTIRAttrs
 from .dispatch_kv_cache_creation import DispatchKVCacheCreation
+from .dispatch_triton_kernel import DispatchTritonKernel
 from .estimate_memory_usage import AttachMetadataWithMemoryUsage
 from .fuse_add_norm import FuseAddRMSNorm
 from .fuse_dequantize_matmul_ewise import FuseDequantizeMatmulEwise
@@ -117,6 +118,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
+                DispatchTritonKernel(target),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),
                 BLASDispatch(target) if cublas_gemm else tvm.transform.Sequential([]),
@@ -185,6 +187,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 ),
                 tvm.relax.transform.StaticPlanBlockMemory(),
                 AttachMetadataWithMemoryUsage(metadata),
+                _DebugDump("debug-phase5.py", debug_dump, show_meta=False),
                 tvm.relax.transform.RewriteCUDAGraph(),
                 AttachCUDAGraphAllocInitFunc(),
                 tvm.relax.transform.LowerGPUIPCAllocStorage(),
@@ -193,7 +196,6 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 tvm.relax.transform.LowerRuntimeBuiltin(),
                 tvm.relax.transform.VMShapeLower(),
                 tvm.relax.transform.AttachGlobalSymbol(),
-                _DebugDump("debug-final.py", debug_dump, show_meta=False),
                 _LogProgress("Compiling external modules"),
                 tvm.relax.transform.AttachExternModules(ext_mods),
                 _LogProgress("Compilation complete! Exporting to disk"),

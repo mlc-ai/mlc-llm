@@ -110,7 +110,7 @@ class Gemma3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.is_text_model = True
             self.text_config = Gemma3TextConfig.from_dict(self.kwargs)
 
-        text_config_dict: Dict[str, Any]
+        text_config_dict: Dict[str, Any]  # type: ignore
         if isinstance(self.text_config, Gemma3TextConfig):
             text_config_dict = dataclasses.asdict(self.text_config)
         else:

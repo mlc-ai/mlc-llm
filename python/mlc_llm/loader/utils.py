@@ -55,6 +55,7 @@ def load_torch_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
 def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
     """Load and yield SafeTensor format parameters."""
     import safetensors  # pylint: disable=import-outside-toplevel,import-error
+    import torch  # pylint: disable=import-outside-toplevel
 
     with safetensors.safe_open(path, framework="pt", device="cpu") as in_file:
         for name in in_file.keys():
@@ -62,6 +63,13 @@ def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
             param = param.detach().cpu()
             dtype = str(param.dtype)
             if dtype == "torch.bfloat16":
-                param = param.float()
-            param = param.numpy()
+                import ml_dtypes  # pylint: disable=import-outside-toplevel
+
+                param = param.view(torch.float16).cpu().numpy().view(ml_dtypes.bfloat16)
+            elif dtype == "torch.float8_e4m3fn":
+                import ml_dtypes  # pylint: disable=import-outside-toplevel
+
+                param = param.view(torch.uint8).cpu().numpy().view(ml_dtypes.float8_e4m3fn)
+            else:
+                param = param.numpy()
             yield name, param
