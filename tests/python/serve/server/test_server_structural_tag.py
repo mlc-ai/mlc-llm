@@ -11,7 +11,7 @@ Test script for structural tag in chat completion. To run this script, use the f
 import json
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import pytest
 import requests
@@ -136,16 +136,21 @@ def check_openai_stream_response(
 
 
 def check_format(name_beg: str, name_end: str, beg_tag: str, schema: str):
-    schema = json.loads(schema)
+    try:
+        paras: Dict[str, Any] = json.loads(schema)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON format: {e}")
+        assert False
+    assert "hash_code" in paras
     assert "hash_code" in schema
-    hash_code = schema["hash_code"]
+    hash_code = paras["hash_code"]
     assert hash_code in CHECK_INFO
     info = CHECK_INFO[hash_code]
     assert name_beg == info["name"]
     assert name_end == info["name"]
     assert beg_tag == info["beg_tag"]
     for key in info["required"]:
-        assert key in schema
+        assert key in paras
 
 
 # NOTE: the end-tag format and the hash_code number is been hidden in the SYSTEM_PROMPT.
@@ -218,7 +223,6 @@ Reminder:
 - Required parameters MUST be specified
 You are a helpful assistant.""",
 }
-
 
 STRUCTURAL_TAGS = {
     "triggers": ["<CALL--->", "<call--->"],
@@ -336,7 +340,6 @@ CHECK_INFO = {
         "required": ["timezone", "hash_code"],
     },
 }
-
 
 CHAT_COMPLETION_MESSAGES = [
     # messages #0
