@@ -12,8 +12,6 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
-#include <cstdio>
-
 namespace mlc {
 namespace llm {
 namespace serve {

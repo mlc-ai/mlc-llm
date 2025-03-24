@@ -10,14 +10,11 @@
 
 #include <limits>
 #include <random>
-#include <string>
-#include <vector>
 
 #include "../json_ffi/openai_api_protocol.h"
 #include "../support/json_parser.h"
 #include "../support/utils.h"
 #include "data.h"
-#include "tvm/runtime/container/array.h"
 
 namespace mlc {
 namespace llm {

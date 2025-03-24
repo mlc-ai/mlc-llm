@@ -19,10 +19,8 @@
 #include <functional>
 #include <numeric>
 #include <optional>
-#include <string>
 #include <tuple>
 #include <unordered_set>
-#include <utility>
 
 #include "../support/json_parser.h"
 #include "../support/result.h"
@@ -37,7 +35,6 @@
 #include "request.h"
 #include "request_state.h"
 #include "sampler/sampler.h"
-#include "xgrammar/grammar.h"
 
 namespace mlc {
 namespace llm {

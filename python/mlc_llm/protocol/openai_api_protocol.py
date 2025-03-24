@@ -112,6 +112,7 @@ class RequestResponseFormat(BaseModel):
             raise Warning(
                 "'tags' and 'triggers' attributes should be used when type='structural_tag'"
             )
+
         return self
 
 

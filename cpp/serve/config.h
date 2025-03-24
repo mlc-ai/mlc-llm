@@ -14,7 +14,6 @@
 
 #include "../metadata/model.h"
 #include "../support/result.h"
-#include "tvm/runtime/container/optional.h"
 
 namespace mlc {
 namespace llm {
