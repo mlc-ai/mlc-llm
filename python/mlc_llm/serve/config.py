@@ -134,9 +134,10 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         A boolean indicating whether to print logging info in engine.
 
     tool_call_format: Literal["default", "python"]
-        The tool function call foramt.
-        "default" means model will call tool function in format '<function=func_name>{parameters(JSON dict)}</function>',
-        e.g. '<function=get_time> {"location": "Pittsburgh"} </tool_call>'.
+        The tool function call format.
+        "default" means model will call tool function
+        in format '<function=func_name>{parameters(JSON dict)}</function>',
+        e.g. '<function=get_time> {"location": "Pittsburgh"} </function>'.
         "python" means model will call tool function in python-style format,
         e.g. 'wolfram_alpha.call(query="solve x^3 - 4x^2 + 6x - 24 = 0")'.
     """

@@ -203,7 +203,8 @@ class Conversation(BaseModel):
         if self.tool_call_format == "default":
             tool_call_instruct = (
                 "Tool Instructions:"
-                f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
                 "If a you choose to call a function, you should ONLY reply in the following format:"
                 "`<function={func name}>{parameters(JSON dict)}</function>`"
                 "Here is an example,"

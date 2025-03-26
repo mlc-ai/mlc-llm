@@ -1148,7 +1148,7 @@ def create_completion_suffix_response(
     return response
 
 
-def set_structural_tag_from_tools( # pylint: disable=too-many-boolean-expressions
+def set_structural_tag_from_tools(  # pylint: disable=too-many-boolean-expressions
     tools: Optional[List[openai_api_protocol.ChatTool]],
     response_format: Optional[openai_api_protocol.RequestResponseFormat],
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]],
