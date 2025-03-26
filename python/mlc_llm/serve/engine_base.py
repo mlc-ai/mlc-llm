@@ -9,6 +9,7 @@ import numbers
 import queue
 import sys
 import threading
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
@@ -130,6 +131,7 @@ def _process_model_args(
 
         if conversation is None:
             conversation = mlc_chat_config.conv_template
+            conversation.tool_call_format = engine_config.tool_call_format
 
         if model.model_lib is not None:
             # do model lib search if the model lib is provided
@@ -1146,36 +1148,104 @@ def create_completion_suffix_response(
     return response
 
 
-def convert_function_str_to_json(stringified_calls: str) -> List[Union[Dict, None]]:
+def set_structural_tag_from_tools(
+    tools: Optional[List[openai_api_protocol.ChatTool]],
+    response_format: Optional[openai_api_protocol.RequestResponseFormat],
+    tool_choice: Optional[Union[Literal["none", "auto"], Dict]],
+    tool_call_format: str,
+):
+    """Add the corresponding structural tag to the response format according to
+    the tools to ensure valid function calling. Only set in strict mode of the tool.
+    Return the updated response format.
+    """
+    if tools is None or (isinstance(tool_choice, str) and tool_choice == "none"):
+        return response_format
+
+    if response_format is None or response_format.type == "text":
+        response_format = openai_api_protocol.RequestResponseFormat.model_validate(
+            {"type": "structural_tag", "tags": [], "triggers": []}
+        )
+    elif response_format.type == "json_object":
+        response_format.tags = []
+        response_format.triggers = []
+
+    if tool_call_format == "default":
+        for tool in tools:
+            if tool.function.strict and (
+                tool_choice is None
+                or (isinstance(tool_choice, str) and tool_choice == "auto")
+                or (
+                    isinstance(tool_choice, dict)
+                    and tool.function.name == tool_choice["function"]["name"]
+                )
+            ):
+                schema = {
+                    "properties": tool.function.parameters["properties"],
+                    "required": tool.function.parameters["required"],
+                    "type": tool.function.parameters["type"],
+                }
+                response_format.tags.append(
+                    {
+                        "begin": f"<function={tool.function.name}>",
+                        "schema": json.dumps(schema),
+                        "end": "</function>",
+                    }
+                )
+        response_format.triggers.append("<function=")
+    elif tool_call_format == "python":
+        raise ValueError("TODO: Not supported yet.")
+    else:
+        raise ValueError("Unknown tool calling format.")
+    # remove the unused triggers and tags
+    if len(response_format.tags) == 0:
+        response_format.tags = None
+        response_format.triggers = None
+        response_format.type = "text" if response_format.json_schema is None else "json_object"
+    return response_format
+
+
+def convert_function_str_to_json(
+    stringified_calls: str, tool_call_format: str
+) -> List[Union[Dict, None]]:
     """Convert a (possibly list) of function call string to a list of json objects.
     Return None for invalid function call string."""
 
-    def parse_function_call(call_str: str):
-        node = ast.parse(call_str, mode="eval")
-        call_node = node.body
-        if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
-            name = call_node.func.id
-            arguments = {}
-            for keyword in call_node.keywords:
-                arguments[keyword.arg] = ast.literal_eval(keyword.value)
-            return {"name": name, "arguments": arguments}
-        return None
+    if tool_call_format == "default":
+        function_calls_json = []
+        pattern = r"<function=(.+?)>(.+?)</function>"
+        for match in re.finditer(pattern, stringified_calls):
+            args: Dict = json.loads(match.group(2))
+            function_calls_json.append({"name": match.group(1), "arguments": args})
+        return function_calls_json
+    if tool_call_format == "python":
 
-    if (
-        stringified_calls[0] == "[" and stringified_calls[-1] == "]"
-    ):  # hacky way to check if string list
-        calls = ast.literal_eval(stringified_calls)
-    else:
-        calls = [stringified_calls]
-    function_calls_json = [parse_function_call(call_str) for call_str in calls]
-    return function_calls_json
+        def parse_function_call(call_str: str):
+            node = ast.parse(call_str, mode="eval")
+            call_node = node.body
+            if isinstance(call_node, ast.Call) and isinstance(call_node.func, ast.Name):
+                name = call_node.func.id
+                arguments = {}
+                for keyword in call_node.keywords:
+                    arguments[keyword.arg] = ast.literal_eval(keyword.value)
+                return {"name": name, "arguments": arguments}
+            return None
+
+        if (
+            stringified_calls[0] == "[" and stringified_calls[-1] == "]"
+        ):  # hacky way to check if string list
+            calls = ast.literal_eval(stringified_calls)
+        else:
+            calls = [stringified_calls]
+        function_calls_json = [parse_function_call(call_str) for call_str in calls]
+        return function_calls_json
+    raise ValueError("Unknown tool calling format.")
 
 
 def process_function_call_output(
-    output_texts: List[str], finish_reasons: List[str]
+    output_texts: List[str], finish_reasons: List[str], tool_call_format: str
 ) -> Tuple[bool, List[List[openai_api_protocol.ChatToolCall]]]:
     """Process the potential function call results outputted by model,
-    according to the finish reasons.
+    according to the finish reasons and the tool calling format.
     Return whether the output has function call, and the list of tool calls.
     """
     n = len(output_texts)
@@ -1184,7 +1254,7 @@ def process_function_call_output(
     if use_function_calling:
         for i, output_text in enumerate(output_texts):
             try:
-                fn_json_list = convert_function_str_to_json(output_text)
+                fn_json_list = convert_function_str_to_json(output_text, tool_call_format)
             except (SyntaxError, ValueError):
                 output_text = "Got an invalid function call output from model"
                 finish_reasons[i] = "error"

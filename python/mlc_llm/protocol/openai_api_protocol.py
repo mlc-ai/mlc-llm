@@ -106,8 +106,7 @@ class RequestResponseFormat(BaseModel):
             for tag in self.tags:
                 if set(tag.keys()) != {"begin", "schema", "end"}:
                     raise ValueError(
-                        "Each tag must contain exactly 'begin', 'schema' and 'end' keys."
-                        f"Got keys: {list(tag.keys())}."
+                        f"Each tag must contain exactly 'begin', 'schema' and 'end' keys. Got keys: {list(tag.keys())}."
                     )
         elif self.tags is not None or self.triggers is not None:
             raise Warning(
@@ -204,6 +203,7 @@ class ChatFunction(BaseModel):
     description: Optional[str] = None
     name: str
     parameters: Dict
+    strict: bool = True
 
 
 class ChatTool(BaseModel):
