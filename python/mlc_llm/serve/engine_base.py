@@ -7,9 +7,9 @@ import asyncio
 import json
 import numbers
 import queue
+import re
 import sys
 import threading
-import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
@@ -1148,7 +1148,7 @@ def create_completion_suffix_response(
     return response
 
 
-def set_structural_tag_from_tools(
+def set_structural_tag_from_tools( # pylint: disable=too-many-boolean-expressions
     tools: Optional[List[openai_api_protocol.ChatTool]],
     response_format: Optional[openai_api_protocol.RequestResponseFormat],
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]],
@@ -1193,7 +1193,9 @@ def set_structural_tag_from_tools(
                 )
         response_format.triggers.append("<function=")
     elif tool_call_format == "python":
-        raise ValueError("TODO: Not supported yet.")
+        for tool in tools:
+            if tool.function.strict:
+                raise ValueError("TODO: Not supported yet.")
     else:
         raise ValueError("Unknown tool calling format.")
     # remove the unused triggers and tags
@@ -1210,15 +1212,15 @@ def convert_function_str_to_json(
     """Convert a (possibly list) of function call string to a list of json objects.
     Return None for invalid function call string."""
 
+    function_calls_json = []
     if tool_call_format == "default":
-        function_calls_json = []
+        # tool calling in format `<function=NAME>{PARA}</function>`
         pattern = r"<function=(.+?)>(.+?)</function>"
         for match in re.finditer(pattern, stringified_calls):
             args: Dict = json.loads(match.group(2))
             function_calls_json.append({"name": match.group(1), "arguments": args})
-        return function_calls_json
-    if tool_call_format == "python":
-
+    elif tool_call_format == "python":
+        # tool calling in python grammar
         def parse_function_call(call_str: str):
             node = ast.parse(call_str, mode="eval")
             call_node = node.body
@@ -1237,8 +1239,9 @@ def convert_function_str_to_json(
         else:
             calls = [stringified_calls]
         function_calls_json = [parse_function_call(call_str) for call_str in calls]
-        return function_calls_json
-    raise ValueError("Unknown tool calling format.")
+    else:
+        raise ValueError("Unknown tool calling format.")
+    return function_calls_json
 
 
 def process_function_call_output(
