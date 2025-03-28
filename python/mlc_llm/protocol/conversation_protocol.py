@@ -195,27 +195,43 @@ class Conversation(BaseModel):
             )
             # Replace with remaining function string placeholders with empty string
             prompt[0] = prompt[0].replace(MessagePlaceholders.FUNCTION.value, "")
-
         return prompt
 
     def set_tool_call_format_in_system_message(self):
         """Add tool function information and call format to the system message."""
-        if self.tool_call_format == "default":
+        if self.tool_call_format == "xml":
             tool_call_instruct = (
                 "Tool Instructions:"
-                "You have access to the following tool functions:"
-                f"{MessagePlaceholders.FUNCTION.value}"
+                f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
                 "If a you choose to call a function, you should ONLY reply in the following format:"
-                "`<function={func name}>{parameters(JSON dict)}</function>`"
+                "`<function={func name}>\n{parameters(JSON dict)}\n</function>`"
                 "Here is an example,"
-                '`<function=get_time> {"location": "Pittsburgh"} </function>`'
+                '`<function=get_time>\n{"location": "Pittsburgh"}\n</function>`'
+                "Reminder:"
+                "- Function calls MUST follow the specified format"
+                "- Required parameters MUST be specified"
+            )
+            self.system_message += tool_call_instruct
+        elif self.tool_call_format == "json":
+            tool_call_instruct = (
+                "Tool Instructions:"
+                f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "If a you choose to call a function, you should ONLY reply in the following format:"
+                '`{"name": func_name, "parameters": parameters(JSON dict)}`'
+                "Here is an example,"
+                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"} }`'
                 "Reminder:"
                 "- Function calls MUST follow the specified format"
                 "- Required parameters MUST be specified"
             )
             self.system_message += tool_call_instruct
         elif self.tool_call_format == "python":
-            raise ValueError("TODO: Not supported yet.")
+            tool_call_instruct = (
+                "Tool Instructions:"
+                f"- You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "- Required parameters MUST be specified"
+            )
+            self.system_message += tool_call_instruct
         else:
             raise ValueError("Unknown tool calling format.")
 

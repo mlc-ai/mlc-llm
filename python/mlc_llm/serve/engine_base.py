@@ -646,6 +646,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         engine_config.mode = mode
         self._ffi["reload"](engine_config.asjson())
         self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
+        self.engine_config.tool_call_format = engine_config.tool_call_format
         self.max_input_sequence_length = min(
             self.engine_config.max_single_sequence_length,
             self.engine_config.max_total_sequence_length,
@@ -1148,7 +1149,7 @@ def create_completion_suffix_response(
     return response
 
 
-def set_structural_tag_from_tools(  # pylint: disable=too-many-boolean-expressions
+def set_structural_tag_from_tools(
     tools: Optional[List[openai_api_protocol.ChatTool]],
     response_format: Optional[openai_api_protocol.RequestResponseFormat],
     tool_choice: Optional[Union[Literal["none", "auto"], Dict]],
@@ -1169,7 +1170,9 @@ def set_structural_tag_from_tools(  # pylint: disable=too-many-boolean-expressio
         response_format.tags = []
         response_format.triggers = []
 
-    if tool_call_format == "default":
+    if tool_call_format == "xml":
+        begin_format = "<function={func_name}>\n"
+        end = "\n</function>"
         for tool in tools:
             if tool.function.strict and (
                 tool_choice is None
@@ -1186,12 +1189,37 @@ def set_structural_tag_from_tools(  # pylint: disable=too-many-boolean-expressio
                 }
                 response_format.tags.append(
                     {
-                        "begin": f"<function={tool.function.name}>",
+                        "begin": begin_format.format(func_name=tool.function.name),
                         "schema": json.dumps(schema),
-                        "end": "</function>",
+                        "end": end,
                     }
                 )
         response_format.triggers.append("<function=")
+    elif tool_call_format == "json":
+        begin_format = '{{"name":{func_name}, "parameters":'
+        end = "}"
+        for tool in tools:
+            if tool.function.strict and (
+                tool_choice is None
+                or (isinstance(tool_choice, str) and tool_choice == "auto")
+                or (
+                    isinstance(tool_choice, dict)
+                    and tool.function.name == tool_choice["function"]["name"]
+                )
+            ):
+                schema = {
+                    "properties": tool.function.parameters["properties"],
+                    "required": tool.function.parameters["required"],
+                    "type": tool.function.parameters["type"],
+                }
+                response_format.tags.append(
+                    {
+                        "begin": begin_format.format(func_name=tool.function.name),
+                        "schema": json.dumps(schema),
+                        "end": end,
+                    }
+                )
+        response_format.triggers.append('{"name":')
     elif tool_call_format == "python":
         for tool in tools:
             if tool.function.strict:
@@ -1211,14 +1239,43 @@ def convert_function_str_to_json(
 ) -> List[Union[Dict, None]]:
     """Convert a (possibly list) of function call string to a list of json objects.
     Return None for invalid function call string."""
-
     function_calls_json = []
-    if tool_call_format == "default":
-        # tool calling in format `<function=NAME>{PARA}</function>`
-        pattern = r"<function=(.+?)>(.+?)</function>"
-        for match in re.finditer(pattern, stringified_calls):
-            args: Dict = json.loads(match.group(2))
-            function_calls_json.append({"name": match.group(1), "arguments": args})
+    if tool_call_format == "xml":
+        # tool calling in format `<function=NAME>\n{PARA}\n</function>`
+        pattern = r"<function=(.*?)>\n(.*?)\n</function>"
+        matches = re.findall(pattern, stringified_calls, re.DOTALL)
+        for func_name, args_str in matches:
+            args: Dict = json.loads(args_str)
+            function_calls_json.append({"name": func_name, "arguments": args})
+    elif tool_call_format == "json":
+        # tool calling in format `{"name": func_name, "parameters": parameters(JSON dict)}`
+        starts = [-1]
+        while True:
+            index = stringified_calls.find('{"name":', starts[-1] + 1)
+            if index == -1:
+                break
+            else:
+                starts.append(index)
+        starts.append(len(stringified_calls))
+        for i in range(1, len(starts) - 1):
+            cnt = 1
+            quote = False
+            for j in range(starts[i] + 1, starts[i + 1]):
+                if stringified_calls[j] == '"':
+                    quote = not quote
+                elif not quote:
+                    if stringified_calls[j] == "{":
+                        cnt += 1
+                    elif stringified_calls[j] == "}":
+                        cnt -= 1
+                    if cnt == 0:
+                        func_call: Dict = json.loads(stringified_calls[starts[i] : j + 1])
+                        assert "name" in func_call
+                        assert "parameters" in func_call
+                        function_calls_json.append(
+                            {"name": func_call["name"], "arguments": func_call["parameters"]}
+                        )
+                        break
     elif tool_call_format == "python":
         # tool calling in python grammar
         def parse_function_call(call_str: str):

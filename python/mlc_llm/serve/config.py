@@ -130,16 +130,19 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
         "hybrid" means the hybrid prefill or split-fuse,
         so that decode step will be converted into prefill.
 
-    verbose : bool
-        A boolean indicating whether to print logging info in engine.
-
-    tool_call_format: Literal["default", "python"]
-        The tool function call format.
-        "default" means model will call tool function
-        in format '<function=func_name>{parameters(JSON dict)}</function>',
-        e.g. '<function=get_time> {"location": "Pittsburgh"} </function>'.
+    tool_call_format : Literal["xml", "json", "python"]
+        The tool function call foramt.
+        "xml" means model will call tool function in xml style format
+        '<function=func_name>\n{parameters(JSON dict)}\n</function>',
+        e.g. '<function=get_time>\n{"location": "Pittsburgh"}\n</function>'.
+        "json" means model will call tool function in json style format
+        '{"name": func_name, "parameters": parameters(JSON dict)}',
+        e.g. '{"name": "get_time", "parameters": {"location": "Pittsburgh"}}'.
         "python" means model will call tool function in python-style format,
         e.g. 'wolfram_alpha.call(query="solve x^3 - 4x^2 + 6x - 24 = 0")'.
+
+    verbose : bool
+        A boolean indicating whether to print logging info in engine.
     """
 
     model: Optional[str] = None
@@ -165,8 +168,8 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefix_cache_mode: Literal["disable", "radix"] = "radix"
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
     prefill_mode: Literal["chunked", "hybrid"] = "hybrid"
+    tool_call_format: Literal["xml", "json", "python"] = "xml"
     verbose: bool = True
-    tool_call_format: Literal["default", "python"] = "default"
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
