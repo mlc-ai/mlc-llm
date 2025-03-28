@@ -463,9 +463,11 @@ class EngineImpl : public Engine {
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
     // - Initialize tokenizer and grammar
+
     n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
     n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-    n->cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(n->token_table_);
+    // TODO: check 'vocab_size' of TokenizerInfo
+    n->grammar_compiler_ = xgrammar::GrammarCompiler(xgrammar::TokenizerInfo(n->token_table_));
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -975,13 +977,25 @@ class EngineImpl : public Engine {
    * is not JSON, return std::nullopt. */
   std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
-    if (response_format.type != "json_object") {
+    // TODO: add other grammar type
+    if (response_format.type == "text") {
       return std::nullopt;
-    } else if (!response_format.schema) {
-      return cached_grammar_compiler_.GetCompiledGrammarForJSON();
+    } else if (response_format.type == "json_object") {
+      if (!response_format.schema) {
+        return grammar_compiler_.CompileBuiltinJSONGrammar();
+      } else {
+        return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
+      }
     } else {
-      return cached_grammar_compiler_.GetCompiledGrammarForJSONSchema(
-          response_format.schema.value());
+      std::vector<xgrammar::StructuralTagItem> tags;
+      std::vector<std::string> triggers;
+      for (auto tag : response_format.tags.value()) {
+        tags.emplace_back(xgrammar::StructuralTagItem{tag[0], tag[1], tag[2]});
+      }
+      for (auto trigger : response_format.triggers.value()) {
+        triggers.emplace_back(trigger);
+      }
+      return grammar_compiler_.CompileStructuralTag(std::move(tags), std::move(triggers));
     }
   }
 
@@ -992,8 +1006,8 @@ class EngineImpl : public Engine {
   // internal tokenizer
   Tokenizer tokenizer_;
   std::vector<std::string> token_table_;
-  // Cached grammar compiler for grammar matching.
-  xgrammar::CachedGrammarCompiler cached_grammar_compiler_;
+  // Grammar compiler for grammar matching.
+  xgrammar::GrammarCompiler grammar_compiler_;
   // Models
   Array<Model> models_;
   // Device that the models run on.
