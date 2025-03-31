@@ -43,6 +43,9 @@ class TokenizerInfoNode : public Object {
   bool prepend_space_in_encode = false;
   /*! \brief Whether to strip the first space during decoding. */
   bool strip_space_in_decode = false;
+  /*! \brief The vocab_size in config.json (length of logits).This may be bigger than the vocabulary
+   * size. The value will be 0 if not set.*/
+  int64_t vocab_size = 0;
 
   String AsJSONString() const;
 

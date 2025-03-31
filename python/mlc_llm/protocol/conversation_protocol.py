@@ -82,7 +82,7 @@ class Conversation(BaseModel):
     # whether using function calling or not, helps check for output message format in API call
     use_function_calling: bool = False
     # Tool function call format mode
-    tool_call_format: str = "default"
+    tool_call_format: str = "json"
 
     def __init__(self, role_templates: Optional[Dict[str, str]] = None, **kwargs):
         # Defaults templates which would be overridden by model specific templates
@@ -195,6 +195,7 @@ class Conversation(BaseModel):
             )
             # Replace with remaining function string placeholders with empty string
             prompt[0] = prompt[0].replace(MessagePlaceholders.FUNCTION.value, "")
+
         return prompt
 
     def set_tool_call_format_in_system_message(self):
@@ -217,9 +218,9 @@ class Conversation(BaseModel):
                 "Tool Instructions:"
                 f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
                 "If a you choose to call a function, you should ONLY reply in the following format:"
-                '`{"name": func_name, "parameters": parameters(JSON dict)}`'
+                '`{"name": func_name, "parameters": parameters(JSON dict)}\n`'
                 "Here is an example,"
-                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"} }`'
+                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"} }\n`'
                 "Reminder:"
                 "- Function calls MUST follow the specified format"
                 "- Required parameters MUST be specified"

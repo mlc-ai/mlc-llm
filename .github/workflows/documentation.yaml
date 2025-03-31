@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - tool_call
+      - eval
 
 jobs:
   test_linux:

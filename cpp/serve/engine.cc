@@ -35,6 +35,7 @@
 #include "request.h"
 #include "request_state.h"
 #include "sampler/sampler.h"
+#include "xgrammar/tokenizer_info.h"
 
 namespace mlc {
 namespace llm {
@@ -63,6 +64,9 @@ inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& mod
   }
   if (tokenizer_info_obj.count("strip_space_in_decode")) {
     info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
+  }
+  if (model_config.count("vocab_size")) {
+    info->vocab_size = model_config.at("vocab_size").get<int64_t>();
   }
   return TokenizerInfo(info);
 }
@@ -464,10 +468,17 @@ class EngineImpl : public Engine {
     }
     // - Initialize tokenizer and grammar
 
-    n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
+    std::optional<TokenizerInfo> info = GetTokenizerInfo(model_configs[0]);
+    n->tokenizer_ = Tokenizer::FromPath(engine_config->model, info);
     n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-    // TODO: check 'vocab_size' of TokenizerInfo
-    n->grammar_compiler_ = xgrammar::GrammarCompiler(xgrammar::TokenizerInfo(n->token_table_));
+    int64_t vocab_size = n->tokenizer_->GetVocabSize();
+    if (info.has_value() && info.value()->vocab_size != 0) {
+      vocab_size = info.value()->vocab_size;
+    }
+    n->grammar_compiler_ = xgrammar::GrammarCompiler(xgrammar::TokenizerInfo(n->token_table_, xgrammar::VocabType::RAW, vocab_size));
+    
+    
+    
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -977,7 +988,6 @@ class EngineImpl : public Engine {
    * is not JSON, return std::nullopt. */
   std::optional<xgrammar::CompiledGrammar> GetGrammarFromResponseFormat(
       const ResponseFormat& response_format) {
-    // TODO: add other grammar type
     if (response_format.type == "text") {
       return std::nullopt;
     } else if (response_format.type == "json_object") {

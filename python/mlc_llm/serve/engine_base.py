@@ -7,9 +7,9 @@ import asyncio
 import json
 import numbers
 import queue
-import re
 import sys
 import threading
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
@@ -1196,8 +1196,8 @@ def set_structural_tag_from_tools(
                 )
         response_format.triggers.append("<function=")
     elif tool_call_format == "json":
-        begin_format = '{{"name":{func_name}, "parameters":'
-        end = "}"
+        begin_format = '{{"name": "{func_name}", "parameters":'
+        end = "}\n"
         for tool in tools:
             if tool.function.strict and (
                 tool_choice is None
@@ -1270,8 +1270,10 @@ def convert_function_str_to_json(
                         cnt -= 1
                     if cnt == 0:
                         func_call: Dict = json.loads(stringified_calls[starts[i] : j + 1])
-                        assert "name" in func_call
-                        assert "parameters" in func_call
+                        if "name" not in func_call or "parameters" not in func_call:
+                            raise ValueError("Invalid function call output.")
+                        if not isinstance(func_call["name"], str) or not isinstance(func_call["parameters"], dict):
+                            raise ValueError("Invalid function call output type.")
                         function_calls_json.append(
                             {"name": func_call["name"], "arguments": func_call["parameters"]}
                         )
@@ -1358,7 +1360,7 @@ def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
                     openai_api_protocol.ChatCompletionMessage(role="assistant", content=output_text)
                     if not use_function_calling or finish_reason == "error"
                     else openai_api_protocol.ChatCompletionMessage(
-                        role="assistant", tool_calls=tool_calls
+                        role="assistant", tool_calls=tool_calls, content=output_text
                     )
                 ),
                 logprobs=(

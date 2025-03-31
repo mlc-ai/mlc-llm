@@ -341,12 +341,10 @@ class ChatCompletionRequest(BaseModel):
         """Check if function calling is used and update the conversation template.
         Return error message if invalid request format for function calling.
         """
-
         # return if no tools are provided or tool_choice is set to none
         if self.tools is None or (isinstance(self.tool_choice, str) and self.tool_choice == "none"):
             conv_template.use_function_calling = False
             return
-
         # select the tool based on the tool_choice if specified
         if isinstance(self.tool_choice, dict):
             if self.tool_choice["type"] != "function":  # pylint: disable=unsubscriptable-object
