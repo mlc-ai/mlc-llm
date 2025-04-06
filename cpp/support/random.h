@@ -21,11 +21,6 @@ class RandomGenerator {
  public:
   RandomGenerator(int seed = std::random_device{}()) : seed_(seed) {}
 
-  static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
-    static RandomGenerator instance(seed);
-    return instance;
-  }
-
   // Returns a random number in [0, 1).
   virtual double GetRandomNumber() {
     throw std::runtime_error("GetRandomNumber() not implemented");
@@ -49,6 +44,11 @@ class UniformRandomGenerator : public RandomGenerator {
   UniformRandomGenerator(int seed = std::random_device{}())
       : RandomGenerator(seed), gen(seed), dis(0.0, 1.0) {}
 
+  static UniformRandomGenerator& GetInstance(int seed = std::random_device{}()) {
+    static UniformRandomGenerator instance(seed);
+    return instance;
+  }
+
   double GetRandomNumber() override { return dis(gen); }
 };
 
@@ -59,6 +59,11 @@ class PhiloxRandomGenerator : public RandomGenerator {
 
  public:
   PhiloxRandomGenerator(int seed = std::random_device{}()) : RandomGenerator(seed), offset_(0) {}
+
+  static PhiloxRandomGenerator& GetInstance(int seed = std::random_device{}()) {
+    static PhiloxRandomGenerator instance(seed);
+    return instance;
+  }
 
   uint64_t GetPhiloxOffset(uint64_t increment) override {
     offset_ += increment;
