@@ -8,27 +8,67 @@
 #define MLC_LLM_SUPPORT_RANDOM_H_
 
 #include <random>
+#include <stdexcept>
 
 namespace mlc {
 namespace llm {
 
-// Random number generator
+// Base class for random number generators.
 class RandomGenerator {
+ private:
+  int seed_;
+
+ public:
+  RandomGenerator(int seed = std::random_device{}()) : seed_(seed) {}
+
+  // Returns a random number in [0, 1).
+  virtual double GetRandomNumber() {
+    throw std::runtime_error("GetRandomNumber() not implemented");
+  }
+
+  // Returns a Philox offset based on the increment.
+  virtual uint64_t GetPhiloxOffset(uint64_t increment) {
+    throw std::runtime_error("GetPhiloxOffset() not implemented");
+  }
+
+  // Retrieves the seed.
+  int GetSeed() const { return seed_; }
+};
+
+class UniformRandomGenerator : public RandomGenerator {
  private:
   std::mt19937 gen;
   std::uniform_real_distribution<> dis;
 
  public:
-  RandomGenerator(int seed = std::random_device{}()) : gen(seed), dis(0.0, 1.0) {}
+  UniformRandomGenerator(int seed = std::random_device{}())
+      : RandomGenerator(seed), gen(seed), dis(0.0, 1.0) {}
 
-  static RandomGenerator& GetInstance(int seed = std::random_device{}()) {
-    static RandomGenerator instance(seed);
+  static UniformRandomGenerator& GetInstance(int seed = std::random_device{}()) {
+    static UniformRandomGenerator instance(seed);
     return instance;
   }
 
-  double GetRandomNumber() { return dis(gen); }
+  double GetRandomNumber() override { return dis(gen); }
+};
 
-  void SetSeed(int seed) { gen.seed(seed); }
+// Primarily for state tracking
+class PhiloxRandomGenerator : public RandomGenerator {
+ private:
+  uint64_t offset_;
+
+ public:
+  PhiloxRandomGenerator(int seed = std::random_device{}()) : RandomGenerator(seed), offset_(0) {}
+
+  static PhiloxRandomGenerator& GetInstance(int seed = std::random_device{}()) {
+    static PhiloxRandomGenerator instance(seed);
+    return instance;
+  }
+
+  uint64_t GetPhiloxOffset(uint64_t increment) override {
+    offset_ += increment;
+    return offset_;
+  }
 };
 
 }  // namespace llm
