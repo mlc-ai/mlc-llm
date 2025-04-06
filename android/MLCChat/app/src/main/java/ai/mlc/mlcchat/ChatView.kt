@@ -1,5 +1,9 @@
 package ai.mlc.mlcchat
 
+import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +24,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Divider
@@ -43,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
@@ -55,9 +62,10 @@ import kotlinx.coroutines.launch
 @ExperimentalMaterial3Api
 @Composable
 fun ChatView(
-    navController: NavController, chatState: AppViewModel.ChatState
+    navController: NavController, chatState: AppViewModel.ChatState, activity: Activity
 ) {
     val localFocusManager = LocalFocusManager.current
+    (activity as MainActivity).chatState = chatState
     Scaffold(topBar = {
         TopAppBar(
             title = {
@@ -81,7 +89,9 @@ fun ChatView(
             },
             actions = {
                 IconButton(
-                    onClick = { chatState.requestResetChat() },
+                    onClick = {
+                        chatState.requestResetChat()
+                        activity.hasImage = false },
                     enabled = chatState.interruptable()
                 ) {
                     Icon(
@@ -125,23 +135,23 @@ fun ChatView(
                     items = chatState.messages,
                     key = { message -> message.id },
                 ) { message ->
-                    MessageView(messageData = message)
+                    MessageView(messageData = message, activity)
                 }
                 item {
                     // place holder item for scrolling to the bottom
                 }
             }
             Divider(thickness = 1.dp, modifier = Modifier.padding(top = 5.dp))
-            SendMessageView(chatState = chatState)
+            SendMessageView(chatState = chatState, activity)
         }
     }
 }
 
 @Composable
-fun MessageView(messageData: MessageData) {
+fun MessageView(messageData: MessageData, activity: Activity?) {
     // default render the Assistant text as MarkdownText
     var useMarkdown by remember { mutableStateOf(true) }
-
+    var localActivity : MainActivity = activity as MainActivity
     SelectionContainer {
         if (messageData.role == MessageRole.Assistant) {
             Column {
@@ -202,19 +212,47 @@ fun MessageView(messageData: MessageData) {
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = messageData.text,
-                    textAlign = TextAlign.Right,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(5.dp)
+                if (messageData.imageUri != null) {
+                    val uri = messageData.imageUri
+                    val bitmap = uri?.let {
+                        activity.contentResolver.openInputStream(it)?.use { input ->
+                            BitmapFactory.decodeStream(input)
+                        }
+                    }
+                    val displayBitmap = bitmap?.let { Bitmap.createScaledBitmap(it, 224, 224, true) }
+                    if (displayBitmap != null) {
+                        Image(
+                            displayBitmap.asImageBitmap(),
+                            "",
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .background(
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                                .padding(5.dp)
+                                .widthIn(max = 300.dp)
                         )
-                        .padding(5.dp)
-                        .widthIn(max = 300.dp)
-                )
+                    }
+                    if (!localActivity.hasImage) {
+                        localActivity.chatState.requestImageBitmap(messageData.imageUri)
+                    }
+                    localActivity.hasImage = true
+                } else {
+                    Text(
+                        text = messageData.text,
+                        textAlign = TextAlign.Right,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(5.dp)
+                            )
+                            .padding(5.dp)
+                            .widthIn(max = 300.dp)
+                    )
+                }
 
             }
         }
@@ -223,8 +261,9 @@ fun MessageView(messageData: MessageData) {
 
 @ExperimentalMaterial3Api
 @Composable
-fun SendMessageView(chatState: AppViewModel.ChatState) {
+fun SendMessageView(chatState: AppViewModel.ChatState, activity: Activity) {
     val localFocusManager = LocalFocusManager.current
+    val localActivity : MainActivity = activity as MainActivity
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -243,8 +282,36 @@ fun SendMessageView(chatState: AppViewModel.ChatState) {
         )
         IconButton(
             onClick = {
+                activity.takePhoto()
+            },
+            modifier = Modifier
+                .aspectRatio(1f)
+                .weight(1f),
+            enabled = (chatState.chatable() && !localActivity.hasImage)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.AddAPhoto,
+                contentDescription = "use camera",
+            )
+        }
+        IconButton(
+            onClick = {
+                activity.pickImageFromGallery()
+            },
+            modifier = Modifier
+                .aspectRatio(1f)
+                .weight(1f),
+            enabled = (chatState.chatable() && !localActivity.hasImage)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Photo,
+                contentDescription = "select image",
+            )
+        }
+        IconButton(
+            onClick = {
                 localFocusManager.clearFocus()
-                chatState.requestGenerate(text)
+                chatState.requestGenerate(text, activity)
                 text = ""
             },
             modifier = Modifier
@@ -271,6 +338,6 @@ fun MessageViewPreviewWithMarkdown() {
 * [Link](https://example.com)
 <a href="https://www.google.com/">Google</a>
 """
-        )
+        ), null
     )
 }
