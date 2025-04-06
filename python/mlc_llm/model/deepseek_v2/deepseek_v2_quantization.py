@@ -6,7 +6,12 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import QuantizeMapping
-from mlc_llm.quantization import FTQuantize, GroupQuantize, NoQuantize
+from mlc_llm.quantization import (
+    BlockScaleQuantize,
+    FTQuantize,
+    GroupQuantize,
+    NoQuantize,
+)
 
 from .deepseek_v2_model import DeepseekV2Config, DeepseekV2ForCausalLM
 
@@ -44,4 +49,16 @@ def no_quant(
     model: nn.Module = DeepseekV2ForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
+    return model, quant_map
+
+
+def block_scale_quant(
+    model_config: DeepseekV2Config,
+    quantization: BlockScaleQuantize,
+) -> Tuple[nn.Module, QuantizeMapping]:
+    """Quantize a DeepseekV2 model using block-scale quantization."""
+    model: nn.Module = DeepseekV2ForCausalLM(model_config)
+    model.to(quantization.model_dtype)
+    quant_map = QuantizeMapping({}, {})
+    model = quantization.quantize_model(model, quant_map, "")
     return model, quant_map

@@ -14,6 +14,7 @@ from tvm.relax.frontend.nn.llm import position_embedding
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.expert import MixtralExperts
+from mlc_llm.op import batch_matmul
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -40,6 +41,10 @@ class DeepseekV2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     first_k_dense_replace: int
     moe_layer_freq: int
     routed_scaling_factor: float
+    scoring_func: str
+    topk_method: Literal["greedy", "group_limited_greedy", "noaux_tc"]
+    n_group: int
+    topk_group: int
     attention_bias: bool
     kv_lora_rank: int
     qk_rope_head_dim: int
@@ -54,9 +59,34 @@ class DeepseekV2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     tensor_parallel_shards: int = 1
     dtype: str = "float32"
     max_batch_size: int = 1
+    weight_block_size: Optional[Tuple[int, int]] = None
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if "quantization_config" in self.kwargs:
+            quantization_config = self.kwargs.get("quantization_config")
+            if (
+                isinstance(quantization_config, dict)
+                and quantization_config.get("activation_scheme", "") == "dynamic"
+                and quantization_config.get("fmt", "") == "e4m3"
+                and quantization_config.get("quant_method", "") == "fp8"
+                and "weight_block_size" in quantization_config
+            ):
+                self.weight_block_size = quantization_config.get("weight_block_size")
+                if (
+                    not isinstance(self.weight_block_size, (tuple, list))
+                    or len(self.weight_block_size) != 2
+                ):
+                    raise ValueError(
+                        "Invalid DeepSeek model quantization config: "
+                        "weight_block_size must be a tuple of two integers, "
+                        f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
+                    )
+            else:
+                raise ValueError(
+                    "Invalid DeepSeek model quantization config: unrecognized quantization config: "
+                    f"{quantization_config}"
+                )
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -196,6 +226,7 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.v_head_dim = config.v_head_dim
         self.qk_nope_head_dim = config.qk_nope_head_dim
         self.q_head_dim = config.qk_nope_head_dim + config.qk_rope_head_dim
+        self.block_size = config.weight_block_size
 
         if self.q_lora_rank is None:
             self.q_proj = nn.Linear(self.hidden_size, self.num_heads * self.q_head_dim, bias=False)
@@ -313,13 +344,20 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         layer_id: int,
     ) -> Tuple[Tensor, Tensor]:
         b, s, _, _ = q_nope.shape
-        q_nope = (
-            op.matmul(
+        if not hasattr(self, "w_uk_scale_inv"):
+            q_nope = op.matmul(
                 q_nope.reshape(b * s, self.num_heads, self.qk_nope_head_dim).permute_dims(1, 0, 2),
                 self.w_uk.permute_dims(0, 2, 1),
             )
-            .permute_dims(1, 0, 2)
-            .reshape(b, s, self.num_heads, self.kv_lora_rank)
+        else:
+            q_nope = batch_matmul.quantized_bmm(
+                q_nope.reshape(b * s, self.num_heads, self.qk_nope_head_dim).permute_dims(1, 0, 2),
+                self.w_uk,
+                self.w_uk_scale_inv,  # pylint: disable=no-member
+                self.block_size,
+            )
+        q_nope = q_nope.permute_dims(1, 0, 2).reshape(
+            b, s, self.num_heads, self.kv_lora_rank
         )  # (b, s, num_heads, kv_lora_rank)
         query_states = op.concat(
             [q_nope, q_pe], dim=-1
@@ -331,14 +369,19 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             v_head_dim=self.kv_lora_rank,
             sm_scale=self.softmax_scale,
         )  # (b, s, num_heads, kv_lora_rank)
-        output = (
-            op.matmul(
+        if getattr(self, "w_uv_scale_inv", None) is None:
+            output = op.matmul(
                 output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(1, 0, 2),
                 self.w_uv.permute_dims(0, 2, 1),
             )
-            .permute_dims(1, 0, 2)
-            .reshape(b, s, self.num_heads * self.v_head_dim)
-        )
+        else:
+            output = batch_matmul.quantized_bmm(
+                output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(1, 0, 2),
+                self.w_uv,
+                self.w_uv_scale_inv,  # pylint: disable=no-member
+                self.block_size,
+            )
+        output = output.permute_dims(1, 0, 2).reshape(b, s, self.num_heads * self.v_head_dim)
         return output, lse
 
 
@@ -348,8 +391,19 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.num_experts_per_tok = config.num_experts_per_tok
         self.num_routed_experts = config.n_routed_experts
         self.routed_scaling_factor = config.routed_scaling_factor
+        self.scoring_func = config.scoring_func
+        self.topk_method = config.topk_method
+        self.n_group = config.n_group
+        self.topk_group = config.topk_group
 
-        self.gate = nn.Linear(config.hidden_size, self.num_routed_experts, bias=False)
+        self.gate = nn.Linear(
+            config.hidden_size, self.num_routed_experts, bias=False, out_dtype="float32"
+        )
+        self.e_score_correction_bias = (
+            nn.Parameter((config.n_routed_experts,), dtype="float32")
+            if config.topk_method == "noaux_tc"
+            else None
+        )
         self.norm_topk_prob = config.norm_topk_prob
         if config.moe_intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
@@ -372,6 +426,7 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.shared_experts = DeepseekV2MLP(
             config, intermediate_size=config.moe_intermediate_size * config.n_shared_experts
         )
+        self.dtype = "float32"
 
     def forward(self, x: Tensor):
         def _expert_forward(x: Tensor, indptr: Tensor):
@@ -385,11 +440,43 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         b, s, h = x.shape
         num_tokens = b * s
         x = op.reshape(x, (num_tokens, h))
-        gate = self.gate(x)  # (b * s, num_routed_experts)
-        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(
-            gate, experts_per_tok, norm_topk_prob=self.norm_topk_prob
-        )
+        logits = self.gate(x)  # (num_tokens, num_routed_experts)
+        assert logits.dtype == "float32"
+        if self.scoring_func == "softmax":
+            scores = op.softmax(logits, axis=-1)
+        elif self.scoring_func == "sigmoid":
+            scores = op.sigmoid(logits)
+        else:
+            raise ValueError(f"Unsupported deepseek scoring function: {self.scoring_func}")
+
+        # select top-k experts
+        if self.topk_method == "greedy":
+            expert_weights, expert_indices = op_ext.moe_misc.gating_topk(scores, experts_per_tok)
+        elif self.topk_method in ["group_limited_greedy", "noaux_tc"]:
+            expert_weights, expert_indices = op_ext.moe_misc.group_limited_greedy_topk(
+                scores,
+                self.num_experts_per_tok,
+                self.num_routed_experts,
+                self.n_group,
+                self.topk_group,
+                self.topk_method,
+                num_tokens,
+                self.e_score_correction_bias,
+            )
+        else:
+            raise ValueError(f"Unsupported deepseek topk method: {self.topk_method}")
+
+        if self.num_experts_per_tok > 1 and self.norm_topk_prob:
+            denominator = op.sum(expert_weights, axis=-1, keepdims=True) + 1e-20
+            expert_weights = expert_weights / denominator
         expert_weights = expert_weights * self.routed_scaling_factor
+
+        use_ft = (
+            (op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer)
+            and self.dtype == "float16"
+            and type(self.moe_gate_up_proj)  # pylint: disable=unidiomatic-typecheck
+            is MixtralExperts
+        )
 
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
@@ -399,17 +486,23 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, num_experts)
             # indices: [num_tokens * experts_per_tok]
             reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
-            # indptr: [num_local_experts + 1]
-            indptr = op_ext.moe_misc.get_indptr(
-                cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
-            )
+            if use_ft:
+                # indptr: [num_routed_experts]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, num_experts, num_tokens, inclusive=True, out_dtype="int64"
+                )
+            else:
+                # indptr: [num_routed_experts + 1]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
+                )
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = op.take(x, token_indices, axis=0)
             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
             moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
 
         # moe_hidden_states: [num_tokens, experts_per_tok, hidden_size]
-        expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1)
+        expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1).astype(x.dtype)
         moe_hidden_states = (
             moe_hidden_states.reshape(num_tokens, experts_per_tok, h) * expert_weights
         )
@@ -421,6 +514,12 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         final_hidden_states = moe_hidden_states + shared_expert_hidden_states
         final_hidden_states = op.reshape(final_hidden_states, (b, s, h))
         return final_hidden_states
+
+    def to(self, dtype: Optional[str] = None):
+        super().to(dtype=dtype)
+        # Force e_score_correction_bias to be float32
+        if self.e_score_correction_bias is not None:
+            self.e_score_correction_bias.to("float32")
 
 
 class DeepseekV2DecoderLayer(nn.Module):
@@ -570,6 +669,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         self.rope_theta = config.rope_theta
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.weight_block_size = config.weight_block_size
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
