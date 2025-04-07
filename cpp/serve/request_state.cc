@@ -24,7 +24,7 @@ RequestModelState::RequestModelState(
   if (compiled_grammar.has_value()) {
     // TODO(yixin): set rollback limit to a configurable value.
     n->grammar_matcher =
-        xgrammar::GrammarMatcher(compiled_grammar.value(), std::nullopt, false, std::nullopt, 10);
+        xgrammar::GrammarMatcher(compiled_grammar.value(), std::nullopt, false, 10);
   }
 
   n->request = std::move(request);
@@ -44,7 +44,7 @@ bool RequestModelStateNode::RequireNextTokenBitmask() { return grammar_matcher.h
 void RequestModelStateNode::GetNextTokenBitmask(DLTensor* bitmask) {
   ICHECK(grammar_matcher.has_value());
 
-  grammar_matcher->GetNextTokenBitmask(bitmask);
+  grammar_matcher->FillNextTokenBitmask(bitmask);
 }
 
 void RequestModelStateNode::CommitToken(SampleResult sampled_token) {

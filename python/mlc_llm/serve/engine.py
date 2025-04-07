@@ -1056,7 +1056,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
+            output_texts, finish_reasons, self.engine_config.tool_call_format
         )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
@@ -1207,6 +1207,12 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
+        request.response_format = engine_base.set_structural_tag_from_tools(
+            request.tools,
+            request.response_format,
+            request.tool_choice,
+            self.engine_config.tool_call_format,
+        )
         (
             prompts,
             generation_cfg,
@@ -1617,7 +1623,7 @@ class MLCEngine(engine_base.MLCEngineBase):
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
         use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
+            output_texts, finish_reasons, self.engine_config.tool_call_format
         )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
@@ -1764,6 +1770,12 @@ class MLCEngine(engine_base.MLCEngineBase):
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
+        request.response_format = engine_base.set_structural_tag_from_tools(
+            request.tools,
+            request.response_format,
+            request.tool_choice,
+            self.engine_config.tool_call_format,
+        )
         (
             prompts,
             generation_cfg,
