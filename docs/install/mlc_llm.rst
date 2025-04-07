@@ -153,8 +153,8 @@ Then you can verify installation in command line:
 
 .. code-block:: bash
 
-    python -c "import mlc_llm; print(mlc_llm)"
-    # Prints out: <module 'mlc_llm' from '/path-to-env/lib/python3.11/site-packages/mlc_llm/__init__.py'>
+    python -c "import mlc; print(mlc)"
+    # Prints out: <module 'mlc' from '/path-to-env/lib/python3.11/site-packages/mlc/__init__.py'>
 
 |
 
