@@ -11,7 +11,7 @@ from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import PagedKVCache, RopeMode, create_generic_paged_kv_cache
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -326,7 +326,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic(
+        return create_generic_paged_kv_cache(
             attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
@@ -355,7 +355,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -363,7 +363,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "decode": {
                 "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -372,7 +372,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             "batch_prefill": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -380,7 +380,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -388,7 +388,7 @@ class QWen2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
