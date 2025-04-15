@@ -193,10 +193,7 @@ void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token
   }
 
   CHECK(!stop_triggered_) << "Cannot put new token when already stopped.";
-  // TODO: find better solution
-  if (token_id >= static_cast<int>(token_table_.size())){
-    token_id = 0;
-  }
+
   ICHECK_LT(token_id, static_cast<int>(token_table_.size()));
   const std::string& token = token_table_[token_id];
   pending_token_ids_.push_back(token_id);

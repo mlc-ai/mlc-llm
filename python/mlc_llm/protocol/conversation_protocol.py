@@ -82,7 +82,7 @@ class Conversation(BaseModel):
     # whether using function calling or not, helps check for output message format in API call
     use_function_calling: bool = False
     # Tool function call format mode
-    tool_call_format: str = "json"
+    _tool_call_format: str = "json"
 
     def __init__(self, role_templates: Optional[Dict[str, str]] = None, **kwargs):
         # Defaults templates which would be overridden by model specific templates
@@ -200,37 +200,44 @@ class Conversation(BaseModel):
 
     def set_tool_call_format_in_system_message(self):
         """Add tool function information and call format to the system message."""
-        if self.tool_call_format == "xml":
+        if self._tool_call_format == "xml":
             tool_call_instruct = (
                 "Tool Instructions:"
-                f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
                 "If a you choose to call a function, you should ONLY reply in the following format:"
-                "`<function={func name}>\n{parameters(JSON dict)}\n</function>`"
+                "`<function={func name}>{parameters(JSON dict)}</function>`"
                 "Here is an example,"
-                '`<function=get_time>\n{"location": "Pittsburgh"}\n</function>`'
+                '`<function=get_time>{"location": "Pittsburgh"}</function>`'
                 "Reminder:"
                 "- Function calls MUST follow the specified format"
                 "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
             )
             self.system_message += tool_call_instruct
-        elif self.tool_call_format == "json":
+        elif self._tool_call_format == "json":
             tool_call_instruct = (
                 "Tool Instructions:"
-                f"You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
                 "If a you choose to call a function, you should ONLY reply in the following format:"
-                '`{"name": func_name, "parameters": parameters(JSON dict)}\n`'
+                '`{"name": func_name, "parameters": parameters(JSON dict)}`'
                 "Here is an example,"
-                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"} }\n`'
+                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"}}}}`'
                 "Reminder:"
                 "- Function calls MUST follow the specified format"
                 "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
+                "- You should response with at least one function calling"
             )
             self.system_message += tool_call_instruct
-        elif self.tool_call_format == "python":
+        elif self._tool_call_format == "python":
             tool_call_instruct = (
                 "Tool Instructions:"
-                f"- You have access to the following tool functions: {MessagePlaceholders.FUNCTION.value}"
+                "- You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
                 "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
             )
             self.system_message += tool_call_instruct
         else:

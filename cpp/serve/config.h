@@ -249,7 +249,7 @@ class EngineConfigNode : public Object {
    * significantly smaller than this number. Under mode "server", the actual
    * memory usage may be slightly larger than this number.
    */
-  float gpu_memory_utilization = 0.85;
+  float gpu_memory_utilization = 0.55;
   /*! \brief The number of consecutive tokens handled in each page in paged KV cache. */
   int kv_cache_page_size = 16;
   /*!

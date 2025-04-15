@@ -1,1 +1,0 @@
-"""Subdirectory of bench."""

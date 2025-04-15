@@ -475,10 +475,9 @@ class EngineImpl : public Engine {
     if (info.has_value() && info.value()->vocab_size != 0) {
       vocab_size = info.value()->vocab_size;
     }
-    n->grammar_compiler_ = xgrammar::GrammarCompiler(xgrammar::TokenizerInfo(n->token_table_, xgrammar::VocabType::RAW, vocab_size));
-    
-    
-    
+    n->grammar_compiler_ = xgrammar::GrammarCompiler(
+        xgrammar::TokenizerInfo(n->token_table_, xgrammar::VocabType::RAW, vocab_size));
+
     // - Create the logit processor and sampler, and
     // the DraftTokenWorkspaceManager for speculative decoding.
     int max_num_tokens = engine_config->max_num_sequence;
@@ -991,11 +990,9 @@ class EngineImpl : public Engine {
     if (response_format.type == "text") {
       return std::nullopt;
     } else if (response_format.type == "json_object") {
-      if (!response_format.schema) {
-        return grammar_compiler_.CompileBuiltinJSONGrammar();
-      } else {
-        return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
-      }
+      return grammar_compiler_.CompileBuiltinJSONGrammar();
+    } else if (response_format.type == "json_schema") {
+      return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
     } else {
       std::vector<xgrammar::StructuralTagItem> tags;
       std::vector<std::string> triggers;
