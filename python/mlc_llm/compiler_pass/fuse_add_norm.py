@@ -182,6 +182,7 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern
+        # Todo: support bf16  # pylint: disable=fixme
         if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.struct_info.dtype != "float16":
             return call
         assert len(call.args) == 2

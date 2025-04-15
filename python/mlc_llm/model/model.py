@@ -340,6 +340,21 @@ MODELS: Dict[str, Model] = {
             "ft-quant": deepseek_v2_quantization.ft_quant,
         },
     ),
+    "deepseek_v3": Model(
+        name="deepseek_v3",
+        model=deepseek_v2_model.DeepseekV2ForCausalLM,
+        config=deepseek_v2_model.DeepseekV2Config,
+        source={
+            "huggingface-torch": deepseek_v2_loader.huggingface,
+            "huggingface-safetensor": deepseek_v2_loader.huggingface,
+        },
+        quantize={
+            "no-quant": deepseek_v2_quantization.no_quant,
+            "group-quant": deepseek_v2_quantization.group_quant,
+            "ft-quant": deepseek_v2_quantization.ft_quant,
+            "block-scale-quant": deepseek_v2_quantization.block_scale_quant,
+        },
+    ),
     "stablelm": Model(
         name="stablelm",
         model=stablelm_model.StableLmForCausalLM,

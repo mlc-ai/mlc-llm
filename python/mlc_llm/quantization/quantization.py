@@ -3,6 +3,7 @@
 from typing import Any, Dict
 
 from .awq_quantization import AWQQuantize
+from .block_scale_quantization import BlockScaleQuantize
 from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
@@ -183,5 +184,11 @@ QUANTIZATION: Dict[str, Quantization] = {
         quantize_linear=True,
         use_scale=True,
         calibration_mode="max",
+    ),
+    "fp8_e4m3fn_bf16_block_scale": BlockScaleQuantize(
+        name="fp8_e4m3fn_bf16_block_scale",
+        kind="block-scale-quant",
+        weight_dtype="float8_e4m3fn",
+        model_dtype="bfloat16",
     ),
 }
