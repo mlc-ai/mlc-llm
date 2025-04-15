@@ -43,7 +43,7 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
   res.type = json::LookupOrDefault<std::string>(config, "type", "text");
 
   if (res.type != "text" && res.type != "function" && res.type != "json_object" &&
-      res.type != "structural_tag") {
+      res.type != "json_schema" && res.type != "structural_tag") {
     return TResult::Error("Uknonwn response_format type " + res.type);
   }
 

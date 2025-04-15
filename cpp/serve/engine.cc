@@ -993,7 +993,7 @@ class EngineImpl : public Engine {
       return grammar_compiler_.CompileBuiltinJSONGrammar();
     } else if (response_format.type == "json_schema") {
       return grammar_compiler_.CompileJSONSchema(response_format.schema.value());
-    } else {
+    } else if (response_format.type == "structural_tag") {
       std::vector<xgrammar::StructuralTagItem> tags;
       std::vector<std::string> triggers;
       for (auto tag : response_format.tags.value()) {
