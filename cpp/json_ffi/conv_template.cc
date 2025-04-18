@@ -328,9 +328,11 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
 
             NDArray image_data = image_data_res.Unwrap();
             std::vector<int64_t> new_shape = {1, image_size, image_size, 3};
-            NDArray image_ndarray = image_data.CreateView(new_shape, image_data.DataType());
-            // TODO: Not sure if commenting will affect other functions. But python part will do clip preprocessing.
-            // auto image_ndarray = ClipPreprocessor(image_data_res.Unwrap(), image_size, device);
+            NDArray image_ndarray =
+                image_data.CreateView(new_shape, image_data.DataType());
+            // TODO: Not sure if commenting will affect other functions. But
+            // python part will do clip preprocessing. auto image_ndarray =
+            // ClipPreprocessor(image_data_res.Unwrap(), image_size, device);
             // lazily commit text data
             if (pending_text.length() != 0) {
               message_list.push_back(TextData(pending_text));
