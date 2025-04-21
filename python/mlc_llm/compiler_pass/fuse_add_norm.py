@@ -13,7 +13,9 @@ from tvm.script import tir as T
 from ..support.max_thread_check import get_max_num_threads_per_block
 
 
-def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int):
+def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: str):
+    if in_dtype not in ("float16", "bfloat16"):
+        raise ValueError(f"Unsupported data type: {in_dtype}")
     inv_hidden_size = T.float32(1.0 / float(hidden_size))
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
@@ -24,12 +26,12 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int):
     ):
         T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
         batch_size = T.int32()
-        A = T.match_buffer(pA, (batch_size, 1, hidden_size), "float16")
-        B = T.match_buffer(pB, (batch_size, 1, hidden_size), "float16")
-        C = T.match_buffer(pC, (hidden_size,), "float16")
-        O = T.match_buffer(pO, (batch_size, 1, hidden_size), "float16")
-        add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), "float16")
-        add_local = T.alloc_buffer((hidden_size // TX,), "float16", scope="local")
+        A = T.match_buffer(pA, (batch_size, 1, hidden_size), in_dtype)
+        B = T.match_buffer(pB, (batch_size, 1, hidden_size), in_dtype)
+        C = T.match_buffer(pC, (hidden_size,), in_dtype)
+        O = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
+        add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), in_dtype)
+        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
         sum_shared = T.alloc_buffer((batch_size, 1), scope="shared")
         sum_local = T.alloc_buffer((TX, batch_size, 1), scope="local")
         for v_bx in T.thread_binding(batch_size, thread="blockIdx.x"):
@@ -69,16 +71,19 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int):
                     with T.block("T_cast_2"):
                         bx = T.axis.spatial(batch_size, v_bx)
                         h = T.axis.spatial(hidden_size, i * TX + v_tx_2)
-                        O[bx, 0, h] = T.float16(
+                        O[bx, 0, h] = T.cast(
                             T.rsqrt(sum_shared[bx, 0] * inv_hidden_size + eps)
                             * T.float32(add_local[h // TX])
-                            * T.float32(C[h])
+                            * T.float32(C[h]),
+                            dtype=in_dtype,
                         )
 
     return decode_add_rms
 
 
-def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int):
+def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: str):
+    if in_dtype not in ("float16", "bfloat16"):
+        raise ValueError(f"Unsupported data type: {in_dtype}")
     inv_hidden_size = T.float32(1.0 / float(hidden_size))
     eps = T.float32(eps)
     add_local_size = hidden_size // TX
@@ -89,12 +94,12 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int):
     ):
         T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
         seq_len = T.int32()
-        A = T.match_buffer(pA, (1, seq_len, hidden_size), "float16")
-        B = T.match_buffer(pB, (1, seq_len, hidden_size), "float16")
-        C = T.match_buffer(pC, (hidden_size,), "float16")
-        O = T.match_buffer(pO, (1, seq_len, hidden_size), "float16")
-        add = T.match_buffer(pAdd, (1, seq_len, hidden_size), "float16")
-        add_local = T.alloc_buffer((hidden_size // TX,), "float16", scope="local")
+        A = T.match_buffer(pA, (1, seq_len, hidden_size), in_dtype)
+        B = T.match_buffer(pB, (1, seq_len, hidden_size), in_dtype)
+        C = T.match_buffer(pC, (hidden_size,), in_dtype)
+        O = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
+        add = T.match_buffer(pAdd, (1, seq_len, hidden_size), in_dtype)
+        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
         sum_shared = T.alloc_buffer((1, seq_len), scope="shared")
         sum_local = T.alloc_buffer((TX, 1, seq_len), scope="local")
         for v_bx in T.thread_binding(seq_len, thread="blockIdx.x"):
@@ -131,10 +136,11 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int):
                     with T.block("T_cast_2"):
                         bx = T.axis.spatial(seq_len, v_bx)
                         v1 = T.axis.spatial(hidden_size, v_i * TX + v_tx_2)
-                        O[0, bx, v1] = T.float16(
+                        O[0, bx, v1] = T.cast(
                             T.rsqrt(sum_shared[0, bx] * inv_hidden_size + eps)
                             * T.float32(add_local[v1 // TX])
-                            * T.float32(C[v1])
+                            * T.float32(C[v1]),
+                            dtype=in_dtype,
                         )
 
     return prefill_add_rms
@@ -182,8 +188,10 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern
-        # Todo: support bf16  # pylint: disable=fixme
-        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.struct_info.dtype != "float16":
+        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.struct_info.dtype not in [
+            "bfloat16",
+            "float16",
+        ]:
             return call
         assert len(call.args) == 2
         weight = call.args[1]
@@ -206,12 +214,14 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         if func_gv is None:
             if is_prefill:
                 func_gv = self.builder_.add_func(
-                    _get_add_rms_norm_prefill(h, eps, self.TX), "fuse_add_norm_prefill"
+                    _get_add_rms_norm_prefill(h, eps, self.TX, call.struct_info.dtype),
+                    "fuse_add_norm_prefill",
                 )
                 self.prefill_norm_gv = func_gv
             else:
                 func_gv = self.builder_.add_func(
-                    _get_add_rms_norm_decode(h, eps, self.TX), "fuse_add_norm_decode"
+                    _get_add_rms_norm_decode(h, eps, self.TX, call.struct_info.dtype),
+                    "fuse_add_norm_decode",
                 )
                 self.decode_norm_gv = func_gv
 
