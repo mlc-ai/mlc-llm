@@ -126,7 +126,8 @@ class Conversation(BaseModel):
         from ..serve import data  # pylint: disable=import-outside-toplevel
 
         # - Get the system message.
-        self.set_tool_call_format_in_system_message()
+        if self.use_function_calling:
+            self.set_tool_call_format_in_system_message()
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
         )
@@ -200,22 +201,7 @@ class Conversation(BaseModel):
 
     def set_tool_call_format_in_system_message(self):
         """Add tool function information and call format to the system message."""
-        if self._tool_call_format == "xml":
-            tool_call_instruct = (
-                "Tool Instructions:"
-                "You have access to the following tool functions:"
-                f"{MessagePlaceholders.FUNCTION.value}"
-                "If a you choose to call a function, you should ONLY reply in the following format:"
-                "`<function={func name}>{parameters(JSON dict)}</function>`"
-                "Here is an example,"
-                '`<function=get_time>{"location": "Pittsburgh"}</function>`'
-                "Reminder:"
-                "- Function calls MUST follow the specified format"
-                "- Required parameters MUST be specified"
-                "- You should not repeat or miss the call"
-            )
-            self.system_message += tool_call_instruct
-        elif self._tool_call_format == "json":
+        if self._tool_call_format == "json":
             tool_call_instruct = (
                 "Tool Instructions:"
                 "You have access to the following tool functions:"
@@ -229,6 +215,21 @@ class Conversation(BaseModel):
                 "- Required parameters MUST be specified"
                 "- You should not repeat or miss the call"
                 "- You should response with at least one function calling"
+            )
+            self.system_message += tool_call_instruct
+        elif self._tool_call_format == "xml":
+            tool_call_instruct = (
+                "Tool Instructions:"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
+                "If a you choose to call a function, you should ONLY reply in the following format:"
+                "`<function={func name}>{parameters(JSON dict)}</function>`"
+                "Here is an example,"
+                '`<function=get_time>{"location": "Pittsburgh"}</function>`'
+                "Reminder:"
+                "- Function calls MUST follow the specified format"
+                "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
             )
             self.system_message += tool_call_instruct
         elif self._tool_call_format == "python":
