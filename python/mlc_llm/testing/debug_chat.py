@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tvm
-from tvm import relax
+from tvm import DataType, relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
 from tvm.runtime.relax_vm import VirtualMachine
@@ -104,6 +104,8 @@ class DefaultDebugInstrument:
             name.startswith("vm.builtin.")
             and "call_tir_dyn" not in name
             and "attention_with_fused_qkv" not in name
+            and "self_attention" not in name
+            and "cross_attention" not in name
         ):
             return
 
@@ -126,7 +128,13 @@ class DefaultDebugInstrument:
         arg_dict = {}
         for i, arg in enumerate(args):
             if isinstance(arg, tvm.nd.NDArray):
-                arg_dict[f"arg_{i}"] = arg.numpy()
+                if np.prod(arg.shape) * (DataType(arg.dtype).bits // 8) > 2147483648:
+                    # We skip dump large tensors
+                    arg_dict[f"arg_{i}"] = np.zeros(())
+                elif arg.dtype in ["bfloat16", "float8_e4m3fn"]:
+                    arg_dict[f"arg_{i}"] = arg.numpy().astype(np.float32)
+                else:
+                    arg_dict[f"arg_{i}"] = arg.numpy()
                 _check_nan_inf(arg.numpy())
         np.savez(self.debug_out / f"{func_name}.npz", **arg_dict)
 

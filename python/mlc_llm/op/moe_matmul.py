@@ -1,6 +1,6 @@
 """Mixture of Experts operators"""
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Tuple
 
 from tvm import DataType, DataTypeCode, tir
 from tvm.relax.frontend.nn import Tensor, op
@@ -182,7 +182,7 @@ def dequantize_float8_gemv(
     w: Tensor,
     scale: Optional[Tensor],
     indptr: Tensor,
-    quantize_dtype: Literal["e5m2_float8", "e4m3_float8"],
+    quantize_dtype: Literal["float8_e5m2", "float8_e4m3fn"],
 ) -> Tensor:
     """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
     fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
@@ -204,8 +204,8 @@ def dequantize_float8_gemv(
         The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
         number of activated experts per token.
 
-    quantize_dtype : Literal["e5m2_float8", "e4m3_float8"]
-        The quantize dtype of the weight tensor, which is either e5m2_float8 or e4m3_float8.
+    quantize_dtype : Literal["float8_e5m2", "float8_e4m3fn"]
+        The quantize dtype of the weight tensor, which is either float8_e5m2 or float8_e4m3fn.
     """
     (x_leading_dim, in_features), model_dtype = x.shape, x.dtype
     (local_experts, out_features, _), storage_dtype = w.shape, w.dtype
@@ -293,6 +293,88 @@ def dequantize_float8_gemv(
         "moe_dequantize_gemv",
         args=[x, w, indptr],
         out=Tensor.placeholder([experts_per_tok, out_features], model_dtype),
+    )
+
+
+def dequantize_block_scale_float8_gemv(
+    x: Tensor,
+    w: Tensor,
+    w_scale: Tensor,
+    expert_indices: Tensor,
+    block_size: Tuple[int, int],
+    out_dtype: str,
+) -> Tensor:
+    """GEMV for project-in (e1-e3) or project-out (e2) in MLP but the weight is quantized in
+    fp8 e5m2 or e4m3. It needs to be dequantized before the GEMV computation.
+
+    Parameters
+    ----------
+    x : Tensor
+        For project-in, the input tensor of shape (1, in_features); and for project-out, the input
+        shape is (experts_per_tok, in_features), where `experts_per_tok` is the number of activated
+        experts per token.
+
+    w : Tensor
+        The quantized weight tensor of shape (local_experts, out_features, in_features)
+
+    scale : Optional[Tensor]
+        The optional scale tensor of shape (1,)
+
+    indptr : Tensor
+        The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
+        number of activated experts per token.
+
+    quantize_dtype : Literal["float8_e5m2", "float8_e4m3fn"]
+        The quantize dtype of the weight tensor, which is either float8_e5m2 or float8_e4m3fn.
+    """
+    x_leading_dim, in_features = x.shape
+    local_experts, out_features, k = w.shape
+    _, experts_per_tok = expert_indices.shape
+    model_dtype = x.dtype
+    quantize_dtype = w.dtype
+
+    assert out_features % block_size[0] == 0
+    assert k % block_size[1] == 0
+
+    def _dequantize(w, s, e, i, j):
+        return w[e, i, j].astype(model_dtype) * s[e, i // block_size[0], j // block_size[1]].astype(
+            model_dtype
+        )
+
+    def load_x(x, e, j):
+        return x[0, j] if x_leading_dim == 1 else x[e, j]
+
+    @T.prim_func(private=True)
+    def _func(
+        x: T.Buffer((x_leading_dim, in_features), model_dtype),
+        w: T.Buffer((local_experts, out_features, k), quantize_dtype),
+        w_scale: T.Buffer(
+            (local_experts, out_features // block_size[0], k // block_size[1]), "float32"
+        ),
+        expert_indices: T.Buffer((1, experts_per_tok), "int32"),
+        o: T.Buffer((experts_per_tok, out_features), out_dtype),
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
+            with T.block("gemv_o"):
+                e = T.axis.spatial(experts_per_tok, expert_id)
+                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("dequantize"):
+                        i, j = T.axis.remap("SS", [i1, i2])
+                        y[i, j] = _dequantize(w, w_scale, expert_indices[0, e], i, j)
+                for i1, i2 in T.grid(out_features, in_features):
+                    with T.block("gemv"):
+                        i, j = T.axis.remap("SR", [i1, i2])
+                        with T.init():
+                            o[e, i] = T.cast(T.float16(0), out_dtype)
+                        o[e, i] += (load_x(x, e, j) * y[i, j]).astype(out_dtype)
+
+    return op.tensor_ir_op(
+        _func,
+        "moe_dequantize_gemv",
+        args=[x, w, w_scale, expert_indices],
+        out=Tensor.placeholder([experts_per_tok, out_features], out_dtype),
     )
 
 

@@ -886,6 +886,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         },
         "rope_theta": 10000,
         "routed_scaling_factor": 1.0,
+        "scoring_func": "softmax",
         "topk_group": 1,
         "topk_method": "greedy",
         "torch_dtype": "bfloat16",

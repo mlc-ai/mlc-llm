@@ -307,7 +307,8 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic_mha(
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -316,7 +317,8 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,

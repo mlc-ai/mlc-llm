@@ -38,8 +38,11 @@ class ShardSingleDim:
         shape = weight.shape
         segs = self.segs or [shape[self.dim]]
         assert sum(segs) == shape[self.dim]
+        # NOTE: we use int64 to prevent int32 overflow
+        shape = [tir.IntImm("int64", v) for v in shape]
+        segs = [tir.IntImm("int64", v) for v in segs]
         w = te.placeholder(
-            self._compute_in_shape(shards, weight),
+            [tir.IntImm("int64", v) for v in self._compute_in_shape(shards, weight)],
             weight.dtype,
             name="w",
         )
@@ -58,7 +61,12 @@ class ShardSingleDim:
                             ],
                             name=f"w_{idx}",
                         ),
-                        (*shape[: self.dim], shards, sub_seg, *shape[self.dim + 1 :]),
+                        (
+                            *shape[: self.dim],
+                            tir.IntImm("int64", shards),
+                            sub_seg,
+                            *shape[self.dim + 1 :],
+                        ),
                     ),
                     [self.dim, *range(self.dim), *range(self.dim + 1, len(shape) + 1)],
                 )

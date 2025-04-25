@@ -176,7 +176,6 @@ Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> 
     std::filesystem::path added_tokens_path = path / "added_tokens.json";
     if (std::filesystem::exists(merges_path) && std::filesystem::exists(vocab_path) &&
         std::filesystem::exists(added_tokens_path)) {
-      LOG(INFO) << "come here";
       std::string vocab = LoadBytesFromFile(vocab_path.string());
       std::string merges = LoadBytesFromFile(merges_path.string());
       std::string added_tokens = LoadBytesFromFile(added_tokens_path.string());

@@ -25,12 +25,12 @@ class TokenizerInfo:  # pylint: disable=too-many-instance-attributes
         The method to post-process the tokens to their original strings.
         Possible values (each refers to a kind of tokenizer):
         - "byte_fallback": The same as the byte-fallback BPE tokenizer, including LLaMA-2,
-            Mixtral-7b, etc. E.g. "▁of" -> " of", "<0x1B>" -> "\x1B".
+            Mixtral-7b, etc. E.g. "▁of" -> " of", "<0x1B>" -> "\x1b".
             This method:
             1) Transform tokens like <0x1B> to hex char byte 1B. (so-called byte-fallback)
             2) Replace \\u2581 "▁" with space.
         - "byte_level": The same as the byte-level BPE tokenizer, including LLaMA-3, GPT-2,
-            Phi-2, etc. E.g. "Ġin" -> " in", "ě" -> "\x1B"
+            Phi-2, etc. E.g. "Ġin" -> " in", "ě" -> "\x1b"
             This method inverses the bytes-to-unicode transformation in the encoding process in
             https://github.com/huggingface/transformers/blob/87be06ca77166e6a6215eee5a990ab9f07238a18/src/transformers/models/gpt2/tokenization_gpt2.py#L38-L59
 
@@ -59,7 +59,7 @@ class TokenizerInfo:  # pylint: disable=too-many-instance-attributes
 class Tokenizer(Object):
     """The tokenizer class in MLC LLM."""
 
-    def __init__(self, tokenizer_path: str) -> None:
+    def __init__(self, tokenizer_path: str) -> None:  # pylint: disable=super-init-not-called
         """Create the tokenizer from tokenizer directory path."""
         self.__init_handle_by_constructor__(
             _ffi_api.Tokenizer, tokenizer_path  # type: ignore  # pylint: disable=no-member
