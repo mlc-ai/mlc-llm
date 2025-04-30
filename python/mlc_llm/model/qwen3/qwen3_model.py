@@ -4,7 +4,7 @@ Implementation for QWEN2 architecture.
 
 import dataclasses
 from functools import partial
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from tvm import te, tir
 from tvm.relax.frontend import nn
@@ -41,9 +41,34 @@ class Qwen3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     dtype: str = "float32"
     max_batch_size: int = 1
+    weight_block_size: Optional[Tuple[int, int]] = None
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
+        if "quantization_config" in self.kwargs:
+            quantization_config = self.kwargs.get("quantization_config")
+            if (
+                isinstance(quantization_config, dict)
+                and quantization_config.get("activation_scheme", "") == "dynamic"
+                and quantization_config.get("fmt", "") == "e4m3"
+                and quantization_config.get("quant_method", "") == "fp8"
+                and "weight_block_size" in quantization_config
+            ):
+                self.weight_block_size = quantization_config.get("weight_block_size")
+                if (
+                    not isinstance(self.weight_block_size, (tuple, list))
+                    or len(self.weight_block_size) != 2
+                ):
+                    raise ValueError(
+                        "Invalid DeepSeek model quantization config: "
+                        "weight_block_size must be a tuple of two integers, "
+                        f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
+                    )
+            else:
+                raise ValueError(
+                    "Invalid DeepSeek model quantization config: unrecognized quantization config: "
+                    f"{quantization_config}"
+                )
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -247,6 +272,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
+        self.weight_block_size = config.weight_block_size
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)

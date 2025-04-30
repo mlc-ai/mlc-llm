@@ -218,6 +218,7 @@ class Qwen3MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         self.vocab_size = config.vocab_size
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.head_dim
+        self.weight_block_size = config.weight_block_size
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)

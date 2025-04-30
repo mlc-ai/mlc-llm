@@ -4,11 +4,12 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
+from typing import Callable, List
 
 import numpy as np
 
-from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.loader import ExternMapping, QuantizeMapping
+from mlc_llm.quantization import BlockScaleQuantize, Quantization
 
 from .qwen3_model import Qwen3Config, Qwen3LMHeadModel
 
@@ -33,6 +34,15 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
     model = Qwen3LMHeadModel(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
+    if isinstance(quantization, BlockScaleQuantize):
+        # Convert the model to block-scale quantized model before loading parameters
+        model = quantization.quantize_model(model, QuantizeMapping({}, {}), "")
+        if model_config.weight_block_size is None:
+            raise ValueError(
+                "The input Qwen3 model is not fp8 block quantized. "
+                "Thus BlockScaleQuantize is not supported."
+            )
+
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
         spec=model.get_default_spec(),
         allow_extern=True,
@@ -41,19 +51,60 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
 
     mapping = ExternMapping()
 
+    if (
+        not isinstance(quantization, BlockScaleQuantize)
+        and model_config.weight_block_size is not None
+    ):
+        raise ValueError(
+            "The input Qwen3 model is fp8 block quantized. "
+            "Please use BlockScaleQuantize for the model."
+        )
+
+    # Helper function to add both weight and scale mappings
+    def add_weight_and_scale_mapping(
+        weight_mlc_name: str,
+        weight_hf_names: List[str],
+        weight_transform_func: Callable,
+    ):
+        mlc_param = named_parameters[weight_mlc_name]
+        mapping.add_mapping(
+            weight_mlc_name,
+            weight_hf_names,
+            functools.partial(weight_transform_func, dtype=mlc_param.dtype),
+        )
+
+        if isinstance(quantization, BlockScaleQuantize):
+            scale_mlc_name = f"{weight_mlc_name}_scale_inv"
+            if scale_mlc_name in named_parameters:
+                scale_hf_names = [f"{name}_scale_inv" for name in weight_hf_names]
+                scale_param = named_parameters[scale_mlc_name]
+                mapping.add_mapping(
+                    scale_mlc_name,
+                    scale_hf_names,
+                    functools.partial(weight_transform_func, dtype=scale_param.dtype),
+                )
+
     for i in range(model_config.num_hidden_layers):
         # map attention weight
         attn = f"model.layers.{i}.self_attn"
-        weight_names = ["weight", "bias"] if model_config.attention_bias else ["weight"]
-        for weight_type in weight_names:
-            mlc_name = f"{attn}.c_attn.{weight_type}"
+        add_weight_and_scale_mapping(
+            f"{attn}.c_attn.weight",
+            [
+                f"{attn}.q_proj.weight",
+                f"{attn}.k_proj.weight",
+                f"{attn}.v_proj.weight",
+            ],
+            lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+        )
+        if model_config.attention_bias:
+            mlc_name = f"{attn}.c_attn.bias"
             mlc_param = named_parameters[mlc_name]
             mapping.add_mapping(
                 mlc_name,
                 [
-                    f"{attn}.q_proj.{weight_type}",
-                    f"{attn}.k_proj.{weight_type}",
-                    f"{attn}.v_proj.{weight_type}",
+                    f"{attn}.q_proj.bias",
+                    f"{attn}.k_proj.bias",
+                    f"{attn}.v_proj.bias",
                 ],
                 functools.partial(
                     lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
@@ -62,18 +113,13 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
             )
         # map mlp weight
         mlp = f"model.layers.{i}.mlp"
-        mlc_name = f"{mlp}.gate_up_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        mapping.add_mapping(
-            mlc_name,
+        add_weight_and_scale_mapping(
+            f"{mlp}.gate_up_proj.weight",
             [
                 f"{mlp}.gate_proj.weight",
                 f"{mlp}.up_proj.weight",
             ],
-            functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
+            lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
         )
 
     for mlc_name, mlc_param in named_parameters.items():
