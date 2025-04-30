@@ -5,8 +5,6 @@ import enum
 from io import StringIO
 from typing import Optional
 
-import tvm
-
 from mlc_llm.support import argparse, logging
 from mlc_llm.support.config import ConfigOverrideBase
 
@@ -90,8 +88,6 @@ class OptimizationFlags:
             if not self.flashinfer:
                 return False
             if target.kind.name != "cuda":
-                return False
-            if tvm.get_global_func("support.GetLibInfo")()["USE_FLASHINFER"] != "ON":
                 return False
             arch_list = detect_cuda_arch_list(target)
             for arch in arch_list:
