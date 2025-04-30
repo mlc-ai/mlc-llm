@@ -112,7 +112,7 @@ def main():
             "pandas",
             "datasets",
             "ml_dtypes>=0.5.1",
-            "flashinfer-python==0.2.2",
+            "flashinfer-python==0.2.5",
         ],
         distclass=BinaryDistribution,
         **setup_kwargs,

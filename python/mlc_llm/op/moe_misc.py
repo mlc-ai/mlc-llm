@@ -29,6 +29,36 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     return op.sum(x, axis=dim)
 
 
+def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
+    for t in range(k_val):
+        T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
+    for t in range(k_val):
+        T.buffer_store(local_top_k_index, t, indices=[-1])
+
+
+def _gating_topk_process_value(  # pylint: disable=too-many-arguments
+    k_val, x, local_top_k, local_top_k_index, vi, vk
+):
+    if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
+    then_frames = [T.Then() for _ in range(k_val)]
+    else_frames = [T.Else() for _ in range(k_val - 1)]
+    for i in range(k_val):
+        if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+        with then_frames[i]:
+            for j in range(k_val - 1, i, -1):
+                T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
+                T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
+            T.buffer_store(local_top_k, x[vi, vk], indices=[i])
+            T.buffer_store(local_top_k_index, vk, indices=[i])
+        if i != k_val - 1:
+            else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+
+    for i in range(k_val - 1, -1, -1):
+        if i != k_val - 1:
+            else_frames[i].__exit__(None, None, None)
+        if_frames[i].__exit__(None, None, None)
+
+
 def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
     """Compute the top-k experts and their scores.
 
@@ -54,32 +84,6 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
     TX = 1024
 
     def _get_topk_func(k_val: int):
-        def _init_local_top_k(local_top_k, local_top_k_index):
-            for t in range(k_val):
-                T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
-            for t in range(k_val):
-                T.buffer_store(local_top_k_index, t, indices=[-1])
-
-        def _process_value(x, local_top_k, local_top_k_index, vi, vk):
-            if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
-            then_frames = [T.Then() for _ in range(k_val)]
-            else_frames = [T.Else() for _ in range(k_val - 1)]
-            for i in range(k_val):
-                if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-                with then_frames[i]:
-                    for j in range(k_val - 1, i, -1):
-                        T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
-                        T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
-                    T.buffer_store(local_top_k, x[vi, vk], indices=[i])
-                    T.buffer_store(local_top_k_index, vk, indices=[i])
-                if i != k_val - 1:
-                    else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-
-            for i in range(k_val - 1, -1, -1):
-                if i != k_val - 1:
-                    else_frames[i].__exit__(None, None, None)
-                if_frames[i].__exit__(None, None, None)
-
         @T.prim_func(private=True)
         def topk_func(
             var_x: T.handle,
@@ -99,11 +103,15 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
                         vi = T.axis.spatial(batch_size, io * TX + ii)
                         T.where(io * TX + ii < batch_size)
                         with T.block("init"):
-                            _init_local_top_k(local_top_k, local_top_k_index)
+                            _gating_topk_init_local_top_k(
+                                k_val, dtype, local_top_k, local_top_k_index
+                            )
                         for k in range(num_local_experts):
                             with T.block("update"):
                                 vk = T.axis.remap("S", [k])
-                                _process_value(x, local_top_k, local_top_k_index, vi, vk)
+                                _gating_topk_process_value(
+                                    k_val, x, local_top_k, local_top_k_index, vi, vk
+                                )
                         for j in T.unroll(k_val):
                             with T.block("output"):
                                 vj = T.axis.remap("S", [j])
@@ -153,31 +161,17 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
     TX = 1024
 
     def _get_topk_softmax_norm_func(k_val: int):
-        def _init_local_top_k(local_top_k, local_top_k_index):
-            for t in range(k_val):
-                T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
-            for t in range(k_val):
-                T.buffer_store(local_top_k_index, t, indices=[-1])
+        def _nested_max(local_top_k_f32):
+            expr = local_top_k_f32[0]
+            for i in range(1, k_val):
+                expr = T.max(expr, local_top_k_f32[i])
+            return expr
 
-        def _process_value(x, local_top_k, local_top_k_index, vi, vk):
-            if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
-            then_frames = [T.Then() for _ in range(k_val)]
-            else_frames = [T.Else() for _ in range(k_val - 1)]
-            for i in range(k_val):
-                if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-                with then_frames[i]:
-                    for j in range(k_val - 1, i, -1):
-                        T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
-                        T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
-                    T.buffer_store(local_top_k, x[vi, vk], indices=[i])
-                    T.buffer_store(local_top_k_index, vk, indices=[i])
-                if i != k_val - 1:
-                    else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-
-            for i in range(k_val - 1, -1, -1):
-                if i != k_val - 1:
-                    else_frames[i].__exit__(None, None, None)
-                if_frames[i].__exit__(None, None, None)
+        def _nested_sum(local_top_k_f32, local_top_k_max):
+            expr = T.exp(local_top_k_f32[0] - local_top_k_max[0])
+            for i in range(1, k_val):
+                expr = expr + T.exp(local_top_k_f32[i] - local_top_k_max[0])
+            return expr
 
         @T.prim_func(private=True)
         def topk_softmax_norm_func(
@@ -192,22 +186,37 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
             out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
             local_top_k = T.alloc_buffer((k_val,), dtype=dtype, scope="local")
             local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k_f32 = T.alloc_buffer((k_val,), dtype="float32", scope="local")
+            local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
                     with T.block("top_k"):
                         vi = T.axis.spatial(batch_size, io * TX + ii)
                         T.where(io * TX + ii < batch_size)
                         with T.block("init"):
-                            _init_local_top_k(local_top_k, local_top_k_index)
+                            _gating_topk_init_local_top_k(
+                                k_val, dtype, local_top_k, local_top_k_index
+                            )
                         for k in range(num_local_experts):
                             with T.block("update"):
                                 vk = T.axis.remap("S", [k])
-                                _process_value(x, local_top_k, local_top_k_index, vi, vk)
-                        # Todo: fix softmax when norm_topk_prob is True  # pylint: disable=fixme
+                                _gating_topk_process_value(
+                                    k_val, x, local_top_k, local_top_k_index, vi, vk
+                                )
+                        for j in T.unroll(k_val):
+                            with T.block("cast"):
+                                vj = T.axis.remap("S", [j])
+                                local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
+                        with T.block("max"):
+                            local_top_k_max[0] = _nested_max(local_top_k_f32)
                         for j in T.unroll(k_val):
                             with T.block("output"):
                                 vj = T.axis.remap("S", [j])
-                                out[vi, vj] = local_top_k[vj]
+                                out[vi, vj] = T.cast(
+                                    T.exp(local_top_k_f32[vj] - local_top_k_max[0])
+                                    / _nested_sum(local_top_k_f32, local_top_k_max),
+                                    dtype,
+                                )
                                 out_index[vi, vj] = local_top_k_index[vj]
 
         return topk_softmax_norm_func
@@ -224,15 +233,7 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
         )
 
     expert_score = op.softmax(x.astype("float32"), axis=-1).astype(dtype)
-    return op.tensor_ir_op(
-        _get_topk_softmax_norm_func(k),
-        f"top{k}_softmax",
-        args=[expert_score],
-        out=(
-            Tensor.placeholder([batch_size, k], dtype),
-            Tensor.placeholder([batch_size, k], index_dtype),
-        ),
-    )
+    return gating_topk(expert_score, k)
 
 
 def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
