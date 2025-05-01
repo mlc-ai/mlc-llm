@@ -340,6 +340,7 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen3_quantization.no_quant,
             "group-quant": qwen3_quantization.group_quant,
             "ft-quant": qwen3_quantization.ft_quant,
+            "block-scale-quant": qwen3_quantization.block_scale_quant,
         },
     ),
     "qwen3_moe": Model(
@@ -354,6 +355,7 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen3_moe_quantization.no_quant,
             "group-quant": qwen3_moe_quantization.group_quant,
             "ft-quant": qwen3_moe_quantization.ft_quant,
+            "block-scale-quant": qwen3_moe_quantization.block_scale_quant,
         },
     ),
     "deepseek_v2": Model(
