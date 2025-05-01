@@ -30,6 +30,7 @@ String TokenizerInfoNode::AsJSONString() const {
   obj["token_postproc_method"] = picojson::value(token_postproc_method);
   obj["prepend_space_in_encode"] = picojson::value(prepend_space_in_encode);
   obj["strip_space_in_decode"] = picojson::value(strip_space_in_decode);
+  obj["vocab_size"] = picojson::value(vocab_size);
   return picojson::value(obj).serialize(false);
 }
 
@@ -53,6 +54,10 @@ TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
   if (obj.count("strip_space_in_decode")) {
     ICHECK(obj.at("strip_space_in_decode").is<bool>());
     n->strip_space_in_decode = obj.at("strip_space_in_decode").get<bool>();
+  }
+  if (obj.count("vocab_size")) {
+    ICHECK(obj.at("vocab_size").is<int64_t>());
+    n->vocab_size = obj.at("vocab_size").get<int64_t>();
   }
 
   return TokenizerInfo(n);

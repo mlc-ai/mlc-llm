@@ -81,6 +81,8 @@ class Conversation(BaseModel):
     function_string: str = ""
     # whether using function calling or not, helps check for output message format in API call
     use_function_calling: bool = False
+    # Tool function call format mode
+    _tool_call_format: str = "json"
 
     def __init__(self, role_templates: Optional[Dict[str, str]] = None, **kwargs):
         # Defaults templates which would be overridden by model specific templates
@@ -124,6 +126,8 @@ class Conversation(BaseModel):
         from ..serve import data  # pylint: disable=import-outside-toplevel
 
         # - Get the system message.
+        if self.use_function_calling:
+            self.set_tool_call_format_in_system_message()
         system_msg = self.system_template.replace(
             MessagePlaceholders.SYSTEM.value, self.system_message
         )
@@ -194,6 +198,51 @@ class Conversation(BaseModel):
             prompt[0] = prompt[0].replace(MessagePlaceholders.FUNCTION.value, "")
 
         return prompt
+
+    def set_tool_call_format_in_system_message(self):
+        """Add tool function information and call format to the system message."""
+        if self._tool_call_format == "json":
+            tool_call_instruct = (
+                "Tool Instructions:"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
+                "If a you choose to call a function, you should ONLY reply in the following format:"
+                '`{"name": func_name, "parameters": parameters(JSON dict)}`'
+                "Here is an example,"
+                '`{"name": "get_time", "parameters": {"location": "Pittsburgh"}}}}`'
+                "Reminder:"
+                "- Function calls MUST follow the specified format"
+                "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
+                "- You should response with at least one function calling"
+            )
+            self.system_message += tool_call_instruct
+        elif self._tool_call_format == "xml":
+            tool_call_instruct = (
+                "Tool Instructions:"
+                "You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
+                "If a you choose to call a function, you should ONLY reply in the following format:"
+                "`<function={func name}>{parameters(JSON dict)}</function>`"
+                "Here is an example,"
+                '`<function=get_time>{"location": "Pittsburgh"}</function>`'
+                "Reminder:"
+                "- Function calls MUST follow the specified format"
+                "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
+            )
+            self.system_message += tool_call_instruct
+        elif self._tool_call_format == "python":
+            tool_call_instruct = (
+                "Tool Instructions:"
+                "- You have access to the following tool functions:"
+                f"{MessagePlaceholders.FUNCTION.value}"
+                "- Required parameters MUST be specified"
+                "- You should not repeat or miss the call"
+            )
+            self.system_message += tool_call_instruct
+        else:
+            raise ValueError("Unknown tool calling format.")
 
 
 def _get_url_from_item(item: Dict) -> str:
