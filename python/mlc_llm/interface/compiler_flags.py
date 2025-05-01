@@ -101,7 +101,7 @@ class OptimizationFlags:
             if not target.kind.name in ["cuda", "rocm"]:
                 return False
             if not (
-                quantization.name in ["q0f16", "q0f32"]
+                quantization.name in ["q0f16", "q0bf16", "q0f32"]
                 or "e4m3" in quantization.name
                 or "e5m2" in quantization.name
             ):
