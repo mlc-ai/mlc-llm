@@ -99,6 +99,42 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
         temp_func_bytes / 1024 / 1024,
     )
 
+    # Compute KV cache size per token of context window.
+    if isinstance(config, ConfigBase):
+        config = asdict(config)
+    if (
+        "head_dim" in config
+        and "num_hidden_layers" in config
+        and "num_key_value_heads" in config
+        and "quantization" in metadata
+    ):
+        quantization_type = metadata["quantization"]
+        dtype_bytes = None
+        if "f32" in quantization_type:
+            dtype_bytes = 4
+        elif "bf16" in quantization_type:
+            dtype_bytes = 2
+        elif "f16" in quantization_type:
+            dtype_bytes = 2
+        # TODO: In future, if support quantized KV cache, need to change this calculation
+        if dtype_bytes is not None:
+            bytes_per_token = (
+                config["head_dim"]
+                * config["num_hidden_layers"]
+                * config["num_key_value_heads"]
+                * dtype_bytes
+                * 2  # 2 for key and value
+            )
+            logger.info(
+                "%s: %.2f MB per token in the context window",
+                green("KV cache size:"),
+                bytes_per_token / 1024 / 1024,
+            )
+            logger.info(
+                "Total memory usage with a 4K KV cache: %.2f MB",
+                (total_size + bytes_per_token * 4096) / 1024 / 1024,
+            )
+
     logger.info(
         "To reduce memory usage, "
         "tweak `prefill_chunk_size`, `context_window_size` and `sliding_window_size`"
