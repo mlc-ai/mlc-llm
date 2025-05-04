@@ -93,7 +93,7 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
     total_size = params_bytes + temp_func_bytes
     logger.info(
         "%s: %.2f MB (Parameters: %.2f MB. Temporary buffer: %.2f MB)",
-        green("Total memory usage without KV cache:"),
+        green("Total memory usage without KV cache"),
         total_size / 1024 / 1024,
         params_bytes / 1024 / 1024,
         temp_func_bytes / 1024 / 1024,
@@ -116,7 +116,7 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
             dtype_bytes = 2
         elif "f16" in quantization_type:
             dtype_bytes = 2
-        # TODO: In future, if support quantized KV cache, need to change this calculation
+        # TODO: If support quantized KV in future, need to change this  # pylint: disable=fixme
         if dtype_bytes is not None:
             bytes_per_token = (
                 config["head_dim"]
@@ -127,11 +127,12 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
             )
             logger.info(
                 "%s: %.2f MB per token in the context window",
-                green("KV cache size:"),
+                green("KV cache size"),
                 bytes_per_token / 1024 / 1024,
             )
             logger.info(
-                "Total memory usage with a 4K KV cache: %.2f MB",
+                "%s: %.2f MB",
+                green("Total memory usage with a 4K KV cache"),
                 (total_size + bytes_per_token * 4096) / 1024 / 1024,
             )
 
