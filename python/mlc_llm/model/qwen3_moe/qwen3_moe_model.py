@@ -83,6 +83,7 @@ class Qwen3MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             out_features=config.hidden_size,
         )
         self.act_fn = ACT2FN[config.hidden_act]
+        self.dtype = "float32"
 
     def forward(self, x: Tensor):
         def _expert_forward(x: Tensor, indptr: Tensor):
@@ -102,6 +103,10 @@ class Qwen3MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
         expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(
             gate, experts_per_tok, norm_topk_prob=self.norm_topk_prob
         )
+        use_cutlass = op_ext.get_store().cutlass_group_gemm and self.dtype in [
+            "float16",
+            "bfloat16",
+        ]
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = _expert_forward(x, expert_indices)
@@ -111,9 +116,16 @@ class Qwen3MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             # indices: [num_tokens * experts_per_tok]
             reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
             # indptr: [num_local_experts + 1]
-            indptr = op_ext.moe_misc.get_indptr(
-                cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
-            )
+            if use_cutlass:
+                # indptr: [num_experts]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, num_experts, num_tokens, inclusive=True, out_dtype="int64"
+                )
+            else:
+                # indptr: [num_experts + 1]
+                indptr = op_ext.moe_misc.get_indptr(
+                    cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
+                )
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = op.take(x, token_indices, axis=0)
             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)

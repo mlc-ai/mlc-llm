@@ -86,6 +86,7 @@ struct ModelMetadata {
   int64_t pipeline_parallel_stages;
   bool disaggregation;
   int64_t attention_sink_size;
+  int64_t seqlen_padding_factor;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
   KVStateKind kv_state_kind;

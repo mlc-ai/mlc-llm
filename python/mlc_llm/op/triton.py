@@ -552,7 +552,7 @@ def _compute_expert_id_per_block(
     )
 
 
-def fp8_block_scale_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments,too-many-locals
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
@@ -652,7 +652,7 @@ def fp8_block_scale_gemm(  # pylint: disable=too-many-arguments,too-many-locals
     return out.reshape(*x_shape[:-1], N) if len(x_shape) > 2 else out
 
 
-def fp8_block_scale_group_gemm(  # pylint: disable=too-many-arguments,too-many-locals
+def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-many-locals
     x: nn.Tensor,
     x_scale: nn.Tensor,
     weight: nn.Tensor,
