@@ -29,7 +29,7 @@ uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android
   // with OpenCL.
   if (device.device_type == kDLOpenCL) {
-    int64_t min_size_bytes = 5LL * 1024 * 1024 * 1024;  //  Minimum size is 5 GB
+    int64_t min_size_bytes = 10LL * 1024 * 1024 * 1024;  //  Minimum size is 5 GB
     gpu_size_bytes = std::max(gpu_size_bytes, min_size_bytes);
   }
   return gpu_size_bytes;

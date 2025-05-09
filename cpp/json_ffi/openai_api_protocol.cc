@@ -500,6 +500,54 @@ picojson::object ChatCompletionStreamResponseChoice::AsJSON() const {
   return obj;
 }
 
+Result<ChatCompletionStreamResponseChoice> ChatCompletionStreamResponseChoice::FromJSON(
+    const picojson::object& json_obj) {
+  using TResult = Result<ChatCompletionStreamResponseChoice>;
+  ChatCompletionStreamResponseChoice choice;
+
+  // // index
+  // Result<int64_t> index_res = json::LookupWithResultReturn<int64_t>(json_obj, "index");
+  // if (index_res.IsErr()) {
+  //   return TResult::Error(index_res.UnwrapErr());
+  // }
+  // choice.index = index_res.Unwrap();
+
+  // delta
+  Result<picojson::object> delta_obj_res =
+      json::LookupWithResultReturn<picojson::object>(json_obj, "delta");
+  if (delta_obj_res.IsErr()) {
+    return TResult::Error(delta_obj_res.UnwrapErr());
+  }
+  Result<ChatCompletionMessage> delta_res = ChatCompletionMessage::FromJSON(delta_obj_res.Unwrap());
+  if (delta_res.IsErr()) {
+    return TResult::Error(delta_res.UnwrapErr());
+  }
+  choice.delta = delta_res.Unwrap();
+
+  // // finish_reason (optional)
+  // Result<std::optional<std::string>> finish_reason_res =
+  // json::LookupOptionalWithResultReturn<std::string>(json_obj, "finish_reason"); if
+  // (finish_reason_res.IsErr()) {
+  //   return TResult::Error(finish_reason_res.UnwrapErr());
+  // }
+  // std::optional<std::string> finish_reason_str = finish_reason_res.Unwrap();
+  // if (finish_reason_str.has_value()) {
+  //   if (finish_reason_str.value() == "stop") {
+  //     choice.finish_reason = FinishReason::stop;
+  //   } else if (finish_reason_str.value() == "length") {
+  //     choice.finish_reason = FinishReason::length;
+  //   } else if (finish_reason_str.value() == "tool_calls") {
+  //     choice.finish_reason = FinishReason::tool_calls;
+  //   } else if (finish_reason_str.value() == "error") {
+  //     choice.finish_reason = FinishReason::error;
+  //   } else {
+  //     return TResult::Error("Invalid finish_reason: " + finish_reason_str.value());
+  //   }
+  // }
+
+  return TResult::Ok(choice);
+}
+
 picojson::object ChatCompletionResponse::AsJSON() const {
   picojson::object obj;
   obj["id"] = picojson::value(this->id);
@@ -533,6 +581,86 @@ picojson::object ChatCompletionStreamResponse::AsJSON() const {
     obj["usage"] = usage.value();
   }
   return obj;
+}
+
+Result<ChatCompletionStreamResponse> ChatCompletionStreamResponse::FromJSON(
+    const std::string& json_str) {
+  using TResult = Result<ChatCompletionStreamResponse>;
+  Result<picojson::object> json_obj_res = json::ParseToJSONObjectWithResultReturn(json_str);
+  if (json_obj_res.IsErr()) {
+    return TResult::Error(json_obj_res.UnwrapErr());
+  }
+  picojson::object json_obj = json_obj_res.Unwrap();
+  ChatCompletionStreamResponse response;
+
+  // // id
+  // Result<std::string> id_res = json::LookupWithResultReturn<std::string>(json_obj, "id");
+  // if (id_res.IsErr()) {
+  //   return TResult::Error(id_res.UnwrapErr());
+  // }
+  // response.id = id_res.Unwrap();
+
+  // // object
+  // Result<std::string> object_res = json::LookupWithResultReturn<std::string>(json_obj, "object");
+  // if (object_res.IsErr()) {
+  //   return TResult::Error(object_res.UnwrapErr());
+  // }
+  // response.object = object_res.Unwrap();
+
+  // // created
+  // Result<int64_t> created_res = json::LookupWithResultReturn<int64_t>(json_obj, "created");
+  // if (created_res.IsErr()) {
+  //   return TResult::Error(created_res.UnwrapErr());
+  // }
+  // response.created = created_res.Unwrap();
+
+  // // model
+  // Result<std::string> model_res = json::LookupWithResultReturn<std::string>(json_obj, "model");
+  // if (model_res.IsErr()) {
+  //   return TResult::Error(model_res.UnwrapErr());
+  // }
+  // response.model = model_res.Unwrap();
+
+  // // system_fingerprint
+  // Result<std::string> system_fingerprint_res =
+  // json::LookupWithResultReturn<std::string>(json_obj, "system_fingerprint"); if
+  // (system_fingerprint_res.IsErr()) {
+  //   return TResult::Error(system_fingerprint_res.UnwrapErr());
+  // }
+  // response.system_fingerprint = system_fingerprint_res.Unwrap();
+
+  // choices
+  Result<picojson::array> choices_arr_res =
+      json::LookupWithResultReturn<picojson::array>(json_obj, "choices");
+  if (choices_arr_res.IsErr()) {
+    return TResult::Error(choices_arr_res.UnwrapErr());
+  }
+  std::vector<ChatCompletionStreamResponseChoice> choices;
+  for (const auto& item : choices_arr_res.Unwrap()) {
+    if (!item.is<picojson::object>()) {
+      return TResult::Error("A choice in chat completion stream response is not an object");
+    }
+    Result<ChatCompletionStreamResponseChoice> choice =
+        ChatCompletionStreamResponseChoice::FromJSON(item.get<picojson::object>());
+    if (choice.IsErr()) {
+      return TResult::Error(choice.UnwrapErr());
+    }
+    choices.push_back(choice.Unwrap());
+  }
+  response.choices = choices;
+
+  // // usage (optional)
+  // Result<std::optional<picojson::object>> usage_res =
+  // json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "usage"); if
+  // (usage_res.IsErr()) {
+  //   return TResult::Error(usage_res.UnwrapErr());
+  // }
+  // std::optional<picojson::object> usage_obj = usage_res.Unwrap();
+  // if (usage_obj.has_value()) {
+  //   response.usage = picojson::value(usage_obj.value());
+  // }
+
+  return TResult::Ok(response);
 }
 
 }  // namespace json_ffi
