@@ -11,5 +11,5 @@ dependencies:
   - spirv-tools
   - spirv-headers
   - git
-  - cmake
+  - cmake<4.0
   - bzip2
