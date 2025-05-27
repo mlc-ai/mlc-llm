@@ -219,10 +219,9 @@ async def request_chat_completion(
             if choice.logprobs is not None:
                 assert logprob_results is not None
                 logprob_results[choice.index] += choice.logprobs.content
-
     assert all(finish_reason is not None for finish_reason in finish_reasons)
     use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-        output_texts, finish_reasons
+        output_texts, finish_reasons, async_engine.engine_config.tool_call_format
     )
 
     return engine_base.wrap_chat_completion_response(

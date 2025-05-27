@@ -86,12 +86,46 @@ class ModelResponse(BaseModel):
 
 
 class RequestResponseFormat(BaseModel):
-    type: Literal["text", "json_object"] = "text"
-    json_schema: Optional[str] = Field(default=None, alias="schema")
+    type: Literal["text", "json_object", "json_schema", "structural_tag"] = "text"
     """This field is named json_schema instead of schema because BaseModel defines a method called
     schema. During construction of RequestResponseFormat, key "schema" still should be used:
-    `RequestResponseFormat(type="json_object", schema="{}")`
+    `RequestResponseFormat(type="json_schema", schema="{}")`
     """
+    json_schema: Optional[str] = Field(default=None, alias="schema")
+
+    """These field are only used for type="structural_tag"."""
+    tags: Optional[List[Dict[str, str]]] = None
+    triggers: Optional[List[str]] = None
+
+    @model_validator(mode="after")
+    def check_request_response_format(self) -> "RequestResponseFormat":
+        """Check if the RequestResponseFormat is valid."""
+        if self.type in ["text", "json_object"]:
+            if self.json_schema is not None:
+                raise Warning("'json_schema' should be set in 'json_schema' type.")
+            if self.tags is not None or self.triggers is not None:
+                raise Warning(
+                    "'tags' and 'triggers' attributes should be used when type='structural_tag'"
+                )
+        elif self.type == "json_schema":
+            if self.json_schema is None:
+                raise ValueError("'json_schema' should be set in 'json_schema' type.")
+            if self.tags is not None or self.triggers is not None:
+                raise Warning(
+                    "'tags' and 'triggers' attributes should be used when type='structural_tag'"
+                )
+        elif self.type == "structural_tag":
+            if self.tags is None or self.triggers is None:
+                raise ValueError("structural_tag type must contain keys 'tags' and 'triggers'.")
+            for tag in self.tags:  # pylint: disable=not-an-iterable
+                if set(tag.keys()) != {"begin", "schema", "end"}:
+                    raise ValueError(
+                        "Each tag must contain exactly 'begin', 'schema' and 'end' keys."
+                        f"Got keys: {list(tag.keys())}."
+                    )
+            if self.json_schema is not None:
+                raise Warning("'json_schema' should be set in 'json_schema' type.")
+        return self
 
 
 class CompletionRequest(BaseModel):
@@ -181,6 +215,7 @@ class ChatFunction(BaseModel):
     description: Optional[str] = None
     name: str
     parameters: Dict
+    strict: bool = True
 
 
 class ChatTool(BaseModel):
@@ -318,12 +353,10 @@ class ChatCompletionRequest(BaseModel):
         """Check if function calling is used and update the conversation template.
         Return error message if invalid request format for function calling.
         """
-
         # return if no tools are provided or tool_choice is set to none
         if self.tools is None or (isinstance(self.tool_choice, str) and self.tool_choice == "none"):
             conv_template.use_function_calling = False
             return
-
         # select the tool based on the tool_choice if specified
         if isinstance(self.tool_choice, dict):
             if self.tool_choice["type"] != "function":  # pylint: disable=unsubscriptable-object
