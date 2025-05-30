@@ -253,7 +253,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       // - We explicitly synchronize to avoid the input tokens getting overriden in the
       // next runs of BatchDecode.
       // This is because we do not do sample for this round of batch decode.
-      TVMSynchronize(logits->device.device_type, logits->device.device_id, nullptr);
+      DeviceAPI::Get(logits->device)->StreamSync(logits->device, nullptr);
     }
 
     // clear the draft model state entries

@@ -644,8 +644,8 @@ def fp8_block_scale_gemm(  # pylint: disable=too-many-arguments,too-many-locals
             GROUP_SIZE_M,
             num_warps,
             num_stages,
-            x.dtype,
-            out_dtype,
+            str(x.dtype),
+            str(out_dtype),
         ],
         out=nn.Tensor.placeholder((M, N), dtype=out_dtype),
     )
@@ -743,8 +743,8 @@ def fp8_block_scale_group_gemm(  # pylint: disable=too-many-arguments,too-many-l
             GROUP_SIZE_M,
             num_warps,
             num_stages,
-            x.dtype,
-            out_dtype,
+            str(x.dtype),
+            str(out_dtype),
         ],
         out=nn.Tensor.placeholder((M, N), dtype=out_dtype),
     )

@@ -3,7 +3,7 @@ package ai.mlc.mlcllm;
 import org.apache.tvm.Device;
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
-import org.apache.tvm.TVMValue;
+import org.apache.tvm.AnyView;
 import android.util.Log;
 
 public class JSONFFIEngine {
@@ -41,7 +41,7 @@ public class JSONFFIEngine {
 
         requestStreamCallback = Function.convertFunc(new Function.Callback() {
             @Override
-            public Object invoke(TVMValue... args) {
+            public Object invoke(AnyView... args) {
                 final String chatCompletionStreamResponsesJSONStr = args[0].asString();
                 callback.invoke(chatCompletionStreamResponsesJSONStr);
                 return 1;

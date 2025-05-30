@@ -212,7 +212,7 @@ This step is useful when you want to make modification or obtain a specific vers
 
 .. note::
     If you are using CUDA and your compute capability is above 80, then it is require to build with
-    ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find PackedFunc`` issue during
+    ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find Function`` issue during
     runtime.
 
     To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.

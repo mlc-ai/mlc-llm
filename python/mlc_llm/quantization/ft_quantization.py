@@ -185,7 +185,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         )
         assert len(weight.shape) == 2
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device.DEVICE_TYPE_TO_NAME[device.device_type]
         if device_type == "cuda":
             target = Target.current()
             if target is None:

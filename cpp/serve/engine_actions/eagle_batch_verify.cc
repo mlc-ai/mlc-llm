@@ -260,8 +260,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       } else {
         NDArray hidden_states_for_fully_accepted_nd =
             Downcast<NDArray>(hidden_states_for_fully_accepted);
-        TVMSynchronize(hidden_states_for_fully_accepted_nd->device.device_type,
-                       hidden_states_for_fully_accepted_nd->device.device_id, nullptr);
+        DeviceAPI::Get(hidden_states_for_fully_accepted_nd->device)
+            ->StreamSync(hidden_states_for_fully_accepted_nd->device, nullptr);
       }
     }
     {

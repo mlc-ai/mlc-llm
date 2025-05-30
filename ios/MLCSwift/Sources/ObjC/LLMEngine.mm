@@ -11,8 +11,7 @@
 #define TVM_USE_LIBBACKTRACE 0
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 using namespace tvm::runtime;
 
@@ -21,23 +20,22 @@ using namespace tvm::runtime;
   // internal module backed by JSON FFI
   Module json_ffi_engine_;
   // member functions
-  PackedFunc init_background_engine_func_;
-  PackedFunc unload_func_;
-  PackedFunc reload_func_;
-  PackedFunc reset_func_;
-  PackedFunc chat_completion_func_;
-  PackedFunc abort_func_;
-  PackedFunc run_background_loop_func_;
-  PackedFunc run_background_stream_back_loop_func_;
-  PackedFunc exit_background_loop_func_;
+  Function init_background_engine_func_;
+  Function unload_func_;
+  Function reload_func_;
+  Function reset_func_;
+  Function chat_completion_func_;
+  Function abort_func_;
+  Function run_background_loop_func_;
+  Function run_background_stream_back_loop_func_;
+  Function exit_background_loop_func_;
 }
 
 - (instancetype)init {
   if (self = [super init]) {
     // load chat module
-    const PackedFunc* f_json_ffi_create = Registry::Get("mlc.json_ffi.CreateJSONFFIEngine");
-    ICHECK(f_json_ffi_create) << "Cannot find mlc.json_ffi.CreateJSONFFIEngine";
-    json_ffi_engine_ = (*f_json_ffi_create)();
+    Function f_json_ffi_create = Function::GetGlobalRequired("mlc.json_ffi.CreateJSONFFIEngine");
+    json_ffi_engine_ = f_json_ffi_create();
     init_background_engine_func_ = json_ffi_engine_->GetFunction("init_background_engine");
     reload_func_ = json_ffi_engine_->GetFunction("reload");
     unload_func_ = json_ffi_engine_->GetFunction("unload");
@@ -63,7 +61,7 @@ using namespace tvm::runtime;
 }
 
 - (void)initBackgroundEngine:(void (^)(NSString*))streamCallback {
-  TypedPackedFunc<void(String)> internal_stream_callback([streamCallback](String value) {
+  TypedFunction<void(String)> internal_stream_callback([streamCallback](String value) {
     streamCallback([NSString stringWithUTF8String:value.c_str()]);
   });
   int device_type = kDLMetal;

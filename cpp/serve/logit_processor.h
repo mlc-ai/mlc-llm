@@ -7,7 +7,7 @@
 #ifndef MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 #define MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/module.h>
 
 #include "../base.h"

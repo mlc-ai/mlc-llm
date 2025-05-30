@@ -5,9 +5,11 @@
 #ifndef MLC_LLM_SERVE_DATA_H_
 #define MLC_LLM_SERVE_DATA_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
@@ -21,6 +23,7 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Optional;
 
 class Model;
 
@@ -67,7 +70,7 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
 class TextDataNode : public DataNode {
  public:
   /*! \brief The text string. */
-  String text;
+  tvm::ffi::String text;
 
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;

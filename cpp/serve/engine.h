@@ -6,8 +6,6 @@
 #ifndef MLC_LLM_SERVE_ENGINE_H_
 #define MLC_LLM_SERVE_ENGINE_H_
 
-#include <tvm/runtime/packed_func.h>
-
 #include "data.h"
 #include "engine_state.h"
 #include "event_trace_recorder.h"

@@ -6,8 +6,10 @@
 #define MLC_LLM_SERVE_CONFIG_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/device_api.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
 
 #include <optional>
@@ -27,7 +29,7 @@ using namespace tvm::runtime;
 /*! \brief The response format of a request. */
 struct ResponseFormat {
   String type = "text";
-  Optional<String> schema = NullOpt;
+  Optional<String> schema = std::nullopt;
   /*!
    * \brief Create debug config from JSON.
    * \param config_json The json string for generation config

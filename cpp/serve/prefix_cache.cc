@@ -4,8 +4,8 @@
  */
 #include "prefix_cache.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/registry.h>
 
 namespace mlc {
 namespace llm {

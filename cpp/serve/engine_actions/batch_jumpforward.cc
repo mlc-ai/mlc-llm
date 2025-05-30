@@ -46,7 +46,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
       while (!CheckMemForJumpForward(running_rsentries.size())) {
         if (estate->prefix_cache->TryFreeMemory()) continue;
         RequestStateEntry preempted =
-            PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
+            PreemptLastRunningRequestStateEntry(estate, models_, std::nullopt, trace_recorder_);
         if (preempted.same_as(running_rsentries.back())) {
           running_rsentries.pop_back();
         }

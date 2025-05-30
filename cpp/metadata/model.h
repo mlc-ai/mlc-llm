@@ -6,8 +6,8 @@
 #define MLC_LLM_CPP_MODEL_METADATA_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
 
@@ -15,6 +15,10 @@
 
 namespace mlc {
 namespace llm {
+
+using tvm::ffi::Shape;
+using tvm::ffi::String;
+using tvm::runtime::DataType;
 
 /*! \brief The kind of cache. */
 enum class KVStateKind : int {
@@ -49,16 +53,16 @@ inline KVStateKind KVStateKindFromString(const std::string& kv_state_kind) {
 struct ModelMetadata {
   struct Param {
     struct Preproc {
-      tvm::runtime::String func_name;
-      tvm::runtime::ShapeTuple in_shape;
-      tvm::runtime::ShapeTuple out_shape;
-      tvm::runtime::DataType out_dtype;
+      String func_name;
+      Shape in_shape;
+      Shape out_shape;
+      DataType out_dtype;
       static Preproc FromJSON(const picojson::object& js, const picojson::object& model_config);
     };
 
-    tvm::runtime::String name;
-    tvm::runtime::ShapeTuple shape;
-    tvm::runtime::DataType dtype;
+    String name;
+    Shape shape;
+    DataType dtype;
     std::vector<Preproc> preprocs;
     std::vector<int> pipeline_stages;
     static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);

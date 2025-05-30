@@ -91,8 +91,8 @@ class DraftTokenWorkspaceManager : public ObjectRef {
   DraftTokenWorkspaceManager(int max_num_tokens, int vocab_size, int hidden_size,
                              DLDataType hidden_states_dtype, DLDevice device,
                              const FunctionTable& ft) {
-    data_ = make_object<DraftTokenWorkspaceManagerObj>(max_num_tokens, vocab_size, hidden_size,
-                                                       hidden_states_dtype, device, ft);
+    data_ = tvm::ffi::make_object<DraftTokenWorkspaceManagerObj>(
+        max_num_tokens, vocab_size, hidden_size, hidden_states_dtype, device, ft);
   }
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DraftTokenWorkspaceManager, ObjectRef,
                                         DraftTokenWorkspaceManagerObj);

@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
-from tvm._ffi import get_global_func, register_func
 from tvm.contrib import ndk, tar, xcode
+from tvm.ffi import get_global_func, register_func
 from tvm.ir.transform import Pass
 from tvm.target import Target
 
