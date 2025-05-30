@@ -45,11 +45,11 @@ def detect_device(device_hint: str) -> Optional[Device]:
 
 def device2str(device: Device) -> str:
     """Convert a TVM device object to string."""
-    return f"{tvm.runtime.Device.MASK2STR[device.device_type]}:{device.device_id}"
+    return f"{tvm.runtime.Device.DEVICE_TYPE_TO_NAME[device.device_type]}:{device.device_id}"
 
 
 def _device_exists(device: Device) -> bool:
-    device_type = tvm.runtime.Device.MASK2STR[device.device_type]
+    device_type = tvm.runtime.Device.DEVICE_TYPE_TO_NAME[device.device_type]
     device_str = device2str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]

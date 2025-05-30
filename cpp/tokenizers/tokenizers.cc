@@ -7,8 +7,9 @@
 
 #include <picojson.h>
 #include <tokenizers_cpp.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <array>
 #include <filesystem>
@@ -41,7 +42,7 @@ TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
   ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
   const picojson::object& obj = v.get<picojson::object>();
 
-  ObjectPtr<TokenizerInfoNode> n = make_object<TokenizerInfoNode>();
+  ObjectPtr<TokenizerInfoNode> n = tvm::ffi::make_object<TokenizerInfoNode>();
   if (obj.count("token_postproc_method")) {
     ICHECK(obj.at("token_postproc_method").is<std::string>());
     n->token_postproc_method = obj.at("token_postproc_method").get<std::string>();
@@ -61,7 +62,7 @@ TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
 TVM_REGISTER_OBJECT_TYPE(TokenizerObj);
 
 Tokenizer::Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer, TokenizerInfo info) {
-  ObjectPtr<TokenizerObj> n = make_object<TokenizerObj>();
+  ObjectPtr<TokenizerObj> n = tvm::ffi::make_object<TokenizerObj>();
   n->tokenizer = std::move(tokenizer);
   n->info_ = std::move(info);
   data_ = std::move(n);
@@ -200,7 +201,7 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
   if (!std::filesystem::exists(path)) {
     LOG(WARNING) << "Tokenizer info is not detected as tokenizer.json is not found. The default "
                  << "tokenizer info will be used.";
-    return TokenizerInfo(make_object<TokenizerInfoNode>());
+    return TokenizerInfo(tvm::ffi::make_object<TokenizerInfoNode>());
   }
 
   std::string tokenizer_json = LoadBytesFromFile(path.string());
@@ -210,7 +211,7 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
   ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
   const picojson::object& obj = v.get<picojson::object>();
 
-  ObjectPtr<TokenizerInfoNode> n = make_object<TokenizerInfoNode>();
+  ObjectPtr<TokenizerInfoNode> n = tvm::ffi::make_object<TokenizerInfoNode>();
 
   // Step 1. Detect token_postproc_method: byte_fallback or byte_level
   // Detect {"type": "ByteLevel"} or {"type": "ByteFallback"} in "decoder" field of the tokenizer
@@ -454,17 +455,17 @@ const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
   return post_processed_token_table_;
 }
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.Tokenizer").set_body_typed([](const String& path) {
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.Tokenizer").set_body_typed([](const String& path) {
   return Tokenizer::FromPath(path);
 });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
     .set_body_typed([](const Tokenizer& tokenizer, const String& text) {
       std::vector<int32_t> token_ids = tokenizer->Encode(text);
       return IntTuple{token_ids.begin(), token_ids.end()};
     });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
     .set_body_typed([](const Tokenizer& tokenizer, const Array<String>& texts) {
       std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
       Array<IntTuple> ret;
@@ -475,20 +476,21 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
       return ret;
     });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.TokenizerDecode")
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerDecode")
     .set_body_typed([](const Tokenizer& tokenizer, const IntTuple& token_ids) {
       return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
     });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.DetectTokenizerInfo").set_body_typed([](const String& path) {
-  return Tokenizer::DetectTokenizerInfo(path)->AsJSONString();
-});
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.DetectTokenizerInfo")
+    .set_body_typed([](const String& path) {
+      return Tokenizer::DetectTokenizerInfo(path)->AsJSONString();
+    });
 #endif
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.PostProcessTokenTable")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      Array<String> token_table_arr = args[0];
-      std::string token_postproc_method = args[args.size() - 1];
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.PostProcessTokenTable")
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+      Array<String> token_table_arr = args[0].cast<Array<String>>();
+      std::string token_postproc_method = args[args.size() - 1].cast<String>();
       std::vector<std::string> token_table;
       for (int i = 0; i < token_table_arr.size(); ++i) {
         token_table.push_back(token_table_arr[i]);
@@ -504,7 +506,7 @@ TVM_REGISTER_GLOBAL("mlc.tokenizers.PostProcessTokenTable")
       *rv = processed_token_table_tvm;
     });
 
-TVM_REGISTER_GLOBAL("mlc.tokenizers.PostProcessToken")
+TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.PostProcessToken")
     .set_body_typed([](const String& token, const String& token_postproc_method) {
       return PostProcessToken(token, token_postproc_method);
     });

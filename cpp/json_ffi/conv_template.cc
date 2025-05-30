@@ -1,6 +1,6 @@
 #include "conv_template.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../support/json_parser.h"
 #include "image_utils.h"

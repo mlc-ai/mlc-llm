@@ -39,7 +39,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         """Display the arguments to stdout."""
 
         def _device_to_str(device: Device) -> str:
-            return f"{Device.MASK2STR[device.device_type]}:{device.device_id}"
+            return f"{Device.DEVICE_TYPE_TO_NAME[device.device_type]}:{device.device_id}"
 
         out = StringIO()
         print(f"{bold('Weight conversion with arguments:')}", file=out)
@@ -130,7 +130,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
                 _check_param(name, param)
                 param_names.add(name)
                 param = param.copyto(cpu_device())
-                total_bytes += math.prod(param.shape) * DataType(param.dtype).itemsize()
+                total_bytes += math.prod(param.shape) * DataType(param.dtype).itemsize
                 yield name, param
         total_params = loader.stats.total_param_num
 

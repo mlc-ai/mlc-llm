@@ -6,12 +6,11 @@
 #include "engine.h"
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #include <xgrammar/xgrammar.h>
 
@@ -42,6 +41,7 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::ffi::Function;
 
 class EngineModule;
 
@@ -211,7 +211,8 @@ class MockEchoEngineImpl : public Engine {
             outputs.push_back(RequestStreamOutput(
                 request->id,
                 std::vector<std::vector<int64_t>>(request->generation_cfg->n, {token_id}),
-                std::nullopt, std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
+                std::nullopt,
+                std::vector<Optional<String>>(request->generation_cfg->n, std::nullopt),
                 std::vector<String>(request->generation_cfg->n)));
           }
         }
@@ -413,9 +414,8 @@ class EngineImpl : public Engine {
       if (session != nullptr) {
         n->DebugCallFuncOnAllAllWorker(f_name, String(nvshmem_init_config_json_char));
       } else {
-        const PackedFunc* func = Registry::Get(f_name);
-        CHECK(func != nullptr) << "Global function name \"" << f_name << "\" is not found";
-        (*func)(nvshmem_init_config_json_char);
+        static Function func = Function::GetGlobalRequired(f_name);
+        func(String(nvshmem_init_config_json_char));
       }
       LOG(INFO) << "NVSHMEM initialized successfully.";
     }
@@ -774,9 +774,9 @@ class EngineImpl : public Engine {
                   const picojson::object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
-        PackedFunc fload_exec = executable->GetFunction("vm_load_executable");
+        Function fload_exec = executable->GetFunction("vm_load_executable");
         ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-        Module local_vm = fload_exec();
+        Module local_vm = fload_exec().cast<Module>();
         local_vm->GetFunction("vm_initialization")(
             static_cast<int>(device.device_type), device.device_id,
             static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
@@ -810,12 +810,12 @@ class EngineImpl : public Engine {
       }
     }
 
-    Optional<Session> session = NullOpt;
+    Optional<Session> session = std::nullopt;
     int num_workers = num_shards * max_num_stages;
     if (num_workers > 1) {
 #ifndef MLC_SINGLE_GPU_ONLY
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
-      if (Registry::Get(f_create_process_pool) == nullptr) {
+      if (!Function::GetGlobal(f_create_process_pool).has_value()) {
         LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
                    << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
       }
@@ -849,13 +849,12 @@ class EngineImpl : public Engine {
                   << green_text_begin << "python -m mlc_llm.cli.disco_remote_socket_session "
                   << (socket_host.value() == "0.0.0.0" ? "<YOUR_NODE_IP>" : socket_host.value())
                   << " " << socket_port << " " << num_shards << colored_text_end;
-        const PackedFunc* f_create_socket_sess = Registry::Get("runtime.disco.SocketSession");
-        CHECK(f_create_socket_sess != nullptr)
-            << "SocketSession constructor \"runtime.disco.SocketSession\" not found in TVM "
-               "registry.";
+        static Function f_create_socket_sess =
+            Function::GetGlobalRequired("runtime.disco.SocketSession");
         Session sess =
-            (*f_create_socket_sess)(max_num_stages, num_shards, /*num_groups=*/max_num_stages,
-                                    socket_host.value(), socket_port);
+            f_create_socket_sess(max_num_stages, num_shards, /*num_groups=*/max_num_stages,
+                                 socket_host.value(), socket_port)
+                .cast<Session>();
         session = std::move(sess);
       } else {
         if (max_num_stages > 1) {
@@ -870,7 +869,7 @@ class EngineImpl : public Engine {
         session = Session::ProcessSession(num_workers, max_num_stages, f_create_process_pool,
                                           "mlc_llm.cli.worker");
       }
-      session.value()->InitCCL(ccl, ShapeTuple(device_ids));
+      session.value()->InitCCL(ccl, Shape(device_ids));
 #else
       LOG(FATAL) << "MLC_SINGLE_GPU_ONLY is specified. Multi-GPU is not enabled.";
 #endif  // MLC_SINGLE_GPU_ONLY
@@ -1019,9 +1018,8 @@ Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_jso
 /*! \brief Clear global memory manager */
 void ClearGlobalMemoryManager() {
   static const char* kFunc = "vm.builtin.memory_manager.clear";
-  const PackedFunc* f = tvm::runtime::Registry::Get(kFunc);
-  CHECK(f != nullptr) << "ValueError: Cannot find function `" << kFunc << "` in TVM runtime";
-  (*f)();
+  static Function f = Function::GetGlobalRequired(kFunc);
+  f();
 }
 
 class EngineModule : public ModuleNode {
@@ -1088,7 +1086,7 @@ class EngineModule : public ModuleNode {
   GenerationConfig default_generation_config_;
 };
 
-TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
 
 }  // namespace serve
 }  // namespace llm

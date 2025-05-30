@@ -3,11 +3,10 @@
  * \file serve/sampler/gpu_sampler.cc
  * \brief The implementation for GPU sampler functions.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../support/random.h"
 #include "sampler.h"
@@ -19,13 +18,13 @@ namespace serve {
 inline bool FlashInferSamplingAvailable(Device device) {
   // Device must be CUDA, and FlashInfer must be enabled.
   if (device.device_type != DLDeviceType::kDLCUDA ||
-      Registry::Get("flashinfer.sampling.parallel_sampling_from_prob") == nullptr) {
+      !Function::GetGlobal("flashinfer.sampling.parallel_sampling_from_prob").has_value()) {
     return false;
   }
   // Compute version must be at least 8.0
-  TVMRetValue rv;
+  Any rv;
   DeviceAPI::Get(device)->GetAttr(device, kComputeVersion, &rv);
-  std::string compute_version = rv;
+  std::string compute_version = rv.cast<std::string>();
   std::string major_version = compute_version.substr(0, compute_version.find('.'));
   return std::stoi(major_version) >= 8;
 }
@@ -68,7 +67,7 @@ class GPUSampler : public SamplerObj {
     ICHECK(gpu_sampler_take_probs_func_.defined());
 
     flashinfer_multinomial_sample_func_ =
-        Registry::Get("flashinfer.sampling.parallel_sampling_from_prob");
+        Function::GetGlobal("flashinfer.sampling.parallel_sampling_from_prob");
 
     Device preferred_host_device = GetPreferredHostDevice(device);
     // We support at most 5 top prob results for each sequence.
@@ -170,7 +169,8 @@ class GPUSampler : public SamplerObj {
 
     // - Renormalize the prob with top p.
     NDArray renormed_probs_on_device =
-        gpu_renormalize_by_top_p_func_(probs_on_device, top_p_device, top_p_init_pivots_device);
+        gpu_renormalize_by_top_p_func_(probs_on_device, top_p_device, top_p_init_pivots_device)
+            .cast<NDArray>();
 
     RECORD_EVENT(trace_recorder_, request_ids, "finish renormalization by top p");
     return renormed_probs_on_device;
@@ -311,7 +311,7 @@ class GPUSampler : public SamplerObj {
       } else {
         // Slow path: if any of the generation config requires prob values, we need to copy
         // sample_indices to host to compute top_prob_offset_indptr.
-        TVMSynchronize(device_.device_type, device_.device_id, copy_stream_);
+        DeviceAPI::Get(device_)->StreamSync(device_, copy_stream_);
         std::vector<int> sample_indices;
         sample_indices.reserve(num_sequence);
         const int* p_token_tree_parent_ptr = static_cast<int*>(token_tree_parent_ptr_host->data);
@@ -374,7 +374,7 @@ class GPUSampler : public SamplerObj {
     if (num_samples == 0) {
       // This synchronization is necessary for making sure that this round
       // of model forward is finished.
-      TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+      DeviceAPI::Get(device_)->StreamSync(device_, compute_stream_);
       return {};
     }
     ICHECK_EQ(request_ids.size(), num_samples);
@@ -580,18 +580,22 @@ class GPUSampler : public SamplerObj {
       if (flashinfer_sampling_available_) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
-        (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
-                                               sample_indices_device, sampled_token_ids_device);
+        flashinfer_multinomial_sample_func_.value()(probs_on_device, uniform_samples_device,
+                                                    sample_indices_device,
+                                                    sampled_token_ids_device);
       } else {
-        sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
-            probs_on_device, uniform_samples_device, sample_indices_device);
+        sampled_token_ids_device =
+            gpu_multinomial_from_uniform_func_(probs_on_device, uniform_samples_device,
+                                               sample_indices_device)
+                .cast<NDArray>();
       }
       return {sampled_token_ids_device, sampled_probs_device, top_prob_probs_device,
               top_prob_indices_device};
     }
 
     // - Argsort the probability.
-    Array<NDArray> argsort_results = gpu_argsort_probs_func_(probs_on_device);
+    Array<NDArray> argsort_results =
+        gpu_argsort_probs_func_(probs_on_device).cast<Array<NDArray>>();
     ICHECK_EQ(argsort_results.size(), 2);
     NDArray sorted_probs_on_device = argsort_results[0];
     NDArray sorted_indices_on_device = argsort_results[1];
@@ -617,25 +621,32 @@ class GPUSampler : public SamplerObj {
       // - Sample with top_p applied.
       sampled_token_ids_device =
           gpu_sample_with_top_p_func_(sorted_probs_on_device, sorted_indices_on_device,
-                                      uniform_samples_device, sample_indices_device, top_p_device);
+                                      uniform_samples_device, sample_indices_device, top_p_device)
+              .cast<NDArray>();
     } else {
       // - Sample without top_p.
       if (flashinfer_sampling_available_) {
         sampled_token_ids_device =
             sampled_token_ids_device_.CreateView({sample_indices_device->shape[0]}, dtype_i32_);
-        (*flashinfer_multinomial_sample_func_)(probs_on_device, uniform_samples_device,
-                                               sample_indices_device, sampled_token_ids_device);
+        flashinfer_multinomial_sample_func_
+            .value()(probs_on_device, uniform_samples_device, sample_indices_device,
+                     sampled_token_ids_device)
+            .cast<NDArray>();
       } else {
-        sampled_token_ids_device = gpu_multinomial_from_uniform_func_(
-            probs_on_device, uniform_samples_device, sample_indices_device);
+        sampled_token_ids_device =
+            gpu_multinomial_from_uniform_func_(probs_on_device, uniform_samples_device,
+                                               sample_indices_device)
+                .cast<NDArray>();
       }
     }
 
     if (need_prob_values) {
       // - Take the probability values.
-      Array<NDArray> prob_value_results = gpu_sampler_take_probs_func_(
-          probs_on_device, sorted_indices_on_device, sample_indices_device,
-          sampled_token_ids_device, top_prob_offsets_device);
+      Array<NDArray> prob_value_results =
+          gpu_sampler_take_probs_func_(probs_on_device, sorted_indices_on_device,
+                                       sample_indices_device, sampled_token_ids_device,
+                                       top_prob_offsets_device)
+              .cast<Array<NDArray>>();
       sampled_probs_device = prob_value_results[0];
       top_prob_probs_device = prob_value_results[1];
       top_prob_indices_device = prob_value_results[2];
@@ -682,7 +693,7 @@ class GPUSampler : public SamplerObj {
     }
 
     // Synchronize for CPU to get the correct array results.
-    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+    DeviceAPI::Get(device_)->StreamSync(device_, compute_stream_);
 
     return {sampled_token_ids_host, sampled_probs_host, top_prob_probs_host, top_prob_indices_host};
   }
@@ -695,13 +706,13 @@ class GPUSampler : public SamplerObj {
   const bool flashinfer_sampling_available_;
   // Functions for sampling on GPU.
   Device device_;
-  PackedFunc gpu_multinomial_from_uniform_func_;
-  PackedFunc gpu_argsort_probs_func_;
-  PackedFunc gpu_sample_with_top_p_func_;
-  PackedFunc gpu_sampler_take_probs_func_;
-  PackedFunc gpu_verify_draft_tokens_func_;
-  PackedFunc gpu_renormalize_by_top_p_func_;
-  const PackedFunc* flashinfer_multinomial_sample_func_;
+  Function gpu_multinomial_from_uniform_func_;
+  Function gpu_argsort_probs_func_;
+  Function gpu_sample_with_top_p_func_;
+  Function gpu_sampler_take_probs_func_;
+  Function gpu_verify_draft_tokens_func_;
+  Function gpu_renormalize_by_top_p_func_;
+  Optional<Function> flashinfer_multinomial_sample_func_;
   // Auxiliary NDArrays on CPU
   NDArray uniform_samples_host_;
   NDArray sample_indices_host_;

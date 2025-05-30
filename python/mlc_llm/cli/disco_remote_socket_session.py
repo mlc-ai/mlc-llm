@@ -18,7 +18,7 @@
 import sys
 
 from tvm import runtime as _  # pylint: disable=unused-import
-from tvm._ffi import get_global_func
+from tvm.ffi import get_global_func
 
 from .. import base  # pylint: disable=unused-import, no-name-in-module
 

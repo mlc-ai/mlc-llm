@@ -6,10 +6,9 @@
 #ifndef MLC_LLM_SERVE_REQUEST_H_
 #define MLC_LLM_SERVE_REQUEST_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "../tokenizers/tokenizers.h"
 #include "config.h"

@@ -6,7 +6,7 @@
 #define MLC_LLM_SUPPORT_JSON_PARSER_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
@@ -172,13 +172,13 @@ inline Result<std::optional<ValueType>> LookupOptionalWithResultReturn(const pic
 
 // Implementation details
 
-/*! \brief ShapeTuple extension to incorporate symbolic shapes. */
+/*! \brief Shape extension to incorporate symbolic shapes. */
 struct SymShapeTuple {
-  tvm::runtime::ShapeTuple shape_values;
+  tvm::ffi::Shape shape_values;
   std::vector<std::string> sym_names;
 
   /*! \brief Convert symbolic shape tuple to static shape tuple with model config. */
-  tvm::runtime::ShapeTuple ToStatic(const picojson::object& model_config) {
+  tvm::ffi::Shape ToStatic(const picojson::object& model_config) {
     std::vector<int64_t> shape;
     shape.reserve(shape_values.size());
     for (int i = 0; i < static_cast<int>(shape_values.size()); ++i) {
@@ -192,14 +192,14 @@ struct SymShapeTuple {
         shape.push_back(model_config.at(sym_names[i]).get<int64_t>());
       }
     }
-    return tvm::runtime::ShapeTuple(std::move(shape));
+    return tvm::ffi::Shape(std::move(shape));
   }
 };
 
 namespace details {
 
 inline tvm::runtime::DataType DTypeFromString(const std::string& s) {
-  return tvm::runtime::DataType(tvm::runtime::String2DLDataType(s));
+  return tvm::runtime::DataType(tvm::runtime::StringToDLDataType(s));
 }
 
 inline SymShapeTuple SymShapeTupleFromArray(const picojson::array& shape) {
@@ -218,7 +218,7 @@ inline SymShapeTuple SymShapeTupleFromArray(const picojson::array& shape) {
       sym_names.push_back("");
     }
   }
-  return SymShapeTuple{tvm::runtime::ShapeTuple(std::move(result)), sym_names};
+  return SymShapeTuple{tvm::ffi::Shape(std::move(result)), sym_names};
 }
 
 }  // namespace details

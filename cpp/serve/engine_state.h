@@ -6,7 +6,7 @@
 #define MLC_LLM_SERVE_ENGINE_STATE_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 
 #include "config.h"
 #include "metrics.h"
@@ -20,7 +20,7 @@ namespace serve {
 
 using namespace tvm::runtime;
 
-typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
+typedef TypedFunction<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
 
 /*! \brief The manager of internal id for requests in engine. */
 struct EngineInternalIDManager {

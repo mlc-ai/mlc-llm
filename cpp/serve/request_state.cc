@@ -178,7 +178,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
   if (needs_logprobs) {
     (*delta_stream_output)->group_delta_logprob_json_strs.value()[idx].clear();
   }
-  (*delta_stream_output)->group_finish_reason[idx] = NullOpt;
+  (*delta_stream_output)->group_finish_reason[idx] = std::nullopt;
   (*delta_stream_output)->group_extra_prefix_string[idx] = this->extra_prefix_string;
   this->extra_prefix_string.clear();
 

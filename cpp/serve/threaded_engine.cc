@@ -5,9 +5,8 @@
  */
 #include "threaded_engine.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -39,7 +38,7 @@ enum class InstructionKind : int {
 /*! \brief The implementation of ThreadedEngine. */
 class ThreadedEngineImpl : public ThreadedEngine {
  public:
-  void InitThreadedEngine(Device device, Optional<PackedFunc> request_stream_callback,
+  void InitThreadedEngine(Device device, Optional<Function> request_stream_callback,
                           Optional<EventTraceRecorder> trace_recorder) final {
     device_ = device;
     CHECK(request_stream_callback.defined())
@@ -302,12 +301,11 @@ class ThreadedEngineImpl : public ThreadedEngine {
       background_engine_->AbortAllRequests();
       background_engine_ = nullptr;
       // Clear the allocated memory in cached memory pool.
-      const PackedFunc* fclear_memory_manager =
-          tvm::runtime::Registry::Get("vm.builtin.memory_manager.clear");
-      ICHECK(fclear_memory_manager) << "Cannot find env function vm.builtin.memory_manager.clear";
-      (*fclear_memory_manager)();
-      default_generation_config_ = NullOpt;
-      complete_engine_config_ = NullOpt;
+      static Function fclear_memory_manager =
+          Function::GetGlobalRequired("vm.builtin.memory_manager.clear");
+      fclear_memory_manager();
+      default_generation_config_ = std::nullopt;
+      complete_engine_config_ = std::nullopt;
     }
     {
       // Wake up the thread waiting for unload finish.
@@ -322,7 +320,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   /*! \brief The background normal engine for request processing. */
   std::unique_ptr<Engine> background_engine_;
   /*! \brief The request stream callback. */
-  PackedFunc request_stream_callback_;
+  Function request_stream_callback_;
   /*! \brief Event trace recorder. */
   Optional<EventTraceRecorder> trace_recorder_;
 
@@ -401,7 +399,7 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 };
 
-TVM_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
   return Module(make_object<ThreadedEngineModule>());
 });
 
