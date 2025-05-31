@@ -43,6 +43,8 @@ def run_cmake(mlc4j_path: Path):
         "-DUSE_OPENCL=ON",
         "-DUSE_OPENCL_ENABLE_HOST_PTR=ON",
         "-DUSE_CUSTOM_LOGGING=ON",
+        "-DTVM_FFI_USE_LIBBACKTRACE=OFF",
+        "-DTVM_FFI_BACKTRACE_ON_SEGFAULT=OFF",
     ]
 
     if sys.platform == "win32":
