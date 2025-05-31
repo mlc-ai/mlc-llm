@@ -480,7 +480,7 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If you are using CUDA and your compute capability is above 80, then it is require to build with
-<code class="docutils literal notranslate"><span class="pre">set(USE_FLASHINFER</span> <span class="pre">ON)</span></code>. Otherwise, you may run into <code class="docutils literal notranslate"><span class="pre">Cannot</span> <span class="pre">find</span> <span class="pre">PackedFunc</span></code> issue during
+<code class="docutils literal notranslate"><span class="pre">set(USE_FLASHINFER</span> <span class="pre">ON)</span></code>. Otherwise, you may run into <code class="docutils literal notranslate"><span class="pre">Cannot</span> <span class="pre">find</span> <span class="pre">Function</span></code> issue during
 runtime.</p>
 <p>To check your CUDA compute capability, you can use <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span> <span class="pre">--query-gpu=compute_cap</span> <span class="pre">--format=csv</span></code>.</p>
 </div>
@@ -518,7 +518,7 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
 </pre></div>
 </div>
 <p><strong>Step 2. Confirm which TVM library is used.</strong> When maintaining multiple build or installation of TVM, it becomes important to double check if the python package is using the proper <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> with the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm._ffi.base._LIB)&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.base._LIB)&quot;</span>
 &lt;CDLL<span class="w"> </span><span class="s1">&#39;/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib&#39;</span>,<span class="w"> </span>handle<span class="w"> </span>95ada510<span class="w"> </span>at<span class="w"> </span>0x1030e4e50&gt;
 </pre></div>
 </div>
