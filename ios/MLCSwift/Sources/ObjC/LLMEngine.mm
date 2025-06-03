@@ -12,8 +12,13 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/module.h>
 
 using namespace tvm::runtime;
+using tvm::ffi::Function;
+using tvm::ffi::String;
+using tvm::ffi::TypedFunction;
 
 @implementation JSONFFIEngine {
   // Internal c++ classes
@@ -35,7 +40,7 @@ using namespace tvm::runtime;
   if (self = [super init]) {
     // load chat module
     Function f_json_ffi_create = Function::GetGlobalRequired("mlc.json_ffi.CreateJSONFFIEngine");
-    json_ffi_engine_ = f_json_ffi_create();
+    json_ffi_engine_ = f_json_ffi_create().cast<Module>();
     init_background_engine_func_ = json_ffi_engine_->GetFunction("init_background_engine");
     reload_func_ = json_ffi_engine_->GetFunction("reload");
     unload_func_ = json_ffi_engine_->GetFunction("unload");

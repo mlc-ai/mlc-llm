@@ -66,7 +66,10 @@ cmake $MLC_LLM_SOURCE_DIR\
   -DCMAKE_INSTALL_PREFIX=.\
   -DCMAKE_CXX_FLAGS="-O3"\
   -DMLC_LLM_INSTALL_STATIC_LIB=ON\
-  -DUSE_METAL=ON
+  -DUSE_METAL=ON\
+  -DTVM_FFI_USE_LIBBACKTRACE=OFF\
+  -DTVM_FFI_BACKTRACE_ON_SEGFAULT=OFF
+
 
 cmake --build . --config release --target mlc_llm_static -j
 cmake --build . --target install --config release -j

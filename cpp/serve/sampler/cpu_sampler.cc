@@ -329,11 +329,6 @@ class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
       : trace_recorder_(std::move(trace_recorder)) {
-    // Set customized "logits -> prob" function.
-    auto f_logits_to_probs = Function::GetGlobal("mlc.llm.compute_probs_from_logits_inplace");
-    if (!f_logits_to_probs.has_value()) {
-      flogits_to_probs_inplace_ = *f_logits_to_probs;
-    }
   }
 
   NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
