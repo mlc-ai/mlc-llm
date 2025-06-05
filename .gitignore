@@ -322,3 +322,20 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 .gdb_history
 
 dist
+
+# MLC LLM: Android build & model artifacts
+android/app/build/
+android/MLCChat/build/
+
+# MLC LLM: Model weights and compiled binaries
+*.mlc
+*.a
+*.tflite
+*.tar
+*.bin
+*.pt
+*.onnx
+
+# Hugging Face downloads and cache
+.cache/
+tmp_*/

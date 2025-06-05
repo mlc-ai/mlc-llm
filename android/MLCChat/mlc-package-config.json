@@ -2,49 +2,10 @@
     "device": "android",
     "model_list": [
         {
-            "model": "HF://mlc-ai/Phi-3.5-mini-instruct-q4f16_0-MLC",
-            "estimated_vram_bytes": 4250586449,
-            "model_id": "Phi-3.5-mini-instruct-q4f16_0-MLC",
-            "overrides": {
-                "prefill_chunk_size": 128
-            }
-        },
-        {
-            "model": "HF://mlc-ai/Qwen3-0.6B-q0f16-MLC",
-            "model_id": "Qwen3-0.6B-q0f16-MLC",
-            "estimated_vram_bytes": 3000000000,
-            "overrides": {
-                "prefill_chunk_size": 128,
-                "context_window_size": 2048
-            }
-        },
-        {
-            "model": "HF://mlc-ai/Qwen3-1.7B-q4f16_1-MLC",
-            "model_id": "Qwen3-1.7B-q4f16_1-MLC",
-            "estimated_vram_bytes": 3000000000,
-            "overrides": {
-                "prefill_chunk_size": 128,
-                "context_window_size": 2048
-            }
-        },
-        {
-            "model": "HF://mlc-ai/gemma-2-2b-it-q4f16_1-MLC",
-            "model_id": "gemma-2-2b-it-q4f16_1-MLC",
-            "estimated_vram_bytes": 3000000000
-        },
-        {
             "model": "HF://mlc-ai/Llama-3.2-3B-Instruct-q4f16_0-MLC",
             "estimated_vram_bytes": 4679979417,
-            "model_id": "Llama-3.2-3B-Instruct-q4f16_0-MLC"
-        },
-        {
-            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q4f16_1-MLC",
-            "estimated_vram_bytes": 4115131883,
-            "model_id": "Mistral-7B-Instruct-v0.3-q4f16_1-MLC",
-            "overrides": {
-                "sliding_window_size": 768,
-                "prefill_chunk_size": 256
-            }
+            "model_id": "Llama-3.2-3B-Instruct-q4f16_0-MLC",
+            "bundle_weight": true
         }
     ]
 }

@@ -23,6 +23,13 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
+
+// newely added
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
+
 class MainActivity : ComponentActivity() {
     var hasImage = false
 
@@ -153,5 +160,16 @@ class MainActivity : ComponentActivity() {
         )
 
         takePictureLauncher.launch(cameraImageUri)
+    }
+    fun openAppSettings(targetPackage: String) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$targetPackage")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(this, "App not found: $targetPackage", Toast.LENGTH_SHORT).show()
+        }
     }
 }
