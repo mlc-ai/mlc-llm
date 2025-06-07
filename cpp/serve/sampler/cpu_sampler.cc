@@ -328,8 +328,7 @@ TVM_REGISTER_OBJECT_TYPE(SamplerObj);
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
-      : trace_recorder_(std::move(trace_recorder)) {
-  }
+      : trace_recorder_(std::move(trace_recorder)) {}
 
   NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
                                       const std::vector<int>& sample_indices,  //

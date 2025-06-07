@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def _extract_metadata(model_lib: Path) -> Dict[str, Any]:
     # pylint: disable=import-outside-toplevel
     from tvm.runtime import device, load_module
-    from tvm.runtime.relax_vm import VirtualMachine
+    from tvm.runtime.vm import VirtualMachine
 
     # pylint: enable=import-outside-toplevel
 

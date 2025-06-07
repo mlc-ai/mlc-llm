@@ -10,7 +10,7 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/ndarray_cache_support.h>
 
 #include <chrono>
 #include <filesystem>
@@ -30,7 +30,7 @@ namespace llm {
 namespace multi_gpu {
 
 using tvm::Device;
-using tvm::runtime::relax_vm::NDArrayCacheMetadata;
+using tvm::runtime::vm::NDArrayCacheMetadata;
 using namespace tvm::runtime;
 using tvm::ffi::Array;
 using tvm::ffi::Function;
@@ -57,12 +57,11 @@ class RangeTimer {
 
 class PreprocessorPool {
  public:
-  explicit PreprocessorPool(const ModelMetadata& model_metadata, Module relax_vm_module) {
+  explicit PreprocessorPool(const ModelMetadata& model_metadata, Module vm_module) {
     for (const ModelMetadata::Param& param : model_metadata.params) {
       for (const ModelMetadata::Param::Preproc& preproc : param.preprocs) {
         const std::string& func_name = preproc.func_name;
-        if (Function f =
-                relax_vm_module.defined() ? relax_vm_module->GetFunction(func_name, true) : nullptr;
+        if (Function f = vm_module.defined() ? vm_module->GetFunction(func_name, true) : nullptr;
             f != nullptr) {
           preproc_funcs[func_name] = f;
         } else if (const auto f = Function::GetGlobal(func_name); f.has_value()) {
@@ -145,7 +144,7 @@ std::string FormatDuration(DurationType duration) {
   return os.str();
 }
 
-Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
+Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module vm_module,
                                       const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
@@ -159,7 +158,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
   picojson::value model_config;
   picojson::parse(model_config, model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
+      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
   CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
       << "ValueError: The model is compiled using `--tensor-parallel-shards="
       << model_metadata.tensor_parallel_shards
@@ -167,7 +166,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
       << "Please set \"tensor_parallel_shards\" in mlc-chat-config.json to "
       << model_metadata.tensor_parallel_shards;
   // Step 1. Extract auxiliary information
-  PreprocessorPool preprocs(model_metadata, relax_vm_module);
+  PreprocessorPool preprocs(model_metadata, vm_module);
   std::unordered_map<std::string, ModelMetadata::Param> param_name2info;
   for (const ModelMetadata::Param& param : model_metadata.params) {
     param_name2info[param.name] = param;
@@ -246,8 +245,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
   return shards;
 }
 
-Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
-                                                Module relax_vm_module,
+Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path, Module vm_module,
                                                 const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
@@ -262,7 +260,7 @@ Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
   picojson::value model_config;
   picojson::parse(model_config, model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
+      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
 
   std::unordered_map<std::string, ParamInfo> param_info_map;
   for (const NDArrayCacheMetadata::FileRecord& file_record : ndarray_cache_metadata.records) {
