@@ -9,7 +9,7 @@ import tvm
 from tvm import relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device

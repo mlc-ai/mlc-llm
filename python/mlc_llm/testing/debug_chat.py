@@ -11,7 +11,7 @@ import tvm
 from tvm import DataType, relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP

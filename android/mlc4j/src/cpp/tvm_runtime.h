@@ -25,19 +25,19 @@
 #include <runtime/opencl/opencl_module.cc>
 #include <runtime/opencl/opencl_wrapper/opencl_wrapper.cc>
 #include <runtime/profiling.cc>
-#include <runtime/relax_vm/attn_backend.cc>
-#include <runtime/relax_vm/builtin.cc>
-#include <runtime/relax_vm/bytecode.cc>
-#include <runtime/relax_vm/executable.cc>
-#include <runtime/relax_vm/kv_state.cc>
-#include <runtime/relax_vm/ndarray_cache_support.cc>
-#include <runtime/relax_vm/paged_kv_cache.cc>
-#include <runtime/relax_vm/rnn_state.cc>
-#include <runtime/relax_vm/vm.cc>
 #include <runtime/source_utils.cc>
 #include <runtime/system_library.cc>
 #include <runtime/thread_pool.cc>
 #include <runtime/threading_backend.cc>
+#include <runtime/vm/attn_backend.cc>
+#include <runtime/vm/builtin.cc>
+#include <runtime/vm/bytecode.cc>
+#include <runtime/vm/executable.cc>
+#include <runtime/vm/kv_state.cc>
+#include <runtime/vm/ndarray_cache_support.cc>
+#include <runtime/vm/paged_kv_cache.cc>
+#include <runtime/vm/rnn_state.cc>
+#include <runtime/vm/vm.cc>
 #include <runtime/workspace_pool.cc>
 
 static_assert(TVM_LOG_CUSTOMIZE == 1, "TVM_LOG_CUSTOMIZE must be 1");

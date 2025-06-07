@@ -11,7 +11,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 namespace mlc {
 namespace llm {
@@ -24,7 +24,7 @@ using tvm::ffi::Shape;
 
 ObjectRef DispatchFunctionByGroup(tvm::ffi::AnyView vm_arg,
                                   Array<Array<ObjectRef>> funcs_and_args) {
-  using namespace relax_vm;
+  using namespace vm;
   VirtualMachine* vm = VirtualMachine::GetContextPtr(vm_arg);
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int world_size = worker->num_workers;
