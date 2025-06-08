@@ -21,9 +21,9 @@ run_cpu = "bash ci/bash.sh mlcaidev/ci-cpu:26d65cc -e GPU cpu -e MLC_CI_SETUP_DE
 run_cuda = "bash ci/bash.sh mlcaidev/ci-cu128:26d65cc -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
 // run_rocm = "bash ci/bash.sh mlcaidev/ci-rocm57:26d65cc -e GPU rocm-5.7 -e MLC_CI_SETUP_DEPS 1"
 
-pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:5b6f876 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
-pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu128:5b6f876 -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
-pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm61:5b6f876 -e GPU rocm-6.1 -e MLC_CI_SETUP_DEPS 1"
+pkg_cpu = "bash ci/bash.sh mlcaidev/package-rocm61:519d0b3 -e GPU cpu -e MLC_CI_SETUP_DEPS 1"
+pkg_cuda = "bash ci/bash.sh mlcaidev/package-cu128:519d0b3 -e GPU cuda-12.8 -e MLC_CI_SETUP_DEPS 1"
+pkg_rocm = "bash ci/bash.sh mlcaidev/package-rocm61:519d0b3 -e GPU rocm-6.1 -e MLC_CI_SETUP_DEPS 1"
 
 
 def per_exec_ws(folder) {
