@@ -713,7 +713,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 //                val parts = it.split(",")
 //                if (parts.size == 3) "${parts[0]} ${parts[1]} ${parts[2]}." else it
 //            }
-//            val combinedPrompt = "$knowledgeGraph\n\n$prompt"
+//            val combinedPr                                                                                                                                                                                                                                ompt = "$knowledgeGraph\n\n$prompt"
 //            var content = ChatCompletionMessageContent(text = combinedPrompt)
 //            if (imageUri != null) {
 //                val uri = imageUri
