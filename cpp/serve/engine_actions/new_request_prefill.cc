@@ -39,6 +39,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     int num_rsentries = prefill_inputs.size();
+    // LOG(INFO) << "Looping over rsentries";
+    // LOG(INFO) << prefill_inputs.size();
     {
       NVTXScopedRange nvtx_scope("NewRequestPrefill matching prefix");
       for (int i = 0; i < num_rsentries; ++i) {
@@ -277,6 +279,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
    * \return The matched length in prefix cache.
    */
   int MatchPrefixCache(EngineState estate, PrefillInput* input) final {
+    // LOG(INFO) << "Matching Prefix Cache";
     RequestStateEntry rsentry = input->rsentry;
     if (estate->prefix_cache->Mode() == PrefixCacheMode::kDisable) {
       return 0;
@@ -295,6 +298,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
       if (result.prefilled_offset == 0) {
         // Add new sequence
+        // LOG(INFO) << "Adding new sequence";
         CHECK_EQ(result.forked_seq_id, -1);
         CHECK_EQ(result.reused_seq_id, -1);
         CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
@@ -302,6 +306,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           model->AddNewSequence(rsentry->mstates[0]->internal_id);
           // Enable sliding window for the sequence if it is not a parent.
           if (rsentry->child_indices.empty()) {
+            // LOG(INFO) << "Enabling sliding window RequestPrefill 3";
             model->EnableSlidingWindowForSeq(rsentry->mstates[0]->internal_id);
           }
         }

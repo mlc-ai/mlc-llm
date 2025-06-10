@@ -1,7 +1,7 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 import tvm
 from tvm import IRModule, relax
@@ -24,12 +24,19 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     call_args = func.body.blocks[0].bindings[0].value.args
     assert isinstance(call_args[0], relax.ExternFunc)
     assert call_args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
-    assert isinstance(call_args[1], relax.StringImm)
-
     args = call_args[1:]
     assert len(args) == 18
-    assert isinstance(args[0], relax.StringImm)
-    assert args[0].value in ["mha", "mla"]
+    assert isinstance(args[0], Union[relax.StringImm, relax.Tuple])
+    # Check if attn_kind is a single value or a list with length of hidden layers
+    if isinstance(args[0], relax.StringImm):
+        assert args[0].value in ["mha", "mla"]
+        attn_kind = args[0].value
+    else:
+        assert len(args[0].fields) == args[3].value.value
+        for i in range(len(args[0].fields)):
+            assert isinstance(args[0].fields[i], relax.StringImm)
+            assert args[0].fields[i].value in ["mha", "mla", "mha_sliding"]
+        attn_kind = [args[0].fields[i].value for i in range(len(args[0]))]
     assert isinstance(args[1], relax.ShapeExpr)
     assert len(args[1].values) == 5
     assert isinstance(args[2], relax.ShapeExpr)
@@ -43,7 +50,7 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert isinstance(args[17], relax.DataTypeImm)
 
     return {
-        "attn_kind": args[0].value,
+        "attn_kind": attn_kind,
         "max_batch_size": args[1].values[0],
         "max_total_seq_len": args[1].values[1],
         "prefill_chunk_size": args[1].values[2],
