@@ -761,8 +761,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
            static_cast<int64_t>(8192)});
     } else if (mode == EngineMode::kInteractive) {
       inferred_config.max_total_sequence_length = std::min(
-          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value(),
-           model_config_limits.model_max_sliding_window_size});
+          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value()});
     } else {
       inferred_config.max_total_sequence_length =
           inferred_config.max_single_sequence_length.value() == std::numeric_limits<int64_t>::max()
