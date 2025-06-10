@@ -80,7 +80,9 @@ fun ChatView(
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary),
             navigationIcon = {
                 IconButton(
-                    onClick = { navController.popBackStack() },
+                    onClick = {
+//                        chatState.requestResetChat()
+                        navController.popBackStack() },
                     enabled = chatState.interruptable()
                 ) {
                     Icon(
@@ -279,6 +281,21 @@ fun MessageView(messageData: MessageData, activity: Activity?) {
 fun SendMessageView(chatState: AppViewModel.ChatState, activity: Activity) {
     val localFocusManager = LocalFocusManager.current
     val localActivity : MainActivity = activity as MainActivity
+    var text by rememberSaveable { mutableStateOf("") }
+    var isRAGEnabled by rememberSaveable { mutableStateOf(true) }
+//    Row(
+//        modifier = Modifier
+//            .fillMaxWidth()
+//            .padding(bottom = 4.dp),
+//        horizontalArrangement = Arrangement.SpaceBetween,
+//        verticalAlignment = Alignment.CenterVertically
+//    ) {
+//        Text(text = if (isRAGEnabled) "RAG Enabled" else "RAG Disabled")
+//        Switch(
+//            checked = isRAGEnabled,
+//            onCheckedChange = { isRAGEnabled = it }
+//        )
+//    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,

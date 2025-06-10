@@ -697,94 +697,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return "data:image/jpg;base64,$imageBase64"
         }
 
-//        fun requestGenerate(prompt: String, activity: Activity) {
-//            require(chatable())
-//            switchToGenerating()
-//            appendMessage(MessageRole.User, prompt)
-//            appendMessage(MessageRole.Assistant, "")
-//            //var content = ChatCompletionMessageContent(text=prompt)
-//            val inputStream = activity.assets.open("Knowledge_graph.csv")
-//            val csvText = inputStream.bufferedReader().use { it.readText() }
-//            //Log.d("MLC", "File path: ${file.absolutePath}, exists: ${file.exists()}")
 //
-//
-//            // Convert CSV to readable text for the LLM
-//            val knowledgeGraph = csvText.lines().filter { it.isNotBlank() }.joinToString("\n") {
-//                val parts = it.split(",")
-//                if (parts.size == 3) "${parts[0]} ${parts[1]} ${parts[2]}." else it
-//            }
-//            val combinedPr                                                                                                                                                                                                                                ompt = "$knowledgeGraph\n\n$prompt"
-//            var content = ChatCompletionMessageContent(text = combinedPrompt)
-//            if (imageUri != null) {
-//                val uri = imageUri
-//                val bitmap = uri?.let {
-//                    activity.contentResolver.openInputStream(it)?.use { input ->
-//                        BitmapFactory.decodeStream(input)
-//                    }
-//                }
-//                val imageBase64URL = bitmapToURL(bitmap!!)
-//                Log.v("requestGenerate", "image base64 url: $imageBase64URL")
-//                val parts = listOf(
-//                    mapOf("type" to "text", "text" to prompt),
-//                    mapOf("type" to "image_url", "image_url" to imageBase64URL)
-//                )
-//                content = ChatCompletionMessageContent(parts=parts)
-//                imageUri = null
-//            }
-//
-//            executorService.submit {
-//                historyMessages.add(ChatCompletionMessage(
-//                    role = OpenAIProtocol.ChatCompletionRole.user,
-//                    content = content
-//                ))
-//
-//                viewModelScope.launch {
-//                    val responses = engine.chat.completions.create(
-//                        messages = historyMessages,
-//                        stream_options = OpenAIProtocol.StreamOptions(include_usage = true)
-//                    )
-//
-//                    var finishReasonLength = false
-//                    var streamingText = ""
-//
-//                    for (res in responses) {
-//                        if (!callBackend {
-//                            for (choice in res.choices) {
-//                                choice.delta.content?.let { content ->
-//                                    streamingText += content.asText()
-//                                }
-//                                choice.finish_reason?.let { finishReason ->
-//                                    if (finishReason == "length") {
-//                                        finishReasonLength = true
-//                                    }
-//                                }
-//                            }
-//                            updateMessage(MessageRole.Assistant, streamingText)
-//                            res.usage?.let { finalUsage ->
-//                                report.value = finalUsage.extra?.asTextLabel() ?: ""
-//                            }
-//                            if (finishReasonLength) {
-//                                streamingText += " [output truncated due to context length limit...]"
-//                                updateMessage(MessageRole.Assistant, streamingText)
-//                            }
-//                        });
-//                    }
-//                    if (streamingText.isNotEmpty()) {
-//                        historyMessages.add(ChatCompletionMessage(
-//                            role = OpenAIProtocol.ChatCompletionRole.assistant,
-//                            content = streamingText
-//                        ))
-//                        streamingText = ""
-//                    } else {
-//                        if (historyMessages.isNotEmpty()) {
-//                            historyMessages.removeAt(historyMessages.size - 1)
-//                        }
-//                    }
-//
-//                    if (modelChatState.value == ModelChatState.Generating) switchToReady()
-//                }
-//            }
-//        }
 // Utility function to load KG content
         fun loadKGFromProvider(context: Context): String {
             val uri = Uri.parse("content://com.example.knowledgegraph.kgprovider/knowledge_graph")
@@ -914,7 +827,120 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }.start()
         }
-
+//        val isRAGEnabled = mutableStateOf(true)
+//        val ragModel by lazy {
+//            RagChatModel(getApplication<Application>().applicationContext)
+//        }
+//
+//        fun requestGenerate(prompt: String, activity: Activity) {
+//            require(chatable())
+//            switchToGenerating()
+//            appendMessage(MessageRole.User, prompt)
+//            appendMessage(MessageRole.Assistant, "")
+//
+//            var combinedPrompt = prompt
+//
+//            if (isRAGEnabled.value) {
+//                // Use preloaded knowledge graph inside RagChatModel
+//                combinedPrompt = ragModel.runRAGQuery(prompt)
+//                Log.d("MLCChat", "RAG enabled. Combined prompt:\n$combinedPrompt")
+//            } else {
+//                // Manual KG fallback
+//                val kgText = loadKGFromProvider(activity)
+//                val keywords = prompt.split(Regex("\\W+")).filter { it.isNotBlank() }
+//
+//                val relevantLines = keywords.flatMap { keyword ->
+//                    val regex = Regex("\\b${Regex.escape(keyword.lowercase())}\\b")
+//                    kgText.lines().filter { line ->
+//                        regex.containsMatchIn(line.lowercase().replace("\"", ""))
+//                    }
+//                }
+//
+//                val knowledgeGraph = relevantLines.joinToString("\n") {
+//                    val parts = it.split(",")
+//                    if (parts.size == 3) "${parts[0].trim()} ${parts[1].trim()} ${parts[2].trim()}." else it
+//                }
+//
+//                combinedPrompt = "$knowledgeGraph\n\n$prompt"
+//                Log.d("MLCChat", "Non-RAG fallback. Combined prompt:\n$combinedPrompt")
+//            }
+//
+//
+//            var content = ChatCompletionMessageContent(text = combinedPrompt)
+//
+//            if (imageUri != null) {
+//                val uri = imageUri
+//                val bitmap = uri?.let {
+//                    activity.contentResolver.openInputStream(it)?.use { input ->
+//                        BitmapFactory.decodeStream(input)
+//                    }
+//                }
+//                val imageBase64URL = bitmapToURL(bitmap!!)
+//                val parts = listOf(
+//                    mapOf("type" to "text", "text" to prompt),
+//                    mapOf("type" to "image_url", "image_url" to imageBase64URL)
+//                )
+//                content = ChatCompletionMessageContent(parts = parts)
+//                imageUri = null
+//            }
+//
+//            executorService.submit {
+//                historyMessages.add(
+//                    ChatCompletionMessage(
+//                        role = OpenAIProtocol.ChatCompletionRole.user,
+//                        content = content
+//                    )
+//                )
+//
+//                viewModelScope.launch {
+//                    val responses = engine.chat.completions.create(
+//                        messages = historyMessages,
+//                        stream_options = OpenAIProtocol.StreamOptions(include_usage = true)
+//                    )
+//
+//                    var finishReasonLength = false
+//                    var streamingText = ""
+//
+//                    for (res in responses) {
+//                        if (!callBackend {
+//                                for (choice in res.choices) {
+//                                    choice.delta.content?.let { delta ->
+//                                        streamingText += delta.asText()
+//                                    }
+//                                    choice.finish_reason?.let { finishReason ->
+//                                        if (finishReason == "length") {
+//                                            finishReasonLength = true
+//                                        }
+//                                    }
+//                                }
+//                                updateMessage(MessageRole.Assistant, streamingText)
+//                                res.usage?.let { finalUsage ->
+//                                    report.value = finalUsage.extra?.asTextLabel() ?: ""
+//                                }
+//                                if (finishReasonLength) {
+//                                    streamingText += " [output truncated due to context length limit...]"
+//                                    updateMessage(MessageRole.Assistant, streamingText)
+//                                }
+//                            });
+//                    }
+//
+//                    if (streamingText.isNotEmpty()) {
+//                        historyMessages.add(
+//                            ChatCompletionMessage(
+//                                role = OpenAIProtocol.ChatCompletionRole.assistant,
+//                                content = streamingText
+//                            )
+//                        )
+//                    } else {
+//                        if (historyMessages.isNotEmpty()) {
+//                            historyMessages.removeAt(historyMessages.size - 1)
+//                        }
+//                    }
+//
+//                    if (modelChatState.value == ModelChatState.Generating) switchToReady()
+//                }
+//            }
+//        }
         private fun appendMessage(role: MessageRole, text: String) {
             messages.add(MessageData(role, text))
         }
