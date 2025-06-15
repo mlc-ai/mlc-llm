@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def _extract_metadata(model_lib: Path) -> Dict[str, Any]:
     # pylint: disable=import-outside-toplevel
     from tvm.runtime import device, load_module
-    from tvm.runtime.relax_vm import VirtualMachine
+    from tvm.runtime.vm import VirtualMachine
 
     # pylint: enable=import-outside-toplevel
 
@@ -80,7 +80,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
         else:
             # Contains dynamic shape; use config to look up concrete values
             param_shape = _read_dynamic_shape(param["shape"], config)
-        params_bytes += math.prod(param_shape) * DataType(param["dtype"]).itemsize()
+        params_bytes += math.prod(param_shape) * DataType(param["dtype"]).itemsize
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)

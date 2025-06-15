@@ -92,6 +92,7 @@ target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_include_directories(mlc_llm_objs PRIVATE 3rdparty/stb)
 target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_include_directories(mlc_llm_objs PRIVATE ${XGRAMMAR_PATH}/include)
+target_link_libraries(mlc_llm_objs PRIVATE tvm_ffi_header)
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)
 add_library(mlc_llm_static STATIC $<TARGET_OBJECTS:mlc_llm_objs>)

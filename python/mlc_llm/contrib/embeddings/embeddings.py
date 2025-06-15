@@ -9,7 +9,7 @@ import tvm
 from tvm import relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
@@ -34,7 +34,7 @@ def _load_params(
 
 
 def _get_tvm_module(
-    model_weight_path: str, lib_path: str, device: Device, instrument: tvm.runtime.PackedFunc = None
+    model_weight_path: str, lib_path: str, device: Device, instrument: tvm.ffi.Function = None
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)

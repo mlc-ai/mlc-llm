@@ -1,7 +1,5 @@
 #include "./model.h"
 
-#include <tvm/runtime/packed_func.h>
-
 #include <unordered_map>
 
 #include "../support/json_parser.h"
@@ -10,6 +8,7 @@ namespace mlc {
 namespace llm {
 
 using namespace tvm::runtime;
+using tvm::ffi::TypedFunction;
 
 ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
     const picojson::object& js, const picojson::object& model_config) {
@@ -125,7 +124,7 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
 ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
                                         const picojson::object& model_config) {
   std::string json_str = "";
-  TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
+  TypedFunction<String()> pf = module.GetFunction("_metadata");
   json_str = pf();
   picojson::object json = json::ParseToJSONObject(json_str);
   try {

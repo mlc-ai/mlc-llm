@@ -219,7 +219,7 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
 
     .. note::
         If you are using CUDA and your compute capability is above 80, then it is require to build with
-        ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find PackedFunc`` issue during
+        ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find Function`` issue during
         runtime.
 
         To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
@@ -271,7 +271,7 @@ Therefore, it is highly recommended to validate TVM Unity installation before us
 
 .. code-block:: bash
 
-    >>> python -c "import tvm; print(tvm._ffi.base._LIB)"
+    >>> python -c "import tvm; print(tvm.base._LIB)"
     <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:

@@ -11,7 +11,7 @@ import tvm
 from tvm import DataType, relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
@@ -44,7 +44,7 @@ def _get_tvm_module(
     model_weight_path: str,
     lib_path: str,
     device: Device,
-    instrument: Union[tvm.runtime.PackedFunc, None],
+    instrument: Union[tvm.ffi.Function, None],
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
@@ -206,7 +206,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             .. code:: python
 
                 def instrument(
-                    func: Union[VMClosure, PackedFunc],
+                    func: Union[VMClosure, Function],
                     func_symbol: str,
                     before_run: bool,
                     ret_value: any,

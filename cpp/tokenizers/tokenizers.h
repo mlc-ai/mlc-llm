@@ -8,8 +8,8 @@
 #define MLC_LLM_TOKENIZER_H_
 
 #include <tokenizers_cpp.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
 #include <optional>
@@ -22,6 +22,8 @@ namespace mlc {
 namespace llm {
 
 using namespace tvm::runtime;
+using tvm::ffi::Array;
+using tvm::ffi::String;
 
 /*! \brief Useful information of the tokenizer during generation. */
 class TokenizerInfoNode : public Object {

@@ -4,7 +4,7 @@
  */
 #include "data.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "model.h"
 
@@ -75,11 +75,11 @@ ObjectRef TextDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) co
                 "Please tokenize the text and construct a TokenData object.";
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.TextData").set_body_typed([](String text) {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.TextData").set_body_typed([](String text) {
   return TextData(std::move(text));
 });
 
-TVM_REGISTER_GLOBAL("mlc.serve.TextDataGetTextString").set_body_typed([](TextData data) {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.TextDataGetTextString").set_body_typed([](TextData data) {
   return data->text;
 });
 
@@ -105,16 +105,17 @@ ObjectRef TokenDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->TokenEmbed(token_ids, dst, offset);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.TokenData").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<int32_t> token_ids;
-  token_ids.reserve(args.size());
-  for (int i = 0; i < args.size(); i++) {
-    token_ids.push_back(args[i]);
-  }
-  *rv = TokenData(std::move(token_ids));
-});
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.TokenData")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::vector<int32_t> token_ids;
+      token_ids.reserve(args.size());
+      for (int i = 0; i < args.size(); i++) {
+        token_ids.push_back(args[i].cast<int32_t>());
+      }
+      *rv = TokenData(std::move(token_ids));
+    });
 
-TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetTokenIds").set_body_typed([](TokenData data) {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.TokenDataGetTokenIds").set_body_typed([](TokenData data) {
   return data->token_ids;
 });
 
@@ -135,11 +136,11 @@ ObjectRef ImageDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->ImageEmbed(image, dst, offset);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.ImageData").set_body_typed([](NDArray image, int embed_size) {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.ImageData").set_body_typed([](NDArray image, int embed_size) {
   return ImageData(std::move(image), embed_size);
 });
 
-TVM_REGISTER_GLOBAL("mlc.serve.ImageDataGetImage").set_body_typed([](ImageData data) {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.ImageDataGetImage").set_body_typed([](ImageData data) {
   return data->image;
 });
 
@@ -231,7 +232,7 @@ RequestStreamOutput RequestStreamOutput::Usage(String request_id,
   return RequestStreamOutput(n);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
     .set_body_typed([](RequestStreamOutput output) {
       CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
       std::vector<IntTuple> group_delta_token_ids;

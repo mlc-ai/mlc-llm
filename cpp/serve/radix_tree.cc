@@ -4,7 +4,8 @@
  */
 #include "radix_tree.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/logging.h>
 
 namespace mlc {
 namespace llm {
@@ -797,46 +798,46 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
 TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeImpl);
 
 PagedRadixTree PagedRadixTree::Create() {
-  return PagedRadixTree(make_object<PagedRadixTreeImpl>());
+  return PagedRadixTree(tvm::ffi::make_object<PagedRadixTreeImpl>());
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTree").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTree").set_body_typed([]() {
   return PagedRadixTree::Create();
 });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeMatchPrefix")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeMatchPrefix")
     .set_body_typed([](PagedRadixTree paged_radix_tree, IntTuple tokens) {
       std::vector<int32_t> token_ids{tokens.begin(), tokens.end()};
       auto [offset, seq_ids] = paged_radix_tree->MatchPrefix(token_ids);
       seq_ids.insert(seq_ids.begin(), offset);
       return IntTuple(seq_ids);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeExtendSequence")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeExtendSequence")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, IntTuple tokens) {
       std::vector<int32_t> token_ids{tokens.begin(), tokens.end()};
       paged_radix_tree->ExtendSequence(seq_id, std::move(token_ids));
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRollBackSequence")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRollBackSequence")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t num_tokens) {
       paged_radix_tree->RollBackSequence(seq_id, num_tokens);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeForkSequence")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeForkSequence")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id, int64_t parent_seq_id,
                        uint64_t forked_offset) {
       paged_radix_tree->ForkSequence(seq_id, parent_seq_id, forked_offset);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeHasSequence")
-    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::HasSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeAddSequence")
-    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::AddSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRemoveSequence")
-    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::RemoveSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequence")
-    .set_body_method<PagedRadixTree>(&PagedRadixTreeObj::GetSequence);
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequenceLength")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeHasSequence")
+    .set_body_method(&PagedRadixTreeObj::HasSequence);
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeAddSequence")
+    .set_body_method(&PagedRadixTreeObj::AddSequence);
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeRemoveSequence")
+    .set_body_method(&PagedRadixTreeObj::RemoveSequence);
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequence")
+    .set_body_method(&PagedRadixTreeObj::GetSequence);
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeGetSequenceLength")
     .set_body_typed([](PagedRadixTree paged_radix_tree, int64_t seq_id) {
       return (int64_t)paged_radix_tree->GetSequenceLength(seq_id);
     });
-TVM_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeFreeCapacity")
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.PagedRadixTreeFreeCapacity")
     .set_body_typed([](PagedRadixTree paged_radix_tree) {
       return (int64_t)paged_radix_tree->FreeCapacity();
     });

@@ -6,8 +6,6 @@
 #ifndef MLC_LLM_JSON_FFI_JSON_FFI_ENGINE_H_
 #define MLC_LLM_JSON_FFI_JSON_FFI_ENGINE_H_
 
-#include <tvm/runtime/packed_func.h>
-
 #include <string>
 
 #include "../serve/threaded_engine.h"
@@ -54,7 +52,7 @@ class JSONFFIEngine {
 
   std::unique_ptr<ThreadedEngine> engine_;
   std::string err_;
-  PackedFunc request_stream_callback_;
+  Function request_stream_callback_;
   // tokenizer
   Tokenizer tokenizer_;
   // conversation template

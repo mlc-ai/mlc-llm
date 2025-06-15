@@ -5,8 +5,8 @@
 #include "config.h"
 
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <limits>
 #include <random>
@@ -22,9 +22,9 @@ namespace serve {
 
 uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // Get single-card GPU size.
-  TVMRetValue rv;
+  tvm::ffi::Any rv;
   DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
-  int64_t gpu_size_bytes = rv;
+  int64_t gpu_size_bytes = rv.cast<int64_t>();
   // Since the memory size returned by the OpenCL runtime is smaller than the actual available
   // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android
   // with OpenCL.

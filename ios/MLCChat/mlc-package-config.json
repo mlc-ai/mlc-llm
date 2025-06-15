@@ -28,21 +28,21 @@
             }
         },
         {
-            "model": "HF://mlc-ai/Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-            "model_id": "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-            "estimated_vram_bytes": 2960000000,
+            "model": "HF://mlc-ai/Qwen3-0.6B-q0f16-MLC",
+            "model_id": "Qwen3-0.6B-q0f16-MLC",
+            "estimated_vram_bytes": 3000000000,
             "overrides": {
                 "prefill_chunk_size": 128,
                 "context_window_size": 2048
             }
         },
         {
-            "model": "HF://mlc-ai/Mistral-7B-Instruct-v0.3-q3f16_1-MLC",
-            "model_id": "Mistral-7B-Instruct-v0.3-q3f16_1-MLC",
-            "estimated_vram_bytes": 3316000000,
+            "model": "HF://mlc-ai/Qwen3-1.7B-q4f16_1-MLC",
+            "model_id": "Qwen3-1.7B-q4f16_1-MLC",
+            "estimated_vram_bytes": 3000000000,
             "overrides": {
                 "prefill_chunk_size": 128,
-                "context_window_size": 768
+                "context_window_size": 2048
             }
         }
     ]
