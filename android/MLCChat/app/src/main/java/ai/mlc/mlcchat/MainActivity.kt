@@ -29,8 +29,10 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
+import ai.mlc.mlcchat.RagChatModel
 
 class MainActivity : ComponentActivity() {
+    private lateinit var ragModel: RagChatModel
     var hasImage = false
 
     private val pickImageLauncher = registerForActivityResult(
@@ -81,6 +83,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         chatState = AppViewModel(this.application).ChatState()
+        ragModel = RagChatModel(this)
+        ragModel.loadEmbeddingsIfNeeded()
+        chatState.ragModel = ragModel
+
+        Log.d("RAG_INIT", "RAG assigned to ChatState: ${chatState.ragModel != null}")
         requestNeededPermissions()
 
         setContent {
@@ -88,12 +95,18 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize()
             ) {
                 MLCChatTheme {
-                    NavView(this)
+//                    NavView(this)
+                    NavView(activity = this, ragModel = ragModel)
                 }
             }
         }
     }
-
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::ragModel.isInitialized) {
+            ragModel.clearEmbeddings()
+        }
+    }
     private fun requestNeededPermissions() {
         val permissionsToRequest = mutableListOf<String>()
 

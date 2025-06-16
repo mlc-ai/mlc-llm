@@ -10,10 +10,15 @@ import androidx.navigation.compose.rememberNavController
 
 @ExperimentalMaterial3Api
 @Composable
-fun NavView(activity: Activity, appViewModel: AppViewModel = viewModel()) {
+//fun NavView(activity: Activity, appViewModel: AppViewModel = viewModel())
+fun NavView(activity: Activity, ragModel: RagChatModel, appViewModel: AppViewModel = viewModel())
+{
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "home") {
         composable("home") { StartView(navController, appViewModel) }
-        composable("chat") { ChatView(navController, appViewModel.chatState, activity) }
+        //composable("chat") { ChatView(navController, appViewModel.chatState, activity) }
+        composable("chat") {
+            ChatView(navController, appViewModel.chatState, activity, ragModel)
+        }
     }
 }

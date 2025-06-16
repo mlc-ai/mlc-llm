@@ -64,10 +64,18 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 @ExperimentalMaterial3Api
 @Composable
+//fun ChatView(
+//    navController: NavController, chatState: AppViewModel.ChatState, activity: Activity
+//)
 fun ChatView(
-    navController: NavController, chatState: AppViewModel.ChatState, activity: Activity
-) {
+    navController: NavController,
+    chatState: AppViewModel.ChatState,
+    activity: Activity,
+    ragModel: RagChatModel
+)
+{
     val localFocusManager = LocalFocusManager.current
+    (chatState as AppViewModel.ChatState).ragModel = ragModel
     (activity as MainActivity).chatState = chatState
     Scaffold(topBar = {
         TopAppBar(
@@ -281,21 +289,22 @@ fun MessageView(messageData: MessageData, activity: Activity?) {
 fun SendMessageView(chatState: AppViewModel.ChatState, activity: Activity) {
     val localFocusManager = LocalFocusManager.current
     val localActivity : MainActivity = activity as MainActivity
-    var text by rememberSaveable { mutableStateOf("") }
-    var isRAGEnabled by rememberSaveable { mutableStateOf(true) }
-//    Row(
-//        modifier = Modifier
-//            .fillMaxWidth()
-//            .padding(bottom = 4.dp),
-//        horizontalArrangement = Arrangement.SpaceBetween,
-//        verticalAlignment = Alignment.CenterVertically
-//    ) {
-//        Text(text = if (isRAGEnabled) "RAG Enabled" else "RAG Disabled")
-//        Switch(
-//            checked = isRAGEnabled,
-//            onCheckedChange = { isRAGEnabled = it }
-//        )
-//    }
+
+    Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier
+        .fillMaxWidth()
+        .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = if (chatState.useRAG.value) "RAG Enabled" else "RAG Disabled",
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = chatState.useRAG.value,
+            onCheckedChange = { chatState.useRAG.value = it }
+        )
+    }
     Row(
         horizontalArrangement = Arrangement.spacedBy(5.dp),
         verticalAlignment = Alignment.CenterVertically,
