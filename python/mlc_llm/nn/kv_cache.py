@@ -53,9 +53,6 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
             rx_attn_kind = [rx.StringImm(layer_kind) for layer_kind in attn_kind]
         else:
             rx_attn_kind = rx.StringImm(attn_kind)
-        print("CHECK\n")
-        print(rx_attn_kind)
-        print("CHECK\n")
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
