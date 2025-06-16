@@ -50,29 +50,32 @@ class RagChatModel(private val context: Context) {
 
         Log.d("RAG_DEBUG", "Embedding list size after load: ${embeddingList.size}")
 
-        val topChunks = retrieveTopK(query, engine, embeddingList, k = 5)
+        val topChunks = retrieveTopK(query, engine, embeddingList, k = 6)
         Log.d("RAG_DEBUG", "Top chunks retrieved: ${topChunks.map { it.text }}")
 
-        val formattedEvents = topChunks.joinToString("\n") {
-            "- ${formatEvent(it.text)}"
-        }
+//        val formattedEvents = topChunks.joinToString("\n") {
+//            "- ${formatEvent(it.text)}"
+//        }
 
+        val formattedEvents = topChunks.joinToString("\n") {
+            it.text.trim().let { line -> if (!line.endsWith(".")) "$line." else line }
+        }
         val prompt = """
-            You are a helpful assistant.
-            
-            Below is a list of structured calendar facts, including events, holidays, meetings, reminders, and personal activities.
-            
-            Analyze these entries and answer the user's question as clearly and specifically as possible.
-            Only include directly relevant results with specific dates, times, or locations if available.
-            
-            Calendar Data:
-            ${topChunks.joinToString("\n") { "- ${it.text}" }}
-            
-            User Question:
+            $formattedEvents
+        
             $query
-            
-            Answer:
-            """.trimIndent()
+        """.trimIndent()
+//        val prompt = """
+//
+//
+//            Calendar Data:
+//            ${topChunks.joinToString("\n") { "- ${it.text}" }}
+//
+//            prompt:
+//            $query
+//
+//
+//            """.trimIndent()
 
         Log.d("RAG_DEBUG", "Final prompt to LLM:\n$prompt")
 

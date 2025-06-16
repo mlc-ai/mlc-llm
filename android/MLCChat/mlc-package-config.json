@@ -1,11 +1,11 @@
 {
-    "device": "android",
-    "model_list": [
-        {
-            "model": "HF://mlc-ai/Llama-3.2-3B-Instruct-q4f16_0-MLC",
-            "estimated_vram_bytes": 4679979417,
-            "model_id": "Llama-3.2-3B-Instruct-q4f16_0-MLC",
-            "bundle_weight": true
-        }
-    ]
+  "device": "android",
+  "model_list": [
+    {
+      "model": "HF://mlc-ai/Llama-3.2-3B-Instruct-q4f16_0-MLC",
+      "estimated_vram_bytes": 4679979417,
+      "model_id": "Llama-3.2-3B-Instruct-q4f16_0-MLC",
+      "bundle_weight": true
+    }
+  ]
 }
