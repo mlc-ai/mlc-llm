@@ -26,16 +26,16 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert call_args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
     args = call_args[1:]
     assert len(args) == 18
-    assert isinstance(args[0], Union[relax.StringImm, relax.Tuple])
+    assert isinstance(args[0], (relax.StringImm, relax.Tuple))
     # Check if attn_kind is a single value or a list with length of hidden layers
     if isinstance(args[0], relax.StringImm):
         assert args[0].value in ["mha", "mla"]
         attn_kind = args[0].value
     else:
         assert len(args[0].fields) == args[3].value.value
-        for i in range(len(args[0].fields)):
-            assert isinstance(args[0].fields[i], relax.StringImm)
-            assert args[0].fields[i].value in ["mha", "mla", "mha_sliding"]
+        for i, attention_type in enumerate(args[0].fields):
+            assert isinstance(attention_type, relax.StringImm)
+            assert attention_type.value in ["mha", "mla", "mha_sliding"]
         attn_kind = [args[0].fields[i].value for i in range(len(args[0]))]
     assert isinstance(args[1], relax.ShapeExpr)
     assert len(args[1].values) == 5

@@ -33,14 +33,14 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     head_dim: int = 256
     rms_norm_eps: float = 1e-6
     hidden_activation: Optional[str] = "gelu_pytorch_tanh"
-    position_embedding_base: int = 0
+    position_embedding_base: int = 1_000_000
     rope_scaling: int = 0
     context_window_size: int = 131_072
     prefill_chunk_size: int = 0
 
     query_pre_attn_scalar: int = 256
     sliding_window_size: int = None
-    sliding_window_pattern=6
+    sliding_window_pattern = 6
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -52,11 +52,8 @@ class Gemma3TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             raise ValueError("Only GeLU is supported as the activation for gemma.")
         if self.attention_bias:
             raise ValueError('Only "False" attention_bias is supported for gemma')
-        if self.position_embedding_base == 0:
-            if "rope_theta" in self.kwargs:
-                self.position_embedding_base = self.kwargs.pop("rope_theta")
-            else:
-                self.position_embedding_base = 1000000
+        if self.position_embedding_base == 1000000 and "rope_theta" in self.kwargs:
+            self.position_embedding_base = self.kwargs.pop("rope_theta")
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -387,12 +384,19 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        if "factor" in self.rope_scaling:
-            rope_scaling = self.rope_scaling["factor"]
-        else:
-            rope_scaling = 1
+        # if "factor" in self.rope_scaling:
+        #     rope_scaling = self.rope_scaling["factor"]
+        # else:
+        #     rope_scaling = 1
         return PagedKVCache.create_generic(
-            attn_kind=["mha_sliding" if ((i + 1) % self.config.text_config.sliding_window_pattern) else "mha" for i in range(self.num_hidden_layers)],
+            attn_kind=[
+                (
+                    "mha_sliding"
+                    if ((i + 1) % self.config.text_config.sliding_window_pattern)
+                    else "mha"
+                )
+                for i in range(self.num_hidden_layers)
+            ],
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -557,12 +561,19 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        if "factor" in self.language_model.rope_scaling:
-            rope_scaling = self.language_model.rope_scaling["factor"]
-        else:
-            rope_scaling = 1
+        # if "factor" in self.language_model.rope_scaling:
+        #     rope_scaling = self.language_model.rope_scaling["factor"]
+        # else:
+        #     rope_scaling = 1
         return PagedKVCache.create_generic(
-            attn_kind=["mha_sliding" if ((i + 1) % self.config.text_config.sliding_window_pattern) else "mha" for i in range(self.language_model.num_hidden_layers)],
+            attn_kind=[
+                (
+                    "mha_sliding"
+                    if ((i + 1) % self.config.text_config.sliding_window_pattern)
+                    else "mha"
+                )
+                for i in range(self.language_model.num_hidden_layers)
+            ],
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
