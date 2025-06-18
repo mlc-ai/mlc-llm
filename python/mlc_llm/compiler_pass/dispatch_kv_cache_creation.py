@@ -1,7 +1,7 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List
 
 import tvm
 from tvm import IRModule, relax
