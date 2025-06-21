@@ -7,6 +7,8 @@
 
 #include <tvm/runtime/nvtx.h>
 
+#include <cstdio>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -223,6 +225,22 @@ void ProcessFinishedRequestStateEntries(
 
       rstate->metrics.finish_time_point = trequest_finish;
       estate->metrics.RequestFinishUpdate(rstate->metrics);
+
+      // Print performance statistics to console
+      if (rstate->metrics.prefill_tokens > 0 && rstate->metrics.decode_tokens > 0) {
+        double prefill_time = rstate->metrics.GetPrefillTime();
+        double decode_time = rstate->metrics.GetDecodeTime();
+        if (prefill_time > 0 && decode_time > 0) {
+          double prefill_tps = rstate->metrics.prefill_tokens / prefill_time;
+          double decode_tps = rstate->metrics.decode_tokens / decode_time;
+          printf(
+              "[Request Completed] Prefill: %ld tokens, Decode: %ld tokens, Prefill TPS: %.1f, "
+              "Decode TPS: %.1f\n",
+              rstate->metrics.prefill_tokens, rstate->metrics.decode_tokens, prefill_tps,
+              decode_tps);
+          fflush(stdout);
+        }
+      }
 
       // always stream back usage in backend
       callback_delta_outputs->push_back(RequestStreamOutput::Usage(
