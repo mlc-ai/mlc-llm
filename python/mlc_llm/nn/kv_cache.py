@@ -2,7 +2,7 @@
 
 # pylint: disable=too-many-statements,too-many-lines,too-many-arguments
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
 from tvm import relax as rx
@@ -16,7 +16,7 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def create_generic(  # pylint: disable=too-many-locals
-        attn_kind: Literal["mha", "mla"],
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -49,10 +49,14 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
             rope_scaling = {}
         if layer_partition is None:
             layer_partition = [0, num_hidden_layers]
+        if isinstance(attn_kind, List):
+            rx_attn_kind = [rx.StringImm(layer_kind) for layer_kind in attn_kind]
+        else:
+            rx_attn_kind = rx.StringImm(attn_kind)
         return PagedKVCache(
             _expr=rx.call_pure_packed(
                 "mlc.create_paged_kv_cache_generic",
-                rx.StringImm(attn_kind),
+                rx_attn_kind,
                 rx.ShapeExpr(
                     [
                         max_batch_size,
