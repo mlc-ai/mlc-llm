@@ -1223,6 +1223,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         )
         # prompt length is not used
         _ = prompt_length
+
+        # Log the final prompt for debugging
+        logger.debug("Request %s: Final prompt before processing: %s", request_id, prompts)
+
         finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]
         self.state.record_event(request_id, event="invoke generate")
         try:
@@ -1778,6 +1782,8 @@ class MLCEngine(engine_base.MLCEngineBase):
             self.max_input_sequence_length,
             self.conv_template.model_copy(deep=True),
         )
+        # prompt length is not used - this variable is kept for API compatibility
+        # and potential future use in the synchronous engine
         _ = prompt_length
 
         finish_reasons: List[Optional[str]] = [None for _ in range(generation_cfg.n)]

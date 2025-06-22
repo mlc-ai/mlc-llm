@@ -752,17 +752,39 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
     # - Get the prompt from template, and encode to token ids.
     # - Check prompt length
     engine_state.record_event(request_id, event="start tokenization")
-    prompts = engine_utils.process_prompts(  # type: ignore
-        conv_template.as_prompt(model_config), f_tokenize
-    )
+
+    # Generate prompt string from chat template and log it for debugging
+    prompt_str = conv_template.as_prompt(model_config)
+    logger.debug("Request %s: Chat template applied, prompt string: %s", request_id, prompt_str)
+    logger.debug("Request %s: Chat template name: %s", request_id, conv_template.name)
+
+    # Log message details for better debugging
+    logger.debug("Request %s: Processing %d messages", request_id, len(request.messages))
+    for i, message in enumerate(request.messages):
+        role = message.role
+        content = str(message.content) if message.content else "(empty)"
+        content_preview = content[:100] + "..." if len(content) > 100 else content
+        logger.debug("Request %s: Message %d - Role: %s, Content: %s",
+                    request_id, i, role, content_preview)
+
+    # Tokenize the prompt
+    prompts = engine_utils.process_prompts(prompt_str, f_tokenize)  # type: ignore
+    logger.debug("Request %s: Tokenized prompt length: %d tokens",
+                request_id, len(prompts[0]) if prompts and isinstance(prompts[0], list) else 0)
+
     engine_state.record_event(request_id, event="finish tokenization")
 
     if conv_template.system_prefix_token_ids is not None:
+        logger.debug("Request %s: Adding system prefix token ids, count: %d",
+                    request_id, len(conv_template.system_prefix_token_ids))
         if isinstance(prompts[0], list):
             prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
         else:
             prompts.insert(0, conv_template.system_prefix_token_ids)
+
     prompt_length = engine_utils.check_and_get_prompts_length(prompts, max_input_sequence_length)
+    logger.debug("Request %s: Final prompt length: %d tokens (max allowed: %d)",
+                request_id, prompt_length, max_input_sequence_length)
 
     # Process generation config. Create request id.
     generation_cfg = engine_utils.get_generation_config(
@@ -1252,8 +1274,8 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
     model: str,
     output_texts: List[str],
     finish_reasons: List[str],
-    logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]],
     usage: openai_api_protocol.CompletionUsage,
+    logprob_results: Optional[List[Optional[openai_api_protocol.CompletionLogProbs]]] = None,
 ) -> openai_api_protocol.CompletionResponse:
     """Wrap the non-streaming completion results to CompletionResponse instance."""
     return openai_api_protocol.CompletionResponse(
@@ -1263,7 +1285,7 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
                 index=i,
                 finish_reason=finish_reason,
                 text=output_text,
-                logprobs=logprob_results[i],
+                logprobs=logprob_results[i] if logprob_results is not None else None,
             )
             for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
         ],
