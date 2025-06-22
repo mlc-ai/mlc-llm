@@ -16,6 +16,7 @@ from mlc_llm.serve.entrypoints import (
 )
 from mlc_llm.serve.server import ServerContext
 from mlc_llm.support import logging
+import logging as std_logging
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,16 @@ def serve(
     allow_headers: Any,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
+    
+    # Enable DEBUG logging if enable_debug is True
+    if enable_debug:
+        # Set logging level to DEBUG for detailed output including prompt context
+        std_logging.getLogger("mlc_llm").setLevel(std_logging.DEBUG)
+        std_logging.getLogger("mlc_llm.serve").setLevel(std_logging.DEBUG)
+        std_logging.getLogger("mlc_llm.serve.engine_base").setLevel(std_logging.DEBUG)
+        std_logging.getLogger("mlc_llm.serve.engine").setLevel(std_logging.DEBUG)
+        logger.info("DEBUG logging enabled for MLC-LLM serve mode")
+    
     # Create engine and start the background loop
     async_engine = engine.AsyncMLCEngine(
         model=model,

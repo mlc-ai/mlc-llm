@@ -7,6 +7,7 @@
 
 #include <tvm/runtime/nvtx.h>
 
+#include <cinttypes>
 #include <cstdio>
 
 namespace mlc {
@@ -234,10 +235,10 @@ void ProcessFinishedRequestStateEntries(
           double prefill_tps = rstate->metrics.prefill_tokens / prefill_time;
           double decode_tps = rstate->metrics.decode_tokens / decode_time;
           printf(
-              "[Request Completed] Prefill: %ld tokens, Decode: %ld tokens, Prefill TPS: %.1f, "
-              "Decode TPS: %.1f\n",
-              rstate->metrics.prefill_tokens, rstate->metrics.decode_tokens, prefill_tps,
-              decode_tps);
+              "[Request Completed] Prefill: %" PRId64 " tokens, Decode: %" PRId64 " tokens, "
+              "Prompt Cache: %" PRId64 " tokens, Prefill TPS: %.1f, Decode TPS: %.1f\n",
+              rstate->metrics.prefill_tokens, rstate->metrics.decode_tokens,
+              rstate->metrics.prompt_cache_tokens, prefill_tps, decode_tps);
           fflush(stdout);
         }
       }
