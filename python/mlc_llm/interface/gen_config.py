@@ -301,6 +301,7 @@ CONV_TEMPLATES = {
     "phi-3-vision",
     "stablelm-2",
     "gemma_instruction",
+    "gemma3_instruction",
     "orion",
     "llava",
     "hermes2_pro_llama3",
