@@ -16,7 +16,7 @@ from tvm.relax.op import strided_slice
 from mlc_llm import op as op_ext
 from mlc_llm.model.model_preset import MODEL_PRESETS
 from mlc_llm.model.vision import CLIPVisionConfig, CLIPVisionModel, ImageProcessor
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import PagedKVCache, RopeMode, create_generic_paged_kv_cache
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCausalLM
@@ -229,7 +229,7 @@ class LlavaForCasualLM(Module):
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic(
+        return create_generic_paged_kv_cache(
             attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
@@ -272,7 +272,7 @@ class LlavaForCasualLM(Module):
                 "input_embed": nn.spec.Tensor(
                     [1, "seq_len", self.config.text_config.hidden_size], self.dtype
                 ),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -282,7 +282,7 @@ class LlavaForCasualLM(Module):
                 "input_embed": nn.spec.Tensor(
                     [1, 1, self.config.text_config.hidden_size], self.dtype
                 ),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -293,7 +293,7 @@ class LlavaForCasualLM(Module):
                     [1, "seq_len", self.config.text_config.hidden_size], self.dtype
                 ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -303,7 +303,7 @@ class LlavaForCasualLM(Module):
                 "input_embeds": nn.spec.Tensor(
                     ["batch_size", 1, self.config.text_config.hidden_size], self.dtype
                 ),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
@@ -313,7 +313,7 @@ class LlavaForCasualLM(Module):
                 "input_embeds": nn.spec.Tensor(
                     [1, "seq_len", self.config.text_config.hidden_size], self.dtype
                 ),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "paged_kv_cache": nn.spec.PagedKVCache(),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
