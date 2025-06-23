@@ -9,9 +9,9 @@ pytestmark = [pytest.mark.unittest]
 def test_add():
     prt = PagedRadixTree()
     prt.add(0)
-    assert prt.get(0) == []
+    assert list(prt.get(0)) == []
     prt.add(1)
-    assert prt.get(1) == []
+    assert list(prt.get(1)) == []
 
 
 def test_remove():
@@ -61,12 +61,12 @@ def test_extend():
             if start_pos:
                 tokens_1 = [seq_id for _ in range(start_pos)]
                 prt.extend(seq_id, tokens_1)
-                assert prt.get(seq_id) == tokens_1
+                assert list(prt.get(seq_id)) == tokens_1
             else:
                 tokens_1 = []
             tokens_2 = [seq_id for _ in range(length)]
             prt.extend(seq_id, tokens_2)
-            assert prt.get(seq_id) == tokens_1 + tokens_2
+            assert list(prt.get(seq_id)) == tokens_1 + tokens_2
             seq_id += 1
 
 
@@ -83,7 +83,7 @@ def test_fork():
             tokens = [seq_id for _ in range(length_list[p_idx])]
             prt.extend(seq_id, tokens)
             prt.fork(seq_id + 1, seq_id, length_list[c_idx])
-            assert prt.get(seq_id + 1) == tokens[: length_list[c_idx]]
+            assert list(prt.get(seq_id + 1)) == tokens[: length_list[c_idx]]
             seq_id += 2
 
 
@@ -95,8 +95,8 @@ def test_fork_2():
     prt.extend(1, [4])
     prt.fork(2, 0, 3)
     prt.extend(2, [5])
-    assert prt.match([0, 1, 2, 4]) == (4, [1])
-    assert prt.match([0, 1, 2, 5]) == (4, [2])
+    assert prt.match([0, 1, 2, 4]) == (4, (1,))
+    assert prt.match([0, 1, 2, 5]) == (4, (2,))
 
 
 def test_rollback():
@@ -113,7 +113,7 @@ def test_rollback():
             tokens = [seq_id for _ in range(start_pos)]
             prt.extend(seq_id, tokens)
             prt.rollback(seq_id, length)
-            assert prt.get(seq_id) == tokens[:-length]
+            assert list(prt.get(seq_id)) == tokens[:-length]
             seq_id += 1
 
     for start_pos in [H, L, L + H, 2 * L, 3 * L + H]:
@@ -125,7 +125,7 @@ def test_rollback():
             prt.extend(seq_id, tokens)
             prt.fork(seq_id + 1, seq_id, start_pos)
             prt.rollback(seq_id + 1, length)
-            assert prt.get(seq_id + 1) == tokens[:-length]
+            assert list(prt.get(seq_id + 1)) == tokens[:-length]
             seq_id += 2
 
 
