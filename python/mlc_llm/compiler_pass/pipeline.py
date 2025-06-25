@@ -23,6 +23,7 @@ from .attach_support_info import (
     AttachCUDAGraphSymbolicCaptureHints,
     AttachMemoryPlanAttr,
     AttachPipelineParallelStages,
+    AttachSequenceLengthPaddingFactor,
     AttachVariableBounds,
 )
 from .blas_dispatch import BLASDispatch
@@ -114,6 +115,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachGPUSamplingFunc(target, variable_bounds),
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
+                AttachSequenceLengthPaddingFactor(target, metadata),
                 tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph

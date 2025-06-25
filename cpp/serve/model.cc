@@ -68,6 +68,7 @@ class ModelImpl : public ModelObj {
     this->ft_.Init(reload_lib_path, device_, model_config, session, num_shards, num_stages);
     this->num_shards_ = ft_.model_metadata_.tensor_parallel_shards;
     this->num_stages_ = ft_.model_metadata_.pipeline_parallel_stages;
+    this->seqlen_padding_factor_ = ft_.model_metadata_.seqlen_padding_factor;
     // Step 3. Reset
     this->Reset();
     // Step 4. Set model type
@@ -79,6 +80,10 @@ class ModelImpl : public ModelObj {
   ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("TokenEmbed");
     int num_tokens = token_ids.size();
+    if (seqlen_padding_factor_ > 1) {
+      num_tokens = (offset + num_tokens + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
+                   seqlen_padding_factor_;
+    }
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
     NDArray token_ids_nd;
@@ -86,8 +91,11 @@ class ModelImpl : public ModelObj {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
       token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
       int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
-      for (int i = 0; i < num_tokens; ++i) {
+      for (int i = 0; i < static_cast<int>(token_ids.size()); ++i) {
         p_token_ids[i] = token_ids[i];
+      }
+      for (int i = static_cast<int>(token_ids.size()); i < num_tokens; ++i) {
+        p_token_ids[i] = 0;
       }
     }
     ICHECK_EQ(token_ids_nd->ndim, 1);
@@ -236,6 +244,11 @@ class ModelImpl : public ModelObj {
       total_length += lengths[i];
       p_logit_pos[i] = total_length - 1;
     }
+    bool padded = total_length % seqlen_padding_factor_ != 0;
+    if (padded) {
+      total_length = (total_length + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
+                     seqlen_padding_factor_;
+    }
     NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
                                " total_len=" + std::to_string(total_length));
     NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
@@ -295,7 +308,7 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef ret;
-    if (seq_ids.size() == 1) {
+    if (seq_ids.size() == 1 && !padded) {
       ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     } else {
       ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_)
@@ -1073,6 +1086,7 @@ class ModelImpl : public ModelObj {
   DLDataType hidden_states_dtype_;
   int vocab_size_ = -1;
   int image_embed_size_ = -1;
+  int seqlen_padding_factor_ = 1;
   std::string model_type_;
   //----------------------------
   // TVM related states
