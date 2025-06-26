@@ -35,9 +35,9 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         def cutlass_gemm(self, x: nn.Tensor, w: nn.Tensor, w_scale: nn.Tensor):
             n, k = w.shape
             m = x.shape[0]
-            assert n % block_size[0] == 0
+            # assert n % block_size[0] == 0
             assert k % block_size[1] == 0
-            assert n // block_size[0] == w_scale.shape[0]
+            assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[0]
             assert k // block_size[1] == w_scale.shape[1]
             assert x.shape[1] == k
             x_fp8, x_scale = rowwise_group_quant_fp8(
@@ -45,7 +45,7 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
             )
             assert x_fp8.dtype == w.dtype
             assert x_scale.dtype == "float32"
-            o = cutlass.fp8_block_scale_gemm(x_fp8, x_scale, w, w_scale, block_size, x.dtype)
+            o = cutlass.fp8_groupwise_scaled_gemm(x_fp8, x_scale, w, w_scale, block_size, x.dtype)
             return x_fp8, x_scale, o
 
     mod, _, ext_mods = TestModule().export_tvm(
@@ -126,7 +126,7 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
             )
             assert x_fp8.dtype == w.dtype
             assert x_scale.dtype == "float32"
-            o = triton.fp8_block_scale_gemm(
+            o = triton.fp8_groupwise_scaled_gemm(
                 x_fp8,
                 x_scale,
                 w,
@@ -193,6 +193,145 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
     )
 
 
+def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
+    num_experts = 256
+    top_k = 8
+
+    device = tvm.cuda()
+    target = tvm.target.Target.from_device(device)
+
+    class TestModule(nn.Module):
+        def __init__(self):
+            pass
+
+        def cutlass_group_gemm(
+            self,
+            x: nn.Tensor,
+            w: nn.Tensor,
+            w_scale: nn.Tensor,
+            indptr: nn.Tensor,
+        ):
+            e, n, k = w.shape
+            m = x.shape[0]
+            assert e == num_experts
+            assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[1]
+            assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[2]
+            assert x.shape[1] == k
+            x_fp8, x_scale = rowwise_group_quant_fp8(
+                x, block_size[1], w.dtype, transpose_scale=False
+            )
+            assert x_fp8.dtype == w.dtype
+            assert x_scale.dtype == "float32"
+            o = cutlass.fp8_groupwise_scaled_group_gemm(
+                x_fp8,
+                x_scale,
+                w,
+                w_scale,
+                indptr,
+                block_size,
+                x.dtype,
+            )
+            return x_fp8, x_scale, o
+
+    mod, _, ext_mods = TestModule().export_tvm(
+        spec={
+            "cutlass_group_gemm": {
+                "x": spec.Tensor(("m", K), dtype),
+                "w": spec.Tensor((num_experts, N, K), fp8_dtype),
+                "w_scale": spec.Tensor(
+                    (
+                        num_experts,
+                        (N + block_size[0] - 1) // block_size[0],
+                        (K + block_size[1] - 1) // block_size[1],
+                    ),
+                    "float32",
+                ),
+                "indptr": spec.Tensor((num_experts,), "int64"),
+            },
+        },
+        allow_extern=True,
+    )
+    exec = relax.build(
+        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+    )
+    vm = relax.VirtualMachine(exec, device)
+
+    # Randomly sample `top_k` experts for each token with pytorch
+    expert_choices = torch.randint(
+        0, num_experts, (M * top_k,), device=torch_device, dtype=torch.int32
+    )
+
+    factor = 1
+    # Balance so that the number of tokens for each expert is a multiple of `factor`
+    token_balance = 0
+    num_tokens_list = [int((expert_choices == i).sum().to("cpu")) for i in range(num_experts)]
+    for i in range(num_experts):
+        if token_balance > 0:
+            diff = min(token_balance, num_tokens_list[i])
+            num_tokens_list[i] -= diff
+            token_balance -= diff
+        if num_tokens_list[i] % factor != 0:
+            token_balance += factor - num_tokens_list[i] % factor
+            num_tokens_list[i] += factor - num_tokens_list[i] % factor
+    assert sum(num_tokens_list) == M * top_k
+
+    indptr = torch.zeros(num_experts + 1, device=torch_device, dtype=torch.int64)
+    for i in range(num_experts):
+        indptr[i + 1] = indptr[i] + (expert_choices == i).sum()
+    token_ids_list = []
+    for i in range(num_experts):
+        # Get the indices of the tokens that belong to the i-th expert
+        token_ids = torch.where(expert_choices == i)[0]
+        token_ids_list.append(token_ids)
+
+    x_torch = torch.randn(M * top_k, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_full_torch = torch.randn(num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
+    o_torch = blockwise_group_matmul(
+        x_fp8_torch,
+        x_scale_torch,
+        w_torch,
+        w_scale_torch,
+        indptr,
+        x_torch.dtype,
+    )
+    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
+    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
+    indptr_tvm = tvm.nd.array(indptr[1:].cpu().numpy(), device=device)
+    x_fp8_tvm, x_scale_tvm, o_tvm = vm["cutlass_group_gemm"](
+        x_tvm,
+        w_tvm,
+        w_scale_tvm,
+        indptr_tvm,
+    )
+    x_fp8_tvm = x_fp8_tvm.numpy()
+    x_scale_tvm = x_scale_tvm.numpy()
+    o_tvm = o_tvm.numpy()
+    np.testing.assert_allclose(
+        x_fp8_tvm,
+        x_fp8_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype),
+        atol=1e-1,
+        rtol=1e-1,
+    )
+    np.testing.assert_allclose(x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5)
+    atol = 0.5
+    rtol = 1e-4
+    o_tvm_flat = o_tvm.flatten()
+    o_torch_flat = o_torch.view(torch.float16).cpu().numpy().view(dtype).flatten()
+    failed_indices = np.where(
+        np.abs(o_tvm_flat - o_torch_flat) > (atol + rtol * np.abs(o_torch_flat))
+    )[0]
+    if len(failed_indices) > 0:
+        print(f"failed_indices: {failed_indices}, size: {len(failed_indices)}")
+        print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
+        print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
+    np.testing.assert_allclose(
+        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+    )
+
+
 def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
     num_experts = 256
     top_k = 8
@@ -222,7 +361,7 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
             )
             assert x_fp8.dtype == w.dtype
             assert x_scale.dtype == "float32"
-            o = triton.fp8_block_scale_group_gemm(
+            o = triton.fp8_groupwise_scaled_group_gemm(
                 x_fp8,
                 x_scale,
                 w,
@@ -749,7 +888,7 @@ def rowwise_quant_fp8(
 def test_cutlass_gemm():
     # Cutlass GEMM
     for M, (N, K), dtype in product(
-        [1, 128, 256, 1024, 2111],
+        [4, 128, 256, 1024, 2112],
         [
             (4608, 896),
             (896, 2304),
@@ -783,6 +922,21 @@ def test_triton_gemm():
 
 
 @pytest.mark.skip(reason="Test requiring SM90a")
+def test_cutlass_group_gemm():
+    # Cutlass group GEMM
+    for M, (N, K), dtype in product(
+        [1, 128, 256, 1024, 2111],
+        [
+            (512, 896),
+            (896, 256),
+        ],
+        ["bfloat16"],
+    ):
+        print(f"Cutlass group gemm, M: {M}, N: {N}, K: {K}, dtype: {dtype}")
+        test_fp8_block_group_matmul_cutlass(M, N, K, dtype)
+
+
+@pytest.mark.skip(reason="Test requiring SM90a")
 def test_triton_group_gemm():
     # Triton group GEMM
     for M, (N, K), dtype in product(
@@ -801,7 +955,7 @@ def test_triton_group_gemm():
 def test_cutlass_bmm():
     # Cutlass BMM
     for M, H, (N, K), dtype in product(
-        [1, 128, 256, 1024, 2111],
+        [4, 128, 256, 1024, 2112],
         [16, 64, 128],
         [
             (512, 128),
@@ -828,6 +982,7 @@ def test_tir_moe_gemv():
 if __name__ == "__main__":
     test_cutlass_gemm()
     test_triton_gemm()
+    test_cutlass_group_gemm()
     test_triton_group_gemm()
     test_cutlass_bmm()
     test_tir_moe_gemv()

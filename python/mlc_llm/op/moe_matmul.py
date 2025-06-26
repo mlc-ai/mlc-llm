@@ -317,15 +317,19 @@ def dequantize_block_scale_float8_gemv(
     w : Tensor
         The quantized weight tensor of shape (local_experts, out_features, in_features)
 
-    scale : Optional[Tensor]
-        The optional scale tensor of shape (1,)
+    w_scale : Tensor
+        The scale tensor of shape
+        (local_experts, out_features // block_size[0], in_features // block_size[1])
 
     indptr : Tensor
         The index pointer tensor of shape (1, experts_per_tok), where `experts_per_tok` is the
         number of activated experts per token.
 
-    quantize_dtype : Literal["float8_e5m2", "float8_e4m3fn"]
-        The quantize dtype of the weight tensor, which is either float8_e5m2 or float8_e4m3fn.
+    block_size : Tuple[int, int]
+        The block size of the weight tensor.
+
+    out_dtype : str
+        The output dtype of the GEMV computation.
     """
     x_leading_dim, in_features = x.shape
     local_experts, out_features, k = w.shape

@@ -39,4 +39,6 @@ def quantized_bmm(
     x_fp8, x_scale = rowwise_group_quant_fp8(
         x, block_size[1], w.dtype, transpose_scale=True, keep_first_batch_dim=True
     )
-    return cutlass.fp8_block_scale_bmm(x_fp8, x_scale, w, w_scale, block_size, out_dtype=x.dtype)
+    return cutlass.fp8_groupwise_scaled_bmm(
+        x_fp8, x_scale, w, w_scale, block_size, out_dtype=x.dtype
+    )

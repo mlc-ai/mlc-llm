@@ -471,12 +471,10 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             expert_weights = expert_weights / denominator
         expert_weights = expert_weights * self.routed_scaling_factor
 
-        use_ft = (
-            (op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer)
-            and self.dtype == "float16"
-            and type(self.moe_gate_up_proj)  # pylint: disable=unidiomatic-typecheck
-            is MixtralExperts
-        )
+        use_cutlass = op_ext.get_store().cutlass_group_gemm and self.dtype in [
+            "float16",
+            "bfloat16",
+        ]
 
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
@@ -486,7 +484,7 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, num_experts)
             # indices: [num_tokens * experts_per_tok]
             reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
-            if use_ft:
+            if use_cutlass:
                 # indptr: [num_routed_experts]
                 indptr = op_ext.moe_misc.get_indptr(
                     cumsum, num_experts, num_tokens, inclusive=True, out_dtype="int64"
