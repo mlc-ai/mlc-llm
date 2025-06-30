@@ -92,6 +92,7 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.head_dim * self.num_attention_heads == self.hidden_size
         assert self.num_attention_heads % self.num_key_value_heads == 0
 
+
 # pylint: disable=invalid-name,missing-docstring
 
 
