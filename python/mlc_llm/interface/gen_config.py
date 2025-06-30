@@ -299,6 +299,7 @@ CONV_TEMPLATES = {
     "phi-2",
     "phi-3",
     "phi-3-vision",
+    "phi-4",
     "stablelm-2",
     "gemma_instruction",
     "orion",

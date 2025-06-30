@@ -40,6 +40,8 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     head_dim: int = 0
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
+    tie_word_embeddings: bool = False
+    partial_rotary_factor: float = 1.0
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -90,8 +92,18 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
         assert self.head_dim * self.num_attention_heads == self.hidden_size
         assert self.num_attention_heads % self.num_key_value_heads == 0
 
-
 # pylint: disable=invalid-name,missing-docstring
+
+
+class Phi3Embedding(nn.Embedding):
+    """The embedding module that can be shared with the final lm_head."""
+
+    def lm_head_forward(self, x: nn.Tensor):
+        """The lm_head forwarding, which transposes the weight and multiplies
+        with the input tensor.
+        """
+        weight = nn.op.permute_dims(self.weight)
+        return nn.op.matmul(x, weight, out_dtype="float32")
 
 
 class Phi3MLP(nn.Module):
@@ -195,7 +207,7 @@ class Phi3ParallelBlock(nn.Module):
 class Phi3Model(nn.Module):
     def __init__(self, config: Phi3Config) -> None:
         super().__init__()
-        self.embd = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embd = Phi3Embedding(config.vocab_size, config.hidden_size)
         self.h = nn.ModuleList([Phi3ParallelBlock(config) for _ in range(config.num_hidden_layers)])
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
 
@@ -213,7 +225,9 @@ class Phi3ForCausalLM(nn.Module):
         super().__init__()
 
         self.transformer = Phi3Model(config)
-        self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
+        self.tie_word_embeddings = config.tie_word_embeddings
+        if not config.tie_word_embeddings:
+            self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -226,12 +240,23 @@ class Phi3ForCausalLM(nn.Module):
             config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
         )
         self.tensor_parallel_shards = config.tensor_parallel_shards
+        self.partial_rotary_factor = config.partial_rotary_factor
         self.dtype = "float32"
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
         if dtype is not None:
             self.dtype = dtype
+
+    def get_logits(self, hidden_states: Tensor):
+        op_ext.configure()
+        if self.tie_word_embeddings:
+            logits = self.transformer.embd.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
 
     def batch_forward(
         self,
@@ -244,10 +269,7 @@ class Phi3ForCausalLM(nn.Module):
         hidden_states = self.transformer(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        lm_logits = self.lm_head(hidden_states)
-        if lm_logits.dtype != "float32":
-            lm_logits = lm_logits.astype("float32")
-        return lm_logits
+        return self.get_logits(hidden_states)
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
@@ -258,20 +280,14 @@ class Phi3ForCausalLM(nn.Module):
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
+        logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
     def batch_prefill(
@@ -321,6 +337,7 @@ class Phi3ForCausalLM(nn.Module):
             rope_scale=1,
             rope_theta=self.rope_theta,
             rope_ext_factors=self.rope_ext_factors,
+            rotary_dim=int(self.head_dim * self.partial_rotary_factor),
             dtype=self.dtype,
         )
 

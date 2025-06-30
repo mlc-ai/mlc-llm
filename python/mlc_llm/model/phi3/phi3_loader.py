@@ -48,7 +48,9 @@ def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> Ex
             ),
         )
 
-    _add("lm_head.weight", "lm_head.weight")
+    # Skip lm_head.weight if tie_word_embeddings is enabled
+    if not getattr(model_config, 'tie_word_embeddings', False):
+        _add("lm_head.weight", "lm_head.weight")
     _add("transformer.norm.weight", "model.norm.weight")
     _add("transformer.embd.weight", "model.embed_tokens.weight")
 
