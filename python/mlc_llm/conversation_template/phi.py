@@ -51,3 +51,20 @@ ConvTemplateRegistry.register_conv_template(
         stop_token_ids=[2, 32000, 32001, 32007],
     )
 )
+
+# Phi-4
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="phi-4",
+        system_template=f"<|system|>\n{MessagePlaceholders.SYSTEM.value}",
+        system_message="You are a helpful digital assistant. Please provide safe, "
+        "ethical and accurate information to the user.",
+        roles={"user": "<|user|>", "assistant": "<|assistant|>"},
+        seps=["<|end|>\n"],
+        role_content_sep="\n",
+        role_empty_sep="\n",
+        system_prefix_token_ids=[200022],  # <|system|>
+        stop_str=["<|endoftext|>", "<|end|>"],
+        stop_token_ids=[199999, 200020],  # <|endoftext|>, <|end|>
+    )
+)
