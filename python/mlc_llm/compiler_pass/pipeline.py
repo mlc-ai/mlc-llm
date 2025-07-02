@@ -41,6 +41,7 @@ from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .low_batch_specialization import LowBatchGemvSpecialize
 from .pipeline_parallel_rewrite import PipelineParallelRewrite
 from .scatter_tuple_get_item import ScatterTupleGetItem
+from ..relax_pass import make_lora_inject_pass
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
+                make_lora_inject_pass(metadata.get("LoRASeparate", False)),
                 DispatchTritonKernel(target),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),

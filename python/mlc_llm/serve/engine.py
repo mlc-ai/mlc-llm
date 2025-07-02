@@ -903,6 +903,25 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         )
         self.chat = AsyncChat(weakref.ref(self))
         self.completions = AsyncCompletion(weakref.ref(self))
+<<<<<<< Updated upstream
+=======
+        # Upload LoRA adapters – two modes:
+        # 1. Separate artifacts recorded in metadata (preferred).
+        # 2. Explicit list from engine_config (legacy / tests).
+
+        try:
+            meta = self.param_cache.metadata  # type: ignore[attr-defined]
+        except AttributeError:
+            meta = {}
+
+        if meta.get("LoRASeparate"):
+            base = Path(self.cache_dir)
+            for rel_path in meta.get("LoRAPaths", []):
+                upload_lora(base / rel_path, device=self.device)
+        else:
+            for d in getattr(engine_config, "lora_dirs", []):
+                upload_lora(d, device=self.device)
+>>>>>>> Stashed changes
 
     async def abort(self, request_id: str) -> None:
         """Generation abortion interface.
@@ -1474,6 +1493,25 @@ class MLCEngine(engine_base.MLCEngineBase):
         )
         self.chat = Chat(weakref.ref(self))
         self.completions = Completion(weakref.ref(self))
+<<<<<<< Updated upstream
+=======
+        # Upload LoRA adapters – two modes:
+        # 1. Separate artifacts recorded in metadata (preferred).
+        # 2. Explicit list from engine_config (legacy / tests).
+
+        try:
+            meta = self.param_cache.metadata  # type: ignore[attr-defined]
+        except AttributeError:
+            meta = {}
+
+        if meta.get("LoRASeparate"):
+            base = Path(self.cache_dir)
+            for rel_path in meta.get("LoRAPaths", []):
+                upload_lora(base / rel_path, device=self.device)
+        else:
+            for d in getattr(engine_config, "lora_dirs", []):
+                upload_lora(d, device=self.device)
+>>>>>>> Stashed changes
 
     def abort(self, request_id: str) -> None:
         """Generation abortion interface.
