@@ -78,7 +78,8 @@ add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 set(MLC_LLM_INCLUDES
     ${TVM_SOURCE_DIR}/include ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
     ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
-    ${TVM_SOURCE_DIR}/3rdparty/picojson)
+    ${TVM_SOURCE_DIR}/3rdparty/picojson
+    ${CMAKE_BINARY_DIR}/tvm/include)
 
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS}
                          DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
