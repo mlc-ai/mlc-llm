@@ -132,6 +132,9 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
 
     verbose : bool
         A boolean indicating whether to print logging info in engine.
+    
+    lora_dirs : List[str]
+        List of directories containing LoRA adapters to load.
     """
 
     model: Optional[str] = None
@@ -158,6 +161,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
     prefix_cache_max_num_recycling_seqs: Optional[int] = None
     prefill_mode: Literal["chunked", "hybrid"] = "hybrid"
     verbose: bool = True
+    lora_dirs: List[str] = field(default_factory=list)
 
     def asjson(self) -> str:
         """Return the config in string of JSON format."""
