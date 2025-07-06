@@ -25,6 +25,7 @@ from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
+from .llama4 import llama4_loader, llama4_model, llama4_quantization
 from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
@@ -104,6 +105,23 @@ MODELS: Dict[str, Model] = {
             "ft-quant": llama_quantization.ft_quant,
             "awq": llama_quantization.awq_quant,
             "per-tensor-quant": llama_quantization.per_tensor_quant,
+        },
+    ),
+    "llama4": Model(
+        name="llama4",
+        model=llama4_model.Llama4ForCausalLM,
+        config=llama4_model.Llama4TextConfig,
+        source={
+            "huggingface-torch": llama4_loader.huggingface,
+            "huggingface-safetensor": llama4_loader.huggingface,
+            "awq": llama4_loader.awq,
+        },
+        quantize={
+            "no-quant": llama4_quantization.no_quant,
+            "group-quant": llama4_quantization.group_quant,
+            "ft-quant": llama4_quantization.ft_quant,
+            "awq": llama4_quantization.awq_quant,
+            "per-tensor-quant": llama4_quantization.per_tensor_quant,
         },
     ),
     "mistral": Model(
