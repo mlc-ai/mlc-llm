@@ -50,7 +50,9 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     dtype.bits = promote_to_fp32 ? 32 : (arr.word_size == 4 ? 32 : 64);
 
     // Shape tuple
-    tvm::runtime::ShapeTuple shape(arr.shape.begin(), arr.shape.end());
+    std::vector<int64_t> shape_vec;
+    for (auto d : arr.shape) shape_vec.push_back(static_cast<int64_t>(d));
+    tvm::runtime::Shape shape(shape_vec);
     size_t numel = 1;
     for (auto d : arr.shape) numel *= d;
 
