@@ -1,119 +1,120 @@
-"""LoRA runtime/compile-time manager (Python side).
+"""LoRA (Low-Rank Adaptation) module with proper library loading."""
 
-This file provides a single public helper ``set_lora`` used by the compile
-and runtime entry-points to inform the rest of the python stack where LoRA
-adapters live on the file-system.
-
-For the first iteration the function only records the paths and exposes
-them through a getter so that:
-
-1. The compile pipeline can embed the information in the metadata of the
-   generated package (``enable_lora=true`` and the list of adapters).
-2. The server/runtime can later pick the information up and upload the
-   adapter(s) via FFI.
-
-The heavy-lifting (segment-gemm kernels, C++ LoraManager, etc.) will be
-added later – this just lays the plumbing.
-"""
-from __future__ import annotations
-
+import os
+import ctypes
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
+
 import tvm
+from tvm.runtime import Device
 
+# Global variables for registered LoRA directories
+_registered_lora_dirs: List[str] = []
 
-# ---------------------------------------------------------------------------
-# _GLOBAL_REGISTRY – simple process-wide storage
-# ---------------------------------------------------------------------------
+def _ensure_library_loaded():
+    """Ensure the MLC-LLM library is loaded so TVM FFI functions are available."""
+    try:
+        # Find the compiled library
+        possible_paths = [
+            "/content/mlc-llm/build/libmlc_llm_module.so",
+            "/content/mlc-llm/build/libmlc_llm.so",
+            "./build/libmlc_llm_module.so",
+            "./build/libmlc_llm.so",
+        ]
+        
+        for lib_path in possible_paths:
+            if os.path.exists(lib_path):
+                print(f"Loading MLC-LLM library: {lib_path}")
+                # Load the library to register TVM FFI functions
+                ctypes.CDLL(lib_path, mode=ctypes.RTLD_GLOBAL)
+                print("✓ MLC-LLM library loaded successfully")
+                return True
+                
+        print("✗ No MLC-LLM library found")
+        return False
+        
+    except Exception as e:
+        print(f"✗ Failed to load MLC-LLM library: {e}")
+        return False
 
-_LORA_DIRS: List[Path] = []
-_UPLOAD_FUNC = None  # cached global func
-_SET_DEVICE_FUNC = None  # cached global func
-_INITIALISED_DEVICE = False
-_LOADED_ADAPTERS: set[str] = set()
+def _resolve_funcs():
+    """Resolve TVM FFI functions for LoRA operations."""
+    # Ensure library is loaded first
+    _ensure_library_loaded()
+    
+    # Try to get the functions
+    upload_func = tvm.get_global_func("mlc.serve.UploadLora", allow_missing=True)
+    get_delta_func = tvm.get_global_func("mlc.get_lora_delta", allow_missing=True)
+    set_device_func = tvm.get_global_func("mlc.set_active_device", allow_missing=True)
+    
+    if upload_func is None:
+        raise RuntimeError("UploadLora FFI symbol not found in TVM runtime.")
+    if get_delta_func is None:
+        raise RuntimeError("get_lora_delta FFI symbol not found in TVM runtime.")
+    if set_device_func is None:
+        raise RuntimeError("set_active_device FFI symbol not found in TVM runtime.")
+        
+    return upload_func, get_delta_func, set_device_func
 
-
-# Public exports for this module – will be extended below.
-__all__: list[str] = [
-    "set_lora",
-    "get_registered_lora_dirs",
-]
-
-
-def set_lora(lora_dirs: Optional[List[Path]] = None) -> None:  # noqa: D401 – not property
-    """Register LoRA adapter directories for the current process.
-
-    Parameters
-    ----------
-    lora_dirs : list[Path] or None
-        Paths that contain LoRA adapters (each directory must contain a
-        ``lora_manifest.json``).  If *None* or empty, LoRA support is
-        considered disabled.
+def upload_lora(
+    adapter_path: Union[str, Path],
+    device: Optional[Device] = None,
+    alpha: float = 1.0
+) -> None:
+    """Upload a LoRA adapter for use in inference.
+    
+    Args:
+        adapter_path: Path to the LoRA adapter (.npz file)
+        device: Target device for LoRA operations
+        alpha: Scaling factor for LoRA deltas
     """
+    if device is None:
+        device = tvm.cpu(0)
+        
+    print(f"Uploading LoRA adapter: {adapter_path}")
+    print(f"Device: {device}, Alpha: {alpha}")
+    
+    # Resolve FFI functions
+    upload_func, _, set_device_func = _resolve_funcs()
+    
+    # Set the active device
+    set_device_func(device.device_type, device.device_id)
+    
+    # Upload the adapter
+    upload_func(str(adapter_path))
+    
+    print("✓ LoRA adapter uploaded successfully")
 
-    global _LORA_DIRS  # noqa: WPS420 – deliberate global state
-
-    if lora_dirs is None:
-        _LORA_DIRS = []
-    else:
-        _LORA_DIRS = [Path(p).expanduser().resolve() for p in lora_dirs]
-
-
-def get_registered_lora_dirs() -> List[Path]:
-    """Return the list of LoRA adapters currently registered."""
-
-    return _LORA_DIRS.copy()
-
-
-def _resolve_funcs() -> None:
-    """Resolve and cache the required TVM PackedFuncs."""
-
-    global _UPLOAD_FUNC, _SET_DEVICE_FUNC  # noqa: WPS420
-
-    if _UPLOAD_FUNC is None:
-        _UPLOAD_FUNC = tvm.get_global_func("mlc.serve.UploadLora", allow_missing=True)
-        if _UPLOAD_FUNC is None:  # pragma: no cover
-            raise RuntimeError("UploadLora FFI symbol not found in TVM runtime.")
-
-    if _SET_DEVICE_FUNC is None:
-        _SET_DEVICE_FUNC = tvm.get_global_func("mlc.set_active_device", allow_missing=True)
-        if _SET_DEVICE_FUNC is None:  # pragma: no cover
-            raise RuntimeError("set_active_device FFI symbol not found in TVM runtime.")
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def upload_lora(adapter_path: Path | str, *, device=None) -> None:  # type: ignore[override]
-    """Load a LoRA adapter (.npz) at runtime and push to the active device.
-
-    Parameters
-    ----------
-    adapter_path : str or Path
-        Path to the ``.npz`` file containing LoRA delta tensors.
-    device : tvm.runtime.Device, optional
-        Target device for the tensors.  If *None*, we default to CPU(0).
+def get_lora_delta(param_name: str):
+    """Get LoRA delta tensor for a parameter.
+    
+    Args:
+        param_name: Name of the parameter to get delta for
+        
+    Returns:
+        TVM NDArray containing the LoRA delta
     """
+    _, get_delta_func, _ = _resolve_funcs()
+    return get_delta_func(param_name)
 
-    from tvm import runtime as _rt  # local import to avoid circular deps
+def set_lora(adapter_path: Union[str, Path], device: Optional[Device] = None):
+    """Set active LoRA adapter (alias for upload_lora)."""
+    upload_lora(adapter_path, device)
 
-    _resolve_funcs()
+def get_registered_lora_dirs() -> List[str]:
+    """Get list of registered LoRA directories."""
+    return _registered_lora_dirs.copy()
 
-    path = str(Path(adapter_path).expanduser().resolve())
-    if path in _LOADED_ADAPTERS:
-        return  # already loaded in this process
+def register_lora_dir(directory: Union[str, Path]) -> None:
+    """Register a directory containing LoRA adapters."""
+    dir_str = str(directory)
+    if dir_str not in _registered_lora_dirs:
+        _registered_lora_dirs.append(dir_str)
+        print(f"✓ Registered LoRA directory: {dir_str}")
 
-    global _INITIALISED_DEVICE  # noqa: WPS420
-    if not _INITIALISED_DEVICE:
-        if device is None:
-            device = _rt.cpu(0)
-        _SET_DEVICE_FUNC(int(device.device_type), int(device.device_id))
-        _INITIALISED_DEVICE = True
-
-    _UPLOAD_FUNC(path)
-    _LOADED_ADAPTERS.add(path)
-
-
-__all__.append("upload_lora") 
+def clear_lora_registrations() -> None:
+    """Clear all registered LoRA directories."""
+    global _registered_lora_dirs
+    count = len(_registered_lora_dirs)
+    _registered_lora_dirs.clear()
+    print(f"✓ Cleared {count} LoRA registrations") 

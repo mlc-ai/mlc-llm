@@ -32,7 +32,18 @@ def make_lora_inject_pass(enabled: bool) -> ir.transform.Pass:
     """Return a FunctionPass that injects LoRA deltas when *enabled* is True."""
 
     if not enabled:
-        return relax.transform.Identity()
+        # Create a no-op pass if Identity doesn't exist
+        try:
+            return relax.transform.Identity()
+        except AttributeError:
+            # Fallback: create a pass that does nothing
+            def _identity_transform(func: relax.Function, _mod: ir.IRModule, _ctx):
+                return func
+            return relax.transform.FunctionPass(
+                _identity_transform,
+                opt_level=0,
+                name="IdentityLoRAPass",
+            )
 
     def _transform(func: relax.Function, _mod: ir.IRModule, _ctx):  # pylint: disable=unused-argument
         return _LoraInjectMutator().visit_expr(func)  # type: ignore[arg-type]

@@ -6,7 +6,8 @@
 #include <vector>
 #include <sstream>
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/device_api.h>
 #include "serve/lora_manager.h"
 #include "3rdparty/cnpy/cnpy.h"
 
@@ -93,13 +94,13 @@ TEST(LoraLoaderTest, LoadAndFetchDelta) {
   // Manifest scaling (alpha=2.0) – simple JSON
   std::ofstream(temp_dir / "adapter.npz.json") << "{\"delta.w.npy\": 2.0}";
 
-  // Set runtime device to CPU
-  tvm::runtime::Registry::Get("mlc.set_active_device")->operator()(kDLCPU, 0);
+  // Set runtime device to CPU using direct LoraManager call
+  LoraManager::Global()->SetDevice(kDLCPU, 0);
 
   // Upload adapter
   LoraManager::Global()->UploadAdapter(npz_path.string(), /*alpha=*/1.0f);
 
-  // Fetch
+  // Fetch directly through LoraManager
   tvm::runtime::NDArray arr = LoraManager::Global()->Lookup("delta.w.npy");
   ASSERT_TRUE(arr.defined());
   EXPECT_EQ(arr->dtype.bits, 32);
@@ -111,6 +112,9 @@ TEST(LoraLoaderTest, LoadAndFetchDelta) {
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_FLOAT_EQ(ptr[i], data[i] * 2.0f);
   }
+
+  // Clean up
+  std::filesystem::remove_all(temp_dir);
 }
 
 }  // namespace 

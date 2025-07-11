@@ -1,7 +1,8 @@
-#include "serve/lora_manager.h"
+#include "lora_manager.h"
 
 #include <mutex>
 #include <fstream>
+#include <iostream>
 #include "3rdparty/cnpy/cnpy.h"
 
 #include <regex>
@@ -20,6 +21,8 @@ LoraManager* LoraManager::Global() {
 }
 
 void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha) {
+  std::cout << "UploadAdapter called with: " << adapter_npz_path << ", alpha=" << alpha << std::endl;
+  
   // Load manifest JSON (same dir, same base + .json) to grab layer names if present.
   std::string manifest_path = adapter_npz_path + ".json";
   std::unordered_map<std::string, float> scaling_map;  // full_param_name -> scaling
@@ -33,15 +36,26 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
       std::string k = (*it)[1].str();
       float v = std::stof((*it)[2].str());
       scaling_map[k] = v;
+      std::cout << "Loaded scaling factor: " << k << " = " << v << std::endl;
     }
   }
 
   // Load every array in the .npz file via cnpy.
+  std::cout << "Loading NPZ file: " << adapter_npz_path << std::endl;
   std::map<std::string, cnpy::NpyArray> arrays = cnpy::npz_load(adapter_npz_path);
+  std::cout << "Loaded NPZ file: " << adapter_npz_path << " (placeholder implementation)" << std::endl;
+  
   tvm::Device cpu_dev{kDLCPU, 0};
   for (const auto& kv : arrays) {
     const std::string& name = kv.first;  // e.g., "decoder.layers.0.mlp.w1.delta"
     const cnpy::NpyArray& arr = kv.second;
+
+    std::cout << "Loaded LoRA delta: " << name << " with shape [";
+    for (size_t i = 0; i < arr.shape.size(); ++i) {
+      std::cout << arr.shape[i];
+      if (i < arr.shape.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
 
     bool promote_to_fp32 = (arr.word_size == 2);
     DLDataType dtype;
@@ -131,14 +145,25 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     // safe to do now.
     owned_buffers_.push_back(arr.data_holder);
   }
+  
+  std::cout << "LoRA adapter upload completed. Total deltas: " << delta_map_.size() << std::endl;
 }
 
 tvm::runtime::NDArray LoraManager::Lookup(const std::string& param_name) const {
+  std::cout << "LoRA: GetLoraDelta called with: " << param_name << std::endl;
   auto it = delta_map_.find(param_name);
   if (it != delta_map_.end()) {
+    std::cout << "LoRA: Found delta tensor with shape: [";
+    for (int i = 0; i < it->second->ndim; ++i) {
+      std::cout << it->second->shape[i];
+      if (i < it->second->ndim - 1) std::cout << ", ";
+    }
+    std::cout << "]" << std::endl;
     return it->second;
+  } else {
+    std::cout << "LoRA: No delta found for: " << param_name << std::endl;
+    return tvm::runtime::NDArray();  // undefined if not present.
   }
-  return tvm::runtime::NDArray();  // undefined if not present.
 }
 
 }  // namespace mlc::serve 

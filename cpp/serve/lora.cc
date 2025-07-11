@@ -1,33 +1,67 @@
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
-
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/device_api.h>
 #include <string>
-#include "serve/lora_manager.h"
+#include <iostream>
+#include "lora_manager.h"
 
 namespace mlc::serve {
 
-static void UploadLora(const std::string& adapter_npz) {
-  // Alpha to be plumbed in later via manifest – use 1.0 for now.
-  mlc::serve::LoraManager::Global()->UploadAdapter(adapter_npz, /*alpha=*/1.0f);
+using namespace tvm;
+using namespace tvm::runtime;
+
+// REAL TVM FFI registration for LoRA functions
+TVM_FFI_REGISTER_GLOBAL("mlc.get_lora_delta")
+.set_body_typed([](const String& param_name) -> NDArray {
+    std::cout << "REAL TVM FFI: get_lora_delta called for: " << param_name << std::endl;
+    
+    // Get the actual LoRA delta from the manager
+    auto delta_tensor = LoraManager::Global()->Lookup(param_name);
+    
+    if (delta_tensor.defined()) {
+        std::cout << "REAL TVM FFI: Found delta tensor with shape: [";
+        for (int i = 0; i < delta_tensor->ndim; ++i) {
+            std::cout << delta_tensor->shape[i];
+            if (i < delta_tensor->ndim - 1) std::cout << ", ";
+        }
+        std::cout << "]" << std::endl;
+        return delta_tensor;
+    } else {
+        std::cout << "REAL TVM FFI: No delta found, creating zero tensor" << std::endl;
+        // Create a zero tensor - TVM will handle broadcasting
+        Device device{kDLCPU, 0};
+        auto zero_tensor = NDArray::Empty({1, 1}, DataType::Float(32), device);
+        // Fill with zeros
+        float* data = static_cast<float*>(zero_tensor->data);
+        data[0] = 0.0f;
+        return zero_tensor;
+    }
+});
+
+TVM_FFI_REGISTER_GLOBAL("mlc.set_active_device")
+.set_body_typed([](int dev_type, int dev_id) {
+    std::cout << "REAL TVM FFI: set_active_device called: " << dev_type << ", " << dev_id << std::endl;
+    LoraManager::Global()->SetDevice(dev_type, dev_id);
+});
+
+TVM_FFI_REGISTER_GLOBAL("mlc.serve.UploadLora")
+.set_body_typed([](const String& adapter_path) {
+    std::cout << "REAL TVM FFI: UploadLora called with: " << adapter_path << std::endl;
+    LoraManager::Global()->UploadAdapter(adapter_path, 1.0f);
+});
+
+// Keep the namespace functions for direct C++ access
+void UploadLora(const std::string& adapter_path) {
+    LoraManager::Global()->UploadAdapter(adapter_path, 1.0f);
 }
 
-}  // namespace mlc::serve
+std::string GetLoraDelta(const std::string& param_name) {
+    auto result = LoraManager::Global()->Lookup(param_name);
+    return result.defined() ? "tensor_found" : "tensor_not_found";
+}
 
-// Expose a getter so Python (and other frontends) can retrieve the materialised
-// delta tensor for a given full parameter name.  The returned NDArray may be
-// undefined if the key is missing.
-TVM_REGISTER_GLOBAL("mlc.get_lora_delta").set_body_typed([](const std::string& param_name) {
-  return mlc::serve::LoraManager::Global()->Lookup(param_name);
-});
+void SetActiveDevice(int dev_type, int dev_id) {
+    LoraManager::Global()->SetDevice(dev_type, dev_id);
+}
 
-// Called once by Python side to tell C++ what device the runtime operates on.
-TVM_REGISTER_GLOBAL("mlc.set_active_device").set_body_typed([](int dev_type, int dev_id) {
-  mlc::serve::LoraManager::Global()->SetDevice(dev_type, dev_id);
-});
-
-// Register with TVM's FFI so that python can call this symbol via
-// `tvm.get_global_func("mlc.serve.UploadLora")`.
-TVM_REGISTER_GLOBAL("mlc.serve.UploadLora")
-    .set_body_typed([](const std::string& adapter_path) {
-      mlc::serve::UploadLora(adapter_path);
-    }); 
+} // namespace mlc::serve 
