@@ -10,17 +10,17 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .llama_model import Llama4TextConfig, Llama4ForCausalLM
-from .llama_quantization import awq_quant
+from .llama4_model import Llama4Config, Llama4ForCausalLM
+from .llama4_quantization import awq_quant
 
 
-def huggingface(model_config: Llama4TextConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(model_config: Llama4Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
     Parameters
     ----------
-    model_config : Llama4TextConfig
+    model_config : Llama4Config
         The configuration of the Llama model.
 
     quantization : Quantization
@@ -90,12 +90,12 @@ def huggingface(model_config: Llama4TextConfig, quantization: Quantization) -> E
     return mapping
 
 
-def awq(model_config: Llama4TextConfig, quantization: Quantization) -> ExternMapping:
+def awq(model_config: Llama4Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of AWQ parameters.
     Parameters
     ----------
-    model_config : Llama4TextConfig
+    model_config : Llama4Config
         The configuration of the Llama model.
 
     quantization : Quantization

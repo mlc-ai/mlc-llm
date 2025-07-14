@@ -14,11 +14,11 @@ from mlc_llm.quantization import (
     PerTensorQuantize,
 )
 
-from .llama4_model import Llama4TextConfig, Llama4ForCausalLM
+from .llama4_model import Llama4Config, Llama4ForCausalLM
 
 
 def group_quant(
-    model_config: Llama4TextConfig,
+    model_config: Llama4Config,
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using group quantization."""
@@ -35,7 +35,7 @@ def group_quant(
 
 
 def ft_quant(
-    model_config: Llama4TextConfig,
+    model_config: Llama4Config,
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using FasterTransformer quantization."""
@@ -51,7 +51,7 @@ def ft_quant(
 
 
 def awq_quant(
-    model_config: Llama4TextConfig,
+    model_config: Llama4Config,
     quantization: AWQQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using Activation-aware Weight Quantization(AWQ)."""
@@ -67,7 +67,7 @@ def awq_quant(
 
 
 def no_quant(
-    model_config: Llama4TextConfig,
+    model_config: Llama4Config,
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama2 model without quantization."""
@@ -78,7 +78,7 @@ def no_quant(
 
 
 def per_tensor_quant(
-    model_config: Llama4TextConfig,
+    model_config: Llama4Config,
     quantization: PerTensorQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llama-architecture model using per-tensor quantization."""
