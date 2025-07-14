@@ -110,7 +110,7 @@ MODELS: Dict[str, Model] = {
     "llama4": Model(
         name="llama4",
         model=llama4_model.Llama4ForCausalLM,
-        config=llama4_model.Llama4TextConfig,
+        config=llama4_model.Llama4Config,
         source={
             "huggingface-torch": llama4_loader.huggingface,
             "huggingface-safetensor": llama4_loader.huggingface,
