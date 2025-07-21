@@ -128,14 +128,14 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         model_type=model.name,
         quantization=quantization.name,
         model_config=model_config.asdict(),
-        vocab_size=model_config.vocab_size,
-        context_window_size=getattr(model_config, "context_window_size", -1),
-        sliding_window_size=getattr(model_config, "sliding_window_size", -1),
-        prefill_chunk_size=model_config.prefill_chunk_size,
-        attention_sink_size=getattr(model_config, "attention_sink_size", -1),
-        tensor_parallel_shards=model_config.tensor_parallel_shards,
-        pipeline_parallel_stages=getattr(model_config, "pipeline_parallel_stages", 1),
-        disaggregation=getattr(model_config, "disaggregation", False),
+        vocab_size=model_config.text_config.vocab_size,
+        context_window_size=getattr(model_config.text_config, "context_window_size", -1),
+        sliding_window_size=getattr(model_config.text_config, "sliding_window_size", -1),
+        prefill_chunk_size=model_config.text_config.prefill_chunk_size,
+        attention_sink_size=getattr(model_config.text_config, "attention_sink_size", -1),
+        tensor_parallel_shards=model_config.text_config.tensor_parallel_shards,
+        pipeline_parallel_stages=getattr(model_config.text_config, "pipeline_parallel_stages", 1),
+        disaggregation=getattr(model_config.text_config, "disaggregation", False),
         conv_template=conversation,  # type: ignore
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
@@ -262,6 +262,7 @@ TOKENIZER_FILES = [
 # FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
 
 CONV_TEMPLATES = {
+    "llama-4",
     "llama-3",
     "llama-3_1",
     "chatml",

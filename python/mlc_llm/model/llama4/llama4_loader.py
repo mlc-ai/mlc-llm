@@ -44,23 +44,23 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
 
     for i in range(model_config.text_config.num_hidden_layers):
         # Add QKV in self attention
-        attn = f"model.layers.{i}.self_attn"
-        mlc_name = f"{attn}.qkv_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        mapping.add_mapping(
-            mlc_name,
-            [
-                f"{attn}.q_proj.weight",
-                f"{attn}.k_proj.weight",
-                f"{attn}.v_proj.weight",
-            ],
-            functools.partial(
-                lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
-        )
-        # Add gates in MLP
-        mlp = f"model.layers.{i}.mlp"
+        # attn = f"model.layers.{i}.self_attn"
+        # mlc_name = f"{attn}.qkv_proj.weight"
+        # mlc_param = named_parameters[mlc_name]
+        # mapping.add_mapping(
+        #     mlc_name,
+        #     [
+        #         f"{attn}.q_proj.weight",
+        #         f"{attn}.k_proj.weight",
+        #         f"{attn}.v_proj.weight",
+        #     ],
+        #     functools.partial(
+        #         lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+        #         dtype=mlc_param.dtype,
+        #     ),
+        # )
+        # Add shared expert weights
+        mlp = f"model.layers.{i}.feed_forward.shared_expert"
         mlc_name = f"{mlp}.gate_up_proj.weight"
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
