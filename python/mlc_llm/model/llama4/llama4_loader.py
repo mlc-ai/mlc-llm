@@ -42,7 +42,7 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
 
     mapping = ExternMapping()
 
-    for i in range(model_config.num_hidden_layers):
+    for i in range(model_config.text_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
@@ -115,7 +115,7 @@ def awq(model_config: Llama4Config, quantization: Quantization) -> ExternMapping
 
     mapping = ExternMapping()
 
-    for i in range(model_config.num_hidden_layers):
+    for i in range(model_config.text_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
