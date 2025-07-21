@@ -64,7 +64,6 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     no_rope_layer_interval: int = 4
     moe_layers: int = None    
 
-    tensor_parallel_shards: int = 1
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
     disaggregation: bool = False
@@ -151,6 +150,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     text_config: Llama4TextConfig
     # vision_config: Llama4VisionConfig
+    tensor_parallel_shards: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -197,12 +197,12 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
 class Llama4TextMLP(nn.Module):
     def __init__(self, config: Llama4Config):
         super().__init__()
-        if config.text_config.intermediate_size % config.text_config.tensor_parallel_shards != 0:
+        if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
-                f"evenly to {config.text_config.tensor_parallel_shards} GPUs."
+                f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.text_config.intermediate_size // config.text_config.tensor_parallel_shards
+        self.intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.text_config.hidden_size,
             out_features=2 * self.intermediate_size,
@@ -294,14 +294,14 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.head_dim = config.text_config.head_dim
         self.attn_scale = config.text_config.attn_scale
         self.floor_scale = config.text_config.floor_scale
-        self.num_q_heads = config.text_config.num_attention_heads // config.text_config.tensor_parallel_shards
+        self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         assert (
-            config.text_config.num_key_value_heads % config.text_config.tensor_parallel_shards == 0
+            config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
         ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
         assert (
-            config.text_config.num_key_value_heads >= config.text_config.tensor_parallel_shards
+            config.text_config.num_key_value_heads >= config.tensor_parallel_shards
         ), f"Too large tensor_parallel_shards, must be smaller than {config.text_config.num_key_value_heads}"
-        self.num_kv_heads = config.text_config.num_key_value_heads // config.text_config.tensor_parallel_shards
+        self.num_kv_heads = config.text_config.num_key_value_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
             config.text_config.hidden_size, config.text_config.num_attention_heads * self.head_dim, bias=config.text_config.attention_bias
         )
@@ -393,12 +393,12 @@ class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
         super().__init__()
         self.topk = config.text_config.num_experts_per_tok
         self.num_experts = config.text_config.num_local_experts
-        if config.text_config.intermediate_size % config.text_config.tensor_parallel_shards != 0:
+        if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
                 f"Cannot split MoE intermediate size {config.text_config.intermediate_size} "
-                f"evenly to {config.text_config.tensor_parallel_shards} GPUs."
+                f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.moe_intermediate_size = config.text_config.intermediate_size // config.text_config.tensor_parallel_shards
+        self.moe_intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
         # self.norm_topk_prob = config.norm_topk_prob
 
         self.router = nn.Linear(
@@ -508,9 +508,9 @@ class Llama4TextDecoderLayer(nn.Module):
         self.self_attn = Llama4TextAttention(config, layer_idx)
         self.is_moe_layer = layer_idx in config.text_config.moe_layers
         if self.is_moe_layer:  # the 128E model interleaves dense / sparse
-            self.mlp = Llama4TextMoe(config)
+            self.feed_forward = Llama4TextMoe(config)
         else:
-            self.mlp = Llama4TextMLP(config, intermediate_size=config.text_config.intermediate_size_mlp)
+            self.feed_forward = Llama4TextMLP(config, intermediate_size=config.text_config.intermediate_size_mlp)
 
         self.input_layernorm = nn.RMSNorm(config.text_config.hidden_size, -1, rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(config.text_config.hidden_size, -1, rms_norm_eps, bias=False)
@@ -531,23 +531,23 @@ class Llama4TextDecoderLayer(nn.Module):
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             
 
-            if isinstance(self.mlp, Llama4TextMLP):
-                i = self.mlp.intermediate_size
-                _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
-                _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+            if isinstance(self.feed_forward, Llama4TextMLP):
+                i = self.feed_forward.intermediate_size
+                _set(self.feed_forward.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+                _set(self.feed_forward.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
             else:
-                assert isinstance(self.mlp, Llama4TextMoe)
-                i = self.mlp.shared_expert.intermediate_size
-                _set(self.mlp.shared_expert.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
-                _set(self.mlp.shared_expert.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+                assert isinstance(self.feed_forward, Llama4TextMoe)
+                i = self.feed_forward.shared_expert.intermediate_size
+                _set(self.feed_forward.shared_expert.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+                _set(self.feed_forward.shared_expert.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
-        self.tensor_parallel_shards = config.text_config.tensor_parallel_shards
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position)
         hidden_states = self._apply_residual(out, residual=hidden_states)
-        out = self.mlp(self.post_attention_layernorm(hidden_states))
+        out = self.feed_forward(self.post_attention_layernorm(hidden_states))
 
         # if self.is_moe_layer:
         #     out, router_logits = out
@@ -616,7 +616,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.vocab_size = self.text_config.vocab_size
         self.rope_scaling = self.text_config.rope_scaling
         self.rope_theta = self.text_config.position_embedding_base
-        self.tensor_parallel_shards = self.text_config.tensor_parallel_shards
+        self.tensor_parallel_shards = config.tensor_parallel_shards
         self.disaggregation = self.text_config.disaggregation
         self.dtype = "float32"
 
