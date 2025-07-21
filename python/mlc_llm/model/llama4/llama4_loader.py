@@ -75,7 +75,7 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
             ),
         )
         # inv_freq is not used in the model
-        mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
+        # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
