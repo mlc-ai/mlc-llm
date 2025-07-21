@@ -597,7 +597,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.rope_scaling = self.text_config.rope_scaling
         self.rope_theta = self.text_config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.disaggregation = self.disaggregation
+        self.disaggregation = config.disaggregation
         self.dtype = "float32"
 
         # def _set_pp():
