@@ -52,8 +52,6 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     tie_word_embeddings: bool = False
     position_embedding_base: int = 0
     rope_scaling: Optional[Dict[str, Any]] = None
-    context_window_size: int = 0
-    prefill_chunk_size: int = 0
     num_key_value_heads: int = 0
     head_dim: int = 0
     attn_scale: float = 0.1
@@ -64,9 +62,6 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     no_rope_layer_interval: int = 4
     moe_layers: int = None    
 
-    pipeline_parallel_stages: int = 1
-    max_batch_size: int = 1
-    disaggregation: bool = False
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):  # pylint: disable=too-many-branches
@@ -82,52 +77,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 assert (
                     self.rope_scaling["rope_type"] == "llama3"
                 ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Llama'
-
-        if self.context_window_size == 0:
-            for name in ["max_position_embeddings", "max_sequence_length"]:
-                if name in self.kwargs:
-                    self.context_window_size = self.kwargs.pop(name)
-                    logger.info(
-                        "%s not found in config.json. Falling back to %s (%d)",
-                        bold("context_window_size"),
-                        bold(name),
-                        self.context_window_size,
-                    )
-                    break
-            else:
-                raise ValueError(
-                    "Unable to determine the maximum sequence length, because none of "
-                    "`context_window_size`, `max_position_embeddings` or `max_sequence_length` is "
-                    "provided in `config.json`."
-                )
-        if (
-            self.pipeline_parallel_stages <= 0
-            or self.pipeline_parallel_stages > self.num_hidden_layers
-        ):
-            raise ValueError(
-                f'Invalid "pipeline_parallel_stages" value ({self.pipeline_parallel_stages}). '
-            )
-        if self.num_key_value_heads == 0:
-            self.num_key_value_heads = self.num_attention_heads
-        if self.head_dim == 0:
-            self.head_dim = self.hidden_size // self.num_attention_heads
-        assert self.num_attention_heads % self.num_key_value_heads == 0
-        if self.prefill_chunk_size == 0:
-            logger.info(
-                "%s defaults to %d",
-                bold("prefill_chunk_size"),
-                min(self.context_window_size, 8192),
-            )
-            self.prefill_chunk_size = min(self.context_window_size, 8192)
-        elif self.prefill_chunk_size > self.context_window_size:
-            logger.info(
-                "Overriding %s from %d to %d",
-                bold("prefill_chunk_size"),
-                self.prefill_chunk_size,
-                min(self.context_window_size, 8192),
-            )
-            self.prefill_chunk_size = min(self.context_window_size, 8192)
-        
+            
         # Define which layers to avoid RoPE
         if self.no_rope_layers == []:
             self.no_rope_layers = None
@@ -151,6 +101,13 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     text_config: Llama4TextConfig
     # vision_config: Llama4VisionConfig
     tensor_parallel_shards: int = 1
+    context_window_size: int = 0
+    pipeline_parallel_stages: int = 1
+    prefill_chunk_size: int = 0
+    max_batch_size: int = 1
+    disaggregation: bool = False
+    max_position_embeddings=4096 * 32
+
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -171,13 +128,6 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
         else:
             text_config_dict = dict(self.text_config)
 
-        # if "_name_or_path" in text_config_dict:
-        #     hf_config = self.get_hf_config(text_config_dict)
-        #     text_config_dict.update(hf_config)
-        #     architectures = text_config_dict["architectures"]
-        #     assert len(architectures) == 1
-        #     self.text_architecture = architectures[0]
-        # else:
         for k, v in text_config_dict.pop("kwargs", {}).items():
             text_config_dict[k] = v
 
@@ -185,12 +135,42 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
             text_config_dict
         )
 
-        # for k in ["context_window_size", "sliding_window_size", "prefill_chunk_size"]:
-        #     if getattr(self, k) <= 0:
-        #         if hasattr(self.text_config, k):
-        #             setattr(self, k, getattr(self.text_config, k))
+        self.vocab_size = self.text_config.vocab_size
 
+        if self.context_window_size == 0:
+            # Fall back to max_position_embeddings
+
+            self.context_window_size = self.max_position_embeddings
+            logger.info(
+                "%s not found in config.json. Falling back to %s (%d)",
+                bold("context_window_size"),
+                bold("max_position_embeddings"),
+                self.context_window_size,
+            )
                     
+        if self.text_config.num_key_value_heads == 0:
+            self.text_config.num_key_value_heads = self.text_config.num_attention_heads
+        if self.text_config.head_dim == 0:
+            self.text_config.head_dim = self.text_config.hidden_size // self.text_config.num_attention_heads
+        assert self.text_config.num_attention_heads % self.text_config.num_key_value_heads == 0
+        if self.prefill_chunk_size == 0:
+            logger.info(
+                "%s defaults to %d",
+                bold("prefill_chunk_size"),
+                min(self.context_window_size, 8192),
+            )
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
+        elif self.prefill_chunk_size > self.context_window_size:
+            logger.info(
+                "Overriding %s from %d to %d",
+                bold("prefill_chunk_size"),
+                self.prefill_chunk_size,
+                min(self.context_window_size, 8192),
+            )
+            self.prefill_chunk_size = min(self.context_window_size, 8192)
+
+
+
 # pylint: disable=invalid-name,missing-docstring
 
 
@@ -525,9 +505,9 @@ class Llama4TextDecoderLayer(nn.Module):
             v = self.self_attn.num_kv_heads * hd
 
             # _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
-            _set(self.self_attn.q_proj, tp.ShardSingleDim("_shard_q", segs=[q], dim=0))
-            _set(self.self_attn.k_proj, tp.ShardSingleDim("_shard_k", segs=[k], dim=0))
-            _set(self.self_attn.v_proj, tp.ShardSingleDim("_shard_v", segs=[v], dim=0))
+            _set(self.self_attn.q_proj, tp.ShardSingleDim("_shard_q", dim=0))
+            _set(self.self_attn.k_proj, tp.ShardSingleDim("_shard_k", dim=0))
+            _set(self.self_attn.v_proj, tp.ShardSingleDim("_shard_v", dim=0))
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             
 
@@ -617,7 +597,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.rope_scaling = self.text_config.rope_scaling
         self.rope_theta = self.text_config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.disaggregation = self.text_config.disaggregation
+        self.disaggregation = self.disaggregation
         self.dtype = "float32"
 
         # def _set_pp():
