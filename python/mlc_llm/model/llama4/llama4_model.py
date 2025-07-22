@@ -41,14 +41,12 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     num_attention_heads: int
     num_hidden_layers: int
     rms_norm_eps: float
-    vocab_size: int
     rope_theta: float
     use_qk_norm: bool
     interleave_moe_layer_step: int
     num_experts_per_tok: int
     num_local_experts: int
     hidden_act: str
-
     tie_word_embeddings: bool = False
     position_embedding_base: int = 0
     rope_scaling: Optional[Dict[str, Any]] = None
@@ -56,11 +54,12 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     head_dim: int = 0
     attn_scale: float = 0.1
     floor_scale: int = 8192
+    vocab_size: int = 202048
     attention_bias: bool = False
     attn_temperature_tuning: bool = True
     no_rope_layers: [] = None
     no_rope_layer_interval: int = 4
-    moe_layers: int = None    
+    moe_layers: int = None
 
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -107,6 +106,7 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     max_batch_size: int = 1
     disaggregation: bool = False
     max_position_embeddings=4096 * 32
+    vocab_size: int = 202048
 
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -135,7 +135,7 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
             text_config_dict
         )
 
-        self.vocab_size = self.text_config.vocab_size
+        # self.vocab_size = self.text_config.vocab_size
 
         if self.context_window_size == 0:
             # Fall back to max_position_embeddings
