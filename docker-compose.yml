@@ -1,0 +1,105 @@
+# docker-compose.yml - Development environment setup
+version: '3.8'
+
+services:
+  # Development environment with GPU support
+  mlc-dev:
+    build:
+      context: .
+      target: development
+      dockerfile: Dockerfile
+    image: mlc-llm:dev
+    container_name: mlc-dev
+    volumes:
+      - .:/workspace
+      - mlc-models:/workspace/models
+      - mlc-cache:/root/.cache
+    ports:
+      - "8888:8888"  # Jupyter
+      - "6006:6006"  # TensorBoard  
+      - "8000:8000"  # FastAPI server
+      - "3000:3000"  # Development server
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - MLC_LLM_SOURCE_DIR=/workspace
+      - PYTHONPATH=/workspace/python:$PYTHONPATH
+    command: >
+      bash -c "
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password='' &
+        tensorboard --logdir=./logs --host=0.0.0.0 --port=6006 &
+        tail -f /dev/null
+      "
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+
+  # Production-like environment for testing
+  mlc-prod:
+    build:
+      context: .
+      target: production
+      dockerfile: Dockerfile
+    image: mlc-llm:prod
+    container_name: mlc-prod
+    volumes:
+      - mlc-models:/app/models:ro
+    ports:
+      - "8001:8000"
+    environment:
+      - MLC_MODEL_PATH=/app/models/default
+    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Database for logging and metrics
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mlc-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+  # Monitoring dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mlc-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+
+volumes:
+  mlc-models:
+    driver: local
+  mlc-cache:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  default:
+    name: mlc-network

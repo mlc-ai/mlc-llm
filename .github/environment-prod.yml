@@ -1,0 +1,16 @@
+name: mlc-prod
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - libgcc-ng
+  - zstd
+  - pip
+  - pip:
+    - fastapi
+    - uvicorn[standard]
+    - numpy
+    - torch
+    - transformers
+    - huggingface-hub

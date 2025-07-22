@@ -1,0 +1,30 @@
+name: mlc-test
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - cmake>=3.24
+  - git
+  - git-lfs
+  - rust
+  - libgcc-ng
+  - zstd
+  - pytest
+  - pytest-cov
+  - pytest-xdist
+  - black
+  - isort
+  - pylint
+  - mypy
+  - pip
+  - pip:
+    - fastapi
+    - uvicorn
+    - openai
+    - jsonschema
+    - requests
+    - numpy
+    - torch
+    - transformers
+    - huggingface-hub
