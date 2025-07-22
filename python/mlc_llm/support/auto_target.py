@@ -298,6 +298,8 @@ def _build_default():
             logger.warning("Unknown output suffix: %s. Assuming shared library.", output.suffix)
             system_lib = False
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=system_lib)
+        
+
         relax.build(
             mod,
             target=args.target,

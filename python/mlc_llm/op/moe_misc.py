@@ -16,6 +16,10 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     """Compute the sum of the input tensor along the given axis. It is specialized for the MoE
     case where `x.ndim == 3` and `x.shape[1] == num_experts_per_tok (which is 2)`.
     """
+
+    if x.shape[1] == 1:
+        return x
+
     if x.ndim == 3 and x.shape[1] == 2:
         return op.tensor_expr_op(
             lambda x: te.compute(
