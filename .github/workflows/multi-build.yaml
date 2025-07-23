@@ -124,18 +124,18 @@ jobs:
           network=host
           image=moby/buildkit:latest
 
-    - name: Configure Docker daemon
-      run: |
-        # Optimize Docker for space
-        sudo tee /etc/docker/daemon.json > /dev/null <<EOF
-        {
-          "storage-driver": "overlay2",
-          "storage-opts": [
-            "overlay2.size=20G"
-          ]
-        }
-        EOF
-        sudo systemctl restart docker
+    # - name: Configure Docker daemon
+    #   run: |
+    #     # Optimize Docker for space
+    #     sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+    #     {
+    #       "storage-driver": "overlay2",
+    #       "storage-opts": [
+    #         "overlay2.size=20G"
+    #       ]
+    #     }
+    #     EOF
+    #     sudo systemctl restart docker
 
     - name: Log in to GHCR
       if: github.event_name != 'pull_request'
