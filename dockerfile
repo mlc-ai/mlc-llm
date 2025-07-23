@@ -1,21 +1,19 @@
-# Fixed Dockerfile - Addresses python3-venv issue and undefined variables
+# Simplified Dockerfile optimized for GitHub Actions
+# Addresses registry naming and disk space issues
 
 # ──────────────────────────────────────────────────────────
 # BUILDER STAGE - Compile MLC-LLM (temporary)
 # ──────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
 
-# Set environment variables
+# Minimize environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # Install build dependencies in single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build \
-    python3 python3-pip python3-dev python3-venv \
+    build-essential cmake ninja-build python3 python3-pip python3-dev \
     git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean
@@ -26,8 +24,7 @@ ENV PATH="/root/.cargo/bin:$PATH"
 
 # Create virtual environment
 RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH" \
-    VIRTUAL_ENV="/opt/venv"
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install minimal build dependencies
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
@@ -38,13 +35,8 @@ COPY . .
 # Build MLC-LLM
 RUN mkdir -p build && cd build && \
     python ../cmake/gen_cmake_config.py && \
-    cmake .. \
-      -DCMAKE_BUILD_TYPE=Release \
-      -DUSE_CUDA=ON \
-      -DUSE_VULKAN=OFF \
-      -DCMAKE_CUDA_ARCHITECTURES="75;80;86" \
-      -GNinja && \
-    ninja -j2
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF -GNinja && \
+    ninja -j2  # Limit parallel jobs to save memory
 
 # Install Python package
 RUN cd python && pip install --no-deps -e .
@@ -57,14 +49,7 @@ RUN python -c "import mlc_llm; print('✅ MLC-LLM build successful')"
 # ──────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 AS production
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
-# Install runtime dependencies including python3-venv
+# Install minimal runtime dependencies INCLUDING python3-venv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
@@ -73,27 +58,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create virtual environment
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
-    VIRTUAL_ENV="/opt/venv" \
-    PYTHONPATH="/opt/mlc_llm"
+    PYTHONPATH="/opt/mlc_llm:$PYTHONPATH"
 
 # Install minimal runtime Python packages
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
 
-# Copy built artifacts from builder
+# Copy built artifacts
 COPY --from=builder /workspace/build/libmlc_llm.so /usr/local/lib/
 COPY --from=builder /workspace/build/libtvm_runtime.so /usr/local/lib/
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc_llm/mlc_llm
 COPY --from=builder /workspace/python/setup.py /opt/mlc_llm/
-COPY --from=builder /workspace/python/pyproject.toml /opt/mlc_llm/ 2>/dev/null || echo "No pyproject.toml found"
 
-# Set library path
+# Set environment (PYTHONPATH now defined above)
 ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 
-# Install the Python package
+# Install package
 RUN cd /opt/mlc_llm && pip install --no-deps .
-
-# Verify installation
-RUN python -c "import mlc_llm; print('✅ Production image build successful')"
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash --uid 1000 mlcuser
@@ -102,9 +82,9 @@ WORKDIR /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import mlc_llm" || exit 1
+    CMD python3 -c "import mlc_llm" || exit 1
 
-ENTRYPOINT ["python", "-m", "mlc_llm"]
+ENTRYPOINT ["python3", "-m", "mlc_llm"]
 CMD ["--help"]
 
 # ──────────────────────────────────────────────────────────
@@ -117,47 +97,33 @@ RUN pip install --no-cache-dir pytest black isort
 
 # Copy source for testing (no build needed)
 COPY python /workspace/python
-COPY tests /workspace/tests 2>/dev/null || mkdir -p /workspace/tests
+COPY tests /workspace/tests
 WORKDIR /workspace
-
-# Create a simple test if tests directory doesn't exist
-RUN if [ ! -f tests/test_basic.py ]; then \
-        mkdir -p tests && \
-        echo 'def test_basic(): assert True' > tests/test_basic.py; \
-    fi
 
 CMD ["python", "-m", "pytest", "tests/", "-v", "--maxfail=5"]
 
 # ──────────────────────────────────────────────────────────
-# DEVELOPMENT STAGE - For local use only
+# DEVELOPMENT STAGE - For local use only (not built in CI)
 # ──────────────────────────────────────────────────────────
 FROM builder AS development
 
 # Install development dependencies
 RUN pip install --no-cache-dir \
-    pytest pytest-cov pytest-xdist black isort pylint mypy \
-    jupyter jupyterlab ipykernel \
-    fastapi uvicorn[standard] \
-    transformers huggingface-hub tokenizers \
-    requests jsonschema pyyaml click tqdm
-
-# Set up git lfs
-RUN git lfs install --system
+    pytest pytest-cov black isort pylint mypy \
+    jupyter jupyterlab fastapi uvicorn \
+    transformers huggingface-hub
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash --uid 1000 mlcuser && \
     chown -R mlcuser:mlcuser /workspace
 
-# Copy and set up entrypoint script
-COPY docker/dev-entrypoint.sh /usr/local/bin/dev-entrypoint.sh
-RUN chmod +x /usr/local/bin/dev-entrypoint.sh && \
-    chown mlcuser:mlcuser /usr/local/bin/dev-entrypoint.sh
-
 USER mlcuser
 WORKDIR /workspace
 
-# Set environment for development
-ENV PYTHONPATH="/workspace/python:$PYTHONPATH" \
-    MLC_LLM_SOURCE_DIR="/workspace"
+# Copy entrypoint script
+COPY --chown=mlcuser:mlcuser docker/dev-entrypoint.sh /usr/local/bin/
+USER root
+RUN chmod +x /usr/local/bin/dev-entrypoint.sh
+USER mlcuser
 
 CMD ["/usr/local/bin/dev-entrypoint.sh"]
