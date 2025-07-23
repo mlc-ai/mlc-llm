@@ -6,6 +6,7 @@
 #include "threaded_engine.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 
 #include <atomic>
@@ -399,8 +400,10 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
-  return Module(make_object<ThreadedEngineModule>());
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.create_threaded_engine",
+                        []() { return Module(make_object<ThreadedEngineModule>()); });
 });
 
 std::unique_ptr<ThreadedEngine> ThreadedEngine::Create() {

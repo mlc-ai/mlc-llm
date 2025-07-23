@@ -7,6 +7,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
@@ -309,9 +310,12 @@ Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path, M
   return params;
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPU").set_body_typed(LoadMultiGPU);
-TVM_FFI_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPUPresharded")
-    .set_body_typed(LoadMultiGPUPresharded);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.multi_gpu.LoadMultiGPU", LoadMultiGPU)
+      .def("mlc.multi_gpu.LoadMultiGPUPresharded", LoadMultiGPUPresharded);
+});
 
 }  // namespace multi_gpu
 }  // namespace llm
