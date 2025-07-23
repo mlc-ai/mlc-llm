@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install build dependencies in single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build python3 python3-pip python3-dev python3-venv \
+    build-essential cmake python3 python3-pip python3-dev python3-venv \
     git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean
@@ -35,8 +35,8 @@ COPY . .
 # Build MLC-LLM
 RUN mkdir -p build && cd build && \
     printf '\ny\nn\ny\nn\nn\nn\nn\nn\n' | python ../cmake/gen_cmake_config.py && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF -GNinja && \
-    ninja -j1  # Single job to minimize memory usage
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF && \
+    make -j1  # Use make instead of ninja, single job
 
 # Install Python package
 RUN cd python && pip install --no-deps -e .
