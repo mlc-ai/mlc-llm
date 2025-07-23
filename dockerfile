@@ -34,7 +34,7 @@ COPY . .
 
 # Build MLC-LLM
 RUN mkdir -p build && cd build && \
-    python ../cmake/gen_cmake_config.py && \
+    printf '\ny\nn\ny\nn\nn\nn\nn\nn\n' | python ../cmake/gen_cmake_config.py && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF -GNinja && \
     ninja -j2  # Limit parallel jobs to save memory
 
