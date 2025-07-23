@@ -36,7 +36,7 @@ COPY . .
 RUN mkdir -p build && cd build && \
     printf '\ny\nn\ny\nn\nn\nn\nn\nn\n' | python ../cmake/gen_cmake_config.py && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF -GNinja && \
-    ninja -j2
+    ninja -j1  # Single job to minimize memory usage
 
 # Install Python package
 RUN cd python && pip install --no-deps -e .
