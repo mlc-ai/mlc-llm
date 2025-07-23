@@ -67,7 +67,6 @@ Function FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, St
 void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
                          Optional<Session> session, int num_shards, int num_stages) {
   local_gpu_device = device;
-  Device null_device{DLDeviceType(0), 0};
   this->model_config = model_config;
   this->cached_buffers = Map<String, ObjectRef>();
 
@@ -77,7 +76,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->sess = session.value();
     this->use_disco = true;
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
-                                       reload_lib_path, null_device);
+                                       reload_lib_path, Optional<Device>(std::nullopt));
     this->mod_get_func = [this,
                           fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
                              const std::string& name) -> Function {
@@ -281,10 +280,9 @@ void FunctionTable::_InitFunctions() {
 
 ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,
                                bool worker0_only) const {
-  Device null_device{DLDeviceType(0), 0};
   if (this->use_disco) {
     DRef empty_func = sess->GetGlobalFunc("runtime.disco.empty");
-    return sess->CallPacked(empty_func, shape, dtype, null_device, worker0_only,
+    return sess->CallPacked(empty_func, shape, dtype, Optional<Device>(std::nullopt), worker0_only,
                             /*in_group=*/false);
   } else {
     return NDArray::Empty(shape, dtype, device);
