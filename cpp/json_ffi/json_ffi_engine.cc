@@ -2,6 +2,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 
 #include <filesystem>
@@ -295,8 +296,10 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   }
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed([]() {
-  return Module(make_object<JSONFFIEngineImpl>());
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
+                        []() { return Module(make_object<JSONFFIEngineImpl>()); });
 });
 
 }  // namespace json_ffi

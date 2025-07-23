@@ -6,6 +6,7 @@
 #include "model.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 
@@ -1117,22 +1118,25 @@ class ModelImpl : public ModelObj {
   std::unordered_set<int64_t> prefilled_seq_ids_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
-    .set_body_typed([](NDArray embedding, NDArray dst, int offset) {
-      // embedding: (m, hidden_size)
-      // dst: (prefill_chunk_size, hidden_size)
-      ICHECK_EQ(embedding->ndim, 2);
-      ICHECK_EQ(dst->ndim, 2);
-      ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
-      ICHECK_EQ(embedding->shape[1], dst->shape[1]);
-      const DLTensor& copy_src = *(embedding.operator->());
-      const DLTensor* p_copy_dst = dst.operator->();
-      DLTensor copy_dst = *p_copy_dst;
-      copy_dst.shape = embedding->shape;
-      copy_dst.byte_offset =
-          offset * embedding->shape[1] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
-      NDArray::CopyFromTo(&copy_src, &copy_dst);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "mlc.copy_embedding_to_offset", [](NDArray embedding, NDArray dst, int offset) {
+        // embedding: (m, hidden_size)
+        // dst: (prefill_chunk_size, hidden_size)
+        ICHECK_EQ(embedding->ndim, 2);
+        ICHECK_EQ(dst->ndim, 2);
+        ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+        ICHECK_EQ(embedding->shape[1], dst->shape[1]);
+        const DLTensor& copy_src = *(embedding.operator->());
+        const DLTensor* p_copy_dst = dst.operator->();
+        DLTensor copy_dst = *p_copy_dst;
+        copy_dst.shape = embedding->shape;
+        copy_dst.byte_offset = offset * embedding->shape[1] *
+                               ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
+        NDArray::CopyFromTo(&copy_src, &copy_dst);
+      });
+});
 
 }  // namespace serve
 }  // namespace llm

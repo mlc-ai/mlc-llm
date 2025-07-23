@@ -6,6 +6,7 @@
 #include "request.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "data.h"
 
@@ -67,14 +68,14 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request request) {
-  return request->inputs;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.serve.RequestGetInputs", [](Request request) { return request->inputs; })
+      .def("mlc.serve.RequestGetGenerationConfigJSON", [](Request request) {
+        return picojson::value(request->generation_cfg->AsJSON()).serialize();
+      });
 });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.RequestGetGenerationConfigJSON")
-    .set_body_typed([](Request request) {
-      return picojson::value(request->generation_cfg->AsJSON()).serialize();
-    });
 
 }  // namespace serve
 }  // namespace llm

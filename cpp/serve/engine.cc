@@ -7,6 +7,7 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
@@ -1086,7 +1087,10 @@ class EngineModule : public ModuleNode {
   GenerationConfig default_generation_config_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.create_engine", EngineModule::Create);
+});
 
 }  // namespace serve
 }  // namespace llm
