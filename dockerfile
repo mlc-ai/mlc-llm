@@ -74,6 +74,7 @@ COPY --from=builder /workspace/build/ /tmp/build_artifacts/
 # Find and copy TVM runtime (it might be in different locations)
 RUN find /tmp/build_artifacts -name "*tvm_runtime*" -type f -exec cp {} /usr/local/lib/ \; || true && \
     find /tmp/build_artifacts -name "*tvm*.so" -type f -exec cp {} /usr/local/lib/ \; || true && \
+    find /tmp/build_artifacts -name "*mlc_llm_module*" -type f -exec cp {} /usr/local/lib/ \; || true && \
     rm -rf /tmp/build_artifacts && \
     ls -la /usr/local/lib/
 
