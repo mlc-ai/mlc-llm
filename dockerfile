@@ -1,152 +1,95 @@
-# Multi-stage Docker build for MLC-LLM
-# Supports both development and build environments with GPU acceleration
+### ────── BASE WITH MICROMAMBA + CUDA ──────
+FROM mambaorg/micromamba:jammy-cuda-12.1.0 AS base
 
-# Base image with CUDA support
-ARG CUDA_VERSION=12.2
-ARG UBUNTU_VERSION=22.04
-FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${UBUNTU_VERSION} AS base
+# 🛠 Optimize micromamba behavior
+RUN micromamba config set extract_threads 1
+ENV MAMBA_NO_LOW_SPEED_LIMIT=0
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/opt/conda/bin:$PATH"
+USER root
+# System dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget curl git git-lfs build-essential pkg-config \
+    libtinfo5 libxml2-dev libzstd-dev zstd vulkan-tools \
+    libvulkan1 libvulkan-dev cmake ninja-build && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    git \
-    git-lfs \
-    build-essential \
-    libvulkan-loader \
-    libvulkan-dev \
-    vulkan-tools \
-    zstd \
-    pkg-config \
-    libtinfo5 \
-    libxml2-dev \
-    libzstd-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Rust (required for tokenizers)
+# Rust (for tokenizers)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:$PATH"
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
-    bash /tmp/miniconda.sh -b -p /opt/conda && \
-    rm /tmp/miniconda.sh
+# Install Python & CUDA toolchain with channels defined
+RUN micromamba install -y -n base \
+    -c conda-forge -c nvidia \
+    python=3.11 cuda-toolkit=12.1 \
+    cmake=3.24.* git git-lfs rust cuda-nvcc \
+    libgcc-ng libstdcxx-ng zstd && \
+    micromamba clean --all --yes
 
-# Create conda environment
-RUN conda create -n mlc-llm python=3.11 -y && \
-    echo "conda activate mlc-llm" >> ~/.bashrc
-
-# Activate conda environment for subsequent RUN commands
-SHELL ["/opt/conda/bin/conda", "run", "-n", "mlc-llm", "/bin/bash", "-c"]
-
-# Install CMake and build dependencies via conda
-RUN conda install -c conda-forge \
-    "cmake>=3.24" \
-    rust \
-    git \
-    libgcc-ng \
-    zstd \
-    -y
-
-# Set working directory
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
 WORKDIR /workspace
 
-# Development stage - includes all dev tools and source code
+### ────── DEVELOPMENT STAGE ──────
 FROM base AS development
 
-# Install development dependencies
-RUN conda install -c conda-forge \
-    pytest \
-    black \
-    isort \
-    pylint \
-    mypy \
-    jupyter \
-    tensorboard \
-    -y
+RUN micromamba install -y -n base \
+    -c conda-forge \
+    pytest pytest-cov pytest-xdist black isort pylint mypy \
+    jupyter jupyterlab tensorboard ipykernel pre-commit && \
+    pip install --no-cache-dir \
+      fastapi uvicorn[standard] openai jsonschema requests \
+      transformers huggingface-hub accelerate && \
+    micromamba clean --all --yes
 
-# Install pip packages for development
-RUN pip install --no-cache-dir \
-    pre-commit \
-    pytest-cov \
-    pytest-xdist \
-    ipykernel
-
-# Copy source code (for development)
-COPY . /workspace/
-
-# Set up git-lfs
 RUN git lfs install
 
-# Configure development environment
-ENV MLC_LLM_SOURCE_DIR=/workspace
-ENV PYTHONPATH="/workspace/python:$PYTHONPATH"
-
-# Create non-root user for development
-RUN useradd --create-home --shell /bin/bash --uid 1000 mlcuser && \
+RUN useradd --create-home --shell /bin/bash mlcuser && \
     chown -R mlcuser:mlcuser /workspace
+
+COPY --chown=mlcuser:mlcuser docker/dev-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/dev-entrypoint.sh
+
 USER mlcuser
+WORKDIR /workspace
+CMD ["/usr/local/bin/dev-entrypoint.sh"]
 
-# Development entrypoint
-CMD ["/bin/bash"]
-
-# Build stage - optimized for building MLC-LLM
+### ────── BUILDER STAGE ──────
 FROM base AS builder
+WORKDIR /workspace
+COPY . .
 
-# Copy source code
-COPY . /workspace/
-
-# Set up git-lfs and clone submodules
 RUN git lfs install && \
-    git submodule update --init --recursive
+    mkdir -p build && cd build && \
+      python ../cmake/gen_cmake_config.py && \
+      cmake .. -DCMAKE_BUILD_TYPE=Release \
+        -DUSE_CUDA=ON -DUSE_VULKAN=ON \
+        -DCMAKE_CUDA_ARCHITECTURES="70;75;80;86;89" && \
+      make -j$(nproc)
 
-# Create build directory and configure
-RUN mkdir -p build && cd build && \
-    python ../cmake/gen_cmake_config.py && \
-    cmake .. && \
-    cmake --build . --parallel $(nproc)
+RUN cd python && pip install -e . && \
+    python -c "import mlc_llm; print('MLC‑LLM OK')"
 
-# Install MLC-LLM Python package
-RUN cd python && pip install -e .
+### ────── PRODUCTION STAGE ──────
+FROM nvidia/cuda:12.9.1-runtime-ubuntu22.04 AS production
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip git-lfs libvulkan1 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Validate installation
-RUN python -c "import mlc_llm; print(mlc_llm)" && \
-    mlc_llm chat -h
-
-# Production stage - minimal runtime image
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu${UBUNTU_VERSION} AS production
-
-# Install minimal runtime dependencies
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    libvulkan1 \
-    git-lfs \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy built libraries and Python package from builder
 COPY --from=builder /workspace/build/libmlc_llm.so /usr/local/lib/
 COPY --from=builder /workspace/build/libtvm_runtime.so /usr/local/lib/
-COPY --from=builder /opt/conda/envs/mlc-llm/lib/python3.11/site-packages /usr/local/lib/python3.11/dist-packages/
+COPY --from=builder /workspace/python /opt/mlc_llm_python
 
-# Set library path
-ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+ENV PYTHONPATH="/opt/mlc_llm_python:${PYTHONPATH}"
+RUN pip3 install --no-cache-dir /opt/mlc_llm_python
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash --uid 1000 mlcuser
+RUN useradd --create-home --shell /bin/bash mlcuser && \
+    chown -R mlcuser:mlcuser /workspace
 USER mlcuser
-
 WORKDIR /app
 
-# Production entrypoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python3 -c "import mlc_llm" || exit 1
+
 ENTRYPOINT ["python3", "-m", "mlc_llm"]
 CMD ["--help"]
-
-# Multi-platform build target selector
-FROM ${TARGETPLATFORM:-production} AS final

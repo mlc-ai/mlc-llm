@@ -1,4 +1,4 @@
-name: MLC-LLM CI/CD Pipeline
+name: MLC-LLM CI/CD Pipeline (Docker-First)
 
 on:
   push:
@@ -8,26 +8,32 @@ on:
     branches: [ main, develop ]
   schedule:
     - cron: '0 2 * * 0' # Weekly build on Sunday at 2 AM UTC
+  workflow_dispatch: # Manual trigger
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Job 1: Run automated tests
-  test:
-    name: Run Tests
+  # Job 1: Docker-based testing (no local conda needed)
+  docker-test:
+    name: Docker Tests
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
-        python-version: ['3.9', '3.10', '3.11']
+        os: [ubuntu-22.04]
+        test-type: [fast, unit, integration]
         include:
           - os: ubuntu-22.04
-            cuda-version: '12.2'
-          - os: windows-latest
-            cuda-version: '12.2'
+            test-type: fast
+            pytest-args: "-m 'not slow and not gpu'"
+          - os: ubuntu-22.04  
+            test-type: unit
+            pytest-args: "tests/unit/ -v"
+          - os: ubuntu-22.04
+            test-type: integration
+            pytest-args: "tests/integration/ -v"
     
     steps:
     - name: Checkout repository
@@ -36,100 +42,48 @@ jobs:
         submodules: recursive
         lfs: true
 
-    - name: Setup Python
-      uses: actions/setup-python@v4
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build development image
+      uses: docker/build-push-action@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        context: .
+        target: development
+        load: true
+        tags: mlc-llm:dev
+        cache-from: type=gha,scope=dev-${{ matrix.os }}
+        cache-to: type=gha,mode=max,scope=dev-${{ matrix.os }}
 
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/pip
-          ~/.cache/conda
-          ~/.cache/huggingface
-        key: ${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('**/requirements*.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-py${{ matrix.python-version }}-
-
-    - name: Install system dependencies (Ubuntu)
-      if: runner.os == 'Linux'
+    - name: Run code quality checks
+      if: matrix.test-type == 'fast'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          cmake \
-          libvulkan-dev \
-          vulkan-tools \
-          git-lfs \
-          zstd
+        # Format checking
+        docker run --rm -v $(pwd):/workspace mlc-llm:dev \
+          bash -c "cd /workspace && black --check python/ && isort --check-only python/"
+        
+        # Linting (non-blocking for now)
+        docker run --rm -v $(pwd):/workspace mlc-llm:dev \
+          bash -c "cd /workspace && pylint python/mlc_llm/ --exit-zero || echo 'Linting completed with warnings'"
 
-    - name: Install system dependencies (Windows)
-      if: runner.os == 'Windows'
+    - name: Run tests
       run: |
-        choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System'
-        choco install git-lfs
-        git lfs install
-
-    - name: Setup Conda
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        auto-update-conda: true
-        python-version: ${{ matrix.python-version }}
-        environment-file: .github/environment-test.yml
-        activate-environment: mlc-test
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Configure build environment
-      shell: bash -el {0}
-      run: |
-        case "${{ runner.os }}" in
-          "Linux")
-            echo "CMAKE_ARGS=-DUSE_CUDA=OFF -DUSE_VULKAN=ON" >> $GITHUB_ENV
-            ;;
-          "Windows")
-            echo "CMAKE_ARGS=-DUSE_CUDA=OFF -DUSE_VULKAN=ON" >> $GITHUB_ENV
-            ;;
-        esac
-
-    - name: Build MLC-LLM
-      shell: bash -el {0}
-      run: |
-        mkdir -p build && cd build
-        python ../cmake/gen_cmake_config.py
-        cmake .. $CMAKE_ARGS
-        cmake --build . --parallel $(nproc || echo 4)
-
-    - name: Install MLC-LLM Python package
-      shell: bash -el {0}
-      run: |
-        cd python
-        pip install -e .
-
-    - name: Run unit tests
-      shell: bash -el {0}
-      run: |
-        pytest tests/unit/ -v --cov=mlc_llm --cov-report=xml
-
-    - name: Run integration tests
-      shell: bash -el {0}
-      run: |
-        pytest tests/integration/ -v
+        docker run --rm -v $(pwd):/workspace mlc-llm:dev \
+          bash -c "cd /workspace && python -m pytest ${{ matrix.pytest-args }} --cov=mlc_llm --cov-report=xml"
 
     - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
+      if: matrix.test-type == 'unit'
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
-        name: codecov-${{ matrix.os }}-py${{ matrix.python-version }}
+        name: codecov-${{ matrix.os }}-${{ matrix.test-type }}
 
   # Job 2: Build and push Docker images
   docker-build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: test
+    needs: docker-test
     permissions:
       contents: read
       packages: write
@@ -191,6 +145,10 @@ jobs:
         cache-from: type=gha,scope=prod
         cache-to: type=gha,mode=max,scope=prod
 
+    - name: Test production image
+      run: |
+        docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest --help
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
@@ -204,19 +162,21 @@ jobs:
       with:
         sarif_file: 'trivy-results.sarif'
 
-  # Job 3: Build Python wheels for multiple platforms
+  # Job 3: Build Python wheels using Docker
   build-wheels:
     name: Build Wheels
     runs-on: ${{ matrix.os }}
-    needs: test
+    needs: docker-test
     strategy:
       matrix:
         os: [ubuntu-22.04, windows-latest]
         include:
           - os: ubuntu-22.04
-            platform_id: linux_x86_64
+            platform: linux_x86_64
+            dockerfile-suffix: ""
           - os: windows-latest
-            platform_id: win_amd64
+            platform: win_amd64
+            dockerfile-suffix: ".windows"
 
     steps:
     - name: Checkout repository
@@ -225,41 +185,79 @@ jobs:
         submodules: recursive
         lfs: true
 
-    - name: Setup Python
+    - name: Set up Docker (Linux)
+      if: runner.os == 'Linux'
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build wheel in Docker (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        # Create wheel builder image
+        docker build -t mlc-wheel-builder \
+          --target builder \
+          .
+        
+        # Extract built wheels
+        docker run --rm \
+          -v $(pwd)/wheelhouse:/wheelhouse \
+          mlc-wheel-builder \
+          bash -c "cd /workspace/python && python setup.py bdist_wheel && cp dist/*.whl /wheelhouse/"
+
+    - name: Setup Python (Windows)
+      if: runner.os == 'Windows'
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
 
-    - name: Install cibuildwheel
-      run: python -m pip install cibuildwheel==2.16.2
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # Install CUDA toolkit
+        choco install cuda --version=12.2.0 -y
+        
+        # Install other dependencies
+        choco install cmake git-lfs -y
+        
+        # Install Rust
+        Invoke-WebRequest -Uri "https://forge.rust-lang.org/infra/channel-layout.html" -OutFile "rustup-init.exe"
+        .\rustup-init.exe -y
+        $env:PATH += ";$env:USERPROFILE\.cargo\bin"
 
-    - name: Build wheels
-      run: python -m cibuildwheel --output-dir wheelhouse
-      env:
-        CIBW_BUILD: cp39-* cp310-* cp311-*
-        CIBW_SKIP: "*-musllinux_* *-win32 *-manylinux_i686"
-        CIBW_BEFORE_BUILD_LINUX: |
-          apt-get update && apt-get install -y cmake build-essential git-lfs libvulkan-dev
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-          source ~/.cargo/env
-        CIBW_BEFORE_BUILD_WINDOWS: |
-          choco install cmake git-lfs
-          curl --proto "=https" --tlsv1.2 -sSf https://win.rustup.rs/x86_64 -o rustup-init.exe
-          rustup-init.exe -y
-        CIBW_ENVIRONMENT_LINUX: PATH="$HOME/.cargo/bin:$PATH"
-        CIBW_ENVIRONMENT_WINDOWS: PATH="$UserProfile\\.cargo\\bin;$PATH"
+    - name: Build wheel (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        # Set environment variables
+        $env:CUDA_HOME = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.2"
+        $env:PATH += ";$env:CUDA_HOME\bin"
+        
+        # Build MLC-LLM
+        mkdir build
+        cd build
+        python ..\cmake\gen_cmake_config.py
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON
+        cmake --build . --config Release --parallel 4
+        cd ..
+        
+        # Build wheel
+        cd python
+        pip install build wheel
+        python -m build --wheel
+        
+        # Copy to wheelhouse
+        mkdir ..\wheelhouse
+        copy dist\*.whl ..\wheelhouse\
 
     - name: Upload wheels as artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: wheels-${{ matrix.platform_id }}
+        name: wheels-${{ matrix.platform }}
         path: wheelhouse/*.whl
 
   # Job 4: Create GitHub release with wheels
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: [test, docker-build, build-wheels]
+    needs: [docker-test, docker-build, build-wheels]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -284,7 +282,7 @@ jobs:
         draft: false
         prerelease: ${{ contains(github.ref, '-') }}
 
-  # Job 5: Performance benchmarks (optional)
+  # Job 5: Performance benchmarks (Docker-based)
   benchmark:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
@@ -294,16 +292,75 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build development image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        target: development
+        load: true
+        tags: mlc-llm:dev
+        cache-from: type=gha,scope=dev
 
     - name: Run benchmarks
       run: |
         docker run --rm \
           -v $(pwd):/workspace \
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-          python scripts/benchmark.py
+          mlc-llm:dev \
+          bash -c "cd /workspace && python scripts/benchmark.py --output benchmark-results.json"
 
     - name: Upload benchmark results
       uses: actions/upload-artifact@v4
       with:
         name: benchmark-results
         path: benchmark-results.json
+
+  # Job 6: Integration tests with full pipeline
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        lfs: true
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Run integration test with published image
+      run: |
+        # Test the published development image
+        docker run --rm \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-dev \
+          bash -c "python -c 'import mlc_llm; print(\"✅ MLC-LLM import successful\")'"
+        
+        # Test the production image
+        docker run --rm \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main \
+          --help
+
+    - name: Test Docker Compose setup
+      run: |
+        # Test docker-compose configuration
+        docker compose -f docker-compose.yml config
+        
+        # Quick smoke test
+        docker compose up -d mlc-dev
+        sleep 10
+        docker compose exec -T mlc-dev python -c "import mlc_llm; print('✅ Container integration test passed')"
+        docker compose down

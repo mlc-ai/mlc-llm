@@ -1,226 +1,330 @@
-# Makefile - Development workflow automation for MLC-LLM
+# Makefile - Docker-First Development Workflow for MLC-LLM
+# Works on any host OS without local dependencies
 
-.PHONY: help build build-dev build-prod test test-unit test-integration lint format clean docker-up docker-down install-dev
+.PHONY: help build build-dev build-prod test test-unit test-integration lint format clean docker-up docker-down setup
+
+# Docker configuration
+DOCKER_COMPOSE ?= docker compose
+IMAGE_NAME ?= mlc-llm
+REGISTRY ?= ghcr.io
+BUILD_CONTEXT ?= .
 
 # Default target
 help: ## Show this help message
-	@echo "MLC-LLM Development Makefile"
-	@echo "Usage: make [target]"
+	@echo "MLC-LLM Docker-First Development Makefile"
+	@echo "Works on macOS, Linux, and Windows without local dependencies"
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "  - Docker Desktop or Docker Engine"
+	@echo "  - Docker Compose"
+	@echo "  - Git (with submodules cloned)"
+	@echo ""
+	@echo "Quick Start:"
+	@echo "  make setup     # One-time setup"
+	@echo "  make dev-up    # Start development environment"
+	@echo "  make shell     # Open development shell"
 	@echo ""
 	@echo "Available targets:"
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# Environment variables
-PYTHON ?= python
-PYTEST ?= pytest
-DOCKER_COMPOSE ?= docker-compose
-BUILD_DIR ?= build
-IMAGE_NAME ?= mlc-llm
+# Prerequisites check
+check-docker: ## Check if Docker is available
+	@echo "Checking Docker installation..."
+	@docker --version >/dev/null 2>&1 || (echo "❌ Docker not found. Please install Docker Desktop." && exit 1)
+	@docker compose version >/dev/null 2>&1 || (echo "❌ Docker Compose not found. Please update Docker." && exit 1)
+	@echo "✅ Docker is available"
+
+check-git: ## Check if git submodules are initialized
+	@echo "Checking git submodules..."
+	@git submodule status | grep -q "^-" && echo "❌ Git submodules not initialized. Run 'git submodule update --init --recursive'" && exit 1 || echo "✅ Git submodules ready"
+
+# Setup and initialization
+setup: check-docker check-git ## One-time setup (run this first)
+	@echo "Setting up MLC-LLM development environment..."
+	@echo "This will take several minutes on first run..."
+	$(MAKE) build-dev
+	@echo "✅ Setup complete! Run 'make dev-up' to start development."
 
 # Build targets
-build: ## Build MLC-LLM from source
-	@echo "Building MLC-LLM..."
-	mkdir -p $(BUILD_DIR)
-	cd $(BUILD_DIR) && \
-	$(PYTHON) ../cmake/gen_cmake_config.py && \
-	cmake .. && \
-	cmake --build . --parallel $$(nproc || echo 4)
+build-base: ## Build base image only
+	@echo "Building base image..."
+	docker build \
+		--target base \
+		--tag $(IMAGE_NAME):base \
+		$(BUILD_CONTEXT)
 
-build-dev: ## Build development Docker image
+build-dev: check-docker ## Build development image
 	@echo "Building development Docker image..."
-	docker build --target development -t $(IMAGE_NAME):dev .
+	docker build \
+		--target development \
+		--tag $(IMAGE_NAME):dev \
+		$(BUILD_CONTEXT)
 
-build-prod: ## Build production Docker image
+build-prod: check-docker ## Build production image
 	@echo "Building production Docker image..."
-	docker build --target production -t $(IMAGE_NAME):prod .
+	docker build \
+		--target production \
+		--tag $(IMAGE_NAME):prod \
+		$(BUILD_CONTEXT)
 
-build-multi: ## Build multi-platform Docker images
-	@echo "Building multi-platform Docker images..."
-	docker buildx build --platform linux/amd64,linux/arm64 --target development -t $(IMAGE_NAME):dev .
-	docker buildx build --platform linux/amd64,linux/arm64 --target production -t $(IMAGE_NAME):prod .
+build-all: build-dev build-prod ## Build all images
 
-# Installation targets
-install-dev: ## Install development dependencies
-	@echo "Installing development dependencies..."
-	conda env create -f environment-dev.yml || conda env update -f environment-dev.yml
-	@echo "Activating environment and installing pre-commit hooks..."
-	bash -c "source $$(conda info --base)/etc/profile.d/conda.sh && \
-	         conda activate mlc-dev && \
-	         pre-commit install"
+# Multi-platform builds
+build-multi: check-docker ## Build multi-platform images (requires buildx)
+	@echo "Building multi-platform images..."
+	docker buildx create --use --name mlc-builder 2>/dev/null || true
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--target development \
+		--tag $(IMAGE_NAME):dev \
+		--load \
+		$(BUILD_CONTEXT)
+	docker buildx build \
+		--platform linux/amd64,linux/arm64 \
+		--target production \
+		--tag $(IMAGE_NAME):prod \
+		--load \
+		$(BUILD_CONTEXT)
 
-install-prod: ## Install production dependencies only
-	@echo "Installing production dependencies..."
-	conda env create -f environment-prod.yml || conda env update -f environment-prod.yml
-
-# Testing targets
-test: test-unit test-integration ## Run all tests
-
-test-unit: ## Run unit tests
-	@echo "Running unit tests..."
-	$(PYTEST) tests/unit/ -v --cov=mlc_llm --cov-report=html --cov-report=term
-
-test-integration: ## Run integration tests
-	@echo "Running integration tests..."
-	$(PYTEST) tests/integration/ -v
-
-test-fast: ## Run fast tests only (excluding slow tests)
-	@echo "Running fast tests..."
-	$(PYTEST) tests/ -v -m "not slow"
-
-test-gpu: ## Run GPU-specific tests
-	@echo "Running GPU tests..."
-	$(PYTEST) tests/ -v -m "gpu"
-
-test-coverage: ## Generate test coverage report
-	@echo "Generating coverage report..."
-	$(PYTEST) tests/ --cov=mlc_llm --cov-report=html --cov-report=xml
-	@echo "Coverage report generated in htmlcov/"
-
-# Code quality targets
-lint: ## Run linting checks
-	@echo "Running linting checks..."
-	black --check python/
-	isort --check-only python/
-	pylint python/mlc_llm/
-	mypy python/mlc_llm/
-
-format: ## Format code
-	@echo "Formatting code..."
-	black python/
-	isort python/
-
-format-check: ## Check code formatting without making changes
-	@echo "Checking code formatting..."
-	black --check --diff python/
-	isort --check-only --diff python/
-
-# Docker development targets
-docker-up: ## Start development environment with Docker Compose
+# Development environment
+dev-up: check-docker ## Start development environment
 	@echo "Starting development environment..."
 	$(DOCKER_COMPOSE) up -d
 
-docker-down: ## Stop development environment
+dev-down: ## Stop development environment
 	@echo "Stopping development environment..."
 	$(DOCKER_COMPOSE) down
 
-docker-logs: ## Show Docker container logs
+dev-logs: ## Show development environment logs
 	$(DOCKER_COMPOSE) logs -f
 
-docker-shell: ## Open shell in development container
-	$(DOCKER_COMPOSE) exec mlc-dev /bin/bash
+dev-restart: dev-down dev-up ## Restart development environment
 
-docker-rebuild: ## Rebuild and restart Docker containers
-	@echo "Rebuilding Docker containers..."
-	$(DOCKER_COMPOSE) down
+dev-rebuild: dev-down ## Rebuild and restart development environment
+	@echo "Rebuilding development environment..."
 	$(DOCKER_COMPOSE) build --no-cache
 	$(DOCKER_COMPOSE) up -d
 
-# Jupyter targets
-jupyter: ## Start Jupyter lab in container
-	$(DOCKER_COMPOSE) exec mlc-dev jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+# Container interaction
+shell: ## Open bash shell in development container
+	@echo "Opening shell in development container..."
+	@if ! docker ps --format "table {{.Names}}" | grep -q mlc-dev; then \
+		echo "Development container not running. Starting it..."; \
+		$(MAKE) dev-up; \
+		sleep 5; \
+	fi
+	docker exec -it mlc-dev /bin/bash
 
-# Monitoring targets
-monitor-up: ## Start monitoring stack (Prometheus + Grafana)
-	@echo "Starting monitoring stack..."
-	$(DOCKER_COMPOSE) up -d prometheus grafana
+root-shell: ## Open root shell in development container (for debugging)
+	docker exec -it --user root mlc-dev /bin/bash
 
-monitor-down: ## Stop monitoring stack
-	$(DOCKER_COMPOSE) stop prometheus grafana
+jupyter: ## Start Jupyter Lab in development container
+	@echo "Starting Jupyter Lab..."
+	@echo "Access at: http://localhost:8888"
+	docker exec -d mlc-dev jupyter lab \
+		--ip=0.0.0.0 \
+		--port=8888 \
+		--no-browser \
+		--allow-root \
+		--NotebookApp.token='' \
+		--NotebookApp.password=''
 
-# Benchmark targets
-benchmark: ## Run performance benchmarks
-	@echo "Running benchmarks..."
-	$(PYTHON) scripts/benchmark.py --output benchmark-results.json
+# Testing - all run inside containers
+test: test-unit test-integration ## Run all tests in container
 
-benchmark-docker: ## Run benchmarks in Docker
+test-unit: ## Run unit tests in container
+	@echo "Running unit tests in container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m pytest tests/unit/ -v --cov=mlc_llm --cov-report=term"
+
+test-integration: ## Run integration tests in container
+	@echo "Running integration tests in container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m pytest tests/integration/ -v"
+
+test-fast: ## Run fast tests only (no GPU required)
+	@echo "Running fast tests in container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m pytest tests/ -v -m 'not slow and not gpu'"
+
+test-gpu: ## Run GPU tests (requires nvidia-docker)
+	@echo "Running GPU tests in container..."
 	docker run --rm --gpus all \
-		-v $$(pwd):/workspace \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m pytest tests/ -v -m gpu"
+
+test-coverage: ## Generate test coverage report
+	@echo "Generating test coverage report..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		-v $(PWD)/htmlcov:/workspace/htmlcov \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m pytest tests/ --cov=mlc_llm --cov-report=html --cov-report=xml"
+	@echo "Coverage report generated in htmlcov/"
+
+# Code quality - all run inside containers
+lint: ## Run linting checks in container
+	@echo "Running linting checks in container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && black --check python/ && isort --check-only python/ && pylint python/mlc_llm/ && mypy python/mlc_llm/"
+
+format: ## Format code in container
+	@echo "Formatting code in container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && black python/ && isort python/"
+
+format-check: ## Check code formatting without changes
+	@echo "Checking code formatting..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && black --check --diff python/ && isort --check-only --diff python/"
+
+# Build MLC-LLM inside container
+build-mlc: ## Build MLC-LLM inside container
+	@echo "Building MLC-LLM inside development container..."
+	docker run --rm \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && mkdir -p build && cd build && python ../cmake/gen_cmake_config.py && cmake .. && make -j\$$(nproc)"
+
+compile-model: ## Compile a test model inside container
+	@echo "Compiling test model inside container..."
+	docker run --rm --gpus all \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python -m mlc_llm compile HF://mlc-ai/Llama-2-7b-chat-hf-q4f16_1-MLC --device cuda"
+
+# Production testing
+prod-test: ## Test production image
+	@echo "Testing production image..."
+	docker run --rm $(IMAGE_NAME):prod --help
+
+prod-run: ## Run production container
+	@echo "Running production container..."
+	docker run --rm -it --gpus all \
+		-p 8000:8000 \
 		$(IMAGE_NAME):prod \
-		python scripts/benchmark.py
+		serve --host 0.0.0.0 --port 8000
 
-# Release targets
-release-test: ## Test release build process
-	@echo "Testing release build..."
-	$(PYTHON) -m build
-	$(PYTHON) -m twine check dist/*
+# Development utilities
+logs: ## Show all container logs
+	$(DOCKER_COMPOSE) logs
 
-release-wheels: ## Build Python wheels
-	@echo "Building Python wheels..."
-	$(PYTHON) -m cibuildwheel --output-dir wheelhouse
+ps: ## Show running containers
+	$(DOCKER_COMPOSE) ps
 
-# Cleanup targets
-clean: ## Clean build artifacts
-	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR)
-	rm -rf dist/
-	rm -rf wheelhouse/
-	rm -rf *.egg-info/
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name "*.pyo" -delete
+top: ## Show container resource usage
+	docker stats
 
-clean-docker: ## Clean Docker images and volumes
-	@echo "Cleaning Docker resources..."
+inspect: ## Inspect development image
+	docker run --rm $(IMAGE_NAME):dev python -c "import sys; print('Python:', sys.version); import mlc_llm; print('MLC-LLM imported successfully')"
+
+# Benchmarking
+benchmark: ## Run performance benchmarks in container
+	@echo "Running benchmarks in container..."
+	docker run --rm --gpus all \
+		-v $(PWD):/workspace \
+		$(IMAGE_NAME):dev \
+		bash -c "cd /workspace && python scripts/benchmark.py --output benchmark-results.json"
+
+# Registry operations
+push-dev: ## Push development image to registry
+	docker tag $(IMAGE_NAME):dev $(REGISTRY)/$(IMAGE_NAME):dev
+	docker push $(REGISTRY)/$(IMAGE_NAME):dev
+
+push-prod: ## Push production image to registry
+	docker tag $(IMAGE_NAME):prod $(REGISTRY)/$(IMAGE_NAME):prod
+	docker push $(REGISTRY)/$(IMAGE_NAME):prod
+
+pull-dev: ## Pull development image from registry
+	docker pull $(REGISTRY)/$(IMAGE_NAME):dev
+	docker tag $(REGISTRY)/$(IMAGE_NAME):dev $(IMAGE_NAME):dev
+
+pull-prod: ## Pull production image from registry
+	docker pull $(REGISTRY)/$(IMAGE_NAME):prod
+	docker tag $(REGISTRY)/$(IMAGE_NAME):prod $(IMAGE_NAME):prod
+
+# Cleanup
+clean: ## Clean up containers and volumes
+	@echo "Cleaning up containers and volumes..."
+	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
-	docker volume prune -f
 
-clean-all: clean clean-docker ## Clean everything
+clean-images: ## Remove all MLC-LLM images
+	@echo "Removing MLC-LLM images..."
+	docker rmi $(IMAGE_NAME):dev $(IMAGE_NAME):prod $(IMAGE_NAME):base 2>/dev/null || true
 
-# Documentation targets
-docs: ## Build documentation
-	@echo "Building documentation..."
-	cd docs && make html
+clean-all: clean clean-images ## Clean everything
+	@echo "Cleaning everything..."
+	docker system prune -af
 
-docs-serve: ## Serve documentation locally
-	@echo "Serving documentation..."
-	cd docs/_build/html && python -m http.server 8080
-
-# Pre-commit targets
-pre-commit: ## Run pre-commit hooks
-	pre-commit run --all-files
-
-pre-commit-install: ## Install pre-commit hooks
-	pre-commit install
-
-# CI/CD simulation targets
-ci-test: ## Simulate CI testing pipeline
+# CI/CD simulation
+ci-test: ## Simulate CI pipeline locally
 	@echo "Simulating CI pipeline..."
-	make lint
-	make test-fast
-	make build
+	$(MAKE) build-dev
+	$(MAKE) format-check
+	$(MAKE) lint
+	$(MAKE) test-fast
+	@echo "✅ CI simulation passed!"
 
-ci-full: ## Full CI simulation including Docker builds
+ci-full: ## Full CI simulation with all tests
 	@echo "Running full CI simulation..."
-	make lint
-	make test
-	make build-dev
-	make build-prod
+	$(MAKE) build-all
+	$(MAKE) format-check
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) prod-test
+	@echo "✅ Full CI simulation passed!"
 
-# Development workflow targets
-dev-setup: install-dev pre-commit-install ## Complete development setup
-	@echo "Development environment setup complete!"
-	@echo "To get started:"
-	@echo "  1. conda activate mlc-dev"
-	@echo "  2. make docker-up"
-	@echo "  3. Open http://localhost:8888 for Jupyter"
+# Platform checks
+platform-check: ## Check platform compatibility
+	@echo "Platform Information:"
+	@echo "Host OS: $$(uname -s)"
+	@echo "Host Arch: $$(uname -m)"
+	@echo "Docker Version: $$(docker --version)"
+	@echo "Docker Compose Version: $$(docker compose version)"
+	@echo ""
+	@echo "Container Platform Check:"
+	docker run --rm $(IMAGE_NAME):dev uname -a
 
-dev-check: ## Quick development environment check
-	@echo "Checking development environment..."
-	conda info --envs | grep mlc-dev || echo "❌ mlc-dev environment not found"
-	which pre-commit >/dev/null && echo "✅ pre-commit installed" || echo "❌ pre-commit not found"
-	docker --version >/dev/null && echo "✅ Docker available" || echo "❌ Docker not found"
-	docker-compose --version >/dev/null && echo "✅ Docker Compose available" || echo "❌ Docker Compose not found"
+# Quick development commands
+dev: dev-up shell ## Start development and open shell (convenience)
 
-# Security targets
-security-scan: ## Run security vulnerability scans
-	@echo "Running security scans..."
-	docker run --rm -v $$(pwd):/workspace \
-		aquasecurity/trivy fs /workspace
-	
-security-scan-docker: ## Scan Docker images for vulnerabilities
-	@echo "Scanning Docker images..."
-	docker run --rm \
-		aquasecurity/trivy image $(IMAGE_NAME):dev
-	docker run --rm \
-		aquasecurity/trivy image $(IMAGE_NAME):prod
+quick-test: ## Quick test without rebuilding
+	docker run --rm -v $(PWD):/workspace $(IMAGE_NAME):dev bash -c "cd /workspace && python -c 'import mlc_llm; print(\"✅ MLC-LLM works!\")'"
+
+# Help for first-time users
+first-time: ## First-time setup guide
+	@echo "🚀 MLC-LLM Docker-First Development Setup"
+	@echo ""
+	@echo "This setup works on macOS, Linux, and Windows without local dependencies!"
+	@echo ""
+	@echo "Prerequisites:"
+	@echo "  1. Install Docker Desktop: https://www.docker.com/products/docker-desktop/"
+	@echo "  2. Clone MLC-LLM with submodules:"
+	@echo "     git clone --recursive https://github.com/mlc-ai/mlc-llm.git"
+	@echo ""
+	@echo "Quick Start:"
+	@echo "  1. make setup      # One-time setup (builds Docker images)"
+	@echo "  2. make dev        # Start development environment and shell"
+	@echo "  3. make test-fast  # Run tests to verify everything works"
+	@echo ""
+	@echo "Useful commands:"
+	@echo "  make help         # Show all available commands"
+	@echo "  make jupyter      # Start Jupyter Lab"
+	@echo "  make shell        # Open development shell"
+	@echo "  make test         # Run all tests"
+	@echo ""
+	@echo "For more help: https://github.com/mlc-ai/mlc-llm/docs"
