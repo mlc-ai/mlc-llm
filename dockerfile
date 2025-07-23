@@ -53,9 +53,9 @@ RUN ls -la build/ && echo "✅ MLC-LLM build completed successfully"
 # ──────────────────────────────────────────────────────────
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS production
 
-# Install minimal runtime dependencies INCLUDING python3-venv
+# Install minimal runtime dependencies INCLUDING python3-venv and git
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv \
+    python3 python3-pip python3-venv git \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean
 
@@ -78,17 +78,18 @@ RUN find /tmp/build_artifacts -name "*tvm_runtime*" -type f -exec cp {} /usr/loc
     rm -rf /tmp/build_artifacts && \
     ls -la /usr/local/lib/
 
-COPY --from=builder /workspace/python/mlc_llm /opt/mlc_llm/mlc_llm
-COPY --from=builder /workspace/python/setup.py /opt/mlc_llm/
-COPY --from=builder /workspace/version.py /opt/version.py
+# Copy python package structure with git context
+COPY --from=builder /workspace/.git /opt/workspace/.git
+COPY --from=builder /workspace/version.py /opt/workspace/version.py
+COPY --from=builder /workspace/python /opt/workspace/python
 COPY --from=builder /workspace/3rdparty/tvm/python/tvm /opt/tvm/
 
 # Set environment with TVM path
 ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH" \
-    PYTHONPATH="/opt/tvm:/opt/mlc_llm:$PYTHONPATH"
+    PYTHONPATH="/opt/tvm:/opt/workspace/python:$PYTHONPATH"
 
-# Install mlc-llm package only
-RUN cd /opt/mlc_llm && pip install --no-deps .
+# Install mlc-llm package from correct git context
+RUN cd /opt/workspace/python && pip install --no-deps .
 
 # List build artifacts to see what's available
 RUN echo "=== Build directory contents ===" && \
