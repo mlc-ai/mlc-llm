@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Install build dependencies in single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build python3 python3-pip python3-dev python3.10-venv \
+    build-essential cmake ninja-build python3 python3-pip python3-dev \
     git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean
@@ -58,7 +58,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create virtual environment
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/opt/mlc_llm:$PYTHONPATH"
+    PYTHONPATH="/opt/mlc_llm"
 
 # Install minimal runtime Python packages
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
