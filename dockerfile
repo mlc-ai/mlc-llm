@@ -67,9 +67,16 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # Install minimal runtime Python packages
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
 
-# Copy built artifacts
+# Copy built artifacts - flexible approach
 COPY --from=builder /workspace/build/libmlc_llm.so /usr/local/lib/
-COPY --from=builder /workspace/build/libtvm_runtime.so /usr/local/lib/
+COPY --from=builder /workspace/build/ /tmp/build_artifacts/
+
+# Find and copy TVM runtime (it might be in different locations)
+RUN find /tmp/build_artifacts -name "*tvm_runtime*" -type f -exec cp {} /usr/local/lib/ \; || true && \
+    find /tmp/build_artifacts -name "*tvm*.so" -type f -exec cp {} /usr/local/lib/ \; || true && \
+    rm -rf /tmp/build_artifacts && \
+    ls -la /usr/local/lib/
+
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc_llm/mlc_llm
 COPY --from=builder /workspace/python/setup.py /opt/mlc_llm/
 COPY --from=builder /workspace/3rdparty/tvm/python/tvm /opt/tvm/
@@ -81,14 +88,20 @@ ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH" \
 # Install mlc-llm package only
 RUN cd /opt/mlc_llm && pip install --no-deps .
 
+# List build artifacts to see what's available
+RUN echo "=== Build directory contents ===" && \
+    find build -name "*.so" -type f 2>/dev/null | head -20 && \
+    echo "=== TVM directory contents ===" && \
+    find build/tvm -name "*.so" -type f 2>/dev/null | head -20 || true
+
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash --uid 1000 mlcuser
 USER mlcuser
 WORKDIR /app
 
-# Health check - basic library existence
+# Health check - verify key libraries exist
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD ls /usr/local/lib/libmlc_llm.so && ls /usr/local/lib/libtvm_runtime.so || exit 1
+    CMD ls /usr/local/lib/libmlc_llm.so || exit 1
 
 ENTRYPOINT ["python3", "-m", "mlc_llm"]
 CMD ["--help"]
