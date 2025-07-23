@@ -1,0 +1,266 @@
+name: CI/CD Pipeline
+
+# ═══════════════════════════════════════════════════════════
+# TRIGGERS - Industry Best Practice
+# ═══════════════════════════════════════════════════════════
+on:
+  # Standard triggers for most projects
+  push:
+    branches: [ main, develop ]
+    # Ignore documentation-only changes
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'LICENSE'
+  
+  # Release triggers
+  release:
+    types: [ published ]
+  
+  # Manual trigger (useful for debugging)
+  workflow_dispatch:
+
+# ═══════════════════════════════════════════════════════════
+# ENVIRONMENT VARIABLES - Single source of truth
+# ═══════════════════════════════════════════════════════════
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  PYTHON_VERSION: '3.11'
+  CUDA_VERSION: '12.1'
+
+# ═══════════════════════════════════════════════════════════
+# JOBS - Organized by responsibility
+# ═══════════════════════════════════════════════════════════
+jobs:
+  # ───────────────────────────────────────────────────────────
+  # LINT - Fast feedback on code quality
+  # ───────────────────────────────────────────────────────────
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install black isort pylint mypy
+          pip install -e python/  # Install package for imports
+
+      - name: Run black
+        run: black --check --diff python/
+
+      - name: Run isort
+        run: isort --check-only --diff python/
+
+      - name: Run pylint
+        run: pylint python/mlc_llm/ --fail-under=8.0
+
+      - name: Run mypy
+        run: mypy python/mlc_llm/ --ignore-missing-imports
+
+  # ───────────────────────────────────────────────────────────
+  # TEST - Core functionality testing
+  # ───────────────────────────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-cov pytest-xdist
+          pip install -e python/[test]  # Install with test extras
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v \
+            --cov=mlc_llm \
+            --cov-report=xml \
+            --cov-report=html \
+            -n auto
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        if: matrix.python-version == '3.11'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+
+  # ───────────────────────────────────────────────────────────
+  # BUILD - Docker image building
+  # ───────────────────────────────────────────────────────────
+  build:
+    name: Build Images
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: production
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+            CUDA_VERSION=${{ env.CUDA_VERSION }}
+
+  # ───────────────────────────────────────────────────────────
+  # SECURITY - Vulnerability scanning
+  # ───────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Run Trivy scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.build.outputs.image-tag }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ───────────────────────────────────────────────────────────
+  # INTEGRATION - End-to-end testing
+  # ───────────────────────────────────────────────────────────
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Test image functionality
+        run: |
+          docker run --rm ${{ needs.build.outputs.image-tag }} --help
+
+      - name: Run integration tests
+        run: |
+          docker run --rm ${{ needs.build.outputs.image-tag }} \
+            python -c "import mlc_llm; print('Integration test passed')"
+
+  # ───────────────────────────────────────────────────────────
+  # RELEASE - Only for tags/releases
+  # ───────────────────────────────────────────────────────────
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [lint, test, build, security]
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build wheel
+        run: |
+          pip install build
+          cd python
+          python -m build
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: python/dist/*
+          generate_release_notes: true
