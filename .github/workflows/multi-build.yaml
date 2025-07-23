@@ -159,12 +159,14 @@ jobs:
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
-        cache-from: |
-          type=gha,scope=prod
-          type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.repository }}:buildcache
-        cache-to: |
-          type=gha,mode=max,scope=prod
-          type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.repository }}:buildcache,mode=max
+        cache-from: type=gha,scope=prod  # Only GitHub Actions cache
+        cache-to: type=gha,mode=max,scope=prod 
+        # cache-from: |
+        #   type=gha,scope=prod
+        #   type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.repository }}:buildcache
+        # cache-to: |
+        #   type=gha,mode=max,scope=prod
+        #   type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.repository }}:buildcache,mode=max
         build-args: |
           BUILDKIT_INLINE_CACHE=1
 
