@@ -78,18 +78,19 @@ RUN find /tmp/build_artifacts -name "*tvm_runtime*" -type f -exec cp {} /usr/loc
     rm -rf /tmp/build_artifacts && \
     ls -la /usr/local/lib/
 
-# Copy python package structure with git context
-COPY --from=builder /workspace/.git /opt/workspace/.git
-COPY --from=builder /workspace/version.py /opt/workspace/version.py
+# Copy python package structure (no git needed)
 COPY --from=builder /workspace/python /opt/workspace/python
 COPY --from=builder /workspace/3rdparty/tvm/python/tvm /opt/tvm/
 
-# Set environment with TVM path
+# Set environment with TVM path  
 ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH" \
-    PYTHONPATH="/opt/tvm:/opt/workspace/python:$PYTHONPATH"
+    PYTHONPATH="/opt/tvm:/opt/workspace/python:$PYTHONPATH" \
+    MLC_LLM_VERSION="0.1.0-docker"
 
-# Install mlc-llm package from correct git context
-RUN cd /opt/workspace/python && pip install --no-deps .
+# Install mlc-llm package with static version
+RUN cd /opt/workspace/python && \
+    sed -i 's/__version__ = git_describe_version(__version__)/__version__ = "0.1.0-docker"/' setup.py && \
+    pip install --no-deps .
 
 # List build artifacts to see what's available
 RUN echo "=== Build directory contents ===" && \
