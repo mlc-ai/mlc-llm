@@ -4,7 +4,7 @@
 # ──────────────────────────────────────────────────────────
 # BUILDER STAGE - Compile MLC-LLM (temporary)
 # ──────────────────────────────────────────────────────────
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
 
 # Minimize environment variables
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -17,6 +17,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* \
     && apt-get clean
+
+# Install Rust (minimal profile, system-wide)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
+ENV PATH="/root/.cargo/bin:$PATH"
 
 # Install Rust (minimal profile)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal
@@ -36,7 +40,7 @@ COPY . .
 RUN mkdir -p build && cd build && \
     printf '\ny\nn\ny\nn\nn\nn\nn\nn\n' | python ../cmake/gen_cmake_config.py && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_CUDA=ON -DUSE_VULKAN=OFF && \
-    make -j1  # Use make instead of ninja, single job
+    make -j1  # CUDA 12.2 should fix Thrust compatibility
 
 # Install Python package
 RUN cd python && pip install --no-deps -e .
@@ -47,7 +51,7 @@ RUN python -c "import mlc_llm; print('✅ MLC-LLM build successful')"
 # ──────────────────────────────────────────────────────────
 # PRODUCTION STAGE - Minimal runtime
 # ──────────────────────────────────────────────────────────
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04 AS production
+FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS production
 
 # Install minimal runtime dependencies INCLUDING python3-venv
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -69,7 +73,7 @@ COPY --from=builder /workspace/build/libtvm_runtime.so /usr/local/lib/
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc_llm/mlc_llm
 COPY --from=builder /workspace/python/setup.py /opt/mlc_llm/
 
-# Set environment (PYTHONPATH now defined above)
+# Set environment
 ENV LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
 
 # Install package
