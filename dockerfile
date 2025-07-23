@@ -80,6 +80,7 @@ RUN find /tmp/build_artifacts -name "*tvm_runtime*" -type f -exec cp {} /usr/loc
 
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc_llm/mlc_llm
 COPY --from=builder /workspace/python/setup.py /opt/mlc_llm/
+COPY --from=builder /workspace/version.py /opt/version.py
 COPY --from=builder /workspace/3rdparty/tvm/python/tvm /opt/tvm/
 
 # Set environment with TVM path
