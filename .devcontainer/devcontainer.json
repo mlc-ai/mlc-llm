@@ -1,222 +1,48 @@
-// .devcontainer/devcontainer.json - Platform-agnostic dev container
 {
-  "name": "MLC-LLM Development (Docker-First)",
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "mlc-dev",
+  "name": "MLC-LLM Development",
+  "dockerFile": "../Dockerfile",
+  "target": "development",
+  "context": "..",
+  
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+  
   "workspaceFolder": "/workspace",
-  "shutdownAction": "stopCompose",
-
-  // Ensure container stays running
-  "overrideCommand": false,
-
-  // Configure tool-specific properties
+  
+  "runArgs": [
+    "--shm-size=2g"
+  ],
+  
   "customizations": {
     "vscode": {
       "extensions": [
-        // Python development
         "ms-python.python",
         "ms-python.black-formatter",
         "ms-python.isort",
-        "ms-python.pylint",
-        "ms-python.mypy-type-checker",
         "ms-toolsai.jupyter",
-        
-        // C++ development (for MLC-LLM core)
-        "ms-vscode.cmake-tools",
-        "ms-vscode.cpptools",
-        "ms-vscode.cpptools-extension-pack",
-        
-        // Rust development (for tokenizers)
-        "rust-lang.rust-analyzer",
-        
-        // General development
-        "GitHub.copilot",
-        "GitHub.copilot-chat",
-        "ms-vscode.vscode-json",
-        "redhat.vscode-yaml",
-        "ms-azuretools.vscode-docker",
-        "eamodio.gitlens",
-        
-        // Documentation and markdown
-        "yzhang.markdown-all-in-one",
-        "shd101wyy.markdown-preview-enhanced",
-        
-        // Git and version control
-        "mhutchie.git-graph",
-        "donjayamanne.githistory",
-        
-        // Productivity
-        "ms-vscode.live-server",
-        "formulahendry.code-runner",
-        "ms-vsliveshare.vsliveshare"
+        "ms-vscode.cmake-tools"
       ],
-      
       "settings": {
-        // Python configuration
-        "python.defaultInterpreterPath": "/opt/conda/envs/mlc-llm/bin/python",
-        "python.terminal.activateEnvironment": false,
-        "python.formatting.provider": "none",
+        "python.defaultInterpreterPath": "/usr/bin/python3",
         "python.linting.enabled": true,
         "python.linting.pylintEnabled": true,
-        "python.linting.mypyEnabled": true,
-        "python.testing.pytestEnabled": true,
-        "python.testing.pytestPath": "/opt/conda/envs/mlc-llm/bin/pytest",
-        "python.testing.unittestEnabled": false,
-        "python.testing.nosetestsEnabled": false,
-        
-        // Code formatting
-        "[python]": {
-          "editor.formatOnSave": true,
-          "editor.codeActionsOnSave": {
-            "source.organizeImports": "explicit"
-          },
-          "editor.defaultFormatter": "ms-python.black-formatter"
-        },
-        
-        // C++ configuration
-        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
-        "cmake.buildDirectory": "${workspaceFolder}/build",
-        
-        // General editor settings
-        "editor.formatOnSave": true,
-        "editor.insertSpaces": true,
-        "editor.tabSize": 4,
-        "editor.rulers": [88, 120],
-        "editor.wordWrap": "on",
-        
-        // File exclusions for performance
-        "files.exclude": {
-          "**/__pycache__": true,
-          "**/.pytest_cache": true,
-          "**/build": false,
-          "**/*.egg-info": true,
-          "**/.git/objects/**": true,
-          "**/.git/subtree-cache/**": true,
-          "**/node_modules": true
-        },
-        
-        // Search exclusions
-        "search.exclude": {
-          "**/build": true,
-          "**/__pycache__": true,
-          "**/.pytest_cache": true,
-          "**/*.egg-info": true
-        },
-        
-        // Terminal configuration
-        "terminal.integrated.defaultProfile.linux": "bash",
-        "terminal.integrated.profiles.linux": {
-          "bash": {
-            "path": "/bin/bash",
-            "args": ["-c", "source /opt/conda/etc/profile.d/conda.sh && conda activate mlc-llm && exec bash"]
-          }
-        },
-        
-        // Git configuration
-        "git.enableSmartCommit": true,
-        "git.autofetch": true,
-        "git.confirmSync": false,
-        
-        // Jupyter configuration
-        "jupyter.askForKernelRestart": false,
-        "jupyter.interactiveWindow.creationMode": "perFile",
-        
-        // Docker configuration
-        "docker.dockerComposeBuild": true,
-        "docker.dockerComposeDetached": true,
-        
-        // Performance settings
-        "extensions.autoUpdate": false,
-        "update.mode": "none"
+        "python.formatting.provider": "black",
+        "python.linting.lintOnSave": true,
+        "files.watcherExclude": {
+          "**/build/**": true,
+          "**/.git/**": true
+        }
       }
     }
   },
-
-  // Port forwarding - works on all host platforms
-  "forwardPorts": [8888, 6006, 8000, 3000],
-  "portsAttributes": {
-    "8888": {
-      "label": "Jupyter Lab",
-      "onAutoForward": "openPreview",
-      "protocol": "http"
-    },
-    "6006": {
-      "label": "TensorBoard",
-      "onAutoForward": "notify",
-      "protocol": "http"
-    },
-    "8000": {
-      "label": "FastAPI Server",
-      "onAutoForward": "notify",
-      "protocol": "http"
-    },
-    "3000": {
-      "label": "Development Server",
-      "onAutoForward": "ignore",
-      "protocol": "http"
-    }
-  },
-
-  // Use non-root user for security
-  "remoteUser": "mlcuser",
-
-  // Lifecycle scripts
-  "postCreateCommand": {
-    "git-safe": "git config --global --add safe.directory /workspace",
-    "pre-commit": "pre-commit install --install-hooks || echo 'Pre-commit config not found'"
+  
+  "postCreateCommand": "echo '🚀 MLC-LLM dev environment ready! Source is mounted at /workspace'",
+  
+  "remoteEnv": {
+    "PYTHONPATH": "/workspace/python:/workspace/3rdparty/tvm/python",
+    "LD_LIBRARY_PATH": "/workspace/build:/usr/local/lib"
   },
   
-  "postStartCommand": "echo '🚀 MLC-LLM Dev Container Ready!'",
-
-  // Features for additional tools
-  "features": {
-    "ghcr.io/devcontainers/features/git:1": {
-      "ppa": true,
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/git-lfs:1": {
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/github-cli:1": {
-      "version": "latest"
-    },
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": false,
-      "configureZshAsDefaultShell": false,
-      "installOhMyZsh": false,
-      "username": "mlcuser",
-      "userUid": "1000",
-      "userGid": "1000"
-    }
-  },
-
-  // Environment variables
-  "containerEnv": {
-    "MLC_LLM_SOURCE_DIR": "/workspace",
-    "PYTHONPATH": "/workspace/python",
-    "START_JUPYTER": "false"
-  },
-
-  // Mounts for persistent data - works across platforms
-  "mounts": [
-    "source=mlc-vscode-extensions,target=/home/mlcuser/.vscode-server,type=volume",
-    "source=mlc-cache,target=/home/mlcuser/.cache,type=volume"
-  ],
-
-  // Development container configuration
-  "capAdd": [],
-  "securityOpt": [],
-  "privileged": false,
-  
-  // Resource limits
-  "hostRequirements": {
-    "memory": "8gb",
-    "storage": "32gb"
-  },
-
-  // Additional configuration for Docker Desktop
-  "runArgs": [
-    "--hostname", "mlc-dev",
-    "--init"
-  ]
+  "remoteUser": "root"
 }

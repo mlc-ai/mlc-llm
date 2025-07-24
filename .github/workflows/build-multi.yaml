@@ -1,4 +1,4 @@
-name: MLC-LLM CI/CD Pipeline (Space-Optimized)
+name: MLC-LLM CI/CD Pipeline
 
 on:
   push:
@@ -27,9 +27,8 @@ jobs:
         submodules: recursive
         lfs: true
 
-    - name: Maximum disk space cleanup
+    - name: Ultra-aggressive disk space cleanup
       run: |
-        # Ultra-aggressive cleanup for space
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo rm -rf /opt/hostedtoolcache /usr/local/share/powershell 
         sudo rm -rf /usr/local/share/chromium /usr/local/share/boost
@@ -74,7 +73,7 @@ jobs:
           bash -c "cd /workspace && python -m pytest tests/unit/ -v" || echo "Tests completed"
 
   # ══════════════════════════════════════════════════════════════
-  # Space-optimized Docker build (MAIN BUILD)
+  # Docker build (MAIN BUILD)
   # ══════════════════════════════════════════════════════════════
   build-docker:
     name: Build Docker Images
@@ -187,7 +186,7 @@ jobs:
       continue-on-error: true
 
   # ══════════════════════════════════════════════════════════════
-  # Cross-platform wheel builds (REQUIRED)
+  # Cross-platform wheel builds
   # ══════════════════════════════════════════════════════════════
   build-wheels:
     name: Build Wheels
@@ -214,7 +213,6 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         mkdir -p wheelhouse
-        # Use our space-optimized builder
         docker build -t mlc-wheel-builder --target builder .
         docker run --rm -v $(pwd)/wheelhouse:/wheelhouse mlc-wheel-builder \
           bash -c "cd /workspace/python && pip3 install build && python3 -m build --wheel && cp dist/*.whl /wheelhouse/" || echo "Linux wheel build completed"
@@ -316,7 +314,7 @@ jobs:
         files: dist/*.whl
         generate_release_notes: true
         body: |
-          ## 🎉 MLC-LLM Release ${{ github.ref_name }} (Space-Optimized)
+          ## 🎉 MLC-LLM Release ${{ github.ref_name }}
           
           ### 📦 Platform Support
           - **Linux x64**: CUDA-enabled wheel for Linux systems
@@ -340,5 +338,3 @@ jobs:
           # Or use Docker
           docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           ```
-          
-          Built with space-optimized approach inspired by dusty-nv's jetson-containers.

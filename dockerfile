@@ -1,8 +1,5 @@
-# Space-Optimized MLC-LLM Dockerfile (inspired by dusty-nv's approach)
-# Target: <8GB total image size
-
 # ══════════════════════════════════════════════════════════════
-# BUILDER STAGE - Minimal build environment 
+# BUILDER STAGE
 # ══════════════════════════════════════════════════════════════
 FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
 
@@ -32,7 +29,7 @@ COPY docker/build-mlc.sh /tmp/build-mlc.sh
 RUN chmod +x /tmp/build-mlc.sh && /tmp/build-mlc.sh
 
 # ══════════════════════════════════════════════════════════════
-# PRODUCTION STAGE - Ultra-minimal runtime
+# PRODUCTION STAGE
 # ══════════════════════════════════════════════════════════════
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS production
 
@@ -48,8 +45,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install minimal Python runtime
 RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu121
-
-# Copy essential built artifacts only (space-optimized)
 COPY --from=builder /workspace/build/libmlc_llm*.so /usr/local/lib/
 COPY --from=builder /workspace/build/libtvm*.so /usr/local/lib/
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc/python/mlc_llm
@@ -74,7 +69,7 @@ ENTRYPOINT ["python3", "-m", "mlc_llm"]
 CMD ["--help"]
 
 # ══════════════════════════════════════════════════════════════
-# DEVELOPMENT STAGE - For local development
+# DEVELOPMENT STAGE
 # ══════════════════════════════════════════════════════════════
 FROM builder AS development
 
@@ -88,13 +83,11 @@ WORKDIR /workspace
 CMD ["/bin/bash"]
 
 # ══════════════════════════════════════════════════════════════
-# CI STAGE - Ultra minimal for testing
+# CI STAGE
 # ══════════════════════════════════════════════════════════════
 FROM python:3.11-slim AS ci
 
 RUN pip install pytest black isort
-
-# Copy source for testing
 COPY python /workspace/python
 WORKDIR /workspace
 
