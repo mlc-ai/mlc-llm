@@ -38,7 +38,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04 AS production
 
 ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}" \
-    PYTHONPATH="/opt/mlc/python:${PYTHONPATH}"
+    PYTHONPATH="/opt/mlc/python"
 
 # Install only runtime essentials
 RUN apt-get update && apt-get install -y --no-install-recommends \
