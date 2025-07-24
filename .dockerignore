@@ -1,149 +1,82 @@
-# .dockerignore - Optimize Docker build performance and reduce context size
+# Space optimization - exclude unnecessary files from Docker context
 
-# Documentation and non-essential files
-*.md
-*.rst
-docs/
-site/
-README*
-CHANGELOG*
-LICENSE*
-CONTRIBUTING*
-
-# Git and version control
-.git/
+# Version control
+.git
 .gitignore
 .gitattributes
-.gitmodules
 
-# GitHub specific
-.github/
-!.github/workflows/
+# Documentation
+*.md
+docs/
+LICENSE
 
-# Python cache and build artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-wheelhouse/
-.eggs/
-
-# Testing and coverage
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-coverage.xml
-*.cover
-.hypothesis/
-
-# Development tools
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environment files (we create these in container)
-.env
-.env.local
-.env.*.local
-environment*.yml
-conda-lock*.yml
+# Virtual environments
+venv/
+env/
+ENV/
 
-# Logs
-logs/
-*.log
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+
+# CI/CD
+.github/
+.circleci/
+.travis.yml
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Temporary files
-tmp/
-temp/
-.tmp/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# Linux
-*~
-
-# Node.js (if any)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Model files and large data (should be downloaded in container)
-models/
-*.bin
-*.safetensors
-*.onnx
-*.tflite
-
-# Cache directories
+*.tmp
+*.temp
 .cache/
-cache/
 
-# Docker files themselves
-Dockerfile*
-docker-compose*.yml
-.dockerignore
+# Large binary files that aren't needed for build
+*.bin
+*.model
+*.ckpt
+*.weights
 
-# CI/CD artifacts
-artifacts/
-benchmark-results.json
-
-# IDE and editor files
-*.sublime-project
-*.sublime-workspace
-.vimrc
-.emacs*
-
-# Package managers
-poetry.lock
-Pipfile.lock
-requirements*.txt
-!requirements.txt
-
-# Conda
-.conda/
-.mamba/
-
-# Rust
-target/
-Cargo.lock
-
-# CMake
+# Build artifacts (will be created during build)
 CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-!CMakeLists.txt
-
-# TVM and MLC specific
-3rdparty/tvm/build/
-3rdparty/*/build/
-
-# Keep essential files needed for build
-!python/
-!cpp/
-!cmake/
-!src/
-!include/
-!CMakeLists.txt
-!setup.py
-!pyproject.toml

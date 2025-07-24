@@ -1,167 +1,49 @@
-# docker-compose.yml - Platform-agnostic development environment
-# Works on macOS, Linux, and Windows
+version: '3.8'
 
 services:
-  # Development environment with GPU support
+  # Development environment (interactive shell, source mounted)
   mlc-dev:
     build:
       context: .
       target: development
-      dockerfile: Dockerfile
     image: mlc-llm:dev
     container_name: mlc-dev
     volumes:
-      # Mount source code (works on all platforms)
-      - type: bind
-        source: .
-        target: /workspace
-      # Named volumes for persistent data
-      - mlc-models:/workspace/models
-      - mlc-cache:/home/mlcuser/.cache
-      - mlc-jupyter:/home/mlcuser/.jupyter
-      - mlc-vscode:/home/mlcuser/.vscode-server
-    ports:
-      - "8888:8888"  # Jupyter Lab
-      - "6006:6006"  # TensorBoard  
-      - "8000:8000"  # FastAPI server
-      - "3000:3000"  # Development server
-    environment:
-      - MLC_LLM_SOURCE_DIR=/workspace
-      - PYTHONPATH=/workspace/python
-      - JUPYTER_ENABLE_LAB=yes
-      - CUDA_VISIBLE_DEVICES=all
-    # GPU access (works with nvidia-docker on Linux, ignored on macOS/Windows)
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu, compute, utility]
-    # Keep container running
+      - .:/workspace
+      - mlc-cache:/root/.cache
+    working_dir: /workspace
     stdin_open: true
     tty: true
-    # Restart policy
-    restart: unless-stopped
-    # Health check
-    healthcheck:
-      test: ["CMD", "python", "-c", "import mlc_llm"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PYTHONPATH=/workspace/python:/workspace/3rdparty/tvm/python
+    command: /bin/bash
 
-  # Production-like environment for testing
+  # Production runtime (non-interactive)
   mlc-prod:
     build:
       context: .
       target: production
-      dockerfile: Dockerfile
     image: mlc-llm:prod
     container_name: mlc-prod
-    volumes:
-      - mlc-models:/app/models:ro
-    ports:
-      - "8001:8000"
+    runtime: nvidia
     environment:
-      - MLC_MODEL_PATH=/app/models
-      - MLC_DEVICE=auto
-    command: ["serve", "--host", "0.0.0.0", "--port", "8000"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu, compute]
-        limits:
-          memory: 8G
-    restart: unless-stopped
-    profiles:
-      - production
+      - NVIDIA_VISIBLE_DEVICES=all
+    command: --help
 
-  # Monitoring services (optional)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: mlc-prometheus
-    ports:
-      - "9090:9090"
+  # CI testing
+  mlc-test:
+    build:
+      context: .
+      target: ci
+    image: mlc-llm:ci
+    container_name: mlc-test
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-    profiles:
-      - monitoring
+      - .:/workspace
+    working_dir: /workspace
+    command: python -m pytest tests/ -v
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: mlc-grafana
-    ports:
-      - "3001:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana:/etc/grafana/provisioning:ro
-    profiles:
-      - monitoring
-
-  # Database for development (optional)
-  redis:
-    image: redis:7-alpine
-    container_name: mlc-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-    profiles:
-      - development
-      - full
-
-  # File server for model storage (optional)
-  minio:
-    image: minio/minio:latest
-    container_name: mlc-minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      - MINIO_ROOT_USER=minio
-      - MINIO_ROOT_PASSWORD=minio123
-    volumes:
-      - minio-data:/data
-    command: server /data --console-address ":9001"
-    profiles:
-      - storage
-      - full
-
-# Named volumes for persistent data across container rebuilds
 volumes:
-  mlc-models:
-    driver: local
   mlc-cache:
     driver: local
-  mlc-jupyter:
-    driver: local
-  mlc-vscode:
-    driver: local
-  prometheus-data:
-    driver: local
-  grafana-data:
-    driver: local
-  redis-data:
-    driver: local
-  minio-data:
-    driver: local
-
-# Custom network for service communication
-networks:
-  default:
-    name: mlc-network
-    driver: bridge
