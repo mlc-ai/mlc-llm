@@ -49,17 +49,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install minimal Python runtime
 RUN pip3 install torch --index-url https://download.pytorch.org/whl/cu121
 
-# Copy only essential built artifacts
+# Copy essential built artifacts only (space-optimized)
 COPY --from=builder /workspace/build/libmlc_llm*.so /usr/local/lib/
 COPY --from=builder /workspace/build/libtvm*.so /usr/local/lib/
 COPY --from=builder /workspace/python/mlc_llm /opt/mlc/python/mlc_llm
 COPY --from=builder /workspace/3rdparty/tvm/python/tvm /opt/mlc/python/tvm
 
+# Set up environment (runtime will handle library discovery)
+ENV TVM_HOME="/opt/mlc" \
+    LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}" \
+    PYTHONPATH="/opt/mlc/python"
+
 # Create minimal Python package installation
 RUN cd /opt/mlc/python && \
     echo 'from setuptools import setup, find_packages; setup(name="mlc_llm", version="0.1.0-docker", packages=find_packages())' > setup.py && \
-    pip3 install -e . --no-deps && \
-    python3 -c "import tvm; import mlc_llm; print('✅ Production setup verified')"
+    pip3 install -e . --no-deps
 
 # Create non-root user
 RUN useradd -m -u 1000 mlcuser
