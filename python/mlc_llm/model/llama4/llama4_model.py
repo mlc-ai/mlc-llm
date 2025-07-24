@@ -259,15 +259,26 @@ class Llama4TextRotaryEmbedding(nn.Module):
         return q_embed, k_embed
 
 # class Llama4TextL2Norm(nn.Module):
-#     def __init__(self, eps: float = 1e-6):
+#     def __init__(self, eps, hidden_size):
 #         self.eps = eps
-
-#     # def _norm(self, x):
-#     #     return x * rsqrt(mean(power(x,2), -1, keepdims=True) + self.eps)
+#         self.hidden_size = hidden_size
 
 #     def forward(self, x):
-#         return op.rms_norm(x, weight=1.0, axes=-1, epsilon=self.eps)
-#         # return op.astype(self._norm(op.astype(x, "float32")), x.struct_info.dtype)
+#         # return op.rms_norm(x, weight=op.ones((self.hidden_size)), axes=[-1], epsilon=self.eps)
+#         return op.astype(self._norm(op.astype(x, "float32")), x.struct_info.dtype)
+        
+#     def _norm(self, x):
+#         return x * op.rsqrt(op.mean(op.power(x,2), -1, keepdims=True) + self.eps)
+
+class Llama4TextL2Norm(nn.Module):
+    def __init__(self, eps, hidden_size):
+        self.eps = eps
+        self.hidden_size = hidden_size
+
+    def forward(self, x):
+        weight = op.ones((self.hidden_size,), dtype="float32")
+        return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
+        
 
 class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Llama4Config, layer_idx):
@@ -304,8 +315,11 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.rotary_emb = Llama4TextRotaryEmbedding(config)
 
         if config.text_config.use_qk_norm and self.use_rope:
-            self.q_norm = nn.RMSNorm(config.text_config.num_attention_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False) #Llama4TextL2Norm(config.text_config.rms_norm_eps)
-            self.k_norm = nn.RMSNorm(config.text_config.num_key_value_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+            # self.q_norm = nn.RMSNorm(config.text_config.num_attention_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+            # self.k_norm = nn.RMSNorm(config.text_config.num_key_value_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+
+            self.q_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_attention_heads * self.head_dim) #
+            self.k_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_key_value_heads * self.head_dim) #
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
         ## Modified from Gemma 3 and DeepseekV2

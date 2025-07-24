@@ -66,22 +66,45 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
         mapping.add_mapping(
             mlc_name,
             [
-                f"{mlp}.gate_proj.weight",
-                f"{mlp}.up_proj.weight",
+                f"language_model.{mlp}.gate_proj.weight",
+                f"language_model.{mlp}.up_proj.weight",
             ],
             functools.partial(
                 lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )
-        # inv_freq is not used in the model
-        # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
+
+        # Add experts weights
+        mlp = f"model.layers.{i}.feed_forward"
+        mlc_name = f"{mlp}.moe_gate_up_proj.weight"
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [f"language_model.{mlp}.experts.gate_up_proj",],
+            functools.partial(
+                lambda x, dtype: x.swapaxes(-1, -2).astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
+
+        mlp = f"model.layers.{i}.feed_forward"
+        mlc_name = f"{mlp}.moe_down_proj.weight"
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [f"language_model.{mlp}.experts.down_proj",],
+            functools.partial(
+                lambda x, dtype: x.swapaxes(-1, -2).astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [f"language_model.{mlc_name}"],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
