@@ -8,6 +8,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization.quantization import Quantization
 
+from .arcee import arcee_loader, arcee_model, arcee_quantization
 from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
 from .bert import bert_loader, bert_model, bert_quantization
 from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
@@ -89,6 +90,23 @@ class Model:
 
 
 MODELS: Dict[str, Model] = {
+    "arcee": Model(
+        name="arcee",
+        model=arcee_model.ArceeForCausalLM,
+        config=arcee_model.ArceeConfig,
+        source={
+            "huggingface-torch": arcee_loader.huggingface,
+            "huggingface-safetensor": arcee_loader.huggingface,
+            "awq": arcee_loader.awq,
+        },
+        quantize={
+            "no-quant": arcee_quantization.no_quant,
+            "group-quant": arcee_quantization.group_quant,
+            "ft-quant": arcee_quantization.ft_quant,
+            "awq": arcee_quantization.awq_quant,
+            "per-tensor-quant": arcee_quantization.per_tensor_quant,
+        },
+    ),
     "llama": Model(
         name="llama",
         model=llama_model.LlamaForCausalLM,
