@@ -18,7 +18,7 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     """
 
     if x.shape[1] == 1:
-        return x
+        return x.reshape(x.shape[0], x.shape[2])
 
     if x.ndim == 3 and x.shape[1] == 2:
         return op.tensor_expr_op(

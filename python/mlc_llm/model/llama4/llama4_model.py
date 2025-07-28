@@ -191,9 +191,17 @@ class Llama4TextMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
+        # print("MLP / Shared expert start")
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        return self.down_proj(op.silu(x1) * x2)
+        # print("x1.shape: ", x1.shape)
+        # print("x2.shape: ", x2.shape)
+        inter_out = op.silu(x1) * x2
+        # print("op.silu(x1) * x2 shape: ", inter_out.shape)
+        # print("MLP / Shared expert end")
+
+        return self.down_proj(inter_out)
+        # return self.down_proj(op.silu(x1) * x2)
 
 
 class LlamaEmbedding(nn.Embedding):
@@ -422,6 +430,7 @@ class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
             x = self.moe_down_proj(self.act_fn(x1) * x2, indptr)
             return x
 
+        # print("x.shape before reshape: ", x.shape)
         # self.topk = self.num_self.topk
         num_experts = self.num_experts
         batch_size, seq_len, hidden_size = x.shape
@@ -460,7 +469,13 @@ class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
         # moe_hidden_states: [num_tokens, hidden_size]
         moe_hidden_states = op_ext.moe_misc.moe_sum(moe_hidden_states, dim=1)
 
+        # print("moe_hidden_states.shape: ", moe_hidden_states.shape)
+
+        # print("x.shape after reshape: ", x.shape)
+        
         shared_expert_hidden_states = self.shared_expert(x)
+
+        # print("shared_expert_hidden_states.shape: ", shared_expert_hidden_states.shape)
 
         final_hidden_states = moe_hidden_states + shared_expert_hidden_states
         final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hidden_size)
@@ -590,6 +605,7 @@ class Llama4TextModel(nn.Module):
         for layer_id, layer in enumerate(self.layers):
             # if layer_id != 0 and layer_id in self.layer_partition:
             #     hidden_states = op_ext.pipeline_stage_boundary(hidden_states)
+            # print(f"LAYER {layer_id}")
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id, cache_position)
         hidden_states = self.norm(hidden_states)
         return hidden_states
