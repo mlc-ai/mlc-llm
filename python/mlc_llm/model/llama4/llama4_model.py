@@ -296,7 +296,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        ), f"num_kv_heads({config.text_config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
         assert (
             config.text_config.num_key_value_heads >= config.tensor_parallel_shards
         ), f"Too large tensor_parallel_shards, must be smaller than {config.text_config.num_key_value_heads}"
