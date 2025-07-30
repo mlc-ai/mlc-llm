@@ -118,6 +118,8 @@ def relu2(x: Tensor) -> Tensor:
 
 
 class ArceeMLP(nn.Module):
+    """Multi-Layer Perceptron module for Arcee model."""
+
     def __init__(self, config: ArceeConfig):
         super().__init__()
         if config.intermediate_size % config.tensor_parallel_shards != 0:
@@ -138,7 +140,7 @@ class ArceeMLP(nn.Module):
         )
         self.hidden_act = config.hidden_act
 
-    def forward(self, x: Tensor):
+    def forward(self, x: Tensor) -> Tensor:
         if self.hidden_act == "relu2":
             return self.down_proj(relu2(self.up_proj(x)))
         else:
@@ -158,6 +160,8 @@ class ArceeEmbedding(nn.Embedding):
 
 
 class ArceeAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+    """Multi-headed attention module for Arcee model."""
+
     def __init__(self, config: ArceeConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
@@ -196,6 +200,8 @@ class ArceeAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
 
 
 class ArceeDecoderLayer(nn.Module):
+    """Transformer decoder layer for Arcee model."""
+
     def __init__(self, config: ArceeConfig):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = ArceeAttention(config)
@@ -228,13 +234,15 @@ class ArceeDecoderLayer(nn.Module):
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
-    def _apply_residual(self, out, residual):
+    def _apply_residual(self, out, residual) -> Tensor:
         if self.tensor_parallel_shards > 1:
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
 
 class ArceeModel(nn.Module):
+    """The base model for Arcee."""
+
     def __init__(self, config: ArceeConfig):
         assert config.hidden_size % config.num_attention_heads == 0
         self.embed_tokens = ArceeEmbedding("vocab_size", config.hidden_size)
@@ -265,6 +273,8 @@ class ArceeModel(nn.Module):
 
 
 class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+    """Arcee model for causal language modeling."""
+
     def __init__(self, config: ArceeConfig):
         self.model = ArceeModel(config)
         self.tie_word_embeddings = config.tie_word_embeddings
@@ -307,7 +317,7 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             logits = logits.astype("float32")
         return logits
 
-    def embed(self, input_ids: Tensor):
+    def embed(self, input_ids: Tensor) -> Tensor:
         return self.model.embed_tokens(input_ids)
 
     def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
@@ -367,10 +377,13 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         # Determine RoPE mode and scaling
         rope_mode = RopeMode.NORMAL
+        rope_scale = 1
         if self.rope_scaling is not None:
             rope_type = self.rope_scaling.get("rope_type", self.rope_scaling.get("type", ""))
             if rope_type == "yarn":
                 rope_mode = RopeMode.NORMAL  # YARN uses normal mode with scaling factors
+                # Extract the scaling factor for YARN
+                rope_scale = self.rope_scaling.get("factor", 1)
             else:
                 logger.warning("Unsupported RoPE scaling type for Arcee: %s", rope_type)
 
@@ -387,7 +400,7 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             qk_head_dim=self.head_dim,
             v_head_dim=self.head_dim,
             rope_mode=rope_mode,
-            rope_scale=1,
+            rope_scale=rope_scale,
             rope_theta=self.rope_theta,
             layer_partition=self.model.layer_partition,
             dtype=self.dtype,
