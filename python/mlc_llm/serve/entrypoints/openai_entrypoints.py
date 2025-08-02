@@ -26,7 +26,6 @@ from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
 
-
 def verify_api_key(request: fastapi.Request):
     """Function to verify API key"""
     server_context = ServerContext.current()
@@ -114,6 +113,7 @@ async def request_embedding(request: EmbeddingRequest):
         model=request.model,
         usage=EmbeddingUsage(prompt_tokens=total_tokens, total_tokens=total_tokens),
     )
+
 
 ################ v1/models ################
 
