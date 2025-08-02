@@ -18,6 +18,7 @@ from mlc_llm.protocol.openai_api_protocol import (
 from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
+
 def verify_api_key(request: fastapi.Request):
     """Function to verify API key"""
     server_context = ServerContext.current()
