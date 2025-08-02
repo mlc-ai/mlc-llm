@@ -194,6 +194,12 @@ def main(argv):
         default=["*"],
         help="allowed headers" + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="API key for authentication. If not provided, authentication is disabled."
+    )
     parsed = parser.parse_args(argv)
 
     additional_models = []
@@ -236,4 +242,5 @@ def main(argv):
         allow_origins=parsed.allow_origins,
         allow_methods=parsed.allow_methods,
         allow_headers=parsed.allow_headers,
+        api_key=parsed.api_key,
     )
