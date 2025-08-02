@@ -198,7 +198,7 @@ def main(argv):
         "--api-key",
         type=str,
         default=None,
-        help="API key for authentication. If not provided, authentication is disabled."
+        help="API key for authentication. If not provided, authentication is disabled.",
     )
     parsed = parser.parse_args(argv)
 
