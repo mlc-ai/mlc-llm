@@ -28,6 +28,7 @@ def verify_api_key(request: fastapi.Request):
             raise fastapi.HTTPException(status_code=401, detail="Invalid API Key")
     # Skip verification if no API key is configured
 
+
 app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
 
 ################ v1/models ################
