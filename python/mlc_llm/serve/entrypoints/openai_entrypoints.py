@@ -18,7 +18,18 @@ from mlc_llm.protocol.openai_api_protocol import (
 from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
-app = fastapi.APIRouter()
+def verify_api_key(request: fastapi.Request):
+    """Function to verify API key"""
+    server_context = ServerContext.current()
+    # Only perform verification when API key is configured
+    if server_context is not None and server_context.api_key is not None:
+        provided_key = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if provided_key != server_context.api_key:
+            raise fastapi.HTTPException(status_code=401, detail="Invalid API Key")
+    # Skip verification if no API key is configured
+
+app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
+
 ################ v1/models ################
 
 
