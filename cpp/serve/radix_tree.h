@@ -111,8 +111,6 @@ class PagedRadixTreeObj : public Object {
   TVM_DECLARE_BASE_OBJECT_INFO(PagedRadixTreeObj, Object);
 };
 
-TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeObj);
-
 class PagedRadixTree : public ObjectRef {
  public:
   /*!

@@ -16,8 +16,6 @@ namespace serve {
 
 /****************** Request ******************/
 
-TVM_REGISTER_OBJECT_TYPE(RequestNode);
-
 Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
   if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
     CHECK(!inputs.empty()) << "No input data is given.";

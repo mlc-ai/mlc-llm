@@ -225,7 +225,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       // build the final usage messages
       // invariant, we can always let other messages to come first
       // then the final usage messages, as final usage is always last
-      if (delta_output->request_final_usage_json_str.defined()) {
+      if (delta_output->request_final_usage_json_str.has_value()) {
         ChatCompletionStreamResponse response;
         response.id = request_id;
         response.model = rstate.model;
@@ -256,7 +256,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
         // choice
         ChatCompletionStreamResponseChoice choice;
         Optional<String> finish_reason = delta_output->group_finish_reason[i];
-        if (finish_reason.defined()) {
+        if (finish_reason.has_value()) {
           if (finish_reason.value() == "stop") {
             choice.finish_reason = FinishReason::stop;
           } else if (finish_reason.value() == "length") {
@@ -275,7 +275,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
         const IntTuple& delta_token_ids = delta_output->group_delta_token_ids[i];
         std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
         std::string content = rstate.streamer[i]->Put(delta_token_ids_vec);
-        if (finish_reason.defined()) {
+        if (finish_reason.has_value()) {
           content += rstate.streamer[i]->Finish();
         }
         if (!content.empty()) {

@@ -796,8 +796,6 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
   }
 };
 
-TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeImpl);
-
 PagedRadixTree PagedRadixTree::Create() {
   return PagedRadixTree(tvm::ffi::make_object<PagedRadixTreeImpl>());
 }

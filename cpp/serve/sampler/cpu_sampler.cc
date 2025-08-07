@@ -323,8 +323,6 @@ inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
 
 /********************* CPU Sampler *********************/
 
-TVM_REGISTER_OBJECT_TYPE(SamplerObj);
-
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)

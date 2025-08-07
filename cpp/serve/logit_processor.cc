@@ -32,8 +32,6 @@ inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
 
 /***************** LogitProcessor Implementation *****************/
 
-TVM_REGISTER_OBJECT_TYPE(LogitProcessorObj);
-
 class LogitProcessorImpl : public LogitProcessorObj {
  public:
   /*! * \brief Constructor of LogitProcessorImpl. */

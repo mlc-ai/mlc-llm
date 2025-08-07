@@ -35,8 +35,6 @@ struct PairHash {
 
 }  // namespace detail
 
-TVM_REGISTER_OBJECT_TYPE(EventTraceRecorderObj);
-
 /*! \brief The implementation of event trace recorder. */
 class EventTraceRecorderImpl : public EventTraceRecorderObj {
  public:

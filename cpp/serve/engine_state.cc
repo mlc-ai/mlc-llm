@@ -8,8 +8,6 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-TVM_REGISTER_OBJECT_TYPE(EngineStateObj);
-
 EngineState::EngineState() { data_ = make_object<EngineStateObj>(); }
 
 void EngineStateObj::Reset() {
