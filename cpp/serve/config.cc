@@ -57,7 +57,7 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
 picojson::object ResponseFormat::AsJSON() const {
   picojson::object config;
   config["type"] = picojson::value(type);
-  if (schema.defined()) {
+  if (schema.has_value()) {
     config["schema"] = picojson::value(schema.value().operator std::string());
   }
   return config;
@@ -228,8 +228,6 @@ picojson::object DebugConfig::AsJSON() const {
 }
 
 /****************** GenerationConfig ******************/
-
-TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
 
 Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   using TResult = Result<GenerationConfig>;
@@ -413,8 +411,6 @@ picojson::object GenerationConfigNode::AsJSON() const {
 }
 
 /****************** EngineConfig ******************/
-
-TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
 
 EngineConfig EngineConfig::FromJSONAndInferredConfig(
     const picojson::object& json, const InferrableEngineConfig& inferred_config) {

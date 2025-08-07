@@ -256,7 +256,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
     for (int i = 0; i < n; ++i) {
       const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
       rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length, &stream_output, i);
-      if (stream_output->group_finish_reason[i].defined()) {
+      if (stream_output->group_finish_reason[i].has_value()) {
         invoke_callback = true;
         estate->postproc_workspace.finished_rsentries.push_back(rsentry);
       }

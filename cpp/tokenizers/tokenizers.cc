@@ -25,7 +25,6 @@ namespace mlc {
 namespace llm {
 
 #ifndef COMPILE_MLC_WASM_RUNTIME
-TVM_REGISTER_OBJECT_TYPE(TokenizerInfoNode);
 
 String TokenizerInfoNode::AsJSONString() const {
   picojson::object obj;
@@ -59,8 +58,6 @@ TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
 
   return TokenizerInfo(n);
 }
-
-TVM_REGISTER_OBJECT_TYPE(TokenizerObj);
 
 Tokenizer::Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer, TokenizerInfo info) {
   ObjectPtr<TokenizerObj> n = tvm::ffi::make_object<TokenizerObj>();

@@ -15,8 +15,6 @@ namespace serve {
 
 /****************** Data ******************/
 
-TVM_REGISTER_OBJECT_TYPE(DataNode);
-
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
                                               int split_pos) {
   CHECK_GE(split_pos, 0);
@@ -58,8 +56,6 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
 
 /****************** TextData ******************/
 
-TVM_REGISTER_OBJECT_TYPE(TextDataNode);
-
 TextData::TextData(String text) {
   ObjectPtr<TextDataNode> n = make_object<TextDataNode>();
   n->text = std::move(text);
@@ -84,8 +80,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /****************** TokenData ******************/
-
-TVM_REGISTER_OBJECT_TYPE(TokenDataNode);
 
 TokenData::TokenData(IntTuple token_ids) {
   ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
@@ -121,8 +115,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /****************** ImageData ******************/
-
-TVM_REGISTER_OBJECT_TYPE(ImageDataNode);
 
 ImageData::ImageData(NDArray image, int embed_size) {
   ObjectPtr<ImageDataNode> n = make_object<ImageDataNode>();
@@ -209,8 +201,6 @@ std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logpro
 
 /****************** RequestStreamOutput ******************/
 
-TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
-
 RequestStreamOutput::RequestStreamOutput(
     String request_id, std::vector<std::vector<int64_t>> group_delta_token_ids,
     std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs,
@@ -249,14 +239,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
         group_delta_logprob_json_strs.push_back(output->group_delta_logprob_json_strs.value()[i]);
       }
     }
-    Array<ObjectRef> ret = {output->request_id,
-                            Array<IntTuple>(std::move(group_delta_token_ids)),
-                            output->group_delta_logprob_json_strs.has_value()
-                                ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
-                                : Optional<Array<Array<String>>>(),
-                            Array<Optional<String>>(output->group_finish_reason),
-                            output->request_final_usage_json_str,
-                            Array<String>(output->group_extra_prefix_string)};
+    Array<Any> ret = {output->request_id,
+                      Array<IntTuple>(std::move(group_delta_token_ids)),
+                      output->group_delta_logprob_json_strs.has_value()
+                          ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
+                          : Optional<Array<Array<String>>>(),
+                      Array<Optional<String>>(output->group_finish_reason),
+                      output->request_final_usage_json_str,
+                      Array<String>(output->group_extra_prefix_string)};
     output->unpacked = true;
     return ret;
   });

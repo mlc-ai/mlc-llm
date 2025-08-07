@@ -19,8 +19,6 @@ namespace llm {
 
 /****************** TextStreamer ******************/
 
-TVM_REGISTER_OBJECT_TYPE(TextStreamerObj);
-
 TextStreamerObj::TextStreamerObj(Tokenizer tokenizer) : tokenizer_(std::move(tokenizer)) {}
 
 TextStreamer::TextStreamer(Tokenizer tokenizer) {
@@ -154,8 +152,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /****************** StopStrHandler ******************/
-
-TVM_REGISTER_OBJECT_TYPE(StopStrHandlerObj);
 
 /*! \brief Create the KMP partial match table for the input string. */
 inline std::vector<int> CreatePartialMatchTable(const String& str) {

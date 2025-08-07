@@ -25,8 +25,6 @@ namespace serve {
 
 class ModelImpl;
 
-TVM_REGISTER_OBJECT_TYPE(ModelObj);
-
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
                     DLDevice device, const Optional<Session>& session, int num_shards,
                     int num_stages, bool trace_enabled) {

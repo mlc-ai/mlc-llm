@@ -126,8 +126,6 @@ class PrefixCacheObj : public Object {
   TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object);
 };
 
-TVM_REGISTER_OBJECT_TYPE(PrefixCacheObj);
-
 class PrefixCache : public ObjectRef {
  public:
   /*!
