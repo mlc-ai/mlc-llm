@@ -9,6 +9,7 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
+#include <tvm/node/cast.h>
 #include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
