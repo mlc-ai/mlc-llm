@@ -28,7 +28,7 @@ def _load_mlc_llm_lib():
 def _debug_cuda_profiler_start() -> None:
     """Start cuda profiler."""
     import cuda  # pylint: disable=import-outside-toplevel
-    import cuda.cudart  # pylint: disable=import-outside-toplevel
+    import cuda.cudart  # pylint: disable=import-outside-toplevel,import-error,no-name-in-module
 
     cuda.cudart.cudaProfilerStart()  # pylint: disable=c-extension-no-member
 
@@ -37,7 +37,7 @@ def _debug_cuda_profiler_start() -> None:
 def _debug_cuda_profiler_stop() -> None:
     """Stop cuda profiler."""
     import cuda  # pylint: disable=import-outside-toplevel
-    import cuda.cudart  # pylint: disable=import-outside-toplevel
+    import cuda.cudart  # pylint: disable=import-outside-toplevel,import-error,no-name-in-module
 
     cuda.cudart.cudaProfilerStop()  # pylint: disable=c-extension-no-member
 
