@@ -193,7 +193,7 @@ class Llama4TextMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
-        print("Llama4TextMLP")
+        # print("Llama4TextMLP")
 
         # print("MLP / Shared expert start")
         concat_x1_x2 = self.gate_up_proj(x)
@@ -215,7 +215,7 @@ class LlamaEmbedding(nn.Embedding):
         """The lm_head forwarding, which transposes the weight and multiplies
         with the input tensor.
         """
-        print("LlamaEmbedding")
+        # print("LlamaEmbedding")
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
 
@@ -284,13 +284,15 @@ class LlamaEmbedding(nn.Embedding):
 #         return x * op.rsqrt(op.mean(op.power(x,2), -1, keepdims=True) + self.eps)
 
 class Llama4TextL2Norm(nn.Module):
-    def __init__(self, eps, hidden_size):
+    def __init__(self, eps, hidden_size, dtype):
         self.eps = eps
         self.hidden_size = hidden_size
+        self.dtype = dtype
 
     def forward(self, x):
-        print("Llama4TextL2Norm")
-        weight = op.ones((self.hidden_size,), dtype="float32")
+        # print("Llama4TextL2Norm")
+        # print("x.shape: ", x.shape)
+        weight = op.ones((self.hidden_size,), dtype=self.dtype)
         return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
         
 
@@ -299,6 +301,8 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.head_dim = config.text_config.head_dim
         self.attn_scale = config.text_config.attn_scale
         self.floor_scale = config.text_config.floor_scale
+        self.num_attention_heads = config.text_config.num_attention_heads
+        self.num_kv_heads = config.text_config.num_key_value_heads 
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
@@ -331,15 +335,18 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.rope_theta = config.text_config.rope_theta
         self.rope_scaling = config.text_config.rope_scaling
 
-        if config.text_config.use_qk_norm and self.use_rope:
-            # self.q_norm = nn.RMSNorm(config.text_config.num_attention_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
-            # self.k_norm = nn.RMSNorm(config.text_config.num_key_value_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+        self.use_qk_norm = config.text_config.use_qk_norm
+        self.rms_norm_eps = config.text_config.rms_norm_eps
 
-            self.q_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_attention_heads * self.head_dim) #
-            self.k_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_key_value_heads * self.head_dim) #
+        # if config.text_config.use_qk_norm and self.use_rope:
+        #     # self.q_norm = nn.RMSNorm(config.text_config.num_attention_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+        #     # self.k_norm = nn.RMSNorm(config.text_config.num_key_value_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
+
+        #     self.q_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_attention_heads * self.head_dim) #
+        #     self.k_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_key_value_heads * self.head_dim) #
     
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
-        print("Llama4TextAttention")
+        # print("Llama4TextAttention")
 
         ## Modified from Gemma 3 and DeepseekV2
 
@@ -368,7 +375,11 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             key_states = key_states.reshape(b, s, self.num_kv_heads, d)
             value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
-        if hasattr(self, "qk_norm"): 
+        if self.use_qk_norm and self.use_rope: 
+            # print("DOING QK NORM")
+            self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
+            self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
+
             query_states = self.q_norm(query_states)
             key_states = self.k_norm(key_states)
 
@@ -581,7 +592,7 @@ class Llama4TextDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
-        print("Llama4TextDecoderLayer")
+        # print("Llama4TextDecoderLayer")
 
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position)
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -615,7 +626,7 @@ class Llama4TextModel(nn.Module):
         self.norm = nn.RMSNorm(config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False)
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        print("Llama4TextModel")
+        # print("Llama4TextModel")
         hidden_states = input_embed
         cache_position = paged_kv_cache.get_query_positions(input_embed.shape[0] * input_embed.shape[1])
 
