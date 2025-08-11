@@ -4,6 +4,7 @@ Implementation for Llama4 architecture.
 
 import dataclasses
 from typing import Any, Dict, Optional
+import tvm
 
 from tvm import te, tir, relax
 from tvm.relax.frontend import nn
@@ -82,7 +83,8 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             self.no_rope_layers = None
 
         default_no_rope_layers = [
-            int((layer_idx + 1) % self.no_rope_layer_interval != 0) for layer_idx in range(self.num_hidden_layers)
+            int((layer_idx + 1) % self.no_rope_layer_interval != 0)
+            for layer_idx in range(self.num_hidden_layers)
         ]
 
         self.no_rope_layers = self.no_rope_layers if self.no_rope_layers else default_no_rope_layers
@@ -191,6 +193,8 @@ class Llama4TextMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
+        print("Llama4TextMLP")
+
         # print("MLP / Shared expert start")
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
@@ -211,60 +215,61 @@ class LlamaEmbedding(nn.Embedding):
         """The lm_head forwarding, which transposes the weight and multiplies
         with the input tensor.
         """
+        print("LlamaEmbedding")
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
 
-class Llama4TextRotaryEmbedding(nn.Module):
-    def __init__(self, config: Llama4Config):
-        self.rope_fn = position_embedding.switch_rope_freq_func(config.text_config.rope_scaling)
-        self.rotary_dim = config.text_config.head_dim
-        self.theta = config.text_config.rope_theta
+# class Llama4TextRotaryEmbedding(nn.Module):
+#     def __init__(self, config: Llama4Config):
+#         self.rope_fn = position_embedding.switch_rope_freq_func(config.text_config.rope_scaling)
+#         self.rotary_dim = config.text_config.head_dim
+#         self.theta = config.text_config.rope_theta
 
-    def forward(
-        self,
-        q: Tensor,
-        k: Tensor,
-        positions: Tensor,
-    ):
-        def _rope_fused(x: te.Tensor, positions: te.Tensor):
-            _, _, _, d_dim = x.shape
-            d_dim_half = d_dim // 2
-            dtype = x.dtype
+#     def forward(
+#         self,
+#         q: Tensor,
+#         k: Tensor,
+#         positions: Tensor,
+#     ):
+#         def _rope_fused(x: te.Tensor, positions: te.Tensor):
+#             _, _, _, d_dim = x.shape
+#             d_dim_half = d_dim // 2
+#             dtype = x.dtype
 
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-                d1 = d // d_dim_half
-                d2 = d % d_dim_half
+#             def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
+#                 d1 = d // d_dim_half
+#                 d2 = d % d_dim_half
 
-                cos_freq, sin_freq, var_map = self.rope_fn(
-                    positions[s], d, self.rotary_dim, self.theta, dtype #s, d, d_range, theta, dtype 
-                )
-                cos = x[b, s, h, d2 * 2 + d1] * cos_freq
+#                 cos_freq, sin_freq, var_map = self.rope_fn(
+#                     positions[s], d, self.rotary_dim, self.theta, dtype #s, d, d_range, theta, dtype 
+#                 )
+#                 cos = x[b, s, h, d2 * 2 + d1] * cos_freq
 
-                partner_d = tir.if_then_else(
-                    d < self.rotary_dim // 2,
-                    d + self.rotary_dim // 2,
-                    d - self.rotary_dim // 2,
-                )
+#                 partner_d = tir.if_then_else(
+#                     d < self.rotary_dim // 2,
+#                     d + self.rotary_dim // 2,
+#                     d - self.rotary_dim // 2,
+#                 )
 
-                partner_d1 = partner_d // d_dim_half
-                partner_d2 = partner_d % d_dim_half
-                sin = (
-                    x[b, s, h, partner_d2 * 2 + partner_d1]
-                    * sin_freq
-                    * tir.if_then_else(
-                        d < self.rotary_dim // 2, tir.const(-1, dtype), tir.const(1, dtype)
-                    )
-                )
-                expr = cos + sin
-                for var, val in var_map.items():
-                    expr = tir.Let(var, val, expr)
-                return expr
+#                 partner_d1 = partner_d // d_dim_half
+#                 partner_d2 = partner_d % d_dim_half
+#                 sin = (
+#                     x[b, s, h, partner_d2 * 2 + partner_d1]
+#                     * sin_freq
+#                     * tir.if_then_else(
+#                         d < self.rotary_dim // 2, tir.const(-1, dtype), tir.const(1, dtype)
+#                     )
+#                 )
+#                 expr = cos + sin
+#                 for var, val in var_map.items():
+#                     expr = tir.Let(var, val, expr)
+#                 return expr
 
-            return te.compute(x.shape, compute, name="llama3_rope")
+#             return te.compute(x.shape, compute, name="llama3_rope")
 
-        q_embed = op.tensor_expr_op(_rope_fused, "rope", [q, positions])
-        k_embed = op.tensor_expr_op(_rope_fused, "rope", [k, positions])
-        return q_embed, k_embed
+#         q_embed = op.tensor_expr_op(_rope_fused, "rope", [q, positions])
+#         k_embed = op.tensor_expr_op(_rope_fused, "rope", [k, positions])
+#         return q_embed, k_embed
 
 # class Llama4TextL2Norm(nn.Module):
 #     def __init__(self, eps, hidden_size):
@@ -284,6 +289,7 @@ class Llama4TextL2Norm(nn.Module):
         self.hidden_size = hidden_size
 
     def forward(self, x):
+        print("Llama4TextL2Norm")
         weight = op.ones((self.hidden_size,), dtype="float32")
         return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
         
@@ -320,7 +326,10 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.attn_temperature_tuning = config.text_config.attn_temperature_tuning
         self.use_rope = config.text_config.no_rope_layers[layer_idx]
 
-        self.rotary_emb = Llama4TextRotaryEmbedding(config)
+        self.layer_idx = layer_idx
+
+        self.rope_theta = config.text_config.rope_theta
+        self.rope_scaling = config.text_config.rope_scaling
 
         if config.text_config.use_qk_norm and self.use_rope:
             # self.q_norm = nn.RMSNorm(config.text_config.num_attention_heads * self.head_dim, -1, config.text_config.rms_norm_eps, bias=False)
@@ -328,8 +337,10 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
 
             self.q_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_attention_heads * self.head_dim) #
             self.k_norm = Llama4TextL2Norm(config.text_config.rms_norm_eps, config.text_config.num_key_value_heads * self.head_dim) #
-
+    
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
+        print("Llama4TextAttention")
+
         ## Modified from Gemma 3 and DeepseekV2
 
         d, h_q = self.head_dim, self.num_q_heads
@@ -341,7 +352,21 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         value_states = op.reshape(self.v_proj(hidden_states), (b, s, -1, d))
 
         if self.use_rope:
-            query_states, key_states = self.rotary_emb(query_states, key_states, cache_position)
+            self.rotary_emb = position_embedding.llama_rope_with_position_map(theta=self.rope_theta, scale=1.0, head_dim=self.head_dim, num_q_heads=self.num_q_heads, num_kv_heads=self.num_kv_heads, dtype=query_states.dtype, rope_scaling=self.rope_scaling) #Llama4TextRotaryEmbedding(config)
+            qkv = op.concat([query_states, key_states, value_states], dim=2)
+
+            # print("Rotary emb function: ", self.rotary_emb)
+
+            apply_rope = tvm.tir.IntImm("int64", 1)
+            query_states, key_states, value_states = op.tensor_ir_op(self.rotary_emb, "llama_rope_with_position_map", args=[op.squeeze(qkv,axis=0), cache_position, apply_rope],
+                out=(
+                    Tensor.placeholder((s, h_q, d), query_states.dtype),
+                    Tensor.placeholder((s, self.num_kv_heads, d), query_states.dtype),
+                    Tensor.placeholder((s, self.num_kv_heads, d), query_states.dtype),
+                ),)
+            query_states = query_states.reshape(b, s, h_q, d)
+            key_states = key_states.reshape(b, s, self.num_kv_heads, d)
+            value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
         if hasattr(self, "qk_norm"): 
             query_states = self.q_norm(query_states)
@@ -424,6 +449,8 @@ class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.act_fn = ACT2FN[config.text_config.hidden_act]
 
     def forward(self, x: Tensor):
+        print("Llama4TextMoe")
+
         def _expert_forward(x: Tensor, indptr: Tensor):
             x1_x2 = self.moe_gate_up_proj(x, indptr)
             x1, x2 = op.split(x1_x2, indices_or_sections=2, axis=-1)
@@ -554,6 +581,8 @@ class Llama4TextDecoderLayer(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
+        print("Llama4TextDecoderLayer")
+
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.feed_forward(self.post_attention_layernorm(hidden_states))
@@ -576,7 +605,6 @@ class Llama4TextDecoderLayer(nn.Module):
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
-
 class Llama4TextModel(nn.Module):
     def __init__(self, config: Llama4Config):
         assert config.text_config.hidden_size % config.text_config.num_attention_heads == 0
@@ -586,27 +614,21 @@ class Llama4TextModel(nn.Module):
         )
         self.norm = nn.RMSNorm(config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False)
 
-        # self.num_layers_per_stage = (
-        #     config.num_hidden_layers + config.pipeline_parallel_stages - 1
-        # ) // config.pipeline_parallel_stages
-
-        # Compute pipeline layer partition.
-        # layers_per_stage = (
-        #     config.num_hidden_layers + config.pipeline_parallel_stages - 1
-        # ) // config.pipeline_parallel_stages
-        # self.layer_partition = [
-        #     i * layers_per_stage for i in range(config.pipeline_parallel_stages)
-        # ] + [config.num_hidden_layers]
-
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        print("Llama4TextModel")
         hidden_states = input_embed
         cache_position = paged_kv_cache.get_query_positions(input_embed.shape[0] * input_embed.shape[1])
+
+        # op.print_(hidden_states)
+
+        # hidden_states = inject_debug_print(hidden_states, "Input embeds to model")
 
         for layer_id, layer in enumerate(self.layers):
             # if layer_id != 0 and layer_id in self.layer_partition:
             #     hidden_states = op_ext.pipeline_stage_boundary(hidden_states)
-            # print(f"LAYER {layer_id}")
+            print(f"BEFORE LAYER {layer_id}")
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id, cache_position)
+            print(f"After LAYER {layer_id}")
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -629,23 +651,6 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.disaggregation = config.disaggregation
         self.dtype = "float32"
-
-        # def _set_pp():
-        #     # hidden layers
-        #     for layer_id in range(config.num_hidden_layers):
-        #         stage = layer_id // (config.num_hidden_layers // config.pipeline_parallel_stages)
-        #         for _, param in self.model.layers[layer_id].named_parameters():
-        #             param.attrs["pipeline_stages"] = [stage]
-        #     # last stage
-        #     last_stage = config.pipeline_parallel_stages - 1
-        #     self.model.norm.weight.attrs["pipeline_stages"] = [last_stage]
-        #     # embedding table and lm_head is required by all stages
-        #     all_stages = list(range(config.pipeline_parallel_stages))
-        #     self.model.embed_tokens.weight.attrs["pipeline_stages"] = all_stages
-        #     if not config.tie_word_embeddings:
-        #         self.lm_head.weight.attrs["pipeline_stages"] = all_stages
-
-        # _set_pp()
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
