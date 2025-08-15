@@ -138,9 +138,7 @@ class ArceeMLP(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         if self.hidden_act == "relu2":
             return self.down_proj(relu2(self.up_proj(x)))
-        else:
-            # Fallback to standard activations if needed
-            raise ValueError(f"Unsupported activation function: {self.hidden_act}")
+        raise ValueError(f"Unsupported activation function: {self.hidden_act}")
 
 
 class ArceeEmbedding(nn.Embedding):
@@ -210,7 +208,6 @@ class ArceeDecoderLayer(nn.Module):
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
-            i = self.mlp.intermediate_size
             _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             # For Arcee, up_proj doesn't have gate, so shard differently
