@@ -76,10 +76,10 @@ def huggingface(model_config: ArceeConfig, quantization: Quantization) -> Extern
                         dtype=mlc_param.dtype,
                     ),
                 )
-        
+
         # Note: Arcee MLP doesn't use gate projection, so no concatenation needed for MLP
         # The up_proj and down_proj map directly
-        
+
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
@@ -122,7 +122,7 @@ def awq(model_config: ArceeConfig, quantization: Quantization) -> ExternMapping:
     for i in range(model_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
-        
+
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
             mlc_name = f"{attn}.qkv_proj.{quantize_suffix}"
             assert mlc_name in named_parameters
@@ -139,7 +139,7 @@ def awq(model_config: ArceeConfig, quantization: Quantization) -> ExternMapping:
                     dtype=mlc_param.dtype,
                 ),
             )
-        
+
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 

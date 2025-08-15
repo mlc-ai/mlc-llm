@@ -52,14 +52,13 @@ class ArceeConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
             else:
                 self.position_embedding_base = 10000
-        
+
         # Handle YARN rope scaling
         if self.rope_scaling is not None:
             rope_type = self.rope_scaling.get("rope_type", self.rope_scaling.get("type", ""))
             if rope_type != "yarn":
                 logger.warning(
-                    "Arcee model expects YARN rope scaling, got %s. Continuing anyway.",
-                    rope_type
+                    "Arcee model expects YARN rope scaling, got %s. Continuing anyway.", rope_type
                 )
 
         if self.context_window_size == 0:
@@ -133,11 +132,7 @@ class ArceeMLP(nn.Module):
             out_features=self.intermediate_size,
             bias=config.mlp_bias,
         )
-        self.down_proj = nn.Linear(
-            self.intermediate_size, 
-            config.hidden_size, 
-            bias=config.mlp_bias
-        )
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=config.mlp_bias)
         self.hidden_act = config.hidden_act
 
     def forward(self, x: Tensor) -> Tensor:
@@ -178,9 +173,7 @@ class ArceeAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=config.attention_bias,
         )
         self.o_proj = nn.Linear(
-            self.num_q_heads * self.head_dim, 
-            config.hidden_size, 
-            bias=config.attention_bias
+            self.num_q_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
         )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
@@ -416,9 +409,7 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -426,9 +417,7 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "decode": {
-                "input_embed": nn.spec.Tensor(
-                    [1, 1, self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -447,9 +436,7 @@ class ArceeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
