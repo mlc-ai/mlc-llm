@@ -100,7 +100,6 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 @dataclasses.dataclass
 class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     text_config: Llama4TextConfig
-    # vision_config: Llama4VisionConfig
     tensor_parallel_shards: int = 1
     context_window_size: int = 0
     pipeline_parallel_stages: int = 1
@@ -113,17 +112,6 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # vision_config_dict: Dict[str, Any]
-        # if isinstance(self.vision_config, CLIPVisionConfig):
-        #     vision_config_dict = dataclasses.asdict(self.vision_config)
-        # else:
-        #     vision_config_dict = dict(self.vision_config)
-
-        # for k, v in vision_config_dict.pop("kwargs", {}).items():
-        #     vision_config_dict[k] = v
-
-        # self.vision_config = CLIPVisionConfig.from_dict(vision_config_dict)
-
         text_config_dict: Dict[str, Any]
         if isinstance(self.text_config, ConfigBase):
             text_config_dict = dataclasses.asdict(self.text_config)
@@ -193,19 +181,11 @@ class Llama4TextMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
 
     def forward(self, x: Tensor):
-        # print("Llama4TextMLP")
-
-        # print("MLP / Shared expert start")
         concat_x1_x2 = self.gate_up_proj(x)
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
-        # print("x1.shape: ", x1.shape)
-        # print("x2.shape: ", x2.shape)
         inter_out = op.silu(x1) * x2
-        # print("op.silu(x1) * x2 shape: ", inter_out.shape)
-        # print("MLP / Shared expert end")
 
         return self.down_proj(inter_out)
-        # return self.down_proj(op.silu(x1) * x2)
 
 
 class LlamaEmbedding(nn.Embedding):
@@ -215,73 +195,8 @@ class LlamaEmbedding(nn.Embedding):
         """The lm_head forwarding, which transposes the weight and multiplies
         with the input tensor.
         """
-        # print("LlamaEmbedding")
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
-
-# class Llama4TextRotaryEmbedding(nn.Module):
-#     def __init__(self, config: Llama4Config):
-#         self.rope_fn = position_embedding.switch_rope_freq_func(config.text_config.rope_scaling)
-#         self.rotary_dim = config.text_config.head_dim
-#         self.theta = config.text_config.rope_theta
-
-#     def forward(
-#         self,
-#         q: Tensor,
-#         k: Tensor,
-#         positions: Tensor,
-#     ):
-#         def _rope_fused(x: te.Tensor, positions: te.Tensor):
-#             _, _, _, d_dim = x.shape
-#             d_dim_half = d_dim // 2
-#             dtype = x.dtype
-
-#             def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
-#                 d1 = d // d_dim_half
-#                 d2 = d % d_dim_half
-
-#                 cos_freq, sin_freq, var_map = self.rope_fn(
-#                     positions[s], d, self.rotary_dim, self.theta, dtype #s, d, d_range, theta, dtype 
-#                 )
-#                 cos = x[b, s, h, d2 * 2 + d1] * cos_freq
-
-#                 partner_d = tir.if_then_else(
-#                     d < self.rotary_dim // 2,
-#                     d + self.rotary_dim // 2,
-#                     d - self.rotary_dim // 2,
-#                 )
-
-#                 partner_d1 = partner_d // d_dim_half
-#                 partner_d2 = partner_d % d_dim_half
-#                 sin = (
-#                     x[b, s, h, partner_d2 * 2 + partner_d1]
-#                     * sin_freq
-#                     * tir.if_then_else(
-#                         d < self.rotary_dim // 2, tir.const(-1, dtype), tir.const(1, dtype)
-#                     )
-#                 )
-#                 expr = cos + sin
-#                 for var, val in var_map.items():
-#                     expr = tir.Let(var, val, expr)
-#                 return expr
-
-#             return te.compute(x.shape, compute, name="llama3_rope")
-
-#         q_embed = op.tensor_expr_op(_rope_fused, "rope", [q, positions])
-#         k_embed = op.tensor_expr_op(_rope_fused, "rope", [k, positions])
-#         return q_embed, k_embed
-
-# class Llama4TextL2Norm(nn.Module):
-#     def __init__(self, eps, hidden_size):
-#         self.eps = eps
-#         self.hidden_size = hidden_size
-
-#     def forward(self, x):
-#         # return op.rms_norm(x, weight=op.ones((self.hidden_size)), axes=[-1], epsilon=self.eps)
-#         return op.astype(self._norm(op.astype(x, "float32")), x.struct_info.dtype)
-        
-#     def _norm(self, x):
-#         return x * op.rsqrt(op.mean(op.power(x,2), -1, keepdims=True) + self.eps)
 
 class Llama4TextL2Norm(nn.Module):
     def __init__(self, eps, hidden_size, dtype):
@@ -290,8 +205,6 @@ class Llama4TextL2Norm(nn.Module):
         self.dtype = dtype
 
     def forward(self, x):
-        # print("Llama4TextL2Norm")
-        # print("x.shape: ", x.shape)
         weight = op.ones((self.hidden_size,), dtype=self.dtype)
         return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
         
@@ -312,13 +225,13 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         ), f"Too large tensor_parallel_shards, must be smaller than {config.text_config.num_key_value_heads}"
         self.num_kv_heads = config.text_config.num_key_value_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
-            config.text_config.hidden_size, config.text_config.num_attention_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size, self.num_q_heads * self.head_dim, bias=config.text_config.attention_bias
         )
         self.k_proj = nn.Linear(
-            config.text_config.hidden_size, config.text_config.num_key_value_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.text_config.attention_bias
         )
         self.v_proj = nn.Linear(
-            config.text_config.hidden_size, config.text_config.num_key_value_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.text_config.attention_bias
         )
         # self.qkv_proj = nn.Linear(
         #     in_features=config.hidden_size,
@@ -384,6 +297,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             key_states = self.k_norm(key_states)
 
         if self.attn_temperature_tuning and not self.use_rope:
+            # print("TEMP TUNING")
             #TODO: Add ops to op.py and add unit tests (see path); in def test_nn() in def test() add the test case
             attn_scales = (
                 op.log(op.floor((op.astype(cache_position, query_states.dtype) + 1.0) / self.floor_scale) + 1.0) * self.attn_scale + 1.0
@@ -406,148 +320,302 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         )
         return self.o_proj(output)
 
-# class Llama4TextExperts(nn.Module):
-#     def __init__(self, config: Llama4Config):
-#         self.num_experts = config.text_config.num_local_experts
-#         self.intermediate_size = config.text_config.intermediate_size
-#         self.hidden_size = config.text_config.hidden_size
-#         self.expert_dim = self.intermediate_size
-#         self.gate_up_proj = nn.Parameter((self.num_experts, self.hidden_size, 2 * self.expert_dim), "float32")
-#         self.down_proj = nn.Parameter((self.num_experts, self.expert_dim, self.hidden_size), "float32")
-#         self.act_fn = ACT2FN[config.text_config.hidden_act]
-
-#     def forward(self, hidden_states: Tensor) -> Tensor:
-#         hidden_states = hidden_states.reshape(self.num_experts, -1, self.hidden_size)
-#         gate_up = op.matmul(hidden_states, self.gate_up_proj)
-#         gate, up = op.split(gate_up, 2, axis=-1)
-#         next_states = op.matmul((up * self.act_fn(gate)), self.down_proj)
-#         next_states = next_states.rehsape(-1, self.hidden_size)
-#         return next_states
-
-class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
-    """MoE layer for Qwen3MoE model."""
-
+class Llama4TextExperts(nn.Module):
     def __init__(self, config: Llama4Config):
-        super().__init__()
-        self.topk = config.text_config.num_experts_per_tok
         self.num_experts = config.text_config.num_local_experts
-        if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
-            raise ValueError(
-                f"Cannot split MoE intermediate size {config.text_config.intermediate_size} "
-                f"evenly to {config.tensor_parallel_shards} GPUs."
-            )
-        self.moe_intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
-        # self.norm_topk_prob = config.norm_topk_prob
+        self.intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
+        self.hidden_size = config.text_config.hidden_size
+        self.expert_dim = self.intermediate_size
 
+        self.gate_up_proj = nn.Parameter(shape=(self.num_experts, self.hidden_size, 2 * self.expert_dim))
+        self.down_proj = nn.Parameter(shape=(self.num_experts, self.expert_dim, self.hidden_size))
+        self.act_fn = ACT2FN[config.text_config.hidden_act]
+
+    def forward(self, hidden_states):
+        hidden_states = hidden_states.reshape(self.gate_up_proj.shape[0], -1, self.hidden_size)
+        gate_up = op.matmul(hidden_states, self.gate_up_proj)
+        gate, up = op.chunk(gate_up, chunks=2, dim=-1)
+        next_states = op.matmul((up * self.act_fn(gate)), self.down_proj)
+        next_states = next_states.reshape(-1, self.hidden_size)
+        return next_states
+
+
+class Llama4Router(nn.Module):
+    def __init__(self, config: Llama4Config):
+        self.num_experts = config.text_config.num_local_experts
+        self.top_k = config.text_config.num_experts_per_tok
+        self.intermediate_size = self.num_experts // config.tensor_parallel_shards
         self.router = nn.Linear(
             in_features=config.text_config.hidden_size,
-            out_features=config.text_config.num_local_experts,
+            out_features= 2 * self.intermediate_size, #config.text_config.num_local_experts,
             bias=False,
         )
 
+    def forward(self, hidden_states):
+        router_logits = self.router(hidden_states)
+        router_top_value, router_indices = op_ext.moe_misc.gating_topk(router_logits, self.top_k)
+        # print("router_top_value.shape: ", router_top_value.shape)
+        # print("router_indices.shape: ", router_indices.shape)
+        
+        # router_scores = op.scatter_elements(op.full(router_logits.shape, op.full((), float("-inf"), hidden_states.dtype)), router_indices, router_top_value, 1)
+        
+        # full = op.full(router_logits.shape, float("-inf"), dtype=hidden_states.dtype)
+        # router_scores = op.scatter_elements(full, router_indices, router_top_value, 1)
+
+        j_axis = op.arange(0, self.num_experts)
+        j_axis = op.unsqueeze(j_axis, 0)
+        idx_exp = op.unsqueeze(router_indices, -1)
+        mask = op.equal(idx_exp, j_axis)
+        val_exp = op.unsqueeze(router_top_value, -1)
+        neg_inf = op.full(mask.shape, -1e9, dtype=hidden_states.dtype) # replaced float("-inf") s.t. avoid inff undefined compile error in tvm kernels
+        masked_vals = op.where(mask, val_exp, neg_inf)
+        router_scores = op.max(masked_vals, axis=1)
+        
+        
+        router_scores = op.sigmoid(router_scores)
+        return router_scores, router_logits
+
+class Llama4TextMoe(nn.Module):
+    def __init__(self, config: Llama4Config):
+        self.top_k = config.text_config.num_experts_per_tok
+        self.hidden_dim = config.text_config.hidden_size
+        self.num_experts = config.text_config.num_local_experts
+        self.experts = Llama4TextExperts(config)
+        self.router = Llama4Router(config)
         self.shared_expert = Llama4TextMLP(config)
 
-        self.moe_gate_up_proj = MixtralExperts(
-            self.num_experts,
-            in_features=config.text_config.hidden_size,
-            out_features=2 * self.moe_intermediate_size,
-        )
-        self.moe_down_proj = MixtralExperts(
-            self.num_experts,
-            in_features=self.moe_intermediate_size,
-            out_features=config.text_config.hidden_size,
-        )
-        self.act_fn = ACT2FN[config.text_config.hidden_act]
+    def forward(self, hidden_states):
+        # print("mope input hidden_states.shape: ", hidden_states.shape)
 
-    def forward(self, x: Tensor):
-        print("Llama4TextMoe")
+        hidden_states = hidden_states.reshape(-1, self.hidden_dim)
+        router_scores, router_logits = self.router(hidden_states)
+        routed_in = hidden_states.repeat(router_scores.shape[1], 0)
+        # print("routed_in.shape: ", routed_in.shape)
+        # print("router_scores.shape: ", router_scores.shape)
+        routed_in = routed_in * router_scores.reshape(-1, 1)
+        routed_out = self.experts(routed_in)
+        out = self.shared_expert(hidden_states)
 
-        def _expert_forward(x: Tensor, indptr: Tensor):
-            x1_x2 = self.moe_gate_up_proj(x, indptr)
-            x1, x2 = op.split(x1_x2, indices_or_sections=2, axis=-1)
-            x = self.moe_down_proj(self.act_fn(x1) * x2, indptr)
-            return x
+        out += op.sum(routed_out.reshape(router_scores.shape[1], -1, routed_out.shape[-1]), axis=0)
+        # print("moe out shape: ", out.shape)
+        return out
 
-        # print("x.shape before reshape: ", x.shape)
-        # self.topk = self.num_self.topk
-        num_experts = self.num_experts
-        batch_size, seq_len, hidden_size = x.shape
-        num_tokens = batch_size * seq_len
-        x = x.reshape(num_tokens, hidden_size)
-        router_logits = self.router(x)
-        # router_top_value: [num_tokens, self.topk]
-        # router_indices: [num_tokens, self.topk]
+# class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
+#     """MoE layer for Qwen3MoE model."""
 
-        router_top_value, router_indices = op_ext.moe_misc.gating_topk(
-            router_logits, self.topk
-        )
-        router_top_value = op.sigmoid(router_top_value)
-
-        if num_tokens == 1:
-            # x: [num_tokens * self.topk, hidden_size]
-            moe_hidden_states = _expert_forward(x, router_indices)
-        else:
-            # cumsum: [num_tokens * local_experts]
-            cumsum = op_ext.moe_misc.moe_cumsum(router_indices, num_experts)
-            # indices: [num_tokens * self.topk]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, router_indices)
-            # indptr: [num_local_experts + 1]
-            indptr = op_ext.moe_misc.get_indptr(
-                cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
-            )
-            # x: [num_tokens * self.topk, hidden_size]
-            moe_hidden_states = op.take(x, token_indices, axis=0)
-            moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
-            moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
-        # moe_hidden_states: [num_tokens, self.topk, hidden_size]
-        router_top_value = router_top_value.reshape(num_tokens, self.topk, 1)
-        moe_hidden_states = (
-            moe_hidden_states.reshape(num_tokens, self.topk, hidden_size) * router_top_value
-        )
-        # moe_hidden_states: [num_tokens, hidden_size]
-        moe_hidden_states = op_ext.moe_misc.moe_sum(moe_hidden_states, dim=1)
-
-        # print("moe_hidden_states.shape: ", moe_hidden_states.shape)
-
-        # print("x.shape after reshape: ", x.shape)
-        
-        shared_expert_hidden_states = self.shared_expert(x)
-
-        # print("shared_expert_hidden_states.shape: ", shared_expert_hidden_states.shape)
-
-        final_hidden_states = moe_hidden_states + shared_expert_hidden_states
-        final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hidden_size)
-        return final_hidden_states
-
-
-# class Llama4TextMoe(nn.Module):
 #     def __init__(self, config: Llama4Config):
-#         self.top_k = config.text_config.num_self.topk
-#         self.hidden_dim = config.text_config.hidden_size
+#         super().__init__()
+#         self.topk = config.text_config.num_experts_per_tok
 #         self.num_experts = config.text_config.num_local_experts
-#         self.experts = Llama4TextExperts(config)
-#         self.router = nn.Linear(config.text_config.hidden_size, config.text_config.num_local_experts, bias=False)
+#         if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
+#             raise ValueError(
+#                 f"Cannot split MoE intermediate size {config.text_config.intermediate_size} "
+#                 f"evenly to {config.tensor_parallel_shards} GPUs."
+#             )
+#         self.moe_intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
+#         # self.norm_topk_prob = config.norm_topk_prob
+
+#         self.router = nn.Linear(
+#             in_features=config.text_config.hidden_size,
+#             out_features=config.text_config.num_local_experts,
+#             bias=False,
+#         )
+
 #         self.shared_expert = Llama4TextMLP(config)
 
-#     def forward(self, hidden_states):
-#         hidden_states = op.reshape(hidden_states, (-1, self.hidden_dim))
-#         router_logits = self.router(hidden_states)
-
-#         router_top_value, router_indices = op.topk(router_logits, self.top_k, 1)
-
-#         router_scores = ( 
-#             op.permute_dims(scatter_nd(full_like(router_logits, tir.const(-float('inf'), dtype="float32")), router_indices, router_top_value, axis=1), 0, 1)
+#         self.moe_gate_up_proj = MixtralExperts(
+#             self.num_experts,
+#             in_features=config.text_config.hidden_size,
+#             out_features=2 * self.moe_intermediate_size,
 #         )
-#         router_scores = op.astype(op.sigmoid(router_scores.float()), hidden_states.dtype)
+#         self.moe_down_proj = MixtralExperts(
+#             self.num_experts,
+#             in_features=self.moe_intermediate_size,
+#             out_features=config.text_config.hidden_size,
+#         )
+#         self.act_fn = ACT2FN[config.text_config.hidden_act]
 
-#         routed_in = op.repeat(hidden_states, self.num_experts, 1)
-#         routed_in = routed_in * router_scores.reshape(-1, 1)
-#         routed_out = self.experts(routed_in)
+#     def forward(self, x: Tensor):
+#         print("Llama4TextMoe")
 
-#         out = self.shared_expert(hidden_states)
-#         out = op.add(out, op.sum(routed_out.reshape(self.num_experts, -1, self.hidden_dim), axis=0))
+#         def _expert_forward(x: Tensor, indptr: Tensor):
+#             x1_x2 = self.moe_gate_up_proj(x, indptr)
+#             x1, x2 = op.split(x1_x2, indices_or_sections=2, axis=-1)
+#             x = self.moe_down_proj(self.act_fn(x1) * x2, indptr)
+#             return x
 
-#         return out, router_scores
+#         # print("x.shape before reshape: ", x.shape)
+#         # self.topk = self.num_self.topk
+#         num_experts = self.num_experts
+#         batch_size, seq_len, hidden_size = x.shape
+#         num_tokens = batch_size * seq_len
+#         x = x.reshape(num_tokens, hidden_size)
+#         router_logits = self.router(x)
+        
+#         # Use ALL experts instead of top-k to make routing dense (matching HF)
+#         dense_topk = num_experts  # This makes routing dense
+        
+#         # router_top_value: [num_tokens, num_experts]
+#         # router_indices: [num_tokens, num_experts]
+#         router_top_value, router_indices = op_ext.moe_misc.gating_topk(
+#             router_logits, dense_topk
+#         )
+#         router_top_value = op.sigmoid(router_top_value)
+
+#         if num_tokens == 1:
+#             # Apply router weights BEFORE expert computation (matching HF)
+#             # For single token: x is [1, hidden_size], router_top_value is [1, num_experts]
+#             # Need to expand x to [num_experts, hidden_size] and apply weights
+#             x_expanded = op.broadcast_to(x, (num_experts, hidden_size))  # [num_experts, hidden_size]
+#             router_weights = router_top_value.reshape(num_experts, 1)   # [num_experts, 1]
+#             weighted_inputs = x_expanded * router_weights
+            
+#             moe_hidden_states = _expert_forward(weighted_inputs, router_indices)
+#             # Sum across experts (weights already applied)
+#             moe_hidden_states = op.sum(moe_hidden_states.reshape(1, num_experts, hidden_size), axis=1)
+#         else:
+#             # cumsum: [num_tokens * num_experts]
+#             cumsum = op_ext.moe_misc.moe_cumsum(router_indices, num_experts)
+#             # indices: [num_tokens * num_experts]
+#             reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, router_indices)
+#             # indptr: [num_experts + 1]
+#             indptr = op_ext.moe_misc.get_indptr(
+#                 cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
+#             )
+            
+#             # Apply router weights BEFORE expert computation (matching HF)
+#             # x: [num_tokens * num_experts, hidden_size]
+#             token_inputs = op.take(x, token_indices, axis=0)
+            
+#             # Apply router weights to inputs before sending to experts
+#             # router_top_value is [num_tokens, num_experts], need to match token_indices ordering
+#             router_weights_flat = router_top_value.reshape(-1, 1)  # [num_tokens * num_experts, 1]
+#             router_weights_for_tokens = op.take(router_weights_flat, token_indices, axis=0)
+#             weighted_inputs = token_inputs * router_weights_for_tokens
+            
+#             moe_hidden_states = _expert_forward(weighted_inputs, indptr)
+#             moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
+            
+#             # Sum across experts (weights already applied)
+#             moe_hidden_states = op_ext.moe_misc.moe_sum(moe_hidden_states.reshape(num_tokens, num_experts, hidden_size), dim=1)
+
+#         # print("moe_hidden_states.shape: ", moe_hidden_states.shape)
+
+#         # print("x.shape after reshape: ", x.shape)
+        
+#         shared_expert_hidden_states = self.shared_expert(x)
+
+#         # print("shared_expert_hidden_states.shape: ", shared_expert_hidden_states.shape)
+
+#         final_hidden_states = moe_hidden_states + shared_expert_hidden_states
+#         final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hidden_size)
+#         return final_hidden_states
+
+# class Llama4TextMoe(nn.Module):  # pylint: disable=too-many-instance-attributes
+#     """MoE layer for Qwen3MoE model."""
+
+#     def __init__(self, config: Llama4Config):
+#         super().__init__()
+#         self.topk = config.text_config.num_experts_per_tok
+#         self.num_experts = config.text_config.num_local_experts
+#         if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
+#             raise ValueError(
+#                 f"Cannot split MoE intermediate size {config.text_config.intermediate_size} "
+#                 f"evenly to {config.tensor_parallel_shards} GPUs."
+#             )
+#         self.moe_intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
+#         # self.norm_topk_prob = config.norm_topk_prob
+
+#         self.router = nn.Linear(
+#             in_features=config.text_config.hidden_size,
+#             out_features=config.text_config.num_local_experts,
+#             bias=False,
+#         )
+
+#         self.shared_expert = Llama4TextMLP(config)
+
+#         self.moe_gate_up_proj = MixtralExperts(
+#             self.num_experts,
+#             in_features=config.text_config.hidden_size,
+#             out_features=2 * self.moe_intermediate_size,
+#         )
+#         self.moe_down_proj = MixtralExperts(
+#             self.num_experts,
+#             in_features=self.moe_intermediate_size,
+#             out_features=config.text_config.hidden_size,
+#         )
+#         self.act_fn = ACT2FN[config.text_config.hidden_act]
+
+#     def forward(self, x: Tensor):
+#         print("Llama4TextMoe")
+
+#         def _expert_forward(x: Tensor, indptr: Tensor):
+#             x1_x2 = self.moe_gate_up_proj(x, indptr)
+#             x1, x2 = op.split(x1_x2, indices_or_sections=2, axis=-1)
+#             x = self.moe_down_proj(self.act_fn(x1) * x2, indptr)
+#             return x
+
+#         # print("x.shape before reshape: ", x.shape)
+#         # self.topk = self.num_self.topk
+#         num_experts = self.num_experts
+#         batch_size, seq_len, hidden_size = x.shape
+#         num_tokens = batch_size * seq_len
+#         x = x.reshape(num_tokens, hidden_size)
+#         router_logits = self.router(x)
+#         # router_top_value: [num_tokens, self.topk]
+#         # router_indices: [num_tokens, self.topk]
+
+#         router_top_value, _ = op_ext.moe_misc.gating_topk(
+#             router_logits, self.topk
+#         )
+#         router_top_value = op.sigmoid(router_top_value)
+#         print("router_top_value.shape: ", router_top_value.shape)
+
+#         orig_x = x
+#         x = x.repeat(router_top_value.shape[1], 1)
+#         # router_top_value = router_top_value.reshape(num_tokens * self.topk, 1)
+#         x *= router_top_value.reshape(-1, 1)
+
+#         _, router_indices = op_ext.moe_misc.gating_topk(
+#             router_logits, self.num_experts
+#         )
+
+#         if num_tokens == 1:
+#             # x: [num_tokens * self.topk, hidden_size]
+#             moe_hidden_states = _expert_forward(x, router_indices)
+#         else:
+#             # cumsum: [num_tokens * local_experts]
+#             cumsum = op_ext.moe_misc.moe_cumsum(router_indices, num_experts)
+#             # indices: [num_tokens * self.topk]
+#             reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, router_indices)
+#             # indptr: [num_local_experts + 1]
+#             indptr = op_ext.moe_misc.get_indptr(
+#                 cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
+#             )
+#             # x: [num_tokens * self.topk, hidden_size]
+#             moe_hidden_states = op.take(x, token_indices, axis=0)
+#             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
+#             moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
+#         # moe_hidden_states: [num_tokens, self.topk, hidden_size]
+#         # router_top_value = router_top_value.reshape(num_tokens, self.topk, 1)
+#         # moe_hidden_states = (
+#         #     moe_hidden_states.reshape(num_tokens, self.topk, hidden_size) #* router_top_value
+#         # )
+#         moe_hidden_states = op.sum(moe_hidden_states.reshape(router_top_value.shape[1], -1, router_top_value.shape[-1]), axis=0)
+#         # moe_hidden_states: [num_tokens, hidden_size]
+#         # moe_hidden_states = op_ext.moe_misc.moe_sum(moe_hidden_states, dim=1)
+
+#         print("moe_hidden_states.shape: ", moe_hidden_states.shape)
+
+#         # print("x.shape after reshape: ", x.shape)
+        
+#         shared_expert_hidden_states = self.shared_expert(orig_x)
+
+#         print("shared_expert_hidden_states.shape: ", shared_expert_hidden_states.shape)
+
+#         final_hidden_states = moe_hidden_states + shared_expert_hidden_states
+#         final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hidden_size)
+#         return final_hidden_states
 
 class Llama4TextDecoderLayer(nn.Module):
     def __init__(self, config: Llama4Config, layer_idx):
@@ -564,14 +632,17 @@ class Llama4TextDecoderLayer(nn.Module):
 
         def _set_tp():
             def _set(layer, hint):
-                layer.weight.attrs["shard_strategy"] = hint
+                if hasattr(layer, "weight"):
+                    layer.weight.attrs["shard_strategy"] = hint
+                else:
+                    layer.attrs["shard_strategy"] = hint
 
-            hd = config.text_config.head_dim
-            q = self.self_attn.num_q_heads * hd
-            k = self.self_attn.num_kv_heads * hd
-            v = self.self_attn.num_kv_heads * hd
+            # hd = config.text_config.head_dim
+            # q = self.self_attn.num_q_heads * hd
+            # k = self.self_attn.num_kv_heads * hd
+            # v = self.self_attn.num_kv_heads * hd
 
-            # _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            # # _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
             _set(self.self_attn.q_proj, tp.ShardSingleDim("_shard_q", dim=0))
             _set(self.self_attn.k_proj, tp.ShardSingleDim("_shard_k", dim=0))
             _set(self.self_attn.v_proj, tp.ShardSingleDim("_shard_v", dim=0))
@@ -588,6 +659,13 @@ class Llama4TextDecoderLayer(nn.Module):
                 _set(self.feed_forward.shared_expert.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
                 _set(self.feed_forward.shared_expert.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
+                j = self.feed_forward.experts.intermediate_size
+                _set(self.feed_forward.experts.gate_up_proj, tp.ShardSingleDim("_shard_expert_mlp_up", segs=[j, j], dim=2))
+                _set(self.feed_forward.experts.down_proj, tp.ShardSingleDim("_shard_expert_mlp_down", dim=1))
+
+                k = self.feed_forward.router.intermediate_size
+                _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", segs=[k, k], dim=0))
+
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
@@ -603,11 +681,11 @@ class Llama4TextDecoderLayer(nn.Module):
         # else:
         #     router_logits = None
 
-        if not self.is_moe_layer:
-            router_logits = None
+        # if not self.is_moe_layer:
+        #     router_logits = None
 
-
-        hidden_states = self._apply_residual(out, residual=hidden_states)
+        # print("Before residual shapes: ", out.shape, hidden_states.shape)
+        hidden_states = self._apply_residual(op.reshape(out,hidden_states.shape), residual=hidden_states)
 
         return hidden_states
 

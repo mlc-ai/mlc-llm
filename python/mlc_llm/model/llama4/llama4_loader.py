@@ -75,30 +75,54 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
             ),
         )
 
-        # Add experts weights
+        # Add router weights
         mlp = f"model.layers.{i}.feed_forward"
-        mlc_name = f"{mlp}.moe_gate_up_proj.weight"
+        mlc_name = f"{mlp}.router.router.weight"
+        hf_name = f"language_model.{mlp}.router.weight"
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
-            [f"language_model.{mlp}.experts.gate_up_proj",],
+            [hf_name,],
             functools.partial(
-                lambda x, dtype: x.swapaxes(-1, -2).astype(dtype),
+                lambda x, dtype: x.astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
+
+        # Add experts weights
+        mlp = f"model.layers.{i}.feed_forward"
+        # mlc_name = f"{mlp}.moe_gate_up_proj.weight"
+        hf_name = f"language_model.{mlp}.experts.gate_up_proj"
+        mlc_name = f"{mlp}.experts.gate_up_proj"
+        # print(named_parameters)
+        mlc_param = named_parameters[mlc_name]
+        mapping.add_mapping(
+            mlc_name,
+            [hf_name,],
+            functools.partial(
+                lambda x, dtype: x.astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )
 
         mlp = f"model.layers.{i}.feed_forward"
-        mlc_name = f"{mlp}.moe_down_proj.weight"
+        mlc_name = f"{mlp}.experts.down_proj"
+        hf_name = f"language_model.{mlp}.experts.down_proj"
+        
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
-            [f"language_model.{mlp}.experts.down_proj",],
+            [hf_name,],
             functools.partial(
-                lambda x, dtype: x.swapaxes(-1, -2).astype(dtype),
+                lambda x, dtype: x.astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )
+
+    # # Unused vision params
+    # for mlc_name, mlc_param in named_parameters.items():
+    #     if mlc_name.startswith("vision_model"):
+    #         mapping.add_unused(mlc_name)
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
