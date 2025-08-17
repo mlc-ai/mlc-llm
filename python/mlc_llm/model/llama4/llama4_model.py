@@ -175,7 +175,7 @@ class Llama4TextMLP(nn.Module):
         self.intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
         self.gate_up_proj = nn.Linear(
             in_features=config.text_config.hidden_size,
-            out_features=2 * self.intermediate_size,
+            out_features= 2 * self.intermediate_size,
             bias=False,
         )
         self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
@@ -347,7 +347,7 @@ class Llama4Router(nn.Module):
         self.intermediate_size = self.num_experts // config.tensor_parallel_shards
         self.router = nn.Linear(
             in_features=config.text_config.hidden_size,
-            out_features= 2 * self.intermediate_size, #config.text_config.num_local_experts,
+            out_features=self.intermediate_size, #config.text_config.num_local_experts,
             bias=False,
         )
 
@@ -664,7 +664,7 @@ class Llama4TextDecoderLayer(nn.Module):
                 _set(self.feed_forward.experts.down_proj, tp.ShardSingleDim("_shard_expert_mlp_down", dim=1))
 
                 k = self.feed_forward.router.intermediate_size
-                _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", segs=[k, k], dim=0))
+                _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", dim=0))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
