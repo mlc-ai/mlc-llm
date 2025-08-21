@@ -380,7 +380,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 };
 
 /*! \brief The implementation of ThreadedEngine. */
-class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
+class ThreadedEngineModule : public ThreadedEngineImpl, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
   TVM_MODULE_VTABLE_ENTRY("init_threaded_engine", &ThreadedEngineImpl::InitThreadedEngine);

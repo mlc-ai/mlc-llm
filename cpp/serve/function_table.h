@@ -9,6 +9,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/disco/session.h>
@@ -76,7 +77,7 @@ struct FunctionTable {
   Session sess{nullptr};
   DRef disco_mod{nullptr};
   Map<String, ObjectRef> cached_buffers{nullptr};
-  tvm::runtime::Module local_vm{nullptr};
+  tvm::ffi::Module local_vm{nullptr};
   picojson::object model_config;
 
   TypedFunction<Function(const std::string&)> mod_get_func;

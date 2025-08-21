@@ -151,7 +151,7 @@ void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); 
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 
-class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
+class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
@@ -299,7 +299,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
-                        []() { return Module(make_object<JSONFFIEngineImpl>()); });
+                        []() { return ffi::Module(make_object<JSONFFIEngineImpl>()); });
 });
 
 }  // namespace json_ffi

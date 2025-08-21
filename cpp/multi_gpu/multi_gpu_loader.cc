@@ -62,7 +62,9 @@ class PreprocessorPool {
     for (const ModelMetadata::Param& param : model_metadata.params) {
       for (const ModelMetadata::Param::Preproc& preproc : param.preprocs) {
         const std::string& func_name = preproc.func_name;
-        if (Function f = vm_module.defined() ? vm_module->GetFunction(func_name, true) : nullptr;
+        if (Function f = vm_module.defined()
+                             ? vm_module->GetFunction(func_name, true).value_or(Function(nullptr))
+                             : nullptr;
             f != nullptr) {
           preproc_funcs[func_name] = f;
         } else if (const auto f = Function::GetGlobal(func_name); f.has_value()) {
