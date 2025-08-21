@@ -774,15 +774,15 @@ class EngineImpl : public Engine {
         [&device](const std::string& model_lib,
                   const picojson::object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
-        Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
-        Function fload_exec = executable->GetFunction("vm_load_executable");
+        Module executable = ffi::Module::LoadFromFile(model_lib);
+        Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
         ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-        Module local_vm = fload_exec().cast<Module>();
-        local_vm->GetFunction("vm_initialization")(
-            static_cast<int>(device.device_type), device.device_id,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
-            static_cast<int>(kDLCPU), 0,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+        Module local_vm = fload_exec.value()().cast<Module>();
+        local_vm->GetFunction("vm_initialization")
+            .value()(static_cast<int>(device.device_type), device.device_id,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+                     static_cast<int>(kDLCPU), 0,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
         ModelMetadata metadata = ModelMetadata::FromModule(local_vm, std::move(model_config));
         return {metadata.tensor_parallel_shards, metadata.pipeline_parallel_stages};
       } else {
@@ -1023,7 +1023,7 @@ void ClearGlobalMemoryManager() {
   f();
 }
 
-class EngineModule : public ModuleNode {
+class EngineModule : public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.engine");
   TVM_MODULE_VTABLE_ENTRY("init", &EngineModule::Init);
@@ -1049,7 +1049,7 @@ class EngineModule : public ModuleNode {
     this->default_generation_config_ = output.default_generation_cfg;
   }
   /*! \brief Construct an EngineModule. */
-  static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
+  static ffi::Module Create() { return ffi::Module(make_object<EngineModule>()); }
   /*! \brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */

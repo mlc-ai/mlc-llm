@@ -77,9 +77,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->use_disco = true;
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        reload_lib_path, Optional<Device>(std::nullopt));
-    this->mod_get_func = [this,
-                          fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
-                             const std::string& name) -> Function {
+    this->mod_get_func = [this, fmodule_get_function = sess->GetGlobalFunc(
+                                    "ffi.ModuleGetFunction")](const std::string& name) -> Function {
       DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, true);
       bool exists = (func->DebugGetFromRemote(0).as<Function>()) != nullptr;
       if (!exists) {
@@ -103,7 +102,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
   } else {
     ICHECK(!session.defined());
     Module executable{nullptr};
-    Function fload_exec{nullptr};
+    Optional<Function> fload_exec;
     if (StartsWith(reload_lib_path, "system://")) {
       static Function f_load_system_lib = Function::GetGlobalRequired("runtime.SystemLib");
       std::string system_lib_prefix = std::string(reload_lib_path).substr(9);
@@ -114,25 +113,28 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
           << "Cannot find system lib with " << system_lib_prefix
           << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
-      executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
+      executable = tvm::ffi::Module::LoadFromFile(reload_lib_path);
       fload_exec = executable->GetFunction("vm_load_executable");
       /* precompile opencl kernel programs */
       if (device.device_type == kDLOpenCL) {
         auto f_get = executable->GetFunction("opencl.GetPreCompiledPrograms", true);
-        tvm::String bytes = f_get().cast<String>();
+        CHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
+        tvm::String bytes = f_get.value()().cast<String>();
         auto f_set = executable->GetFunction("opencl.SetPreCompiledPrograms", true);
-        f_set(tvm::String(bytes));
+        CHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
+        f_set.value()(tvm::String(bytes));
       }
       ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
-    this->local_vm = fload_exec().cast<Module>();
-    this->local_vm->GetFunction("vm_initialization")(
-        static_cast<int>(device.device_type), device.device_id,
-        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+    this->local_vm = fload_exec.value()().cast<Module>();
+    this->local_vm->GetFunction("vm_initialization")
+        .value()(static_cast<int>(device.device_type), device.device_id,
+                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+                 static_cast<int>(kDLCPU), 0,
+                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
     this->mod_get_func = [this](const std::string& name) -> Function {
-      return this->local_vm->GetFunction(name, true);
+      return this->local_vm->GetFunction(name, true).value_or(Function(nullptr));
     };
     this->get_global_func = [](const std::string& name) -> Function {
       return Function::GetGlobalRequired(name);
@@ -221,10 +223,14 @@ void FunctionTable::_InitFunctions() {
   this->get_logits_func_ = mod_get_func("get_logits");
   this->batch_get_logits_func_ = mod_get_func("batch_get_logits");
   this->batch_select_last_hidden_func_ = mod_get_func("batch_select_last_hidden_states");
-  this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
-  this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
-  this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
-  this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
+  this->softmax_func_ =
+      mod->GetFunction("softmax_with_temperature", true).value_or(Function(nullptr));
+  this->apply_logit_bias_func_ =
+      mod->GetFunction("apply_logit_bias_inplace", true).value_or(Function(nullptr));
+  this->apply_penalty_func_ =
+      mod->GetFunction("apply_penalty_inplace", true).value_or(Function(nullptr));
+  this->apply_bitmask_func_ =
+      mod->GetFunction("apply_bitmask_inplace", true).value_or(Function(nullptr));
   this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->cuda_graph_alloc_init_func_ = mod_get_func("cuda_graph_alloc_init");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
@@ -255,12 +261,17 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_get_total_sequence_length_func_ =
       Function::GetGlobalRequired("vm.builtin.attention_kv_cache_get_total_sequence_length");
   if (Sampler::SupportGPUSampler(local_gpu_device)) {
-    gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
-    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
-    gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
-    gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
-    gpu_verify_draft_tokens_func_ = mod->GetFunction("sampler_verify_draft_tokens", true);
-    gpu_renormalize_by_top_p_func_ = mod->GetFunction("renormalize_by_top_p", true);
+    gpu_multinomial_from_uniform_func_ =
+        mod->GetFunction("multinomial_from_uniform", true).value_or(Function(nullptr));
+    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true).value_or(Function(nullptr));
+    gpu_sample_with_top_p_func_ =
+        mod->GetFunction("sample_with_top_p", true).value_or(Function(nullptr));
+    gpu_sampler_take_probs_func_ =
+        mod->GetFunction("sampler_take_probs", true).value_or(Function(nullptr));
+    gpu_verify_draft_tokens_func_ =
+        mod->GetFunction("sampler_verify_draft_tokens", true).value_or(Function(nullptr));
+    gpu_renormalize_by_top_p_func_ =
+        mod->GetFunction("renormalize_by_top_p", true).value_or(Function(nullptr));
   }
   this->nd_view_func_ = get_global_func("vm.builtin.reshape");
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
@@ -272,8 +283,8 @@ void FunctionTable::_InitFunctions() {
         get_global_func("mlc.multi_gpu.SendFromLastGroupToWorker0");
   }
 
-  this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
-  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
+  this->gather_probs_func_ = mod->GetFunction("gather_probs", true).value_or(Function(nullptr));
+  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true).value_or(Function(nullptr));
   this->gather_hidden_states_func_ = mod_get_func("gather_hidden_states");
   this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
 }

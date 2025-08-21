@@ -7,6 +7,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
@@ -16,6 +17,7 @@
 namespace mlc {
 namespace llm {
 
+using tvm::ffi::Module;
 using tvm::ffi::Shape;
 using tvm::ffi::String;
 using tvm::runtime::DataType;
@@ -94,8 +96,7 @@ struct ModelMetadata {
 
   static ModelMetadata FromJSON(const picojson::object& json_str,
                                 const picojson::object& model_config);
-  static ModelMetadata FromModule(tvm::runtime::Module module,
-                                  const picojson::object& model_config);
+  static ModelMetadata FromModule(Module module, const picojson::object& model_config);
 };
 
 }  // namespace llm
