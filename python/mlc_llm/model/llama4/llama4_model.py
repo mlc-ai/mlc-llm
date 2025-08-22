@@ -288,7 +288,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             key_states = key_states.reshape(b, s, self.num_kv_heads, d)
             value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
-        if self.use_qk_norm and self.use_rope: 
+        if self.use_qk_norm: 
             # print("DOING QK NORM")
             self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
             self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
@@ -297,16 +297,12 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             key_states = self.k_norm(key_states)
 
         if self.attn_temperature_tuning and not self.use_rope:
-            # print("TEMP TUNING")
-            #TODO: Add ops to op.py and add unit tests (see path); in def test_nn() in def test() add the test case
             attn_scales = (
                 op.log(op.floor((op.astype(cache_position, query_states.dtype) + 1.0) / self.floor_scale) + 1.0) * self.attn_scale + 1.0
             )
 
-            attn_scales = op.broadcast_to(op.reshape(attn_scales, (1, s, 1, 1)), (b, s, 1, 1)) #.broadcast_to((b, s, 1, 1))  # batch size > 1
-            # query_states = op.astype(query_states * attn_scales, self.dtype )
-            # attn_scales = op.astype(attn_scales, query_states.dtype)
-            # query_states = op.astype(query_states * attn_scales, query_states.dtype)
+            #TODO: query after applying attn scales is wrong in MLC
+            attn_scales = op.broadcast_to(attn_scales.reshape(1, s, 1, 1), (b,s,1,1)) #.expand(b,s,1,1)
             query_states = query_states * attn_scales
 
         qkv = op.concat([query_states, key_states, value_states], dim=2)
@@ -353,7 +349,8 @@ class Llama4Router(nn.Module):
 
     def forward(self, hidden_states):
         router_logits = self.router(hidden_states)
-        router_top_value, router_indices = op_ext.moe_misc.gating_topk(router_logits, self.top_k)
+        router_top_value, router_indices = op_ext.moe_misc.gating_topk(router_logits, self.top_k) #op.topk(router_logits, self.top_k, axis=1) #
+
         # print("router_top_value.shape: ", router_top_value.shape)
         # print("router_indices.shape: ", router_indices.shape)
         
@@ -390,8 +387,6 @@ class Llama4TextMoe(nn.Module):
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_scores, router_logits = self.router(hidden_states)
         routed_in = hidden_states.repeat(router_scores.shape[1], 0)
-        # print("routed_in.shape: ", routed_in.shape)
-        # print("router_scores.shape: ", router_scores.shape)
         routed_in = routed_in * router_scores.reshape(-1, 1)
         routed_out = self.experts(routed_in)
         out = self.shared_expert(hidden_states)
