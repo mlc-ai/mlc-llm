@@ -104,7 +104,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     Module executable{nullptr};
     Optional<Function> fload_exec;
     if (StartsWith(reload_lib_path, "system://")) {
-      static Function f_load_system_lib = Function::GetGlobalRequired("runtime.SystemLib");
+      static Function f_load_system_lib = Function::GetGlobalRequired("ffi.SystemLib");
       std::string system_lib_prefix = std::string(reload_lib_path).substr(9);
       std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
       executable = f_load_system_lib(system_lib_prefix + "_").cast<Module>();
