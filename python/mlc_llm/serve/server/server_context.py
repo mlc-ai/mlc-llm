@@ -15,7 +15,7 @@ class ServerContext:
 
     def __init__(self) -> None:
         self._models: Dict[str, AsyncMLCEngine] = {}
-        self.api_key: Optional[str] = None  # New API key property
+        self.api_key: Optional[str] = None
 
     def __enter__(self):
         if ServerContext.server_context is not None:
