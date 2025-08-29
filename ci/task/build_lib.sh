@@ -33,16 +33,6 @@ elif [[ ${GPU} == cuda* ]]; then
     echo set\(USE_CUDA ON\) >>config.cmake
     echo set\(USE_CUBLAS ON\) >>config.cmake
     echo set\(USE_NCCL ON\) >>config.cmake
-    echo set\(USE_FLASHINFER ON\) >>config.cmake
-    echo set\(FLASHINFER_ENABLE_FP8 OFF\) >>config.cmake
-    echo set\(FLASHINFER_ENABLE_BF16 OFF\) >>config.cmake
-    echo set\(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8\) >>config.cmake
-    echo set\(FLASHINFER_GEN_PAGE_SIZES 16\) >>config.cmake
-    echo set\(FLASHINFER_GEN_HEAD_DIMS 128\) >>config.cmake
-    echo set\(FLASHINFER_GEN_KV_LAYOUTS 0 1\) >>config.cmake
-    echo set\(FLASHINFER_GEN_POS_ENCODING_MODES 0 1\) >>config.cmake
-    echo set\(FLASHINFER_GEN_ALLOW_FP16_QK_REDUCTIONS "false"\) >>config.cmake
-    echo set\(FLASHINFER_GEN_CASUALS "false" "true"\) >>config.cmake
     echo set\(USE_CUTLASS ON\) >>config.cmake
 elif [[ ${GPU} == metal ]]; then
     export CCACHE_DIR=$HOME/ci/ccache
@@ -52,5 +42,3 @@ else
 fi
 
 cat config.cmake
-
-cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && make -j${NUM_THREADS}

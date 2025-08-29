@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
 from tvm.contrib import ndk, tar, xcode
-from tvm.ffi import get_global_func, register_func
 from tvm.ir.transform import Pass
 from tvm.target import Target
+from tvm_ffi import get_global_func, register_func
 
 from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str

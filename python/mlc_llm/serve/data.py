@@ -4,14 +4,14 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import tvm
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 from tvm.runtime.ndarray import NDArray
 
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("mlc.serve.Data")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.Data")  # pylint: disable=protected-access
 class Data(Object):  # pylint: disable=too-few-public-methods
     """The base class of multi-modality data (text, tokens, embedding, etc)."""
 
@@ -19,7 +19,7 @@ class Data(Object):  # pylint: disable=too-few-public-methods
         pass
 
 
-@tvm.ffi.register_object("mlc.serve.TextData")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.TextData")  # pylint: disable=protected-access
 class TextData(Data):
     """The class of text data, containing a text string.
 
@@ -41,7 +41,7 @@ class TextData(Data):
         return self.text
 
 
-@tvm.ffi.register_object("mlc.serve.TokenData")  # type: ignore  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.TokenData")  # type: ignore  # pylint: disable=protected-access
 class TokenData(Data):  # pylint: disable=too-few-public-methods
     """The class of token data, containing a list of token ids.
 
@@ -61,7 +61,7 @@ class TokenData(Data):  # pylint: disable=too-few-public-methods
 
 
 # mypy: disable-error-code="attr-defined"
-@tvm.ffi.register_object("mlc.serve.ImageData")  # type: ignore  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.ImageData")  # type: ignore  # pylint: disable=protected-access
 class ImageData(Data):
     """The class of image data, containing the image as NDArray.
 
@@ -158,7 +158,7 @@ class SingleRequestStreamOutput:
     extra_prefix_string: str
 
 
-@tvm.ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
 class RequestStreamOutput(Object):  # pylint: disable=too-few-public-methods
     """The generated delta request output that is streamed back
     through callback stream function.
