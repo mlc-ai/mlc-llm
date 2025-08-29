@@ -177,8 +177,9 @@ class GPT2Block(nn.Module):
         _set_tp()
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        with tp.shard_bias(self.attn.c_proj, self.tensor_parallel_shards), tp.shard_bias(
-            self.mlp.c_proj, self.tensor_parallel_shards
+        with (
+            tp.shard_bias(self.attn.c_proj, self.tensor_parallel_shards),
+            tp.shard_bias(self.mlp.c_proj, self.tensor_parallel_shards),
         ):
             hidden_states = self._apply_residual(
                 self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id), hidden_states

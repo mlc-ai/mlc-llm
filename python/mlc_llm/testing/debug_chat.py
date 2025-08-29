@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tvm
+import tvm_ffi
 from tvm import DataType, relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
@@ -44,7 +45,7 @@ def _get_tvm_module(
     model_weight_path: str,
     lib_path: str,
     device: Device,
-    instrument: Union[tvm.ffi.Function, None],
+    instrument: Union[tvm_ffi.Function, None],
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)

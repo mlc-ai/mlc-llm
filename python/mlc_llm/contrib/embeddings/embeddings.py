@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import tvm
+import tvm_ffi
 from tvm import relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module
@@ -34,7 +35,7 @@ def _load_params(
 
 
 def _get_tvm_module(
-    model_weight_path: str, lib_path: str, device: Device, instrument: tvm.ffi.Function = None
+    model_weight_path: str, lib_path: str, device: Device, instrument: tvm_ffi.Function = None
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)

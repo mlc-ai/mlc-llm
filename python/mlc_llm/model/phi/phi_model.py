@@ -260,8 +260,9 @@ class PhiParallelBlock(nn.Module):
         residual = hidden_states
         hidden_states = self.ln(hidden_states)
 
-        with tp.shard_bias(self.mixer.out_proj, self.tensor_parallel_shards), tp.shard_bias(
-            self.mlp.fc2, self.tensor_parallel_shards
+        with (
+            tp.shard_bias(self.mixer.out_proj, self.tensor_parallel_shards),
+            tp.shard_bias(self.mlp.fc2, self.tensor_parallel_shards),
         ):
             attn_outputs = self.mixer(hidden_states, paged_kv_cache, layer_id)
             feed_forward_hidden_states = self.mlp(hidden_states)

@@ -24,6 +24,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 
 option(MLC_HIDE_PRIVATE_SYMBOLS "Hide private symbols" ON)
+option(MLC_LLM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core"
+       OFF)
 
 if(MLC_LLM_INSTALL_STATIC_LIB)
   set(BUILD_STATIC_RUNTIME ON)
@@ -183,4 +185,32 @@ else()
             tokenizers_c
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib${LIB_SUFFIX})
+endif()
+
+# Python package installation configuration This section ensures that all
+# necessary files are installed for the Python wheel
+if(MLC_LLM_BUILD_PYTHON_MODULE)
+  message(STATUS "Configuring Python package installation")
+
+  # Set RPATH for mlc_llm and mlc_llm_module to find other libraries relatively
+  if(APPLE)
+    # macOS uses @loader_path
+    set_target_properties(mlc_llm PROPERTIES INSTALL_RPATH "@loader_path")
+    set_target_properties(mlc_llm_module PROPERTIES INSTALL_RPATH
+                                                    "@loader_path")
+  elseif(LINUX)
+    # Linux uses $ORIGIN
+    set_target_properties(mlc_llm PROPERTIES INSTALL_RPATH "\$ORIGIN")
+    set_target_properties(mlc_llm_module PROPERTIES INSTALL_RPATH "\$ORIGIN")
+  endif()
+
+  # Install compiled shared libraries
+  install(TARGETS mlc_llm DESTINATION ".")
+  install(TARGETS mlc_llm_module DESTINATION ".")
+  install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cpp/" DESTINATION "cpp/")
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+                "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+                "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE" DESTINATION ".")
+
+  message(STATUS "Python package installation configured")
 endif()
