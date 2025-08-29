@@ -38,10 +38,10 @@ MLC LLM is a machine learning compiler and high-performance deployment engine fo
     </tr>
     <tr>
       <td>macOS</td>
-      <td>✅ Metal (dGPU)</td>
+      <td>❌ Metal (dGPU)</td>
       <td>N/A</td>
       <td>✅ Metal</td>
-      <td>✅ Metal (iGPU)</td>
+      <td>❌ Metal (iGPU)</td>
     </tr>
     <tr>
       <td>Web Browser</td>
