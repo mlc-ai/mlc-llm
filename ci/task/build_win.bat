@@ -1,15 +1,9 @@
 cd mlc-llm
 rd /s /q build
 mkdir build
-cd build
 
-cmake -A x64 -Thost=x64 ^
-      -G "Visual Studio 17 2022" ^
-      -DUSE_VULKAN=ON ^
-      ..
+echo set(USE_VULKAN ON) >> config.cmake
 
-if %errorlevel% neq 0 exit %errorlevel%
-
-cmake --build . --parallel 3 --config Release -- /m
+pip install . -v
 
 if %errorlevel% neq 0 exit %errorlevel%
