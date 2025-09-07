@@ -61,6 +61,7 @@ if __name__ == "__main__":
             )
             if user_input in ["yes", "Y", "y"]:
                 cmake_config_str += "set(USE_FLASHINFER ON)\n"
+                cmake_config_str += "set(FLASHINFER_ENABLE_FP4 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_ENABLE_FP8 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_ENABLE_BF16 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8)\n"
