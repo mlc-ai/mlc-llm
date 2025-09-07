@@ -83,7 +83,7 @@ if __name__ == "__main__":
     if use_flashInfer:
         while True:
             user_input = input("Enter your CUDA compute capability: ")
-            if user_input in ["80", "86", "89", "90", "100", "120"]:
+            if user_input in ["80", "86", "87", "89", "90", "100", "110", "120"]:
                 cmake_config_str += f"set(FLASHINFER_CUDA_ARCHITECTURES {user_input})\n"
                 cmake_config_str += f"set(CMAKE_CUDA_ARCHITECTURES {user_input})\n"
                 break
