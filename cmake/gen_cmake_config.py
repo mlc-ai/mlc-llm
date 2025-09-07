@@ -89,7 +89,7 @@ if __name__ == "__main__":
                 break
             else:
                 print(
-                    f"Invalid input: {user_input}. FlashInfer requires 80, 86, 89, 90, 100 or 120"
+                    f"Invalid input: {user_input}. FlashInfer requires 80, 86, 87, 89, 90, 100 110 or 120"
                 )
 
     print("\nWriting the following configuration to config.cmake...")
