@@ -5,8 +5,8 @@
 
 #include "request.h"
 
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "data.h"
 
@@ -15,8 +15,6 @@ namespace llm {
 namespace serve {
 
 /****************** Request ******************/
-
-TVM_REGISTER_OBJECT_TYPE(RequestNode);
 
 Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
   if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
@@ -68,12 +66,13 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
   }
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.RequestGetInputs").set_body_typed([](Request request) {
-  return request->inputs;
-});
-
-TVM_REGISTER_GLOBAL("mlc.serve.RequestGetGenerationConfigJSON").set_body_typed([](Request request) {
-  return picojson::value(request->generation_cfg->AsJSON()).serialize();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.serve.RequestGetInputs", [](Request request) { return request->inputs; })
+      .def("mlc.serve.RequestGetGenerationConfigJSON", [](Request request) {
+        return picojson::value(request->generation_cfg->AsJSON()).serialize();
+      });
 });
 
 }  // namespace serve

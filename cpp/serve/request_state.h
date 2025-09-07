@@ -6,7 +6,7 @@
 #ifndef MLC_LLM_SERVE_REQUEST_STATE_H_
 #define MLC_LLM_SERVE_REQUEST_STATE_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 #include <xgrammar/xgrammar.h>

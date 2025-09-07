@@ -180,7 +180,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
             The quantized weight and the scale if use_scale is True.
         """
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device.DEVICE_TYPE_TO_NAME[device.device_type]
 
         def _create_quantize_func() -> IRModule:
             if DataType(self.weight_dtype).type_code in [

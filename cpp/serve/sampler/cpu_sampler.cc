@@ -3,9 +3,8 @@
  * \file serve/sampler/cpu_sampler.cc
  * \brief The implementation for CPU sampler functions.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
@@ -324,19 +323,10 @@ inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
 
 /********************* CPU Sampler *********************/
 
-TVM_REGISTER_OBJECT_TYPE(SamplerObj);
-
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
-      : trace_recorder_(std::move(trace_recorder)) {
-    // Set customized "logits -> prob" function.
-    const PackedFunc* f_logits_to_probs =
-        Registry::Get("mlc.llm.compute_probs_from_logits_inplace");
-    if (f_logits_to_probs != nullptr) {
-      flogits_to_probs_inplace_ = *f_logits_to_probs;
-    }
-  }
+      : trace_recorder_(std::move(trace_recorder)) {}
 
   NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
                                       const std::vector<int>& sample_indices,  //
@@ -582,7 +572,7 @@ class CPUSampler : public SamplerObj {
   /*! \brief The event trace recorder for requests. */
   Optional<EventTraceRecorder> trace_recorder_;
   /*! \brief Customized function which computes prob distribution from logits */
-  PackedFunc flogits_to_probs_inplace_;
+  Function flogits_to_probs_inplace_;
   /*! \brief Probability distribution array on CPU. */
   NDArray probs_host_{nullptr};
   const float eps_ = 1e-5;

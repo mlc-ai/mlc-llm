@@ -4,19 +4,30 @@
  */
 #ifndef MLC_SINGLE_GPU_ONLY
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/cast.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/vm/vm.h>
 
 namespace mlc {
 namespace llm {
 namespace multi_gpu {
 
 using namespace tvm::runtime;
+using tvm::Downcast;
+using tvm::ffi::Array;
+using tvm::ffi::Optional;
+using tvm::ffi::Shape;
 
-ObjectRef DispatchFunctionByGroup(TVMArgValue vm_arg, Array<Array<ObjectRef>> funcs_and_args) {
-  using namespace relax_vm;
+ObjectRef DispatchFunctionByGroup(tvm::ffi::AnyView vm_arg,
+                                  Array<Array<ObjectRef>> funcs_and_args) {
+  using namespace vm;
   VirtualMachine* vm = VirtualMachine::GetContextPtr(vm_arg);
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int world_size = worker->num_workers;
@@ -31,25 +42,20 @@ ObjectRef DispatchFunctionByGroup(TVMArgValue vm_arg, Array<Array<ObjectRef>> fu
   VMClosure func = Downcast<VMClosure>(funcs_and_args[group_id][0]);
 
   int num_args = static_cast<int>(funcs_and_args[group_id].size()) - 1;
-  std::vector<TVMValue> values;
-  std::vector<int> type_codes;
-  values.resize(num_args);
-  type_codes.resize(num_args);
-  TVMArgsSetter setter(values.data(), type_codes.data());
+  std::vector<tvm::ffi::AnyView> packed_args(num_args);
   for (int i = 0; i < num_args; ++i) {
     // NOTE: Need explicily define `arg` so that the argument does not
     // have type code kTVMObjectRValueRefArg.
-    ObjectRef arg = funcs_and_args[group_id][1 + i];
-    setter(i, arg);
+    packed_args[i] = funcs_and_args[group_id][1 + i];
   }
 
-  TVMRetValue rv;
+  tvm::ffi::Any rv;
   vm->InvokeClosurePacked(Downcast<VMClosure>(funcs_and_args[group_id][0]),
-                          TVMArgs(values.data(), type_codes.data(), num_args), &rv);
-  return rv;
+                          tvm::ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+  return rv.cast<ObjectRef>();
 }
 
-ObjectRef SendFromLastGroupToWorker0(NDArray send, Optional<NDArray> recv, ShapeTuple shape,
+ObjectRef SendFromLastGroupToWorker0(NDArray send, Optional<NDArray> recv, Shape shape,
                                      DataType dtype) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   int worker_id = worker->worker_id;
@@ -80,10 +86,12 @@ ObjectRef SendFromLastGroupToWorker0(NDArray send, Optional<NDArray> recv, Shape
   return recv;
 }
 
-TVM_REGISTER_GLOBAL("mlc.multi_gpu.DispatchFunctionByGroup")
-    .set_body_typed(DispatchFunctionByGroup);
-TVM_REGISTER_GLOBAL("mlc.multi_gpu.SendFromLastGroupToWorker0")
-    .set_body_typed(SendFromLastGroupToWorker0);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.multi_gpu.DispatchFunctionByGroup", DispatchFunctionByGroup)
+      .def("mlc.multi_gpu.SendFromLastGroupToWorker0", SendFromLastGroupToWorker0);
+});
 
 }  // namespace multi_gpu
 }  // namespace llm

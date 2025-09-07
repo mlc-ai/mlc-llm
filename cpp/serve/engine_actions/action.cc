@@ -7,10 +7,6 @@
 
 namespace mlc {
 namespace llm {
-namespace serve {
-
-TVM_REGISTER_OBJECT_TYPE(EngineActionObj);
-
-}  // namespace serve
+namespace serve {}  // namespace serve
 }  // namespace llm
 }  // namespace mlc

@@ -11,8 +11,6 @@ namespace serve {
 
 /****************** RequestModelState ******************/
 
-TVM_REGISTER_OBJECT_TYPE(RequestModelStateNode);
-
 RequestModelState::RequestModelState(
     Request request, int model_id, int64_t internal_id, Array<Data> inputs,
     const std::optional<xgrammar::CompiledGrammar>& compiled_grammar) {
@@ -139,8 +137,6 @@ RequestStreamOutput RequestActionPostProcWorkspace::GetStreamOutput() {
 
 /****************** RequestStateEntry ******************/
 
-TVM_REGISTER_OBJECT_TYPE(RequestStateEntryNode);
-
 RequestStateEntry::RequestStateEntry(
     Request request, int num_models, int64_t internal_id, int rng_seed,
     const std::vector<std::string>& token_table,
@@ -178,7 +174,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
   if (needs_logprobs) {
     (*delta_stream_output)->group_delta_logprob_json_strs.value()[idx].clear();
   }
-  (*delta_stream_output)->group_finish_reason[idx] = NullOpt;
+  (*delta_stream_output)->group_finish_reason[idx] = std::nullopt;
   (*delta_stream_output)->group_extra_prefix_string[idx] = this->extra_prefix_string;
   this->extra_prefix_string.clear();
 
@@ -239,7 +235,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
     (*delta_stream_output)->group_finish_reason[idx] = "stop";
   }
 
-  if ((*delta_stream_output)->group_finish_reason[idx].defined()) {
+  if ((*delta_stream_output)->group_finish_reason[idx].has_value()) {
     return;
   }
 
@@ -259,8 +255,6 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
 }
 
 /****************** RequestState ******************/
-
-TVM_REGISTER_OBJECT_TYPE(RequestStateNode);
 
 RequestState::RequestState(std::vector<RequestStateEntry> entries, int num_response,
                            std::chrono::high_resolution_clock::time_point add_time_point) {

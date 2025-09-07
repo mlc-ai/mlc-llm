@@ -4,7 +4,8 @@
  */
 #ifndef MLC_LLM_SERVE_RADIX_TREE_H_
 #define MLC_LLM_SERVE_RADIX_TREE_H_
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
 
 #include <unordered_map>
@@ -107,10 +108,8 @@ class PagedRadixTreeObj : public Object {
   virtual void Reset() = 0;
 
   static constexpr const char* _type_key = "mlc.serve.PagedRadixTree";
-  TVM_DECLARE_BASE_OBJECT_INFO(PagedRadixTreeObj, Object)
+  TVM_DECLARE_BASE_OBJECT_INFO(PagedRadixTreeObj, Object);
 };
-
-TVM_REGISTER_OBJECT_TYPE(PagedRadixTreeObj);
 
 class PagedRadixTree : public ObjectRef {
  public:

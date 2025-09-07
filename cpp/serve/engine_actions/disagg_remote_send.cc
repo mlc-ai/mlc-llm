@@ -156,9 +156,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
     // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
     estate->prefix_cache->CommitSequenceExtention();
 
-    // - We run TVMSynchronize to make sure that the prefill is finished.
+    // - We run synchronize to make sure that the prefill is finished.
     // We need explicit synchronization because we don't do sampling in this action.
-    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+    DeviceAPI::Get(device_)->StreamSync(device_, compute_stream_);
 
     auto tend = std::chrono::high_resolution_clock::now();
     estate->metrics.engine_prefill_time_sum += static_cast<double>((tend - tstart).count()) / 1e9;

@@ -5,8 +5,8 @@
 #include "config.h"
 
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <limits>
 #include <random>
@@ -22,9 +22,9 @@ namespace serve {
 
 uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // Get single-card GPU size.
-  TVMRetValue rv;
+  tvm::ffi::Any rv;
   DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
-  int64_t gpu_size_bytes = rv;
+  int64_t gpu_size_bytes = rv.cast<int64_t>();
   // Since the memory size returned by the OpenCL runtime is smaller than the actual available
   // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android
   // with OpenCL.
@@ -57,7 +57,7 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
 picojson::object ResponseFormat::AsJSON() const {
   picojson::object config;
   config["type"] = picojson::value(type);
-  if (schema.defined()) {
+  if (schema.has_value()) {
     config["schema"] = picojson::value(schema.value().operator std::string());
   }
   return config;
@@ -228,8 +228,6 @@ picojson::object DebugConfig::AsJSON() const {
 }
 
 /****************** GenerationConfig ******************/
-
-TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
 
 Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   using TResult = Result<GenerationConfig>;
@@ -413,8 +411,6 @@ picojson::object GenerationConfigNode::AsJSON() const {
 }
 
 /****************** EngineConfig ******************/
-
-TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
 
 EngineConfig EngineConfig::FromJSONAndInferredConfig(
     const picojson::object& json, const InferrableEngineConfig& inferred_config) {
@@ -761,8 +757,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
            static_cast<int64_t>(8192)});
     } else if (mode == EngineMode::kInteractive) {
       inferred_config.max_total_sequence_length = std::min(
-          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value(),
-           model_config_limits.model_max_sliding_window_size});
+          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value()});
     } else {
       inferred_config.max_total_sequence_length =
           inferred_config.max_single_sequence_length.value() == std::numeric_limits<int64_t>::max()

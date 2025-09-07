@@ -8,7 +8,7 @@
 #define MLC_LLM_SERVE_MODEL_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/ndarray.h>
 
 #include "../base.h"

@@ -5,8 +5,9 @@
 #include "event_trace_recorder.h"
 
 #include <picojson.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 
 #include <algorithm>
 #include <chrono>
@@ -18,6 +19,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+using tvm::ffi::String;
 
 namespace detail {
 
@@ -31,8 +34,6 @@ struct PairHash {
 };
 
 }  // namespace detail
-
-TVM_REGISTER_OBJECT_TYPE(EventTraceRecorderObj);
 
 /*! \brief The implementation of event trace recorder. */
 class EventTraceRecorderImpl : public EventTraceRecorderObj {
@@ -142,19 +143,18 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
 };
 
 EventTraceRecorder EventTraceRecorder::Create() {
-  return EventTraceRecorder(make_object<EventTraceRecorderImpl>());
+  return EventTraceRecorder(tvm::ffi::make_object<EventTraceRecorderImpl>());
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.EventTraceRecorder").set_body_typed([]() {
-  return EventTraceRecorder::Create();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.serve.EventTraceRecorder", []() { return EventTraceRecorder::Create(); })
+      .def("mlc.serve.EventTraceRecorderAddEvent",
+           [](const EventTraceRecorder& trace_recorder, const String& request_id,
+              const std::string& event) { trace_recorder->AddEvent(request_id, event); })
+      .def_method("mlc.serve.EventTraceRecorderDumpJSON", &EventTraceRecorderObj::DumpJSON);
 });
-
-TVM_REGISTER_GLOBAL("mlc.serve.EventTraceRecorderAddEvent")
-    .set_body_typed([](const EventTraceRecorder& trace_recorder, const String& request_id,
-                       const std::string& event) { trace_recorder->AddEvent(request_id, event); });
-
-TVM_REGISTER_GLOBAL("mlc.serve.EventTraceRecorderDumpJSON")
-    .set_body_method<EventTraceRecorder>(&EventTraceRecorderObj::DumpJSON);
 
 }  // namespace serve
 }  // namespace llm

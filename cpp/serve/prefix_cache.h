@@ -4,9 +4,8 @@
  */
 #ifndef MLC_LLM_SERVE_PREFIX_CACHE_H_
 #define MLC_LLM_SERVE_PREFIX_CACHE_H_
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <optional>
@@ -124,10 +123,8 @@ class PrefixCacheObj : public Object {
   virtual PrefixCacheMode Mode() = 0;
 
   static constexpr const char* _type_key = "mlc.serve.PrefixCache";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object)
+  TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object);
 };
-
-TVM_REGISTER_OBJECT_TYPE(PrefixCacheObj);
 
 class PrefixCache : public ObjectRef {
  public:

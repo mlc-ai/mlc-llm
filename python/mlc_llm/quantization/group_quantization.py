@@ -199,7 +199,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             The list of group quantized weights.
         """
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device.DEVICE_TYPE_TO_NAME[device.device_type]
         axis = axis if axis >= 0 else len(weight.shape) + axis
 
         def _create_quantize_func() -> IRModule:

@@ -2,7 +2,7 @@
 
 from typing import List
 
-import tvm._ffi
+import tvm_ffi
 from tvm.runtime import Object
 
 from mlc_llm.protocol.generation_config import GenerationConfig
@@ -11,7 +11,7 @@ from . import _ffi_api
 from .data import Data
 
 
-@tvm._ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.Request")  # pylint: disable=protected-access
 class Request(Object):
     """The user submitted text-generation request, which contains
     a unique request id, a list of multi-modal inputs, a set of

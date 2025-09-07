@@ -4,7 +4,8 @@
  */
 #include "data.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "model.h"
 
@@ -13,8 +14,6 @@ namespace llm {
 namespace serve {
 
 /****************** Data ******************/
-
-TVM_REGISTER_OBJECT_TYPE(DataNode);
 
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
                                               int split_pos) {
@@ -57,8 +56,6 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
 
 /****************** TextData ******************/
 
-TVM_REGISTER_OBJECT_TYPE(TextDataNode);
-
 TextData::TextData(String text) {
   ObjectPtr<TextDataNode> n = make_object<TextDataNode>();
   n->text = std::move(text);
@@ -75,17 +72,14 @@ ObjectRef TextDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) co
                 "Please tokenize the text and construct a TokenData object.";
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.TextData").set_body_typed([](String text) {
-  return TextData(std::move(text));
-});
-
-TVM_REGISTER_GLOBAL("mlc.serve.TextDataGetTextString").set_body_typed([](TextData data) {
-  return data->text;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.serve.TextData", [](String text) { return TextData(std::move(text)); })
+      .def("mlc.serve.TextDataGetTextString", [](TextData data) { return data->text; });
 });
 
 /****************** TokenData ******************/
-
-TVM_REGISTER_OBJECT_TYPE(TokenDataNode);
 
 TokenData::TokenData(IntTuple token_ids) {
   ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
@@ -105,22 +99,22 @@ ObjectRef TokenDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->TokenEmbed(token_ids, dst, offset);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.TokenData").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<int32_t> token_ids;
-  token_ids.reserve(args.size());
-  for (int i = 0; i < args.size(); i++) {
-    token_ids.push_back(args[i]);
-  }
-  *rv = TokenData(std::move(token_ids));
-});
-
-TVM_REGISTER_GLOBAL("mlc.serve.TokenDataGetTokenIds").set_body_typed([](TokenData data) {
-  return data->token_ids;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("mlc.serve.TokenData",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    std::vector<int32_t> token_ids;
+                    token_ids.reserve(args.size());
+                    for (int i = 0; i < args.size(); i++) {
+                      token_ids.push_back(args[i].cast<int32_t>());
+                    }
+                    *rv = TokenData(std::move(token_ids));
+                  })
+      .def("mlc.serve.TokenDataGetTokenIds", [](TokenData data) { return data->token_ids; });
 });
 
 /****************** ImageData ******************/
-
-TVM_REGISTER_OBJECT_TYPE(ImageDataNode);
 
 ImageData::ImageData(NDArray image, int embed_size) {
   ObjectPtr<ImageDataNode> n = make_object<ImageDataNode>();
@@ -135,12 +129,12 @@ ObjectRef ImageDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->ImageEmbed(image, dst, offset);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.ImageData").set_body_typed([](NDArray image, int embed_size) {
-  return ImageData(std::move(image), embed_size);
-});
-
-TVM_REGISTER_GLOBAL("mlc.serve.ImageDataGetImage").set_body_typed([](ImageData data) {
-  return data->image;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.serve.ImageData",
+           [](NDArray image, int embed_size) { return ImageData(std::move(image), embed_size); })
+      .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; });
 });
 
 /****************** SampleResult ******************/
@@ -207,8 +201,6 @@ std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logpro
 
 /****************** RequestStreamOutput ******************/
 
-TVM_REGISTER_OBJECT_TYPE(RequestStreamOutputObj);
-
 RequestStreamOutput::RequestStreamOutput(
     String request_id, std::vector<std::vector<int64_t>> group_delta_token_ids,
     std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs,
@@ -231,32 +223,34 @@ RequestStreamOutput RequestStreamOutput::Usage(String request_id,
   return RequestStreamOutput(n);
 }
 
-TVM_REGISTER_GLOBAL("mlc.serve.RequestStreamOutputUnpack")
-    .set_body_typed([](RequestStreamOutput output) {
-      CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
-      std::vector<IntTuple> group_delta_token_ids;
-      std::vector<Array<String>> group_delta_logprob_json_strs;
-      group_delta_token_ids.reserve(output->group_delta_token_ids.size());
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.RequestStreamOutputUnpack", [](RequestStreamOutput output) {
+    CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
+    std::vector<IntTuple> group_delta_token_ids;
+    std::vector<Array<String>> group_delta_logprob_json_strs;
+    group_delta_token_ids.reserve(output->group_delta_token_ids.size());
+    if (output->group_delta_logprob_json_strs.has_value()) {
+      group_delta_logprob_json_strs.reserve(output->group_delta_token_ids.size());
+    }
+    for (int i = 0; i < static_cast<int>(output->group_delta_token_ids.size()); ++i) {
+      group_delta_token_ids.push_back(output->group_delta_token_ids[i]);
       if (output->group_delta_logprob_json_strs.has_value()) {
-        group_delta_logprob_json_strs.reserve(output->group_delta_token_ids.size());
+        group_delta_logprob_json_strs.push_back(output->group_delta_logprob_json_strs.value()[i]);
       }
-      for (int i = 0; i < static_cast<int>(output->group_delta_token_ids.size()); ++i) {
-        group_delta_token_ids.push_back(output->group_delta_token_ids[i]);
-        if (output->group_delta_logprob_json_strs.has_value()) {
-          group_delta_logprob_json_strs.push_back(output->group_delta_logprob_json_strs.value()[i]);
-        }
-      }
-      Array<ObjectRef> ret = {output->request_id,
-                              Array<IntTuple>(std::move(group_delta_token_ids)),
-                              output->group_delta_logprob_json_strs.has_value()
-                                  ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
-                                  : Optional<Array<Array<String>>>(),
-                              Array<Optional<String>>(output->group_finish_reason),
-                              output->request_final_usage_json_str,
-                              Array<String>(output->group_extra_prefix_string)};
-      output->unpacked = true;
-      return ret;
-    });
+    }
+    Array<Any> ret = {output->request_id,
+                      Array<IntTuple>(std::move(group_delta_token_ids)),
+                      output->group_delta_logprob_json_strs.has_value()
+                          ? Array<Array<String>>(std::move(group_delta_logprob_json_strs))
+                          : Optional<Array<Array<String>>>(),
+                      Array<Optional<String>>(output->group_finish_reason),
+                      output->request_final_usage_json_str,
+                      Array<String>(output->group_extra_prefix_string)};
+    output->unpacked = true;
+    return ret;
+  });
+});
 
 }  // namespace serve
 }  // namespace llm

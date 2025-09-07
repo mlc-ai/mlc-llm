@@ -3,8 +3,10 @@
 from dataclasses import dataclass
 from typing import Any, Literal, Optional, Tuple
 
+import tvm
 from tvm import DataType, DataTypeCode, te, tir
 from tvm.relax.frontend import nn
+from tvm.script import tir as T
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -260,14 +262,34 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
         ret : nn.Tensor
             The output tensor.
         """
-        shape_supported_by_cutlass = (
+        m = 1
+        for i in range(x.ndim - 1):
+            m *= x.shape[i]
+        if m == 1:
+            x_shape = x.shape
+            return dequantize_float8_groupwise_scaled_gemv(
+                x.reshape(1, x.shape[-1]),
+                self.weight,
+                self.weight_scale_inv,
+                self.block_size,
+                self.out_dtype if self.out_dtype is not None else x.dtype,
+            ).reshape(*x_shape[:-1], -1)
+
+        shape_supported_by_cutlass = (  # pylint: disable=unused-variable
             self.weight.shape[0] % 128 == 0 and self.weight.shape[1] % 128 == 0
         )
-        if extern.get_store().cutlass_gemm and shape_supported_by_cutlass:
+        # Todo: check "shape supported by cutlass" for Hopper  # pylint: disable=fixme
+        if (
+            extern.get_store().cutlass_gemm
+            and tvm.get_global_func(
+                "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn", allow_missing=True
+            )
+            is not None
+        ):
             x_fp8, x_scale = rowwise_group_quant_fp8(
                 x, self.block_size[1], self.weight_dtype, transpose_scale=True
             )
-            x = cutlass.fp8_block_scale_gemm(
+            x = cutlass.fp8_groupwise_scaled_gemm(
                 x_fp8,
                 x_scale,
                 self.weight,
@@ -279,7 +301,7 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
             x_fp8, x_scale = rowwise_group_quant_fp8(
                 x, self.block_size[1], self.weight_dtype, transpose_scale=False
             )
-            x = triton.fp8_block_scale_gemm(
+            x = triton.fp8_groupwise_scaled_gemm(
                 x_fp8,
                 x_scale,
                 self.weight,
@@ -406,15 +428,32 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
         x_fp8, x_scale = rowwise_group_quant_fp8(
             x, self.block_size[1], self.weight_dtype, transpose_scale=False
         )
-        x = triton.fp8_block_scale_group_gemm(
-            x_fp8,
-            x_scale,
-            self.weight,
-            self.weight_scale_inv,
-            indptr,
-            self.block_size,
-            x.dtype,
-        )
+        if (
+            extern.get_store().cutlass_gemm
+            and tvm.get_global_func(
+                "cutlass.groupwise_scaled_group_gemm_e4m3fn_e4m3fn", allow_missing=True
+            )
+            is not None
+        ):
+            x = cutlass.fp8_groupwise_scaled_group_gemm(
+                x_fp8,
+                x_scale,
+                self.weight,
+                self.weight_scale_inv,
+                indptr,
+                self.block_size,
+                x.dtype,
+            )
+        else:
+            x = triton.fp8_groupwise_scaled_group_gemm(
+                x_fp8,
+                x_scale,
+                self.weight,
+                self.weight_scale_inv,
+                indptr,
+                self.block_size,
+                x.dtype,
+            )
         return x
 
     def to(self, dtype: Optional[str] = None) -> None:
@@ -521,3 +560,79 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
 
     x_quantized, scale = nn.tensor_expr_op(quantize, name_hint="rowwise_group_quant_fp8", args=[x])
     return x_quantized, scale
+
+
+def dequantize_float8_groupwise_scaled_gemv(
+    x: nn.Tensor,
+    w: nn.Tensor,
+    w_scale: nn.Tensor,
+    block_size: Tuple[int, int],
+    out_dtype: str,
+) -> nn.Tensor:
+    """GEMV for FP8 groupwise scaled quantization.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor of shape (k,)
+
+    w : Tensor
+        The quantized weight tensor of shape (n, k)
+
+    w_scale : Tensor
+        The scale tensor of shape
+        (n // block_size[0], k // block_size[1])
+
+    block_size : Tuple[int, int]
+        The block size of the weight tensor.
+
+    out_dtype : str
+        The output dtype of the GEMV computation.
+    """
+    assert x.ndim == 2
+    assert w.ndim == 2
+    assert w_scale.ndim == 2
+    assert x.shape[0] == 1
+    assert x.shape[1] == w.shape[1]
+    _, k = x.shape
+    n, _ = w.shape
+    model_dtype = x.dtype
+    quantize_dtype = w.dtype
+
+    assert (n + block_size[0] - 1) // block_size[0] == w_scale.shape[0]
+    assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[1]
+
+    def _dequantize(w, s, i, j):
+        return w[i, j].astype(model_dtype) * s[i // block_size[0], j // block_size[1]].astype(
+            model_dtype
+        )
+
+    @T.prim_func(private=True)
+    def _func(
+        x: T.Buffer((1, k), model_dtype),  # type: ignore
+        w: T.Buffer((n, k), quantize_dtype),  # type: ignore
+        w_scale: T.Buffer(  # type: ignore
+            ((n + block_size[0] - 1) // block_size[0], (k + block_size[1] - 1) // block_size[1]),
+            "float32",
+        ),
+        o: T.Buffer((n,), out_dtype),  # type: ignore
+    ):
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
+        y = T.alloc_buffer((n, k), model_dtype)
+        for i1, i2 in T.grid(n, k):
+            with T.block("dequantize"):
+                i, j = T.axis.remap("SS", [i1, i2])
+                y[i, j] = _dequantize(w, w_scale, i, j)
+        for i1, i2 in T.grid(n, k):
+            with T.block("gemv"):
+                i, j = T.axis.remap("SR", [i1, i2])
+                with T.init():
+                    o[i] = T.cast(T.float16(0), out_dtype)
+                o[i] += (x[0, j] * y[i, j]).astype(out_dtype)
+
+    return nn.op.tensor_ir_op(
+        _func,
+        "moe_dequantize_gemv",
+        args=[x, w, w_scale],
+        out=nn.Tensor.placeholder([n], out_dtype),
+    )

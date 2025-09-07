@@ -9,6 +9,10 @@ export CCACHE_NOHASHDIR=1
 export CCACHE_DIR=/ccache
 
 # Temporary workaround to install ccache.
+if [[ ${GPU} != metal ]]; then
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+fi
 conda install -c conda-forge ccache
 
 if [[ ${GPU} != metal ]]; then
@@ -16,7 +20,7 @@ if [[ ${GPU} != metal ]]; then
     source /opt/rh/gcc-toolset-11/enable # GCC-11 is the hightest GCC version compatible with NVCC < 12
 fi
 
-mkdir -p $WORKSPACE_CWD/build/ && cd $WORKSPACE_CWD/build/
+mkdir -p $WORKSPACE_CWD/build
 if [[ ${GPU} == rocm* ]]; then
     echo set\(USE_VULKAN ON\) >>config.cmake
     echo set\(USE_ROCM ON\) >>config.cmake
@@ -29,17 +33,6 @@ elif [[ ${GPU} == cuda* ]]; then
     echo set\(USE_CUDA ON\) >>config.cmake
     echo set\(USE_CUBLAS ON\) >>config.cmake
     echo set\(USE_NCCL ON\) >>config.cmake
-    echo set\(USE_FLASHINFER ON\) >>config.cmake
-    echo set\(FLASHINFER_ENABLE_FP8 OFF\) >>config.cmake
-    echo set\(FLASHINFER_ENABLE_BF16 OFF\) >>config.cmake
-    echo set\(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8\) >>config.cmake
-    echo set\(FLASHINFER_GEN_PAGE_SIZES 16\) >>config.cmake
-    echo set\(FLASHINFER_GEN_HEAD_DIMS 128\) >>config.cmake
-    echo set\(FLASHINFER_GEN_KV_LAYOUTS 0 1\) >>config.cmake
-    echo set\(FLASHINFER_GEN_POS_ENCODING_MODES 0 1\) >>config.cmake
-    echo set\(FLASHINFER_GEN_ALLOW_FP16_QK_REDUCTIONS "false"\) >>config.cmake
-    echo set\(FLASHINFER_GEN_CASUALS "false" "true"\) >>config.cmake
-    echo set\(USE_CUTLASS ON\) >>config.cmake
 elif [[ ${GPU} == metal ]]; then
     export CCACHE_DIR=$HOME/ci/ccache
     echo set\(USE_METAL ON\) >>config.cmake
@@ -49,4 +42,26 @@ fi
 
 cat config.cmake
 
-cmake .. && make -j${NUM_THREADS}
+AUDITWHEEL_OPTS="--plat ${AUDITWHEEL_PLAT} -w repaired_wheels/"
+AUDITWHEEL_OPTS="--exclude libtvm --exclude libtvm_runtime --exclude libtvm_ffi --exclude libvulkan ${AUDITWHEEL_OPTS}"
+if [[ ${GPU} == rocm* ]]; then
+    AUDITWHEEL_OPTS="--exclude libamdhip64 --exclude libhsa-runtime64 --exclude librocm_smi64 --exclude librccl ${AUDITWHEEL_OPTS}"
+elif [[ ${GPU} == cuda* ]]; then
+    AUDITWHEEL_OPTS="--exclude libcuda --exclude libcudart --exclude libnvrtc --exclude libcublas --exclude libcublasLt ${AUDITWHEEL_OPTS}"
+fi
+
+rm -rf ${WORKSPACE_CWD}/dist
+cd ${WORKSPACE_CWD} && pip wheel --no-deps -w dist . -v
+
+rm -rf ${WORKSPACE_CWD}/wheels/
+if [[ ${GPU} != metal ]]; then
+    mkdir -p ${WORKSPACE_CWD}/repaired_wheels
+    rm -rf ${WORKSPACE_CWD}/repaired_wheels/*
+    auditwheel repair ${AUDITWHEEL_OPTS} dist/*.whl
+    mv ${WORKSPACE_CWD}/repaired_wheels/ ${WORKSPACE_CWD}/wheels/
+else
+    mkdir ${WORKSPACE_CWD}/wheels/
+    mv dist/*.whl ${WORKSPACE_CWD}/wheels/
+fi
+
+chown -R $ENV_USER_ID:$ENV_GROUP_ID ${WORKSPACE_CWD}/wheels/

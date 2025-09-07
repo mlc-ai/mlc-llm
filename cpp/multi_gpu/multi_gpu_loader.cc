@@ -4,11 +4,14 @@
  */
 #ifndef MLC_SINGLE_GPU_ONLY
 #include <picojson.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/ndarray_cache_support.h>
 
 #include <chrono>
 #include <filesystem>
@@ -28,8 +31,12 @@ namespace llm {
 namespace multi_gpu {
 
 using tvm::Device;
-using tvm::runtime::relax_vm::NDArrayCacheMetadata;
+using tvm::runtime::vm::NDArrayCacheMetadata;
 using namespace tvm::runtime;
+using tvm::ffi::Array;
+using tvm::ffi::Function;
+using tvm::ffi::Optional;
+using tvm::ffi::TypedFunction;
 using DurationType = std::chrono::microseconds;
 
 class RangeTimer {
@@ -51,15 +58,16 @@ class RangeTimer {
 
 class PreprocessorPool {
  public:
-  explicit PreprocessorPool(const ModelMetadata& model_metadata, Module relax_vm_module) {
+  explicit PreprocessorPool(const ModelMetadata& model_metadata, Module vm_module) {
     for (const ModelMetadata::Param& param : model_metadata.params) {
       for (const ModelMetadata::Param::Preproc& preproc : param.preprocs) {
         const std::string& func_name = preproc.func_name;
-        if (PackedFunc f =
-                relax_vm_module.defined() ? relax_vm_module->GetFunction(func_name, true) : nullptr;
+        if (Function f = vm_module.defined()
+                             ? vm_module->GetFunction(func_name, true).value_or(Function(nullptr))
+                             : nullptr;
             f != nullptr) {
           preproc_funcs[func_name] = f;
-        } else if (const PackedFunc* f = tvm::runtime::Registry::Get(func_name)) {
+        } else if (const auto f = Function::GetGlobal(func_name); f.has_value()) {
           preproc_funcs[func_name] = *f;
         } else {
           LOG(FATAL) << "ValueError: Undefined function: " << func_name;
@@ -74,14 +82,15 @@ class PreprocessorPool {
       NDArray param_in = param;
       param = NDArray::Empty(preproc.out_shape, preproc.out_dtype, param->device);
       ICHECK(preproc_funcs.count(func_name));
-      preproc_funcs.at(func_name)(const_cast<DLTensor*>(param_in.operator->()),
-                                  const_cast<DLTensor*>(param.operator->()));
+      DLTensor dl_param_in = *param_in.operator->();
+      DLTensor dl_param = *param.operator->();
+      preproc_funcs.at(func_name)(&dl_param_in, &dl_param);
     }
     return param;
   }
 
  private:
-  std::unordered_map<std::string, TypedPackedFunc<void(DLTensor*, DLTensor*)>> preproc_funcs;
+  std::unordered_map<std::string, TypedFunction<void(DLTensor*, DLTensor*)>> preproc_funcs;
 };
 
 struct ParamInfo {
@@ -90,8 +99,7 @@ struct ParamInfo {
 };
 
 NDArray RecvFromGlobalWorker0(Device device, const ModelMetadata::Param& param_info) {
-  ShapeTuple shape =
-      param_info.preprocs.empty() ? param_info.shape : param_info.preprocs[0].in_shape;
+  Shape shape = param_info.preprocs.empty() ? param_info.shape : param_info.preprocs[0].in_shape;
   NDArray result = NDArray::Empty(shape, param_info.dtype, device);
   RecvFromWorker0(result);
   return result;
@@ -105,13 +113,13 @@ NDArray BroadcastOrShardAndScatter(NDArray param, const ModelMetadata::Param& pa
     return param;
   }
   Device device = param->device;
-  ShapeTuple shape = param_info.preprocs.back().out_shape;
+  Shape shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
   ICHECK(shape.size() >= 1 && shape[0] == num_shards)
       << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
-  NDArray result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
+  NDArray result = NDArray::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
   ScatterFromWorker0(param, /*in_group=*/true, result);
   return result;
 }
@@ -121,10 +129,10 @@ NDArray ReceiveBroadcastedOrSharded(Device device, const ModelMetadata::Param& p
   bool needs_sharding = !param_info.preprocs.empty();
   NDArray result;
   if (needs_sharding) {
-    ShapeTuple shape = param_info.preprocs.back().out_shape;
+    Shape shape = param_info.preprocs.back().out_shape;
     DataType dtype = param_info.preprocs.back().out_dtype;
-    result = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
-    ScatterFromWorker0(tvm::NullOpt, /*in_group=*/true, result);
+    result = NDArray::Empty(Shape(shape.begin() + 1, shape.end()), dtype, device);
+    ScatterFromWorker0(std::nullopt, /*in_group=*/true, result);
   } else {
     result = NDArray::Empty(param_info.shape, param_info.dtype, device);
     BroadcastFromWorker0(result, /*in_group=*/true, result);
@@ -139,7 +147,7 @@ std::string FormatDuration(DurationType duration) {
   return os.str();
 }
 
-Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module relax_vm_module,
+Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module vm_module,
                                       const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
@@ -153,7 +161,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
   picojson::value model_config;
   picojson::parse(model_config, model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
+      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
   CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
       << "ValueError: The model is compiled using `--tensor-parallel-shards="
       << model_metadata.tensor_parallel_shards
@@ -161,7 +169,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
       << "Please set \"tensor_parallel_shards\" in mlc-chat-config.json to "
       << model_metadata.tensor_parallel_shards;
   // Step 1. Extract auxiliary information
-  PreprocessorPool preprocs(model_metadata, relax_vm_module);
+  PreprocessorPool preprocs(model_metadata, vm_module);
   std::unordered_map<std::string, ModelMetadata::Param> param_name2info;
   for (const ModelMetadata::Param& param : model_metadata.params) {
     param_name2info[param.name] = param;
@@ -179,7 +187,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
         RangeTimer _(&time_loading);
         std::string raw_data_buffer;
         loaded_params = record.Load(device, model_path, &raw_data_buffer);
-        TVMSynchronize(device.device_type, device.device_id, nullptr);
+        DeviceAPI::Get(device)->StreamSync(device, nullptr);
       }
       // For each parameter in the shard file, preprocess and shard it
       for (size_t i = 0; i < record.records.size(); ++i, progress_bar.Progress()) {
@@ -197,7 +205,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
             SendToWorker(loaded_params[i], /*receiver_id=*/group_id * group_size);
           }
         }
-        TVMSynchronize(device.device_type, device.device_id, nullptr);
+        DeviceAPI::Get(device)->StreamSync(device, nullptr);
       }
     }
     LOG(INFO) << "Loading done. Time used:" << std::fixed << std::setprecision(3)  //
@@ -240,8 +248,7 @@ Array<Optional<NDArray>> LoadMultiGPU(const std::string& model_path, Module rela
   return shards;
 }
 
-Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
-                                                Module relax_vm_module,
+Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path, Module vm_module,
                                                 const std::string& model_config_str) {
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   Device device = worker->default_device;
@@ -256,7 +263,7 @@ Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
   picojson::value model_config;
   picojson::parse(model_config, model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(relax_vm_module, model_config.get<picojson::object>());
+      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
 
   std::unordered_map<std::string, ParamInfo> param_info_map;
   for (const NDArrayCacheMetadata::FileRecord& file_record : ndarray_cache_metadata.records) {
@@ -305,8 +312,12 @@ Array<Optional<NDArray>> LoadMultiGPUPresharded(const std::string& model_path,
   return params;
 }
 
-TVM_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPU").set_body_typed(LoadMultiGPU);
-TVM_REGISTER_GLOBAL("mlc.multi_gpu.LoadMultiGPUPresharded").set_body_typed(LoadMultiGPUPresharded);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.multi_gpu.LoadMultiGPU", LoadMultiGPU)
+      .def("mlc.multi_gpu.LoadMultiGPUPresharded", LoadMultiGPUPresharded);
+});
 
 }  // namespace multi_gpu
 }  // namespace llm

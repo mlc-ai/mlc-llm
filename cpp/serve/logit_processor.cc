@@ -6,10 +6,9 @@
 #include "logit_processor.h"
 
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
 namespace mlc {
@@ -32,8 +31,6 @@ inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
 }
 
 /***************** LogitProcessor Implementation *****************/
-
-TVM_REGISTER_OBJECT_TYPE(LogitProcessorObj);
 
 class LogitProcessorImpl : public LogitProcessorObj {
  public:
@@ -195,13 +192,14 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - Call kernel.
     NDArray probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
-                                  temperature_device);
+                                  temperature_device)
+                        .cast<NDArray>();
     ICHECK_EQ(probs->ndim, 3);
     ICHECK_EQ(probs->shape[0], num_total_token);
     ICHECK_EQ(probs->shape[1], 1);
     ICHECK_EQ(probs->shape[2], vocab_size_);
     if (trace_recorder_.defined()) {
-      TVMSynchronize(device_.device_type, device_.device_id, /*stream=*/nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, /*stream=*/nullptr);
     }
     RECORD_EVENT(trace_recorder_, request_ids, "finish softmax");
     return probs.CreateView({num_total_token, vocab_size_}, probs->dtype);
@@ -261,7 +259,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - Call kernel.
     apply_logit_bias_func_(logits, pos2seq_id_device, token_ids_device, token_logit_bias_device);
     if (trace_recorder_.defined()) {
-      TVMSynchronize(device_.device_type, device_.device_id, /*stream=*/nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }
 
@@ -363,7 +361,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     apply_penalty_func_(logits, seq_ids_device, pos2seq_id_device, token_ids_device,
                         token_cnt_device, penalties_device);
     if (trace_recorder_.defined()) {
-      TVMSynchronize(device_.device_type, device_.device_id, /*stream=*/nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }
 
@@ -450,7 +448,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - Call kernel.
     apply_bitmask_func_(logits, seq_ids_device, bitmask_device);
     if (trace_recorder_.defined()) {
-      TVMSynchronize(device_.device_type, device_.device_id, /*stream=*/nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
   }
 
@@ -463,10 +461,10 @@ class LogitProcessorImpl : public LogitProcessorObj {
   const DLDataType dtype_f32_ = DataType::Float(32);
   // Packed functions.
   Device device_;
-  PackedFunc softmax_func_;
-  PackedFunc apply_logit_bias_func_;
-  PackedFunc apply_penalty_func_;
-  PackedFunc apply_bitmask_func_;
+  Function softmax_func_;
+  Function apply_logit_bias_func_;
+  Function apply_penalty_func_;
+  Function apply_bitmask_func_;
   // Auxiliary NDArrays on CPU
   NDArray seq_ids_host_;
   NDArray pos2seq_id_host_;

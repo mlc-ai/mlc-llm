@@ -39,6 +39,8 @@ from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
+from .qwen3 import qwen3_loader, qwen3_model, qwen3_quantization
+from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model, qwen3_moe_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
@@ -324,6 +326,36 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen2_moe_quantization.no_quant,
             "group-quant": qwen2_moe_quantization.group_quant,
             "ft-quant": qwen2_moe_quantization.ft_quant,
+        },
+    ),
+    "qwen3": Model(
+        name="qwen3",
+        model=qwen3_model.Qwen3LMHeadModel,
+        config=qwen3_model.Qwen3Config,
+        source={
+            "huggingface-torch": qwen3_loader.huggingface,
+            "huggingface-safetensor": qwen3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen3_quantization.no_quant,
+            "group-quant": qwen3_quantization.group_quant,
+            "ft-quant": qwen3_quantization.ft_quant,
+            "block-scale-quant": qwen3_quantization.block_scale_quant,
+        },
+    ),
+    "qwen3_moe": Model(
+        name="qwen3_moe",
+        model=qwen3_moe_model.Qwen3MoeForCausalLM,
+        config=qwen3_moe_model.Qwen3MoeConfig,
+        source={
+            "huggingface-torch": qwen3_moe_loader.huggingface,
+            "huggingface-safetensor": qwen3_moe_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen3_moe_quantization.no_quant,
+            "group-quant": qwen3_moe_quantization.group_quant,
+            "ft-quant": qwen3_moe_quantization.ft_quant,
+            "block-scale-quant": qwen3_moe_quantization.block_scale_quant,
         },
     ),
     "deepseek_v2": Model(

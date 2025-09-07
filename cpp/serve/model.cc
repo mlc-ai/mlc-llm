@@ -5,10 +5,10 @@
  */
 #include "model.h"
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 
@@ -24,8 +24,6 @@ namespace serve {
 /*********************** Model Implementation ***********************/
 
 class ModelImpl;
-
-TVM_REGISTER_OBJECT_TYPE(ModelObj);
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
                     DLDevice device, const Optional<Session>& session, int num_shards,
@@ -69,6 +67,7 @@ class ModelImpl : public ModelObj {
     this->ft_.Init(reload_lib_path, device_, model_config, session, num_shards, num_stages);
     this->num_shards_ = ft_.model_metadata_.tensor_parallel_shards;
     this->num_stages_ = ft_.model_metadata_.pipeline_parallel_stages;
+    this->seqlen_padding_factor_ = ft_.model_metadata_.seqlen_padding_factor;
     // Step 3. Reset
     this->Reset();
     // Step 4. Set model type
@@ -80,6 +79,10 @@ class ModelImpl : public ModelObj {
   ObjectRef TokenEmbed(IntTuple token_ids, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("TokenEmbed");
     int num_tokens = token_ids.size();
+    if (seqlen_padding_factor_ > 1) {
+      num_tokens = (offset + num_tokens + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
+                   seqlen_padding_factor_;
+    }
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
     NDArray token_ids_nd;
@@ -87,8 +90,11 @@ class ModelImpl : public ModelObj {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
       token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
       int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
-      for (int i = 0; i < num_tokens; ++i) {
+      for (int i = 0; i < static_cast<int>(token_ids.size()); ++i) {
         p_token_ids[i] = token_ids[i];
+      }
+      for (int i = static_cast<int>(token_ids.size()); i < num_tokens; ++i) {
+        p_token_ids[i] = 0;
       }
     }
     ICHECK_EQ(token_ids_nd->ndim, 1);
@@ -100,7 +106,7 @@ class ModelImpl : public ModelObj {
       token_ids_dref_or_nd = ft_.CopyToWorker0(token_ids_nd, "token_ids", {prefill_chunk_size_});
     }
 
-    ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_);
+    ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_).cast<ObjectRef>();
     if (dst != nullptr) {
       CHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
@@ -117,16 +123,17 @@ class ModelImpl : public ModelObj {
 
     int tmp_h = 0, tmp_w = 0;
     CalculateResizeShape(image, this->model_type_, &tmp_h, &tmp_w);
-    ShapeTuple resize_h = {tmp_h};
-    ShapeTuple resize_w = {tmp_w};
+    Shape resize_h = {tmp_h};
+    Shape resize_w = {tmp_w};
 
     CalculateCropShape(image, this->model_type_, &tmp_h, &tmp_w);
-    ShapeTuple crop_h = {tmp_h};
-    ShapeTuple crop_w = {tmp_w};
+    Shape crop_h = {tmp_h};
+    Shape crop_w = {tmp_w};
 
     auto image_dref_or_nd = ft_.CopyToWorker0(image, "image", image.Shape());
     ObjectRef embeddings =
-        ft_.image_embed_func_(image_dref_or_nd, resize_h, resize_w, crop_h, crop_w, params_);
+        ft_.image_embed_func_(image_dref_or_nd, resize_h, resize_w, crop_h, crop_w, params_)
+            .cast<ObjectRef>();
     if (dst != nullptr) {
       CHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
@@ -147,17 +154,18 @@ class ModelImpl : public ModelObj {
 
     ObjectRef hidden_states_dref_or_nd{nullptr};
     if (!ft_.use_disco && hidden_states->IsInstance<DRefObj>()) {
-      hidden_states_dref_or_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0);
+      hidden_states_dref_or_nd =
+          Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<ObjectRef>();
     } else {
       hidden_states_dref_or_nd = hidden_states;
     }
-    ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_);
+    ObjectRef ret = ft_.get_logits_func_(hidden_states_dref_or_nd, params_).cast<ObjectRef>();
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     NDArray logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
     } else {
       logits = Downcast<NDArray>(ret);
     }
@@ -170,10 +178,10 @@ class ModelImpl : public ModelObj {
     CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
 
     ObjectRef hidden_states_dref_or_nd{nullptr};
-    ObjectRef ret = ft_.get_logits_func_(hidden_states, params_);
+    ObjectRef ret = ft_.get_logits_func_(hidden_states, params_).cast<ObjectRef>();
     Array<NDArray> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<NDArray>>();
     } else {
       logits = Downcast<Array<NDArray>>(ret);
     }
@@ -195,25 +203,26 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({batch_size * seq_len, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{batch_size * seq_len, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{batch_size * seq_len, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
 
     ObjectRef previous_hidden_states_dref_or_nd{nullptr};
     if (!ft_.use_disco && previous_hidden_states->IsInstance<DRefObj>()) {
       previous_hidden_states_dref_or_nd =
-          Downcast<DRef>(previous_hidden_states)->DebugGetFromRemote(0);
+          Downcast<DRef>(previous_hidden_states)->DebugGetFromRemote(0).cast<ObjectRef>();
     } else {
       previous_hidden_states_dref_or_nd = previous_hidden_states;
     }
     ObjectRef fused = ft_.fuse_embed_hidden_func_(embeddings_dref_or_nd,
-                                                  previous_hidden_states_dref_or_nd, params_);
+                                                  previous_hidden_states_dref_or_nd, params_)
+                          .cast<ObjectRef>();
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
-    ShapeTuple out_shape{batch_size, seq_len, hidden_size_};
+    Shape out_shape{batch_size, seq_len, hidden_size_};
     if (ft_.use_disco) {
-      return ft_.nd_view_func_(fused, out_shape);
+      return ft_.nd_view_func_(fused, out_shape).cast<ObjectRef>();
     } else {
       NDArray fused_nd = Downcast<NDArray>(fused);
       ICHECK_EQ(fused_nd->ndim, 2);
@@ -233,6 +242,11 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
       p_logit_pos[i] = total_length - 1;
+    }
+    bool padded = total_length % seqlen_padding_factor_ != 0;
+    if (padded) {
+      total_length = (total_length + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
+                     seqlen_padding_factor_;
     }
     NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
                                " total_len=" + std::to_string(total_length));
@@ -263,15 +277,15 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{1, total_length, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
     ICHECK_NE(max_num_sequence_, -1);
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
 
-    PackedFunc single_batch_prefill_func = ft_.single_batch_prefill_func_;
-    PackedFunc prefill_func = ft_.prefill_func_;
+    Function single_batch_prefill_func = ft_.single_batch_prefill_func_;
+    Function prefill_func = ft_.prefill_func_;
     if (ft_.single_batch_extend_func_.defined()) {
       CHECK(ft_.extend_func_.defined()) << "`batch_extend` function is not found in the model.";
       bool has_existing_sequence = false;
@@ -293,26 +307,28 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef ret;
-    if (seq_ids.size() == 1) {
-      ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_);
+    if (seq_ids.size() == 1 && !padded) {
+      ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     } else {
-      ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_);
+      ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_)
+                .cast<ObjectRef>();
     }
     NDArray logits;
     if (ft_.use_disco) {
-      ret = ft_.tuple_getitem_func_(ret, 0);
+      ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
-        ShapeTuple shape{1, num_sequences, vocab_size_};
+        Shape shape{1, num_sequences, vocab_size_};
         DataType dtype = DataType::Float(32);
-        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
+                  .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
@@ -337,14 +353,14 @@ class ModelImpl : public ModelObj {
     }
 
     ObjectRef embedding_or_hidden_states_dref_or_nd{nullptr};
-    ShapeTuple hidden_states_shape{1, total_length, hidden_size_};
+    Shape hidden_states_shape{1, total_length, hidden_size_};
     if (!ft_.use_disco) {
       NDArray embedding_or_hidden_states_nd = Downcast<NDArray>(embedding_or_hidden_states);
       embedding_or_hidden_states_dref_or_nd = embedding_or_hidden_states_nd.CreateView(
           hidden_states_shape, embedding_or_hidden_states_nd->dtype);
     } else {
       embedding_or_hidden_states_dref_or_nd =
-          ft_.nd_view_func_(embedding_or_hidden_states, hidden_states_shape);
+          ft_.nd_view_func_(embedding_or_hidden_states, hidden_states_shape).cast<ObjectRef>();
     }
 
     CHECK(ft_.prefill_to_last_hidden_func_.defined())
@@ -364,21 +380,23 @@ class ModelImpl : public ModelObj {
       CHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
           << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
       result = ft_.single_batch_prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd,
-                                                             kv_cache_, params_);
+                                                             kv_cache_, params_)
+                   .cast<ObjectRef>();
     } else {
       result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
-                                                params_);
+                                                params_)
+                   .cast<ObjectRef>();
     }
-    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
 
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
-    ShapeTuple out_shape{total_length, hidden_size_};
+    Shape out_shape{total_length, hidden_size_};
     if (ft_.use_disco) {
-      return ft_.nd_view_func_(hidden_states, out_shape);
+      return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
@@ -419,32 +437,34 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{num_sequence, 1, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{num_sequence, 1, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
 
     // args: embeddings, kv_cache, params
     ObjectRef ret;
     if (seq_ids.size() == 1) {
-      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_)
+                .cast<ObjectRef>();
     } else {
-      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     }
     NDArray logits;
     if (ft_.use_disco) {
-      ret = ft_.tuple_getitem_func_(ret, 0);
+      ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
-        ShapeTuple shape{num_sequence, 1, vocab_size_};
+        Shape shape{num_sequence, 1, vocab_size_};
         DataType dtype = DataType::Float(32);
-        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
+                  .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
@@ -497,26 +517,27 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({total_length, 1, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{total_length, 1, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{total_length, 1, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
 
     // same as BatchDecode
     ObjectRef ret;
     if (0 && seq_ids.size() == 1) {
-      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+      ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_)
+                .cast<ObjectRef>();
     } else {
-      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_);
+      ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     }
     NDArray logits;
     if (ft_.use_disco) {
-      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<ObjectRef>>();
       logits = Downcast<NDArray>(result[0]);
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
@@ -550,22 +571,24 @@ class ModelImpl : public ModelObj {
     if (seq_ids.size() == 1) {
       CHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
           << "`decode_to_last_hidden_states` function is not found in the model.";
-      result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
-                                                            params_);
+      result =
+          ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
+              .cast<ObjectRef>();
     } else {
-      result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_);
+      result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
+                   .cast<ObjectRef>();
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
-    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
 
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
 
     // hidden_states: (b, 1, v) to (b, v)
-    ShapeTuple out_shape{num_sequence, hidden_size_};
+    Shape out_shape{num_sequence, hidden_size_};
     if (ft_.use_disco) {
-      return ft_.nd_view_func_(hidden_states, out_shape);
+      return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
@@ -617,26 +640,27 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{1, total_length, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     NDArray logits;
     if (ft_.use_disco) {
-      ret = ft_.tuple_getitem_func_(ret, 0);
+      ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
         // Send the result from the last worker group to worker 0.
-        ShapeTuple shape{1, total_length, vocab_size_};
+        Shape shape{1, total_length, vocab_size_};
         DataType dtype = DataType::Float(32);
-        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype);
+        ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
+                  .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
     } else {
       logits = Downcast<Array<NDArray>>(ret)[0];
     }
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
@@ -681,8 +705,8 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
-      ShapeTuple embedding_shape{1, total_length, hidden_size_};
-      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape);
+      Shape embedding_shape{1, total_length, hidden_size_};
+      embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
@@ -692,14 +716,15 @@ class ModelImpl : public ModelObj {
                                      token_tree_parent_ptr_tuple);
 
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_);
+    ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_)
+                           .cast<ObjectRef>();
     ft_.kv_cache_end_forward_func_(kv_cache_);
-    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0);
+    ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
     if (trace_enabled_) {
-      TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
 
-    ShapeTuple out_shape{total_length, hidden_size_};
+    Shape out_shape{total_length, hidden_size_};
     if (!ft_.use_disco) {
       NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
@@ -708,7 +733,7 @@ class ModelImpl : public ModelObj {
       ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
       return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
     } else {
-      return ft_.nd_view_func_(hidden_states, out_shape);
+      return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     }
   }
 
@@ -725,15 +750,19 @@ class ModelImpl : public ModelObj {
       IntTuple support_sliding_window{sliding_window_size_ != -1};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
                                             prefill_chunk_size_tuple, page_size_tuple,
-                                            support_sliding_window);
-      local_kv_cache_ =
-          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+                                            support_sliding_window)
+                      .cast<ObjectRef>();
+      local_kv_cache_ = ft_.use_disco
+                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kRNNState) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
       IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
-      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple);
-      local_kv_cache_ =
-          ft_.use_disco ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0) : kv_cache_;
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple)
+                      .cast<ObjectRef>();
+      local_kv_cache_ = ft_.use_disco
+                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kNone) {
       // Do nothing
     } else {
@@ -798,10 +827,10 @@ class ModelImpl : public ModelObj {
 
     // Run KV receive preparation.
     ObjectRef ret;
-    ret = ft_.kv_cache_disagg_prepare_recv_func_(kv_cache_, seq_id, length);
+    ret = ft_.kv_cache_disagg_prepare_recv_func_(kv_cache_, seq_id, length).cast<ObjectRef>();
     IntTuple compressed_kv_append_metadata;
     if (ft_.use_disco) {
-      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0);
+      compressed_kv_append_metadata = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<IntTuple>();
     } else {
       compressed_kv_append_metadata = Downcast<IntTuple>(ret);
     }
@@ -831,7 +860,7 @@ class ModelImpl : public ModelObj {
       // RNNState does not introduce new page at runtime
       return std::numeric_limits<int>::max();
     } else {
-      return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_);
+      return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_).cast<int>();
     }
   }
 
@@ -840,7 +869,7 @@ class ModelImpl : public ModelObj {
       // RNNState does not have a total sequence length limit
       return 0;
     } else {
-      return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_);
+      return ft_.kv_cache_get_total_sequence_length_func_(local_kv_cache_).cast<int>();
     }
   }
 
@@ -901,13 +930,13 @@ class ModelImpl : public ModelObj {
       return ObjectRef{nullptr};
     }
     // Allocate the embedding tensor.
-    ObjectRef embedding = ft_.alloc_embedding_tensor_func_();
+    ObjectRef embedding = ft_.alloc_embedding_tensor_func_().cast<ObjectRef>();
     // Get the shape of the embedding tensor for hidden size.
-    ShapeTuple embedding_shape;
+    Shape embedding_shape;
     if (ft_.use_disco) {
       ICHECK(embedding->IsInstance<DRefObj>());
-      ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding);
-      embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0);
+      ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding).cast<ObjectRef>();
+      embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0).cast<Shape>();
     } else {
       NDArray embedding_nd = Downcast<NDArray>(embedding);
       embedding_shape = embedding_nd.Shape();
@@ -925,16 +954,16 @@ class ModelImpl : public ModelObj {
     }
     // Allocate the hidden_states tensor.
     // Use the same function as embeddings.
-    ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_();
+    ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_().cast<ObjectRef>();
     NDArray hidden_states_nd{nullptr};
     // Get the shape of the hidden_states tensor for hidden size.
     if (ft_.use_disco) {
       ICHECK(hidden_states->IsInstance<DRefObj>());
-      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0);
+      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<NDArray>();
     } else {
       hidden_states_nd = Downcast<NDArray>(hidden_states);
     }
-    ShapeTuple hidden_states_shape = hidden_states_nd.Shape();
+    Shape hidden_states_shape = hidden_states_nd.Shape();
     ICHECK_NE(prefill_chunk_size_, -1);
     ICHECK_EQ(hidden_states_shape.size(), 2);
     ICHECK_GE(hidden_states_shape[0], prefill_chunk_size_);
@@ -960,9 +989,9 @@ class ModelImpl : public ModelObj {
   ObjectRef GatherHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
                                ObjectRef* dst) final {
     ObjectRef dst_view{nullptr};
-    ShapeTuple out_shape{static_cast<int64_t>(indices.size()), hidden_size_};
+    Shape out_shape{static_cast<int64_t>(indices.size()), hidden_size_};
     if ((*dst)->IsInstance<DRefObj>()) {
-      dst_view = ft_.nd_view_func_(*dst, out_shape);
+      dst_view = ft_.nd_view_func_(*dst, out_shape).cast<ObjectRef>();
     } else {
       NDArray dst_nd = Downcast<NDArray>(*dst);
       dst_view = dst_nd.CreateView(out_shape, hidden_states_dtype_);
@@ -1012,10 +1041,10 @@ class ModelImpl : public ModelObj {
   }
 
   Array<NDArray> GetMedusaLogits(const ObjectRef& hidden_states) {
-    ObjectRef result = ft_.get_logits_func_(hidden_states);
+    ObjectRef result = ft_.get_logits_func_(hidden_states).cast<ObjectRef>();
     Array<NDArray> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(result)->DebugGetFromRemote(0);
+      logits = Downcast<DRef>(result)->DebugGetFromRemote(0).cast<Array<NDArray>>();
     } else {
       logits = Downcast<Array<NDArray>>(result);
     }
@@ -1056,6 +1085,7 @@ class ModelImpl : public ModelObj {
   DLDataType hidden_states_dtype_;
   int vocab_size_ = -1;
   int image_embed_size_ = -1;
+  int seqlen_padding_factor_ = 1;
   std::string model_type_;
   //----------------------------
   // TVM related states
@@ -1086,22 +1116,25 @@ class ModelImpl : public ModelObj {
   std::unordered_set<int64_t> prefilled_seq_ids_;
 };
 
-TVM_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
-    .set_body_typed([](NDArray embedding, NDArray dst, int offset) {
-      // embedding: (m, hidden_size)
-      // dst: (prefill_chunk_size, hidden_size)
-      ICHECK_EQ(embedding->ndim, 2);
-      ICHECK_EQ(dst->ndim, 2);
-      ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
-      ICHECK_EQ(embedding->shape[1], dst->shape[1]);
-      const DLTensor& copy_src = *(embedding.operator->());
-      const DLTensor* p_copy_dst = dst.operator->();
-      DLTensor copy_dst = *p_copy_dst;
-      copy_dst.shape = embedding->shape;
-      copy_dst.byte_offset =
-          offset * embedding->shape[1] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
-      NDArray::CopyFromTo(&copy_src, &copy_dst);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "mlc.copy_embedding_to_offset", [](NDArray embedding, NDArray dst, int offset) {
+        // embedding: (m, hidden_size)
+        // dst: (prefill_chunk_size, hidden_size)
+        ICHECK_EQ(embedding->ndim, 2);
+        ICHECK_EQ(dst->ndim, 2);
+        ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+        ICHECK_EQ(embedding->shape[1], dst->shape[1]);
+        const DLTensor& copy_src = *(embedding.operator->());
+        const DLTensor* p_copy_dst = dst.operator->();
+        DLTensor copy_dst = *p_copy_dst;
+        copy_dst.shape = embedding->shape;
+        copy_dst.byte_offset = offset * embedding->shape[1] *
+                               ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
+        NDArray::CopyFromTo(&copy_src, &copy_dst);
+      });
+});
 
 }  // namespace serve
 }  // namespace llm
