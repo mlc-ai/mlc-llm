@@ -29,7 +29,7 @@ elif [[ ${GPU} == cuda* ]]; then
     echo set\(USE_VULKAN ON\) >>config.cmake
     echo set\(CMAKE_CUDA_COMPILER_LAUNCHER ccache\) >>config.cmake
     echo set\(CMAKE_CUDA_ARCHITECTURES "80;90;100;120"\) >>config.cmake
-    echo set\(CMAKE_CUDA_FLAGS \"\$\{CMAKE_CUDA_FLAGS\} -t $NUM_THREADS\"\) >>config.cmake
+    echo set\(CMAKE_CUDA_FLAGS \"\$\{CMAKE_CUDA_FLAGS\} -t $NUM_THREADS -static-global-template-stub=false\"\) >>config.cmake
     echo set\(USE_CUDA ON\) >>config.cmake
     echo set\(USE_CUBLAS ON\) >>config.cmake
     echo set\(USE_NCCL ON\) >>config.cmake
