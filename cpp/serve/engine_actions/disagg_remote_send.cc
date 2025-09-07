@@ -144,7 +144,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      NDArray logits =
+      Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       ICHECK_EQ(logits->ndim, 3);

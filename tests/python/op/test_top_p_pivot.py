@@ -24,11 +24,11 @@ def test_top_p_renorm(batch_size, vocab):
     final_lsum_np = np.zeros(batch_size).astype(np.float32)
 
     dev = tvm.cuda(0)
-    var_prob = tvm.nd.array(p_np, dev)
-    var_init_pivots = tvm.nd.array(init_pivots_np, dev)
-    top_p_global = tvm.nd.array(top_p_np, dev)
-    var_final_pivot = tvm.nd.array(final_pivot_np, dev)
-    var_final_lsum = tvm.nd.array(final_lsum_np, dev)
+    var_prob = tvm.runtime.tensor(p_np, dev)
+    var_init_pivots = tvm.runtime.tensor(init_pivots_np, dev)
+    top_p_global = tvm.runtime.tensor(top_p_np, dev)
+    var_final_pivot = tvm.runtime.tensor(final_pivot_np, dev)
+    var_final_lsum = tvm.runtime.tensor(final_lsum_np, dev)
 
     kernel = top_p_pivot(init_pivots_np.shape[0])
     mod = tvm.build(kernel, target="cuda")
@@ -38,7 +38,7 @@ def test_top_p_renorm(batch_size, vocab):
     final_lsum = var_final_lsum.asnumpy()
 
     renorm_np = p_np.copy()
-    var_renorm = tvm.nd.array(renorm_np, dev)
+    var_renorm = tvm.runtime.tensor(renorm_np, dev)
 
     kernel_renorm = top_p_renorm()
     mod_renorm = tvm.build(kernel_renorm, target="cuda")

@@ -9,7 +9,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include "../base.h"
 #include "../support/result.h"
@@ -38,12 +38,12 @@ class Sampler;
  */
 struct ModelWorkspace {
   /*!
-   * \brief The embedding tensor. It can be either an NDArray when tensor
+   * \brief The embedding tensor. It can be either an Tensor when tensor
    * model parallelism is not enabled, or a DRef when using tensor model parallelism.
    */
   ObjectRef embeddings{nullptr};
   /*!
-   * \brief The hidden_states tensor for the current batch. It can be either an NDArray when tensor
+   * \brief The hidden_states tensor for the current batch. It can be either an Tensor when tensor
    * model parallelism is not enabled, or a DRef when using tensor model parallelism.
    */
   ObjectRef hidden_states{nullptr};
@@ -51,7 +51,7 @@ struct ModelWorkspace {
   /*!
    * \brief The draft token probabilities tensor for the current batch.
    */
-  NDArray draft_probs{nullptr};
+  Tensor draft_probs{nullptr};
 
   /*!
    * \brief The hidden_states tensor storing the hidden_states of draft tokens of all requests.
@@ -62,7 +62,7 @@ struct ModelWorkspace {
    * \brief The draft token probabilities tensor storing the probabilities of draft tokens of all
    * requests.
    */
-  NDArray draft_probs_storage{nullptr};
+  Tensor draft_probs_storage{nullptr};
 };
 
 /*!
@@ -113,7 +113,7 @@ class ModelObj : public Object {
    * \param image The image to compute embedding for.
    * \return The computed embeddings.
    */
-  virtual ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
+  virtual ObjectRef ImageEmbed(const Tensor& image, ObjectRef* dst = nullptr, int offset = 0) = 0;
 
   /*!
    * \brief Fuse the embeddings and hidden_states.
@@ -137,9 +137,9 @@ class ModelObj : public Object {
    * \param last_hidden_states The last hidden_states to compute logits for.
    * \return The computed logits.
    */
-  virtual NDArray GetLogits(const ObjectRef& last_hidden_states) = 0;
+  virtual Tensor GetLogits(const ObjectRef& last_hidden_states) = 0;
 
-  virtual Array<NDArray> GetMultiStepLogits(const ObjectRef& last_hidden_states) = 0;
+  virtual Array<Tensor> GetMultiStepLogits(const ObjectRef& last_hidden_states) = 0;
 
   /*!
    * \brief Batch prefill function. Embedding in, logits out.
@@ -150,8 +150,8 @@ class ModelObj : public Object {
    * \param lengths The length of each sequence to prefill.
    * \return The logits for the next token.
    */
-  virtual NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                               const std::vector<int>& lengths) = 0;
+  virtual Tensor BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                              const std::vector<int>& lengths) = 0;
 
   /*!
    * \brief Batch prefill function. Input hidden_states are computed from
@@ -173,11 +173,11 @@ class ModelObj : public Object {
    * \param seq_id The id of the sequence in the KV cache.
    * \return The logits for the next token for each sequence in the batch.
    */
-  virtual NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
+  virtual Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) = 0;
 
-  virtual NDArray BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                                  const std::vector<int>& lengths,
-                                  const std::vector<int64_t>& token_tree_parent_ptr) = 0;
+  virtual Tensor BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                                 const std::vector<int>& lengths,
+                                 const std::vector<int64_t>& token_tree_parent_ptr) = 0;
 
   /*!
    * \brief Batch decode function. Input hidden_states are computed from
@@ -202,9 +202,9 @@ class ModelObj : public Object {
    * That is to say, it does not accept "running a verify step for a subset
    * of the full batch".
    */
-  virtual NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                              const std::vector<int>& lengths,
-                              const std::vector<int64_t>& token_tree_parent_ptr) = 0;
+  virtual Tensor BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                             const std::vector<int>& lengths,
+                             const std::vector<int64_t>& token_tree_parent_ptr) = 0;
 
   /*!
    * \brief Batch verify function. Input hidden_states are computed from
@@ -352,12 +352,12 @@ class ModelObj : public Object {
 
   /*! \brief Gather the draft token probabilities of the given indices and in-place update the dst
    * tensor. */
-  virtual NDArray GatherDraftProbs(const NDArray& input, const std::vector<int>& indices,
-                                   NDArray* dst) = 0;
+  virtual Tensor GatherDraftProbs(const Tensor& input, const std::vector<int>& indices,
+                                  Tensor* dst) = 0;
 
   /*! \brief Scatter the draft token probabilities of the given indices to the dst tensor. */
-  virtual void ScatterDraftProbs(const NDArray& input, const std::vector<int>& indices,
-                                 NDArray* dst) = 0;
+  virtual void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices,
+                                 Tensor* dst) = 0;
 
   /************** Debug/Profile **************/
 

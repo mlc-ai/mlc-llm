@@ -95,13 +95,13 @@ def test_batch_spec_verify(nbatch, vocab, plist):
 
     ### TVM Inputs
     dev = tvm.cuda(0)
-    draft_probs_tvm = tvm.nd.array(draft_probs, dev)
-    draft_tokens_tvm = tvm.nd.array(draft_tokens, dev)
-    model_probs_tvm = tvm.nd.array(model_probs, dev)
-    token_tree_first_child_tvm = tvm.nd.array(token_tree_first_child, dev)
-    token_tree_next_sibling_tvm = tvm.nd.array(token_tree_next_sibling, dev)
-    uniform_samples_tvm = tvm.nd.array(uniform_samples, dev)
-    token_tree_parent_ptr_tvm = tvm.nd.array(token_tree_parent_ptr, dev)
+    draft_probs_tvm = tvm.runtime.tensor(draft_probs, dev)
+    draft_tokens_tvm = tvm.runtime.tensor(draft_tokens, dev)
+    model_probs_tvm = tvm.runtime.tensor(model_probs, dev)
+    token_tree_first_child_tvm = tvm.runtime.tensor(token_tree_first_child, dev)
+    token_tree_next_sibling_tvm = tvm.runtime.tensor(token_tree_next_sibling, dev)
+    uniform_samples_tvm = tvm.runtime.tensor(uniform_samples, dev)
+    token_tree_parent_ptr_tvm = tvm.runtime.tensor(token_tree_parent_ptr, dev)
 
     # print("draft_probs", draft_probs)
     # print("draft_tokens", draft_tokens)

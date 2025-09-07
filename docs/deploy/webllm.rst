@@ -316,7 +316,7 @@ After following the steps above, you should end up with:
 
     ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
       mlc-chat-config.json                             # ===> the chat config
-      ndarray-cache.json                               # ===> the model weight info
+      tensor-cache.json                               # ===> the model weight info
       params_shard_0.bin                               # ===> the model weights
       params_shard_1.bin
       ...

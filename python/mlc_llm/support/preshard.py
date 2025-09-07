@@ -7,7 +7,7 @@ from tvm import IRModule
 from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.frontend import nn
-from tvm.runtime import Device, NDArray
+from tvm.runtime import Device, Tensor
 from tvm.target import Target
 
 logger = logging.getLogger("preshard")
@@ -73,7 +73,7 @@ def apply_preshard(
     named_params: Dict[str, nn.Parameter],
     tensor_parallel_shards: int,
     args: Any,
-) -> Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[NDArray], Sequence[NDArray]]]]:
+) -> Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[Tensor], Sequence[Tensor]]]]:
     """Apply pre-sharding to the named parameters.
 
     Parameters
@@ -88,7 +88,7 @@ def apply_preshard(
 
     Returns
     -------
-    Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[NDArray], Sequence[NDArray]]]
+    Tuple[Dict[str, nn.Parameter], Dict[str, Callable[[Tensor], Sequence[Tensor]]]
         The updated named parameters and the mapping from parameter name to the shard function.
     """
     bb = relax.BlockBuilder()

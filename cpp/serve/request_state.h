@@ -7,8 +7,8 @@
 #define MLC_LLM_SERVE_REQUEST_STATE_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 #include <xgrammar/xgrammar.h>
 
 #include <optional>

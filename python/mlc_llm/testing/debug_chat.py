@@ -30,8 +30,8 @@ def _extract_metadata(mod: Module):
 
 def _load_params(
     model_weight_path: str, device: Device, model_metadata: Dict[str, Any]
-) -> List[tvm.nd.NDArray]:
-    params, meta = tvmjs.load_ndarray_cache(model_weight_path, device)
+) -> List[tvm.runtime.Tensor]:
+    params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
 
@@ -128,7 +128,7 @@ class DefaultDebugInstrument:
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, tvm.nd.NDArray):
+            if isinstance(arg, tvm.runtime.Tensor):
                 if np.prod(arg.shape) * (DataType(arg.dtype).bits // 8) > 2147483648:
                     # We skip dump large tensors
                     arg_dict[f"arg_{i}"] = np.zeros(())
@@ -322,9 +322,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
     def _embed(
         self, data_inputs: List[Union[List[int], data.ImageData]]
-    ) -> Tuple[tvm.nd.NDArray, int]:
+    ) -> Tuple[tvm.runtime.Tensor, int]:
         # We currently convert to numpy after embedded, concat in numpy, then convert back to
-        # tvm ndarray; could be more optimized; but may suffice for debug purposes.
+        # tvm tensor; could be more optimized; but may suffice for debug purposes.
         embeddings = []
         for data_input in data_inputs:
             if isinstance(data_input, data.ImageData):
@@ -336,13 +336,17 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
                 embeddings.append(self.embed_image_func(image_input, self.params).asnumpy())
             else:
                 # Process token data
-                data_input = tvm.nd.array(np.array(data_input).astype("int32"), device=self.device)
+                data_input = tvm.runtime.tensor(
+                    np.array(data_input).astype("int32"), device=self.device
+                )
                 embeddings.append(self.embed_func(data_input, self.params).asnumpy())
         # for embedding in embeddings:
         #     print(f"embedding.shape: {embedding.shape}")
 
         # Concatenate
-        concat_embeddings = tvm.nd.array(np.concatenate(embeddings, axis=0), device=self.device)
+        concat_embeddings = tvm.runtime.tensor(
+            np.concatenate(embeddings, axis=0), device=self.device
+        )
         concat_embeddings = self.nd_view_func(
             concat_embeddings,
             ShapeTuple([1, concat_embeddings.shape[0], concat_embeddings.shape[1]]),
@@ -351,7 +355,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
         return concat_embeddings, input_len
 
-    def _prefill(self, embedding: tvm.nd.NDArray, input_len: int):
+    def _prefill(self, embedding: tvm.runtime.Tensor, input_len: int):
         print("======================= Starts Prefill =======================")
         seq_len_shape = ShapeTuple([input_len])
         max_num_sequence = 1
@@ -413,7 +417,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
     def _sample_token_from_logits(
         self,
-        logits: tvm.nd.NDArray,
+        logits: tvm.runtime.Tensor,
         *,
         temperature=1.0,
         top_p=1.0,

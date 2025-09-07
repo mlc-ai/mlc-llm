@@ -58,7 +58,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     // - Get embedding and run prefill for each model.
     std::vector<int> prefill_lengths;
     prefill_lengths.resize(/*size=*/num_rsentries, /*value=*/-1);
-    NDArray logits_for_sample{nullptr};
+    Tensor logits_for_sample{nullptr};
     for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
       std::vector<int64_t> request_internal_ids;
       request_internal_ids.reserve(num_rsentries);
@@ -134,7 +134,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      NDArray logits =
+      Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       ICHECK_EQ(logits->ndim, 3);
@@ -163,7 +163,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                           request_ids);
 
     // - Compute probability distributions.
-    NDArray probs_on_device =
+    Tensor probs_on_device =
         logit_processor_->ComputeProbsFromLogits(logits_for_sample, generation_cfg, request_ids);
 
     // - Commit the prefix cache changes from previous round of action.
@@ -240,7 +240,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         rsentry_activated.push_back(true);
       }
     }
-    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+    Tensor renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg);
     std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
         renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);

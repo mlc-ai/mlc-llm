@@ -76,9 +76,11 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
     w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
     x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
     o_torch = blockwise_matmul(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
     x_fp8_tvm, x_scale_tvm, o_tvm = vm["cutlass_gemm"](x_tvm, w_tvm, w_scale_tvm)
     x_fp8_tvm = x_fp8_tvm.numpy()
     x_scale_tvm = x_scale_tvm.numpy()
@@ -163,9 +165,11 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
     w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
     x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
     o_torch = blockwise_matmul(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
     x_fp8_tvm, x_scale_tvm, o_tvm = vm["triton_gemm"](x_tvm, w_tvm, w_scale_tvm)
     x_fp8_tvm = x_fp8_tvm.numpy()
     x_scale_tvm = x_scale_tvm.numpy()
@@ -296,10 +300,12 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         indptr,
         x_torch.dtype,
     )
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
-    indptr_tvm = tvm.nd.array(indptr[1:].cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
+    indptr_tvm = tvm.runtime.tensor(indptr[1:].cpu().numpy(), device=device)
     x_fp8_tvm, x_scale_tvm, o_tvm = vm["cutlass_group_gemm"](
         x_tvm,
         w_tvm,
@@ -422,10 +428,12 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         indptr,
         x_torch.dtype,
     )
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
-    indptr_tvm = tvm.nd.array(indptr.cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
+    indptr_tvm = tvm.runtime.tensor(indptr.cpu().numpy(), device=device)
     x_fp8_tvm, x_scale_tvm, o_tvm = vm["triton_group_gemm"](
         x_tvm,
         w_tvm,
@@ -503,9 +511,11 @@ def test_fp8_block_bmm_cutlass(M: int, N: int, K: int, H: int, dtype: str):
     w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
     x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
     o_torch = blockwise_bmm(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
     o_tvm = vm["cutlass_bmm"](x_tvm, w_tvm, w_scale_tvm)
     o_tvm = o_tvm.numpy()
     atol = 0.5
@@ -603,10 +613,14 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
     o_torch = blockwise_group_matmul_unquantized(
         x_input_torch, w_torch, w_scale_torch, expert_choices
     )
-    x_tvm = tvm.nd.array(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
-    w_tvm = tvm.nd.array(w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device)
-    w_scale_tvm = tvm.nd.array(w_scale_torch.cpu().numpy(), device=device)
-    expert_choices = tvm.nd.array(expert_choices.reshape(1, top_k).cpu().numpy(), device=device)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
+    w_tvm = tvm.runtime.tensor(
+        w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
+    )
+    w_scale_tvm = tvm.runtime.tensor(w_scale_torch.cpu().numpy(), device=device)
+    expert_choices = tvm.runtime.tensor(
+        expert_choices.reshape(1, top_k).cpu().numpy(), device=device
+    )
     o_tvm = vm["tir_moe_gemv"](x_tvm, w_tvm, w_scale_tvm, expert_choices)
     o_tvm = o_tvm.numpy()
     atol = 0.5

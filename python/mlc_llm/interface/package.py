@@ -113,7 +113,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
                 f'Please set \'"bundle_weight": true\' in the entry of model "{model}".'
             )
         if bundle_weight:
-            if not os.path.isfile(model_path / "ndarray-cache.json"):
+            if not os.path.isfile(model_path / "tensor-cache.json"):
                 raise ValueError(
                     f'Bundle weight is set for model "{model}". However, model weights are not'
                     f'found under the directory "{model}". '

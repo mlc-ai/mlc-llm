@@ -63,7 +63,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     prefill_lengths.resize(/*size=*/num_rsentries, /*value=*/-1);
     ObjectRef hidden_states_for_input{nullptr};
     ObjectRef hidden_states_for_sample{nullptr};
-    NDArray logits_for_sample{nullptr};
+    Tensor logits_for_sample{nullptr};
     // A map used to record the entry and child_idx pair needed to fork sequence.
     // The base model (id 0) should record all the pairs and all the small models
     // fork sequences according to this map.
@@ -145,7 +145,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
 
-      Array<NDArray> multi_step_logits{nullptr};
+      Array<Tensor> multi_step_logits{nullptr};
 
       if (model_id == 0 || engine_config_->speculative_mode == SpeculativeMode::kEagle) {
         ObjectRef embedding_or_hidden_states{nullptr};
@@ -344,7 +344,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
   void UpdateRequestStatesWithDraftProposals(
       const std::vector<RequestStateEntry>& rsentries_for_sample,
       const std::vector<SampleResult>& sample_results, int model_id,
-      const NDArray& renormalized_probs, const ObjectRef& hidden_states_for_sample,
+      const Tensor& renormalized_probs, const ObjectRef& hidden_states_for_sample,
       EngineState estate, const std::vector<int>& sample_indices) {
     std::vector<int> reuse_count(renormalized_probs->shape[0], 0);
     for (int i = 0; i < static_cast<int>(sample_indices.size()); ++i) {

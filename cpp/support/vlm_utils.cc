@@ -9,7 +9,7 @@
 namespace mlc {
 namespace llm {
 
-void CalculateResizeShape(tvm::runtime::NDArray image_data, std::string model_type,
+void CalculateResizeShape(tvm::runtime::Tensor image_data, std::string model_type,
                           int* p_target_height, int* p_target_width) {
   ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   int height = image_data->shape[1];
@@ -28,7 +28,7 @@ void CalculateResizeShape(tvm::runtime::NDArray image_data, std::string model_ty
   }
 }
 
-void CalculatePadShape(tvm::runtime::NDArray image_data, std::string model_type, int* p_pad_height,
+void CalculatePadShape(tvm::runtime::Tensor image_data, std::string model_type, int* p_pad_height,
                        int* p_pad_width) {
   ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   if ("phi3_v" == model_type) {
@@ -43,8 +43,8 @@ void CalculatePadShape(tvm::runtime::NDArray image_data, std::string model_type,
   }
 }
 
-void CalculateCropShape(tvm::runtime::NDArray image_data, std::string model_type,
-                        int* p_crop_height, int* p_crop_width) {
+void CalculateCropShape(tvm::runtime::Tensor image_data, std::string model_type, int* p_crop_height,
+                        int* p_crop_width) {
   ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   if ("phi3_v" == model_type) {
     int pad_h = 0, pad_w = 0;

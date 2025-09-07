@@ -71,7 +71,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
 
       // - Add the sequence to each model.
       int prefill_length = -1;
-      NDArray logits_for_sample{nullptr};
+      Tensor logits_for_sample{nullptr};
       std::vector<IntTuple> kv_append_metadata;
       kv_append_metadata.reserve(models_.size());
       for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {

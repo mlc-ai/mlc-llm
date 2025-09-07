@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterator, Tuple
 
 from tvm import tir
 from tvm.contrib import tvmjs
-from tvm.runtime import DataType, Device, NDArray
+from tvm.runtime import DataType, Device, Tensor
 from tvm.runtime import cpu as cpu_device
 from tvm.target import Target
 
@@ -39,7 +39,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         """Display the arguments to stdout."""
 
         def _device_to_str(device: Device) -> str:
-            return f"{Device.DEVICE_TYPE_TO_NAME[device.device_type]}:{device.device_id}"
+            return f"{Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"  # pylint: disable=protected-access, line-too-long
 
         out = StringIO()
         print(f"{bold('Weight conversion with arguments:')}", file=out)
@@ -79,7 +79,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     else:
         preshard_funcs = None
 
-    def _check_param(name: str, param: NDArray):
+    def _check_param(name: str, param: Tensor):
         nonlocal named_params
         if name not in named_params:
             raise ValueError(f"Parameter not found in model: {name}")
@@ -116,7 +116,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     total_bytes = 0.0
     total_params: int
 
-    def _param_generator() -> Iterator[Tuple[str, NDArray]]:
+    def _param_generator() -> Iterator[Tuple[str, Tensor]]:
         nonlocal total_params, total_bytes
         with Target.from_device(args.device), tqdm.redirect():
             loader = LOADER[args.source_format](
@@ -142,7 +142,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         }
 
     # dump to output directory
-    tvmjs.dump_ndarray_cache(
+    tvmjs.dump_tensor_cache(
         _param_generator(),
         str(args.output),
         meta_data=_metadata_callback,

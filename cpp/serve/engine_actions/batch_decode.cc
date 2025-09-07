@@ -133,7 +133,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     bool is_every_request_single_token =
         std::all_of(lengths.begin(), lengths.end(), [](int len) { return len == 1; });
     RECORD_EVENT(trace_recorder_, request_ids, "start decode");
-    NDArray logits;
+    Tensor logits;
     if (is_every_request_single_token) {
       logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
       ICHECK_EQ(logits->ndim, 3);
@@ -152,7 +152,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
     // - Compute probability distributions.
-    NDArray probs_on_device =
+    Tensor probs_on_device =
         logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
     // - Commit the prefix cache changes from previous round of action.
@@ -163,7 +163,7 @@ class BatchDecodeActionObj : public EngineActionObj {
     // Fill range [0, num_rsentries) into `sample_indices`.
     std::vector<int> sample_indices(num_rsentries);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+    Tensor renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg);
     std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
         renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);

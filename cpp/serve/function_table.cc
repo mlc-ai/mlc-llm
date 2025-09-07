@@ -10,7 +10,7 @@
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -155,8 +155,8 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
     DRef params{nullptr};
     if (this->model_metadata_.params.empty()) {
       std::filesystem::path fs_model_path = model_path;
-      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
-      std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
+      std::string metadata_path = (fs_model_path / "tensor-cache.json").string();
+      std::string tensor_cache_metadata = LoadBytesFromFile(metadata_path);
       Function loader_create = this->get_global_func("runtime.disco.ShardLoader");
 
       auto load_all_func_name = "runtime.disco.ShardLoaderLoadAll";
@@ -164,7 +164,7 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       CHECK(loader_create != nullptr);
       CHECK(loader_load_all != nullptr);
       DRef loader =
-          loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod).cast<DRef>();
+          loader_create(metadata_path, tensor_cache_metadata, "", this->disco_mod).cast<DRef>();
       params = loader_load_all(loader).cast<DRef>();
     } else {
       auto load_func_name = getenv("MLC_INTERNAL_PRESHARD_NUM") == nullptr
@@ -176,13 +176,13 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
     }
     return params;
   } else {
-    static Function fload_cache = Function::GetGlobalRequired("vm.builtin.ndarray_cache.load");
+    static Function fload_cache = Function::GetGlobalRequired("vm.builtin.tensor_cache.load");
     fload_cache(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-    Array<NDArray> params;
+    Array<Tensor> params;
     if (this->model_metadata_.params.empty()) {
       constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
       static Function fload_params = Function::GetGlobalRequired(name_loader);
-      params = fload_params("param", -1).cast<Array<NDArray>>();
+      params = fload_params("param", -1).cast<Array<Tensor>>();
     } else {
       constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
       static Function fload_params = Function::GetGlobalRequired(name_loader);
@@ -191,13 +191,13 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       for (const auto& param : this->model_metadata_.params) {
         param_names.push_back(param.name);
       }
-      params = fload_params(param_names).cast<Array<NDArray>>();
+      params = fload_params(param_names).cast<Array<Tensor>>();
     }
     // after we get params, it is safe to simply clear the cached version
     // as these params are referenced by params_
-    static Function fclear_ndarray_cache =
-        Function::GetGlobalRequired("vm.builtin.ndarray_cache.clear");
-    fclear_ndarray_cache();
+    static Function fclear_tensor_cache =
+        Function::GetGlobalRequired("vm.builtin.tensor_cache.clear");
+    fclear_tensor_cache();
     return params;
   }
 }
@@ -296,11 +296,11 @@ ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,
     return sess->CallPacked(empty_func, shape, dtype, Optional<Device>(std::nullopt), worker0_only,
                             /*in_group=*/false);
   } else {
-    return NDArray::Empty(shape, dtype, device);
+    return Tensor::Empty(shape, dtype, device);
   }
 }
 
-ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
+ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_cache_key,
                                        Shape max_reserved_shape, bool local_only) {
   if (this->use_disco && !local_only) {
     Device null_device{DLDeviceType(0), 0};
@@ -319,23 +319,23 @@ ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_
     return buffer_view;
   } else {
     auto it = this->cached_buffers.find(buffer_cache_key);
-    NDArray buffer{nullptr};
+    Tensor buffer{nullptr};
     if (it != this->cached_buffers.end()) {
-      buffer = Downcast<NDArray>((*it).second);
+      buffer = Downcast<Tensor>((*it).second);
       if (buffer_cache_key == "image") {
         if (runtime::GetDataSize(*buffer.operator->()) <
             runtime::GetDataSize(*host_array.operator->())) {
-          buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+          buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
           this->cached_buffers.Set(buffer_cache_key, buffer);
         }
       }
     } else {
-      buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+      buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
       this->cached_buffers.Set(buffer_cache_key, buffer);
     }
     buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
     DLTensor copy_dst = *(buffer.operator->());
-    NDArray::CopyFromTo(host_array.operator->(), &copy_dst);
+    Tensor::CopyFromTo(host_array.operator->(), &copy_dst);
     return buffer;
   }
 }

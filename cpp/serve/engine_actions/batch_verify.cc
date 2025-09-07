@@ -108,7 +108,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       rngs.push_back(&rsentries[i]->rng);
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
     }
-    NDArray draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
+    Tensor draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
         model_workspaces_[verify_model_id_].draft_probs_storage, draft_token_slots_,
         &model_workspaces_[verify_model_id_].draft_probs);
 
@@ -118,8 +118,8 @@ class BatchVerifyActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify embedding");
 
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
-    NDArray logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
-                                                            verify_lengths, token_tree_parent_ptr);
+    Tensor logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
+                                                           verify_lengths, token_tree_parent_ptr);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
     ICHECK_EQ(logits->ndim, 3);
     ICHECK_EQ(logits->shape[0], 1);
@@ -137,7 +137,7 @@ class BatchVerifyActionObj : public EngineActionObj {
                                           &draft_token_indices);
 
     // - Compute probability distributions.
-    NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
+    Tensor probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
 
     // - Commit the prefix cache changes from previous round of action.
@@ -147,7 +147,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     // Fill range [0, total_verify_length) into `sample_indices`.
     std::vector<int> sample_indices(total_verify_length);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+    Tensor renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg_for_top_p_norm);
     auto [sample_results_arr, last_accepted_tree_node_verify_model] =
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
@@ -248,7 +248,7 @@ class BatchVerifyActionObj : public EngineActionObj {
       ObjectRef embeddings = models_[draft_model_id_]->TokenEmbed(
           {IntTuple{input_tokens.begin(), input_tokens.end()}});
       // - Invoke model decode.
-      NDArray logits =
+      Tensor logits =
           models_[draft_model_id_]->BatchDecode(embeddings, fully_accepted_request_internal_ids);
       // - We explicitly synchronize to avoid the input tokens getting overriden in the
       // next runs of BatchDecode.

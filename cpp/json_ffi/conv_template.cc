@@ -314,7 +314,7 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
                                        // should be a map, with a "url" key containing the URL, but
                                        // we are just assuming this as the URL for now
             std::string base64_image = image_url.substr(image_url.find(",") + 1);
-            Result<NDArray> image_data_res = LoadImageFromBase64(base64_image);
+            Result<Tensor> image_data_res = LoadImageFromBase64(base64_image);
             if (image_data_res.IsErr()) {
               return TResult::Error(image_data_res.UnwrapErr());
             }
@@ -326,18 +326,18 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
 
             int embed_size = (image_size * image_size) / (patch_size * patch_size);
 
-            NDArray image_data = image_data_res.Unwrap();
+            Tensor image_data = image_data_res.Unwrap();
             std::vector<int64_t> new_shape = {1, image_size, image_size, 3};
-            NDArray image_ndarray = image_data.CreateView(new_shape, image_data.DataType());
+            Tensor image_tensor = image_data.CreateView(new_shape, image_data.DataType());
             // TODO: Not sure if commenting will affect other functions. But
-            // python part will do clip preprocessing. auto image_ndarray =
+            // python part will do clip preprocessing. auto image_tensor =
             // ClipPreprocessor(image_data_res.Unwrap(), image_size, device);
             // lazily commit text data
             if (pending_text.length() != 0) {
               message_list.push_back(TextData(pending_text));
               pending_text = "";
             }
-            message_list.push_back(ImageData(image_ndarray, embed_size));
+            message_list.push_back(ImageData(image_tensor, embed_size));
           } else {
             return TResult::Error("Unsupported content type: " + it_type->second);
           }
