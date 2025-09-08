@@ -495,8 +495,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
 LogitProcessor::LogitProcessor(int max_num_token, int vocab_size, FunctionTable* ft,
                                DLDevice device, Optional<EventTraceRecorder> trace_recorder) {
-  data_ = make_object<LogitProcessorImpl>(max_num_token, vocab_size, ft, device,
-                                          std::move(trace_recorder));
+  data_ = tvm::ffi::make_object<LogitProcessorImpl>(max_num_token, vocab_size, ft, device,
+                                                    std::move(trace_recorder));
 }
 
 }  // namespace serve

@@ -23,6 +23,9 @@ namespace serve {
 
 using namespace tvm;
 using namespace tvm::runtime;
+using tvm::ffi::Array;
+using tvm::ffi::Optional;
+using tvm::ffi::String;
 
 /****************** GenerationConfig ******************/
 

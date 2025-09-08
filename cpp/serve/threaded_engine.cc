@@ -403,7 +403,7 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ffi::ModuleObj {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.create_threaded_engine",
-                        []() { return Module(make_object<ThreadedEngineModule>()); });
+                        []() { return Module(tvm::ffi::make_object<ThreadedEngineModule>()); });
 });
 
 std::unique_ptr<ThreadedEngine> ThreadedEngine::Create() {

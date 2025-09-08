@@ -119,10 +119,10 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
       if (device.device_type == kDLOpenCL) {
         auto f_get = executable->GetFunction("opencl.GetPreCompiledPrograms", true);
         CHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
-        tvm::String bytes = f_get.value()().cast<String>();
+        tvm::ffi::String bytes = f_get.value()().cast<String>();
         auto f_set = executable->GetFunction("opencl.SetPreCompiledPrograms", true);
         CHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
-        f_set.value()(tvm::String(bytes));
+        f_set.value()(tvm::ffi::String(bytes));
       }
       ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }

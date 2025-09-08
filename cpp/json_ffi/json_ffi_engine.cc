@@ -98,7 +98,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   }
   // create a generation config from request
   const auto& default_gen_cfg = default_generation_config_;
-  auto gen_cfg = make_object<GenerationConfigNode>();
+  auto gen_cfg = tvm::ffi::make_object<GenerationConfigNode>();
   gen_cfg->n = request.n;
   gen_cfg->temperature = request.temperature.value_or(default_gen_cfg->temperature);
   gen_cfg->top_p = request.top_p.value_or(default_gen_cfg->top_p);
@@ -299,7 +299,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
-                        []() { return ffi::Module(make_object<JSONFFIEngineImpl>()); });
+                        []() { return ffi::Module(tvm::ffi::make_object<JSONFFIEngineImpl>()); });
 });
 
 }  // namespace json_ffi
