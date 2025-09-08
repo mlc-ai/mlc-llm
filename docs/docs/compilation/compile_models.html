@@ -537,7 +537,7 @@ We can check the output with the commands below:</p>
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -568,7 +568,7 @@ ChatCompletionResponse<span class="o">(</span>
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -599,7 +599,7 @@ ChatCompletionResponse<span class="o">(</span>
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -630,7 +630,7 @@ ChatCompletionResponse<span class="o">(</span>
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -645,7 +645,7 @@ will be packaged as a static library into the iOS app. Checkout <a class="refere
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -660,7 +660,7 @@ will be packaged as a static library into the android app. Checkout <a class="re
 
 ~/mlc-llm<span class="w"> </span>&gt;<span class="w"> </span>ls<span class="w"> </span>dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
 <span class="w">  </span>mlc-chat-config.json<span class="w">                             </span><span class="c1"># ===&gt; the chat config</span>
-<span class="w">  </span>ndarray-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
+<span class="w">  </span>tensor-cache.json<span class="w">                               </span><span class="c1"># ===&gt; the model weight info</span>
 <span class="w">  </span>params_shard_0.bin<span class="w">                               </span><span class="c1"># ===&gt; the model weights</span>
 <span class="w">  </span>params_shard_1.bin
 <span class="w">  </span>...
@@ -1061,7 +1061,7 @@ local available GPUs if not specified.</p>
 </dd>
 <dt><kbd><span class="option">--output <var>OUTPUT</var></span></kbd></dt>
 <dd><p>The output directory to save the quantized model weight.
-Will create <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> and <code class="docutils literal notranslate"><span class="pre">`ndarray-cache.json`</span></code> in this directory.</p>
+Will create <code class="docutils literal notranslate"><span class="pre">params_shard_*.bin</span></code> and <code class="docutils literal notranslate"><span class="pre">`tensor-cache.json`</span></code> in this directory.</p>
 </dd>
 </dl>
 </section>
