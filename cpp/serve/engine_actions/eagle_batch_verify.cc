@@ -106,7 +106,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       draft_output_tokens.push_back(draft_mstate->draft_output_tokens);
     }
 
-    NDArray draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
+    Tensor draft_probs_on_device = models_[draft_model_id_]->GatherDraftProbs(
         model_workspaces_[verify_model_id_].draft_probs_storage, draft_token_slots_,
         &model_workspaces_[verify_model_id_].draft_probs);
 
@@ -127,7 +127,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     RECORD_EVENT(trace_recorder_, request_ids, "start verify");
     ObjectRef hidden_states = models_[verify_model_id_]->BatchVerifyToLastHidden(
         embeddings, request_internal_ids, verify_lengths, token_tree_parent_ptr);
-    NDArray logits = models_[verify_model_id_]->GetLogits(hidden_states);
+    Tensor logits = models_[verify_model_id_]->GetLogits(hidden_states);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
     ICHECK_EQ(logits->ndim, 2);
     ICHECK_EQ(logits->shape[0], cum_verify_lengths.back());
@@ -138,7 +138,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
                                           &draft_token_indices);
 
     // - Compute probability distributions.
-    NDArray probs_on_device = logit_processor_->ComputeProbsFromLogits(
+    Tensor probs_on_device = logit_processor_->ComputeProbsFromLogits(
         logits, generation_cfg, request_ids, &cum_verify_lengths);
 
     // - Commit the prefix cache changes from previous round of action.
@@ -147,7 +147,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
     std::vector<int> sample_indices(num_rsentries);
     std::iota(sample_indices.begin(), sample_indices.end(), 0);
-    NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+    Tensor renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
         probs_on_device, sample_indices, request_ids, generation_cfg);
     auto [sample_results_arr, _] = sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
         renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
@@ -258,8 +258,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       if (hidden_states_for_fully_accepted->IsInstance<DRefObj>()) {
         Downcast<Session>(Downcast<DRef>(hidden_states_for_fully_accepted)->session)->SyncWorker(0);
       } else {
-        NDArray hidden_states_for_fully_accepted_nd =
-            Downcast<NDArray>(hidden_states_for_fully_accepted);
+        Tensor hidden_states_for_fully_accepted_nd =
+            Downcast<Tensor>(hidden_states_for_fully_accepted);
         DeviceAPI::Get(hidden_states_for_fully_accepted_nd->device)
             ->StreamSync(hidden_states_for_fully_accepted_nd->device, nullptr);
       }
@@ -285,7 +285,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
       }
 
-      Array<NDArray> multi_step_logits{nullptr};  // for medusa output
+      Array<Tensor> multi_step_logits{nullptr};  // for medusa output
       if (engine_config_->speculative_mode == SpeculativeMode::kEagle) {
         // - Compute embeddings.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
@@ -401,7 +401,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
 
   void UpdateRequestStatesWithDraftProposals(const Array<RequestModelState>& mstates,
                                              const std::vector<SampleResult>& sample_results,
-                                             int model_id, const NDArray& renormalized_probs,
+                                             int model_id, const Tensor& renormalized_probs,
                                              const ObjectRef& hidden_states_for_sample,
                                              EngineState estate) {
     draft_token_workspace_manager_->AllocSlots(mstates.size(), &draft_token_slots_);

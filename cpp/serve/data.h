@@ -11,8 +11,8 @@
 #include <tvm/ffi/string.h>
 #include <tvm/node/cast.h>
 #include <tvm/runtime/int_tuple.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <atomic>
 #include <optional>
@@ -117,7 +117,7 @@ class TokenData : public Data {
 class ImageDataNode : public DataNode {
  public:
   /*! \brief The pixel values. */
-  NDArray image;
+  Tensor image;
   int embed_size;
 
   int GetLength() const final;
@@ -129,7 +129,7 @@ class ImageDataNode : public DataNode {
 
 class ImageData : public Data {
  public:
-  explicit ImageData(NDArray image, int embed_size);
+  explicit ImageData(Tensor image, int embed_size);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ImageData, Data, ImageDataNode);
 };

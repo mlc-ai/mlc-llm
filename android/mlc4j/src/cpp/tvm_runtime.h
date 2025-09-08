@@ -23,13 +23,13 @@
 #include <runtime/logging.cc>
 #include <runtime/memory/memory_manager.cc>
 #include <runtime/module.cc>
-#include <runtime/ndarray.cc>
 #include <runtime/nvtx.cc>
 #include <runtime/opencl/opencl_device_api.cc>
 #include <runtime/opencl/opencl_module.cc>
 #include <runtime/opencl/opencl_wrapper/opencl_wrapper.cc>
 #include <runtime/profiling.cc>
 #include <runtime/source_utils.cc>
+#include <runtime/tensor.cc>
 #include <runtime/thread_pool.cc>
 #include <runtime/threading_backend.cc>
 #include <runtime/vm/attn_backend.cc>
@@ -37,9 +37,9 @@
 #include <runtime/vm/bytecode.cc>
 #include <runtime/vm/executable.cc>
 #include <runtime/vm/kv_state.cc>
-#include <runtime/vm/ndarray_cache_support.cc>
 #include <runtime/vm/paged_kv_cache.cc>
 #include <runtime/vm/rnn_state.cc>
+#include <runtime/vm/tensor_cache_support.cc>
 #include <runtime/vm/vm.cc>
 #include <runtime/workspace_pool.cc>
 

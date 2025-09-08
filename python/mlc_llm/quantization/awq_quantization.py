@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from tvm import DataType, DataTypeCode, te, tir, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 
@@ -46,7 +46,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
     num_storage_per_group: int = 0
     max_int_value: int = 0
 
-    prebuilt_quantize_func: Dict[str, Callable[[NDArray], NDArray]] = field(
+    prebuilt_quantize_func: Dict[str, Callable[[Tensor], Tensor]] = field(
         default_factory=lambda: {}
     )
 

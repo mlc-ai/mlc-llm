@@ -14,7 +14,7 @@
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 
@@ -67,7 +67,7 @@ struct FunctionTable {
    *                  local gpu when disco is enabled.
    * \return The array on the worker or local gpu.
    */
-  ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
+  ObjectRef CopyToWorker0(const Tensor& host_array, String buffer_cache_key,
                           Shape max_reserved_shape, bool local_only = false);
 
   void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) const;

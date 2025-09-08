@@ -7,6 +7,7 @@ from typing import Dict, Optional
 
 import tvm
 from tvm.runtime import Device
+from tvm_ffi import DLDeviceType
 
 from . import logging
 from .style import bold, green, red
@@ -25,7 +26,7 @@ def detect_device(device_hint: str) -> Optional[Device]:
     if device_hint == "auto":
         device = None
         for device_type in AUTO_DETECT_DEVICES:
-            cur_device = tvm.device(dev_type=device_type, dev_id=0)
+            cur_device = tvm.device(device_type=device_type, index=0)
             if _device_exists(cur_device):
                 if device is None:
                     device = cur_device
@@ -45,11 +46,13 @@ def detect_device(device_hint: str) -> Optional[Device]:
 
 def device2str(device: Device) -> str:
     """Convert a TVM device object to string."""
-    return f"{tvm.runtime.Device.DEVICE_TYPE_TO_NAME[device.device_type]}:{device.device_id}"
+    return f"{tvm.runtime.Device._DEVICE_TYPE_TO_NAME[device.dlpack_device_type()]}:{device.index}"  # pylint: disable=protected-access, line-too-long
 
 
 def _device_exists(device: Device) -> bool:
-    device_type = tvm.runtime.Device.DEVICE_TYPE_TO_NAME[device.device_type]
+    device_type = tvm.runtime.Device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
+        device.dlpack_device_type()
+    ]
     device_str = device2str(device)
     if device_str in _RESULT_CACHE:
         return _RESULT_CACHE[device_str]
@@ -78,7 +81,7 @@ def _device_exists(device: Device) -> bool:
             for i in subproc_outputs[0].split(","):
                 logger.info("%s device: %s:%s", FOUND, device_type, i)
                 _RESULT_CACHE[f"{device_type}:{i}"] = True
-                if device.device_type == Device.kDLCPU:
+                if device.dlpack_device_type() == DLDeviceType.kDLCPU:
                     break
     else:
         logger.error(

@@ -175,7 +175,7 @@ def _run_quantization(
                 cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
             )
         logger.info("[MLC] Complete!")
-    if not (Path(output_dir) / "ndarray-cache.json").exists() and not model_info.gen_config_only:
+    if not (Path(output_dir) / "tensor-cache.json").exists() and not model_info.gen_config_only:
         logger.error(
             "[%s] Model %s. Quantization %s. No weights metadata found.",
             red("FAILED"),

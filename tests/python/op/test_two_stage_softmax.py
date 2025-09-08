@@ -30,13 +30,13 @@ def test_two_stage_softmax():
             )
             y_np = scipy.special.softmax(x_np, axis=-1)
 
-            x_nd = tvm.nd.array(x_np, device=device)
-            r_nd = tvm.nd.empty(
+            x_nd = tvm.runtime.tensor(x_np, device=device)
+            r_nd = tvm.runtime.empty(
                 (batch_size, (vocab_size + chunk_size - 1) // chunk_size),
                 x_np.dtype,
                 device=device,
             )
-            y_nd = tvm.nd.empty(x_np.shape, x_np.dtype, device=device)
+            y_nd = tvm.runtime.empty(x_np.shape, x_np.dtype, device=device)
 
             runtime_mod["chunk_lse"](x_nd, r_nd)
             runtime_mod["softmax_with_chunked_lse"](x_nd, r_nd, y_nd)

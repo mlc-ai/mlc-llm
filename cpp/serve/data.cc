@@ -116,7 +116,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 /****************** ImageData ******************/
 
-ImageData::ImageData(NDArray image, int embed_size) {
+ImageData::ImageData(Tensor image, int embed_size) {
   ObjectPtr<ImageDataNode> n = make_object<ImageDataNode>();
   n->image = std::move(image);
   n->embed_size = embed_size;
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.ImageData",
-           [](NDArray image, int embed_size) { return ImageData(std::move(image), embed_size); })
+           [](Tensor image, int embed_size) { return ImageData(std::move(image), embed_size); })
       .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; });
 });
 
