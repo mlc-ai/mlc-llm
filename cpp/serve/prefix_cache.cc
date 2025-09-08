@@ -425,12 +425,12 @@ class NoPrefixCache : public PrefixCacheObj {
 PrefixCache PrefixCache::CreateRadixPrefixCache(size_t max_num_recycling_seqs,
                                                 PrefixCacheRemoveCallback remove_callback) {
   ObjectPtr<PrefixCacheImpl> n =
-      make_object<PrefixCacheImpl>(max_num_recycling_seqs, std::move(remove_callback));
+      tvm::ffi::make_object<PrefixCacheImpl>(max_num_recycling_seqs, std::move(remove_callback));
   return PrefixCache(std::move(n));
 }
 
 PrefixCache PrefixCache::CreateNoPrefixCache() {
-  ObjectPtr<NoPrefixCache> n = make_object<NoPrefixCache>();
+  ObjectPtr<NoPrefixCache> n = tvm::ffi::make_object<NoPrefixCache>();
   return PrefixCache(std::move(n));
 }
 

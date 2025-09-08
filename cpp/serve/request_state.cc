@@ -14,7 +14,7 @@ namespace serve {
 RequestModelState::RequestModelState(
     Request request, int model_id, int64_t internal_id, Array<Data> inputs,
     const std::optional<xgrammar::CompiledGrammar>& compiled_grammar) {
-  ObjectPtr<RequestModelStateNode> n = make_object<RequestModelStateNode>();
+  ObjectPtr<RequestModelStateNode> n = tvm::ffi::make_object<RequestModelStateNode>();
   n->model_id = model_id;
   n->internal_id = internal_id;
   n->inputs = std::move(inputs);
@@ -141,7 +141,7 @@ RequestStateEntry::RequestStateEntry(
     Request request, int num_models, int64_t internal_id, int rng_seed,
     const std::vector<std::string>& token_table,
     const std::optional<xgrammar::CompiledGrammar>& compiled_grammar, int parent_idx) {
-  ObjectPtr<RequestStateEntryNode> n = make_object<RequestStateEntryNode>();
+  ObjectPtr<RequestStateEntryNode> n = tvm::ffi::make_object<RequestStateEntryNode>();
   Array<RequestModelState> mstates;
   Array<Data> inputs;
   if (parent_idx == -1) {
@@ -259,7 +259,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
 RequestState::RequestState(std::vector<RequestStateEntry> entries, int num_response,
                            std::chrono::high_resolution_clock::time_point add_time_point) {
   ICHECK(!entries.empty());
-  ObjectPtr<RequestStateNode> n = make_object<RequestStateNode>();
+  ObjectPtr<RequestStateNode> n = tvm::ffi::make_object<RequestStateNode>();
   n->entries = std::move(entries);
   n->metrics.prompt_tokens = n->entries[0]->request->prompt_tokens;
   n->metrics.add_time_point = add_time_point;

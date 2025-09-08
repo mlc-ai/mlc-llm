@@ -223,7 +223,7 @@ EngineAction EngineAction::EagleBatchDraft(Array<Model> models, LogitProcessor l
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<EagleBatchDraftActionObj>(
+  return EngineAction(tvm::ffi::make_object<EagleBatchDraftActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
       std::move(engine_config), std::move(trace_recorder)));

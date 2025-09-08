@@ -449,7 +449,7 @@ EngineAction EngineAction::EagleBatchVerify(
     std::vector<ModelWorkspace> model_workspaces,
     DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
     Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<EagleBatchVerifyActionObj>(
+  return EngineAction(tvm::ffi::make_object<EagleBatchVerifyActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
       std::move(engine_config), std::move(trace_recorder)));

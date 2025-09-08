@@ -34,7 +34,7 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
     }
   }
 
-  ObjectPtr<RequestNode> n = make_object<RequestNode>();
+  ObjectPtr<RequestNode> n = tvm::ffi::make_object<RequestNode>();
   n->id = std::move(id);
   n->inputs = std::move(inputs);
   n->prompt_tokens = prompt_tokens;

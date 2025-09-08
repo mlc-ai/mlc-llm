@@ -80,7 +80,7 @@ class AutoSpecDecodeActionObj : public EngineActionObj {
 EngineAction EngineAction::AutoSpecDecode(std::vector<EngineAction> spec_decode_actions_,
                                           std::vector<EngineAction> batch_decode_actions_,
                                           EngineConfig engine_config) {
-  return EngineAction(make_object<AutoSpecDecodeActionObj>(
+  return EngineAction(tvm::ffi::make_object<AutoSpecDecodeActionObj>(
       Array<EngineAction>(spec_decode_actions_), Array<EngineAction>(batch_decode_actions_),
       std::move(engine_config)));
 }

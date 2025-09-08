@@ -317,7 +317,7 @@ EngineAction EngineAction::BatchDecode(Array<Model> models, Tokenizer tokenizer,
                                        LogitProcessor logit_processor, Sampler sampler,
                                        EngineConfig engine_config,
                                        Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchDecodeActionObj>(
+  return EngineAction(tvm::ffi::make_object<BatchDecodeActionObj>(
       std::move(models), std::move(tokenizer), std::move(logit_processor), std::move(sampler),
       std::move(engine_config), std::move(trace_recorder)));
 }

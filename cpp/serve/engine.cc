@@ -55,7 +55,7 @@ inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& mod
   }
   const picojson::object& tokenizer_info_obj =
       model_config.at("tokenizer_info").get<picojson::object>();
-  auto info = make_object<TokenizerInfoNode>();
+  auto info = tvm::ffi::make_object<TokenizerInfoNode>();
   if (tokenizer_info_obj.count("token_postproc_method")) {
     info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
   }
@@ -583,7 +583,7 @@ class EngineImpl : public Engine {
       }
       // - Override the "n" in generation config to 1.
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       updated_generation_cfg->n = 1;
       request->generation_cfg = GenerationConfig(updated_generation_cfg);
       return false;
@@ -617,7 +617,7 @@ class EngineImpl : public Engine {
 
       RequestState rstate = it_rstate->second;
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       // - Split the input data into two parts at the position "kv_window_begin".
       CHECK(!request->inputs.empty());
       auto [lhs_data, rhs_data] = SplitData(request->inputs, input_length, kv_window_begin);
@@ -895,7 +895,7 @@ class EngineImpl : public Engine {
       return TResult::Error(err);
     }
     picojson::object config = config_json.get<picojson::object>();
-    ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+    ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.
     EngineMode mode = EngineModeFromString(json::Lookup<std::string>(config, "mode"));
@@ -1049,7 +1049,7 @@ class EngineModule : public ffi::ModuleObj {
     this->default_generation_config_ = output.default_generation_cfg;
   }
   /*! \brief Construct an EngineModule. */
-  static ffi::Module Create() { return ffi::Module(make_object<EngineModule>()); }
+  static ffi::Module Create() { return ffi::Module(tvm::ffi::make_object<EngineModule>()); }
   /*! \brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */

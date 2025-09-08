@@ -578,7 +578,7 @@ class CPUSampler : public SamplerObj {
 };
 
 Sampler Sampler::CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder) {
-  return Sampler(make_object<CPUSampler>(std::move(trace_recorder)));
+  return Sampler(tvm::ffi::make_object<CPUSampler>(std::move(trace_recorder)));
 }
 
 }  // namespace serve

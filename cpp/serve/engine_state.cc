@@ -8,7 +8,7 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-EngineState::EngineState() { data_ = make_object<EngineStateObj>(); }
+EngineState::EngineState() { data_ = tvm::ffi::make_object<EngineStateObj>(); }
 
 void EngineStateObj::Reset() {
   running_queue.clear();

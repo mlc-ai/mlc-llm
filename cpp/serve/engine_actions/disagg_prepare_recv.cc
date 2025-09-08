@@ -431,7 +431,7 @@ EngineAction EngineAction::DisaggPrepareReceive(Array<Model> models, EngineConfi
                                                 std::vector<picojson::object> model_configs,
                                                 Optional<EventTraceRecorder> trace_recorder,
                                                 FRequestStreamCallback request_stream_callback) {
-  return EngineAction(make_object<DisaggPrepareReceiveActionObj>(
+  return EngineAction(tvm::ffi::make_object<DisaggPrepareReceiveActionObj>(
       std::move(models), std::move(engine_config), std::move(model_configs),
       std::move(trace_recorder), std::move(request_stream_callback)));
 }

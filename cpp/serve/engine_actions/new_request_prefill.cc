@@ -354,7 +354,7 @@ EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor
                                              EngineConfig engine_config,
                                              std::vector<picojson::object> model_configs,
                                              Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<NewRequestPrefillActionObj>(
+  return EngineAction(tvm::ffi::make_object<NewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(engine_config), std::move(model_configs),
       std::move(trace_recorder)));

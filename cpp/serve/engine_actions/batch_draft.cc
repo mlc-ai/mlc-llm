@@ -194,8 +194,8 @@ class BatchDraftActionObj : public EngineActionObj {
             if (engine_config_->spec_tree_width == 1) {
               return mstates[i]->request->generation_cfg;
             }
-            auto spec_generation_cfg =
-                make_object<GenerationConfigNode>(*(mstates[i]->request->generation_cfg.get()));
+            auto spec_generation_cfg = tvm::ffi::make_object<GenerationConfigNode>(
+                *(mstates[i]->request->generation_cfg.get()));
             spec_generation_cfg->top_logprobs = engine_config_->spec_tree_width;
             spec_generation_cfg->logprobs = true;
             spec_generation_cfg->temperature = 1.0;
@@ -397,7 +397,7 @@ EngineAction EngineAction::BatchDraft(Array<Model> models, LogitProcessor logit_
                                       DraftTokenWorkspaceManager draft_token_workspace_manager,
                                       EngineConfig engine_config,
                                       Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchDraftActionObj>(
+  return EngineAction(tvm::ffi::make_object<BatchDraftActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
       std::move(engine_config), std::move(trace_recorder)));

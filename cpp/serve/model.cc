@@ -28,8 +28,8 @@ class ModelImpl;
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
                     DLDevice device, const Optional<Session>& session, int num_shards,
                     int num_stages, bool trace_enabled) {
-  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device, session,
-                                      num_shards, num_stages, trace_enabled));
+  return Model(tvm::ffi::make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
+                                                session, num_shards, num_stages, trace_enabled));
 }
 
 Result<picojson::object> Model::LoadModelConfig(const String& model_path) {

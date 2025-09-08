@@ -745,8 +745,8 @@ class GPUSampler : public SamplerObj {
 
 Sampler Sampler::CreateGPUSampler(int max_num_sample, int vocab_size, FunctionTable* ft,
                                   DLDevice device, Optional<EventTraceRecorder> trace_recorder) {
-  return Sampler(
-      make_object<GPUSampler>(max_num_sample, vocab_size, ft, device, std::move(trace_recorder)));
+  return Sampler(tvm::ffi::make_object<GPUSampler>(max_num_sample, vocab_size, ft, device,
+                                                   std::move(trace_recorder)));
 }
 
 }  // namespace serve
