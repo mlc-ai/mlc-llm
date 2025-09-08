@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass
 from typing import List, Literal
 
 import tvm
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -55,7 +55,7 @@ class TokenizerInfo:  # pylint: disable=too-many-instance-attributes
         return TokenizerInfo(**json.loads(json_str))
 
 
-@tvm.ffi.register_object("mlc.Tokenizer")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.Tokenizer")  # pylint: disable=protected-access
 class Tokenizer(Object):
     """The tokenizer class in MLC LLM."""
 
