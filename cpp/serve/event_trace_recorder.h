@@ -56,8 +56,7 @@ class EventTraceRecorder : public ObjectRef {
   /*! \brief Create an event trace recorder. */
   static EventTraceRecorder Create();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EventTraceRecorder, ObjectRef,
-                                                    EventTraceRecorderObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EventTraceRecorder, ObjectRef, EventTraceRecorderObj);
 };
 
 /****************** Helper macro ******************/
