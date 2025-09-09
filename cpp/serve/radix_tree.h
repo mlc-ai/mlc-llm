@@ -107,8 +107,8 @@ class PagedRadixTreeObj : public Object {
    */
   virtual void Reset() = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.PagedRadixTree";
-  TVM_DECLARE_BASE_OBJECT_INFO(PagedRadixTreeObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.PagedRadixTree", PagedRadixTreeObj, Object);
 };
 
 class PagedRadixTree : public ObjectRef {
@@ -118,7 +118,7 @@ class PagedRadixTree : public ObjectRef {
    * \return The constructed paged radix tree.   */
   static PagedRadixTree Create();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PagedRadixTree, ObjectRef, PagedRadixTreeObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PagedRadixTree, ObjectRef, PagedRadixTreeObj);
 };
 }  // namespace serve
 }  // namespace llm

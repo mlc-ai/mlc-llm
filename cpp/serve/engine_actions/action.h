@@ -38,10 +38,10 @@ class EngineActionObj : public Object {
    */
   virtual Array<Request> Step(EngineState estate) = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.EngineAction";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(EngineActionObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EngineAction", EngineActionObj, Object);
 };
 
 /*!
@@ -243,7 +243,7 @@ class EngineAction : public ObjectRef {
       std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
       FRequestStreamCallback request_stream_callback, Device device);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineAction, ObjectRef, EngineActionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EngineAction, ObjectRef, EngineActionObj);
 };
 
 }  // namespace serve
