@@ -247,6 +247,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
 
         self.rope_theta = config.text_config.rope_theta
         self.rope_scaling = config.text_config.rope_scaling
+        self.rope_scaling["rope_type"] = "llama4"
 
         self.use_qk_norm = config.text_config.use_qk_norm
         self.rms_norm_eps = config.text_config.rms_norm_eps
@@ -272,13 +273,13 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         value_states = op.reshape(self.v_proj(hidden_states), (b, s, -1, d))
 
         if self.use_rope:
-            self.rotary_emb = position_embedding.llama_rope_with_position_map(theta=self.rope_theta, scale=1.0, head_dim=self.head_dim, num_q_heads=self.num_q_heads, num_kv_heads=self.num_kv_heads, dtype=query_states.dtype, rope_scaling=self.rope_scaling) #Llama4TextRotaryEmbedding(config)
+            self.rotary_emb = position_embedding.llama4_rope_with_position_map(theta=self.rope_theta, scale=1.0, head_dim=self.head_dim, num_q_heads=self.num_q_heads, num_kv_heads=self.num_kv_heads, dtype=query_states.dtype, rope_scaling=self.rope_scaling) #Llama4TextRotaryEmbedding(config)
             qkv = op.concat([query_states, key_states, value_states], dim=2)
 
             # print("Rotary emb function: ", self.rotary_emb)
 
             apply_rope = tvm.tir.IntImm("int64", 1)
-            query_states, key_states, value_states = op.tensor_ir_op(self.rotary_emb, "llama_rope_with_position_map", args=[op.squeeze(qkv,axis=0), cache_position, apply_rope],
+            query_states, key_states, value_states = op.tensor_ir_op(self.rotary_emb, "llama4_rope_with_position_map", args=[op.squeeze(qkv,axis=0), cache_position, apply_rope],
                 out=(
                     Tensor.placeholder((s, h_q, d), query_states.dtype),
                     Tensor.placeholder((s, self.num_kv_heads, d), query_states.dtype),
@@ -288,7 +289,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             key_states = key_states.reshape(b, s, self.num_kv_heads, d)
             value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
-        if self.use_qk_norm: 
+        if self.use_qk_norm and self.use_rope: 
             # print("DOING QK NORM")
             self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
             self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
