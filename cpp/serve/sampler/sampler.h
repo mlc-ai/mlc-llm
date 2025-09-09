@@ -120,10 +120,10 @@ class SamplerObj : public Object {
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.Sampler";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(SamplerObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.Sampler", SamplerObj, Object);
 };
 
 class Sampler : public ObjectRef {
@@ -147,7 +147,7 @@ class Sampler : public ObjectRef {
            device.device_type == DLDeviceType::kDLVulkan;
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Sampler, ObjectRef, SamplerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Sampler, ObjectRef, SamplerObj);
 };
 
 }  // namespace serve

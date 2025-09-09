@@ -116,7 +116,8 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
     return picojson::value(event_array).serialize();
   }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(EventTraceRecorderImpl, EventTraceRecorderObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EventTraceRecorder", EventTraceRecorderImpl,
+                              EventTraceRecorderObj);
 
  private:
   /*! \brief The internal impl of AddEvent, taking the event time as input. */

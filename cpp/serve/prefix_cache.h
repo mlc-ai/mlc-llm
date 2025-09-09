@@ -122,8 +122,8 @@ class PrefixCacheObj : public Object {
   /*! \brief Return the prefix cache mode. */
   virtual PrefixCacheMode Mode() = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.PrefixCache";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.PrefixCache", PrefixCacheObj, Object);
 };
 
 class PrefixCache : public ObjectRef {
@@ -140,7 +140,7 @@ class PrefixCache : public ObjectRef {
    */
   static PrefixCache CreateNoPrefixCache();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PrefixCache, ObjectRef, PrefixCacheObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrefixCache, ObjectRef, PrefixCacheObj);
 };
 
 }  // namespace serve

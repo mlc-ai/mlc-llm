@@ -68,10 +68,10 @@ class LogitProcessorObj : public Object {
                                         const Array<String>& request_ids,
                                         const std::vector<int>* cum_num_token = nullptr) = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.LogitProcessor";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(LogitProcessorObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.LogitProcessor", LogitProcessorObj, Object);
 };
 
 class LogitProcessor : public ObjectRef {
@@ -87,7 +87,7 @@ class LogitProcessor : public ObjectRef {
   explicit LogitProcessor(int max_num_token, int vocab_size, FunctionTable* ft, DLDevice device,
                           Optional<EventTraceRecorder> trace_recorder);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogitProcessor, ObjectRef, LogitProcessorObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LogitProcessor, ObjectRef, LogitProcessorObj);
 };
 
 }  // namespace serve

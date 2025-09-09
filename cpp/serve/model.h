@@ -364,10 +364,10 @@ class ModelObj : public Object {
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.Model";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(ModelObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.Model", ModelObj, Object);
 };
 
 class Model : public ObjectRef {
@@ -396,7 +396,7 @@ class Model : public ObjectRef {
    */
   static Result<picojson::object> LoadModelConfig(const String& model_path);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Model, ObjectRef, ModelObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Model, ObjectRef, ModelObj);
 };
 
 }  // namespace serve
