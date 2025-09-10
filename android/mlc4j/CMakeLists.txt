@@ -57,7 +57,7 @@ target_include_directories(
   PUBLIC ${JNI_INCLUDE_DIRS}
          ${JNI_HEADER}
          ${ANDROID_DIR}/src/cpp
-         ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
+         ${TVM_SOURCE_DIR}/ffi/3rdparty/dlpack/include
          ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
          ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
          ${TVM_SOURCE_DIR}/3rdparty/picojson
