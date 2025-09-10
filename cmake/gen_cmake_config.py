@@ -61,6 +61,7 @@ if __name__ == "__main__":
             )
             if user_input in ["yes", "Y", "y"]:
                 cmake_config_str += "set(USE_FLASHINFER ON)\n"
+                cmake_config_str += "set(FLASHINFER_ENABLE_FP4 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_ENABLE_FP8 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_ENABLE_BF16 OFF)\n"
                 cmake_config_str += "set(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8)\n"
@@ -83,13 +84,13 @@ if __name__ == "__main__":
     if use_flashInfer:
         while True:
             user_input = input("Enter your CUDA compute capability: ")
-            if user_input in ["80", "86", "89", "90", "100", "120"]:
+            if user_input in ["80", "86", "87", "89", "90", "100", "110", "120"]:
                 cmake_config_str += f"set(FLASHINFER_CUDA_ARCHITECTURES {user_input})\n"
                 cmake_config_str += f"set(CMAKE_CUDA_ARCHITECTURES {user_input})\n"
                 break
             else:
                 print(
-                    f"Invalid input: {user_input}. FlashInfer requires 80, 86, 89, 90, 100 or 120"
+                    f"Invalid input: {user_input}. FlashInfer requires 80, 86, 87, 89, 90, 100 110 or 120"
                 )
 
     print("\nWriting the following configuration to config.cmake...")
