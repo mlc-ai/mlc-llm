@@ -10,11 +10,12 @@ from .registry import ConvTemplateRegistry
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-4",
-        system_template=(
-            "<|header_start|>system<|header_end|>\n\n"
-            f"{MessagePlaceholders.SYSTEM.value}<|eot|>"
-        ),
-        system_message="You are a helpful, respectful and honest assistant.",
+        system_template="",
+        # system_template=(
+        #     # "<|header_start|>user<|header_end|>\n\n" #system
+        #     # f"{MessagePlaceholders.SYSTEM.value}" #<|eot|>
+        # ),
+        system_message="",
         roles={
             "user": "<|header_start|>user",
             "assistant": "<|header_start|>assistant",
@@ -23,10 +24,10 @@ ConvTemplateRegistry.register_conv_template(
         seps=["<|eot|>"],
         role_content_sep="<|header_end|>\n\n",
         role_empty_sep="<|header_end|>\n\n",
-        stop_str=[],
-        stop_token_ids=[128001, 128008, 128009],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
-        system_prefix_token_ids=[128000],  # "<|begin_of_text|>"
-        add_role_after_system_message=True,
+        stop_str=[], #"<|end_of_text|>", "<|eom|>", "<|eot|>"
+        stop_token_ids=[200001, 200007, 200008],#[128001, 128008, 128009],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
+        system_prefix_token_ids=[200000],#[128000],  # "<|begin_of_text|>"
+        add_role_after_system_message=False,
     )
 )
 
