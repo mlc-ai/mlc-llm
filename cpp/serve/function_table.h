@@ -75,9 +75,9 @@ struct FunctionTable {
   bool use_disco = false;
   Device local_gpu_device;
   Session sess{nullptr};
-  DRef disco_mod{nullptr};
-  Map<String, ObjectRef> cached_buffers{nullptr};
-  tvm::ffi::Module local_vm{nullptr};
+  Optional<DRef> disco_mod = std::nullopt;
+  Optional<Map<String, ObjectRef>> cached_buffers = std::nullopt;
+  Optional<tvm::ffi::Module> local_vm = std::nullopt;
   picojson::object model_config;
 
   TypedFunction<Function(const std::string&)> mod_get_func;
