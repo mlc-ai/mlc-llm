@@ -39,7 +39,7 @@ class BatchVerifyActionObj : public EngineActionObj {
         draft_token_workspace_manager_(std::move(draft_token_workspace_manager)),
         engine_config_(std::move(engine_config)),
         trace_recorder_(std::move(trace_recorder)),
-        rng_(RandomGenerator::GetInstance()) {}
+        rng_(UniformRandomGenerator::GetInstance()) {}
 
   Array<Request> Step(EngineState estate) final {
     // - Only run spec decode when there are two models (llm+ssm) and >=1 running requests.
