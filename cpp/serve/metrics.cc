@@ -79,6 +79,7 @@ picojson::object RequestMetrics::AsJSON() const {
   metrics["prefill_tokens"] = picojson::value(prefill_tokens);
   metrics["decode_tokens"] = picojson::value(decode_tokens);
   metrics["jump_forward_tokens"] = picojson::value(jump_forward_tokens);
+  metrics["prompt_cache_tokens"] = picojson::value(prompt_cache_tokens);
 
   if (prefill_tokens != 0) {
     metrics["prefill_tokens_per_s"] = picojson::value(prefill_tokens / this->GetPrefillTime());
@@ -113,6 +114,7 @@ picojson::object EngineMetrics::AsJSON() const {
   metrics["prefill_tokens_sum"] = picojson::value(prefill_tokens_sum);
   metrics["decode_tokens_sum"] = picojson::value(decode_tokens_sum);
   metrics["jump_forward_tokens_sum"] = picojson::value(jump_forward_tokens_sum);
+  metrics["prompt_cache_tokens_sum"] = picojson::value(prompt_cache_tokens_sum);
 
   if (prefill_tokens_sum != 0) {
     metrics["prefill_tokens_per_s"] = picojson::value(prefill_tokens_sum / engine_prefill_time_sum);
@@ -170,6 +172,7 @@ void EngineMetrics::Reset() {
   prefill_tokens_sum = 0;
   decode_tokens_sum = 0;
   jump_forward_tokens_sum = 0;
+  prompt_cache_tokens_sum = 0;
   last_finished_request.Reset();
   spec_decode.Reset();
   decode_time_by_batch_size.clear();

@@ -1,0 +1,87 @@
+# QAT Training Configuration for Llama3.2-1B
+# This is an example configuration file for QAT training
+
+# Model Configuration
+base_model_path: "/path/to/your/llama3.2-1b-sft-model"  # Replace with your SFT model path
+model_type: "llama"
+model_size: "1b"
+
+# Data Configuration
+data_paths:
+  - "/path/to/sharegpt/data1.json"      # Replace with your ShareGPT data files
+  - "/path/to/sharegpt/data2.jsonl"     # Can mix .json and .jsonl files
+  - "/path/to/sharegpt/directory"       # Or point to directories
+data_format: "sharegpt"
+max_length: 2048
+sample_count: 30000                     # Number of samples for QAT (30K recommended for 1B model)
+validation_ratio: 0.1
+
+# QAT Configuration
+quantization_config:
+  load_in_4bit: true
+  bnb_4bit_quant_type: "nf4"
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_quant_storage_dtype: "uint8"
+
+# LoRA Configuration for QAT
+lora_config:
+  r: 16
+  lora_alpha: 32
+  target_modules:
+    - "q_proj"
+    - "k_proj" 
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  lora_dropout: 0.1
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+# Training Arguments
+output_dir: "./qat_outputs"
+num_train_epochs: 3
+per_device_train_batch_size: 2          # Adjust based on your GPU memory
+per_device_eval_batch_size: 2
+gradient_accumulation_steps: 8          # Effective batch size = 2 * 8 = 16
+learning_rate: 1.0e-4
+weight_decay: 0.01
+warmup_ratio: 0.1
+
+# Logging and Saving
+logging_steps: 50
+save_steps: 500
+eval_steps: 500
+save_total_limit: 3
+evaluation_strategy: "steps"
+
+# Hardware Configuration
+fp16: true
+bf16: false
+dataloader_pin_memory: false
+dataloader_num_workers: 4
+
+# Advanced Options
+remove_unused_columns: false
+label_smoothing_factor: 0.1
+report_to: null                         # Set to "wandb" if you want to use Weights & Biases
+
+# Conversation Template
+conversation_template: "llama3"         # Use llama3 format for Llama 3.2
+system_message: null                    # Optional system message
+
+# Alternative configurations for different scenarios:
+
+# Fast training (smaller dataset, fewer epochs):
+# sample_count: 10000
+# num_train_epochs: 2
+# per_device_train_batch_size: 4
+# gradient_accumulation_steps: 4
+
+# High quality training (larger dataset, more epochs):
+# sample_count: 50000
+# num_train_epochs: 5
+# learning_rate: 5.0e-5
+# warmup_ratio: 0.05
