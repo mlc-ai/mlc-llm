@@ -11,10 +11,6 @@ ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="llama-4",
         system_template="",
-        # system_template=(
-        #     # "<|header_start|>user<|header_end|>\n\n" #system
-        #     # f"{MessagePlaceholders.SYSTEM.value}" #<|eot|>
-        # ),
         system_message="",
         roles={
             "user": "<|header_start|>user",
@@ -24,9 +20,9 @@ ConvTemplateRegistry.register_conv_template(
         seps=["<|eot|>"],
         role_content_sep="<|header_end|>\n\n",
         role_empty_sep="<|header_end|>\n\n",
-        stop_str=[], #"<|end_of_text|>", "<|eom|>", "<|eot|>"
-        stop_token_ids=[200001, 200007, 200008],#[128001, 128008, 128009],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
-        system_prefix_token_ids=[200000],#[128000],  # "<|begin_of_text|>"
+        stop_str=[],
+        stop_token_ids=[200001, 200007, 200008],# "<|end_of_text|>", "<|eom|>", "<|eot|>"
+        system_prefix_token_ids=[200000],# "<|begin_of_text|>"
         add_role_after_system_message=False,
     )
 )
