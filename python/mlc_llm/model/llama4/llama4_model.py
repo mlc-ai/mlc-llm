@@ -387,8 +387,13 @@ class Llama4TextMoe(nn.Module):
 
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_scores, router_logits = self.router(hidden_states)
-        routed_in = hidden_states.repeat(router_scores.shape[1], 0)
-        routed_in = routed_in * router_scores.reshape(-1, 1)
+
+        # routed_in = hidden_states.repeat(router_scores.shape[1], 0)
+        routed_in = op.broadcast_to(hidden_states.reshape(1, *hidden_states.shape), [router_scores.shape[1], *hidden_states.shape])
+        routed_in = routed_in.reshape(-1, self.hidden_dim)
+
+        routed_in = routed_in * op.permute_dims(router_scores, axes=[1, 0]).reshape(-1, 1)
+
         routed_out = self.experts(routed_in)
         out = self.shared_expert(hidden_states)
 
