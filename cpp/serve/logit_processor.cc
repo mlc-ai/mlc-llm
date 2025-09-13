@@ -405,7 +405,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
             }
           }
           // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
-          auto bitmask_dltensor = *bitmask_host_.operator->();
+          DLTensor bitmask_dltensor = *bitmask_host_.operator->();
           int64_t bitmask_shape[] = {bitmask_size_};
           bitmask_dltensor.data = p_bitmask + (token_start_offset + j) * bitmask_size_;
           bitmask_dltensor.shape = bitmask_shape;
