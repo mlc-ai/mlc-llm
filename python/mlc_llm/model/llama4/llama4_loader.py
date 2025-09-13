@@ -43,22 +43,6 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
     mapping = ExternMapping()
 
     for i in range(model_config.text_config.num_hidden_layers):
-        # Add QKV in self attention
-        # attn = f"model.layers.{i}.self_attn"
-        # mlc_name = f"{attn}.qkv_proj.weight"
-        # mlc_param = named_parameters[mlc_name]
-        # mapping.add_mapping(
-        #     mlc_name,
-        #     [
-        #         f"{attn}.q_proj.weight",
-        #         f"{attn}.k_proj.weight",
-        #         f"{attn}.v_proj.weight",
-        #     ],
-        #     functools.partial(
-        #         lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-        #         dtype=mlc_param.dtype,
-        #     ),
-        # )
         # Add shared expert weights
         mlp = f"model.layers.{i}.feed_forward.shared_expert"
         mlc_name = f"{mlp}.gate_up_proj.weight"
@@ -91,10 +75,8 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
 
         # Add experts weights
         mlp = f"model.layers.{i}.feed_forward"
-        # mlc_name = f"{mlp}.moe_gate_up_proj.weight"
         hf_name = f"language_model.{mlp}.experts.gate_up_proj"
         mlc_name = f"{mlp}.experts.gate_up_proj"
-        # print(named_parameters)
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
@@ -118,11 +100,6 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
                 dtype=mlc_param.dtype,
             ),
         )
-
-    # # Unused vision params
-    # for mlc_name, mlc_param in named_parameters.items():
-    #     if mlc_name.startswith("vision_model"):
-    #         mapping.add_unused(mlc_name)
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
