@@ -21,8 +21,8 @@ ConvTemplateRegistry.register_conv_template(
         role_content_sep="<|header_end|>\n\n",
         role_empty_sep="<|header_end|>\n\n",
         stop_str=[],
-        stop_token_ids=[200001, 200007, 200008],# "<|end_of_text|>", "<|eom|>", "<|eot|>"
-        system_prefix_token_ids=[200000],# "<|begin_of_text|>"
+        stop_token_ids=[200001, 200007, 200008],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
+        system_prefix_token_ids=[200000],  # "<|begin_of_text|>"
         add_role_after_system_message=False,
     )
 )

@@ -4,25 +4,25 @@ Implementation for Llama4 architecture.
 
 import dataclasses
 from typing import Any, Dict, Optional
-import tvm
 
-from tvm import te, tir, relax
+import tvm
+from tvm import relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-from tvm.relax.op import scatter_nd, full_like
-from mlc_llm.nn.expert import MixtralExperts
-
 from tvm.relax.frontend.nn.llm import position_embedding
+from tvm.relax.op import full_like, scatter_nd
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.qwen3.qwen3_model import ACT2FN
 from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
-from mlc_llm.model.qwen3.qwen3_model import ACT2FN
 
 logger = logging.getLogger(__name__)
+
 
 @dataclasses.dataclass
 class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
@@ -68,7 +68,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 assert (
                     self.rope_scaling["rope_type"] == "llama3"
                 ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Llama'
-            
+
         # Define which layers to avoid RoPE
         if self.no_rope_layers == []:
             self.no_rope_layers = None
@@ -84,12 +84,18 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
         self.moe_layers = (
             self.moe_layers
             if self.moe_layers is not None
-            else list(range(self.interleave_moe_layer_step - 1, self.num_hidden_layers, self.interleave_moe_layer_step))
+            else list(
+                range(
+                    self.interleave_moe_layer_step - 1,
+                    self.num_hidden_layers,
+                    self.interleave_moe_layer_step,
+                )
+            )
         )
 
 
 @dataclasses.dataclass
-class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
+class Llama4Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     text_config: Llama4TextConfig
     tensor_parallel_shards: int = 1
     context_window_size: int = 0
@@ -97,7 +103,7 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
     prefill_chunk_size: int = 0
     max_batch_size: int = 1
     disaggregation: bool = False
-    max_position_embeddings=4096 * 32
+    max_position_embeddings = 4096 * 32
     vocab_size: int = 202048
 
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -112,9 +118,7 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
         for k, v in text_config_dict.pop("kwargs", {}).items():
             text_config_dict[k] = v
 
-        self.text_config = Llama4TextConfig.from_dict(  # type: ignore
-            text_config_dict
-        )
+        self.text_config = Llama4TextConfig.from_dict(text_config_dict)  # type: ignore
 
         if self.context_window_size == 0:
             # Fall back to max_position_embeddings
@@ -126,11 +130,13 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
                 bold("max_position_embeddings"),
                 self.context_window_size,
             )
-                    
+
         if self.text_config.num_key_value_heads == 0:
             self.text_config.num_key_value_heads = self.text_config.num_attention_heads
         if self.text_config.head_dim == 0:
-            self.text_config.head_dim = self.text_config.hidden_size // self.text_config.num_attention_heads
+            self.text_config.head_dim = (
+                self.text_config.hidden_size // self.text_config.num_attention_heads
+            )
         assert self.text_config.num_attention_heads % self.text_config.num_key_value_heads == 0
         if self.prefill_chunk_size == 0:
             logger.info(
@@ -149,7 +155,6 @@ class Llama4Config(ConfigBase): # pylint: disable=too-many-instance-attributes
             self.prefill_chunk_size = min(self.context_window_size, 8192)
 
 
-
 # pylint: disable=invalid-name,missing-docstring
 
 
@@ -161,13 +166,17 @@ class Llama4TextMLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.text_config.intermediate_size // config.tensor_parallel_shards
+        )
         self.gate_up_proj = nn.Linear(
             in_features=config.text_config.hidden_size,
-            out_features= 2 * self.intermediate_size,
+            out_features=2 * self.intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(self.intermediate_size, config.text_config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(
+            self.intermediate_size, config.text_config.hidden_size, bias=False
+        )
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -187,6 +196,7 @@ class LlamaEmbedding(nn.Embedding):
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
 
+
 class Llama4TextL2Norm(nn.Module):
     def __init__(self, eps, hidden_size, dtype):
         self.eps = eps
@@ -196,7 +206,7 @@ class Llama4TextL2Norm(nn.Module):
     def forward(self, x):
         weight = op.ones((self.hidden_size,), dtype=self.dtype)
         return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
-        
+
 
 class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Llama4Config, layer_idx):
@@ -204,7 +214,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.attn_scale = config.text_config.attn_scale
         self.floor_scale = config.text_config.floor_scale
         self.num_attention_heads = config.text_config.num_attention_heads
-        self.num_kv_heads = config.text_config.num_key_value_heads 
+        self.num_kv_heads = config.text_config.num_key_value_heads
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
@@ -214,16 +224,26 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         ), f"Too large tensor_parallel_shards, must be smaller than {config.text_config.num_key_value_heads}"
         self.num_kv_heads = config.text_config.num_key_value_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
-            config.text_config.hidden_size, self.num_q_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size,
+            self.num_q_heads * self.head_dim,
+            bias=config.text_config.attention_bias,
         )
         self.k_proj = nn.Linear(
-            config.text_config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size,
+            self.num_kv_heads * self.head_dim,
+            bias=config.text_config.attention_bias,
         )
         self.v_proj = nn.Linear(
-            config.text_config.hidden_size, self.num_kv_heads * self.head_dim, bias=config.text_config.attention_bias
+            config.text_config.hidden_size,
+            self.num_kv_heads * self.head_dim,
+            bias=config.text_config.attention_bias,
         )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.text_config.hidden_size, bias=config.text_config.attention_bias)
-        
+        self.o_proj = nn.Linear(
+            self.num_q_heads * self.head_dim,
+            config.text_config.hidden_size,
+            bias=config.text_config.attention_bias,
+        )
+
         self.attn_temperature_tuning = config.text_config.attn_temperature_tuning
         self.use_rope = config.text_config.no_rope_layers[layer_idx]
 
@@ -236,7 +256,9 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.use_qk_norm = config.text_config.use_qk_norm
         self.rms_norm_eps = config.text_config.rms_norm_eps
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
+    ):
 
         d, h_q = self.head_dim, self.num_q_heads
         b, s, _ = hidden_states.shape
@@ -247,21 +269,33 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         value_states = op.reshape(self.v_proj(hidden_states), (b, s, -1, d))
 
         if self.use_rope:
-            self.rotary_emb = position_embedding.llama4_rope_with_position_map(theta=self.rope_theta, scale=1.0, head_dim=self.head_dim, num_q_heads=self.num_q_heads, num_kv_heads=self.num_kv_heads, dtype=query_states.dtype, rope_scaling=self.rope_scaling)
+            self.rotary_emb = position_embedding.llama4_rope_with_position_map(
+                theta=self.rope_theta,
+                scale=1.0,
+                head_dim=self.head_dim,
+                num_q_heads=self.num_q_heads,
+                num_kv_heads=self.num_kv_heads,
+                dtype=query_states.dtype,
+                rope_scaling=self.rope_scaling,
+            )
             qkv = op.concat([query_states, key_states, value_states], dim=2)
 
             apply_rope = tvm.tir.IntImm("int64", 1)
-            query_states, key_states, value_states = op.tensor_ir_op(self.rotary_emb, "llama4_rope_with_position_map", args=[op.squeeze(qkv,axis=0), cache_position, apply_rope],
+            query_states, key_states, value_states = op.tensor_ir_op(
+                self.rotary_emb,
+                "llama4_rope_with_position_map",
+                args=[op.squeeze(qkv, axis=0), cache_position, apply_rope],
                 out=(
                     Tensor.placeholder((s, h_q, d), query_states.dtype),
                     Tensor.placeholder((s, self.num_kv_heads, d), query_states.dtype),
                     Tensor.placeholder((s, self.num_kv_heads, d), query_states.dtype),
-                ),)
+                ),
+            )
             query_states = query_states.reshape(b, s, h_q, d)
             key_states = key_states.reshape(b, s, self.num_kv_heads, d)
             value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
-        if self.use_qk_norm and self.use_rope: 
+        if self.use_qk_norm and self.use_rope:
             self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
             self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
 
@@ -270,10 +304,17 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
 
         if self.attn_temperature_tuning and not self.use_rope:
             attn_scales = (
-                op.log(op.floor((op.astype(cache_position, query_states.dtype) + 1.0) / self.floor_scale) + 1.0) * self.attn_scale + 1.0
+                op.log(
+                    op.floor(
+                        (op.astype(cache_position, query_states.dtype) + 1.0) / self.floor_scale
+                    )
+                    + 1.0
+                )
+                * self.attn_scale
+                + 1.0
             )
-            
-            attn_scales = op.broadcast_to(attn_scales.reshape(1, s, 1, 1), (b,s,1,1)) 
+
+            attn_scales = op.broadcast_to(attn_scales.reshape(1, s, 1, 1), (b, s, 1, 1))
             query_states = query_states * attn_scales
 
         qkv = op.concat([query_states, key_states, value_states], dim=2)
@@ -287,14 +328,19 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         )
         return self.o_proj(output)
 
+
 class Llama4TextExperts(nn.Module):
     def __init__(self, config: Llama4Config):
         self.num_experts = config.text_config.num_local_experts
-        self.intermediate_size = config.text_config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.text_config.intermediate_size // config.tensor_parallel_shards
+        )
         self.hidden_size = config.text_config.hidden_size
         self.expert_dim = self.intermediate_size
 
-        self.gate_up_proj = nn.Parameter(shape=(self.num_experts, self.hidden_size, 2 * self.expert_dim))
+        self.gate_up_proj = nn.Parameter(
+            shape=(self.num_experts, self.hidden_size, 2 * self.expert_dim)
+        )
         self.down_proj = nn.Parameter(shape=(self.num_experts, self.expert_dim, self.hidden_size))
         self.act_fn = ACT2FN[config.text_config.hidden_act]
 
@@ -330,10 +376,10 @@ class Llama4Router(nn.Module):
         neg_inf = op.full(mask.shape, -1e9, dtype=hidden_states.dtype)
         masked_vals = op.where(mask, val_exp, neg_inf)
         router_scores = op.max(masked_vals, axis=1)
-        
-        
+
         router_scores = op.sigmoid(router_scores)
         return router_scores, router_logits
+
 
 class Llama4TextMoe(nn.Module):
     def __init__(self, config: Llama4Config):
@@ -349,7 +395,10 @@ class Llama4TextMoe(nn.Module):
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_scores, router_logits = self.router(hidden_states)
 
-        routed_in = op.broadcast_to(hidden_states.reshape(1, *hidden_states.shape), [router_scores.shape[1], *hidden_states.shape])
+        routed_in = op.broadcast_to(
+            hidden_states.reshape(1, *hidden_states.shape),
+            [router_scores.shape[1], *hidden_states.shape],
+        )
         routed_in = routed_in.reshape(-1, self.hidden_dim)
 
         routed_in = routed_in * op.permute_dims(router_scores, axes=[1, 0]).reshape(-1, 1)
@@ -361,6 +410,7 @@ class Llama4TextMoe(nn.Module):
 
         return out
 
+
 class Llama4TextDecoderLayer(nn.Module):
     def __init__(self, config: Llama4Config, layer_idx):
         rms_norm_eps = config.text_config.rms_norm_eps
@@ -369,10 +419,16 @@ class Llama4TextDecoderLayer(nn.Module):
         if self.is_moe_layer:  # the 128E model interleaves dense / sparse
             self.feed_forward = Llama4TextMoe(config)
         else:
-            self.feed_forward = Llama4TextMLP(config, intermediate_size=config.text_config.intermediate_size_mlp)
+            self.feed_forward = Llama4TextMLP(
+                config, intermediate_size=config.text_config.intermediate_size_mlp
+            )
 
-        self.input_layernorm = nn.RMSNorm(config.text_config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.text_config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.text_config.hidden_size, -1, rms_norm_eps, bias=False
+        )
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.text_config.hidden_size, -1, rms_norm_eps, bias=False
+        )
 
         def _set_tp():
             def _set(layer, hint):
@@ -385,21 +441,35 @@ class Llama4TextDecoderLayer(nn.Module):
             _set(self.self_attn.k_proj, tp.ShardSingleDim("_shard_k", dim=0))
             _set(self.self_attn.v_proj, tp.ShardSingleDim("_shard_v", dim=0))
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            
 
             if isinstance(self.feed_forward, Llama4TextMLP):
                 i = self.feed_forward.intermediate_size
-                _set(self.feed_forward.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+                _set(
+                    self.feed_forward.gate_up_proj,
+                    tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+                )
                 _set(self.feed_forward.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
             else:
                 assert isinstance(self.feed_forward, Llama4TextMoe)
                 i = self.feed_forward.shared_expert.intermediate_size
-                _set(self.feed_forward.shared_expert.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
-                _set(self.feed_forward.shared_expert.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+                _set(
+                    self.feed_forward.shared_expert.gate_up_proj,
+                    tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+                )
+                _set(
+                    self.feed_forward.shared_expert.down_proj,
+                    tp.ShardSingleDim("_shard_mlp_down", dim=1),
+                )
 
                 j = self.feed_forward.experts.intermediate_size
-                _set(self.feed_forward.experts.gate_up_proj, tp.ShardSingleDim("_shard_expert_mlp_up", segs=[j, j], dim=2))
-                _set(self.feed_forward.experts.down_proj, tp.ShardSingleDim("_shard_expert_mlp_down", dim=1))
+                _set(
+                    self.feed_forward.experts.gate_up_proj,
+                    tp.ShardSingleDim("_shard_expert_mlp_up", segs=[j, j], dim=2),
+                )
+                _set(
+                    self.feed_forward.experts.down_proj,
+                    tp.ShardSingleDim("_shard_expert_mlp_down", dim=1),
+                )
 
                 k = self.feed_forward.router.intermediate_size
                 _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", dim=0))
@@ -407,13 +477,19 @@ class Llama4TextDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
+    ):
 
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position)
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.feed_forward(self.post_attention_layernorm(hidden_states))
 
-        hidden_states = self._apply_residual(op.reshape(out,hidden_states.shape), residual=hidden_states)
+        hidden_states = self._apply_residual(
+            op.reshape(out, hidden_states.shape), residual=hidden_states
+        )
 
         return hidden_states
 
@@ -422,18 +498,26 @@ class Llama4TextDecoderLayer(nn.Module):
             return op.ccl_allreduce(out, "sum") + residual
         return out + residual
 
+
 class Llama4TextModel(nn.Module):
     def __init__(self, config: Llama4Config):
         assert config.text_config.hidden_size % config.text_config.num_attention_heads == 0
         self.embed_tokens = LlamaEmbedding("vocab_size", config.text_config.hidden_size)
         self.layers = nn.ModuleList(
-            [Llama4TextDecoderLayer(config, layer_idx) for layer_idx in range(config.text_config.num_hidden_layers)]
+            [
+                Llama4TextDecoderLayer(config, layer_idx)
+                for layer_idx in range(config.text_config.num_hidden_layers)
+            ]
         )
-        self.norm = nn.RMSNorm(config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False)
+        self.norm = nn.RMSNorm(
+            config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False
+        )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
-        cache_position = paged_kv_cache.get_query_positions(input_embed.shape[0] * input_embed.shape[1])
+        cache_position = paged_kv_cache.get_query_positions(
+            input_embed.shape[0] * input_embed.shape[1]
+        )
 
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id, cache_position)
