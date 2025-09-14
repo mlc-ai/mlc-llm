@@ -1114,7 +1114,7 @@ class ModelImpl : public ModelObj {
   std::unordered_set<int64_t> prefilled_seq_ids_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "mlc.copy_embedding_to_offset", [](Tensor embedding, Tensor dst, int offset) {
@@ -1132,7 +1132,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                                ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
         Tensor::CopyFromTo(&copy_src, &copy_dst);
       });
-});
+}
 
 }  // namespace serve
 }  // namespace llm

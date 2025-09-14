@@ -800,7 +800,7 @@ PagedRadixTree PagedRadixTree::Create() {
   return PagedRadixTree(tvm::ffi::make_object<PagedRadixTreeImpl>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.PagedRadixTree", []() { return PagedRadixTree::Create(); })
@@ -836,7 +836,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("mlc.serve.PagedRadixTreeFreeCapacity", [](PagedRadixTree paged_radix_tree) {
         return static_cast<int64_t>(paged_radix_tree->FreeCapacity());
       });
-});
+}
 
 }  // namespace serve
 }  // namespace llm
