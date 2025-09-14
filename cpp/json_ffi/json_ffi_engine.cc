@@ -296,11 +296,11 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
                         []() { return ffi::Module(tvm::ffi::make_object<JSONFFIEngineImpl>()); });
-});
+}
 
 }  // namespace json_ffi
 }  // namespace llm

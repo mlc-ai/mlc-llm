@@ -72,12 +72,12 @@ ObjectRef TextDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) co
                 "Please tokenize the text and construct a TokenData object.";
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.TextData", [](String text) { return TextData(std::move(text)); })
       .def("mlc.serve.TextDataGetTextString", [](TextData data) { return data->text; });
-});
+}
 
 /****************** TokenData ******************/
 
@@ -99,7 +99,7 @@ ObjectRef TokenDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->TokenEmbed(token_ids, dst, offset);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("mlc.serve.TokenData",
@@ -112,7 +112,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = TokenData(std::move(token_ids));
                   })
       .def("mlc.serve.TokenDataGetTokenIds", [](TokenData data) { return data->token_ids; });
-});
+}
 
 /****************** ImageData ******************/
 
@@ -129,13 +129,13 @@ ObjectRef ImageDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->ImageEmbed(image, dst, offset);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.ImageData",
            [](Tensor image, int embed_size) { return ImageData(std::move(image), embed_size); })
       .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; });
-});
+}
 
 /****************** SampleResult ******************/
 
@@ -223,7 +223,7 @@ RequestStreamOutput RequestStreamOutput::Usage(String request_id,
   return RequestStreamOutput(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.RequestStreamOutputUnpack", [](RequestStreamOutput output) {
     CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
@@ -250,7 +250,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     output->unpacked = true;
     return ret;
   });
-});
+}
 
 }  // namespace serve
 }  // namespace llm

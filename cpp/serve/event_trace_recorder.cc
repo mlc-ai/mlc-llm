@@ -147,7 +147,7 @@ EventTraceRecorder EventTraceRecorder::Create() {
   return EventTraceRecorder(tvm::ffi::make_object<EventTraceRecorderImpl>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.EventTraceRecorder", []() { return EventTraceRecorder::Create(); })
@@ -155,7 +155,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](const EventTraceRecorder& trace_recorder, const String& request_id,
               const std::string& event) { trace_recorder->AddEvent(request_id, event); })
       .def_method("mlc.serve.EventTraceRecorderDumpJSON", &EventTraceRecorderObj::DumpJSON);
-});
+}
 
 }  // namespace serve
 }  // namespace llm

@@ -86,12 +86,12 @@ ObjectRef SendFromLastGroupToWorker0(Tensor send, Optional<Tensor> recv, Shape s
   return recv;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.multi_gpu.DispatchFunctionByGroup", DispatchFunctionByGroup)
       .def("mlc.multi_gpu.SendFromLastGroupToWorker0", SendFromLastGroupToWorker0);
-});
+}
 
 }  // namespace multi_gpu
 }  // namespace llm
