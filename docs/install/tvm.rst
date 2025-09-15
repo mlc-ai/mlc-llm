@@ -203,9 +203,6 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         echo "set(USE_METAL  OFF)" >> config.cmake
         echo "set(USE_VULKAN OFF)" >> config.cmake
         echo "set(USE_OPENCL OFF)" >> config.cmake
-        # FlashInfer related, requires CUDA w/ compute capability 80;86;89;90
-        echo "set(USE_FLASHINFER OFF)" >> config.cmake
-        echo "set(FLASHINFER_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)" >> config.cmake
         echo "set(CMAKE_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)" >> config.cmake
 
     .. note::
@@ -216,13 +213,6 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         - ``Debug`` sets ``-O0 -g``
         - ``RelWithDebInfo`` sets ``-O2 -g -DNDEBUG`` (recommended)
         - ``Release`` sets ``-O3 -DNDEBUG``
-
-    .. note::
-        If you are using CUDA and your compute capability is above 80, then it is require to build with
-        ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find Function`` issue during
-        runtime.
-
-        To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
 
     Once ``config.cmake`` is edited accordingly, kick off build with the commands below:
 

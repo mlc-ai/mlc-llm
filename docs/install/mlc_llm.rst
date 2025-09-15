@@ -210,13 +210,6 @@ This step is useful when you want to make modification or obtain a specific vers
     # build mlc_llm libraries
     cmake .. && cmake --build . --parallel $(nproc) && cd ..
 
-.. note::
-    If you are using CUDA and your compute capability is above 80, then it is require to build with
-    ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find Function`` issue during
-    runtime.
-
-    To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
-
 **Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
 access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.
 There are two ways to do so:
