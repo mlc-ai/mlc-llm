@@ -462,13 +462,6 @@ cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp
 </pre></div>
 </div>
 </div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you are using CUDA and your compute capability is above 80, then it is require to build with
-<code class="docutils literal notranslate"><span class="pre">set(USE_FLASHINFER</span> <span class="pre">ON)</span></code>. Otherwise, you may run into <code class="docutils literal notranslate"><span class="pre">Cannot</span> <span class="pre">find</span> <span class="pre">Function</span></code> issue during
-runtime.</p>
-<p>To check your CUDA compute capability, you can use <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span> <span class="pre">--query-gpu=compute_cap</span> <span class="pre">--format=csv</span></code>.</p>
-</div>
 <p><strong>Step 3. Install via Python.</strong> We recommend that you install <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> as a Python package, giving you
 access to <code class="docutils literal notranslate"><span class="pre">mlc_llm.compile</span></code>, <code class="docutils literal notranslate"><span class="pre">mlc_llm.MLCEngine</span></code>, and the CLI.
 There are two ways to do so:</p>

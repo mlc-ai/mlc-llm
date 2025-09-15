@@ -460,9 +460,6 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_METAL  OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_VULKAN OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_OPENCL OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
-<span class="c1"># FlashInfer related, requires CUDA w/ compute capability 80;86;89;90</span>
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_FLASHINFER OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
-<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(FLASHINFER_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(CMAKE_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 </pre></div>
 </div>
@@ -476,13 +473,6 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <li><p><code class="docutils literal notranslate"><span class="pre">RelWithDebInfo</span></code> sets <code class="docutils literal notranslate"><span class="pre">-O2</span> <span class="pre">-g</span> <span class="pre">-DNDEBUG</span></code> (recommended)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">Release</span></code> sets <code class="docutils literal notranslate"><span class="pre">-O3</span> <span class="pre">-DNDEBUG</span></code></p></li>
 </ul>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If you are using CUDA and your compute capability is above 80, then it is require to build with
-<code class="docutils literal notranslate"><span class="pre">set(USE_FLASHINFER</span> <span class="pre">ON)</span></code>. Otherwise, you may run into <code class="docutils literal notranslate"><span class="pre">Cannot</span> <span class="pre">find</span> <span class="pre">Function</span></code> issue during
-runtime.</p>
-<p>To check your CUDA compute capability, you can use <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span> <span class="pre">--query-gpu=compute_cap</span> <span class="pre">--format=csv</span></code>.</p>
 </div>
 <p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below:</p>
 <div class="literal-block-wrapper docutils container" id="id4">
