@@ -9,11 +9,12 @@
 #include <ffi/container.cc>
 #include <ffi/dtype.cc>
 #include <ffi/error.cc>
+#include <ffi/extra/env_c_api.cc>
+#include <ffi/extra/env_context.cc>
 #include <ffi/extra/library_module.cc>
 #include <ffi/extra/library_module_dynamic_lib.cc>
 #include <ffi/extra/library_module_system_lib.cc>
 #include <ffi/extra/module.cc>
-#include <ffi/extra/stream_context.cc>
 #include <ffi/function.cc>
 #include <ffi/object.cc>
 #include <ffi/traceback.cc>
