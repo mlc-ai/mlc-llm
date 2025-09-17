@@ -185,7 +185,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="convert_weights.html">Convert Model Weights</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Compile Model Libraries</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#verify-installation">0. Verify Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#verify-installation">1. Verify Installation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#clone-from-hf-and-convert-weight">1. Clone from HF and convert_weight</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#generate-mlc-chat-config-and-compile">2. Generate mlc-chat-config and compile</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#verify-output-and-chat">3. Verify output and chat</a></li>
@@ -204,7 +204,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Compiler</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
@@ -326,7 +326,7 @@ or be used to explicit create model libraries.
 We compile <code class="docutils literal notranslate"><span class="pre">RedPajama-INCITE-Chat-3B-v1</span></code> with <code class="docutils literal notranslate"><span class="pre">q4f16_1</span></code> as an example for all platforms.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Before you proceed, make sure you followed <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>, a required
+<p>Before you proceed, make sure you followed <a class="reference internal" href="../install/tvm.html#install-tvm"><span class="std std-ref">Install TVM Compiler</span></a>, a required
 backend to compile models with MLC LLM.</p>
 <p>Please also follow the instructions in <a class="reference internal" href="../deploy/cli.html#deploy-cli"><span class="std std-ref">CLI</span></a> / <a class="reference internal" href="../deploy/python_engine.html#deploy-python-engine"><span class="std std-ref">Python API</span></a> to obtain
 the CLI app / Python API that can be used to chat with the compiled model.</p>
@@ -334,7 +334,7 @@ the CLI app / Python API that can be used to chat with the compiled model.</p>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#verify-installation" id="id5">0. Verify Installation</a></p></li>
+<li><p><a class="reference internal" href="#verify-installation" id="id5">1. Verify Installation</a></p></li>
 <li><p><a class="reference internal" href="#clone-from-hf-and-convert-weight" id="id6">1. Clone from HF and convert_weight</a></p></li>
 <li><p><a class="reference internal" href="#generate-mlc-chat-config-and-compile" id="id7">2. Generate mlc-chat-config and compile</a></p></li>
 <li><p><a class="reference internal" href="#verify-output-and-chat" id="id8">3. Verify output and chat</a></p></li>
@@ -343,7 +343,7 @@ the CLI app / Python API that can be used to chat with the compiled model.</p>
 </ul>
 </nav>
 <section id="verify-installation">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">0. Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">1. Verify Installation</a><a class="headerlink" href="#verify-installation" title="Permalink to this heading">¶</a></h2>
 <p><strong>Step 1. Verify mlc_llm</strong></p>
 <p>We use the python package <code class="docutils literal notranslate"><span class="pre">mlc_llm</span></code> to compile models. This can be installed by
 following <a class="reference internal" href="../install/mlc_llm.html#install-mlc-packages"><span class="std std-ref">Install MLC LLM Python Package</span></a>, either by building from source, or by
@@ -358,10 +358,10 @@ usage:<span class="w"> </span>MLC<span class="w"> </span>LLM<span class="w"> </s
 <p>If it runs into error <code class="docutils literal notranslate"><span class="pre">command</span> <span class="pre">not</span> <span class="pre">found:</span> <span class="pre">mlc_llm</span></code>, try <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mlc_llm</span> <span class="pre">--help</span></code>.</p>
 </div>
 <p><strong>Step 2. Verify TVM</strong></p>
-<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>.
-Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-unity-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
+<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm"><span class="std std-ref">Install TVM Compiler</span></a>.
+Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
-/some-path/lib/python3.11/site-packages/tvm/__init__.py
+/some-path/lib/python3.13/site-packages/tvm/__init__.py
 </pre></div>
 </div>
 </section>

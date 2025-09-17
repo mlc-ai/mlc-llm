@@ -197,7 +197,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Compiler</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
@@ -388,10 +388,10 @@ usage:<span class="w"> </span>MLC<span class="w"> </span>LLM<span class="w"> </s
 <p>If it runs into error <code class="docutils literal notranslate"><span class="pre">command</span> <span class="pre">not</span> <span class="pre">found:</span> <span class="pre">mlc_llm</span></code>, try <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">mlc_llm</span> <span class="pre">--help</span></code>.</p>
 </div>
 <p><strong>Step 2. Verify TVM</strong></p>
-<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm-unity"><span class="std std-ref">Install TVM Unity Compiler</span></a>.
-Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-unity-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
+<p>To compile models, you also need to follow <a class="reference internal" href="../install/tvm.html#install-tvm"><span class="std std-ref">Install TVM Compiler</span></a>.
+Here we verify <code class="docutils literal notranslate"><span class="pre">tvm</span></code> quickly with command line (for full verification, see <a class="reference internal" href="../install/tvm.html#tvm-validate"><span class="std std-ref">Validate TVM Installation</span></a>):</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
-/some-path/lib/python3.11/site-packages/tvm/__init__.py
+/some-path/lib/python3.13/site-packages/tvm/__init__.py
 </pre></div>
 </div>
 </section>

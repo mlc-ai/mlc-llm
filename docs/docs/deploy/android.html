@@ -205,7 +205,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../install/tvm.html">Install TVM Compiler</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../install/gpu.html">GPU Drivers and SDKs</a></li>
@@ -350,7 +350,7 @@ ANDROID_NDK:<span class="w"> </span>%HOME%/AppData/Local/Android/Sdk/ndk/27.0.11
 TVM_NDK_CC:<span class="w"> </span>%ANDROID_NDK%/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 </pre></div>
 </div>
-<p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM Unity runtime.
+<p><strong>JDK</strong>, such as OpenJDK &gt;= 17, to compile Java bindings of TVM runtime.
 We strongly recommend setting the <code class="docutils literal notranslate"><span class="pre">JAVA_HOME</span></code> to the JDK bundled with Android Studio.
 e.g.
 <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/Applications/Android\</span> <span class="pre">Studio.app/Contents/jbr/Contents/Home</span></code> for macOS.
@@ -362,7 +362,7 @@ Set up the following environment variable:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">JAVA_HOME=/path/to/java_home</span></code> you can then cross check and make sure <code class="docutils literal notranslate"><span class="pre">$JAVA_HOME/bin/java</span></code> exists.</p></li>
 </ul>
 <p>Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.</p>
-<p><strong>TVM Unity runtime</strong> is placed under <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a> in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:</p>
+<p><strong>TVM runtime</strong> is placed under <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a> in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">TVM_SOURCE_DIR=/path/to/mlc-llm/3rdparty/tvm</span></code>.</p></li>
 </ul>
@@ -378,7 +378,7 @@ Once you installed this package, you do not need to build mlc llm from source.</
 <span class="nb">export</span><span class="w"> </span><span class="nv">ANDROID_NDK</span><span class="o">=</span>...<span class="w">  </span><span class="c1"># Android NDK toolchain</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">TVM_NDK_CC</span><span class="o">=</span>...<span class="w">   </span><span class="c1"># Android NDK clang</span>
 <span class="nb">export</span><span class="w"> </span><span class="nv">JAVA_HOME</span><span class="o">=</span>...<span class="w">    </span><span class="c1"># Java</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_SOURCE_DIR</span><span class="o">=</span>...<span class="w">     </span><span class="c1"># TVM Unity runtime</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">TVM_SOURCE_DIR</span><span class="o">=</span>...<span class="w">     </span><span class="c1"># TVM runtime</span>
 </pre></div>
 </div>
 <section id="additional-guides-for-windows-users">

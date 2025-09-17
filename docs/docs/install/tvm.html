@@ -12,7 +12,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
-  <title>Install TVM Unity Compiler &mdash; mlc-llm 0.1.0 documentation</title>
+  <title>Install TVM Compiler &mdash; mlc-llm 0.1.0 documentation</title>
   
 
   
@@ -191,7 +191,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul class="current">
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Install TVM Unity Compiler</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Install TVM Compiler</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#option-1-prebuilt-package">Option 1. Prebuilt Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#validate-tvm-installation">Validate TVM Installation</a></li>
@@ -270,7 +270,7 @@
     
       <li><a href="../index.html">Docs</a> <span class="br-arrow">></span></li>
         
-      <li>Install TVM Unity Compiler</li>
+      <li>Install TVM Compiler</li>
     
     
       
@@ -295,8 +295,8 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
             
-  <section id="install-tvm-unity-compiler">
-<span id="install-tvm-unity"></span><h1>Install TVM Unity Compiler<a class="headerlink" href="#install-tvm-unity-compiler" title="Permalink to this heading">¶</a></h1>
+  <section id="install-tvm-compiler">
+<span id="install-tvm"></span><h1>Install TVM Compiler<a class="headerlink" href="#install-tvm-compiler" title="Permalink to this heading">¶</a></h1>
 <nav class="contents local" id="table-of-contents">
 <p class="topic-title">Table of Contents</p>
 <ul class="simple">
@@ -312,26 +312,26 @@
 <li><p>Supporting both inference and training;</p></li>
 <li><p>Productive python-first compiler implementation. As a concrete example, MLC LLM compilation is implemented in pure python using its API.</p></li>
 </ul>
-<p>TVM Unity can be installed directly from a prebuilt developer package, or built from source.</p>
+<p>TVM can be installed directly from a prebuilt developer package, or built from source.</p>
 <section id="option-1-prebuilt-package">
-<span id="tvm-unity-prebuilt-package"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
-<p>A nightly prebuilt Python package of Apache TVM Unity is provided.</p>
+<span id="tvm-prebuilt-package"></span><h2><a class="toc-backref" href="#id5" role="doc-backlink">Option 1. Prebuilt Package</a><a class="headerlink" href="#option-1-prebuilt-package" title="Permalink to this heading">¶</a></h2>
+<p>A nightly prebuilt Python package of Apache TVM is provided.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>❗ Whenever using Python, it is highly recommended to use <strong>conda</strong> to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.</p>
 </div>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Linux</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">macOS</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Windows</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">CUDA 12.2</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">CUDA 12.3</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">ROCm 6.1</button><button aria-controls="panel-1-1-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-4" name="1-4" role="tab" tabindex="-1">ROCm 6.2</button><button aria-controls="panel-1-1-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-5" name="1-5" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">CUDA 12.8</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">CUDA 13.0</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">ROCm 6.1</button><button aria-controls="panel-1-1-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-4" name="1-4" role="tab" tabindex="-1">ROCm 6.2</button><button aria-controls="panel-1-1-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-5" name="1-5" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly-cpu
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly-cu122
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly-cu128
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly-cu123
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-ai-nightly-cu130
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
@@ -347,7 +347,7 @@ python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </sp
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>If encountering issues with GLIBC not found, please install the latest glibc in conda:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libgcc-ng
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libstdcxx-ng
 </pre></div>
 </div>
 </div>
@@ -392,8 +392,8 @@ not found error or clang not found(needed for jit compile)</p>
 </div></div>
 </section>
 <section id="option-2-build-from-source">
-<span id="tvm-unity-build-from-source"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
-<p>While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. <strong>NOTE.</strong> this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.</p>
+<span id="tvm-build-from-source"></span><h2><a class="toc-backref" href="#id6" role="doc-backlink">Option 2. Build from Source</a><a class="headerlink" href="#option-2-build-from-source" title="Permalink to this heading">¶</a></h2>
+<p>While it is generally recommended to always use the prebuilt TVM, if you require more customization, you may need to build it from source. <strong>NOTE.</strong> this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.</p>
 <details class="summary-details">
 <summary>Details</summary><p><strong>Step 1. Set up build dependency.</strong> To build from source, you need to ensure that the following build dependencies are met:</p>
 <ul class="simple">
@@ -425,27 +425,23 @@ conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </
 <span class="w">    </span><span class="s2">&quot;llvmdev&gt;=15&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>git<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.13
 <span class="c1"># enter the build environment</span>
 conda<span class="w"> </span>activate<span class="w"> </span>tvm-build-venv
 </pre></div>
 </div>
 </div>
-<p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code>:</p>
+<p><strong>Step 2. Configure and build.</strong> Standard git-based workflow are recommended to download Apache TVM, and then specify build requirements in <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code>:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
-<div class="code-block-caption"><span class="caption-text">Download TVM Unity from GitHub</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
+<div class="code-block-caption"><span class="caption-text">Download TVM from GitHub</span><a class="headerlink" href="#id2" title="Permalink to this code">¶</a></div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># clone from GitHub</span>
-git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/mlc-ai/relax.git<span class="w"> </span>tvm-unity<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tvm-unity
+git<span class="w"> </span>clone<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/apache/tvm.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tvm
 <span class="c1"># create the build directory</span>
 rm<span class="w"> </span>-rf<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdir<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>build
 <span class="c1"># specify build requirements in `config.cmake`</span>
 cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 </pre></div>
 </div>
-</div>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>We are temporarily using <a class="reference external" href="https://github.com/mlc-ai/relax">mlc-ai/relax</a> instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM’s <a class="reference external" href="https://github.com/apache/tvm/tree/unity">unity branch</a>.</p>
 </div>
 <p>We want to specifically tweak the following flags by appending them to the end of the configuration file:</p>
 <div class="literal-block-wrapper docutils container" id="id3">
@@ -457,10 +453,21 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(HIDE_PRIVATE_SYMBOLS ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="c1"># GPU SDKs, turn on if needed</span>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_CUDA   OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_ROCM   OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_METAL  OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_VULKAN OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_OPENCL OFF)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="c1"># Below are options for CUDA, turn on if needed</span>
+<span class="c1"># CUDA_ARCH is the cuda compute capability of your GPU.</span>
+<span class="c1"># Examples: 89 for 4090, 90a for H100/H200, 100a for B200.</span>
+<span class="c1"># Reference: https://developer.nvidia.com/cuda-gpus</span>
 <span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(CMAKE_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_CUBLAS ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_CUTLASS ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_THRUST ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_NVTX ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
+<span class="c1"># Below is the option for ROCM, turn on if needed</span>
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;set(USE_HIPBLAS ON)&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>config.cmake
 </pre></div>
 </div>
 </div>
@@ -477,19 +484,19 @@ cp<span class="w"> </span>../cmake/config.cmake<span class="w"> </span>.
 <p>Once <code class="docutils literal notranslate"><span class="pre">config.cmake</span></code> is edited accordingly, kick off build with the commands below:</p>
 <div class="literal-block-wrapper docutils container" id="id4">
 <div class="code-block-caption"><span class="caption-text">Build <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> using cmake and cmake</span><a class="headerlink" href="#id4" title="Permalink to this code">¶</a></div>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>-j<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
 </pre></div>
 </div>
 </div>
-<p>A success build should produce <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> and <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> under <code class="docutils literal notranslate"><span class="pre">/path-tvm-unity/build/</span></code> directory.</p>
+<p>A success build should produce <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> and <code class="docutils literal notranslate"><span class="pre">libtvm_runtime</span></code> under <code class="docutils literal notranslate"><span class="pre">/path-tvm/build/</span></code> directory.</p>
 <p>Leaving the build environment <code class="docutils literal notranslate"><span class="pre">tvm-build-venv</span></code>, there are two ways to install the successful build into your environment:</p>
 <div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tab" tabindex="0">Install via environment variable</button><button aria-controls="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tab" tabindex="-1">Install via pip local project</button></div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" class="sphinx-tabs-panel code-tab group-tab" id="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/path-to-tvm-unity/python:<span class="nv">$PYTHONPATH</span>
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" aria-selected="true" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tab" tabindex="0">Install via environment variable</button><button aria-controls="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" aria-selected="false" class="sphinx-tabs-tab code-tab group-tab" id="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tab" tabindex="-1">Install via pip local project</button></div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" class="sphinx-tabs-panel code-tab group-tab" id="panel-4-SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" name="SW5zdGFsbCB2aWEgZW52aXJvbm1lbnQgdmFyaWFibGU=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/path-to-tvm/python:<span class="nv">$PYTHONPATH</span>
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" class="sphinx-tabs-panel code-tab group-tab" hidden="true" id="panel-4-SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" name="SW5zdGFsbCB2aWEgcGlwIGxvY2FsIHByb2plY3Q=" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-own-env
 conda<span class="w"> </span>install<span class="w"> </span>python<span class="w"> </span><span class="c1"># make sure python is installed</span>
-<span class="nb">cd</span><span class="w"> </span>/path-to-tvm-unity/python
+<span class="nb">cd</span><span class="w"> </span>/path-to-tvm/python
 pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </pre></div>
 </div>
@@ -499,17 +506,17 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 </div>
 </section>
 <section id="validate-tvm-installation">
-<span id="tvm-unity-validate"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate TVM Installation</a><a class="headerlink" href="#validate-tvm-installation" title="Permalink to this heading">¶</a></h2>
+<span id="tvm-validate"></span><h2><a class="toc-backref" href="#id7" role="doc-backlink">Validate TVM Installation</a><a class="headerlink" href="#validate-tvm-installation" title="Permalink to this heading">¶</a></h2>
 <p>Using a compiler infrastructure with multiple language bindings could be error-prone.
-Therefore, it is highly recommended to validate TVM Unity installation before use.</p>
+Therefore, it is highly recommended to validate TVM installation before use.</p>
 <p><strong>Step 1. Locate TVM Python package.</strong> The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.__file__)&quot;</span>
-/some-path/lib/python3.11/site-packages/tvm/__init__.py
+/some-path/lib/python3.13/site-packages/tvm/__init__.py
 </pre></div>
 </div>
 <p><strong>Step 2. Confirm which TVM library is used.</strong> When maintaining multiple build or installation of TVM, it becomes important to double check if the python package is using the proper <code class="docutils literal notranslate"><span class="pre">libtvm</span></code> with the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>&gt;&gt;&gt;<span class="w"> </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import tvm; print(tvm.base._LIB)&quot;</span>
-&lt;CDLL<span class="w"> </span><span class="s1">&#39;/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib&#39;</span>,<span class="w"> </span>handle<span class="w"> </span>95ada510<span class="w"> </span>at<span class="w"> </span>0x1030e4e50&gt;
+&lt;CDLL<span class="w"> </span><span class="s1">&#39;/some-path/lib/python3.13/site-packages/tvm/libtvm.dylib&#39;</span>,<span class="w"> </span>handle<span class="w"> </span>95ada510<span class="w"> </span>at<span class="w"> </span>0x1030e4e50&gt;
 </pre></div>
 </div>
 <p><strong>Step 3. Reflect TVM build option.</strong> Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:</p>

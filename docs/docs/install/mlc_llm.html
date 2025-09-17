@@ -48,7 +48,7 @@
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Install Conda" href="conda.html" />
-    <link rel="prev" title="Install TVM Unity Compiler" href="tvm.html" /> 
+    <link rel="prev" title="Install TVM Compiler" href="tvm.html" /> 
 </head>
 
 <body class="wy-body-for-nav">
@@ -191,7 +191,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Compiler</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Install MLC LLM Python Package</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#option-1-prebuilt-package">Option 1. Prebuilt Package</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#option-2-build-from-source">Option 2. Build from Source</a></li>
@@ -315,16 +315,16 @@ Please make sure your conda environment has Python and pip installed.</p>
 </div>
 <div class="sphinx-tabs docutils container">
 <div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-0-0-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-0-0-0" name="0-0" role="tab" tabindex="0">Linux</button><button aria-controls="panel-0-0-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-1" name="0-1" role="tab" tabindex="-1">macOS</button><button aria-controls="panel-0-0-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-0-0-2" name="0-2" role="tab" tabindex="-1">Windows</button></div><div aria-labelledby="tab-0-0-0" class="sphinx-tabs-panel" id="panel-0-0-0" name="0-0" role="tabpanel" tabindex="0"><div class="sphinx-tabs docutils container">
-<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">CUDA 12.2</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">CUDA 12.3</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">ROCm 6.1</button><button aria-controls="panel-1-1-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-4" name="1-4" role="tab" tabindex="-1">ROCm 6.2</button><button aria-controls="panel-1-1-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-5" name="1-5" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
+<div aria-label="Tabbed content" class="closeable" role="tablist"><button aria-controls="panel-1-1-0" aria-selected="true" class="sphinx-tabs-tab" id="tab-1-1-0" name="1-0" role="tab" tabindex="0">CPU</button><button aria-controls="panel-1-1-1" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-1" name="1-1" role="tab" tabindex="-1">CUDA 12.8</button><button aria-controls="panel-1-1-2" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-2" name="1-2" role="tab" tabindex="-1">CUDA 13.0</button><button aria-controls="panel-1-1-3" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-3" name="1-3" role="tab" tabindex="-1">ROCm 6.1</button><button aria-controls="panel-1-1-4" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-4" name="1-4" role="tab" tabindex="-1">ROCm 6.2</button><button aria-controls="panel-1-1-5" aria-selected="false" class="sphinx-tabs-tab" id="tab-1-1-5" name="1-5" role="tab" tabindex="-1">Vulkan</button></div><div aria-labelledby="tab-1-1-0" class="sphinx-tabs-panel" id="panel-1-1-0" name="1-0" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
 python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-cpu<span class="w"> </span>mlc-ai-nightly-cpu
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-1" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-1" name="1-1" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-cu122<span class="w"> </span>mlc-ai-nightly-cu122
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-cu128<span class="w"> </span>mlc-ai-nightly-cu128
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-2" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-2" name="1-2" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
-python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-cu123<span class="w"> </span>mlc-ai-nightly-cu123
+python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--pre<span class="w"> </span>-U<span class="w"> </span>-f<span class="w"> </span>https://mlc.ai/wheels<span class="w"> </span>mlc-llm-nightly-cu130<span class="w"> </span>mlc-ai-nightly-cu130
 </pre></div>
 </div>
 </div><div aria-labelledby="tab-1-1-3" class="sphinx-tabs-panel" hidden="true" id="panel-1-1-3" name="1-3" role="tabpanel" tabindex="0"><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>activate<span class="w"> </span>your-environment
@@ -348,12 +348,12 @@ to install the latest vulkan loader to avoid vulkan not found issue.</p>
 </pre></div>
 </div>
 <p>If encountering issues with GLIBC not found, please install the latest glibc in conda:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libgcc-ng
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>libstdcxx-ng
 </pre></div>
 </div>
-<p>Besides, we would recommend using Python 3.11; so if you are creating a new environment,
+<p>Besides, we would recommend using Python 3.13; so if you are creating a new environment,
 you could use the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>--name<span class="w"> </span>mlc-prebuilt<span class="w">  </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>conda<span class="w"> </span>create<span class="w"> </span>--name<span class="w"> </span>mlc-prebuilt<span class="w">  </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.13
 </pre></div>
 </div>
 </div>
@@ -402,7 +402,7 @@ and jit compilation.</p>
 </div></div>
 <p>Then you can verify installation in command line:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import mlc_llm; print(mlc_llm)&quot;</span>
-<span class="c1"># Prints out: &lt;module &#39;mlc_llm&#39; from &#39;/path-to-env/lib/python3.11/site-packages/mlc_llm/__init__.py&#39;&gt;</span>
+<span class="c1"># Prints out: &lt;module &#39;mlc_llm&#39; from &#39;/path-to-env/lib/python3.13/site-packages/mlc_llm/__init__.py&#39;&gt;</span>
 </pre></div>
 </div>
 <div class="line-block">
@@ -437,7 +437,7 @@ conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </
 <span class="w">    </span><span class="s2">&quot;cmake&gt;=3.24&quot;</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>rust<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>git<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.11
+<span class="w">    </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.13
 <span class="c1"># enter the build environment</span>
 conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </pre></div>
@@ -445,8 +445,8 @@ conda<span class="w"> </span>activate<span class="w"> </span>mlc-chat-venv
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>For runtime, <a class="reference internal" href="tvm.html"><span class="doc">TVM Unity</span></a> compiler is not a dependency for MLCChat CLI or Python API. Only TVM’s runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.
-However, if you would like to compile your own models, you need to follow <a class="reference internal" href="tvm.html"><span class="doc">TVM Unity</span></a>.</p>
+<p>For runtime, <a class="reference internal" href="tvm.html"><span class="doc">TVM</span></a> compiler is not a dependency for MLCChat CLI or Python API. Only TVM’s runtime is required, which is automatically included in <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty">3rdparty/tvm</a>.
+However, if you would like to compile your own models, you need to follow <a class="reference internal" href="tvm.html"><span class="doc">TVM</span></a>.</p>
 </div>
 <p><strong>Step 2. Configure and build.</strong> A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:</p>
 <div class="literal-block-wrapper docutils container" id="id2">
@@ -458,7 +458,7 @@ mkdir<span class="w"> </span>-p<span class="w"> </span>build<span class="w"> </s
 <span class="c1"># generate build configuration</span>
 python<span class="w"> </span>../cmake/gen_cmake_config.py
 <span class="c1"># build mlc_llm libraries</span>
-cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>cmake<span class="w"> </span>--build<span class="w"> </span>.<span class="w"> </span>--parallel<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
+cmake<span class="w"> </span>..<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>-j<span class="w"> </span><span class="k">$(</span>nproc<span class="k">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>..
 </pre></div>
 </div>
 </div>
@@ -510,7 +510,7 @@ mlc_llm<span class="w"> </span>chat<span class="w"> </span>-h
         <a href="conda.html" class="btn btn-neutral float-right" title="Install Conda" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
       
       
-        <a href="tvm.html" class="btn btn-neutral float-left" title="Install TVM Unity Compiler" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+        <a href="tvm.html" class="btn btn-neutral float-left" title="Install TVM Compiler" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
       
     </div>
 

@@ -190,7 +190,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Dependency Installation</span></p>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Unity Compiler</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tvm.html">Install TVM Compiler</a></li>
 <li class="toctree-l1"><a class="reference internal" href="mlc_llm.html">Install MLC LLM Python Package</a></li>
 <li class="toctree-l1"><a class="reference internal" href="conda.html">Install Conda</a></li>
 <li class="toctree-l1"><a class="reference internal" href="gpu.html">GPU Drivers and SDKs</a></li>
@@ -324,7 +324,7 @@ function=&quot;proc_exit&quot;: function import requires a callable
 <section id="step-2-set-tvm-source-dir-and-mlc-llm-source-dir">
 <h2>Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR<a class="headerlink" href="#step-2-set-tvm-source-dir-and-mlc-llm-source-dir" title="Permalink to this heading">¶</a></h2>
 <p>We need to set a path to a tvm source in order to build tvm runtime.
-Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
+Note that you do not need to build TVM from the source. The source here is only used to build the web runtime component.
 Set environment variable in your shell startup profile in to point to <code class="docutils literal notranslate"><span class="pre">3rdparty/tvm</span></code> (if preferred, you could also
 point to your own TVM address if you installed TVM from source).</p>
 <p>Besides, we also need to set <code class="docutils literal notranslate"><span class="pre">MLC_LLM_SOURCE_DIR</span></code> so that we can locate <code class="docutils literal notranslate"><span class="pre">mlc_wasm_runtime.bc</span></code> when compiling a model library wasm.</p>
