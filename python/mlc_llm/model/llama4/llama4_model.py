@@ -95,6 +95,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 @dataclasses.dataclass
 class Llama4Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Llama model."""
+
     text_config: Llama4TextConfig
     tensor_parallel_shards: int = 1
     context_window_size: int = 0
@@ -214,16 +215,12 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.num_attention_heads = config.text_config.num_attention_heads
         self.num_kv_heads = config.text_config.num_key_value_heads
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), (
+        assert config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0, (
             f"num_kv_heads({config.text_config.num_key_value_heads}) must be divisible by "
             f"tensor_parallel_shards"
         )
 
-        assert (
-            config.text_config.num_key_value_heads >= config.tensor_parallel_shards
-        ), (
+        assert config.text_config.num_key_value_heads >= config.tensor_parallel_shards, (
             f"Too large tensor_parallel_shards, must be smaller than "
             f"{config.text_config.num_key_value_heads}"
         )
