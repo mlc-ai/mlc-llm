@@ -6,16 +6,14 @@ import dataclasses
 from typing import Any, Dict, Optional
 
 import tvm
-from tvm import relax, te, tir
+from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
-from tvm.relax.op import full_like, scatter_nd
 
 from mlc_llm import op as op_ext
 from mlc_llm.model.qwen3.qwen3_model import ACT2FN
 from mlc_llm.nn import PagedKVCache, RopeMode
-from mlc_llm.nn.expert import MixtralExperts
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -198,13 +196,12 @@ class LlamaEmbedding(nn.Embedding):
 
 
 class Llama4TextL2Norm(nn.Module):
-    def __init__(self, eps, hidden_size, dtype):
+    def __init__(self, eps, hidden_size):
         self.eps = eps
         self.hidden_size = hidden_size
-        self.dtype = dtype
 
     def forward(self, x):
-        weight = op.ones((self.hidden_size,), dtype=self.dtype)
+        weight = op.ones((self.hidden_size,), dtype=x.dtype)
         return op.rms_norm(x, weight=weight, axes=[-1], epsilon=self.eps)
 
 
@@ -256,6 +253,9 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.use_qk_norm = config.text_config.use_qk_norm
         self.rms_norm_eps = config.text_config.rms_norm_eps
 
+        self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim)
+        self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim)
+
     def forward(
         self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
     ):
@@ -269,7 +269,11 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         value_states = op.reshape(self.v_proj(hidden_states), (b, s, -1, d))
 
         if self.use_rope:
-            self.rotary_emb = position_embedding.llama4_rope_with_position_map(
+            qkv = op.concat([query_states, key_states, value_states], dim=2)
+
+            apply_rope = tvm.tir.IntImm("int64", 1)
+
+            rotary_emb = position_embedding.llama4_rope_with_position_map(
                 theta=self.rope_theta,
                 scale=1.0,
                 head_dim=self.head_dim,
@@ -278,11 +282,9 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
                 dtype=query_states.dtype,
                 rope_scaling=self.rope_scaling,
             )
-            qkv = op.concat([query_states, key_states, value_states], dim=2)
 
-            apply_rope = tvm.tir.IntImm("int64", 1)
             query_states, key_states, value_states = op.tensor_ir_op(
-                self.rotary_emb,
+                rotary_emb,
                 "llama4_rope_with_position_map",
                 args=[op.squeeze(qkv, axis=0), cache_position, apply_rope],
                 out=(
@@ -296,9 +298,6 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             value_states = value_states.reshape(b, s, self.num_kv_heads, d)
 
         if self.use_qk_norm and self.use_rope:
-            self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
-            self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim, query_states.dtype)
-
             query_states = self.q_norm(query_states)
             key_states = self.k_norm(key_states)
 
@@ -393,7 +392,7 @@ class Llama4TextMoe(nn.Module):
     def forward(self, hidden_states):
 
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
-        router_scores, router_logits = self.router(hidden_states)
+        router_scores, _ = self.router(hidden_states)
 
         routed_in = op.broadcast_to(
             hidden_states.reshape(1, *hidden_states.shape),
@@ -469,7 +468,6 @@ class Llama4TextDecoderLayer(nn.Module):
                     tp.ShardSingleDim("_shard_expert_mlp_down", dim=1),
                 )
 
-                k = self.feed_forward.router.intermediate_size
                 _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", dim=0))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
