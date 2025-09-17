@@ -120,7 +120,6 @@ def huggingface(model_config: Llama4Config, quantization: Quantization) -> Exter
     return mapping
 
 
-# TODO: This needs to be done for llama4
 def awq(model_config: Llama4Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of AWQ parameters.

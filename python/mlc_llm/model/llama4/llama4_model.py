@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
-    """Configuration of the Llama model."""
+    """Configuration of the Text portion of the Llama model."""
 
     hidden_size: int
     intermediate_size: int
@@ -94,6 +94,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
 
 @dataclasses.dataclass
 class Llama4Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
+    """Configuration of the Llama model."""
     text_config: Llama4TextConfig
     tensor_parallel_shards: int = 1
     context_window_size: int = 0
@@ -215,10 +216,17 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.text_config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        ), (
+            f"num_kv_heads({config.text_config.num_key_value_heads}) must be divisible by "
+            f"tensor_parallel_shards"
+        )
+
         assert (
             config.text_config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.text_config.num_key_value_heads}"
+        ), (
+            f"Too large tensor_parallel_shards, must be smaller than "
+            f"{config.text_config.num_key_value_heads}"
+        )
         self.num_kv_heads = config.text_config.num_key_value_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
             config.text_config.hidden_size,
@@ -262,7 +270,6 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
 
         d, h_q = self.head_dim, self.num_q_heads
         b, s, _ = hidden_states.shape
-        input_shape = hidden_states.shape[:-1]
         # QKV Projection
         query_states = op.reshape(self.q_proj(hidden_states), (b, s, -1, d))
         key_states = op.reshape(self.k_proj(hidden_states), (b, s, -1, d))
