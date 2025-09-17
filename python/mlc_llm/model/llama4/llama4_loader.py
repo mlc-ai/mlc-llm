@@ -11,7 +11,6 @@ from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
 from .llama4_model import Llama4Config, Llama4ForCausalLM
-from .llama4_quantization import awq_quant
 
 
 def huggingface(model_config: Llama4Config, quantization: Quantization) -> ExternMapping:
