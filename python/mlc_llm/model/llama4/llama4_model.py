@@ -49,7 +49,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     vocab_size: int = 202048
     attention_bias: bool = False
     attn_temperature_tuning: bool = True
-    no_rope_layers: [] = None
+    no_rope_layers: list[int] = None
     no_rope_layer_interval: int = 4
     moe_layers: int = None
 
@@ -163,7 +163,7 @@ class Llama4TextMLP(nn.Module):
         super().__init__()
         if config.text_config.intermediate_size % config.tensor_parallel_shards != 0:
             raise ValueError(
-                f"Cannot split MLP intermediate size {config.intermediate_size} "
+                f"Cannot split MLP intermediate size {config.text_config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
         self.intermediate_size = (
@@ -420,7 +420,7 @@ class Llama4TextDecoderLayer(nn.Module):
             self.feed_forward = Llama4TextMoe(config)
         else:
             self.feed_forward = Llama4TextMLP(
-                config, intermediate_size=config.text_config.intermediate_size_mlp
+                config, intermediate_size=config.text_config.kwargs.intermediate_size_mlp
             )
 
         self.input_layernorm = nn.RMSNorm(

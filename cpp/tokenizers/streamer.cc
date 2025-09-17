@@ -138,7 +138,7 @@ std::string TextStreamerObj::Finish() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.tokenizers.TextStreamer",
@@ -149,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  {delta_tokens->data, delta_tokens->data + delta_tokens->size});
            })
       .def_method("mlc.tokenizers.TextStreamerFinish", &TextStreamerObj::Finish);
-});
+}
 
 /****************** StopStrHandler ******************/
 
@@ -261,7 +261,7 @@ StopStrHandler::StopStrHandler(Array<String> stop_strs,
   data_ = tvm::ffi::make_object<StopStrHandlerObj>(std::move(stop_strs), token_table);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.tokenizers.StopStrHandler",
@@ -281,7 +281,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              return IntTuple(std::move(remaining_token_ids));
            })
       .def_method("mlc.tokenizers.StopStrHandlerStopTriggered", &StopStrHandlerObj::StopTriggered);
-});
+}
 
 }  // namespace llm
 }  // namespace mlc

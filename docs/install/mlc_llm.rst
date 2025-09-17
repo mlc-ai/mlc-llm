@@ -32,19 +32,19 @@ Select your operating system/compute platform and run the command in your termin
                     conda activate your-environment
                     python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
-            .. tab:: CUDA 12.2
+            .. tab:: CUDA 12.8
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu122 mlc-ai-nightly-cu122
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu128 mlc-ai-nightly-cu128
 
-            .. tab:: CUDA 12.3
+            .. tab:: CUDA 13.0
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu123 mlc-ai-nightly-cu123
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu130 mlc-ai-nightly-cu130
 
             .. tab:: ROCm 6.1
 
@@ -80,14 +80,14 @@ Select your operating system/compute platform and run the command in your termin
 
             .. code-block:: bash
 
-                conda install -c conda-forge libgcc-ng
+                conda install -c conda-forge libstdcxx-ng
 
-            Besides, we would recommend using Python 3.11; so if you are creating a new environment,
+            Besides, we would recommend using Python 3.13; so if you are creating a new environment,
             you could use the following command:
 
             .. code-block:: bash
 
-                conda create --name mlc-prebuilt  python=3.11
+                conda create --name mlc-prebuilt  python=3.13
 
     .. tab:: macOS
 
@@ -154,7 +154,7 @@ Then you can verify installation in command line:
 .. code-block:: bash
 
     python -c "import mlc_llm; print(mlc_llm)"
-    # Prints out: <module 'mlc_llm' from '/path-to-env/lib/python3.11/site-packages/mlc_llm/__init__.py'>
+    # Prints out: <module 'mlc_llm' from '/path-to-env/lib/python3.13/site-packages/mlc_llm/__init__.py'>
 
 |
 
@@ -188,13 +188,13 @@ This step is useful when you want to make modification or obtain a specific vers
         "cmake>=3.24" \
         rust \
         git \
-        python=3.11
+        python=3.13
     # enter the build environment
     conda activate mlc-chat-venv
 
 .. note::
-    For runtime, :doc:`TVM Unity </install/tvm>` compiler is not a dependency for MLCChat CLI or Python API. Only TVM's runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
-    However, if you would like to compile your own models, you need to follow :doc:`TVM Unity </install/tvm>`.
+    For runtime, :doc:`TVM </install/tvm>` compiler is not a dependency for MLCChat CLI or Python API. Only TVM's runtime is required, which is automatically included in `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`_.
+    However, if you would like to compile your own models, you need to follow :doc:`TVM </install/tvm>`.
 
 **Step 2. Configure and build.** A standard git-based workflow is recommended to download MLC LLM, after which you can specify build requirements with our lightweight config generation tool:
 
@@ -208,14 +208,7 @@ This step is useful when you want to make modification or obtain a specific vers
     # generate build configuration
     python ../cmake/gen_cmake_config.py
     # build mlc_llm libraries
-    cmake .. && cmake --build . --parallel $(nproc) && cd ..
-
-.. note::
-    If you are using CUDA and your compute capability is above 80, then it is require to build with
-    ``set(USE_FLASHINFER ON)``. Otherwise, you may run into ``Cannot find Function`` issue during
-    runtime.
-
-    To check your CUDA compute capability, you can use ``nvidia-smi --query-gpu=compute_cap --format=csv``.
+    cmake .. && make -j $(nproc) && cd ..
 
 **Step 3. Install via Python.** We recommend that you install ``mlc_llm`` as a Python package, giving you
 access to ``mlc_llm.compile``, ``mlc_llm.MLCEngine``, and the CLI.

@@ -312,12 +312,12 @@ Array<Optional<Tensor>> LoadMultiGPUPresharded(const std::string& model_path, Mo
   return params;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.multi_gpu.LoadMultiGPU", LoadMultiGPU)
       .def("mlc.multi_gpu.LoadMultiGPUPresharded", LoadMultiGPUPresharded);
-});
+}
 
 }  // namespace multi_gpu
 }  // namespace llm

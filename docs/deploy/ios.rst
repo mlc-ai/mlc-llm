@@ -88,11 +88,11 @@ Please make sure ``dist/`` follows the structure below, except the optional mode
    │   ├── mlc-app-config.json  # The app config JSON file.
    │   └── [optional model weights]
    └── lib
-      ├── libmlc_llm.a          # A lightweight interface to interact with LLM, tokenizer, and TVM Unity runtime.
+      ├── libmlc_llm.a          # A lightweight interface to interact with LLM, tokenizer, and TVM runtime.
       ├── libmodel_iphone.a     # The compiled model lib.
       ├── libsentencepiece.a    # SentencePiece tokenizer
       ├── libtokenizers_cpp.a   # Huggingface tokenizer.
-      └── libtvm_runtime.a      # TVM Unity runtime.
+      └── libtvm_runtime.a      # TVM runtime.
 
 
 .. note::

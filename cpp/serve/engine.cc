@@ -1087,10 +1087,10 @@ class EngineModule : public ffi::ModuleObj {
   GenerationConfig default_generation_config_;
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.create_engine", EngineModule::Create);
-});
+}
 
 }  // namespace serve
 }  // namespace llm

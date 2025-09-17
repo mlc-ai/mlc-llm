@@ -29,7 +29,7 @@ or be used to explicit create model libraries.
 We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for all platforms.
 
 .. note::
-    Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
+    Before you proceed, make sure you followed :ref:`install-tvm`, a required
     backend to compile models with MLC LLM.
 
     Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-engine` to obtain
@@ -40,7 +40,7 @@ We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for al
     :depth: 1
     :local:
 
-0. Verify Installation
+1. Verify Installation
 ----------------------
 
 **Step 1. Verify mlc_llm**
@@ -60,13 +60,13 @@ installing the prebuilt package. Verify ``mlc_llm`` installation in command line
 
 **Step 2. Verify TVM**
 
-To compile models, you also need to follow :ref:`install-tvm-unity`.
-Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-unity-validate`):
+To compile models, you also need to follow :ref:`install-tvm`.
+Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-validate`):
 
 .. code:: bash
 
     $ python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+    /some-path/lib/python3.13/site-packages/tvm/__init__.py
 
 1. Clone from HF and convert_weight
 -----------------------------------

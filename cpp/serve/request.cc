@@ -66,14 +66,14 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.RequestGetInputs", [](Request request) { return request->inputs; })
       .def("mlc.serve.RequestGetGenerationConfigJSON", [](Request request) {
         return picojson::value(request->generation_cfg->AsJSON()).serialize();
       });
-});
+}
 
 }  // namespace serve
 }  // namespace llm
