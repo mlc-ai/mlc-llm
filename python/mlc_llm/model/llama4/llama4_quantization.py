@@ -7,7 +7,6 @@ from tvm.relax.frontend import nn
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import (
-    AWQQuantize,
     FTQuantize,
     GroupQuantize,
     NoQuantize,
