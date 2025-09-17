@@ -49,6 +49,7 @@ def ft_quant(
     )
     return model, quant_map
 
+
 def no_quant(
     model_config: Llama4Config,
     quantization: NoQuantize,
