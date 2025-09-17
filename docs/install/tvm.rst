@@ -39,19 +39,19 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
               conda activate your-environment
               python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 
-         .. tab:: CUDA 12.2
+         .. tab:: CUDA 12.8
 
             .. code-block:: bash
 
               conda activate your-environment
-              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu122
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu128
 
-         .. tab:: CUDA 12.3
+         .. tab:: CUDA 13.0
 
             .. code-block:: bash
 
               conda activate your-environment
-              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu123
+              python -m pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cu130
 
          .. tab:: ROCm 6.1
 
@@ -77,7 +77,7 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
         .. code-block:: bash
 
-          conda install -c conda-forge libgcc-ng
+          conda install -c conda-forge libstdcxx-ng
 
    .. tab:: macOS
 

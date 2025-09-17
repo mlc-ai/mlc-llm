@@ -32,19 +32,19 @@ Select your operating system/compute platform and run the command in your termin
                     conda activate your-environment
                     python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cpu mlc-ai-nightly-cpu
 
-            .. tab:: CUDA 12.2
+            .. tab:: CUDA 12.8
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu122 mlc-ai-nightly-cu122
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu128 mlc-ai-nightly-cu128
 
-            .. tab:: CUDA 12.3
+            .. tab:: CUDA 13.0
 
                 .. code-block:: bash
 
                     conda activate your-environment
-                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu123 mlc-ai-nightly-cu123
+                    python -m pip install --pre -U -f https://mlc.ai/wheels mlc-llm-nightly-cu130 mlc-ai-nightly-cu130
 
             .. tab:: ROCm 6.1
 
@@ -80,7 +80,7 @@ Select your operating system/compute platform and run the command in your termin
 
             .. code-block:: bash
 
-                conda install -c conda-forge libgcc-ng
+                conda install -c conda-forge libstdcxx-ng
 
             Besides, we would recommend using Python 3.11; so if you are creating a new environment,
             you could use the following command:
