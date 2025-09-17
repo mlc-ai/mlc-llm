@@ -51,7 +51,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
     attn_temperature_tuning: bool = True
     no_rope_layers: list[int] = None
     no_rope_layer_interval: int = 4
-    moe_layers: int = None
+    moe_layers: list[int] = None
 
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -419,9 +419,7 @@ class Llama4TextDecoderLayer(nn.Module):
         if self.is_moe_layer:  # the 128E model interleaves dense / sparse
             self.feed_forward = Llama4TextMoe(config)
         else:
-            self.feed_forward = Llama4TextMLP(
-                config, intermediate_size=config.text_config.kwargs.intermediate_size_mlp
-            )
+            self.feed_forward = Llama4TextMLP(config)
 
         self.input_layernorm = nn.RMSNorm(
             config.text_config.hidden_size, -1, rms_norm_eps, bias=False
