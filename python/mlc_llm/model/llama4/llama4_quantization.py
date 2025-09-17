@@ -49,23 +49,6 @@ def ft_quant(
     )
     return model, quant_map
 
-
-def awq_quant(
-    model_config: Llama4Config,
-    quantization: AWQQuantize,
-) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a Llama-architecture model using Activation-aware Weight Quantization(AWQ)."""
-    model: nn.Module = Llama4ForCausalLM(model_config)
-    model.to(quantization.model_dtype)
-    quant_map = QuantizeMapping({}, {})
-    model = quantization.quantize_model(
-        model,
-        quant_map,
-        "",
-    )
-    return model, quant_map
-
-
 def no_quant(
     model_config: Llama4Config,
     quantization: NoQuantize,
