@@ -261,7 +261,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.q_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim)
         self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim)
 
-    def forward( # pylint: disable=too-many-locals
+    def forward(  # pylint: disable=too-many-locals
         self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
     ):
 
