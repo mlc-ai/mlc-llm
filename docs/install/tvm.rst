@@ -1,6 +1,6 @@
-.. _install-tvm-unity:
+.. _install-tvm:
 
-Install TVM Unity Compiler
+Install TVM Compiler
 ==========================
 
 .. contents:: Table of Contents
@@ -14,14 +14,14 @@ Install TVM Unity Compiler
 - Supporting both inference and training;
 - Productive python-first compiler implementation. As a concrete example, MLC LLM compilation is implemented in pure python using its API.
 
-TVM Unity can be installed directly from a prebuilt developer package, or built from source.
+TVM can be installed directly from a prebuilt developer package, or built from source.
 
-.. _tvm-unity-prebuilt-package:
+.. _tvm-prebuilt-package:
 
 Option 1. Prebuilt Package
 --------------------------
 
-A nightly prebuilt Python package of Apache TVM Unity is provided.
+A nightly prebuilt Python package of Apache TVM is provided.
 
 .. note::
     ❗ Whenever using Python, it is highly recommended to use **conda** to manage an isolated Python environment to avoid missing dependencies, incompatible versions, and package conflicts.
@@ -131,12 +131,12 @@ A nightly prebuilt Python package of Apache TVM Unity is provided.
 
             conda install zstd
 
-.. _tvm-unity-build-from-source:
+.. _tvm-build-from-source:
 
 Option 2. Build from Source
 ---------------------------
 
-While it is generally recommended to always use the prebuilt TVM Unity, if you require more customization, you may need to build it from source. **NOTE.** this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.
+While it is generally recommended to always use the prebuilt TVM, if you require more customization, you may need to build it from source. **NOTE.** this should only be attempted if you are familiar with the intricacies of C++, CMake, LLVM, Python, and other related systems.
 
 .. collapse:: Details
 
@@ -169,24 +169,21 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
             "llvmdev>=15" \
             "cmake>=3.24" \
             git \
-            python=3.11
+            python=3.13
         # enter the build environment
         conda activate tvm-build-venv
 
-    **Step 2. Configure and build.** Standard git-based workflow are recommended to download Apache TVM Unity, and then specify build requirements in ``config.cmake``:
+    **Step 2. Configure and build.** Standard git-based workflow are recommended to download Apache TVM, and then specify build requirements in ``config.cmake``:
 
     .. code-block:: bash
-        :caption: Download TVM Unity from GitHub
+        :caption: Download TVM from GitHub
 
         # clone from GitHub
-        git clone --recursive https://github.com/mlc-ai/relax.git tvm-unity && cd tvm-unity
+        git clone --recursive https://github.com/apache/tvm.git && cd tvm
         # create the build directory
         rm -rf build && mkdir build && cd build
         # specify build requirements in `config.cmake`
         cp ../cmake/config.cmake .
-
-    .. note::
-        We are temporarily using `mlc-ai/relax <https://github.com/mlc-ai/relax>`_ instead, which comes with several temporary outstanding changes that we will upstream to Apache TVM's `unity branch <https://github.com/apache/tvm/tree/unity>`_.
 
     We want to specifically tweak the following flags by appending them to the end of the configuration file:
 
@@ -200,10 +197,21 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
         echo "set(HIDE_PRIVATE_SYMBOLS ON)" >> config.cmake
         # GPU SDKs, turn on if needed
         echo "set(USE_CUDA   OFF)" >> config.cmake
+        echo "set(USE_ROCM   OFF)" >> config.cmake
         echo "set(USE_METAL  OFF)" >> config.cmake
         echo "set(USE_VULKAN OFF)" >> config.cmake
         echo "set(USE_OPENCL OFF)" >> config.cmake
+        # Below are options for CUDA, turn on if needed
+        # CUDA_ARCH is the cuda compute capability of your GPU.
+        # Examples: 89 for 4090, 90a for H100/H200, 100a for B200.
+        # Reference: https://developer.nvidia.com/cuda-gpus
         echo "set(CMAKE_CUDA_ARCHITECTURES YOUR_CUDA_COMPUTE_CAPABILITY_HERE)" >> config.cmake
+        echo "set(USE_CUBLAS ON)" >> config.cmake
+        echo "set(USE_CUTLASS ON)" >> config.cmake
+        echo "set(USE_THRUST ON)" >> config.cmake
+        echo "set(USE_NVTX ON)" >> config.cmake
+        # Below is the option for ROCM, turn on if needed
+        echo "set(USE_HIPBLAS ON)" >> config.cmake
 
     .. note::
         ``HIDE_PRIVATE_SYMBOLS`` is a configuration option that enables the ``-fvisibility=hidden`` flag. This flag helps prevent potential symbol conflicts between TVM and PyTorch. These conflicts arise due to the frameworks shipping LLVMs of different versions.
@@ -219,9 +227,9 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
     .. code-block:: bash
         :caption: Build ``libtvm`` using cmake and cmake
 
-        cmake .. && cmake --build . --parallel $(nproc)
+        cmake .. && make -j $(nproc) && cd ..
 
-    A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm-unity/build/`` directory.
+    A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``/path-tvm/build/`` directory.
 
     Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
 
@@ -229,40 +237,40 @@ While it is generally recommended to always use the prebuilt TVM Unity, if you r
 
        .. code-tab :: bash Install via environment variable
 
-          export PYTHONPATH=/path-to-tvm-unity/python:$PYTHONPATH
+          export PYTHONPATH=/path-to-tvm/python:$PYTHONPATH
 
        .. code-tab :: bash Install via pip local project
 
           conda activate your-own-env
           conda install python # make sure python is installed
-          cd /path-to-tvm-unity/python
+          cd /path-to-tvm/python
           pip install -e .
 
 .. `|` adds a blank line
 
 |
 
-.. _tvm-unity-validate:
+.. _tvm-validate:
 
 Validate TVM Installation
 -------------------------
 
 Using a compiler infrastructure with multiple language bindings could be error-prone.
-Therefore, it is highly recommended to validate TVM Unity installation before use.
+Therefore, it is highly recommended to validate TVM installation before use.
 
 **Step 1. Locate TVM Python package.** The following command can help confirm that TVM is properly installed as a python package and provide the location of the TVM python package:
 
 .. code-block:: bash
 
     >>> python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+    /some-path/lib/python3.13/site-packages/tvm/__init__.py
 
 **Step 2. Confirm which TVM library is used.** When maintaining multiple build or installation of TVM, it becomes important to double check if the python package is using the proper ``libtvm`` with the following command:
 
 .. code-block:: bash
 
     >>> python -c "import tvm; print(tvm.base._LIB)"
-    <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
+    <CDLL '/some-path/lib/python3.13/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:
 
