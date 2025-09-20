@@ -4,6 +4,27 @@ from mlc_llm.protocol.conversation_protocol import Conversation, MessagePlacehol
 
 from .registry import ConvTemplateRegistry
 
+# Llama4 - same as Llama3.1 except naming has changed slightly
+ConvTemplateRegistry.register_conv_template(
+    Conversation(
+        name="llama-4",
+        system_template="",
+        system_message="",
+        roles={
+            "user": "<|header_start|>user",
+            "assistant": "<|header_start|>assistant",
+            "tool": "<|header_start|>ipython",
+        },
+        seps=["<|eot|>"],
+        role_content_sep="<|header_end|>\n\n",
+        role_empty_sep="<|header_end|>\n\n",
+        stop_str=[],
+        stop_token_ids=[200001, 200007, 200008],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
+        system_prefix_token_ids=[200000],  # "<|begin_of_text|>"
+        add_role_after_system_message=False,
+    )
+)
+
 # Llama3.1 -- same as Llama3 except stop token ids and stop str
 ConvTemplateRegistry.register_conv_template(
     Conversation(
