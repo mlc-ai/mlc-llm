@@ -34,7 +34,7 @@ Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg)
     }
   }
 
-  ObjectPtr<RequestNode> n = make_object<RequestNode>();
+  ObjectPtr<RequestNode> n = tvm::ffi::make_object<RequestNode>();
   n->id = std::move(id);
   n->inputs = std::move(inputs);
   n->prompt_tokens = prompt_tokens;
@@ -66,14 +66,14 @@ Request Request::FromUntokenized(const Request& request, const Tokenizer& tokeni
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.RequestGetInputs", [](Request request) { return request->inputs; })
       .def("mlc.serve.RequestGetGenerationConfigJSON", [](Request request) {
         return picojson::value(request->generation_cfg->AsJSON()).serialize();
       });
-});
+}
 
 }  // namespace serve
 }  // namespace llm

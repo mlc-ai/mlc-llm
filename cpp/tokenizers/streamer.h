@@ -44,10 +44,10 @@ class TextStreamerObj : public Object {
   // REPLACEMENT CHARACTER (U+FFFD) in UTF-8.
   static constexpr const char* kReplacementCharacter = "\xef\xbf\xbd";
 
-  static constexpr const char* _type_key = "mlc.TextStreamer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(TextStreamerObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.TextStreamer", TextStreamerObj, Object);
 
  private:
   Tokenizer tokenizer_;
@@ -65,7 +65,7 @@ class TextStreamer : public ObjectRef {
   /*! \brief Construct a text streamer with tokenizer. */
   explicit TextStreamer(Tokenizer tokenizer);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TextStreamer, ObjectRef, TextStreamerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TextStreamer, ObjectRef, TextStreamerObj);
 };
 
 /****************** StopStrHandler ******************/
@@ -100,8 +100,10 @@ class StopStrHandlerObj : public Object {
   /*! \brief Check if the generation has stopped due to stop string. */
   bool StopTriggered() const { return stop_triggered_; }
 
-  static constexpr const char* _type_key = "mlc.StopStrHandler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StopStrHandlerObj, Object);
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.StopStrHandler", StopStrHandlerObj, Object);
 
  private:
   /*! \brief The stop strings. */
@@ -136,7 +138,7 @@ class StopStrHandler : public ObjectRef {
  public:
   explicit StopStrHandler(Array<String> stop_strs, const std::vector<std::string>& token_table);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StopStrHandler, ObjectRef, StopStrHandlerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StopStrHandler, ObjectRef, StopStrHandlerObj);
 };
 
 }  // namespace llm

@@ -41,10 +41,10 @@ class EventTraceRecorderObj : public Object {
   /*! \brief Dump the logged events in Chrome Trace Event Format in JSON string. */
   virtual std::string DumpJSON() = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.EventTraceRecorder";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(EventTraceRecorderObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EventTraceRecorder", EventTraceRecorderObj, Object);
 };
 
 /*!
@@ -56,8 +56,7 @@ class EventTraceRecorder : public ObjectRef {
   /*! \brief Create an event trace recorder. */
   static EventTraceRecorder Create();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EventTraceRecorder, ObjectRef,
-                                                    EventTraceRecorderObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EventTraceRecorder, ObjectRef, EventTraceRecorderObj);
 };
 
 /****************** Helper macro ******************/

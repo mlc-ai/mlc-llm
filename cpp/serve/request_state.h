@@ -7,8 +7,8 @@
 #define MLC_LLM_SERVE_REQUEST_STATE_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 #include <xgrammar/xgrammar.h>
 
 #include <optional>
@@ -115,10 +115,10 @@ class RequestModelStateNode : public Object {
   /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */
   void RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots = nullptr);
 
-  static constexpr const char* _type_key = "mlc.serve.RequestModelState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(RequestModelStateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.RequestModelState", RequestModelStateNode, Object);
 };
 
 class RequestModelState : public ObjectRef {
@@ -126,7 +126,7 @@ class RequestModelState : public ObjectRef {
   explicit RequestModelState(Request request, int model_id, int64_t internal_id, Array<Data> inputs,
                              const std::optional<xgrammar::CompiledGrammar>& compiled_grammar);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestModelState, ObjectRef, RequestModelStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RequestModelState, ObjectRef, RequestModelStateNode);
 };
 
 struct DeltaRequestReturn {
@@ -246,10 +246,10 @@ class RequestStateEntryNode : public Object {
   void GetDeltaRequestReturn(const Tokenizer& tokenizer, int64_t max_single_sequence_length,
                              RequestStreamOutput* delta_stream_output, int idx);
 
-  static constexpr const char* _type_key = "mlc.serve.RequestStateEntry";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateEntryNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.RequestStateEntry", RequestStateEntryNode, Object);
 };
 
 class RequestStateEntry : public ObjectRef {
@@ -259,7 +259,7 @@ class RequestStateEntry : public ObjectRef {
                              const std::optional<xgrammar::CompiledGrammar>& compiled_grammar,
                              int parent_idx = -1);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStateEntry, ObjectRef, RequestStateEntryNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RequestStateEntry, ObjectRef, RequestStateEntryNode);
 };
 
 /*! \brief A request's state, which groups all the request state entries. */
@@ -275,10 +275,10 @@ class RequestStateNode : public Object {
    */
   RequestActionPostProcWorkspace postproc_states;
 
-  static constexpr const char* _type_key = "mlc.serve.RequestState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStateNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.RequestState", RequestStateNode, Object);
 };
 
 class RequestState : public ObjectRef {
@@ -291,7 +291,7 @@ class RequestState : public ObjectRef {
   explicit RequestState(std::vector<RequestStateEntry> entries, int num_response,
                         std::chrono::high_resolution_clock::time_point add_time_point);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestState, ObjectRef, RequestStateNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RequestState, ObjectRef, RequestStateNode);
 };
 
 }  // namespace serve

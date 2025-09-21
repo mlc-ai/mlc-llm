@@ -71,7 +71,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
 
       // - Add the sequence to each model.
       int prefill_length = -1;
-      NDArray logits_for_sample{nullptr};
+      Tensor logits_for_sample{nullptr};
       std::vector<IntTuple> kv_append_metadata;
       kv_append_metadata.reserve(models_.size());
       for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
@@ -431,7 +431,7 @@ EngineAction EngineAction::DisaggPrepareReceive(Array<Model> models, EngineConfi
                                                 std::vector<picojson::object> model_configs,
                                                 Optional<EventTraceRecorder> trace_recorder,
                                                 FRequestStreamCallback request_stream_callback) {
-  return EngineAction(make_object<DisaggPrepareReceiveActionObj>(
+  return EngineAction(tvm::ffi::make_object<DisaggPrepareReceiveActionObj>(
       std::move(models), std::move(engine_config), std::move(model_configs),
       std::move(trace_recorder), std::move(request_stream_callback)));
 }

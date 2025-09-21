@@ -57,7 +57,7 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
 /****************** TextData ******************/
 
 TextData::TextData(String text) {
-  ObjectPtr<TextDataNode> n = make_object<TextDataNode>();
+  ObjectPtr<TextDataNode> n = tvm::ffi::make_object<TextDataNode>();
   n->text = std::move(text);
   data_ = std::move(n);
 }
@@ -72,23 +72,23 @@ ObjectRef TextDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) co
                 "Please tokenize the text and construct a TokenData object.";
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.TextData", [](String text) { return TextData(std::move(text)); })
       .def("mlc.serve.TextDataGetTextString", [](TextData data) { return data->text; });
-});
+}
 
 /****************** TokenData ******************/
 
 TokenData::TokenData(IntTuple token_ids) {
-  ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
+  ObjectPtr<TokenDataNode> n = tvm::ffi::make_object<TokenDataNode>();
   n->token_ids = std::move(token_ids);
   data_ = std::move(n);
 }
 
 TokenData::TokenData(std::vector<int32_t> token_ids) {
-  ObjectPtr<TokenDataNode> n = make_object<TokenDataNode>();
+  ObjectPtr<TokenDataNode> n = tvm::ffi::make_object<TokenDataNode>();
   n->token_ids = IntTuple(token_ids.begin(), token_ids.end());
   data_ = std::move(n);
 }
@@ -99,7 +99,7 @@ ObjectRef TokenDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->TokenEmbed(token_ids, dst, offset);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("mlc.serve.TokenData",
@@ -112,12 +112,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     *rv = TokenData(std::move(token_ids));
                   })
       .def("mlc.serve.TokenDataGetTokenIds", [](TokenData data) { return data->token_ids; });
-});
+}
 
 /****************** ImageData ******************/
 
-ImageData::ImageData(NDArray image, int embed_size) {
-  ObjectPtr<ImageDataNode> n = make_object<ImageDataNode>();
+ImageData::ImageData(Tensor image, int embed_size) {
+  ObjectPtr<ImageDataNode> n = tvm::ffi::make_object<ImageDataNode>();
   n->image = std::move(image);
   n->embed_size = embed_size;
   data_ = std::move(n);
@@ -129,13 +129,13 @@ ObjectRef ImageDataNode::GetEmbedding(Model model, ObjectRef* dst, int offset) c
   return model->ImageEmbed(image, dst, offset);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.serve.ImageData",
-           [](NDArray image, int embed_size) { return ImageData(std::move(image), embed_size); })
+           [](Tensor image, int embed_size) { return ImageData(std::move(image), embed_size); })
       .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; });
-});
+}
 
 /****************** SampleResult ******************/
 
@@ -206,7 +206,7 @@ RequestStreamOutput::RequestStreamOutput(
     std::optional<std::vector<std::vector<String>>> group_delta_logprob_json_strs,
     std::vector<Optional<String>> group_finish_reason,
     std::vector<String> group_extra_prefix_string) {
-  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
+  ObjectPtr<RequestStreamOutputObj> n = tvm::ffi::make_object<RequestStreamOutputObj>();
   n->request_id = std::move(request_id);
   n->group_delta_token_ids = std::move(group_delta_token_ids);
   n->group_delta_logprob_json_strs = std::move(group_delta_logprob_json_strs);
@@ -217,13 +217,13 @@ RequestStreamOutput::RequestStreamOutput(
 
 RequestStreamOutput RequestStreamOutput::Usage(String request_id,
                                                String request_final_usage_json_str) {
-  ObjectPtr<RequestStreamOutputObj> n = make_object<RequestStreamOutputObj>();
+  ObjectPtr<RequestStreamOutputObj> n = tvm::ffi::make_object<RequestStreamOutputObj>();
   n->request_id = std::move(request_id);
   n->request_final_usage_json_str = std::move(request_final_usage_json_str);
   return RequestStreamOutput(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.RequestStreamOutputUnpack", [](RequestStreamOutput output) {
     CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
@@ -250,7 +250,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
     output->unpacked = true;
     return ret;
   });
-});
+}
 
 }  // namespace serve
 }  // namespace llm

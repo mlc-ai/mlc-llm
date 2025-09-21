@@ -18,9 +18,9 @@ let package = Package(
             path: "Sources/ObjC",
             cxxSettings: [
                 .headerSearchPath("../../tvm_home/include"),
-                .headerSearchPath("../../tvm_home/ffi/include"),
-                .headerSearchPath("../../tvm_home/3rdparty/dmlc-core/include"),
-                .headerSearchPath("../../tvm_home/3rdparty/dlpack/include")
+                .headerSearchPath("../../tvm_home/3rdparty/tvm-ffi/include"),
+                .headerSearchPath("../../tvm_home/3rdparty/tvm-ffi/3rdparty/dlpack/include"),
+                .headerSearchPath("../../tvm_home/3rdparty/dmlc-core/include")
             ]
         ),
         .target(

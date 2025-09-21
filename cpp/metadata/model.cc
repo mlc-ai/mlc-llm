@@ -8,7 +8,8 @@ namespace mlc {
 namespace llm {
 
 using namespace tvm::runtime;
-using tvm::ffi::TypedFunction;
+using tvm::ffi::Function;
+using tvm::ffi::Optional;
 
 ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
     const picojson::object& js, const picojson::object& model_config) {
@@ -123,11 +124,11 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   return result;
 }
 
-ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
-                                        const picojson::object& model_config) {
+ModelMetadata ModelMetadata::FromModule(Module module, const picojson::object& model_config) {
   std::string json_str = "";
-  TypedFunction<String()> pf = module.GetFunction("_metadata");
-  json_str = pf();
+  Optional<Function> pf = module->GetFunction("_metadata");
+  CHECK(pf.defined()) << "ValueError: _metadata function not found in module";
+  json_str = pf.value()().cast<String>();
   picojson::object json = json::ParseToJSONObject(json_str);
   try {
     return ModelMetadata::FromJSON(json, model_config);

@@ -264,7 +264,7 @@ Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
 Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& config,
                                                     const GenerationConfig& default_config) {
   using TResult = Result<GenerationConfig>;
-  ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
   n->n = json::LookupOrDefault<int64_t>(config, "n", default_config->n);
   n->temperature =
       json::LookupOrDefault<double>(config, "temperature", default_config->temperature);
@@ -358,7 +358,7 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
 
 GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
     const picojson::object& model_config_json) {
-  ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
   n->max_tokens = -1;
   n->temperature = json::LookupOrDefault<double>(model_config_json, "temperature", n->temperature);
   n->top_p = json::LookupOrDefault<double>(model_config_json, "top_p", n->top_p);
@@ -418,7 +418,7 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   CHECK(inferred_config.max_total_sequence_length.has_value());
   CHECK(inferred_config.prefill_chunk_size.has_value());
   CHECK(inferred_config.max_history_size.has_value());
-  ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+  ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
   // - Get models and model libs.
   n->model = json::Lookup<std::string>(json, "model");

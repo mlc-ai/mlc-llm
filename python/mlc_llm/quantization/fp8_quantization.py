@@ -1,7 +1,7 @@
 """Quantization techniques for FP8"""
 
 import numpy as np
-from tvm import nd, relax
+from tvm import relax, runtime
 from tvm.relax.frontend import nn
 
 from mlc_llm.nn import MixtralExperts
@@ -105,7 +105,7 @@ class FP8PerTensorQuantizeMixtralExperts(
                 x_scale * self.q_scale
                 if self.q_scale is not None
                 else nn.wrap_nested(
-                    relax.Constant(nd.array(np.array([1.0]).astype("float32"))), "scale"
+                    relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))), "scale"
                 )
             )
             return cutlass.group_gemm(

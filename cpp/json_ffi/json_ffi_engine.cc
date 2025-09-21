@@ -98,7 +98,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   }
   // create a generation config from request
   const auto& default_gen_cfg = default_generation_config_;
-  auto gen_cfg = make_object<GenerationConfigNode>();
+  auto gen_cfg = tvm::ffi::make_object<GenerationConfigNode>();
   gen_cfg->n = request.n;
   gen_cfg->temperature = request.temperature.value_or(default_gen_cfg->temperature);
   gen_cfg->top_p = request.top_p.value_or(default_gen_cfg->top_p);
@@ -151,7 +151,7 @@ void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); 
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 
-class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
+class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
@@ -296,11 +296,11 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   }
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
-                        []() { return Module(make_object<JSONFFIEngineImpl>()); });
-});
+                        []() { return ffi::Module(tvm::ffi::make_object<JSONFFIEngineImpl>()); });
+}
 
 }  // namespace json_ffi
 }  // namespace llm

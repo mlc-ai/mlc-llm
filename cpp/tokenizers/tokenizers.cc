@@ -453,7 +453,7 @@ const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
   return post_processed_token_table_;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("mlc.tokenizers.Tokenizer", [](const String& path) { return Tokenizer::FromPath(path); })
@@ -478,11 +478,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
            })
       .def("mlc.tokenizers.DetectTokenizerInfo",
            [](const String& path) { return Tokenizer::DetectTokenizerInfo(path)->AsJSONString(); });
-});
+}
 
 #endif
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("mlc.tokenizers.PostProcessTokenTable",
@@ -507,7 +507,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](const String& token, const String& token_postproc_method) {
              return PostProcessToken(token, token_postproc_method);
            });
-});
+}
 
 }  // namespace llm
 }  // namespace mlc

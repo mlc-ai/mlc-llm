@@ -51,7 +51,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val AppConfigFilename = "mlc-app-config.json"
         const val ModelConfigFilename = "mlc-chat-config.json"
-        const val ParamsConfigFilename = "ndarray-cache.json"
+        const val ParamsConfigFilename = "tensor-cache.json"
         const val ModelUrlSuffix = "resolve/main/"
     }
 

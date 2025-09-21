@@ -9,7 +9,7 @@ import numpy as np
 from mlc_llm.support import logging
 
 if TYPE_CHECKING:
-    from tvm.runtime import NDArray
+    from tvm.runtime import Tensor
 
     from .mapping import ExternMapping
 

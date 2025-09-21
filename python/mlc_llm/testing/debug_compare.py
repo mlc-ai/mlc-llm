@@ -124,8 +124,8 @@ class LibCompare(LibCompareVMInstrument):
     def compare(
         self,
         name: str,
-        ref_args: List[tvm.nd.NDArray],
-        new_args: List[tvm.nd.NDArray],
+        ref_args: List[tvm.runtime.Tensor],
+        new_args: List[tvm.runtime.Tensor],
         ret_indices: List[int],
     ):
         super().compare(name, ref_args, new_args, ret_indices)

@@ -10,7 +10,7 @@
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <cstdlib>
 #include <filesystem>
@@ -77,9 +77,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
     this->use_disco = true;
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
                                        reload_lib_path, Optional<Device>(std::nullopt));
-    this->mod_get_func = [this,
-                          fmodule_get_function = sess->GetGlobalFunc("runtime.ModuleGetFunction")](
-                             const std::string& name) -> Function {
+    this->mod_get_func = [this, fmodule_get_function = sess->GetGlobalFunc(
+                                    "ffi.ModuleGetFunction")](const std::string& name) -> Function {
       DRef func = sess->CallPacked(fmodule_get_function, this->disco_mod, name, true);
       bool exists = (func->DebugGetFromRemote(0).as<Function>()) != nullptr;
       if (!exists) {
@@ -98,46 +97,51 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
       return SessionFuncAsPackedFunc(sess, sess->GetGlobalFunc(name), name);
     };
     this->model_metadata_ = ModelMetadata::FromModule(
-        this->disco_mod->DebugGetFromRemote(0).cast<Module>(), std::move(model_config));
+        this->disco_mod.value()->DebugGetFromRemote(0).cast<Module>(), std::move(model_config));
     this->_InitFunctions();
   } else {
     ICHECK(!session.defined());
-    Module executable{nullptr};
-    Function fload_exec{nullptr};
+    Optional<Module> executable = std::nullopt;
+    Optional<Function> fload_exec;
     if (StartsWith(reload_lib_path, "system://")) {
-      static Function f_load_system_lib = Function::GetGlobalRequired("runtime.SystemLib");
+      static Function f_load_system_lib = Function::GetGlobalRequired("ffi.SystemLib");
       std::string system_lib_prefix = std::string(reload_lib_path).substr(9);
       std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
       executable = f_load_system_lib(system_lib_prefix + "_").cast<Module>();
-      fload_exec = executable->GetFunction("vm_load_executable");
+      fload_exec = executable.value()->GetFunction("vm_load_executable");
       ICHECK(fload_exec.defined())
           << "Cannot find system lib with " << system_lib_prefix
           << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
-      executable = tvm::runtime::Module::LoadFromFile(reload_lib_path);
-      fload_exec = executable->GetFunction("vm_load_executable");
+      executable = tvm::ffi::Module::LoadFromFile(reload_lib_path);
+      fload_exec = executable.value()->GetFunction("vm_load_executable");
       /* precompile opencl kernel programs */
       if (device.device_type == kDLOpenCL) {
-        auto f_get = executable->GetFunction("opencl.GetPreCompiledPrograms", true);
-        tvm::String bytes = f_get().cast<String>();
-        auto f_set = executable->GetFunction("opencl.SetPreCompiledPrograms", true);
-        f_set(tvm::String(bytes));
+        auto f_get = executable.value()->GetFunction("opencl.GetPreCompiledPrograms", true);
+        CHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
+        tvm::ffi::String bytes = f_get.value()().cast<String>();
+        auto f_set = executable.value()->GetFunction("opencl.SetPreCompiledPrograms", true);
+        CHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
+        f_set.value()(tvm::ffi::String(bytes));
       }
       ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
-    this->local_vm = fload_exec().cast<Module>();
-    this->local_vm->GetFunction("vm_initialization")(
-        static_cast<int>(device.device_type), device.device_id,
-        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-        static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+    this->local_vm = fload_exec.value()().cast<Module>();
+    this->local_vm.value()
+        ->GetFunction("vm_initialization")
+        .value()(static_cast<int>(device.device_type), device.device_id,
+                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+                 static_cast<int>(kDLCPU), 0,
+                 static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
     this->mod_get_func = [this](const std::string& name) -> Function {
-      return this->local_vm->GetFunction(name, true);
+      return this->local_vm.value()->GetFunction(name, true).value_or(Function(nullptr));
     };
     this->get_global_func = [](const std::string& name) -> Function {
       return Function::GetGlobalRequired(name);
     };
-    this->model_metadata_ = ModelMetadata::FromModule(this->local_vm, std::move(model_config));
+    this->model_metadata_ =
+        ModelMetadata::FromModule(this->local_vm.value(), std::move(model_config));
     this->_InitFunctions();
   }
   ICHECK_EQ(this->model_metadata_.tensor_parallel_shards, num_shards);
@@ -150,11 +154,11 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
 
 ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device) {
   if (this->use_disco) {
-    DRef params{nullptr};
+    Optional<DRef> params = std::nullopt;
     if (this->model_metadata_.params.empty()) {
       std::filesystem::path fs_model_path = model_path;
-      std::string metadata_path = (fs_model_path / "ndarray-cache.json").string();
-      std::string ndarray_cache_metadata = LoadBytesFromFile(metadata_path);
+      std::string metadata_path = (fs_model_path / "tensor-cache.json").string();
+      std::string tensor_cache_metadata = LoadBytesFromFile(metadata_path);
       Function loader_create = this->get_global_func("runtime.disco.ShardLoader");
 
       auto load_all_func_name = "runtime.disco.ShardLoaderLoadAll";
@@ -162,7 +166,7 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       CHECK(loader_create != nullptr);
       CHECK(loader_load_all != nullptr);
       DRef loader =
-          loader_create(metadata_path, ndarray_cache_metadata, "", this->disco_mod).cast<DRef>();
+          loader_create(metadata_path, tensor_cache_metadata, "", this->disco_mod).cast<DRef>();
       params = loader_load_all(loader).cast<DRef>();
     } else {
       auto load_func_name = getenv("MLC_INTERNAL_PRESHARD_NUM") == nullptr
@@ -172,15 +176,15 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize())
                    .cast<DRef>();
     }
-    return params;
+    return params.value();
   } else {
-    static Function fload_cache = Function::GetGlobalRequired("vm.builtin.ndarray_cache.load");
+    static Function fload_cache = Function::GetGlobalRequired("vm.builtin.tensor_cache.load");
     fload_cache(model_path, static_cast<int32_t>(device.device_type), device.device_id);
-    Array<NDArray> params;
+    Array<Tensor> params;
     if (this->model_metadata_.params.empty()) {
       constexpr const char* name_loader = "vm.builtin.param_array_from_cache";
       static Function fload_params = Function::GetGlobalRequired(name_loader);
-      params = fload_params("param", -1).cast<Array<NDArray>>();
+      params = fload_params("param", -1).cast<Array<Tensor>>();
     } else {
       constexpr const char* name_loader = "vm.builtin.param_array_from_cache_by_name";
       static Function fload_params = Function::GetGlobalRequired(name_loader);
@@ -189,13 +193,13 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
       for (const auto& param : this->model_metadata_.params) {
         param_names.push_back(param.name);
       }
-      params = fload_params(param_names).cast<Array<NDArray>>();
+      params = fload_params(param_names).cast<Array<Tensor>>();
     }
     // after we get params, it is safe to simply clear the cached version
     // as these params are referenced by params_
-    static Function fclear_ndarray_cache =
-        Function::GetGlobalRequired("vm.builtin.ndarray_cache.clear");
-    fclear_ndarray_cache();
+    static Function fclear_tensor_cache =
+        Function::GetGlobalRequired("vm.builtin.tensor_cache.clear");
+    fclear_tensor_cache();
     return params;
   }
 }
@@ -216,15 +220,19 @@ void FunctionTable::_InitFunctions() {
   this->decode_to_last_hidden_func_ = mod_get_func("batch_decode_to_last_hidden_states");
   this->verify_to_last_hidden_func_ = mod_get_func("batch_verify_to_last_hidden_states");
   this->fuse_embed_hidden_func_ = mod_get_func("fuse_embed_hidden_states");
-  Module mod =
-      this->use_disco ? this->disco_mod->DebugGetFromRemote(0).cast<Module>() : this->local_vm;
+  Module mod = this->use_disco ? this->disco_mod.value()->DebugGetFromRemote(0).cast<Module>()
+                               : this->local_vm.value();
   this->get_logits_func_ = mod_get_func("get_logits");
   this->batch_get_logits_func_ = mod_get_func("batch_get_logits");
   this->batch_select_last_hidden_func_ = mod_get_func("batch_select_last_hidden_states");
-  this->softmax_func_ = mod->GetFunction("softmax_with_temperature", true);
-  this->apply_logit_bias_func_ = mod->GetFunction("apply_logit_bias_inplace", true);
-  this->apply_penalty_func_ = mod->GetFunction("apply_penalty_inplace", true);
-  this->apply_bitmask_func_ = mod->GetFunction("apply_bitmask_inplace", true);
+  this->softmax_func_ =
+      mod->GetFunction("softmax_with_temperature", true).value_or(Function(nullptr));
+  this->apply_logit_bias_func_ =
+      mod->GetFunction("apply_logit_bias_inplace", true).value_or(Function(nullptr));
+  this->apply_penalty_func_ =
+      mod->GetFunction("apply_penalty_inplace", true).value_or(Function(nullptr));
+  this->apply_bitmask_func_ =
+      mod->GetFunction("apply_bitmask_inplace", true).value_or(Function(nullptr));
   this->alloc_embedding_tensor_func_ = mod_get_func("alloc_embedding_tensor");
   this->cuda_graph_alloc_init_func_ = mod_get_func("cuda_graph_alloc_init");
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
@@ -255,12 +263,17 @@ void FunctionTable::_InitFunctions() {
   this->kv_cache_get_total_sequence_length_func_ =
       Function::GetGlobalRequired("vm.builtin.attention_kv_cache_get_total_sequence_length");
   if (Sampler::SupportGPUSampler(local_gpu_device)) {
-    gpu_multinomial_from_uniform_func_ = mod->GetFunction("multinomial_from_uniform", true);
-    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true);
-    gpu_sample_with_top_p_func_ = mod->GetFunction("sample_with_top_p", true);
-    gpu_sampler_take_probs_func_ = mod->GetFunction("sampler_take_probs", true);
-    gpu_verify_draft_tokens_func_ = mod->GetFunction("sampler_verify_draft_tokens", true);
-    gpu_renormalize_by_top_p_func_ = mod->GetFunction("renormalize_by_top_p", true);
+    gpu_multinomial_from_uniform_func_ =
+        mod->GetFunction("multinomial_from_uniform", true).value_or(Function(nullptr));
+    gpu_argsort_probs_func_ = mod->GetFunction("argsort_probs", true).value_or(Function(nullptr));
+    gpu_sample_with_top_p_func_ =
+        mod->GetFunction("sample_with_top_p", true).value_or(Function(nullptr));
+    gpu_sampler_take_probs_func_ =
+        mod->GetFunction("sampler_take_probs", true).value_or(Function(nullptr));
+    gpu_verify_draft_tokens_func_ =
+        mod->GetFunction("sampler_verify_draft_tokens", true).value_or(Function(nullptr));
+    gpu_renormalize_by_top_p_func_ =
+        mod->GetFunction("renormalize_by_top_p", true).value_or(Function(nullptr));
   }
   this->nd_view_func_ = get_global_func("vm.builtin.reshape");
   this->nd_get_shape_func_ = get_global_func("vm.builtin.shape_of");
@@ -272,8 +285,8 @@ void FunctionTable::_InitFunctions() {
         get_global_func("mlc.multi_gpu.SendFromLastGroupToWorker0");
   }
 
-  this->gather_probs_func_ = mod->GetFunction("gather_probs", true);
-  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true);
+  this->gather_probs_func_ = mod->GetFunction("gather_probs", true).value_or(Function(nullptr));
+  this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true).value_or(Function(nullptr));
   this->gather_hidden_states_func_ = mod_get_func("gather_hidden_states");
   this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
 }
@@ -285,46 +298,47 @@ ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,
     return sess->CallPacked(empty_func, shape, dtype, Optional<Device>(std::nullopt), worker0_only,
                             /*in_group=*/false);
   } else {
-    return NDArray::Empty(shape, dtype, device);
+    return Tensor::Empty(shape, dtype, device);
   }
 }
 
-ObjectRef FunctionTable::CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
+ObjectRef FunctionTable::CopyToWorker0(const Tensor& host_array, String buffer_cache_key,
                                        Shape max_reserved_shape, bool local_only) {
+  Map<String, ObjectRef> cached_buffers = this->cached_buffers.value();
   if (this->use_disco && !local_only) {
     Device null_device{DLDeviceType(0), 0};
-    DRef buffer(nullptr);
-    auto it = this->cached_buffers.find(buffer_cache_key);
-    if (it != this->cached_buffers.end()) {
+    Optional<DRef> buffer = std::nullopt;
+    auto it = cached_buffers.find(buffer_cache_key);
+    if (it != cached_buffers.end()) {
       buffer = Downcast<DRef>((*it).second);
     } else {
       buffer = Downcast<DRef>(this->Empty(max_reserved_shape, host_array.DataType(), null_device,
                                           /*worker0_only=*/false));
-      this->cached_buffers.Set(buffer_cache_key, buffer);
+      cached_buffers.Set(buffer_cache_key, buffer.value());
     }
     Shape real_shape = host_array.Shape();
-    DRef buffer_view = nd_view_func_(buffer, real_shape).cast<DRef>();
+    DRef buffer_view = nd_view_func_(buffer.value(), real_shape).cast<DRef>();
     sess->CopyToWorker0(host_array, buffer_view);
     return buffer_view;
   } else {
-    auto it = this->cached_buffers.find(buffer_cache_key);
-    NDArray buffer{nullptr};
-    if (it != this->cached_buffers.end()) {
-      buffer = Downcast<NDArray>((*it).second);
+    auto it = cached_buffers.find(buffer_cache_key);
+    Tensor buffer{nullptr};
+    if (it != cached_buffers.end()) {
+      buffer = Downcast<Tensor>((*it).second);
       if (buffer_cache_key == "image") {
         if (runtime::GetDataSize(*buffer.operator->()) <
             runtime::GetDataSize(*host_array.operator->())) {
-          buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
-          this->cached_buffers.Set(buffer_cache_key, buffer);
+          buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+          cached_buffers.Set(buffer_cache_key, buffer);
         }
       }
     } else {
-      buffer = NDArray::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
-      this->cached_buffers.Set(buffer_cache_key, buffer);
+      buffer = Tensor::Empty(max_reserved_shape, host_array->dtype, local_gpu_device);
+      cached_buffers.Set(buffer_cache_key, buffer);
     }
     buffer = buffer.CreateView(host_array.Shape(), host_array->dtype);
     DLTensor copy_dst = *(buffer.operator->());
-    NDArray::CopyFromTo(host_array.operator->(), &copy_dst);
+    Tensor::CopyFromTo(host_array.operator->(), &copy_dst);
     return buffer;
   }
 }

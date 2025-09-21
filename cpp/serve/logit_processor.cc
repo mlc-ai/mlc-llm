@@ -15,9 +15,9 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-inline void CopyArray(NDArray src, NDArray dst, TVMStreamHandle copy_stream) {
+inline void CopyArray(Tensor src, Tensor dst, TVMStreamHandle copy_stream) {
   DLTensor dl_dst = *(dst.operator->());
-  NDArray::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
+  Tensor::CopyFromTo(src.operator->(), &dl_dst, copy_stream);
 }
 
 inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
@@ -48,28 +48,28 @@ class LogitProcessorImpl : public LogitProcessorObj {
         trace_recorder_(std::move(trace_recorder)) {
     Device preferred_host_device = GetPreferredHostDevice(device);
     // Initialize auxiliary arrays on CPU.
-    seq_ids_host_ = NDArray::Empty({max_num_token}, dtype_i32_, preferred_host_device);
+    seq_ids_host_ = Tensor::Empty({max_num_token}, dtype_i32_, preferred_host_device);
     pos2seq_id_host_ =
-        NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_ids_host_ =
-        NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_cnt_host_ =
-        NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
+        Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, preferred_host_device);
     token_logit_bias_host_ =
-        NDArray::Empty({max_num_token * vocab_size}, dtype_f32_, preferred_host_device);
-    penalties_host_ = NDArray::Empty({max_num_token, 3}, dtype_f32_, preferred_host_device);
+        Tensor::Empty({max_num_token * vocab_size}, dtype_f32_, preferred_host_device);
+    penalties_host_ = Tensor::Empty({max_num_token, 3}, dtype_f32_, preferred_host_device);
     bitmask_host_ =
-        NDArray::Empty({max_num_token, bitmask_size_}, dtype_i32_, preferred_host_device);
-    temperature_host_ = NDArray::Empty({max_num_token}, dtype_f32_, preferred_host_device);
+        Tensor::Empty({max_num_token, bitmask_size_}, dtype_i32_, preferred_host_device);
+    temperature_host_ = Tensor::Empty({max_num_token}, dtype_f32_, preferred_host_device);
     // Initialize auxiliary arrays on GPU.
-    seq_ids_device_ = NDArray::Empty({max_num_token}, dtype_i32_, device);
-    pos2seq_id_device_ = NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_ids_device_ = NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_cnt_device_ = NDArray::Empty({max_num_token * vocab_size}, dtype_i32_, device);
-    token_logit_bias_device_ = NDArray::Empty({max_num_token * vocab_size}, dtype_f32_, device);
-    penalties_device_ = NDArray::Empty({max_num_token, 3}, dtype_f32_, device);
-    bitmask_device_ = NDArray::Empty({max_num_token, bitmask_size_}, dtype_i32_, device);
-    temperature_device_ = NDArray::Empty({max_num_token}, dtype_f32_, device);
+    seq_ids_device_ = Tensor::Empty({max_num_token}, dtype_i32_, device);
+    pos2seq_id_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_ids_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_cnt_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_i32_, device);
+    token_logit_bias_device_ = Tensor::Empty({max_num_token * vocab_size}, dtype_f32_, device);
+    penalties_device_ = Tensor::Empty({max_num_token, 3}, dtype_f32_, device);
+    bitmask_device_ = Tensor::Empty({max_num_token, bitmask_size_}, dtype_i32_, device);
+    temperature_device_ = Tensor::Empty({max_num_token}, dtype_f32_, device);
 
     CHECK(apply_logit_bias_func_.defined())
         << "Function \"apply_logit_bias_inplace\" not found in model";
@@ -93,7 +93,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     }
   }
 
-  void InplaceUpdateLogits(NDArray logits,                                 //
+  void InplaceUpdateLogits(Tensor logits,                                  //
                            const Array<GenerationConfig>& generation_cfg,  //
                            const Array<RequestModelState>& mstates,        //
                            const Array<String>& request_ids,               //
@@ -147,9 +147,9 @@ class LogitProcessorImpl : public LogitProcessorObj {
     RECORD_EVENT(trace_recorder_, request_ids, "finish update logits");
   }
 
-  NDArray ComputeProbsFromLogits(NDArray logits, const Array<GenerationConfig>& generation_cfg,
-                                 const Array<String>& request_ids,
-                                 const std::vector<int>* cum_num_token) final {
+  Tensor ComputeProbsFromLogits(Tensor logits, const Array<GenerationConfig>& generation_cfg,
+                                const Array<String>& request_ids,
+                                const std::vector<int>* cum_num_token) final {
     NVTXScopedRange nvtx_scope("Compute probs from logits");
     // logits: (n, v)
     CHECK_EQ(logits->ndim, 2);
@@ -183,17 +183,17 @@ class LogitProcessorImpl : public LogitProcessorObj {
     }
 
     // - View arrays.
-    NDArray temperature_host = temperature_host_.CreateView({num_total_token}, dtype_f32_);
-    NDArray temperature_device = temperature_device_.CreateView({num_total_token}, dtype_f32_);
+    Tensor temperature_host = temperature_host_.CreateView({num_total_token}, dtype_f32_);
+    Tensor temperature_device = temperature_device_.CreateView({num_total_token}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/temperature_host, /*dst=*/temperature_device, copy_stream_);
     SyncCopyStream(device_, compute_stream_, copy_stream_);
 
     // - Call kernel.
-    NDArray probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
-                                  temperature_device)
-                        .cast<NDArray>();
+    Tensor probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
+                                 temperature_device)
+                       .cast<Tensor>();
     ICHECK_EQ(probs->ndim, 3);
     ICHECK_EQ(probs->shape[0], num_total_token);
     ICHECK_EQ(probs->shape[1], 1);
@@ -206,7 +206,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
   }
 
  private:
-  void UpdateWithLogitBias(NDArray logits, const Array<GenerationConfig>& generation_cfg,
+  void UpdateWithLogitBias(Tensor logits, const Array<GenerationConfig>& generation_cfg,
                            const std::vector<int>* cum_num_token) {
     NVTXScopedRange nvtx_scope("UpdateWithLogitBias");
     // Construct:
@@ -243,12 +243,12 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - View arrays.
     int num_token = num_bias_token;
-    NDArray pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
-    NDArray pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
-    NDArray token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
-    NDArray token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
-    NDArray token_logit_bias_host = token_logit_bias_host_.CreateView({num_token}, dtype_f32_);
-    NDArray token_logit_bias_device = token_logit_bias_device_.CreateView({num_token}, dtype_f32_);
+    Tensor pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
+    Tensor pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
+    Tensor token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
+    Tensor token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
+    Tensor token_logit_bias_host = token_logit_bias_host_.CreateView({num_token}, dtype_f32_);
+    Tensor token_logit_bias_device = token_logit_bias_device_.CreateView({num_token}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/pos2seq_id_host, /*dst=*/pos2seq_id_device, copy_stream_);
@@ -263,7 +263,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     }
   }
 
-  void UpdateWithPenalty(NDArray logits, const Array<GenerationConfig>& generation_cfg,
+  void UpdateWithPenalty(Tensor logits, const Array<GenerationConfig>& generation_cfg,
                          const Array<RequestModelState>& mstates,
                          const std::vector<int>* cum_num_token,
                          const Array<RequestModelState>* draft_mstates,
@@ -338,16 +338,16 @@ class LogitProcessorImpl : public LogitProcessorObj {
     // - View arrays.
     int num_seq = num_token_for_penalty;
     int num_token = num_penalty_appeared_token;
-    NDArray seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
-    NDArray seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
-    NDArray pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
-    NDArray pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
-    NDArray token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
-    NDArray token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
-    NDArray token_cnt_host = token_cnt_host_.CreateView({num_token}, dtype_i32_);
-    NDArray token_cnt_device = token_cnt_device_.CreateView({num_token}, dtype_i32_);
-    NDArray penalties_host = penalties_host_.CreateView({num_seq, 3}, dtype_f32_);
-    NDArray penalties_device = penalties_device_.CreateView({num_seq, 3}, dtype_f32_);
+    Tensor seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
+    Tensor seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
+    Tensor pos2seq_id_host = pos2seq_id_host_.CreateView({num_token}, dtype_i32_);
+    Tensor pos2seq_id_device = pos2seq_id_device_.CreateView({num_token}, dtype_i32_);
+    Tensor token_ids_host = token_ids_host_.CreateView({num_token}, dtype_i32_);
+    Tensor token_ids_device = token_ids_device_.CreateView({num_token}, dtype_i32_);
+    Tensor token_cnt_host = token_cnt_host_.CreateView({num_token}, dtype_i32_);
+    Tensor token_cnt_device = token_cnt_device_.CreateView({num_token}, dtype_i32_);
+    Tensor penalties_host = penalties_host_.CreateView({num_seq, 3}, dtype_f32_);
+    Tensor penalties_device = penalties_device_.CreateView({num_seq, 3}, dtype_f32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/seq_ids_host, /*dst=*/seq_ids_device, copy_stream_);
@@ -365,7 +365,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
     }
   }
 
-  void UpdateWithMask(NDArray logits, const Array<RequestModelState>& mstates,
+  void UpdateWithMask(Tensor logits, const Array<RequestModelState>& mstates,
                       const std::vector<int>* cum_num_token,
                       const Array<RequestModelState>* draft_mstates,
                       const std::vector<std::vector<int>>* draft_token_indices) {
@@ -405,7 +405,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
             }
           }
           // Find a slice of bitmask_host_: bitmask_host_[num_token_for_mask, :]
-          auto bitmask_dltensor = *bitmask_host_.operator->();
+          DLTensor bitmask_dltensor = *bitmask_host_.operator->();
           int64_t bitmask_shape[] = {bitmask_size_};
           bitmask_dltensor.data = p_bitmask + (token_start_offset + j) * bitmask_size_;
           bitmask_dltensor.shape = bitmask_shape;
@@ -435,10 +435,10 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - View arrays.
     int num_seq = num_token_for_mask;
-    NDArray seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
-    NDArray seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
-    NDArray bitmask_host = bitmask_host_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
-    NDArray bitmask_device = bitmask_device_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
+    Tensor seq_ids_host = seq_ids_host_.CreateView({num_seq}, dtype_i32_);
+    Tensor seq_ids_device = seq_ids_device_.CreateView({num_seq}, dtype_i32_);
+    Tensor bitmask_host = bitmask_host_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
+    Tensor bitmask_device = bitmask_device_.CreateView({batch_size, bitmask_size_}, dtype_i32_);
 
     // - Copy arrays to GPU.
     CopyArray(/*src=*/seq_ids_host, /*dst=*/seq_ids_device, copy_stream_);
@@ -465,24 +465,24 @@ class LogitProcessorImpl : public LogitProcessorObj {
   Function apply_logit_bias_func_;
   Function apply_penalty_func_;
   Function apply_bitmask_func_;
-  // Auxiliary NDArrays on CPU
-  NDArray seq_ids_host_;
-  NDArray pos2seq_id_host_;
-  NDArray token_ids_host_;
-  NDArray token_cnt_host_;
-  NDArray token_logit_bias_host_;
-  NDArray penalties_host_;
-  NDArray bitmask_host_;
-  NDArray temperature_host_;
-  // Auxiliary NDArrays on GPU
-  NDArray seq_ids_device_;
-  NDArray pos2seq_id_device_;
-  NDArray token_ids_device_;
-  NDArray token_cnt_device_;
-  NDArray token_logit_bias_device_;
-  NDArray penalties_device_;
-  NDArray bitmask_device_;
-  NDArray temperature_device_;
+  // Auxiliary Tensors on CPU
+  Tensor seq_ids_host_;
+  Tensor pos2seq_id_host_;
+  Tensor token_ids_host_;
+  Tensor token_cnt_host_;
+  Tensor token_logit_bias_host_;
+  Tensor penalties_host_;
+  Tensor bitmask_host_;
+  Tensor temperature_host_;
+  // Auxiliary Tensors on GPU
+  Tensor seq_ids_device_;
+  Tensor pos2seq_id_device_;
+  Tensor token_ids_device_;
+  Tensor token_cnt_device_;
+  Tensor token_logit_bias_device_;
+  Tensor penalties_device_;
+  Tensor bitmask_device_;
+  Tensor temperature_device_;
   // Event trace recorder.
   Optional<EventTraceRecorder> trace_recorder_;
   // The device stream for the default computation operations.
@@ -495,8 +495,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
 LogitProcessor::LogitProcessor(int max_num_token, int vocab_size, FunctionTable* ft,
                                DLDevice device, Optional<EventTraceRecorder> trace_recorder) {
-  data_ = make_object<LogitProcessorImpl>(max_num_token, vocab_size, ft, device,
-                                          std::move(trace_recorder));
+  data_ = tvm::ffi::make_object<LogitProcessorImpl>(max_num_token, vocab_size, ft, device,
+                                                    std::move(trace_recorder));
 }
 
 }  // namespace serve

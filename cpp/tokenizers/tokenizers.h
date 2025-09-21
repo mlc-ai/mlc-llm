@@ -48,10 +48,10 @@ class TokenizerInfoNode : public Object {
 
   String AsJSONString() const;
 
-  static constexpr const char* _type_key = "mlc.serve.TokenizerInfo";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(TokenizerInfoNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.TokenizerInfo", TokenizerInfoNode, Object);
 };
 
 class TokenizerInfo : public ObjectRef {
@@ -59,7 +59,7 @@ class TokenizerInfo : public ObjectRef {
   /*! \brief Create a TokenizerInfo object from a dumped string. */
   static TokenizerInfo FromJSONString(String json_string);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TokenizerInfo, ObjectRef, TokenizerInfoNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TokenizerInfo, ObjectRef, TokenizerInfoNode);
 };
 
 /*! \brief A wrapper object class for tokenizer. */
@@ -107,10 +107,10 @@ class TokenizerObj : public Object {
   int32_t TokenToId(const std::string& token) const;
 
   friend class Tokenizer;
-  static constexpr const char* _type_key = "mlc.Tokenizer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(TokenizerObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.Tokenizer", TokenizerObj, Object);
 
  private:
   /*! \brief Useful information of the tokenizer during generation. */
@@ -143,7 +143,7 @@ class Tokenizer : public ObjectRef {
   static std::vector<std::string> PostProcessTokenTable(const std::vector<std::string>& token_table,
                                                         const std::string& token_postproc_method);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Tokenizer, ObjectRef, TokenizerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tokenizer, ObjectRef, TokenizerObj);
 
  private:
   explicit Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer, TokenizerInfo info);

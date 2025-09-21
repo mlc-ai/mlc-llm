@@ -130,7 +130,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
             embeddings, hidden_states, /*batch_size*/ num_rsentries, /*seq_len*/ 1);
         hidden_states = models_[model_id]->BatchDecodeToLastHidden(fused_embedding_hidden_states,
                                                                    request_internal_ids);
-        NDArray logits;
+        Tensor logits;
         if (models_[model_id]->CanGetLogits()) {
           logits = models_[model_id]->GetLogits(hidden_states);
         } else {
@@ -146,7 +146,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
                                               &mstates, &draft_token_indices);
 
         // - Compute probability distributions.
-        NDArray probs_on_device =
+        Tensor probs_on_device =
             logit_processor_->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
         // - Commit the prefix cache changes from previous round of action.
@@ -157,7 +157,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         // Fill range [0, num_rsentries) into `sample_indices`.
         std::vector<int> sample_indices(num_rsentries);
         std::iota(sample_indices.begin(), sample_indices.end(), 0);
-        NDArray renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
+        Tensor renormalized_probs = sampler_->BatchRenormalizeProbsByTopP(
             probs_on_device, sample_indices, request_ids, generation_cfg);
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
             renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
@@ -223,7 +223,7 @@ EngineAction EngineAction::EagleBatchDraft(Array<Model> models, LogitProcessor l
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
                                            Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<EagleBatchDraftActionObj>(
+  return EngineAction(tvm::ffi::make_object<EagleBatchDraftActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),
       std::move(engine_config), std::move(trace_recorder)));

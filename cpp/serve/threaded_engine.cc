@@ -380,7 +380,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 };
 
 /*! \brief The implementation of ThreadedEngine. */
-class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
+class ThreadedEngineModule : public ThreadedEngineImpl, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
   TVM_MODULE_VTABLE_ENTRY("init_threaded_engine", &ThreadedEngineImpl::InitThreadedEngine);
@@ -400,11 +400,11 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 };
 
-TVM_FFI_STATIC_INIT_BLOCK({
+TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.create_threaded_engine",
-                        []() { return Module(make_object<ThreadedEngineModule>()); });
-});
+                        []() { return Module(tvm::ffi::make_object<ThreadedEngineModule>()); });
+}
 
 std::unique_ptr<ThreadedEngine> ThreadedEngine::Create() {
   std::unique_ptr<ThreadedEngineImpl> threaded_engine = std::make_unique<ThreadedEngineImpl>();
