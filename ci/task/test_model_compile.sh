@@ -19,8 +19,11 @@ elif [[ ${GPU} == metal ]]; then
     pip install --pre -U --force-reinstall -f https://mlc.ai/wheels mlc-ai-nightly-cpu
 elif [[ ${GPU} == wasm* ]]; then
     TARGET=wasm
+    # Clone a copy a tvm source code to build tvm web runtime
+    git clone https://github.com/mlc-ai/relax.git /tmp/tvm --recursive
+    export TVM_SOURCE_DIR=/tmp/tvm
+    # Pip install tvm so that `import tvm` in Python works
     pip install --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cpu
-    export TVM_SOURCE_DIR=$(dirname $(python -c 'import tvm; print(tvm.__file__)'))
     export TVM_HOME=${TVM_SOURCE_DIR}
     export MLC_LLM_SOURCE_DIR=$(pwd)
     cd $TVM_SOURCE_DIR/web/ && make -j${NUM_THREADS} && cd -
