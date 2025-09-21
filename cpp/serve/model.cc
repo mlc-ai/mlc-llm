@@ -410,6 +410,12 @@ class ModelImpl : public ModelObj {
   NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
+    
+    bool padded = num_sequence % seqlen_padding_factor_ != 0;
+    if (padded) {
+      num_sequence = (num_sequence + seqlen_padding_factor_ - 1) / seqlen_padding_factor_ *
+                     seqlen_padding_factor_;
+    }
 
     CHECK(ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
@@ -443,7 +449,7 @@ class ModelImpl : public ModelObj {
 
     // args: embeddings, kv_cache, params
     ObjectRef ret;
-    if (seq_ids.size() == 1) {
+    if (num_sequence == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_)
                 .cast<ObjectRef>();
     } else {
@@ -468,9 +474,14 @@ class ModelImpl : public ModelObj {
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
+    if (padded) {
+      // logits shape: (padded_batch, 1, vocab_size_)
+      // Slice to (real_batch, 1, vocab_size_)
+      logits = logits.CreateView({seq_ids.size(), 1, vocab_size_}, logits->dtype);
+    }
     // logits: (b, 1, v)
     ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], num_sequence);
+    ICHECK_EQ(logits->shape[0], seq_ids.size());
     ICHECK_EQ(logits->shape[1], 1);
     return logits;
   }
