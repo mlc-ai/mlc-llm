@@ -122,7 +122,7 @@ class StopStrHandlerObj : public Object {
   /*! \brief The token string length of each pending token id. */
   std::vector<int> pending_token_lengths_;
   /*! \brief A boolean flag indicating if stop has been triggered. */
-  bool stop_triggered_;
+  bool stop_triggered_ = false;
 
   /************ Per-stop-string states. ************/
 
