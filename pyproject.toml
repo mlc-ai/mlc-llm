@@ -146,6 +146,9 @@ follow_imports = "skip"
 ignore_errors = false
 strict_optional = false
 
+[project.scripts]
+mlc_llm = "mlc_llm.__main__:main"
+
 [tool.pylint.messages_control]
 max-line-length = 100
 disable = """
