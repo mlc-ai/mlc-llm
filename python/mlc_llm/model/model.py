@@ -40,6 +40,7 @@ from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
 from .qwen import qwen_loader, qwen_model, qwen_quantization
 from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
+from .qwen2_vl import qwen2_vl_loader, qwen2_vl_model, qwen2_vl_quantization
 from .qwen3 import qwen3_loader, qwen3_model, qwen3_quantization
 from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model, qwen3_moe_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
@@ -342,6 +343,20 @@ MODELS: Dict[str, Model] = {
             "no-quant": qwen2_moe_quantization.no_quant,
             "group-quant": qwen2_moe_quantization.group_quant,
             "ft-quant": qwen2_moe_quantization.ft_quant,
+        },
+    ),
+    "qwen2_vl": Model(
+        name="qwen2_vl",
+        model=qwen2_vl_model.QWen2VLLMHeadModel,
+        config=qwen2_vl_model.QWen2VLConfig,
+        source={
+            "huggingface-torch": qwen2_vl_loader.huggingface,
+            "huggingface-safetensor": qwen2_vl_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen2_vl_quantization.no_quant,
+            "group-quant": qwen2_vl_quantization.group_quant,
+            "ft-quant": qwen2_vl_quantization.ft_quant,
         },
     ),
     "qwen3": Model(
