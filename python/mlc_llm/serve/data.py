@@ -4,22 +4,21 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import tvm
-import tvm._ffi
-from tvm.runtime import Object
-from tvm.runtime.ndarray import NDArray
+import tvm_ffi
+from tvm.runtime import Object, Tensor
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("mlc.serve.Data")  # pylint: disable=protected-access
-class Data(Object):
+@tvm_ffi.register_object("mlc.serve.Data")  # pylint: disable=protected-access
+class Data(Object):  # pylint: disable=too-few-public-methods
     """The base class of multi-modality data (text, tokens, embedding, etc)."""
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         pass
 
 
-@tvm._ffi.register_object("mlc.serve.TextData")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.TextData")  # pylint: disable=protected-access
 class TextData(Data):
     """The class of text data, containing a text string.
 
@@ -41,8 +40,8 @@ class TextData(Data):
         return self.text
 
 
-@tvm._ffi.register_object("mlc.serve.TokenData")  # type: ignore  # pylint: disable=protected-access
-class TokenData(Data):
+@tvm_ffi.register_object("mlc.serve.TokenData")  # type: ignore  # pylint: disable=protected-access
+class TokenData(Data):  # pylint: disable=too-few-public-methods
     """The class of token data, containing a list of token ids.
 
     Parameters
@@ -61,22 +60,22 @@ class TokenData(Data):
 
 
 # mypy: disable-error-code="attr-defined"
-@tvm._ffi.register_object("mlc.serve.ImageData")  # type: ignore  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.ImageData")  # type: ignore  # pylint: disable=protected-access
 class ImageData(Data):
-    """The class of image data, containing the image as NDArray.
+    """The class of image data, containing the image as Tensor.
 
     Parameters
     ----------
-    image : tvm.runtime.NDArray
+    image : tvm.runtime.Tensor
         The image data.
     """
 
-    def __init__(self, image: NDArray, embed_size: int):
+    def __init__(self, image: Tensor, embed_size: int):
         self.embed_size = embed_size
         self.__init_handle_by_constructor__(_ffi_api.ImageData, image, embed_size)  # type: ignore  # pylint: disable=no-member
 
     @property
-    def image(self) -> NDArray:
+    def image(self) -> Tensor:
         """Return the image data."""
         return _ffi_api.ImageDataGetImage(self)  # type: ignore  # pylint: disable=no-member
 
@@ -86,7 +85,7 @@ class ImageData(Data):
     # pylint: disable=too-many-locals,unused-argument,unused-argument
     @staticmethod
     def from_url(url: str, config: Dict) -> "ImageData":
-        """Get the image from the given URL, process and return the image tensor as TVM NDArray."""
+        """Get the image from the given URL, process and return the image tensor as TVM Tensor."""
 
         # pylint: disable=import-outside-toplevel, import-error
         import base64
@@ -113,7 +112,7 @@ class ImageData(Data):
         if config["model_type"] == "phi3_v":
             image_embed_size = 1921
         image_tensor = np.expand_dims(image_tensor, axis=0)  # HWC -> NHWC
-        image_features = tvm.nd.array(image_tensor)
+        image_features = tvm.runtime.tensor(image_tensor)
         image_data = ImageData(image_features, image_embed_size)
         return image_data
 
@@ -158,8 +157,8 @@ class SingleRequestStreamOutput:
     extra_prefix_string: str
 
 
-@tvm._ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
-class RequestStreamOutput(Object):
+@tvm_ffi.register_object("mlc.serve.RequestStreamOutput")  # pylint: disable=protected-access
+class RequestStreamOutput(Object):  # pylint: disable=too-few-public-methods
     """The generated delta request output that is streamed back
     through callback stream function.
     It contains four fields (in order):

@@ -1907,7 +1907,7 @@ class MLCEngine(engine_base.MLCEngineBase):
                 request_outputs, request_final_usage_json_str = self._request_stream_callback_impl(
                     delta_outputs
                 )
-                for request_output in request_outputs:
+                for request_output in request_outputs:  # pylint: disable=use-yield-from
                     yield request_output
 
                 if request_final_usage_json_str is not None:

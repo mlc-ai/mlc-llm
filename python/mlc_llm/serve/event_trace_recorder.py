@@ -1,16 +1,16 @@
 """The event trace recorder in MLC LLM serving"""
 
-import tvm._ffi
+import tvm_ffi
 from tvm.runtime import Object
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("mlc.serve.EventTraceRecorder")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.EventTraceRecorder")  # pylint: disable=protected-access
 class EventTraceRecorder(Object):
     """The event trace recorder for requests."""
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # pylint: disable=super-init-not-called
         """Initialize a trace recorder."""
         self.__init_handle_by_constructor__(
             _ffi_api.EventTraceRecorder  # type: ignore  # pylint: disable=no-member

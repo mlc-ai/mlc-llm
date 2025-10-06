@@ -73,7 +73,11 @@ class DraftTokenWorkspaceManagerObj : public Object {
    */
   void FreeSlots(const std::vector<int>& slots);
 
-  static constexpr const char* _type_key = "mlc.serve.DraftTokenWorkspaceManager";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.DraftTokenWorkspaceManager",
+                                    DraftTokenWorkspaceManagerObj, Object);
 
  private:
   std::vector<int> free_slots_;
@@ -91,11 +95,11 @@ class DraftTokenWorkspaceManager : public ObjectRef {
   DraftTokenWorkspaceManager(int max_num_tokens, int vocab_size, int hidden_size,
                              DLDataType hidden_states_dtype, DLDevice device,
                              const FunctionTable& ft) {
-    data_ = make_object<DraftTokenWorkspaceManagerObj>(max_num_tokens, vocab_size, hidden_size,
-                                                       hidden_states_dtype, device, ft);
+    data_ = tvm::ffi::make_object<DraftTokenWorkspaceManagerObj>(
+        max_num_tokens, vocab_size, hidden_size, hidden_states_dtype, device, ft);
   }
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(DraftTokenWorkspaceManager, ObjectRef,
-                                        DraftTokenWorkspaceManagerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DraftTokenWorkspaceManager, ObjectRef,
+                                             DraftTokenWorkspaceManagerObj);
 };
 
 }  // namespace serve

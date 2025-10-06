@@ -1,7 +1,5 @@
 #include "./model.h"
 
-#include <tvm/runtime/packed_func.h>
-
 #include <unordered_map>
 
 #include "../support/json_parser.h"
@@ -10,6 +8,8 @@ namespace mlc {
 namespace llm {
 
 using namespace tvm::runtime;
+using tvm::ffi::Function;
+using tvm::ffi::Optional;
 
 ModelMetadata::Param::Preproc ModelMetadata::Param::Preproc::FromJSON(
     const picojson::object& js, const picojson::object& model_config) {
@@ -86,6 +86,8 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
     result.sliding_window_size = json::Lookup<int64_t>(metadata, "sliding_window");
   if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
     result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
+  result.seqlen_padding_factor =
+      json::LookupOrDefault<int64_t>(metadata, "seqlen_padding_factor", 1);
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   result.pipeline_parallel_stages =
       json::LookupOrDefault<int64_t>(metadata, "pipeline_parallel_stages", 1);
@@ -122,11 +124,11 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   return result;
 }
 
-ModelMetadata ModelMetadata::FromModule(tvm::runtime::Module module,
-                                        const picojson::object& model_config) {
+ModelMetadata ModelMetadata::FromModule(Module module, const picojson::object& model_config) {
   std::string json_str = "";
-  TypedPackedFunc<String()> pf = module.GetFunction("_metadata");
-  json_str = pf();
+  Optional<Function> pf = module->GetFunction("_metadata");
+  CHECK(pf.defined()) << "ValueError: _metadata function not found in module";
+  json_str = pf.value()().cast<String>();
   picojson::object json = json::ParseToJSONObject(json_str);
   try {
     return ModelMetadata::FromJSON(json, model_config);

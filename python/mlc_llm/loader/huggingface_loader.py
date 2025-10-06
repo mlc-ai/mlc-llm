@@ -8,8 +8,8 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 from tqdm import tqdm
-from tvm.runtime import Device, NDArray
-from tvm.runtime.ndarray import array as as_ndarray
+from tvm.runtime import Device, Tensor
+from tvm.runtime import tensor as as_tensor
 
 from mlc_llm.support import logging
 from mlc_llm.support.preshard import _sharded_param_name
@@ -100,7 +100,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
 
     def load(
         self, device: Device, preshard_funcs: Dict[str, Callable] = None
-    ) -> Iterator[Tuple[str, NDArray]]:
+    ) -> Iterator[Tuple[str, Tensor]]:
         """Load the parameters and yield the MLC parameter and its value.
 
         Parameters
@@ -110,7 +110,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
 
         Yields
         ------
-        Tuple[str, NDArray]
+        Tuple[str, Tensor]
             The MLC parameter name and its value, quantized if quantization mapping is provided.
         """
         mlc_names = _loading_order(self.extern_param_map, self.torch_to_path)
@@ -132,7 +132,7 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         self.stats.log_time_info("HF")
         self.stats.log_mem_usage()
 
-    def _load_mlc_param(self, mlc_name: str, device: Optional[Device]) -> NDArray:
+    def _load_mlc_param(self, mlc_name: str, device: Optional[Device]) -> Tensor:
         torch_names = self.extern_param_map.param_map[mlc_name]
         files_required = {self.torch_to_path[p] for p in torch_names}
         files_existing = set(self.cached_files.keys())
@@ -154,8 +154,8 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         with self.stats.timer("map_time_sec"):
             param = self.extern_param_map.map_func[mlc_name](*torch_params)
         if device:
-            return as_ndarray(param, device=device)
-        return as_ndarray(param)
+            return as_tensor(param, device=device)
+        return as_tensor(param)
 
     def _load_or_quantize(self, mlc_name, param, device: Device):
         if self.quantize_param_map and mlc_name in self.quantize_param_map.param_map:

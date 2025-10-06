@@ -7,7 +7,6 @@
 #define MLC_LLM_SERVE_THREADED_ENGINE_H_
 
 #include <picojson.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "data.h"
 #include "engine.h"
@@ -35,12 +34,12 @@ class ThreadedEngine {
   virtual ~ThreadedEngine() = default;
 
   /*!
-   * \brief Initialize the threaded engine from packed arguments in TVMArgs.
+   * \brief Initialize the threaded engine from packed arguments in PackedArgs.
    * \param device The device where to run models.
    * \param request_stream_callback The request stream callback function to.
    * \param trace_recorder Event trace recorder for requests.
    */
-  virtual void InitThreadedEngine(Device device, Optional<PackedFunc> request_stream_callback,
+  virtual void InitThreadedEngine(Device device, Optional<Function> request_stream_callback,
                                   Optional<EventTraceRecorder> trace_recorder) = 0;
 
   /*!

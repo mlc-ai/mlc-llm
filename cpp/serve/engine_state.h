@@ -6,7 +6,7 @@
 #define MLC_LLM_SERVE_ENGINE_STATE_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 
 #include "config.h"
 #include "metrics.h"
@@ -20,7 +20,7 @@ namespace serve {
 
 using namespace tvm::runtime;
 
-typedef TypedPackedFunc<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
+typedef TypedFunction<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
 
 /*! \brief The manager of internal id for requests in engine. */
 struct EngineInternalIDManager {
@@ -98,10 +98,10 @@ class EngineStateObj : public Object {
   /*! \brief Return the running request state entries*/
   const std::vector<RequestStateEntry>& GetRunningRequestStateEntries();
 
-  static constexpr const char* _type_key = "mlc.serve.EngineState";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(EngineStateObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.EngineState", EngineStateObj, Object);
 
  private:
   std::vector<RequestStateEntry> cached_running_rsentries_;
@@ -115,7 +115,7 @@ class EngineState : public ObjectRef {
  public:
   explicit EngineState();
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(EngineState, ObjectRef, EngineStateObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(EngineState, ObjectRef, EngineStateObj);
 };
 
 }  // namespace serve

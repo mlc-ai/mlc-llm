@@ -6,12 +6,12 @@
 #include "engine.h"
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #include <xgrammar/xgrammar.h>
 
@@ -42,6 +42,7 @@ namespace serve {
 
 using tvm::Device;
 using namespace tvm::runtime;
+using tvm::ffi::Function;
 
 class EngineModule;
 
@@ -54,7 +55,7 @@ inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& mod
   }
   const picojson::object& tokenizer_info_obj =
       model_config.at("tokenizer_info").get<picojson::object>();
-  auto info = make_object<TokenizerInfoNode>();
+  auto info = tvm::ffi::make_object<TokenizerInfoNode>();
   if (tokenizer_info_obj.count("token_postproc_method")) {
     info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
   }
@@ -211,7 +212,8 @@ class MockEchoEngineImpl : public Engine {
             outputs.push_back(RequestStreamOutput(
                 request->id,
                 std::vector<std::vector<int64_t>>(request->generation_cfg->n, {token_id}),
-                std::nullopt, std::vector<Optional<String>>(request->generation_cfg->n, NullOpt),
+                std::nullopt,
+                std::vector<Optional<String>>(request->generation_cfg->n, std::nullopt),
                 std::vector<String>(request->generation_cfg->n)));
           }
         }
@@ -413,9 +415,8 @@ class EngineImpl : public Engine {
       if (session != nullptr) {
         n->DebugCallFuncOnAllAllWorker(f_name, String(nvshmem_init_config_json_char));
       } else {
-        const PackedFunc* func = Registry::Get(f_name);
-        CHECK(func != nullptr) << "Global function name \"" << f_name << "\" is not found";
-        (*func)(nvshmem_init_config_json_char);
+        static Function func = Function::GetGlobalRequired(f_name);
+        func(String(nvshmem_init_config_json_char));
       }
       LOG(INFO) << "NVSHMEM initialized successfully.";
     }
@@ -582,7 +583,7 @@ class EngineImpl : public Engine {
       }
       // - Override the "n" in generation config to 1.
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       updated_generation_cfg->n = 1;
       request->generation_cfg = GenerationConfig(updated_generation_cfg);
       return false;
@@ -616,7 +617,7 @@ class EngineImpl : public Engine {
 
       RequestState rstate = it_rstate->second;
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       // - Split the input data into two parts at the position "kv_window_begin".
       CHECK(!request->inputs.empty());
       auto [lhs_data, rhs_data] = SplitData(request->inputs, input_length, kv_window_begin);
@@ -773,15 +774,15 @@ class EngineImpl : public Engine {
         [&device](const std::string& model_lib,
                   const picojson::object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
-        Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
-        PackedFunc fload_exec = executable->GetFunction("vm_load_executable");
+        Module executable = ffi::Module::LoadFromFile(model_lib);
+        Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
         ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-        Module local_vm = fload_exec();
-        local_vm->GetFunction("vm_initialization")(
-            static_cast<int>(device.device_type), device.device_id,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
-            static_cast<int>(kDLCPU), 0,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+        Module local_vm = fload_exec.value()().cast<Module>();
+        local_vm->GetFunction("vm_initialization")
+            .value()(static_cast<int>(device.device_type), device.device_id,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+                     static_cast<int>(kDLCPU), 0,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
         ModelMetadata metadata = ModelMetadata::FromModule(local_vm, std::move(model_config));
         return {metadata.tensor_parallel_shards, metadata.pipeline_parallel_stages};
       } else {
@@ -810,12 +811,12 @@ class EngineImpl : public Engine {
       }
     }
 
-    Optional<Session> session = NullOpt;
+    Optional<Session> session = std::nullopt;
     int num_workers = num_shards * max_num_stages;
     if (num_workers > 1) {
 #ifndef MLC_SINGLE_GPU_ONLY
       constexpr const char* f_create_process_pool = "runtime.disco.create_process_pool";
-      if (Registry::Get(f_create_process_pool) == nullptr) {
+      if (!Function::GetGlobal(f_create_process_pool).has_value()) {
         LOG(FATAL) << "Cannot find process launcher `" << f_create_process_pool << "`. "
                    << "Multi-GPU inference depends on MLC LLM Python API to launch process.";
       }
@@ -849,13 +850,12 @@ class EngineImpl : public Engine {
                   << green_text_begin << "python -m mlc_llm.cli.disco_remote_socket_session "
                   << (socket_host.value() == "0.0.0.0" ? "<YOUR_NODE_IP>" : socket_host.value())
                   << " " << socket_port << " " << num_shards << colored_text_end;
-        const PackedFunc* f_create_socket_sess = Registry::Get("runtime.disco.SocketSession");
-        CHECK(f_create_socket_sess != nullptr)
-            << "SocketSession constructor \"runtime.disco.SocketSession\" not found in TVM "
-               "registry.";
+        static Function f_create_socket_sess =
+            Function::GetGlobalRequired("runtime.disco.SocketSession");
         Session sess =
-            (*f_create_socket_sess)(max_num_stages, num_shards, /*num_groups=*/max_num_stages,
-                                    socket_host.value(), socket_port);
+            f_create_socket_sess(max_num_stages, num_shards, /*num_groups=*/max_num_stages,
+                                 socket_host.value(), socket_port)
+                .cast<Session>();
         session = std::move(sess);
       } else {
         if (max_num_stages > 1) {
@@ -870,7 +870,7 @@ class EngineImpl : public Engine {
         session = Session::ProcessSession(num_workers, max_num_stages, f_create_process_pool,
                                           "mlc_llm.cli.worker");
       }
-      session.value()->InitCCL(ccl, ShapeTuple(device_ids));
+      session.value()->InitCCL(ccl, Shape(device_ids));
 #else
       LOG(FATAL) << "MLC_SINGLE_GPU_ONLY is specified. Multi-GPU is not enabled.";
 #endif  // MLC_SINGLE_GPU_ONLY
@@ -895,7 +895,7 @@ class EngineImpl : public Engine {
       return TResult::Error(err);
     }
     picojson::object config = config_json.get<picojson::object>();
-    ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+    ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.
     EngineMode mode = EngineModeFromString(json::Lookup<std::string>(config, "mode"));
@@ -1019,12 +1019,11 @@ Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_jso
 /*! \brief Clear global memory manager */
 void ClearGlobalMemoryManager() {
   static const char* kFunc = "vm.builtin.memory_manager.clear";
-  const PackedFunc* f = tvm::runtime::Registry::Get(kFunc);
-  CHECK(f != nullptr) << "ValueError: Cannot find function `" << kFunc << "` in TVM runtime";
-  (*f)();
+  static Function f = Function::GetGlobalRequired(kFunc);
+  f();
 }
 
-class EngineModule : public ModuleNode {
+class EngineModule : public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.engine");
   TVM_MODULE_VTABLE_ENTRY("init", &EngineModule::Init);
@@ -1050,7 +1049,7 @@ class EngineModule : public ModuleNode {
     this->default_generation_config_ = output.default_generation_cfg;
   }
   /*! \brief Construct an EngineModule. */
-  static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
+  static ffi::Module Create() { return ffi::Module(tvm::ffi::make_object<EngineModule>()); }
   /*! \brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */
@@ -1088,7 +1087,10 @@ class EngineModule : public ModuleNode {
   GenerationConfig default_generation_config_;
 };
 
-TVM_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.create_engine", EngineModule::Create);
+}
 
 }  // namespace serve
 }  // namespace llm

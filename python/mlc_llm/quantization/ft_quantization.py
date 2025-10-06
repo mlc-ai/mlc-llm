@@ -8,7 +8,7 @@ from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir
 from tvm.relax.frontend import nn
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 from tvm.target import Target
 
 from ..loader import QuantizeMapping
@@ -163,18 +163,18 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         model = mutator.visit(name_prefix, model)
         return model
 
-    def quantize_weight(self, weight: NDArray) -> List[NDArray]:
+    def quantize_weight(self, weight: Tensor) -> List[Tensor]:
         """
         Quantize weight with FasterTransformer quantization
 
         Parameters
         ----------
-        weight : NDArray
+        weight : Tensor
             The original weight.
 
         Returns
         ------
-        ret: List[NDArray]
+        ret: List[Tensor]
             The list of FasterTransformer quantized weights.
         """
         assert tvm.get_global_func("relax.ext.cutlass", True), (
@@ -185,7 +185,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         )
         assert len(weight.shape) == 2
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
+            device.dlpack_device_type()
+        ]
         if device_type == "cuda":
             target = Target.current()
             if target is None:

@@ -9,8 +9,10 @@ export PYTHONPATH="./python":${PYTHONPATH:-""}
 if [[ -n ${MLC_CI_SETUP_DEPS:-} ]]; then
     echo "MLC_CI_SETUP_DEPS=1 start setup deps"
     # TVM Unity is a dependency to this testing
-    pip install --quiet --pre -U --no-index -f https://mlc.ai/wheels mlc-ai-nightly-cpu
-    pip install --quiet --pre -U cuda-python
+    pip install --pre -U -f https://mlc.ai/wheels mlc-ai-nightly-cpu
+    pip install apache-tvm-ffi
+    pip install requests triton
+    pip install --pre -U cuda-python
 fi
 
 pylint --jobs $NUM_THREADS ./python/

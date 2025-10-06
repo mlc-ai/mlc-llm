@@ -1,10 +1,11 @@
 """Mixture of Experts operators"""
 
 from functools import reduce
-from typing import Tuple, Union
+from typing import Literal, Optional, Tuple, Union
 
+import numpy as np
 from tvm import te, tir
-from tvm.relax.frontend.nn import Tensor, op
+from tvm.relax.frontend.nn import IntExpr, Tensor, op
 from tvm.script import tir as T
 
 # mypy: disable-error-code="attr-defined,name-defined"
@@ -15,6 +16,10 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
     """Compute the sum of the input tensor along the given axis. It is specialized for the MoE
     case where `x.ndim == 3` and `x.shape[1] == num_experts_per_tok (which is 2)`.
     """
+
+    if x.shape[1] == 1:
+        return x.reshape(x.shape[0], x.shape[2])
+
     if x.ndim == 3 and x.shape[1] == 2:
         return op.tensor_expr_op(
             lambda x: te.compute(
@@ -26,6 +31,108 @@ def moe_sum(x: Tensor, dim: int) -> Tensor:
             args=[x],
         )
     return op.sum(x, axis=dim)
+
+
+def _gating_topk_init_local_top_k(k_val, dtype, local_top_k, local_top_k_index):
+    for t in range(k_val):
+        T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
+    for t in range(k_val):
+        T.buffer_store(local_top_k_index, t, indices=[-1])
+
+
+def _gating_topk_process_value(  # pylint: disable=too-many-arguments
+    k_val, x, local_top_k, local_top_k_index, vi, vk
+):
+    if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
+    then_frames = [T.Then() for _ in range(k_val)]
+    else_frames = [T.Else() for _ in range(k_val - 1)]
+    for i in range(k_val):
+        if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+        with then_frames[i]:
+            for j in range(k_val - 1, i, -1):
+                T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
+                T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
+            T.buffer_store(local_top_k, x[vi, vk], indices=[i])
+            T.buffer_store(local_top_k_index, vk, indices=[i])
+        if i != k_val - 1:
+            else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
+
+    for i in range(k_val - 1, -1, -1):
+        if i != k_val - 1:
+            else_frames[i].__exit__(None, None, None)
+        if_frames[i].__exit__(None, None, None)
+
+
+def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
+    """Compute the top-k experts and their scores.
+
+    Parameters
+    ----------
+    scores : Tensor
+        The input tensor with shape [batch_size, num_local_experts].
+
+    k : int
+        The number of top elements to be selected, which is `num_experts_per_tok` in MoE.
+
+    Returns
+    -------
+    expert_weights: Tensor
+        The top-k expert scores with shape [batch_size, k].
+
+    expert_indices: Tensor
+        The top-k expert indices with shape [batch_size, k].
+    """
+    (batch_size, num_local_experts), dtype = scores.shape, scores.dtype
+    index_dtype = "int32"
+
+    TX = 1024
+
+    def _get_topk_func(k_val: int):
+        @T.prim_func(private=True)
+        def topk_func(
+            var_x: T.handle,
+            var_out: T.handle,
+            var_out_index: T.handle,
+        ) -> None:
+            T.func_attr({"tir.noalias": True, "tir.is_scheduled": True})
+            batch_size = T.int64()
+            x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
+            out = T.match_buffer(var_out, (batch_size, k_val), dtype)
+            out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
+            local_top_k = T.alloc_buffer((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
+                for ii in T.thread_binding(0, TX, "threadIdx.x"):
+                    with T.block("top_k"):
+                        vi = T.axis.spatial(batch_size, io * TX + ii)
+                        T.where(io * TX + ii < batch_size)
+                        with T.block("init"):
+                            _gating_topk_init_local_top_k(
+                                k_val, dtype, local_top_k, local_top_k_index
+                            )
+                        for k in range(num_local_experts):
+                            with T.block("update"):
+                                vk = T.axis.remap("S", [k])
+                                _gating_topk_process_value(
+                                    k_val, x, local_top_k, local_top_k_index, vi, vk
+                                )
+                        for j in T.unroll(k_val):
+                            with T.block("output"):
+                                vj = T.axis.remap("S", [j])
+                                out[vi, vj] = local_top_k[vj]
+                                out_index[vi, vj] = local_top_k_index[vj]
+
+        return topk_func
+
+    return op.tensor_ir_op(
+        _get_topk_func(k),
+        f"top{k}",
+        args=[scores],
+        out=(
+            Tensor.placeholder([batch_size, k], dtype),
+            Tensor.placeholder([batch_size, k], index_dtype),
+        ),
+    )
 
 
 def gating_softmax_topk(  # pylint: disable=too-many-statements
@@ -58,31 +165,17 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
     TX = 1024
 
     def _get_topk_softmax_norm_func(k_val: int):
-        def _init_local_top_k(local_top_k, local_top_k_index):
-            for t in range(k_val):
-                T.buffer_store(local_top_k, T.min_value(dtype), indices=[t])
-            for t in range(k_val):
-                T.buffer_store(local_top_k_index, t, indices=[t])
+        def _nested_max(local_top_k_f32):
+            expr = local_top_k_f32[0]
+            for i in range(1, k_val):
+                expr = T.max(expr, local_top_k_f32[i])
+            return expr
 
-        def _process_value(x, local_top_k, local_top_k_index, vi, vk):
-            if_frames = [T.If(x[vi, vk] > local_top_k[i]) for i in range(k_val)]
-            then_frames = [T.Then() for _ in range(k_val)]
-            else_frames = [T.Else() for _ in range(k_val - 1)]
-            for i in range(k_val):
-                if_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-                with then_frames[i]:
-                    for j in range(k_val - 1, i, -1):
-                        T.buffer_store(local_top_k, local_top_k[j - 1], indices=[j])
-                        T.buffer_store(local_top_k_index, local_top_k_index[j - 1], indices=[j])
-                    T.buffer_store(local_top_k, x[vi, vk], indices=[i])
-                    T.buffer_store(local_top_k_index, vk, indices=[i])
-                if i != k_val - 1:
-                    else_frames[i].__enter__()  # pylint: disable=unnecessary-dunder-call
-
-            for i in range(k_val - 1, -1, -1):
-                if i != k_val - 1:
-                    else_frames[i].__exit__(None, None, None)
-                if_frames[i].__exit__(None, None, None)
+        def _nested_sum(local_top_k_f32, local_top_k_max):
+            expr = T.exp(local_top_k_f32[0] - local_top_k_max[0])
+            for i in range(1, k_val):
+                expr = expr + T.exp(local_top_k_f32[i] - local_top_k_max[0])
+            return expr
 
         @T.prim_func(private=True)
         def topk_softmax_norm_func(
@@ -97,21 +190,37 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
             out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
             local_top_k = T.alloc_buffer((k_val,), dtype=dtype, scope="local")
             local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k_f32 = T.alloc_buffer((k_val,), dtype="float32", scope="local")
+            local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
                     with T.block("top_k"):
                         vi = T.axis.spatial(batch_size, io * TX + ii)
                         T.where(io * TX + ii < batch_size)
                         with T.block("init"):
-                            _init_local_top_k(local_top_k, local_top_k_index)
+                            _gating_topk_init_local_top_k(
+                                k_val, dtype, local_top_k, local_top_k_index
+                            )
                         for k in range(num_local_experts):
                             with T.block("update"):
                                 vk = T.axis.remap("S", [k])
-                                _process_value(x, local_top_k, local_top_k_index, vi, vk)
+                                _gating_topk_process_value(
+                                    k_val, x, local_top_k, local_top_k_index, vi, vk
+                                )
+                        for j in T.unroll(k_val):
+                            with T.block("cast"):
+                                vj = T.axis.remap("S", [j])
+                                local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
+                        with T.block("max"):
+                            local_top_k_max[0] = _nested_max(local_top_k_f32)
                         for j in T.unroll(k_val):
                             with T.block("output"):
                                 vj = T.axis.remap("S", [j])
-                                out[vi, vj] = local_top_k[vj]
+                                out[vi, vj] = T.cast(
+                                    T.exp(local_top_k_f32[vj] - local_top_k_max[0])
+                                    / _nested_sum(local_top_k_f32, local_top_k_max),
+                                    dtype,
+                                )
                                 out_index[vi, vj] = local_top_k_index[vj]
 
         return topk_softmax_norm_func
@@ -128,15 +237,138 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
         )
 
     expert_score = op.softmax(x.astype("float32"), axis=-1).astype(dtype)
-    return op.tensor_ir_op(
-        _get_topk_softmax_norm_func(k),
-        f"top{k}_softmax",
-        args=[expert_score],
-        out=(
-            Tensor.placeholder([batch_size, k], dtype),
-            Tensor.placeholder([batch_size, k], index_dtype),
-        ),
+    return gating_topk(expert_score, k)
+
+
+def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
+    scores: Tensor,  # (num_tokens, num_routed_experts)
+    top_k: int,
+    num_routed_experts: int,
+    n_group: int,
+    topk_group: int,
+    topk_method: Literal["group_limited_greedy", "noaux_tc"],
+    num_tokens: IntExpr,
+    e_score_correction_bias: Optional[Tensor],
+) -> Tuple[Tensor, Tensor]:
+    """Group-limited greedy top-k expert selection.
+
+    Parameters
+    ----------
+    scores : Tensor
+        The input tensor with shape [num_tokens, num_routed_experts].
+
+    top_k : int
+        The number of top elements to be selected, which is `num_experts_per_tok` in MoE.
+
+    num_routed_experts : int
+        The number of routed experts.
+
+    n_group : int
+        The number of groups.
+
+    topk_group : int
+        The number of top-k groups to be selected.
+
+    topk_method : Literal["group_limited_greedy", "noaux_tc"]
+        The method to select the top-k groups.
+
+    num_tokens : IntExpr
+        The number of tokens.
+
+    e_score_correction_bias : Optional[Tensor]
+        The bias of the expert scores. Only available for "noaux_tc".
+
+    Returns
+    -------
+    expert_weights : Tensor
+        The top-k expert scores with shape [num_tokens, top_k].
+
+    expert_indices : Tensor
+        The top-k expert indices with shape [num_tokens, top_k].
+    """
+    assert scores.dtype == "float32"
+    scores_for_choice = scores
+    if topk_method == "noaux_tc":
+        assert e_score_correction_bias is not None
+        assert e_score_correction_bias.dtype == "float32"
+        scores_for_choice = scores + e_score_correction_bias
+    group_size = num_routed_experts // n_group
+    if topk_method == "noaux_tc":
+        group_scores = op.sum(
+            gating_topk(
+                scores_for_choice.reshape(num_tokens * n_group, group_size),
+                2,
+            )[0],
+            axis=-1,
+        ).reshape(num_tokens, n_group)
+    else:
+        group_scores = op.max(
+            scores_for_choice.reshape(num_tokens * n_group, group_size), axis=-1
+        ).reshape(num_tokens, n_group)
+    group_idx = gating_topk(group_scores, topk_group)[1]  # (num_tokens, top_k_group)
+
+    @T.prim_func(private=True)
+    def group_limited_mask_scores(
+        var_scores: T.handle, var_group_idx: T.handle, var_output: T.handle
+    ):
+        T.func_attr({"tir.noalias": True})
+        scores = T.match_buffer(
+            var_scores, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
+        )
+        group_idx_tir = T.match_buffer(
+            var_group_idx, (num_tokens, topk_group), dtype=group_idx.dtype
+        )
+        output = T.match_buffer(
+            var_output, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
+        )
+        for i, j, k in T.grid(num_tokens, topk_group, group_size):
+            with T.block("mask_scores"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                output[vi, group_idx_tir[vi, vj] * group_size + vk] = scores[
+                    vi, group_idx_tir[vi, vj] * group_size + vk
+                ]
+
+    tmp_scores = op.tensor_ir_inplace_op(
+        group_limited_mask_scores,
+        "group_limited_mask_scores",
+        args=[
+            scores_for_choice,
+            group_idx,
+            op.full(
+                scores_for_choice.shape,
+                float(np.finfo("float32").min),
+                dtype=scores_for_choice.dtype,
+            ),
+        ],
+        inplace_indices=[2],
+        out=Tensor.placeholder(scores_for_choice.shape, scores_for_choice.dtype),
     )
+
+    expert_weights, expert_indices = gating_topk(tmp_scores, top_k)
+    if topk_method == "noaux_tc":
+
+        @T.prim_func(private=True)
+        def gather_scores(var_scores: T.handle, var_expert_indices: T.handle, var_output: T.handle):
+            T.func_attr({"tir.noalias": True})
+            scores = T.match_buffer(
+                var_scores, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
+            )
+            expert_indices_tir = T.match_buffer(
+                var_expert_indices, (num_tokens, top_k), dtype=expert_indices.dtype
+            )
+            output = T.match_buffer(var_output, (num_tokens, top_k), dtype=scores_for_choice.dtype)
+            for i, j in T.grid(num_tokens, top_k):
+                with T.block("gather_scores"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    output[vi, vj] = scores[vi, expert_indices_tir[vi, vj]]
+
+        expert_weights = op.tensor_ir_op(
+            gather_scores,
+            "gather_scores",
+            args=[scores, expert_indices],
+            out=Tensor.placeholder((num_tokens, top_k), scores_for_choice.dtype),
+        )
+    return expert_weights, expert_indices
 
 
 def moe_cumsum(expert_indices: Tensor, num_local_experts: int) -> Tensor:

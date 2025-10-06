@@ -5,8 +5,8 @@
 #include "config.h"
 
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <limits>
 #include <random>
@@ -22,9 +22,9 @@ namespace serve {
 
 uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // Get single-card GPU size.
-  TVMRetValue rv;
+  tvm::ffi::Any rv;
   DeviceAPI::Get(device)->GetAttr(device, DeviceAttrKind::kTotalGlobalMemory, &rv);
-  int64_t gpu_size_bytes = rv;
+  int64_t gpu_size_bytes = rv.cast<int64_t>();
   // Since the memory size returned by the OpenCL runtime is smaller than the actual available
   // memory space, we set a best available space so that MLC LLM can run 7B or 8B models on Android
   // with OpenCL.
@@ -57,7 +57,7 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
 picojson::object ResponseFormat::AsJSON() const {
   picojson::object config;
   config["type"] = picojson::value(type);
-  if (schema.defined()) {
+  if (schema.has_value()) {
     config["schema"] = picojson::value(schema.value().operator std::string());
   }
   return config;
@@ -229,8 +229,6 @@ picojson::object DebugConfig::AsJSON() const {
 
 /****************** GenerationConfig ******************/
 
-TVM_REGISTER_OBJECT_TYPE(GenerationConfigNode);
-
 Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   using TResult = Result<GenerationConfig>;
   if (cfg->n <= 0) {
@@ -266,7 +264,7 @@ Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
 Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& config,
                                                     const GenerationConfig& default_config) {
   using TResult = Result<GenerationConfig>;
-  ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
   n->n = json::LookupOrDefault<int64_t>(config, "n", default_config->n);
   n->temperature =
       json::LookupOrDefault<double>(config, "temperature", default_config->temperature);
@@ -360,7 +358,7 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
 
 GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
     const picojson::object& model_config_json) {
-  ObjectPtr<GenerationConfigNode> n = make_object<GenerationConfigNode>();
+  ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
   n->max_tokens = -1;
   n->temperature = json::LookupOrDefault<double>(model_config_json, "temperature", n->temperature);
   n->top_p = json::LookupOrDefault<double>(model_config_json, "top_p", n->top_p);
@@ -414,15 +412,13 @@ picojson::object GenerationConfigNode::AsJSON() const {
 
 /****************** EngineConfig ******************/
 
-TVM_REGISTER_OBJECT_TYPE(EngineConfigNode);
-
 EngineConfig EngineConfig::FromJSONAndInferredConfig(
     const picojson::object& json, const InferrableEngineConfig& inferred_config) {
   CHECK(inferred_config.max_num_sequence.has_value());
   CHECK(inferred_config.max_total_sequence_length.has_value());
   CHECK(inferred_config.prefill_chunk_size.has_value());
   CHECK(inferred_config.max_history_size.has_value());
-  ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+  ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
   // - Get models and model libs.
   n->model = json::Lookup<std::string>(json, "model");
@@ -761,8 +757,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
            static_cast<int64_t>(8192)});
     } else if (mode == EngineMode::kInteractive) {
       inferred_config.max_total_sequence_length = std::min(
-          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value(),
-           model_config_limits.model_max_sliding_window_size});
+          {model_max_total_sequence_length, inferred_config.max_single_sequence_length.value()});
     } else {
       inferred_config.max_total_sequence_length =
           inferred_config.max_single_sequence_length.value() == std::numeric_limits<int64_t>::max()

@@ -23,7 +23,15 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
 import ai.mlc.mlcllm.OpenAIProtocol.ChatCompletionMessage
+import ai.mlc.mlcllm.OpenAIProtocol.ChatCompletionMessageContent
+import android.app.Activity
 import kotlinx.coroutines.*
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import android.util.Base64
+import android.util.Log
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     val modelList = emptyList<ModelState>().toMutableStateList()
@@ -43,7 +51,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val AppConfigFilename = "mlc-app-config.json"
         const val ModelConfigFilename = "mlc-chat-config.json"
-        const val ParamsConfigFilename = "ndarray-cache.json"
+        const val ParamsConfigFilename = "tensor-cache.json"
         const val ModelUrlSuffix = "resolve/main/"
     }
 
@@ -511,7 +519,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private var modelPath = ""
         private val executorService = Executors.newSingleThreadExecutor()
         private val viewModelScope = CoroutineScope(Dispatchers.Main + Job())
+        private var imageUri: Uri? = null
         private fun mainResetChat() {
+            imageUri = null
             executorService.submit {
                 callBackend { engine.reset() }
                 historyMessages = mutableListOf<ChatCompletionMessage>()
@@ -660,16 +670,58 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        fun requestGenerate(prompt: String) {
+        fun requestImageBitmap(uri: Uri?) {
+            require(chatable())
+            switchToGenerating()
+            executorService.submit {
+                imageUri = uri
+                viewModelScope.launch {
+                    report.value = "Image process is done, ask any question."
+                    if (modelChatState.value == ModelChatState.Generating) switchToReady()
+                }
+            }
+        }
+
+        fun bitmapToURL(bm: Bitmap): String {
+            val targetSize = 336
+            val scaledBitmap = Bitmap.createScaledBitmap(bm, targetSize, targetSize, true)
+
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+            scaledBitmap.recycle()
+
+            val imageBytes = outputStream.toByteArray()
+            val imageBase64 = Base64.encodeToString(imageBytes, Base64.NO_WRAP)
+            return "data:image/jpg;base64,$imageBase64"
+        }
+
+        fun requestGenerate(prompt: String, activity: Activity) {
             require(chatable())
             switchToGenerating()
             appendMessage(MessageRole.User, prompt)
             appendMessage(MessageRole.Assistant, "")
+            var content = ChatCompletionMessageContent(text=prompt)
+            if (imageUri != null) {
+                val uri = imageUri
+                val bitmap = uri?.let {
+                    activity.contentResolver.openInputStream(it)?.use { input ->
+                        BitmapFactory.decodeStream(input)
+                    }
+                }
+                val imageBase64URL = bitmapToURL(bitmap!!)
+                Log.v("requestGenerate", "image base64 url: $imageBase64URL")
+                val parts = listOf(
+                    mapOf("type" to "text", "text" to prompt),
+                    mapOf("type" to "image_url", "image_url" to imageBase64URL)
+                )
+                content = ChatCompletionMessageContent(parts=parts)
+                imageUri = null
+            }
 
             executorService.submit {
                 historyMessages.add(ChatCompletionMessage(
                     role = OpenAIProtocol.ChatCompletionRole.user,
-                    content = prompt
+                    content = content
                 ))
 
                 viewModelScope.launch {
@@ -768,7 +820,7 @@ enum class MessageRole {
 
 data class DownloadTask(val url: URL, val file: File)
 
-data class MessageData(val role: MessageRole, val text: String, val id: UUID = UUID.randomUUID())
+data class MessageData(val role: MessageRole, val text: String, val id: UUID = UUID.randomUUID(), var imageUri: Uri? = null)
 
 data class AppConfig(
     @SerializedName("model_libs") var modelLibs: MutableList<String>,

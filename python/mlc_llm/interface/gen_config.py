@@ -262,6 +262,7 @@ TOKENIZER_FILES = [
 # FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
 
 CONV_TEMPLATES = {
+    "llama-4",
     "llama-3",
     "llama-3_1",
     "chatml",
@@ -300,8 +301,10 @@ CONV_TEMPLATES = {
     "phi-2",
     "phi-3",
     "phi-3-vision",
+    "phi-4",
     "stablelm-2",
     "gemma_instruction",
+    "gemma3_instruction",
     "orion",
     "llava",
     "hermes2_pro_llama3",
@@ -310,6 +313,7 @@ CONV_TEMPLATES = {
     "aya-23",
     "deepseek",
     "deepseek_v2",
+    "deepseek_v3",
     "deepseek_r1_qwen",
     "deepseek_r1_llama",
     "olmo",

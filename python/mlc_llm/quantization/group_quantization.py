@@ -6,7 +6,7 @@ from typing import Any, List, Literal, Optional, Tuple, Union
 
 from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -33,7 +33,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
     group_size: int
     quantize_dtype: Literal["int3", "int4", "int8"]
     storage_dtype: Literal["uint32"]
-    model_dtype: Literal["float16", "float32"]
+    model_dtype: Literal["float16", "float32", "bfloat16"]
     linear_weight_layout: Literal["KN", "NK"]
     quantize_embedding: bool = True
     quantize_final_fc: bool = True
@@ -50,7 +50,7 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         model_dtype = DataType(self.model_dtype)
         assert quantize_dtype.type_code == DataTypeCode.INT
         assert storage_dtype.type_code == DataTypeCode.UINT
-        assert model_dtype.type_code == DataTypeCode.FLOAT
+        assert model_dtype.type_code in (DataTypeCode.FLOAT, DataTypeCode.BFLOAT)
         if storage_dtype.bits < quantize_dtype.bits:
             raise ValueError("Storage unit should be greater or equal to quantized element")
 
@@ -177,14 +177,14 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         )
 
     def quantize_weight(
-        self, weight: NDArray, axis: int = -1, output_transpose: bool = False
-    ) -> List[NDArray]:
+        self, weight: Tensor, axis: int = -1, output_transpose: bool = False
+    ) -> List[Tensor]:
         """
         Quantize weight with group quantization
 
         Parameters
         ----------
-        weight : NDArray
+        weight : Tensor
             The original weight.
 
         axis : int
@@ -195,11 +195,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
 
         Returns
         ------
-        ret: List[NDArray]
+        ret: List[Tensor]
             The list of group quantized weights.
         """
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
+            device.dlpack_device_type()
+        ]
         axis = axis if axis >= 0 else len(weight.shape) + axis
 
         def _create_quantize_func() -> IRModule:

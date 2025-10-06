@@ -57,15 +57,20 @@ target_include_directories(
   PUBLIC ${JNI_INCLUDE_DIRS}
          ${JNI_HEADER}
          ${ANDROID_DIR}/src/cpp
-         ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/3rdparty/dlpack/include
          ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
          ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
          ${TVM_SOURCE_DIR}/3rdparty/picojson
          ${TVM_SOURCE_DIR}/include
-         ${TVM_SOURCE_DIR}/src)
+         ${TVM_SOURCE_DIR}/src
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/include
+         ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/src)
 target_compile_definitions(tvm4j_runtime_packed PUBLIC ${MLC_LLM_COMPILE_DEFS})
-target_compile_definitions(tvm4j_runtime_packed
-                           PUBLIC TVM_RELAX_VM_ENABLE_PROFILER=0)
+target_compile_definitions(
+  tvm4j_runtime_packed
+  PUBLIC TVM_VM_ENABLE_PROFILER=0
+  PUBLIC TVM_FFI_USE_LIBBACKTRACE=0
+  PUBLIC TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
 
 set(MLC_ENABLE_SENTENCEPIECE_TOKENIZER OFF)
 target_link_libraries(

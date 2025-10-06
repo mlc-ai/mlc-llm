@@ -6,7 +6,7 @@
 #ifndef MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 #define MLC_LLM_SERVE_ENGINE_ACTIONS_ACTION_COMMONS_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 
 #include "../../tokenizers/tokenizers.h"
 #include "../draft_token_workspace_manager.h"
@@ -101,8 +101,8 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
  * \param child_sample_indices The indices of the child requests to sample.
  * \return The processed logits and the sampled results.
  */
-std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
-    const LogitProcessor& logit_processor, const Sampler& sampler, const NDArray& logits,
+std::pair<Tensor, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
+    const LogitProcessor& logit_processor, const Sampler& sampler, const Tensor& logits,
     const Array<GenerationConfig>& generation_cfg, const Array<String>& request_ids,
     const Array<RequestModelState>& mstates, const std::vector<RandomGenerator*>& rngs,
     const std::vector<int>& sample_indices, const Array<GenerationConfig>& child_generation_cfg,

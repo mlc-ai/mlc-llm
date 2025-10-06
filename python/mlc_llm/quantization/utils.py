@@ -56,12 +56,14 @@ def is_final_fc(name: str) -> bool:
 
 def is_moe_gate(name: str, node: nn.Linear) -> bool:
     """Check whether the parameter is the MoE gate layer."""
-    return name.endswith("gate") and isinstance(node.out_features, int) and node.out_features <= 64
+    return name.endswith("gate") and isinstance(node.out_features, int) and node.out_features <= 256
 
 
 def compile_quantize_func(mod: IRModule, device) -> Callable:
     """Compile a quantization function for a given device."""
-    device_type = device.MASK2STR[device.device_type]
+    device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
+        device.dlpack_device_type()
+    ]
     if device_type in ["cuda", "rocm", "metal", "vulkan", "opencl"]:
         target = Target.current()
         if target is None:
@@ -104,7 +106,7 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     out_shape: Optional[Sequence[tir.PrimExpr]] = None,
 ) -> te.Tensor:
     """Unpack a fp8 value from the storage dtype and convert to float."""
-    assert quant_dtype in ["e4m3_float8", "e5m2_float8"]
+    assert quant_dtype in ["float8_e4m3fn", "float8_e5m2"]
     assert DataType(storage_dtype).type_code == DataTypeCode.UINT
     bits = DataType(quant_dtype).bits
     elem_storage_dtype = DataType(f"uint{bits}")

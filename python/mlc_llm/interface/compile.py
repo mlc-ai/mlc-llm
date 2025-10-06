@@ -137,7 +137,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             cutlass=args.opt.cutlass,
         )
         # Step 1. Create the quantized model
-        logger.info("Creating model from: %s", args.config)
+        logger.info("Creating model from: %s", model_config)
         if (
             args.quantization.kind == "ft-quant"
             and hasattr(model_config, "tensor_parallel_shards")
@@ -154,14 +154,14 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
             )
         model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
-        # Step 2. Exporting the model to TVM Unity
-        logger.info("Exporting the model to TVM Unity compiler")
+        # Step 2. Exporting the model to TVM
+        logger.info("Exporting the model to TVM compiler")
         mod, named_params, ext_mods = model.export_tvm(
             spec=model.get_default_spec(),  # type: ignore
             allow_extern=True,
         )
         # Step 3. Running relax compilation pipeline
-        logger.info("Running optimizations using TVM Unity")
+        logger.info("Running optimizations using TVM")
         additional_tirs = _apply_preproc_to_params_and_check_pipeline(named_params, model_config)
         variable_bounds = _get_variable_bounds(model_config)
         cuda_graph_symbolic_capture_hints = {

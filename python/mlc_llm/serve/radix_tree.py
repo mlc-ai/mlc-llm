@@ -2,18 +2,17 @@
 
 from typing import List, Tuple, Union
 
-import tvm
-import tvm._ffi
+import tvm_ffi
 from tvm.runtime import Object, ShapeTuple
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("mlc.serve.PagedRadixTree")  # pylint: disable=protected-access
+@tvm_ffi.register_object("mlc.serve.PagedRadixTree")  # pylint: disable=protected-access
 class PagedRadixTree(Object):
     """The paged radix tree to manage prefix and sequence."""
 
-    def __init__(self):
+    def __init__(self):  # pylint: disable=super-init-not-called
         """
         Constructor of paged radix tree.
         """

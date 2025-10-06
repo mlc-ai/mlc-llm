@@ -28,8 +28,8 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        if str(self.target.kind) not in ["cuda", "vulkan"]:
-            # Only enable GPU sampling for CUDA.
+        if str(self.target.kind) not in ["cuda", "vulkan", "metal"]:
+            # Only enable GPU sampling for CUDA, Vulkan, and Metal.
             return mod
 
         bb = relax.BlockBuilder(mod)

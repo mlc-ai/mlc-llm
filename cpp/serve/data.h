@@ -5,11 +5,14 @@
 #ifndef MLC_LLM_SERVE_DATA_H_
 #define MLC_LLM_SERVE_DATA_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
+#include <tvm/node/cast.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/tensor.h>
 
 #include <atomic>
 #include <optional>
@@ -21,6 +24,7 @@ namespace llm {
 namespace serve {
 
 using namespace tvm::runtime;
+using tvm::ffi::Optional;
 
 class Model;
 
@@ -46,15 +50,14 @@ class DataNode : public Object {
    */
   virtual ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.Data";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(DataNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.Data", DataNode, Object);
 };
 
 class Data : public ObjectRef {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(Data, ObjectRef, DataNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Data, ObjectRef, DataNode);
 };
 
 /*! \brief Split the given data array into two arrays at the "split_pos" position. */
@@ -67,20 +70,19 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
 class TextDataNode : public DataNode {
  public:
   /*! \brief The text string. */
-  String text;
+  tvm::ffi::String text;
 
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  static constexpr const char* _type_key = "mlc.serve.TextData";
-  TVM_DECLARE_BASE_OBJECT_INFO(TextDataNode, DataNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.TextData", TextDataNode, DataNode);
 };
 
 class TextData : public Data {
  public:
   explicit TextData(String text);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TextData, Data, TextDataNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TextData, Data, TextDataNode);
 };
 
 /****************** TokenDataNode ******************/
@@ -94,8 +96,7 @@ class TokenDataNode : public DataNode {
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  static constexpr const char* _type_key = "mlc.serve.TokenData";
-  TVM_DECLARE_BASE_OBJECT_INFO(TokenDataNode, DataNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.TokenData", TokenDataNode, DataNode);
 };
 
 class TokenData : public Data {
@@ -104,7 +105,7 @@ class TokenData : public Data {
 
   explicit TokenData(std::vector<int32_t> token_ids);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TokenData, Data, TokenDataNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TokenData, Data, TokenDataNode);
 };
 
 /****************** ImageDataNode ******************/
@@ -113,21 +114,20 @@ class TokenData : public Data {
 class ImageDataNode : public DataNode {
  public:
   /*! \brief The pixel values. */
-  NDArray image;
+  Tensor image;
   int embed_size;
 
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  static constexpr const char* _type_key = "mlc.serve.ImageData";
-  TVM_DECLARE_BASE_OBJECT_INFO(ImageDataNode, DataNode);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.ImageData", ImageDataNode, DataNode);
 };
 
 class ImageData : public Data {
  public:
-  explicit ImageData(NDArray image, int embed_size);
+  explicit ImageData(Tensor image, int embed_size);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ImageData, Data, ImageDataNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ImageData, Data, ImageDataNode);
 };
 
 /****************** SampleResult ******************/
@@ -197,10 +197,10 @@ class RequestStreamOutputObj : public Object {
 
   std::atomic<bool> unpacked = false;
 
-  static constexpr const char* _type_key = "mlc.serve.RequestStreamOutput";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_FINAL_OBJECT_INFO(RequestStreamOutputObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.RequestStreamOutput", RequestStreamOutputObj, Object);
 };
 
 /*!
@@ -217,7 +217,8 @@ class RequestStreamOutput : public ObjectRef {
 
   static RequestStreamOutput Usage(String request_id, String request_final_usage_json_str);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RequestStreamOutput, ObjectRef, RequestStreamOutputObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RequestStreamOutput, ObjectRef,
+                                             RequestStreamOutputObj);
 };
 
 }  // namespace serve

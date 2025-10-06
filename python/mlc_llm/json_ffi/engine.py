@@ -194,7 +194,7 @@ class Completions:
             ),
             request_id=request_id,
         )
-        for response in chatcmpl_generator:
+        for response in chatcmpl_generator:  # pylint: disable=use-yield-from
             yield response
 
 
@@ -262,7 +262,7 @@ class JSONFFIEngine:
         self.engine_config = engine_config
 
         self._ffi["init_background_engine"](
-            device.device_type, device.device_id, self._state.get_request_stream_callback()
+            device.dlpack_device_type(), device.index, self._state.get_request_stream_callback()
         )
         self._ffi["reload"](self.engine_config.asjson())
 

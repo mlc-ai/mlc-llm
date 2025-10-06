@@ -89,7 +89,7 @@ The format of source model weight, infer from `config` if missing.
 """.strip(),
     "output_quantize": """
 The output directory to save the quantized model weight. Will create `params_shard_*.bin` and
-`ndarray-cache.json` in this directory.
+`tensor-cache.json` in this directory.
 """.strip(),
     "conv_template": """
 Conversation template. It depends on how the model is tuned. Use "LM" for vanilla base model

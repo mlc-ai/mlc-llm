@@ -5,9 +5,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Literal, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
-from tvm import DataType, DataTypeCode, IRModule, nd, relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, relax, runtime, te, tir, topi
 from tvm.relax.frontend import nn
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -32,9 +32,9 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
 
     name: str
     kind: str
-    activation_dtype: Literal["e4m3_float8", "e5m2_float8"]
-    weight_dtype: Literal["e4m3_float8", "e5m2_float8"]
-    storage_dtype: Literal["uint32", "e4m3_float8", "e5m2_float8"]
+    activation_dtype: Literal["float8_e4m3fn", "float8_e5m2"]
+    weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"]
+    storage_dtype: Literal["uint32", "float8_e4m3fn", "float8_e5m2"]
     model_dtype: Literal["float16"]
     quantize_embedding: bool = True
     quantize_final_fc: bool = True
@@ -151,7 +151,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                     def map_func(*args, **kwargs):
                         # placeholder for calibration scale, the actual value will be set after
                         # calibration.
-                        scale = nd.empty(
+                        scale = runtime.empty(
                             shape=op.q_calibration_scale.shape, dtype=op.q_calibration_scale.dtype
                         )
                         return [*old_map_func(*args, **kwargs), scale]
@@ -165,27 +165,29 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         model = mutator.visit(name_prefix, model)
         return model
 
-    def quantize_weight(self, weight) -> List[NDArray]:
+    def quantize_weight(self, weight) -> List[Tensor]:
         """
         Quantize weight with per-tensor quantization.
 
         Parameters
         ----------
-        weight : NDArray
+        weight : Tensor
             The weight to quantize.
 
         Returns
         -------
-        ret : List[NDArray]
+        ret : List[Tensor]
             The quantized weight and the scale if use_scale is True.
         """
         device = weight.device
-        device_type = device.MASK2STR[device.device_type]
+        device_type = device._DEVICE_TYPE_TO_NAME[  # pylint: disable=protected-access
+            device.dlpack_device_type()
+        ]
 
         def _create_quantize_func() -> IRModule:
             if DataType(self.weight_dtype).type_code in [
-                DataTypeCode.E4M3Float,
-                DataTypeCode.E5M2Float,
+                DataTypeCode.Float8E4M3FN,
+                DataTypeCode.Float8E5M2,
             ]:
                 quantize_func = functools.partial(
                     self.quantize_float8,
@@ -288,8 +290,8 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         if self.use_scale:
             assert scale is not None
         if DataType(self.weight_dtype).type_code in [
-            DataTypeCode.E4M3Float,
-            DataTypeCode.E5M2Float,
+            DataTypeCode.Float8E4M3FN,
+            DataTypeCode.Float8E5M2,
         ]:
             return self.dequantize_float8(q_weight, scale, self.weight_dtype, out_shape)
         raise NotImplementedError()
@@ -446,7 +448,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                     x_scale * self.q_scale
                     if self.config.use_scale
                     else nn.wrap_nested(
-                        relax.Constant(nd.array(np.array([1.0]).astype("float32"))), "scale"
+                        relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))), "scale"
                     )
                 )
                 return cutlass.fp8_gemm(
@@ -655,8 +657,8 @@ class PerTensorQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-in
             The per-tensor quantized MixtralExperts layer
         """
         if DataType(config.weight_dtype).type_code in [
-            DataTypeCode.E4M3Float,
-            DataTypeCode.E5M2Float,
+            DataTypeCode.Float8E4M3FN,
+            DataTypeCode.Float8E5M2,
         ]:
             return PerTensorQuantizeMixtralExperts._IMPL["fp8"].from_mixtral_experts(
                 src, config, name

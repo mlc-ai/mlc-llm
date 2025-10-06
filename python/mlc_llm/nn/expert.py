@@ -23,7 +23,7 @@ class MixtralExperts(nn.Module):
             assert indptr.shape[0] == 1
             return moe_matmul.gemv(x, self.weight, indptr)
         assert indptr.ndim == 1
-        if extern.get_store().cutlass_group_gemm and self.dtype == "float16":
+        if extern.get_store().cutlass_group_gemm and self.dtype in ["float16", "bfloat16"]:
             return cutlass.group_gemm(x, self.weight, indptr)
         if extern.get_store().faster_transformer and self.dtype == "float16":
             return ft_gemm.faster_transformer_moe_gemm(x, self.weight, indptr)

@@ -468,7 +468,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         var_q: T.handle,
         var_k: T.handle,
         var_v: T.handle,
-        ext_factors: T.Buffer((head_dim // 2,), "float32"),  # type: ignore
+        ext_factors: T.Buffer((rotary_dim // 2,), "float32"),  # type: ignore
     ):
         T.func_attr(
             {

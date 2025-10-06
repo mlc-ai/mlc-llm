@@ -1,8 +1,9 @@
 #include "json_ffi_engine.h"
 
 #include <picojson.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 
 #include <filesystem>
 #include <fstream>
@@ -97,7 +98,7 @@ bool JSONFFIEngine::AddRequest(std::string request_json_str, std::string request
   }
   // create a generation config from request
   const auto& default_gen_cfg = default_generation_config_;
-  auto gen_cfg = tvm::runtime::make_object<GenerationConfigNode>();
+  auto gen_cfg = tvm::ffi::make_object<GenerationConfigNode>();
   gen_cfg->n = request.n;
   gen_cfg->temperature = request.temperature.value_or(default_gen_cfg->temperature);
   gen_cfg->top_p = request.top_p.value_or(default_gen_cfg->top_p);
@@ -150,7 +151,7 @@ void JSONFFIEngine::ExitBackgroundLoop() { this->engine_->ExitBackgroundLoop(); 
 
 JSONFFIEngine::~JSONFFIEngine() { this->ExitBackgroundLoop(); }
 
-class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
+class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.json_ffi");
   TVM_MODULE_VTABLE_ENTRY("init_background_engine", &JSONFFIEngineImpl::InitBackgroundEngine);
@@ -167,22 +168,22 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 
   void InitBackgroundEngine(int device_type, int device_id,
-                            Optional<PackedFunc> request_stream_callback) {
+                            Optional<Function> request_stream_callback) {
     DLDevice device{static_cast<DLDeviceType>(device_type), device_id};
     this->device_ = device;
     CHECK(request_stream_callback.defined())
         << "JSONFFIEngine requires request stream callback function, but it is not given.";
     this->request_stream_callback_ = request_stream_callback.value();
 
-    auto frequest_stream_callback_wrapper = [this](TVMArgs args, TVMRetValue* ret) {
+    auto frequest_stream_callback_wrapper = [this](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK_EQ(args.size(), 1);
-      Array<RequestStreamOutput> delta_outputs = args[0];
+      Array<RequestStreamOutput> delta_outputs = args[0].cast<Array<RequestStreamOutput>>();
       std::string responses = this->GetResponseFromStreamOutput(delta_outputs);
       this->request_stream_callback_(responses);
     };
 
-    request_stream_callback = PackedFunc(frequest_stream_callback_wrapper);
-    this->engine_->InitThreadedEngine(device, std::move(request_stream_callback), NullOpt);
+    request_stream_callback = Function(frequest_stream_callback_wrapper);
+    this->engine_->InitThreadedEngine(device, std::move(request_stream_callback), std::nullopt);
   }
 
   void Reload(String engine_config_json_str) {
@@ -224,7 +225,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
       // build the final usage messages
       // invariant, we can always let other messages to come first
       // then the final usage messages, as final usage is always last
-      if (delta_output->request_final_usage_json_str.defined()) {
+      if (delta_output->request_final_usage_json_str.has_value()) {
         ChatCompletionStreamResponse response;
         response.id = request_id;
         response.model = rstate.model;
@@ -255,7 +256,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
         // choice
         ChatCompletionStreamResponseChoice choice;
         Optional<String> finish_reason = delta_output->group_finish_reason[i];
-        if (finish_reason.defined()) {
+        if (finish_reason.has_value()) {
           if (finish_reason.value() == "stop") {
             choice.finish_reason = FinishReason::stop;
           } else if (finish_reason.value() == "length") {
@@ -274,7 +275,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
         const IntTuple& delta_token_ids = delta_output->group_delta_token_ids[i];
         std::vector<int32_t> delta_token_ids_vec(delta_token_ids.begin(), delta_token_ids.end());
         std::string content = rstate.streamer[i]->Put(delta_token_ids_vec);
-        if (finish_reason.defined()) {
+        if (finish_reason.has_value()) {
           content += rstate.streamer[i]->Finish();
         }
         if (!content.empty()) {
@@ -295,9 +296,11 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ModuleNode {
   }
 };
 
-TVM_REGISTER_GLOBAL("mlc.json_ffi.CreateJSONFFIEngine").set_body_typed([]() {
-  return Module(make_object<JSONFFIEngineImpl>());
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.json_ffi.CreateJSONFFIEngine",
+                        []() { return ffi::Module(tvm::ffi::make_object<JSONFFIEngineImpl>()); });
+}
 
 }  // namespace json_ffi
 }  // namespace llm

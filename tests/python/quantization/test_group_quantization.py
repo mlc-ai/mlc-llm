@@ -95,7 +95,7 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
-    output = config.quantize_weight(tvm.nd.array(weight_np, device=tvm.device(device)))
+    output = config.quantize_weight(tvm.runtime.tensor(weight_np, device=tvm.device(device)))
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
     tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)

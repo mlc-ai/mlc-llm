@@ -6,10 +6,9 @@
 #ifndef MLC_LLM_SERVE_REQUEST_H_
 #define MLC_LLM_SERVE_REQUEST_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "../tokenizers/tokenizers.h"
 #include "config.h"
@@ -56,10 +55,10 @@ class RequestNode : public Object {
   /*! \brief Backward reference to the request state. */
   Object* rstate = nullptr;
 
-  static constexpr const char* _type_key = "mlc.serve.Request";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(RequestNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.Request", RequestNode, Object);
 };
 
 class Request : public ObjectRef {
@@ -75,7 +74,7 @@ class Request : public ObjectRef {
    */
   static Request FromUntokenized(const Request& request, const Tokenizer& tokenizer);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Request, ObjectRef, RequestNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Request, ObjectRef, RequestNode);
 };
 
 }  // namespace serve

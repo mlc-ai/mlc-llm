@@ -4,7 +4,7 @@ import dataclasses
 from typing import Callable, Dict, List, Set, Union
 
 import numpy as np
-from tvm.runtime import NDArray
+from tvm.runtime import Tensor
 
 MapFuncVariadic = Union[
     Callable[[], np.ndarray],
@@ -76,7 +76,7 @@ class QuantizeMapping:
         - "qkv_proj.weight_quantized"
         - "qkv_proj.weight_scale"
 
-    map_func : Dict[str, Callable[NDArray, List[NDArray]]]
+    map_func : Dict[str, Callable[Tensor, List[Tensor]]]
         A dictionary that maps the name of a parameter to a function that splits the MLC parameter
         into the destination parameters.
 
@@ -96,7 +96,7 @@ class QuantizeMapping:
     """
 
     param_map: Dict[str, List[str]]
-    map_func: Dict[str, Callable[[NDArray], List[NDArray]]]
+    map_func: Dict[str, Callable[[Tensor], List[Tensor]]]
 
 
 __all__ = ["ExternMapping", "QuantizeMapping"]

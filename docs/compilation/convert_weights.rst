@@ -17,7 +17,7 @@ This can be extended to, e.g.:
 - Add ``Llama-2-uncensored`` when MLC already supports Llama-2
 
 .. note::
-    Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
+    Before you proceed, make sure you followed :ref:`install-tvm`, a required
     backend to compile models with MLC LLM.
 
     Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-engine` to obtain
@@ -30,7 +30,7 @@ This can be extended to, e.g.:
 
 .. _verify_installation_for_compile:
 
-0. Verify installation
+1. Verify installation
 ----------------------
 
 **Step 1. Verify mlc_llm**
@@ -50,13 +50,13 @@ installing the prebuilt package. Verify ``mlc_llm`` installation in command line
 
 **Step 2. Verify TVM**
 
-To compile models, you also need to follow :ref:`install-tvm-unity`.
-Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-unity-validate`):
+To compile models, you also need to follow :ref:`install-tvm`.
+Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-validate`):
 
 .. code:: bash
 
     $ python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+    /some-path/lib/python3.13/site-packages/tvm/__init__.py
 
 
 1. Clone from HF and convert_weight
@@ -115,7 +115,7 @@ By now, you should have the following files.
 
     ~/mlc-llm > ls dist/RedPajama-INCITE-Instruct-3B-v1-q4f16_1-MLC
         mlc-chat-config.json                             # ===> the chat config
-        ndarray-cache.json                               # ===> the model weight info
+        tensor-cache.json                               # ===> the model weight info
         params_shard_0.bin                               # ===> the model weights
         params_shard_1.bin
         ...

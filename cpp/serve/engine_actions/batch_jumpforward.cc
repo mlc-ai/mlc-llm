@@ -46,7 +46,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
       while (!CheckMemForJumpForward(running_rsentries.size())) {
         if (estate->prefix_cache->TryFreeMemory()) continue;
         RequestStateEntry preempted =
-            PreemptLastRunningRequestStateEntry(estate, models_, NullOpt, trace_recorder_);
+            PreemptLastRunningRequestStateEntry(estate, models_, std::nullopt, trace_recorder_);
         if (preempted.same_as(running_rsentries.back())) {
           running_rsentries.pop_back();
         }
@@ -230,7 +230,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
 
 EngineAction EngineAction::BatchJumpForward(Array<Model> models, Tokenizer tokenizer,
                                             Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchJumpForwardActionObj>(
+  return EngineAction(tvm::ffi::make_object<BatchJumpForwardActionObj>(
       std::move(models), std::move(tokenizer), std::move(trace_recorder)));
 }
 

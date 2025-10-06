@@ -4,9 +4,8 @@
  */
 #ifndef MLC_LLM_SERVE_PREFIX_CACHE_H_
 #define MLC_LLM_SERVE_PREFIX_CACHE_H_
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <optional>
@@ -123,12 +122,9 @@ class PrefixCacheObj : public Object {
   /*! \brief Return the prefix cache mode. */
   virtual PrefixCacheMode Mode() = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
-  static constexpr const char* _type_key = "mlc.serve.PrefixCache";
-  TVM_DECLARE_BASE_OBJECT_INFO(PrefixCacheObj, Object)
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.PrefixCache", PrefixCacheObj, Object);
 };
-
-TVM_REGISTER_OBJECT_TYPE(PrefixCacheObj);
 
 class PrefixCache : public ObjectRef {
  public:
@@ -144,7 +140,7 @@ class PrefixCache : public ObjectRef {
    */
   static PrefixCache CreateNoPrefixCache();
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(PrefixCache, ObjectRef, PrefixCacheObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrefixCache, ObjectRef, PrefixCacheObj);
 };
 
 }  // namespace serve

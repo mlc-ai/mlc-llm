@@ -7,8 +7,8 @@
 #ifndef MLC_LLM_STREAMER_H_
 #define MLC_LLM_STREAMER_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
 #include "tokenizers.h"
@@ -44,10 +44,10 @@ class TextStreamerObj : public Object {
   // REPLACEMENT CHARACTER (U+FFFD) in UTF-8.
   static constexpr const char* kReplacementCharacter = "\xef\xbf\xbd";
 
-  static constexpr const char* _type_key = "mlc.TextStreamer";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(TextStreamerObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.TextStreamer", TextStreamerObj, Object);
 
  private:
   Tokenizer tokenizer_;
@@ -65,7 +65,7 @@ class TextStreamer : public ObjectRef {
   /*! \brief Construct a text streamer with tokenizer. */
   explicit TextStreamer(Tokenizer tokenizer);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TextStreamer, ObjectRef, TextStreamerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TextStreamer, ObjectRef, TextStreamerObj);
 };
 
 /****************** StopStrHandler ******************/
@@ -100,8 +100,10 @@ class StopStrHandlerObj : public Object {
   /*! \brief Check if the generation has stopped due to stop string. */
   bool StopTriggered() const { return stop_triggered_; }
 
-  static constexpr const char* _type_key = "mlc.StopStrHandler";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StopStrHandlerObj, Object);
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.StopStrHandler", StopStrHandlerObj, Object);
 
  private:
   /*! \brief The stop strings. */
@@ -120,7 +122,7 @@ class StopStrHandlerObj : public Object {
   /*! \brief The token string length of each pending token id. */
   std::vector<int> pending_token_lengths_;
   /*! \brief A boolean flag indicating if stop has been triggered. */
-  bool stop_triggered_;
+  bool stop_triggered_ = false;
 
   /************ Per-stop-string states. ************/
 
@@ -136,7 +138,7 @@ class StopStrHandler : public ObjectRef {
  public:
   explicit StopStrHandler(Array<String> stop_strs, const std::vector<std::string>& token_table);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(StopStrHandler, ObjectRef, StopStrHandlerObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StopStrHandler, ObjectRef, StopStrHandlerObj);
 };
 
 }  // namespace llm

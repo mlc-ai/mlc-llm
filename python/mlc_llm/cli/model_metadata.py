@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def _extract_metadata(model_lib: Path) -> Dict[str, Any]:
     # pylint: disable=import-outside-toplevel
     from tvm.runtime import device, load_module
-    from tvm.runtime.relax_vm import VirtualMachine
+    from tvm.runtime.vm import VirtualMachine
 
     # pylint: enable=import-outside-toplevel
 
@@ -80,7 +80,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
         else:
             # Contains dynamic shape; use config to look up concrete values
             param_shape = _read_dynamic_shape(param["shape"], config)
-        params_bytes += math.prod(param_shape) * DataType(param["dtype"]).itemsize()
+        params_bytes += math.prod(param_shape) * DataType(param["dtype"]).itemsize
     temp_func_bytes = 0.0
     for _func_name, func_bytes in metadata["memory_usage"].items():
         temp_func_bytes = max(temp_func_bytes, func_bytes)
@@ -93,11 +93,48 @@ def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBas
     total_size = params_bytes + temp_func_bytes
     logger.info(
         "%s: %.2f MB (Parameters: %.2f MB. Temporary buffer: %.2f MB)",
-        green("Total memory usage without KV cache:"),
+        green("Total memory usage without KV cache"),
         total_size / 1024 / 1024,
         params_bytes / 1024 / 1024,
         temp_func_bytes / 1024 / 1024,
     )
+
+    # Compute KV cache size per token of context window.
+    if isinstance(config, ConfigBase):
+        config = asdict(config)
+    if (
+        "head_dim" in config
+        and "num_hidden_layers" in config
+        and "num_key_value_heads" in config
+        and "quantization" in metadata
+    ):
+        quantization_type = metadata["quantization"]
+        dtype_bytes = None
+        if "f32" in quantization_type:
+            dtype_bytes = 4
+        elif "bf16" in quantization_type:
+            dtype_bytes = 2
+        elif "f16" in quantization_type:
+            dtype_bytes = 2
+        # TODO: If support quantized KV in future, need to change this  # pylint: disable=fixme
+        if dtype_bytes is not None:
+            bytes_per_token = (
+                config["head_dim"]
+                * config["num_hidden_layers"]
+                * config["num_key_value_heads"]
+                * dtype_bytes
+                * 2  # 2 for key and value
+            )
+            logger.info(
+                "%s: %.2f MB per token in the context window",
+                green("KV cache size"),
+                bytes_per_token / 1024 / 1024,
+            )
+            logger.info(
+                "%s: %.2f MB",
+                green("Total memory usage with a 4K KV cache"),
+                (total_size + bytes_per_token * 4096) / 1024 / 1024,
+            )
 
     logger.info(
         "To reduce memory usage, "

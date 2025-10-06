@@ -126,7 +126,6 @@ class GemmaMLP(nn.Module):
 class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GemmaConfig):
         self.head_dim = config.head_dim
-        self.scaling_factor = 1.0
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
         assert (
             config.num_key_value_heads % config.tensor_parallel_shards == 0
@@ -155,7 +154,7 @@ class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, self.scaling_factor
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -306,7 +305,8 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
-        return PagedKVCache.create_generic_mha(
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -315,7 +315,8 @@ class GemmaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
             num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,

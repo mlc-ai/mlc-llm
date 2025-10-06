@@ -7,7 +7,7 @@
 #ifndef MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 #define MLC_LLM_SERVE_LOGIT_PROCESSOR_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/module.h>
 
 #include "../base.h"
@@ -48,7 +48,7 @@ class LogitProcessorObj : public Object {
    * state is not updated with the draft tokens).
    */
   virtual void InplaceUpdateLogits(
-      NDArray logits, const Array<GenerationConfig>& generation_cfg,
+      Tensor logits, const Array<GenerationConfig>& generation_cfg,
       const Array<RequestModelState>& mstates, const Array<String>& request_ids,
       const std::vector<int>* cum_num_token = nullptr,
       const Array<RequestModelState>* draft_mstates = nullptr,
@@ -63,15 +63,15 @@ class LogitProcessorObj : public Object {
    * If the pointer is nullptr, it means each sequence has only one token.
    * \return The batch of computed probability distributions on GPU.
    */
-  virtual NDArray ComputeProbsFromLogits(NDArray logits,
-                                         const Array<GenerationConfig>& generation_cfg,
-                                         const Array<String>& request_ids,
-                                         const std::vector<int>* cum_num_token = nullptr) = 0;
+  virtual Tensor ComputeProbsFromLogits(Tensor logits,
+                                        const Array<GenerationConfig>& generation_cfg,
+                                        const Array<String>& request_ids,
+                                        const std::vector<int>* cum_num_token = nullptr) = 0;
 
-  static constexpr const char* _type_key = "mlc.serve.LogitProcessor";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(LogitProcessorObj, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.LogitProcessor", LogitProcessorObj, Object);
 };
 
 class LogitProcessor : public ObjectRef {
@@ -87,7 +87,7 @@ class LogitProcessor : public ObjectRef {
   explicit LogitProcessor(int max_num_token, int vocab_size, FunctionTable* ft, DLDevice device,
                           Optional<EventTraceRecorder> trace_recorder);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(LogitProcessor, ObjectRef, LogitProcessorObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LogitProcessor, ObjectRef, LogitProcessorObj);
 };
 
 }  // namespace serve

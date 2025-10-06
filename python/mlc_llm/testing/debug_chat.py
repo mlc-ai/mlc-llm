@@ -8,10 +8,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tvm
-from tvm import relax
+import tvm_ffi
+from tvm import DataType, relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module, Object, ShapeTuple
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from mlc_llm.conversation_template import ConvTemplateRegistry
 from mlc_llm.interface.help import HELP
@@ -29,8 +30,8 @@ def _extract_metadata(mod: Module):
 
 def _load_params(
     model_weight_path: str, device: Device, model_metadata: Dict[str, Any]
-) -> List[tvm.nd.NDArray]:
-    params, meta = tvmjs.load_ndarray_cache(model_weight_path, device)
+) -> List[tvm.runtime.Tensor]:
+    params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
 
@@ -44,7 +45,7 @@ def _get_tvm_module(
     model_weight_path: str,
     lib_path: str,
     device: Device,
-    instrument: Union[tvm.runtime.PackedFunc, None],
+    instrument: Union[tvm_ffi.Function, None],
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
@@ -104,6 +105,8 @@ class DefaultDebugInstrument:
             name.startswith("vm.builtin.")
             and "call_tir_dyn" not in name
             and "attention_with_fused_qkv" not in name
+            and "self_attention" not in name
+            and "cross_attention" not in name
         ):
             return
 
@@ -125,8 +128,14 @@ class DefaultDebugInstrument:
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, tvm.nd.NDArray):
-                arg_dict[f"arg_{i}"] = arg.numpy()
+            if isinstance(arg, tvm.runtime.Tensor):
+                if np.prod(arg.shape) * (DataType(arg.dtype).bits // 8) > 2147483648:
+                    # We skip dump large tensors
+                    arg_dict[f"arg_{i}"] = np.zeros(())
+                elif arg.dtype in ["bfloat16", "float8_e4m3fn"]:
+                    arg_dict[f"arg_{i}"] = arg.numpy().astype(np.float32)
+                else:
+                    arg_dict[f"arg_{i}"] = arg.numpy()
                 _check_nan_inf(arg.numpy())
         np.savez(self.debug_out / f"{func_name}.npz", **arg_dict)
 
@@ -198,7 +207,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
             .. code:: python
 
                 def instrument(
-                    func: Union[VMClosure, PackedFunc],
+                    func: Union[VMClosure, Function],
                     func_symbol: str,
                     before_run: bool,
                     ret_value: any,
@@ -313,9 +322,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
     def _embed(
         self, data_inputs: List[Union[List[int], data.ImageData]]
-    ) -> Tuple[tvm.nd.NDArray, int]:
+    ) -> Tuple[tvm.runtime.Tensor, int]:
         # We currently convert to numpy after embedded, concat in numpy, then convert back to
-        # tvm ndarray; could be more optimized; but may suffice for debug purposes.
+        # tvm tensor; could be more optimized; but may suffice for debug purposes.
         embeddings = []
         for data_input in data_inputs:
             if isinstance(data_input, data.ImageData):
@@ -327,13 +336,17 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
                 embeddings.append(self.embed_image_func(image_input, self.params).asnumpy())
             else:
                 # Process token data
-                data_input = tvm.nd.array(np.array(data_input).astype("int32"), device=self.device)
+                data_input = tvm.runtime.tensor(
+                    np.array(data_input).astype("int32"), device=self.device
+                )
                 embeddings.append(self.embed_func(data_input, self.params).asnumpy())
         # for embedding in embeddings:
         #     print(f"embedding.shape: {embedding.shape}")
 
         # Concatenate
-        concat_embeddings = tvm.nd.array(np.concatenate(embeddings, axis=0), device=self.device)
+        concat_embeddings = tvm.runtime.tensor(
+            np.concatenate(embeddings, axis=0), device=self.device
+        )
         concat_embeddings = self.nd_view_func(
             concat_embeddings,
             ShapeTuple([1, concat_embeddings.shape[0], concat_embeddings.shape[1]]),
@@ -342,7 +355,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
         return concat_embeddings, input_len
 
-    def _prefill(self, embedding: tvm.nd.NDArray, input_len: int):
+    def _prefill(self, embedding: tvm.runtime.Tensor, input_len: int):
         print("======================= Starts Prefill =======================")
         seq_len_shape = ShapeTuple([input_len])
         max_num_sequence = 1
@@ -404,7 +417,7 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
 
     def _sample_token_from_logits(
         self,
-        logits: tvm.nd.NDArray,
+        logits: tvm.runtime.Tensor,
         *,
         temperature=1.0,
         top_p=1.0,

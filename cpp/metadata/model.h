@@ -6,8 +6,9 @@
 #define MLC_LLM_CPP_MODEL_METADATA_H_
 
 #include <picojson.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/extra/module.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/module.h>
 
@@ -15,6 +16,11 @@
 
 namespace mlc {
 namespace llm {
+
+using tvm::ffi::Module;
+using tvm::ffi::Shape;
+using tvm::ffi::String;
+using tvm::runtime::DataType;
 
 /*! \brief The kind of cache. */
 enum class KVStateKind : int {
@@ -49,16 +55,16 @@ inline KVStateKind KVStateKindFromString(const std::string& kv_state_kind) {
 struct ModelMetadata {
   struct Param {
     struct Preproc {
-      tvm::runtime::String func_name;
-      tvm::runtime::ShapeTuple in_shape;
-      tvm::runtime::ShapeTuple out_shape;
-      tvm::runtime::DataType out_dtype;
+      String func_name;
+      Shape in_shape;
+      Shape out_shape;
+      DataType out_dtype;
       static Preproc FromJSON(const picojson::object& js, const picojson::object& model_config);
     };
 
-    tvm::runtime::String name;
-    tvm::runtime::ShapeTuple shape;
-    tvm::runtime::DataType dtype;
+    String name;
+    Shape shape;
+    DataType dtype;
     std::vector<Preproc> preprocs;
     std::vector<int> pipeline_stages;
     static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);
@@ -82,6 +88,7 @@ struct ModelMetadata {
   int64_t pipeline_parallel_stages;
   bool disaggregation;
   int64_t attention_sink_size;
+  int64_t seqlen_padding_factor;
   std::vector<Param> params;
   std::unordered_map<std::string, int64_t> memory_usage;
   KVStateKind kv_state_kind;
@@ -89,8 +96,7 @@ struct ModelMetadata {
 
   static ModelMetadata FromJSON(const picojson::object& json_str,
                                 const picojson::object& model_config);
-  static ModelMetadata FromModule(tvm::runtime::Module module,
-                                  const picojson::object& model_config);
+  static ModelMetadata FromModule(Module module, const picojson::object& model_config);
 };
 
 }  // namespace llm

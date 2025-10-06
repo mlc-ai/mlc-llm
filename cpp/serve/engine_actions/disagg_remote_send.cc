@@ -144,7 +144,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       }
 
       RECORD_EVENT(trace_recorder_, request_ids, "start prefill");
-      NDArray logits =
+      Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
       ICHECK_EQ(logits->ndim, 3);
@@ -156,9 +156,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
     // Note: we commit prefix cache changes here to overlap this commit with the GPU execution.
     estate->prefix_cache->CommitSequenceExtention();
 
-    // - We run TVMSynchronize to make sure that the prefill is finished.
+    // - We run synchronize to make sure that the prefill is finished.
     // We need explicit synchronization because we don't do sampling in this action.
-    TVMSynchronize(device_.device_type, device_.device_id, compute_stream_);
+    DeviceAPI::Get(device_)->StreamSync(device_, compute_stream_);
 
     auto tend = std::chrono::high_resolution_clock::now();
     estate->metrics.engine_prefill_time_sum += static_cast<double>((tend - tstart).count()) / 1e9;
@@ -487,7 +487,7 @@ EngineAction EngineAction::DisaggRemoteSend(
     Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
     std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
     FRequestStreamCallback request_stream_callback, Device device) {
-  return EngineAction(make_object<DisaggRemoteSendActionObj>(
+  return EngineAction(tvm::ffi::make_object<DisaggRemoteSendActionObj>(
       std::move(models), std::move(model_workspaces), std::move(engine_config),
       std::move(model_configs), std::move(trace_recorder), std::move(request_stream_callback),
       device));

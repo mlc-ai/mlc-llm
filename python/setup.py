@@ -46,6 +46,28 @@ def git_describe_version(original_version):
     return gd_version
 
 
+def parse_requirements(filename: os.PathLike):
+    """Parse requirements.txt."""
+    with open(filename, encoding="utf-8") as f:
+        requirements = f.read().splitlines()
+
+        def extract_url(line):
+            return next(filter(lambda x: x[0] != "-", line.split()))
+
+        extra_URLs = []
+        deps = []
+        for line in requirements:
+            if line.startswith(("#", "-r")):
+                continue
+
+            # handle -i and --extra-index-url options
+            if "-i " in line or "--extra-index-url" in line:
+                extra_URLs.append(extract_url(line))
+            else:
+                deps.append(line)
+    return deps, extra_URLs
+
+
 LIB_LIST, __version__ = get_lib_path()
 __version__ = git_describe_version(__version__)
 
@@ -96,22 +118,7 @@ def main():
             "console_scripts": ["mlc_llm = mlc_llm.__main__:main"],
         },
         package_dir={"mlc_llm": "mlc_llm"},
-        install_requires=[
-            "fastapi",
-            "uvicorn",
-            "shortuuid",
-            "torch",
-            "safetensors",
-            "requests",
-            "tqdm",
-            "sentencepiece",
-            "tiktoken",
-            "prompt_toolkit",
-            "openai",
-            "transformers",
-            "pandas",
-            "datasets",
-        ],
+        install_requires=parse_requirements("requirements.txt")[0],
         distclass=BinaryDistribution,
         **setup_kwargs,
     )

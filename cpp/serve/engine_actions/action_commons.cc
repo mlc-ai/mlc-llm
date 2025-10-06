@@ -256,7 +256,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
     for (int i = 0; i < n; ++i) {
       const RequestStateEntry& rsentry = n == 1 ? rstate->entries[0] : rstate->entries[i + 1];
       rsentry->GetDeltaRequestReturn(tokenizer, max_single_sequence_length, &stream_output, i);
-      if (stream_output->group_finish_reason[i].defined()) {
+      if (stream_output->group_finish_reason[i].has_value()) {
         invoke_callback = true;
         estate->postproc_workspace.finished_rsentries.push_back(rsentry);
       }
@@ -421,8 +421,8 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
   return rsentry;
 }
 
-std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
-    const LogitProcessor& logit_processor, const Sampler& sampler, const NDArray& logits,
+std::pair<Tensor, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
+    const LogitProcessor& logit_processor, const Sampler& sampler, const Tensor& logits,
     const Array<GenerationConfig>& generation_cfg, const Array<String>& request_ids,
     const Array<RequestModelState>& mstates, const std::vector<RandomGenerator*>& rngs,
     const std::vector<int>& sample_indices, const Array<GenerationConfig>& child_generation_cfg,
@@ -431,12 +431,12 @@ std::pair<NDArray, std::vector<SampleResult>> ApplyLogitProcessorAndSample(
   logit_processor->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids);
 
   // - Compute probability distributions.
-  NDArray probs_on_device =
+  Tensor probs_on_device =
       logit_processor->ComputeProbsFromLogits(logits, generation_cfg, request_ids);
 
   // - Sample tokens.
-  NDArray renormalized_probs = sampler->BatchRenormalizeProbsByTopP(probs_on_device, sample_indices,
-                                                                    request_ids, generation_cfg);
+  Tensor renormalized_probs = sampler->BatchRenormalizeProbsByTopP(probs_on_device, sample_indices,
+                                                                   request_ids, generation_cfg);
   std::vector<SampleResult> sample_results = sampler->BatchSampleTokensWithProbAfterTopP(
       renormalized_probs, child_sample_indices, child_request_ids, child_generation_cfg, rngs);
   return {std::move(probs_on_device), std::move(sample_results)};
