@@ -57,10 +57,12 @@ def test_gemma3_config_validation():
     assert hasattr(config, "num_attention_heads") and config.num_attention_heads > 0
     assert hasattr(config, "vocab_size") and config.vocab_size > 0
 
-    print(f"Gemma3 Config: hidden_size={config.hidden_size}, "
-          f"layers={config.num_hidden_layers}, "
-          f"heads={config.num_attention_heads}, "
-          f"vocab={config.vocab_size}")
+    print(
+        f"Gemma3 Config: hidden_size={config.hidden_size}, "
+        f"layers={config.num_hidden_layers}, "
+        f"heads={config.num_attention_heads}, "
+        f"vocab={config.vocab_size}"
+    )
 
 
 if __name__ == "__main__":
