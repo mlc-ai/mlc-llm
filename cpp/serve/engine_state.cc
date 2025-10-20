@@ -8,6 +8,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() { EngineStateObj::RegisterReflection(); }
+
 EngineState::EngineState() { data_ = tvm::ffi::make_object<EngineStateObj>(); }
 
 void EngineStateObj::Reset() {

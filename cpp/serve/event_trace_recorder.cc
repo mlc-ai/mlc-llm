@@ -149,6 +149,7 @@ EventTraceRecorder EventTraceRecorder::Create() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  EventTraceRecorderImpl::RegisterReflection();
   refl::GlobalDef()
       .def("mlc.serve.EventTraceRecorder", []() { return EventTraceRecorder::Create(); })
       .def("mlc.serve.EventTraceRecorderAddEvent",

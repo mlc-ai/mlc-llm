@@ -13,6 +13,8 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+TVM_FFI_STATIC_INIT_BLOCK() { PrefixCacheObj::RegisterReflection(); }
+
 /*!
  * \brief The implementation of prefix cache.
  */

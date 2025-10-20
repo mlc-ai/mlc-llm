@@ -7,6 +7,7 @@
 #define MLC_LLM_SERVE_EVENT_TRACE_RECORDER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -40,6 +41,11 @@ class EventTraceRecorderObj : public Object {
 
   /*! \brief Dump the logged events in Chrome Trace Event Format in JSON string. */
   virtual std::string DumpJSON() = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EventTraceRecorderObj>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

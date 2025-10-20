@@ -364,6 +364,11 @@ class ModelObj : public Object {
   /*! \brief Call the given global function on all workers. Only for debug purpose. */
   virtual void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ModelObj>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;

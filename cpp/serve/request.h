@@ -7,6 +7,7 @@
 #define MLC_LLM_SERVE_REQUEST_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -54,6 +55,11 @@ class RequestNode : public Object {
   GenerationConfig generation_cfg;
   /*! \brief Backward reference to the request state. */
   Object* rstate = nullptr;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RequestNode>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

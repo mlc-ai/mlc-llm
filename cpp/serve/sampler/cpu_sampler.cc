@@ -17,6 +17,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() { SamplerObj::RegisterReflection(); }
+
 /*!
  * \brief Sample a value from the input probability distribution with top-p.
  * The input is a batch of distributions, and we use `unit_offset` to specify

@@ -32,6 +32,8 @@ inline void SyncCopyStream(Device device, TVMStreamHandle compute_stream,
 
 /***************** LogitProcessor Implementation *****************/
 
+TVM_FFI_STATIC_INIT_BLOCK() { LogitProcessorObj::RegisterReflection(); }
+
 class LogitProcessorImpl : public LogitProcessorObj {
  public:
   /*! * \brief Constructor of LogitProcessorImpl. */

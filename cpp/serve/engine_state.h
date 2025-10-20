@@ -98,6 +98,11 @@ class EngineStateObj : public Object {
   /*! \brief Return the running request state entries*/
   const std::vector<RequestStateEntry>& GetRunningRequestStateEntries();
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EngineStateObj>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;

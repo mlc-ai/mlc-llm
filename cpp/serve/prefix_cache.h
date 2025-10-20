@@ -5,6 +5,7 @@
 #ifndef MLC_LLM_SERVE_PREFIX_CACHE_H_
 #define MLC_LLM_SERVE_PREFIX_CACHE_H_
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/object.h>
 
 #include <functional>
@@ -121,6 +122,11 @@ class PrefixCacheObj : public Object {
 
   /*! \brief Return the prefix cache mode. */
   virtual PrefixCacheMode Mode() = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrefixCacheObj>();
+  }
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.PrefixCache", PrefixCacheObj, Object);

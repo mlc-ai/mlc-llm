@@ -20,6 +20,11 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  GenerationConfigNode::RegisterReflection();
+  EngineConfigNode::RegisterReflection();
+}
+
 uint64_t TotalDetectGlobalMemory(DLDevice device) {
   // Get single-card GPU size.
   tvm::ffi::Any rv;

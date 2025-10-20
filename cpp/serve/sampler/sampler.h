@@ -120,6 +120,11 @@ class SamplerObj : public Object {
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
       const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SamplerObj>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;

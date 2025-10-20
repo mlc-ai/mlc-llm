@@ -115,6 +115,11 @@ class RequestModelStateNode : public Object {
   /*! \brief Remove all draft tokens from draft_output_tokens. Update appeared_token_ids. */
   void RemoveAllDraftTokens(std::vector<int>* removed_draft_token_slots = nullptr);
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RequestModelStateNode>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;
@@ -246,6 +251,11 @@ class RequestStateEntryNode : public Object {
   void GetDeltaRequestReturn(const Tokenizer& tokenizer, int64_t max_single_sequence_length,
                              RequestStreamOutput* delta_stream_output, int idx);
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RequestStateEntryNode>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;
@@ -274,6 +284,11 @@ class RequestStateNode : public Object {
    * We make it a state to avoid repetitive memory allocation/free in the action post process.
    */
   RequestActionPostProcWorkspace postproc_states;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RequestStateNode>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
