@@ -9,6 +9,7 @@
 
 #include <tokenizers_cpp.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -47,6 +48,11 @@ class TokenizerInfoNode : public Object {
   bool strip_space_in_decode = false;
 
   String AsJSONString() const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TokenizerInfoNode>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
@@ -105,6 +111,11 @@ class TokenizerObj : public Object {
    * \brief Convert the given token to its corresponding id if it exists. If not, return -1.
    */
   int32_t TokenToId(const std::string& token) const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TokenizerObj>();
+  }
 
   friend class Tokenizer;
   static constexpr const bool _type_has_method_sequal_reduce = false;

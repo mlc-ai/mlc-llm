@@ -38,6 +38,11 @@ class EngineActionObj : public Object {
    */
   virtual Array<Request> Step(EngineState estate) = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EngineActionObj>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;

@@ -14,6 +14,8 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+TVM_FFI_STATIC_INIT_BLOCK() { PagedRadixTreeObj::RegisterReflection(); }
+
 /*!
  * \brief The sequence ID linked list structure in paged radix tree node.
  */

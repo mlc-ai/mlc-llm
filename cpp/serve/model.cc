@@ -23,6 +23,8 @@ namespace serve {
 
 /*********************** Model Implementation ***********************/
 
+TVM_FFI_STATIC_INIT_BLOCK() { ModelObj::RegisterReflection(); }
+
 class ModelImpl;
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,

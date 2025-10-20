@@ -17,6 +17,11 @@
 namespace mlc {
 namespace llm {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TextStreamerObj::RegisterReflection();
+  StopStrHandlerObj::RegisterReflection();
+}
+
 /****************** TextStreamer ******************/
 
 TextStreamerObj::TextStreamerObj(Tokenizer tokenizer) : tokenizer_(std::move(tokenizer)) {}

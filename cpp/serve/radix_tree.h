@@ -5,6 +5,7 @@
 #ifndef MLC_LLM_SERVE_RADIX_TREE_H_
 #define MLC_LLM_SERVE_RADIX_TREE_H_
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
 
@@ -106,6 +107,11 @@ class PagedRadixTreeObj : public Object {
    * \brief Reset the paged radix tree to initial status.
    */
   virtual void Reset() = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PagedRadixTreeObj>();
+  }
 
   static constexpr const bool _type_mutable = true;
   TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.PagedRadixTree", PagedRadixTreeObj, Object);

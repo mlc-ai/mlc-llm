@@ -24,6 +24,11 @@
 namespace mlc {
 namespace llm {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TokenizerInfoNode::RegisterReflection();
+  TokenizerObj::RegisterReflection();
+}
+
 #ifndef COMPILE_MLC_WASM_RUNTIME
 
 String TokenizerInfoNode::AsJSONString() const {

@@ -9,6 +9,12 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RequestModelStateNode::RegisterReflection();
+  RequestStateEntryNode::RegisterReflection();
+  RequestStateNode::RegisterReflection();
+}
+
 /****************** RequestModelState ******************/
 
 RequestModelState::RequestModelState(

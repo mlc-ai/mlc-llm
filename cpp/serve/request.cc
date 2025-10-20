@@ -16,6 +16,8 @@ namespace serve {
 
 /****************** Request ******************/
 
+TVM_FFI_STATIC_INIT_BLOCK() { RequestNode::RegisterReflection(); }
+
 Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
   if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
     CHECK(!inputs.empty()) << "No input data is given.";

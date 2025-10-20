@@ -5,6 +5,7 @@
 
 #ifndef MLC_LLM_SERVE_DRAFT_TOKEN_WORKSPACE_MANAGER_H_
 #define MLC_LLM_SERVE_DRAFT_TOKEN_WORKSPACE_MANAGER_H_
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 
 #include <numeric>
@@ -72,6 +73,11 @@ class DraftTokenWorkspaceManagerObj : public Object {
    * \param slots The slots to free.
    */
   void FreeSlots(const std::vector<int>& slots);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DraftTokenWorkspaceManagerObj>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

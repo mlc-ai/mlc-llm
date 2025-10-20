@@ -11,6 +11,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() { DraftTokenWorkspaceManagerObj::RegisterReflection(); }
+
 DraftTokenWorkspaceManagerObj::DraftTokenWorkspaceManagerObj(int max_num_tokens, int vocab_size,
                                                              int hidden_size,
                                                              DLDataType hidden_states_dtype,

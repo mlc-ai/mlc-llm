@@ -7,6 +7,10 @@
 
 namespace mlc {
 namespace llm {
-namespace serve {}  // namespace serve
+namespace serve {
+
+TVM_FFI_STATIC_INIT_BLOCK() { EngineActionObj::RegisterReflection(); }
+
+}  // namespace serve
 }  // namespace llm
 }  // namespace mlc

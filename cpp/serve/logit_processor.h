@@ -68,6 +68,11 @@ class LogitProcessorObj : public Object {
                                         const Array<String>& request_ids,
                                         const std::vector<int>* cum_num_token = nullptr) = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LogitProcessorObj>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   static constexpr const bool _type_mutable = true;

@@ -8,6 +8,7 @@
 #define MLC_LLM_STREAMER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -43,6 +44,11 @@ class TextStreamerObj : public Object {
 
   // REPLACEMENT CHARACTER (U+FFFD) in UTF-8.
   static constexpr const char* kReplacementCharacter = "\xef\xbf\xbd";
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TextStreamerObj>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
@@ -99,6 +105,11 @@ class StopStrHandlerObj : public Object {
 
   /*! \brief Check if the generation has stopped due to stop string. */
   bool StopTriggered() const { return stop_triggered_; }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StopStrHandlerObj>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

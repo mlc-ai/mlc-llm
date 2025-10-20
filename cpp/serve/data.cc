@@ -13,6 +13,14 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  DataNode::RegisterReflection();
+  TextDataNode::RegisterReflection();
+  TokenDataNode::RegisterReflection();
+  ImageDataNode::RegisterReflection();
+  RequestStreamOutputObj::RegisterReflection();
+}
+
 /****************** Data ******************/
 
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,

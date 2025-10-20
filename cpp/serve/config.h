@@ -7,6 +7,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/int_tuple.h>
@@ -134,6 +135,11 @@ class GenerationConfigNode : public Object {
   DebugConfig debug_config;
 
   picojson::object AsJSON() const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GenerationConfigNode>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
@@ -301,6 +307,11 @@ class EngineConfigNode : public Object {
   bool verbose = false;
 
   String AsJSONString() const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EngineConfigNode>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;

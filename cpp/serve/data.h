@@ -8,6 +8,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/node/cast.h>
 #include <tvm/runtime/int_tuple.h>
@@ -50,8 +51,14 @@ class DataNode : public Object {
    */
   virtual ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const = 0;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataNode>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const uint32_t _type_child_slots = 3;
   TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.Data", DataNode, Object);
 };
 
@@ -75,7 +82,12 @@ class TextDataNode : public DataNode {
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.TextData", TextDataNode, DataNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TextDataNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.TextData", TextDataNode, DataNode);
 };
 
 class TextData : public Data {
@@ -96,7 +108,12 @@ class TokenDataNode : public DataNode {
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.TokenData", TokenDataNode, DataNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TokenDataNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.TokenData", TokenDataNode, DataNode);
 };
 
 class TokenData : public Data {
@@ -120,7 +137,12 @@ class ImageDataNode : public DataNode {
   int GetLength() const final;
   ObjectRef GetEmbedding(Model model, ObjectRef* dst = nullptr, int offset = 0) const final;
 
-  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.ImageData", ImageDataNode, DataNode);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ImageDataNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("mlc.serve.ImageData", ImageDataNode, DataNode);
 };
 
 class ImageData : public Data {
@@ -196,6 +218,11 @@ class RequestStreamOutputObj : public Object {
   std::vector<String> group_extra_prefix_string;
 
   std::atomic<bool> unpacked = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RequestStreamOutputObj>();
+  }
 
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
