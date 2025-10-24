@@ -198,7 +198,7 @@ def _build_android():
             fcompile=tar.tar,
         )
         if args.debug_dump is not None:
-            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imports[0].imports[0].inspect_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
@@ -221,7 +221,7 @@ def _build_android_so():
             fcompile=ndk.create_shared,
         )
         if args.debug_dump is not None:
-            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imports[0].imports[0].inspect_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
