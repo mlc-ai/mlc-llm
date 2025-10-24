@@ -6,6 +6,7 @@
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 
+#include <ffi/backtrace.cc>
 #include <ffi/container.cc>
 #include <ffi/dtype.cc>
 #include <ffi/error.cc>
@@ -17,7 +18,6 @@
 #include <ffi/extra/module.cc>
 #include <ffi/function.cc>
 #include <ffi/object.cc>
-#include <ffi/backtrace.cc>
 #include <runtime/cpu_device_api.cc>
 #include <runtime/device_api.cc>
 #include <runtime/file_utils.cc>
