@@ -347,7 +347,7 @@ MODELS: Dict[str, Model] = {
     ),
     "qwen2_vl": Model(
         name="qwen2_vl",
-        model=qwen2_vl_model.QWen2VLLMHeadModel,
+        model=qwen2_vl_model.QWen2VLForCausalLM,
         config=qwen2_vl_model.QWen2VLConfig,
         source={
             "huggingface-torch": qwen2_vl_loader.huggingface,

@@ -10,7 +10,8 @@ from tvm.relax.frontend.nn import Module, Tensor, op
 from mlc_llm.model.vision import ImageProcessor
 from mlc_llm.support.config import ConfigBase
 from .qwen2_vl_config import QWen2VLConfig, QWen2VLVisionConfig
-from mlc_llm.nn import RopeMode, apply_rotary_emb, precompute_rope_cache
+from mlc_llm.nn import RopeMode
+from .rope import apply_rotary_emb, precompute_rope_cache
 
 # Constants from CLIP
 OPENAI_CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]

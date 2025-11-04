@@ -26,6 +26,63 @@ class QWen2VLVisionConfig(ConfigBase):
     num_rope_scales: int = 4
     rope_theta: float = 10000
 
+
+def qwen2vl_vision_from_official(vision_cfg: Dict[str, Any]) -> QWen2VLVisionConfig:
+    """
+    Map HF Qwen2-VL 'vision_config' dict to our QWen2VLVisionConfig dataclass.
+    - Prefer 'embed_dim' for hidden size (fallback to 'hidden_size' if needed).
+    - Compute intermediate_size = int(hidden_size * mlp_ratio).
+    - Map depth -> num_hidden_layers, num_heads -> num_attention_heads,
+      in_chans -> num_channels, spatial_merge_size -> merge_size,
+      spatial_patch_size/patch_size -> patch_size.
+    - Carry through unrecognized keys to kwargs.
+    """
+    # Prefer embed_dim as the model's hidden size for the ViT
+    hidden_size = vision_cfg.get("embed_dim", vision_cfg.get("hidden_size"))
+    if hidden_size is None:
+        raise ValueError("Neither 'embed_dim' nor 'hidden_size' found in vision_config.")
+
+    mlp_ratio = vision_cfg.get("mlp_ratio", 4)
+    intermediate_size = int(round(hidden_size * mlp_ratio))
+
+    # Patch size: HF sometimes has both 'patch_size' and 'spatial_patch_size'
+    patch_size = vision_cfg.get("spatial_patch_size", vision_cfg.get("patch_size", 14))
+
+    # Merge size for spatial pooling
+    merge_size = vision_cfg.get("spatial_merge_size", 2)
+
+    cfg = QWen2VLVisionConfig(
+        hidden_size=hidden_size,
+        intermediate_size=intermediate_size,
+        num_hidden_layers=vision_cfg.get("depth", 24),
+        num_attention_heads=vision_cfg.get("num_heads", vision_cfg.get("num_attention_heads", 16)),
+        patch_size=patch_size,
+        merge_size=merge_size,
+        image_size=448,  # not provided in HF vision_config; keep our default
+        num_channels=vision_cfg.get("in_chans", 3),
+        layer_norm_eps=1e-6,
+        max_patches=1024,
+        hidden_act="gelu",
+        dtype="float32",
+        # keep extra fields (e.g., temporal_patch_size, embed_dim duplicate, etc.)
+        kwargs={
+            k: v for k, v in vision_cfg.items()
+            if k not in {
+                "depth", "embed_dim", "mlp_ratio", "num_heads", "in_chans",
+                "hidden_size", "patch_size", "spatial_merge_size",
+                "spatial_patch_size", "temporal_patch_size"
+            }
+            # but still keep useful extras explicitly
+        } | {
+            "temporal_patch_size": vision_cfg.get("temporal_patch_size"),
+            "orig_embed_dim": vision_cfg.get("embed_dim"),
+            "orig_hidden_size": vision_cfg.get("hidden_size"),
+        },
+        num_rope_scales=4,
+        rope_theta=10000.0,
+    )
+    return cfg
+
 @dataclasses.dataclass
 class QWen2VLConfig(QWen2Config):
     """Configuration for the complete Qwen2 VL model."""
@@ -61,6 +118,8 @@ class QWen2VLConfig(QWen2Config):
                 layer_norm_eps=1e-6,
                 dtype=self.dtype,
             )
+        else:
+            self.vision_config = qwen2vl_vision_from_official(self.vision_config)
 
         # Validate configuration
         if self.patch_size < self.min_patch_size or self.patch_size > self.max_patch_size:
@@ -84,3 +143,8 @@ class QWen2VLConfig(QWen2Config):
         for k, v in self.kwargs.items():
             if not hasattr(self, k):
                 setattr(self, k, v) 
+
+
+'''
+python -m mlc_llm gen_config ../mlc-models/Qwen2-VL-7B-Instruct/ --conv-template qwen2-vl -o ../mlc-models/mlc-qwen --quantization q0f16
+'''
