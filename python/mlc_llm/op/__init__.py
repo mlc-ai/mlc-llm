@@ -16,6 +16,12 @@ changing call-sites in the rest of the code-base.
 """
 
 # Base helpers that already existed.
+from .mrope import (  # noqa: F401
+    MultimodalRotaryEmbedding,
+    VisionPositionMetadata,
+    apply_multimodal_rotary_pos_emb,
+    get_mrope_position_ids,
+)
 from .position_embedding import llama_rope  # noqa: F401
 from .top_p_pivot import top_p_pivot, top_p_renorm  # noqa: F401
 

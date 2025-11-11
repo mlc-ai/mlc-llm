@@ -24,7 +24,7 @@ def _load_mlc_llm_lib():
     return ctypes.CDLL(lib_path[0]), lib_path[0]
 
 
-@tvm.register_func("mlc.debug_cuda_profiler_start")
+@tvm.register_func("mlc.debug_cuda_profiler_start", override=True)
 def _debug_cuda_profiler_start() -> None:
     """Start cuda profiler."""
     import cuda  # pylint: disable=import-outside-toplevel
@@ -33,7 +33,7 @@ def _debug_cuda_profiler_start() -> None:
     cuda.cudart.cudaProfilerStart()  # pylint: disable=c-extension-no-member
 
 
-@tvm.register_func("mlc.debug_cuda_profiler_stop")
+@tvm.register_func("mlc.debug_cuda_profiler_stop", override=True)
 def _debug_cuda_profiler_stop() -> None:
     """Stop cuda profiler."""
     import cuda  # pylint: disable=import-outside-toplevel
