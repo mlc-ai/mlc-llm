@@ -28,9 +28,7 @@ def _numpy_apply_mrope(
     mrope_section: tuple[int, ...],
 ) -> tuple[np.ndarray, np.ndarray]:
     head_dim = q.shape[-1]
-    inv_freq = 1.0 / (
-        theta ** (np.arange(0, head_dim, 2, dtype=np.float32) / float(head_dim))
-    )
+    inv_freq = 1.0 / (theta ** (np.arange(0, head_dim, 2, dtype=np.float32) / float(head_dim)))
     pos = np.transpose(position_ids, (2, 0, 1))
     inv = inv_freq.reshape(1, 1, -1, 1).astype(np.float32)
     inv = np.broadcast_to(inv, (3, pos.shape[1], inv_freq.size, 1))

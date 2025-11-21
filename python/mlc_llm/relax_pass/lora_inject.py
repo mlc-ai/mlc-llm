@@ -34,11 +34,13 @@ def make_lora_inject_pass(enabled: bool) -> ir.transform.Pass:
     if not enabled:
         return relax.transform.Identity()
 
-    def _transform(func: relax.Function, _mod: ir.IRModule, _ctx):  # pylint: disable=unused-argument
+    def _transform(
+        func: relax.Function, _mod: ir.IRModule, _ctx
+    ):  # pylint: disable=unused-argument
         return _LoraInjectMutator().visit_expr(func)  # type: ignore[arg-type]
 
     return relax.transform.FunctionPass(
         _transform,
         opt_level=0,
         name="InjectLoRADelta",
-    ) 
+    )

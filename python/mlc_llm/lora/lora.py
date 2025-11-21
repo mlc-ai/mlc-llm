@@ -15,6 +15,7 @@ them through a getter so that:
 The heavy-lifting (segment-gemm kernels, C++ LoraManager, etc.) will be
 added later – this just lays the plumbing.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -116,4 +117,4 @@ def upload_lora(adapter_path: Path | str, *, device=None) -> None:  # type: igno
     _LOADED_ADAPTERS.add(path)
 
 
-__all__.append("upload_lora") 
+__all__.append("upload_lora")

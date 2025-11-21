@@ -19,6 +19,7 @@ from tvm.relax.frontend.nn import Tensor, op
 # Public helper
 # ---------------------------------------------------------------------------
 
+
 def lora_dense(
     x: Tensor,
     base_weight: Tensor,
@@ -49,4 +50,4 @@ def lora_dense(
     if not isinstance(alpha, nn.Tensor):
         alpha = nn.const(alpha, x.dtype)
 
-    return out_base + out_lora * alpha 
+    return out_base + out_lora * alpha

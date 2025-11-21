@@ -86,9 +86,7 @@ class MultimodalRotaryEmbedding(nn.Module):
         batch_size, seq_len, _ = position_ids.shape
         dtype = reference.dtype
         inv_freq_tensor = nn.Tensor.from_const(self._inv_freq.reshape(1, 1, -1, 1))
-        inv_freq_tensor = op.broadcast_to(
-            inv_freq_tensor, (3, batch_size, self._inv_freq.size, 1)
-        )
+        inv_freq_tensor = op.broadcast_to(inv_freq_tensor, (3, batch_size, self._inv_freq.size, 1))
 
         permuted_pos = op.permute_dims(position_ids, axes=[2, 0, 1])
         pos_tensor = op.reshape(permuted_pos, (3, batch_size, 1, seq_len))
@@ -174,9 +172,9 @@ def _grid_chunk(
             f"Invalid grid shape t={grid_t}, h={grid_h}, w={grid_w} for multimodal positions."
         )
     grid_size = grid_t * grid_h * grid_w
-    time_axis = (
-        np.arange(grid_t, dtype=np.float32) * second_per_grid * tokens_per_second
-    ).astype(np.int64)
+    time_axis = (np.arange(grid_t, dtype=np.float32) * second_per_grid * tokens_per_second).astype(
+        np.int64
+    )
     t_index = np.repeat(time_axis, grid_h * grid_w)
     h_index = np.tile(np.repeat(np.arange(grid_h, dtype=np.int64), grid_w), grid_t)
     w_index = np.tile(np.tile(np.arange(grid_w, dtype=np.int64), grid_h), grid_t)
@@ -319,13 +317,17 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-local
             llm_pos_ids_list.append(text_chunk)
 
             t_index = (
-                np.broadcast_to(
-                    np.arange(llm_grid_t, dtype=np.float32).reshape(-1, 1),
-                    (llm_grid_t, llm_grid_h * llm_grid_w),
+                (
+                    np.broadcast_to(
+                        np.arange(llm_grid_t, dtype=np.float32).reshape(-1, 1),
+                        (llm_grid_t, llm_grid_h * llm_grid_w),
+                    )
+                    * second_per_grid
+                    * meta.tokens_per_second
                 )
-                * second_per_grid
-                * meta.tokens_per_second
-            ).astype(np.int64).reshape(-1)
+                .astype(np.int64)
+                .reshape(-1)
+            )
             h_index = (
                 np.arange(llm_grid_h, dtype=np.int64)
                 .reshape(1, -1, 1)
