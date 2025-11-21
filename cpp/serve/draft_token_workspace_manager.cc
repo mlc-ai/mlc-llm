@@ -11,6 +11,8 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
+TVM_FFI_STATIC_INIT_BLOCK() { DraftTokenWorkspaceManagerObj::RegisterReflection(); }
+
 DraftTokenWorkspaceManagerObj::DraftTokenWorkspaceManagerObj(int max_num_tokens, int vocab_size,
                                                              int hidden_size,
                                                              DLDataType hidden_states_dtype,
@@ -61,9 +63,9 @@ void DraftTokenWorkspaceManagerObj::FreeSlots(const std::vector<int>& slots) {
 void DraftTokenWorkspaceManagerObj::AllocWorkspace(ModelWorkspace* workspace,
                                                    bool require_hidden_states) {
   workspace->draft_probs =
-      NDArray::Empty({max_num_tokens_, vocab_size_}, DataType::Float(32), device_);
+      Tensor::Empty({max_num_tokens_, vocab_size_}, DataType::Float(32), device_);
   workspace->draft_probs_storage =
-      NDArray::Empty({max_num_tokens_, vocab_size_}, DataType::Float(32), device_);
+      Tensor::Empty({max_num_tokens_, vocab_size_}, DataType::Float(32), device_);
   if (require_hidden_states) {
     workspace->draft_hidden_states_storage = ft_.Empty(
         {max_num_tokens_, hidden_size_}, hidden_states_dtype_, device_, /*worker0_only=*/false);

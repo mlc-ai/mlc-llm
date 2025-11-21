@@ -18,7 +18,7 @@ Introduction
 ------------
 
 To use ``mlc_llm package``, we must clone the source code of `MLC LLM <https://github.com/mlc-ai/mlc-llm>`_
-and `install the MLC LLM and TVM Unity package <https://llm.mlc.ai/docs/install/mlc_llm.html#option-1-prebuilt-package>`_.
+and `install the MLC LLM and TVM package <https://llm.mlc.ai/docs/install/mlc_llm.html#option-1-prebuilt-package>`_.
 Depending on the app we build, there might be some other dependencies, which are described in
 corresponding :ref:`iOS <deploy-ios>` and :ref:`Android <deploy-android>` tutorials.
 

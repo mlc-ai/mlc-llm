@@ -6,6 +6,7 @@
 #include "threaded_engine.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 
 #include <atomic>
@@ -133,7 +134,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 
   void RunBackgroundLoop() final {
     // The local vectors that load the requests from critical regions.
-    std::vector<std::pair<InstructionKind, ObjectRef>> local_instruction_queue;
+    std::vector<std::pair<InstructionKind, Any>> local_instruction_queue;
 
     while (!exit_now_.load(std::memory_order_relaxed)) {
       {
@@ -173,7 +174,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
           }
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
           CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
-          Array<ObjectRef> packed_args = Downcast<Array<ObjectRef>>(arg);
+          Array<Any> packed_args = Downcast<Array<Any>>(arg);
           background_engine_->DebugCallFuncOnAllAllWorker(
               Downcast<String>(packed_args[0]), Downcast<Optional<String>>(packed_args[1]));
         } else {
@@ -256,7 +257,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
     {
       std::lock_guard<std::mutex> lock(background_loop_mutex_);
       instruction_queue_.emplace_back(InstructionKind::kDebugCallFuncOnAllAllWorker,
-                                      Array<ObjectRef>{func_name, func_args});
+                                      Array<Any>{func_name, func_args});
       ++pending_request_operation_cnt_;
       need_notify = engine_waiting_;
     }
@@ -351,7 +352,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
    * Elements are sended from other threads and consumed by
    * the threaded engine in the background loop.
    */
-  std::vector<std::pair<InstructionKind, ObjectRef>> instruction_queue_;
+  std::vector<std::pair<InstructionKind, Any>> instruction_queue_;
   /*!
    * \brief The delta outputs to pass through callback.
    * Elements are sended from the background loop thread and
@@ -379,7 +380,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
 };
 
 /*! \brief The implementation of ThreadedEngine. */
-class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
+class ThreadedEngineModule : public ThreadedEngineImpl, public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.async_threaded_engine");
   TVM_MODULE_VTABLE_ENTRY("init_threaded_engine", &ThreadedEngineImpl::InitThreadedEngine);
@@ -399,9 +400,11 @@ class ThreadedEngineModule : public ThreadedEngineImpl, public ModuleNode {
   TVM_MODULE_VTABLE_END();
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_threaded_engine").set_body_typed([]() {
-  return Module(make_object<ThreadedEngineModule>());
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.create_threaded_engine",
+                        []() { return Module(tvm::ffi::make_object<ThreadedEngineModule>()); });
+}
 
 std::unique_ptr<ThreadedEngine> ThreadedEngine::Create() {
   std::unique_ptr<ThreadedEngineImpl> threaded_engine = std::make_unique<ThreadedEngineImpl>();

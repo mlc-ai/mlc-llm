@@ -19,7 +19,7 @@ class CalibrationObserver:
 
     instance: "CalibrationObserver" = None
 
-    params: Mapping[str, tvm.nd.NDArray] = {}
+    params: Mapping[str, tvm.runtime.Tensor] = {}
 
     @staticmethod
     def get():
@@ -28,9 +28,11 @@ class CalibrationObserver:
             CalibrationObserver.instance = CalibrationObserver()
         return CalibrationObserver.instance
 
-    @tvm.register_func("mlc_llm.calibration_observer")
+    @tvm.register_global_func("mlc_llm.calibration_observer")
     @staticmethod
-    def callback(name: str, mode: str, value: "tvm.nd.NDArray", out_value: "tvm.nd.NDArray"):
+    def callback(
+        name: str, mode: str, value: "tvm.runtime.Tensor", out_value: "tvm.runtime.Tensor"
+    ):
         """The callback function to update the saved calibration parameters."""
         instance = CalibrationObserver.get()
         if mode == "max":
@@ -45,7 +47,7 @@ class CalibrationObserver:
 
     def save_params(self, output: str):
         """Save the calibration parameters to the given output directory."""
-        tvmjs.dump_ndarray_cache(
+        tvmjs.dump_tensor_cache(
             self.params,
             output,
             encode_format="f32-to-bf16",

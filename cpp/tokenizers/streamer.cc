@@ -6,6 +6,7 @@
 #include "streamer.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/int_tuple.h>
 
 #include <algorithm>
@@ -16,9 +17,12 @@
 namespace mlc {
 namespace llm {
 
-/****************** TextStreamer ******************/
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TextStreamerObj::RegisterReflection();
+  StopStrHandlerObj::RegisterReflection();
+}
 
-TVM_REGISTER_OBJECT_TYPE(TextStreamerObj);
+/****************** TextStreamer ******************/
 
 TextStreamerObj::TextStreamerObj(Tokenizer tokenizer) : tokenizer_(std::move(tokenizer)) {}
 
@@ -139,21 +143,20 @@ std::string TextStreamerObj::Finish() {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TextStreamer").set_body_typed([](Tokenizer tokenizer) {
-  return TextStreamer(std::move(tokenizer));
-});
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TextStreamerPut")
-    .set_body_typed([](TextStreamer text_streamer, const IntTuple& delta_tokens) {
-      return text_streamer->Put({delta_tokens->data, delta_tokens->data + delta_tokens->size});
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TextStreamerFinish")
-    .set_body_method(&TextStreamerObj::Finish);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.tokenizers.TextStreamer",
+           [](Tokenizer tokenizer) { return TextStreamer(std::move(tokenizer)); })
+      .def("mlc.tokenizers.TextStreamerPut",
+           [](TextStreamer text_streamer, const IntTuple& delta_tokens) {
+             return text_streamer->Put(
+                 {delta_tokens->data, delta_tokens->data + delta_tokens->size});
+           })
+      .def_method("mlc.tokenizers.TextStreamerFinish", &TextStreamerObj::Finish);
+}
 
 /****************** StopStrHandler ******************/
-
-TVM_REGISTER_OBJECT_TYPE(StopStrHandlerObj);
 
 /*! \brief Create the KMP partial match table for the input string. */
 inline std::vector<int> CreatePartialMatchTable(const String& str) {
@@ -263,27 +266,27 @@ StopStrHandler::StopStrHandler(Array<String> stop_strs,
   data_ = tvm::ffi::make_object<StopStrHandlerObj>(std::move(stop_strs), token_table);
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandler")
-    .set_body_typed([](Array<String> stop_strs, const Tokenizer& tokenizer) {
-      return StopStrHandler(std::move(stop_strs), tokenizer->PostProcessedTokenTable());
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandlerPut")
-    .set_body_typed([](StopStrHandler handler, int token_id) {
-      std::vector<int64_t> delta_tokens;
-      handler->Put(token_id, &delta_tokens);
-      return IntTuple(std::move(delta_tokens));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.StopStringHandlerFinish")
-    .set_body_typed([](StopStrHandler handler) {
-      std::vector<int64_t> remaining_token_ids;
-      handler->Finish(&remaining_token_ids);
-      return IntTuple(std::move(remaining_token_ids));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.StopStrHandlerStopTriggered")
-    .set_body_method(&StopStrHandlerObj::StopTriggered);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.tokenizers.StopStrHandler",
+           [](Array<String> stop_strs, const Tokenizer& tokenizer) {
+             return StopStrHandler(std::move(stop_strs), tokenizer->PostProcessedTokenTable());
+           })
+      .def("mlc.tokenizers.StopStrHandlerPut",
+           [](StopStrHandler handler, int token_id) {
+             std::vector<int64_t> delta_tokens;
+             handler->Put(token_id, &delta_tokens);
+             return IntTuple(std::move(delta_tokens));
+           })
+      .def("mlc.tokenizers.StopStringHandlerFinish",
+           [](StopStrHandler handler) {
+             std::vector<int64_t> remaining_token_ids;
+             handler->Finish(&remaining_token_ids);
+             return IntTuple(std::move(remaining_token_ids));
+           })
+      .def_method("mlc.tokenizers.StopStrHandlerStopTriggered", &StopStrHandlerObj::StopTriggered);
+}
 
 }  // namespace llm
 }  // namespace mlc

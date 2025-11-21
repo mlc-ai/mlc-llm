@@ -7,6 +7,7 @@
 
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/module.h>
@@ -54,7 +55,7 @@ inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& mod
   }
   const picojson::object& tokenizer_info_obj =
       model_config.at("tokenizer_info").get<picojson::object>();
-  auto info = make_object<TokenizerInfoNode>();
+  auto info = tvm::ffi::make_object<TokenizerInfoNode>();
   if (tokenizer_info_obj.count("token_postproc_method")) {
     info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
   }
@@ -582,7 +583,7 @@ class EngineImpl : public Engine {
       }
       // - Override the "n" in generation config to 1.
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       updated_generation_cfg->n = 1;
       request->generation_cfg = GenerationConfig(updated_generation_cfg);
       return false;
@@ -616,7 +617,7 @@ class EngineImpl : public Engine {
 
       RequestState rstate = it_rstate->second;
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
-          make_object<GenerationConfigNode>(*request->generation_cfg.get());
+          tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       // - Split the input data into two parts at the position "kv_window_begin".
       CHECK(!request->inputs.empty());
       auto [lhs_data, rhs_data] = SplitData(request->inputs, input_length, kv_window_begin);
@@ -773,15 +774,15 @@ class EngineImpl : public Engine {
         [&device](const std::string& model_lib,
                   const picojson::object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
-        Module executable = tvm::runtime::Module::LoadFromFile(model_lib);
-        Function fload_exec = executable->GetFunction("vm_load_executable");
+        Module executable = ffi::Module::LoadFromFile(model_lib);
+        Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
         ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
-        Module local_vm = fload_exec().cast<Module>();
-        local_vm->GetFunction("vm_initialization")(
-            static_cast<int>(device.device_type), device.device_id,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
-            static_cast<int>(kDLCPU), 0,
-            static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
+        Module local_vm = fload_exec.value()().cast<Module>();
+        local_vm->GetFunction("vm_initialization")
+            .value()(static_cast<int>(device.device_type), device.device_id,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled),
+                     static_cast<int>(kDLCPU), 0,
+                     static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled));
         ModelMetadata metadata = ModelMetadata::FromModule(local_vm, std::move(model_config));
         return {metadata.tensor_parallel_shards, metadata.pipeline_parallel_stages};
       } else {
@@ -894,7 +895,7 @@ class EngineImpl : public Engine {
       return TResult::Error(err);
     }
     picojson::object config = config_json.get<picojson::object>();
-    ObjectPtr<EngineConfigNode> n = make_object<EngineConfigNode>();
+    ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.
     EngineMode mode = EngineModeFromString(json::Lookup<std::string>(config, "mode"));
@@ -1022,7 +1023,7 @@ void ClearGlobalMemoryManager() {
   f();
 }
 
-class EngineModule : public ModuleNode {
+class EngineModule : public ffi::ModuleObj {
  public:
   TVM_MODULE_VTABLE_BEGIN("mlc.serve.engine");
   TVM_MODULE_VTABLE_ENTRY("init", &EngineModule::Init);
@@ -1048,7 +1049,7 @@ class EngineModule : public ModuleNode {
     this->default_generation_config_ = output.default_generation_cfg;
   }
   /*! \brief Construct an EngineModule. */
-  static tvm::runtime::Module Create() { return Module(make_object<EngineModule>()); }
+  static ffi::Module Create() { return ffi::Module(tvm::ffi::make_object<EngineModule>()); }
   /*! \brief Redirection to `Engine::AddRequest`. */
   void AddRequest(Request request) { return GetEngine()->AddRequest(std::move(request)); }
   /*! \brief Redirection to `Engine::AbortRequest`. */
@@ -1086,7 +1087,10 @@ class EngineModule : public ModuleNode {
   GenerationConfig default_generation_config_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.create_engine").set_body_typed(EngineModule::Create);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("mlc.serve.create_engine", EngineModule::Create);
+}
 
 }  // namespace serve
 }  // namespace llm

@@ -13,6 +13,8 @@ namespace serve {
 
 using namespace tvm::runtime;
 
+TVM_FFI_STATIC_INIT_BLOCK() { PrefixCacheObj::RegisterReflection(); }
+
 /*!
  * \brief The implementation of prefix cache.
  */
@@ -336,8 +338,6 @@ class PrefixCacheImpl : public PrefixCacheObj {
   std::vector<std::pair<int64_t, const std::vector<int32_t>&>> uncommitted_extended_token_ids_;
 };  // namespace serve
 
-TVM_REGISTER_OBJECT_TYPE(PrefixCacheImpl);
-
 /*!
  * \brief The implementation of no prefix cache.
  */
@@ -424,17 +424,15 @@ class NoPrefixCache : public PrefixCacheObj {
   PrefixCacheMode Mode() final { return PrefixCacheMode::kDisable; }
 };
 
-TVM_REGISTER_OBJECT_TYPE(NoPrefixCache);
-
 PrefixCache PrefixCache::CreateRadixPrefixCache(size_t max_num_recycling_seqs,
                                                 PrefixCacheRemoveCallback remove_callback) {
   ObjectPtr<PrefixCacheImpl> n =
-      make_object<PrefixCacheImpl>(max_num_recycling_seqs, std::move(remove_callback));
+      tvm::ffi::make_object<PrefixCacheImpl>(max_num_recycling_seqs, std::move(remove_callback));
   return PrefixCache(std::move(n));
 }
 
 PrefixCache PrefixCache::CreateNoPrefixCache() {
-  ObjectPtr<NoPrefixCache> n = make_object<NoPrefixCache>();
+  ObjectPtr<NoPrefixCache> n = tvm::ffi::make_object<NoPrefixCache>();
   return PrefixCache(std::move(n));
 }
 

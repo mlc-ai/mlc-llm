@@ -14,6 +14,122 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+[project]
+name = "mlc_llm"
+# Note: Call version.py to update the version before building the wheel
+version = "0.20.0.dev0"
+description = "MLC LLM: an universal LLM deployment engine via ML compilation."
+
+authors = [{ name = "MLC LLM Contributors" }]
+readme = "README.md"
+license = { text = "Apache 2.0" }
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+]
+keywords = ["machine learning"]
+requires-python = ">=3.9"
+
+dependencies = [
+    "apache-tvm-ffi",
+    "datasets",
+    "fastapi",
+    "flashinfer-python==0.4.0; sys_platform == 'linux'",
+    "ml_dtypes>=0.5.1",
+    "openai",
+    "pandas",
+    "prompt_toolkit",
+    "requests",
+    "safetensors",
+    "sentencepiece",
+    "shortuuid",
+    "tiktoken",
+    "torch",
+    "tqdm",
+    "transformers",
+    "uvicorn",
+]
+
+[project.urls]
+Homepage = "https://llm.mlc.ai/"
+Documentation = "https://llm.mlc.ai/docs/"
+Repository = "https://github.com/mlc-ai/mlc-llm"
+"Bug Tracker" = "https://github.com/mlc-ai/mlc-llm/issues"
+
+
+
+[build-system]
+requires = ["scikit-build-core>=0.10.0"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+# Point to the root CMakeLists.txt
+cmake.source-dir = "."
+cmake.build-type = "Release"
+
+# Configure the wheel to be Python version-agnostic
+wheel.py-api = "py3"
+
+# Build configuration
+build-dir = "build"
+
+# CMake configuration - ensure proper installation paths
+cmake.args = ["-DMLC_LLM_BUILD_PYTHON_MODULE=ON"]
+
+# Wheel configuration
+wheel.packages = ["python/mlc_llm"]
+wheel.install-dir = "mlc_llm"
+
+# Source distribution configuration
+sdist.include = [
+    # Build files
+    "/CMakeLists.txt",
+    "/pyproject.toml",
+    "/cmake/**/*",
+    "/3rdparty/**/*",
+
+    # Source code
+    "/src/**/*.cc",
+    "/src/**/*.h",
+
+    # Python source
+    "/python/mlc_llm/**/*.py",
+
+    # Documentation and metadata
+    "/docs/**/*",
+    "/LICENSE",
+    "/README.md",
+    "/NOTICE",
+
+    # Tests
+    "/tests/**/*",
+
+    "/.pre-commit-config.yaml",
+    "/.pylintrc",
+]
+
+sdist.exclude = [
+    "**/.git",
+    "**/.github",
+    "**/__pycache__",
+    "**/*.pyc",
+    "build",
+    "dist",
+    "3rdparty/tvm",
+    "**/3rdparty/*/docs",
+    "**/3rdparty/*/media",
+    "**/3rdparty/*/examples",
+    "**/3rdparty/*/test",
+]
+
+# Logging
+logging.level = "INFO"
+
+
 [tool.isort]
 profile = "black"
 src_paths = ["python/mlc_llm"]

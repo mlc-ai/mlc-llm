@@ -1,7 +1,15 @@
 # pylint: disable=missing-docstring
+"""
+This is the global script that set the version information of TVM.
+This script runs and update all the locations that related to versions
+
+List of affected files:
+- mlc-llm-root/pyproject.toml
+"""
 import argparse
 import logging
 import os
+import re
 import subprocess
 
 # Modify the following value during release
@@ -114,6 +122,45 @@ def git_describe_version():
     return pub_ver, local_ver
 
 
+# Implementations
+def update(file_name, pattern, repl, dry_run=False):
+    update = []
+    hit_counter = 0
+    need_update = False
+    with open(file_name) as file:
+        for l in file:
+            result = re.findall(pattern, l)
+            if result:
+                assert len(result) == 1
+                hit_counter += 1
+                if result[0] != repl:
+                    l = re.sub(pattern, repl, l)
+                    need_update = True
+                    print("%s: %s -> %s" % (file_name, result[0], repl))
+                else:
+                    print("%s: version is already %s" % (file_name, repl))
+
+            update.append(l)
+    if hit_counter != 1:
+        raise RuntimeError("Cannot find version in %s" % file_name)
+
+    if need_update and not dry_run:
+        with open(file_name, "w") as output_file:
+            for l in update:
+                output_file.write(l)
+
+
+def sync_version(pub_ver, local_ver, dry_run):
+    """Synchronize version."""
+    # pyproject.toml
+    update(
+        os.path.join(PROJ_ROOT, "pyproject.toml"),
+        r"(?<=version = \")[.0-9a-z\+]+",
+        pub_ver,
+        dry_run,
+    )
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Detect and synchronize version.")
@@ -139,6 +186,8 @@ def main():
         local_ver = __version__
     if opt.print_version:
         print(local_ver)
+    else:
+        sync_version(pub_ver, local_ver, opt.dry_run)
 
 
 if __name__ == "__main__":

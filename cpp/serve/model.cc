@@ -6,6 +6,7 @@
 #include "model.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 
@@ -22,15 +23,15 @@ namespace serve {
 
 /*********************** Model Implementation ***********************/
 
-class ModelImpl;
+TVM_FFI_STATIC_INIT_BLOCK() { ModelObj::RegisterReflection(); }
 
-TVM_REGISTER_OBJECT_TYPE(ModelObj);
+class ModelImpl;
 
 Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
                     DLDevice device, const Optional<Session>& session, int num_shards,
                     int num_stages, bool trace_enabled) {
-  return Model(make_object<ModelImpl>(reload_lib_path, model_path, model_config, device, session,
-                                      num_shards, num_stages, trace_enabled));
+  return Model(tvm::ffi::make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
+                                                session, num_shards, num_stages, trace_enabled));
 }
 
 Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
@@ -86,10 +87,10 @@ class ModelImpl : public ModelObj {
     }
     // Copy input token ids to device.
     DLDataType dtype(DataType::Int(32));
-    NDArray token_ids_nd;
+    Tensor token_ids_nd;
     {
       NVTXScopedRange nvtx_scope("Allocate token_ids at offset");
-      token_ids_nd = token_ids_storage_->AllocNDArray(offset * 4, {num_tokens}, dtype);
+      token_ids_nd = token_ids_storage_->AllocTensor(offset * 4, {num_tokens}, dtype);
       int* p_token_ids = static_cast<int*>(token_ids_nd->data) + (token_ids_nd->byte_offset) / 4;
       for (int i = 0; i < static_cast<int>(token_ids.size()); ++i) {
         p_token_ids[i] = token_ids[i];
@@ -118,7 +119,7 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  ObjectRef ImageEmbed(const NDArray& image, ObjectRef* dst, int offset) final {
+  ObjectRef ImageEmbed(const Tensor& image, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("ImageEmbed");
     CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
 
@@ -149,7 +150,7 @@ class ModelImpl : public ModelObj {
     return ft_.get_logits_func_.defined() && ft_.batch_get_logits_func_.defined();
   }
 
-  NDArray GetLogits(const ObjectRef& hidden_states) final {
+  Tensor GetLogits(const ObjectRef& hidden_states) final {
     NVTXScopedRange nvtx_scope("GetLogits");
     CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
 
@@ -164,27 +165,27 @@ class ModelImpl : public ModelObj {
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
-    NDArray logits{nullptr};
+    Tensor logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<NDArray>(ret);
+      logits = Downcast<Tensor>(ret);
     }
     // logits: (b * s, v)
     return logits;
   }
 
-  Array<NDArray> GetMultiStepLogits(const ObjectRef& hidden_states) final {
+  Array<Tensor> GetMultiStepLogits(const ObjectRef& hidden_states) final {
     NVTXScopedRange nvtx_scope("GetMultiStepLogits");
     CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
 
     ObjectRef hidden_states_dref_or_nd{nullptr};
     ObjectRef ret = ft_.get_logits_func_(hidden_states, params_).cast<ObjectRef>();
-    Array<NDArray> logits{nullptr};
+    Array<Tensor> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<NDArray>>();
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<Tensor>>();
     } else {
-      logits = Downcast<Array<NDArray>>(ret);
+      logits = Downcast<Array<Tensor>>(ret);
     }
     return logits;
   }
@@ -196,7 +197,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd{nullptr};
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (n, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
@@ -225,15 +226,15 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(fused, out_shape).cast<ObjectRef>();
     } else {
-      NDArray fused_nd = Downcast<NDArray>(fused);
+      Tensor fused_nd = Downcast<Tensor>(fused);
       ICHECK_EQ(fused_nd->ndim, 2);
       ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
       return fused_nd.CreateView(out_shape, fused_nd->dtype);
     }
   }
 
-  NDArray BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                       const std::vector<int>& lengths) final {
+  Tensor BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                      const std::vector<int>& lengths) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -251,7 +252,7 @@ class ModelImpl : public ModelObj {
     }
     NVTXScopedRange nvtx_scope("BatchPrefill num_seq=" + std::to_string(num_sequences) +
                                " total_len=" + std::to_string(total_length));
-    NDArray logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
+    Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
     CHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
@@ -268,7 +269,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -314,7 +315,7 @@ class ModelImpl : public ModelObj {
       ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_)
                 .cast<ObjectRef>();
     }
-    NDArray logits;
+    Tensor logits;
     if (ft_.use_disco) {
       ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
@@ -324,9 +325,9 @@ class ModelImpl : public ModelObj {
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<NDArray>>(ret)[0];
+      logits = Downcast<Array<Tensor>>(ret)[0];
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -356,7 +357,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embedding_or_hidden_states_dref_or_nd{nullptr};
     Shape hidden_states_shape{1, total_length, hidden_size_};
     if (!ft_.use_disco) {
-      NDArray embedding_or_hidden_states_nd = Downcast<NDArray>(embedding_or_hidden_states);
+      Tensor embedding_or_hidden_states_nd = Downcast<Tensor>(embedding_or_hidden_states);
       embedding_or_hidden_states_dref_or_nd = embedding_or_hidden_states_nd.CreateView(
           hidden_states_shape, embedding_or_hidden_states_nd->dtype);
     } else {
@@ -399,7 +400,7 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
       ICHECK_EQ(hidden_states_nd->shape[0], 1);
       ICHECK_EQ(hidden_states_nd->shape[1], total_length);
@@ -408,7 +409,7 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  NDArray BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
+  Tensor BatchDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids) final {
     NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
 
@@ -428,7 +429,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, b, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], num_sequence);
@@ -450,7 +451,7 @@ class ModelImpl : public ModelObj {
     } else {
       ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     }
-    NDArray logits;
+    Tensor logits;
     if (ft_.use_disco) {
       ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
@@ -460,9 +461,9 @@ class ModelImpl : public ModelObj {
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<NDArray>>(ret)[0];
+      logits = Downcast<Array<Tensor>>(ret)[0];
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -476,9 +477,9 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
-  NDArray BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                          const std::vector<int>& lengths,
-                          const std::vector<int64_t>& token_tree_parent_ptr) {
+  Tensor BatchTreeDecode(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                         const std::vector<int>& lengths,
+                         const std::vector<int64_t>& token_tree_parent_ptr) {
     // This is similar to BatchDecode, except that it takes 'length', so that each sequence can have
     // multiple leaf nodes for decoding.
     NVTXScopedRange nvtx_scope("BatchTreeDecode num_seqs=" + std::to_string(seq_ids.size()));
@@ -508,7 +509,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -530,12 +531,12 @@ class ModelImpl : public ModelObj {
     } else {
       ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     }
-    NDArray logits;
+    Tensor logits;
     if (ft_.use_disco) {
       Array<ObjectRef> result = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Array<ObjectRef>>();
-      logits = Downcast<NDArray>(result[0]);
+      logits = Downcast<Tensor>(result[0]);
     } else {
-      logits = Downcast<Array<NDArray>>(ret)[0];
+      logits = Downcast<Array<Tensor>>(ret)[0];
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -591,7 +592,7 @@ class ModelImpl : public ModelObj {
     if (ft_.use_disco) {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
       ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
       ICHECK_EQ(hidden_states_nd->shape[1], 1);
@@ -600,9 +601,9 @@ class ModelImpl : public ModelObj {
     }
   }
 
-  NDArray BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
-                      const std::vector<int>& lengths,
-                      const std::vector<int64_t>& token_tree_parent_ptr) final {
+  Tensor BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
+                     const std::vector<int>& lengths,
+                     const std::vector<int64_t>& token_tree_parent_ptr) final {
     CHECK(!seq_ids.empty());
     CHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
@@ -631,7 +632,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -646,7 +647,7 @@ class ModelImpl : public ModelObj {
     }
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
-    NDArray logits;
+    Tensor logits;
     if (ft_.use_disco) {
       ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
       if (num_stages_ > 1) {
@@ -656,9 +657,9 @@ class ModelImpl : public ModelObj {
         ret = ft_.last_group_send_to_worker_0_(ret, disco_logits_arr_, shape, dtype)
                   .cast<ObjectRef>();
       }
-      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<NDArray>();
+      logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      logits = Downcast<Array<NDArray>>(ret)[0];
+      logits = Downcast<Array<Tensor>>(ret)[0];
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -696,7 +697,7 @@ class ModelImpl : public ModelObj {
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
-      NDArray embeddings_nd = Downcast<NDArray>(embeddings);
+      Tensor embeddings_nd = Downcast<Tensor>(embeddings);
       ICHECK_NE(hidden_size_, -1);
       ICHECK_EQ(embeddings_nd->ndim, 2);
       ICHECK_GE(embeddings_nd->shape[0], total_length);
@@ -727,7 +728,7 @@ class ModelImpl : public ModelObj {
 
     Shape out_shape{total_length, hidden_size_};
     if (!ft_.use_disco) {
-      NDArray hidden_states_nd = Downcast<NDArray>(hidden_states);
+      Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
       ICHECK_EQ(hidden_states_nd->ndim, 3);
       ICHECK_EQ(hidden_states_nd->shape[0], 1);
       ICHECK_EQ(hidden_states_nd->shape[1], total_length);
@@ -881,7 +882,7 @@ class ModelImpl : public ModelObj {
   void SetMaxNumSequence(int max_num_sequence) final {
     this->max_num_sequence_ = max_num_sequence;
     this->logit_pos_arr_ =
-        NDArray::Empty({max_num_sequence}, DataType::Int(32), Device{DLDeviceType::kDLCPU, 0});
+        Tensor::Empty({max_num_sequence}, DataType::Int(32), Device{DLDeviceType::kDLCPU, 0});
   }
 
   void SetPrefillChunkSize(int prefill_chunk_size) final {
@@ -894,7 +895,7 @@ class ModelImpl : public ModelObj {
         allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DataType::Int(32)),
         allocator);
     if (this->num_stages_ > 1) {
-      // Create a remote NDArray for logits when pipeline parallelism is enabled.
+      // Create a remote Tensor for logits when pipeline parallelism is enabled.
       disco_logits_arr_ =
           ft_.Empty({prefill_chunk_size_, vocab_size_}, DataType::Float(32), device_,
                     /*worker0_only=*/true);
@@ -939,7 +940,7 @@ class ModelImpl : public ModelObj {
       ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding).cast<ObjectRef>();
       embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0).cast<Shape>();
     } else {
-      NDArray embedding_nd = Downcast<NDArray>(embedding);
+      Tensor embedding_nd = Downcast<Tensor>(embedding);
       embedding_shape = embedding_nd.Shape();
     }
     ICHECK_NE(prefill_chunk_size_, -1);
@@ -956,13 +957,13 @@ class ModelImpl : public ModelObj {
     // Allocate the hidden_states tensor.
     // Use the same function as embeddings.
     ObjectRef hidden_states = ft_.alloc_embedding_tensor_func_().cast<ObjectRef>();
-    NDArray hidden_states_nd{nullptr};
+    Tensor hidden_states_nd{nullptr};
     // Get the shape of the hidden_states tensor for hidden size.
     if (ft_.use_disco) {
       ICHECK(hidden_states->IsInstance<DRefObj>());
-      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<NDArray>();
+      hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
-      hidden_states_nd = Downcast<NDArray>(hidden_states);
+      hidden_states_nd = Downcast<Tensor>(hidden_states);
     }
     Shape hidden_states_shape = hidden_states_nd.Shape();
     ICHECK_NE(prefill_chunk_size_, -1);
@@ -994,10 +995,10 @@ class ModelImpl : public ModelObj {
     if ((*dst)->IsInstance<DRefObj>()) {
       dst_view = ft_.nd_view_func_(*dst, out_shape).cast<ObjectRef>();
     } else {
-      NDArray dst_nd = Downcast<NDArray>(*dst);
+      Tensor dst_nd = Downcast<Tensor>(*dst);
       dst_view = dst_nd.CreateView(out_shape, hidden_states_dtype_);
     }
-    NDArray indices_nd =
+    Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     ICHECK_NE(max_num_sequence_, -1);
@@ -1008,7 +1009,7 @@ class ModelImpl : public ModelObj {
 
   void ScatterHiddenStates(const ObjectRef& input, const std::vector<int>& indices,
                            ObjectRef* dst) final {
-    NDArray indices_nd =
+    Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     ICHECK_NE(max_num_sequence_, -1);
@@ -1016,11 +1017,10 @@ class ModelImpl : public ModelObj {
     ft_.scatter_hidden_states_func_(input, indices_device, *dst);
   }
 
-  NDArray GatherDraftProbs(const NDArray& input, const std::vector<int>& indices,
-                           NDArray* dst) final {
-    NDArray dst_view =
+  Tensor GatherDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
+    Tensor dst_view =
         dst->CreateView({static_cast<int64_t>(indices.size()), vocab_size_}, DataType::Float(32));
-    NDArray indices_nd =
+    Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     ICHECK_NE(max_num_sequence_, -1);
@@ -1030,9 +1030,8 @@ class ModelImpl : public ModelObj {
     return dst_view;
   }
 
-  void ScatterDraftProbs(const NDArray& input, const std::vector<int>& indices,
-                         NDArray* dst) final {
-    NDArray indices_nd =
+  void ScatterDraftProbs(const Tensor& input, const std::vector<int>& indices, Tensor* dst) final {
+    Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
     ICHECK_NE(max_num_sequence_, -1);
@@ -1041,13 +1040,13 @@ class ModelImpl : public ModelObj {
     ft_.scatter_probs_func_(input, indices_device, *dst);
   }
 
-  Array<NDArray> GetMedusaLogits(const ObjectRef& hidden_states) {
+  Array<Tensor> GetMedusaLogits(const ObjectRef& hidden_states) {
     ObjectRef result = ft_.get_logits_func_(hidden_states).cast<ObjectRef>();
-    Array<NDArray> logits{nullptr};
+    Array<Tensor> logits{nullptr};
     if (ft_.use_disco) {
-      logits = Downcast<DRef>(result)->DebugGetFromRemote(0).cast<Array<NDArray>>();
+      logits = Downcast<DRef>(result)->DebugGetFromRemote(0).cast<Array<Tensor>>();
     } else {
-      logits = Downcast<Array<NDArray>>(result);
+      logits = Downcast<Array<Tensor>>(result);
     }
     return logits;
   }
@@ -1105,9 +1104,9 @@ class ModelImpl : public ModelObj {
   Device device_;
   // Model parameters
   ObjectRef params_;
-  // Shared NDArray
+  // Shared Tensor
   memory::Storage token_ids_storage_{nullptr};
-  NDArray logit_pos_arr_{nullptr};
+  Tensor logit_pos_arr_{nullptr};
   ObjectRef disco_logits_arr_{nullptr};
   // A boolean indicating if tracing is enabled.
   bool trace_enabled_;
@@ -1117,22 +1116,25 @@ class ModelImpl : public ModelObj {
   std::unordered_set<int64_t> prefilled_seq_ids_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("mlc.copy_embedding_to_offset")
-    .set_body_typed([](NDArray embedding, NDArray dst, int offset) {
-      // embedding: (m, hidden_size)
-      // dst: (prefill_chunk_size, hidden_size)
-      ICHECK_EQ(embedding->ndim, 2);
-      ICHECK_EQ(dst->ndim, 2);
-      ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
-      ICHECK_EQ(embedding->shape[1], dst->shape[1]);
-      const DLTensor& copy_src = *(embedding.operator->());
-      const DLTensor* p_copy_dst = dst.operator->();
-      DLTensor copy_dst = *p_copy_dst;
-      copy_dst.shape = embedding->shape;
-      copy_dst.byte_offset =
-          offset * embedding->shape[1] * ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
-      NDArray::CopyFromTo(&copy_src, &copy_dst);
-    });
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "mlc.copy_embedding_to_offset", [](Tensor embedding, Tensor dst, int offset) {
+        // embedding: (m, hidden_size)
+        // dst: (prefill_chunk_size, hidden_size)
+        ICHECK_EQ(embedding->ndim, 2);
+        ICHECK_EQ(dst->ndim, 2);
+        ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+        ICHECK_EQ(embedding->shape[1], dst->shape[1]);
+        const DLTensor& copy_src = *(embedding.operator->());
+        const DLTensor* p_copy_dst = dst.operator->();
+        DLTensor copy_dst = *p_copy_dst;
+        copy_dst.shape = embedding->shape;
+        copy_dst.byte_offset = offset * embedding->shape[1] *
+                               ((embedding->dtype.bits * embedding->dtype.lanes + 7) / 8);
+        Tensor::CopyFromTo(&copy_src, &copy_dst);
+      });
+}
 
 }  // namespace serve
 }  // namespace llm

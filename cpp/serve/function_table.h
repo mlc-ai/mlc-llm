@@ -9,11 +9,12 @@
 
 #include <picojson.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <string>
 
@@ -66,7 +67,7 @@ struct FunctionTable {
    *                  local gpu when disco is enabled.
    * \return The array on the worker or local gpu.
    */
-  ObjectRef CopyToWorker0(const NDArray& host_array, String buffer_cache_key,
+  ObjectRef CopyToWorker0(const Tensor& host_array, String buffer_cache_key,
                           Shape max_reserved_shape, bool local_only = false);
 
   void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) const;
@@ -74,9 +75,9 @@ struct FunctionTable {
   bool use_disco = false;
   Device local_gpu_device;
   Session sess{nullptr};
-  DRef disco_mod{nullptr};
-  Map<String, ObjectRef> cached_buffers{nullptr};
-  tvm::runtime::Module local_vm{nullptr};
+  Optional<DRef> disco_mod = std::nullopt;
+  Optional<Map<String, ObjectRef>> cached_buffers = std::nullopt;
+  Optional<tvm::ffi::Module> local_vm = std::nullopt;
   picojson::object model_config;
 
   TypedFunction<Function(const std::string&)> mod_get_func;

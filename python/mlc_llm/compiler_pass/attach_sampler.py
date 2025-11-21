@@ -28,22 +28,32 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        if str(self.target.kind) not in ["cuda", "vulkan"]:
-            # Only enable GPU sampling for CUDA.
+        if str(self.target.kind) not in ["cuda", "vulkan", "metal", "webgpu"]:
+            # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
             return mod
 
         bb = relax.BlockBuilder(mod)
-        gv_names = [
-            gv.name_hint
-            for gv in [
-                _attach_multinomial_sampling_func(bb),
-                _attach_argsort_func(bb),
-                _attach_sample_with_top_p(bb),
-                _attach_take_probs_func(bb),
-                _attach_batch_verifier(bb),
-                _attach_renormalize_by_top_p(bb, self.target),
+        if str(self.target.kind) == "webgpu":
+            # Only attach functions that do not contain i8s for WebGPU
+            gv_names = [
+                gv.name_hint
+                for gv in [
+                    _attach_argsort_func(bb),
+                    _attach_sample_with_top_p(bb),
+                ]
             ]
-        ]
+        else:
+            gv_names = [
+                gv.name_hint
+                for gv in [
+                    _attach_multinomial_sampling_func(bb),
+                    _attach_argsort_func(bb),
+                    _attach_sample_with_top_p(bb),
+                    _attach_take_probs_func(bb),
+                    _attach_batch_verifier(bb),
+                    _attach_renormalize_by_top_p(bb, self.target),
+                ]
+            ]
 
         mod = bb.finalize()
         for gv_name in gv_names:

@@ -143,7 +143,9 @@ class Phi3VForCausalLM(nn.Module):
         self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
         self.rope_ext_factors = (
-            config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
+            (config.rope_scaling["long_factor"] + config.rope_scaling["short_factor"])
+            if config.rope_scaling is not None
+            else None
         )
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
