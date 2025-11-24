@@ -170,6 +170,11 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "batch_verify": ["batch_size", "seq_len"],
             "batch_verify_to_last_hidden_states": ["batch_size", "seq_len"],
         }
+        avs = getattr(model_config, "active_vocab_size", None)
+        avs = 151669 # TODO: hacky fix for right now just to test
+        logger.info("Active vocab size from model config: %s", str(avs))
+        if avs is not None and avs <= 0:
+            avs = None
         metadata = {
             "model_type": args.model.name,
             "quantization": args.quantization.name,
@@ -182,6 +187,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "disaggregation": getattr(model_config, "disaggregation", False),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
+            "active_vocab_size": avs,
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]

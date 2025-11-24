@@ -1,5 +1,7 @@
 """A compiler pass that attaches two-stage softmax with temperature."""
 
+from typing import Any, Dict, Optional
+
 import tvm
 from tvm import relax, tir
 from tvm.ir.module import IRModule
@@ -13,22 +15,23 @@ from ..support.max_thread_check import get_max_num_threads_per_block
 class AttachSoftmaxWithTemperature:  # pylint: disable=too-few-public-methods
     """Rewrites one-shot softmax into two-stage softmax."""
 
-    def __init__(self, target: tvm.target.Target) -> None:
+    def __init__(self, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None) -> None:
         self.target = target
+        self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
-        return _Rewriter(mod, self.target).transform()
-
+        return _Rewriter(mod, self.target, self.metadata).transform()
 
 @mutator
 class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
-    def __init__(self, mod: IRModule, target: tvm.target.Target) -> None:
+    def __init__(self, mod: IRModule, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None) -> None:
         super().__init__(mod)
         self.mod = mod
         self.target = target
+        self.metadata = metadata
         self.chunk_size = 4096
-        self.active_vocab_size = 151669  # TODO: pass in "active" vocab size here via constructor instead of hardcoding
+        self.active_vocab_size = self.metadata.get("active_vocab_size") if self.metadata else None
 
     def transform(self) -> IRModule:
         """Entry point"""
@@ -130,7 +133,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
             with T.block("pad"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 A_pad[v0, v1, v2] = T.Select(
-                    v1 * T.int64(chunk_size) + v2 < active_vocab_size,
+                    v1 * T.int64(chunk_size) + v2 < (active_vocab_size if active_vocab_size is not None else vocab_size),
                     T.if_then_else(
                         temperature[v0] > T.float32(1e-5),
                         A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0],
@@ -150,7 +153,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 with T.init():
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
-                    v1 * T.int64(chunk_size) + v2 < active_vocab_size,
+                    v1 * T.int64(chunk_size) + v2 < (active_vocab_size if active_vocab_size is not None else vocab_size),
                     T.Select(
                         temperature[v0] > T.float32(1e-5),
                         T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
@@ -208,7 +211,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
                     softmax[v0, v1 * T.int64(chunk_size) + v2] = T.Select(
-                        v1 * T.int64(chunk_size) + v2 < active_vocab_size,
+                        v1 * T.int64(chunk_size) + v2 < (active_vocab_size if active_vocab_size is not None else vocab_size),
                         T.if_then_else(
                             temperature[v0] > T.float32(1e-5),
                             T.exp(
