@@ -28,6 +28,7 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
         self.mod = mod
         self.target = target
         self.chunk_size = 4096
+        self.active_vocab_size = 151669  # TODO: pass in "active" vocab size here via constructor instead of hardcoding
 
     def transform(self) -> IRModule:
         """Entry point"""
@@ -47,7 +48,9 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
                     sinfo_args=relax.TensorStructInfo(new_shape, dtype),
                 )
                 f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(
-                    self.target, self.chunk_size
+                    self.target, 
+                    self.chunk_size,
+                    self.active_vocab_size
                 )
                 chunked_result_struct_info = relax.TensorStructInfo(
                     (batch_size, (vocab_size + self.chunk_size - 1) // self.chunk_size),
@@ -82,7 +85,9 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
 
 def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-statements
-    target: tvm.target.Target, chunk_size: int
+    target: tvm.target.Target, 
+    chunk_size: int,
+    active_vocab_size: int
 ):
     # NOTE: A quick note on the softmax implementation.
     # We once tried to multiply every element by log2e which can be computed
@@ -125,7 +130,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
             with T.block("pad"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 A_pad[v0, v1, v2] = T.Select(
-                    v1 * T.int64(chunk_size) + v2 < 151669,
+                    v1 * T.int64(chunk_size) + v2 < active_vocab_size,
                     T.if_then_else(
                         temperature[v0] > T.float32(1e-5),
                         A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0],
@@ -145,7 +150,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 with T.init():
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
-                    v1 * T.int64(chunk_size) + v2 < 151669,
+                    v1 * T.int64(chunk_size) + v2 < active_vocab_size,
                     T.Select(
                         temperature[v0] > T.float32(1e-5),
                         T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
@@ -203,7 +208,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
                     softmax[v0, v1 * T.int64(chunk_size) + v2] = T.Select(
-                        v1 * T.int64(chunk_size) + v2 < 151669,
+                        v1 * T.int64(chunk_size) + v2 < active_vocab_size,
                         T.if_then_else(
                             temperature[v0] > T.float32(1e-5),
                             T.exp(
