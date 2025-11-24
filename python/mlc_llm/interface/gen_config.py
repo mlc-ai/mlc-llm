@@ -243,7 +243,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
                         )
                         raise ValueError("Duplicated vocab in tokenizer.json")
                     appeared_content.add(content)
-    
+
     # Step 4. Load system default value
     apply_system_defaults_for_missing_fields(mlc_chat_config)
 

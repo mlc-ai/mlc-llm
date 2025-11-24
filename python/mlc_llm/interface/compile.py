@@ -127,6 +127,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "preprocs": param.attrs["preprocs"],
             "pipeline_stages": param.attrs.get("pipeline_stages", [0]),
         }
+
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
     model_config = args.overrides.apply(model_config)
