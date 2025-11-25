@@ -128,6 +128,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "pipeline_stages": param.attrs.get("pipeline_stages", [0]),
         }
 
+    logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
+    _kwargs = getattr(model_config, "kwargs", {})
     model_config = args.overrides.apply(model_config)
     with args.target:
         op_ext.enable(
@@ -170,6 +172,9 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "batch_verify": ["batch_size", "seq_len"],
             "batch_verify_to_last_hidden_states": ["batch_size", "seq_len"],
         }
+        avs = _kwargs.get("active_vocab_size", None)
+        if avs is not None and avs <= 0:
+            avs = None
         metadata = {
             "model_type": args.model.name,
             "quantization": args.quantization.name,
@@ -182,6 +187,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "disaggregation": getattr(model_config, "disaggregation", False),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
+            "active_vocab_size": avs,
         }
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
@@ -221,13 +227,17 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     debug_dump: Optional[Path] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    avs = None
+    if "active_vocab_size" in config:
+        avs = config.pop("active_vocab_size")
+        logger.info("Active vocab size from input config: %s", str(avs))
     if "model_config" in config:
         model_config = config.pop("model_config")
         model_config.update(config)
         model_config = model_type.config.from_dict(model_config)
     else:
         model_config = model_type.config.from_dict(config)
-    model_config.kwargs = {}
+    model_config.kwargs = {"active_vocab_size": avs} if avs is not None else {}
     args = CompileArgs(
         model_config,
         quantization,

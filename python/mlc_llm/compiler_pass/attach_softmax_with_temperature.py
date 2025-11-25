@@ -1,5 +1,7 @@
 """A compiler pass that attaches two-stage softmax with temperature."""
 
+from typing import Any, Dict, Optional
+
 import tvm
 from tvm import relax, tir
 from tvm.ir.module import IRModule
@@ -13,21 +15,28 @@ from ..support.max_thread_check import get_max_num_threads_per_block
 class AttachSoftmaxWithTemperature:  # pylint: disable=too-few-public-methods
     """Rewrites one-shot softmax into two-stage softmax."""
 
-    def __init__(self, target: tvm.target.Target) -> None:
+    def __init__(
+        self, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         self.target = target
+        self.metadata = metadata
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
-        return _Rewriter(mod, self.target).transform()
+        return _Rewriter(mod, self.target, self.metadata).transform()
 
 
 @mutator
 class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
-    def __init__(self, mod: IRModule, target: tvm.target.Target) -> None:
+    def __init__(
+        self, mod: IRModule, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         super().__init__(mod)
         self.mod = mod
         self.target = target
+        self.metadata = metadata
         self.chunk_size = 4096
+        self.active_vocab_size = self.metadata.get("active_vocab_size") if self.metadata else None
 
     def transform(self) -> IRModule:
         """Entry point"""
@@ -47,7 +56,7 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
                     sinfo_args=relax.TensorStructInfo(new_shape, dtype),
                 )
                 f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(
-                    self.target, self.chunk_size
+                    self.target, self.chunk_size, self.active_vocab_size
                 )
                 chunked_result_struct_info = relax.TensorStructInfo(
                     (batch_size, (vocab_size + self.chunk_size - 1) // self.chunk_size),
@@ -82,7 +91,7 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
 
 def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-statements
-    target: tvm.target.Target, chunk_size: int
+    target: tvm.target.Target, chunk_size: int, active_vocab_size: int
 ):
     # NOTE: A quick note on the softmax implementation.
     # We once tried to multiply every element by log2e which can be computed
@@ -124,8 +133,9 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with T.block("pad"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
-                A_pad[v0, v1, v2] = T.if_then_else(
-                    v1 * T.int64(chunk_size) + v2 < vocab_size,
+                A_pad[v0, v1, v2] = T.Select(
+                    v1 * T.int64(chunk_size) + v2
+                    < (active_vocab_size if active_vocab_size is not None else vocab_size),
                     T.if_then_else(
                         temperature[v0] > T.float32(1e-5),
                         A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0],
@@ -145,7 +155,8 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 with T.init():
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
-                    v1 * T.int64(chunk_size) + v2 < vocab_size,
+                    v1 * T.int64(chunk_size) + v2
+                    < (active_vocab_size if active_vocab_size is not None else vocab_size),
                     T.Select(
                         temperature[v0] > T.float32(1e-5),
                         T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
@@ -202,14 +213,19 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
             with T.block("log_pad"):
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
-                    softmax[v0, v1 * T.int64(chunk_size) + v2] = T.if_then_else(
-                        temperature[v0] > T.float32(1e-5),
-                        T.exp(
-                            A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0]
-                            - (T.log(temp_sum[v0]) + temp_max[v0])
+                    softmax[v0, v1 * T.int64(chunk_size) + v2] = T.Select(
+                        v1 * T.int64(chunk_size) + v2
+                        < (active_vocab_size if active_vocab_size is not None else vocab_size),
+                        T.if_then_else(
+                            temperature[v0] > T.float32(1e-5),
+                            T.exp(
+                                A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0]
+                                - (T.log(temp_sum[v0]) + temp_max[v0])
+                            ),
+                            T.cast(A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0], "float32")
+                            / temp_sum[v0],
                         ),
-                        T.cast(A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0], "float32")
-                        / temp_sum[v0],
+                        T.float32(0),
                     )
 
     sch = tvm.tir.Schedule(IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum}))

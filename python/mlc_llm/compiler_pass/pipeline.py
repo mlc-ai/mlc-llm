@@ -105,7 +105,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
                 DispatchKVCacheCreation(target, flashinfer, metadata),
-                AttachSoftmaxWithTemperature(target),
+                AttachSoftmaxWithTemperature(target, metadata),
                 AttachVariableBounds(variable_bounds),
                 AttachCUDAGraphSymbolicCaptureHints(cuda_graph_symbolic_capture_hints),
                 AttachPipelineParallelStages(metadata["pipeline_parallel_stages"]),
