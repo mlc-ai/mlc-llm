@@ -42,6 +42,7 @@ from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
 from .qwen3 import qwen3_loader, qwen3_model, qwen3_quantization
 from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model, qwen3_moe_quantization
+from .qwen3_vl import qwen3_vl_loader, qwen3_vl_model, qwen3_vl_quantization
 from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
 from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
 from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
@@ -372,6 +373,18 @@ MODELS: Dict[str, Model] = {
             "group-quant": qwen3_moe_quantization.group_quant,
             "ft-quant": qwen3_moe_quantization.ft_quant,
             "block-scale-quant": qwen3_moe_quantization.block_scale_quant,
+        },
+    ),
+    "qwen3_vl": Model(
+        name="qwen3_vl",
+        model=qwen3_vl_model.Qwen3VLForConditionalGeneration,
+        config=qwen3_vl_model.Qwen3VLConfig,
+        source={
+            "huggingface-torch": qwen3_vl_loader.huggingface,
+            "huggingface-safetensor": qwen3_vl_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen3_vl_quantization.no_quant,
         },
     ),
     "deepseek_v2": Model(

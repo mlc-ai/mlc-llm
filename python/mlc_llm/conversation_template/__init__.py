@@ -24,6 +24,7 @@ from . import (
     orion,
     phi,
     qwen2,
+    qwen3_vl,
     redpajama,
     rwkv,
     stablelm,
