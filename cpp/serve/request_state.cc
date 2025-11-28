@@ -158,7 +158,7 @@ RequestStateEntry::RequestStateEntry(
     mstates.push_back(RequestModelState(request, i, internal_id, inputs, compiled_grammar));
   }
   n->status = RequestStateStatus::kPending;
-  n->rng = RandomGenerator(rng_seed);
+  n->rng = UniformRandomGenerator(rng_seed);
   n->stop_str_handler = StopStrHandler(!request->generation_cfg->debug_config.ignore_eos
                                            ? request->generation_cfg->stop_strs
                                            : Array<String>(),
