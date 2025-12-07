@@ -356,3 +356,12 @@ The models with ``bundle_weight`` set to true will have their weights already on
 
   cd /path/to/MLCChat  # e.g., "android/MLCChat"
   python bundle_weight.py --apk-path app/release/app-release.apk
+
+Known issues
+------------
+
+One known issue that has been observed on Android devices equipped with Adreno GPUs is that model formats ending with a ``_1`` suffix cause a ~20-50 seconds system UI freeze that occurs at prefill stage (initialization before the first inference; the issue does not happen on any subsequent inference of a given model instance).
+It has been observed that models with a ``_0`` suffix do not experience this issue.
+The two suffixes denote the layouts of weights in the models that differ by a transpose operation.
+In case you encounter the freeze issue, the workaround to avoid this problem is to use a model in the ``_0`` weight layout.
+For more details, please consult `issue #3363 <https://github.com/mlc-ai/mlc-llm/issues/3363>`_.
