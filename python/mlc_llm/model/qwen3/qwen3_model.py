@@ -153,8 +153,12 @@ ACT2FN = {
     "relu": nn.relu,
     "silu": nn.silu,
     "swish": nn.silu,
+
     "gelu_new": partial(nn.gelu, approximate=True),
+    "quick_gelu": partial(nn.gelu, approximate=True),
+    "gelu_pytorch_tanh": partial(nn.gelu, approximate=True),
 }
+
 
 
 class Qwen3Embedding(nn.Embedding):

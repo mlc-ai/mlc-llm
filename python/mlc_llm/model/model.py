@@ -385,6 +385,9 @@ MODELS: Dict[str, Model] = {
         },
         quantize={
             "no-quant": qwen3_vl_quantization.no_quant,
+            "group-quant": qwen3_vl_quantization.group_quant,
+            "ft-quant": qwen3_vl_quantization.ft_quant,
+            "block-scale-quant": qwen3_vl_quantization.block_scale_quant,
         },
     ),
     "deepseek_v2": Model(
