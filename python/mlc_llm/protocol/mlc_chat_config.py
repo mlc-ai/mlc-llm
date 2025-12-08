@@ -33,7 +33,6 @@ class MLCChatConfig(BaseModel):
     # use alias to avoid protected namespace conflict with pydantic
     field_model_config: Dict[str, Any] = Field(alias="model_config")
     vocab_size: int
-    active_vocab_size: int
     context_window_size: int
     sliding_window_size: int
     prefill_chunk_size: int
@@ -41,6 +40,7 @@ class MLCChatConfig(BaseModel):
     tensor_parallel_shards: int
     pipeline_parallel_stages: int = 1
     # Configuration of text generation
+    active_vocab_size: int = None
     temperature: Optional[float] = None
     presence_penalty: Optional[float] = None
     frequency_penalty: Optional[float] = None
