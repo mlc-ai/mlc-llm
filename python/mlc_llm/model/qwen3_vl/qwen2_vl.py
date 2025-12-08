@@ -1,5 +1,17 @@
+import math
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.relax.frontend.nn.op import wrap_nested
+from tvm import relax as rx
+
+def _wrap_op(f, *args):
+    args = [x._expr if isinstance(x, Tensor) else x for x in args]
+    return wrap_nested(f(*args), name=f.__name__)
+
+def op_cos(x): return _wrap_op(rx.op.cos, x)
+def op_sin(x): return _wrap_op(rx.op.sin, x)
+def op_power(a, b): return _wrap_op(rx.op.power, a, b)
+
 
 from typing import Optional, Tuple
 
@@ -19,22 +31,17 @@ class PatchEmbed(nn.Module):
 
         kernel_size = [temporal_patch_size, patch_size, patch_size]
 
-        # TODO - i am assuming tvm has the same conv3d as pytorch
         self.proj = nn.Conv3D(in_channels, embed_dim, kernel_size=kernel_size, stride=kernel_size, bias=False)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
-
-        '''
-        TODO - translate pytorch to tvm
-        '''
-
-        raise NotImplementedError
-        # target_dtype = self.proj.weight.dtype
-        # hidden_states = hidden_states.view(
-        #     -1, self.in_channels, self.temporal_patch_size, self.patch_size, self.patch_size
-        # )
-        # hidden_states = self.proj(hidden_states.to(dtype=target_dtype)).view(-1, self.embed_dim)
-        # return hidden_states
+        hidden_states = op.reshape(
+            hidden_states, 
+            (-1, self.in_channels, self.temporal_patch_size, self.patch_size, self.patch_size)
+        )
+            
+        hidden_states = self.proj(hidden_states)
+        hidden_states = op.reshape(hidden_states, (-1, self.embed_dim))
+        return hidden_states
 
 
 
@@ -48,26 +55,26 @@ class VisionRotaryEmbedding(nn.Module):
         self.theta = theta
 
     def forward(self, seqlen: int) -> Tensor:
-        # TODO - assuming op.arange syntax == torch.arange, changed dtype to the string literal float32, idk how tvm does dtypes
-        self.inv_freq = 1.0 / (self.theta ** (op.arange(0, self.dim, 2, dtype="float32") / self.dim))
-        pass
-
-        # TODO - translate pytorch to tvm
-        raise NotImplementedError
-        # seq = torch.arange(seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
-        # freqs = torch.outer(seq, self.inv_freq)
-        # return freqs
+        theta_const = rx.const(self.theta, "float32")
+        inv_freq = op.divide(Tensor(_expr=rx.const(1.0, "float32")), op_power(theta_const, (op.arange(0, self.dim, 2, dtype="float32") / self.dim)))
+        
+        seq = op.arange(0, seqlen, dtype="float32")
+        
+        seq = op.reshape(seq, (seqlen, 1))
+        inv_freq = op.reshape(inv_freq, (1, self.dim // 2))
+        
+        freqs = seq * inv_freq
+        return freqs
 
 
 class VisionAttention(nn.Module):
 
-    # fyi this expects a Qwen2VLVisionConfig
     def __init__(self, config) -> None:
         super().__init__()
         self.dim = config.hidden_size
         self.num_heads = config.num_heads
         self.head_dim = self.dim // self.num_heads
-        self.num_key_value_groups = 1  # needed for eager attention
+        self.num_key_value_groups = 1
         self.qkv = nn.Linear(self.dim, self.dim * 3, bias=True)
         self.proj = nn.Linear(self.dim, self.dim)
         self.scaling = self.head_dim**-0.5
@@ -84,69 +91,60 @@ class VisionAttention(nn.Module):
         **kwargs,
     ) -> Tensor:
 
-        # TODO - translate pytorch to tvm
 
-        raise NotImplementedError
-
-        # seq_length = hidden_states.shape[0]
-        # query_states, key_states, value_states = (
-        #     self.qkv(hidden_states).reshape(seq_length, 3, self.num_heads, -1).permute(1, 0, 2, 3).unbind(0)
-        # )
-        # cos, sin = position_embeddings
-        # query_states, key_states = apply_rotary_pos_emb_vision(query_states, key_states, cos, sin)
-
-        # query_states = query_states.transpose(0, 1).unsqueeze(0)
-        # key_states = key_states.transpose(0, 1).unsqueeze(0)
-        # value_states = value_states.transpose(0, 1).unsqueeze(0)
-
-        # attention_interface: Callable = eager_attention_forward
-        # if self.config._attn_implementation != "eager":
-        #     attention_interface = ALL_ATTENTION_FUNCTIONS[self.config._attn_implementation]
-
-        # if self.config._attn_implementation == "flash_attention_2":
-        #     # Flash Attention 2: Use cu_seqlens for variable length attention
-        #     max_seqlen = (cu_seqlens[1:] - cu_seqlens[:-1]).max()
-        #     attn_output, _ = attention_interface(
-        #         self,
-        #         query_states,
-        #         key_states,
-        #         value_states,
-        #         attention_mask=None,
-        #         scaling=self.scaling,
-        #         dropout=0.0 if not self.training else self.attention_dropout,
-        #         cu_seq_lens_q=cu_seqlens,
-        #         cu_seq_lens_k=cu_seqlens,
-        #         max_length_q=max_seqlen,
-        #         max_length_k=max_seqlen,
-        #         is_causal=False,
-        #         **kwargs,
-        #     )
-        # else:
-        #     # Other implementations: Process each chunk separately
-        #     lengths = cu_seqlens[1:] - cu_seqlens[:-1]
-        #     splits = [
-        #         torch.split(tensor, lengths.tolist(), dim=2) for tensor in (query_states, key_states, value_states)
-        #     ]
-
-        #     attn_outputs = [
-        #         attention_interface(
-        #             self,
-        #             q,
-        #             k,
-        #             v,
-        #             attention_mask=None,
-        #             scaling=self.scaling,
-        #             dropout=0.0 if not self.training else self.attention_dropout,
-        #             is_causal=False,
-        #             **kwargs,
-        #         )[0]
-        #         for q, k, v in zip(*splits)
-        #     ]
-        #     attn_output = torch.cat(attn_outputs, dim=1)
-
-        # attn_output = attn_output.reshape(seq_length, -1).contiguous()
-        # attn_output = self.proj(attn_output)
-        # return attn_output
+        b, s, _ = hidden_states.shape
+        qkv = self.qkv(hidden_states)
+        qkv = op.reshape(qkv, (b, s, 3, self.num_heads, self.head_dim))
+        
+        q, k, v = op.split(qkv, 3, axis=2)
+        q = op.squeeze(q, axis=2)
+        k = op.squeeze(k, axis=2)
+        v = op.squeeze(v, axis=2)
+        
+        # Apply RoPE if provided
+        if rotary_pos_emb is not None:
+            freqs = rotary_pos_emb
+            cos = op_cos(freqs)
+            sin = op_sin(freqs)
+            
+            # Reshape for broadcasting: (1, s, 1, d/2)
+            cos = op.reshape(cos, (1, s, 1, self.head_dim // 2))
+            sin = op.reshape(sin, (1, s, 1, self.head_dim // 2))
+            
+            # Use repeat to match head_dim
+            cos = op.concat([cos, cos], dim=-1)
+            sin = op.concat([sin, sin], dim=-1)
+            
+            def rotate_half(x):
+                x1, x2 = op.split(x, 2, axis=-1) # split last dim
+                return op.concat([op.negative(x2), x1], dim=-1)
+            
+            q = (q * cos) + (rotate_half(q) * sin)
+            k = (k * cos) + (rotate_half(k) * sin)
+            
+        # Attention
+        q = op.permute_dims(q, (0, 2, 1, 3)) # (b, h, s, d)
+        k = op.permute_dims(k, (0, 2, 1, 3)) # (b, h, s, d)
+        v = op.permute_dims(v, (0, 2, 1, 3)) # (b, h, s, d)
+        
+        # k.T -> (b, h, d, s)
+        k_t = op.permute_dims(k, (0, 1, 3, 2))
+        
+        attn_weights = op.matmul(q, k_t) # (b, h, s, s)
+        attn_weights = attn_weights * self.scaling
+        
+        attn_weights = op.softmax(attn_weights, axis=-1)
+        
+        attn_output = op.matmul(attn_weights, v) # (b, h, s, d)
+        
+        # Transpose back: (b, s, h, d)
+        attn_output = op.permute_dims(attn_output, (0, 2, 1, 3))
+        
+        # Reshape to (b, s, dim)
+        attn_output = op.reshape(attn_output, (b, s, self.dim))
+        
+        attn_output = self.proj(attn_output)
+        return attn_output
 
 
 class Qwen2RMSNorm(nn.Module):
@@ -156,21 +154,11 @@ class Qwen2RMSNorm(nn.Module):
         """
         super().__init__()
         
-        # fyi assuming nn.Parameter is a thing
-
-        # do i need to have nn.Parameter, or can it just be op.ones?
         self.weight = nn.Parameter((hidden_size,), dtype="float32")
         self.variance_epsilon = eps
 
     def forward(self, hidden_states: Tensor) -> Tensor:
-        # TODO - translate pytorch to tvm
-        
-        raise NotImplementedError
-        # input_dtype = hidden_states.dtype
-        # hidden_states = hidden_states.to("float32")
-        # variance = hidden_states.pow(2).mean(-1, keepdim=True)
-        # hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
-        # return self.weight * hidden_states.to(input_dtype)
+        return op.rms_norm(hidden_states, self.weight, axes=-1, epsilon=self.variance_epsilon)
 
     def extra_repr(self):
         return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
