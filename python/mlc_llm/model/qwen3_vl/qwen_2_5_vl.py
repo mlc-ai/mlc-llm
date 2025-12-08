@@ -22,10 +22,8 @@ class Qwen2_5_VLMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=bias)
         self.act_fn = ACT2FN[config.hidden_act]
 
-    def forward(self, hidden_state):
-        # TODO - translate pytorch to tvm
-        pass
-        # return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
+    def forward(self, hidden_state: Tensor) -> Tensor:
+        return self.down_proj(self.act_fn(self.gate_proj(hidden_state)) * self.up_proj(hidden_state))
 
 
 class Qwen2_5_VLVisionBlock(nn.Module):
@@ -44,18 +42,15 @@ class Qwen2_5_VLVisionBlock(nn.Module):
         position_embeddings: Optional[tuple[Tensor, Tensor]] = None,
         **kwargs,
     ) -> Tensor:
-        # TODO - translate pytorch to tvm
-
-        pass
-        # hidden_states = hidden_states + self.attn(
-        #     self.norm1(hidden_states),
-        #     cu_seqlens=cu_seqlens,
-        #     rotary_pos_emb=rotary_pos_emb,
-        #     position_embeddings=position_embeddings,
-        #     **kwargs,
-        # )
-        # hidden_states = hidden_states + self.mlp(self.norm2(hidden_states))
-        # return hidden_states
+        hidden_states = hidden_states + self.attn(
+            self.norm1(hidden_states),
+            cu_seqlens=cu_seqlens,
+            rotary_pos_emb=rotary_pos_emb,
+            position_embeddings=position_embeddings,
+            **kwargs,
+        )
+        hidden_states = hidden_states + self.mlp(self.norm2(hidden_states))
+        return hidden_states
 
 
 class Qwen2_5_VLModel(Qwen2VLModel):
