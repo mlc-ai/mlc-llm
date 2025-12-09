@@ -1,7 +1,7 @@
 --find-links https://mlc.ai/wheels
 fastapi
 ml_dtypes>=0.5.1
-mlc-ai-nightly
+mlc-ai-nightly-cpu
 openai
 prompt_toolkit
 pydantic
