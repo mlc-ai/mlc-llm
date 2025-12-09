@@ -190,6 +190,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#customize-the-app">Customize the App</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#bundle-model-weights">Bundle Model Weights</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#known-issues">Known issues</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="ide_integration.html">IDE Integration</a></li>
@@ -324,6 +325,7 @@
 </li>
 <li><p><a class="reference internal" href="#customize-the-app" id="id8">Customize the App</a></p></li>
 <li><p><a class="reference internal" href="#bundle-model-weights" id="id9">Bundle Model Weights</a></p></li>
+<li><p><a class="reference internal" href="#known-issues" id="id10">Known issues</a></p></li>
 </ul>
 </nav>
 <section id="demo-app">
@@ -619,6 +621,14 @@ The models with <code class="docutils literal notranslate"><span class="pre">bun
 python<span class="w"> </span>bundle_weight.py<span class="w"> </span>--apk-path<span class="w"> </span>app/release/app-release.apk
 </pre></div>
 </div>
+</section>
+<section id="known-issues">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Known issues</a><a class="headerlink" href="#known-issues" title="Permalink to this heading">¶</a></h2>
+<p>One known issue that has been observed on Android devices equipped with Adreno GPUs is that model formats ending with a <code class="docutils literal notranslate"><span class="pre">_1</span></code> suffix cause a ~20-50 seconds system UI freeze that occurs at prefill stage (initialization before the first inference; the issue does not happen on any subsequent inference of a given model instance).
+It has been observed that models with a <code class="docutils literal notranslate"><span class="pre">_0</span></code> suffix do not experience this issue.
+The two suffixes denote the layouts of weights in the models that differ by a transpose operation.
+In case you encounter the freeze issue, the workaround to avoid this problem is to use a model in the <code class="docutils literal notranslate"><span class="pre">_0</span></code> weight layout.
+For more details, please consult <a class="reference external" href="https://github.com/mlc-ai/mlc-llm/issues/3363">issue #3363</a>.</p>
 </section>
 </section>
 
