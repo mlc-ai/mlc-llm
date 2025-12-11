@@ -208,6 +208,55 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
 
 # mypy: disable-error-code="attr-defined"
 
+# --- START OF CUSTOM CODE INJECTIONS ---
+
+def schedule_llama_fused_rope(sch: tir.Schedule):
+    """Schedule for fused qkv-split and rotary embedding."""
+    root = sch.get_block(name="root")
+    main_block = sch.get_block(name="llama_fused_rope")
+
+    # 1. Fuse the three main axes (s, h, d) into a single axis 'fused'
+    fused = sch.fuse(sch.get_loops(main_block))
+
+    # 2. Split the fused axis into blocks and threads
+    block_size = 256
+    block_axis, thread_axis = sch.split(fused, [None, block_size])
+    
+    # 3. Bind the axes to GPU hardware primitives
+    sch.bind(block_axis, "blockIdx.x")
+    sch.bind(thread_axis, "threadIdx.x")
+    pass # Keep 'pass' for now.
+
+
+def _register_rope_op(operator: Callable, op_name: str, num_q_heads: int, num_kv_heads: int, head_dim: int, dtype: str):
+    """Wraps the prim_func with op.tensor_ir_op and applies the custom schedule."""
+    
+    # NOTE: Since the variables (s, num_q_heads, head_dim, dtype) are locally defined in llama_rope_with_position_map,
+    # we must pass them explicitly to this helper.
+    
+    # Define the output tensors based on the original structure
+    out_tensors = (
+        Tensor.placeholder((operator.args[0].shape[0], num_q_heads, head_dim), dtype), # s
+        Tensor.placeholder((operator.args[0].shape[0], num_kv_heads, head_dim), dtype), # s
+        Tensor.placeholder((operator.args[0].shape[0], num_kv_heads, head_dim), dtype), # s
+    )
+
+    # Arguments for the prim_func (var_qkv, var_position_map, apply_rope/ext_factors)
+    # The number of arguments for the op.tensor_ir_op call needs to match the prim_func's arguments (excluding outputs).
+    num_args = len(operator.args)
+    
+    wrapped_op = op.tensor_ir_op(
+        operator,
+        op_name,
+        args=operator.args[:num_args],
+        out=out_tensors,
+    )
+    
+    # Apply the custom CUDA schedule
+    return wrapped_op.with_schedule(schedule_llama_fused_rope)
+
+# --- END OF CUSTOM CODE INJECTIONS ---
+
 
 def llama_rope(  # pylint: disable=too-many-arguments
     qkv: Tensor,
@@ -342,181 +391,4 @@ def llama_rope(  # pylint: disable=too-many-arguments
             Tensor.placeholder((b, s, num_kv_heads, head_dim), dtype),
             Tensor.placeholder((b, s, num_kv_heads, head_dim), dtype),
         ),
-    )
-
-
-def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
-    theta: float,
-    scale: float,
-    head_dim: int,
-    num_q_heads: int,
-    num_kv_heads: int,
-    dtype: str,
-    rope_scaling: Dict[str, Any],
-    rotary_dim: Optional[int] = None,
-):
-    """Return the TIR function that computes Llama-style RoPE with q position map.
-
-    Parameters
-    ----------
-    theta : float
-        The theta value, or "base" in RoPE, which controls the frequency.
-
-    scale : float
-        The RoPE scaling factor.
-
-    head_dim : int
-        The number of features on each head.
-
-    num_q_heads : int
-        The number of query heads.
-
-    num_kv_heads : int
-        The number of key/value heads. It differs from `num_q_heads` in group-query attention.
-
-    dtype : str
-        The dtype of qkv data.
-
-    rotary_dim : int
-        The number of dimensions in the embedding that RoPE is applied to. By default, the
-        rotary_dim is the same as head_dim.
-    """
-    fused_heads = num_q_heads + num_kv_heads * 2
-    if rotary_dim is None:
-        rotary_dim = head_dim
-    scale = tir.const(scale, "float32")
-    is_longrope_scaling = rope_scaling.get("rope_type") == "longrope"
-
-    def _rope(  # pylint: disable=too-many-arguments
-        x: T.Buffer,
-        s: tir.Var,
-        h: tir.Var,
-        d: tir.Var,
-        pos: tir.Var,
-        ext_factors: Optional[T.Buffer] = None,
-    ):
-        kwargs = {}
-        if ext_factors:
-            kwargs["ext_factors"] = ext_factors
-        cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(
-            pos * scale, d, rotary_dim, theta, "float32", **kwargs
-        )
-        cos = cos_freq * x[s, h, d].astype("float32")
-        if "rope_type" in rope_scaling and rope_scaling["rope_type"] == "gptj":
-            sin = sin_freq * tir.if_then_else(
-                d % 2 == 0,
-                -x[s, h, d + 1],
-                x[s, h, d - 1],
-            ).astype("float32")
-        else:
-            sin = sin_freq * tir.if_then_else(
-                d < rotary_dim // 2,
-                -x[s, h, d + rotary_dim // 2],
-                x[s, h, d - rotary_dim // 2],
-            ).astype("float32")
-        expr = (cos + sin).astype(dtype)
-        for var, value in var_map.items():
-            expr = tir.Let(var, value, expr)
-        return expr
-
-    @T.prim_func
-    def fused_rope(  # pylint: disable=too-many-locals
-        var_qkv: T.handle,
-        var_position_map: T.handle,
-        var_q: T.handle,
-        var_k: T.handle,
-        var_v: T.handle,
-        apply_rope: T.int32,
-    ):
-        T.func_attr(
-            {
-                "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
-            }
-        )
-        seq_len = T.int32()
-        position_map_elem_offset = T.int32()
-        qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
-        q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
-        k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
-        v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(
-            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
-        )
-        for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
-                if h < num_q_heads:
-                    q[s, h, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                elif h < num_q_heads + num_kv_heads:
-                    k[s, h - num_q_heads, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                else:
-                    v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
-
-    @T.prim_func
-    def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
-        var_qkv: T.handle,
-        var_position_map: T.handle,
-        var_q: T.handle,
-        var_k: T.handle,
-        var_v: T.handle,
-        ext_factors: T.Buffer((rotary_dim // 2,), "float32"),  # type: ignore
-    ):
-        T.func_attr(
-            {
-                "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
-            }
-        )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
-        qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
-        q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
-        k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
-        v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(
-            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
-        )
-        for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
-                if h < num_q_heads:
-                    q[s, h, d] = T.if_then_else(
-                        d < rotary_dim,
-                        _rope(
-                            qkv,
-                            s,
-                            h,
-                            d,
-                            position_map[s],
-                            ext_factors if is_longrope_scaling else None,
-                        ),
-                        qkv[s, h, d],
-                    )
-                elif h < num_q_heads + num_kv_heads:
-                    k[s, h - num_q_heads, d] = T.if_then_else(
-                        d < rotary_dim,
-                        _rope(
-                            qkv,
-                            s,
-                            h,
-                            d,
-                            position_map[s],
-                            ext_factors if is_longrope_scaling else None,
-                        ),
-                        qkv[s, h, d],
-                    )
-                else:
-                    v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
-
-    if is_longrope_scaling:
-        return fused_rope_longrope_scaling
-    return fused_rope
+    ).with_schedule(schedule_llama_fused_rope) # <--- THIS IS THE FINAL RETURN
