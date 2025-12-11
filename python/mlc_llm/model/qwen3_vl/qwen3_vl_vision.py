@@ -37,6 +37,18 @@ class Qwen3VLVisionPatchEmbed(PatchEmbed):
         # TODO - i am assuming tvm has the same conv3d as pytorch
         self.proj = nn.Conv3D(self.in_channels, self.embed_dim, kernel_size=kernel_size, stride=kernel_size, bias=True)
 
+    def forward(self, hidden_states: Tensor) -> Tensor:
+        # Input hidden_states: (N, C, T, H, W)
+        # Conv3D Output: (N, C, D, H, W)
+        hidden_states = self.proj(hidden_states)
+        
+        # Permute to (N, D, H, W, C) for channel-last flattening
+        hidden_states = op.permute_dims(hidden_states, (0, 2, 3, 4, 1))
+        
+        # Flatten to (N*D*H*W, C)
+        hidden_states = op.reshape(hidden_states, (-1, self.embed_dim))
+        return hidden_states
+
 
 class Qwen3VLVisionRotaryEmbedding(VisionRotaryEmbedding):
     pass
@@ -53,11 +65,17 @@ class Qwen3VLVisionPatchMerger(nn.Module):
         self.linear_fc2 = nn.Linear(self.hidden_size, config.out_hidden_size)
 
     def forward(self, x: Tensor) -> Tensor:
-        # TODO - translate pytorch to tvm
-        raise NotImplementedError
-        # x = self.norm(x.view(-1, self.hidden_size) if self.use_postshuffle_norm else x).view(-1, self.hidden_size)
-        # x = self.linear_fc2(self.act_fn(self.linear_fc1(x)))
-        # return x
+        if self.use_postshuffle_norm:
+            x = op.reshape(x, (-1, self.hidden_size))
+            x = self.norm(x)
+        else:
+            x = self.norm(x)
+            x = op.reshape(x, (-1, self.hidden_size))
+        
+        x = self.linear_fc1(x)
+        x = self.act_fn(x)
+        x = self.linear_fc2(x)
+        return x
 
 
 class Qwen3VLVisionAttention(VisionAttention):
@@ -218,54 +236,77 @@ class Qwen3VLVisionModel(nn.Module):
     def forward(self, hidden_states: Tensor, grid_thw: Tensor, **kwargs) -> Tensor:
         """
         Args:
-            hidden_states (`Tensor` of shape `(seq_len, hidden_size)`):
-                The final hidden states of the model.
-            grid_thw (`Tensor` of shape `(num_images_or_videos, 3)`):
-                The temporal, height and width of feature shape of each image in LLM.
-
-        Returns:
-            `torch.Tensor`: hidden_states.
+            hidden_states: Input features (flattened or spatial)
+            grid_thw: (N, 3) tensor
         """
-        # TODO - translate from pytorch to tvm
-        raise NotImplementedError
-
-        # hidden_states = self.patch_embed(hidden_states)
-
-        # pos_embeds = self.fast_pos_embed_interpolate(grid_thw)
-        # hidden_states = hidden_states + pos_embeds
-
-        # rotary_pos_emb = self.rot_pos_emb(grid_thw)
-
-        # seq_len, _ = hidden_states.size()
-        # hidden_states = hidden_states.reshape(seq_len, -1)
-        # rotary_pos_emb = rotary_pos_emb.reshape(seq_len, -1)
-        # emb = torch.cat((rotary_pos_emb, rotary_pos_emb), dim=-1)
-        # position_embeddings = (emb.cos(), emb.sin())
-
-        # cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
-        #     dim=0,
-        #     # Select dtype based on the following factors:
-        #     #  - FA2 requires that cu_seqlens_q must have dtype int32
-        #     #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
-        #     # See https://github.com/huggingface/transformers/pull/34852 for more information
-        #     dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
-        # )
-        # cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
-
-        # deepstack_feature_lists = []
-        # for layer_num, blk in enumerate(self.blocks):
-        #     hidden_states = blk(
-        #         hidden_states,
-        #         cu_seqlens=cu_seqlens,
-        #         position_embeddings=position_embeddings,
-        #         **kwargs,
-        #     )
-        #     if layer_num in self.deepstack_visual_indexes:
-        #         deepstack_feature = self.deepstack_merger_list[self.deepstack_visual_indexes.index(layer_num)](
-        #             hidden_states
-        #         )
-        #         deepstack_feature_lists.append(deepstack_feature)
-
-        # hidden_states = self.merger(hidden_states)
-
-        # return hidden_states, deepstack_feature_lists
+        # 1. Patch Embedding
+        hidden_states = self.patch_embed(hidden_states)
+        # hidden_states is now (total_tokens, hidden_size)
+        
+        # Calculate total_tokens from grid
+        t = op_strided_slice(grid_thw, axes=[1], begin=[0], end=[1])
+        h = op_strided_slice(grid_thw, axes=[1], begin=[1], end=[2])
+        w = op_strided_slice(grid_thw, axes=[1], begin=[2], end=[3])
+        counts = t * h * w
+        counts = op.reshape(counts, (-1,))
+        total_tokens = op.sum(counts)
+        
+        # Bind total_tokens to symbolic var 't_var' to guide shape inference
+        total_tokens_reshaped = op.reshape(total_tokens, (1,))
+        shape_expr = tensor_to_shape(total_tokens_reshaped._expr)
+        t_var = tir.Var("t", "int64")
+        rx.BlockBuilder.current().match_cast(shape_expr, rx.ShapeStructInfo([t_var]))
+        
+        # Enforce shape on hidden_states
+        hidden_states = op.reshape(hidden_states, (t_var, self.config.hidden_size))
+        
+        # 2. Fast Pos Embed Interpolation
+        pos_embeds = self.fast_pos_embed_interpolate(grid_thw, total_tokens)
+        
+        # Cast pos_embeds to (t_var, hidden_size) to match hidden_states symbolically
+        pos_embeds = op.reshape(pos_embeds, (t_var, self.config.hidden_size))
+        
+        hidden_states = hidden_states + pos_embeds
+        
+        # 3. Rotary Pos Emb
+        rotary_pos_emb = self.rot_pos_emb(grid_thw, total_tokens)
+        
+        # Reshape to (1, total_tokens, hidden_size) for Blocks which expect 3D input
+        hidden_states = op.reshape(hidden_states, (1, t_var, self.config.hidden_size))
+        
+        # 4. cu_seqlens
+        # Relax cumsum on axis 0
+        cu_seqlens = op.cumsum(counts, axis=0, dtype="int32")
+        # Pad with 0. 
+        zero_pad = Tensor(_expr=rx.const([0], "int32"))
+        cu_seqlens = op.concat([zero_pad, cu_seqlens], dim=0)
+        
+        # 5. Blocks
+        deepstack_feature_lists = []
+        
+        for layer_num, blk in enumerate(self.blocks):
+            hidden_states = blk(
+                hidden_states,
+                cu_seqlens=cu_seqlens,
+                rotary_pos_emb=rotary_pos_emb,
+                # position_embeddings passed as None or omitted? 
+                # Qwen2.5 block signature has position_embeddings optional
+                **kwargs
+            )
+            
+            if layer_num in self.deepstack_visual_indexes:
+                # Find index in deepstack_merger_list
+                merger_idx = self.deepstack_visual_indexes.index(layer_num)
+                merger = self.deepstack_merger_list[merger_idx]
+                deepstack_feature = merger(hidden_states)
+                deepstack_feature_lists.append(deepstack_feature)
+                
+        # 6. Final Merger
+        hidden_states = self.merger(hidden_states)
+        
+        output = [hidden_states]
+        output.extend(deepstack_feature_lists)
+        
+        if len(output) == 1:
+            return output[0]
+        return output
