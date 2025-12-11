@@ -9,7 +9,8 @@ from mlc_llm.model.qwen3.qwen3_model import ACT2FN
 from .qwen3_vl_config import Qwen3VLVisionConfig
 from .qwen2_vl import PatchEmbed, VisionRotaryEmbedding, VisionAttention
 from .qwen_2_5_vl import Qwen2_5_VLVisionBlock
-from .rot_pos_emb import op_strided_slice, op_power, compute_freq_table_tir, populate_pos_ids_tir
+from .vision_pos_emb import op_strided_slice, op_power, compute_freq_table_tir, populate_pos_ids_tir, fast_pos_embed_interpolate_tir
+
 
 class Qwen3VLVisionMLP(nn.Module):
     def __init__(self, config):
@@ -81,6 +82,7 @@ class Qwen3VLVisionModel(nn.Module):
 
     def __init__(self, config, *inputs, **kwargs) -> None:
         #super().__init__(config, *inputs, **kwargs)
+        self.config = config
         self.spatial_merge_size = config.spatial_merge_size
         self.patch_size = config.patch_size
         self.spatial_merge_unit = self.spatial_merge_size * self.spatial_merge_size
@@ -182,68 +184,36 @@ class Qwen3VLVisionModel(nn.Module):
         
         return embeddings
 
-    def fast_pos_embed_interpolate(self, grid_thw):
-        # TODO - translate from pytorch to tvm
-        raise NotImplementedError
-
-        # grid_ts, grid_hs, grid_ws = grid_thw[:, 0], grid_thw[:, 1], grid_thw[:, 2]
-        # device = self.pos_embed.weight.device
-
-        # idx_list = [[] for _ in range(4)]
-        # weight_list = [[] for _ in range(4)]
-
-        # for t, h, w in zip(grid_ts, grid_hs, grid_ws):
-        #     h_idxs = torch.linspace(0, self.num_grid_per_side - 1, h)
-        #     w_idxs = torch.linspace(0, self.num_grid_per_side - 1, w)
-
-        #     h_idxs_floor = h_idxs.int()
-        #     w_idxs_floor = w_idxs.int()
-        #     h_idxs_ceil = (h_idxs.int() + 1).clip(max=self.num_grid_per_side - 1)
-        #     w_idxs_ceil = (w_idxs.int() + 1).clip(max=self.num_grid_per_side - 1)
-
-        #     dh = h_idxs - h_idxs_floor
-        #     dw = w_idxs - w_idxs_floor
-
-        #     base_h = h_idxs_floor * self.num_grid_per_side
-        #     base_h_ceil = h_idxs_ceil * self.num_grid_per_side
-
-        #     indices = [
-        #         (base_h[None].T + w_idxs_floor[None]).flatten(),
-        #         (base_h[None].T + w_idxs_ceil[None]).flatten(),
-        #         (base_h_ceil[None].T + w_idxs_floor[None]).flatten(),
-        #         (base_h_ceil[None].T + w_idxs_ceil[None]).flatten(),
-        #     ]
-
-        #     weights = [
-        #         ((1 - dh)[None].T * (1 - dw)[None]).flatten(),
-        #         ((1 - dh)[None].T * dw[None]).flatten(),
-        #         (dh[None].T * (1 - dw)[None]).flatten(),
-        #         (dh[None].T * dw[None]).flatten(),
-        #     ]
-
-        #     for i in range(4):
-        #         idx_list[i].extend(indices[i].tolist())
-        #         weight_list[i].extend(weights[i].tolist())
-
-        # idx_tensor = torch.tensor(idx_list, dtype=torch.long, device=device)
-        # weight_tensor = torch.tensor(weight_list, dtype=self.pos_embed.weight.dtype, device=device)
-        # pos_embeds = self.pos_embed(idx_tensor).to(device) * weight_tensor[:, :, None]
-        # patch_pos_embeds = pos_embeds[0] + pos_embeds[1] + pos_embeds[2] + pos_embeds[3]
-
-        # patch_pos_embeds = patch_pos_embeds.split([h * w for h, w in zip(grid_hs, grid_ws)])
-
-        # patch_pos_embeds_permute = []
-        # merge_size = self.config.spatial_merge_size
-        # for pos_embed, t, h, w in zip(patch_pos_embeds, grid_ts, grid_hs, grid_ws):
-        #     pos_embed = pos_embed.repeat(t, 1)
-        #     pos_embed = (
-        #         pos_embed.view(t, h // merge_size, merge_size, w // merge_size, merge_size, -1)
-        #         .permute(0, 1, 3, 2, 4, 5)
-        #         .flatten(0, 4)
-        #     )
-        #     patch_pos_embeds_permute.append(pos_embed)
-        # patch_pos_embeds = torch.cat(patch_pos_embeds_permute)
-        # return patch_pos_embeds
+    def fast_pos_embed_interpolate(self, grid_thw: Tensor, total_tokens: Tensor) -> Tensor:
+        # grid_thw: (N, 3)
+        # total_tokens: scalar tensor
+        
+        # Inputs for TIR
+        pos_embed_weight = self.pos_embed.weight # (num_pos_emb, hidden_size)
+        
+        num_grid_per_side_const = Tensor(_expr=rx.const(self.num_grid_per_side, "int64"))
+        spatial_merge_size_const = Tensor(_expr=rx.const(self.spatial_merge_size, "int64"))
+        
+        # Shapes for output
+        # total_tokens is scalar, we need to extract PrimExpr
+        total_tokens_reshaped = op.reshape(total_tokens, (1,))
+        shape_expr = tensor_to_shape(total_tokens_reshaped._expr)
+        
+        t = tir.Var("t", "int64")
+        rx.BlockBuilder.current().match_cast(
+            shape_expr,
+            rx.ShapeStructInfo([t])
+        )
+        
+        # Call TIR
+        patch_pos_embeds = op.tensor_ir_op(
+            fast_pos_embed_interpolate_tir,
+            "fast_pos_embed_interpolate_tir",
+            args=[grid_thw, pos_embed_weight, num_grid_per_side_const, spatial_merge_size_const],
+            out=Tensor.placeholder((t, self.config.hidden_size), dtype="float32")
+        )
+        
+        return patch_pos_embeds
 
     def forward(self, hidden_states: Tensor, grid_thw: Tensor, **kwargs) -> Tensor:
         """
