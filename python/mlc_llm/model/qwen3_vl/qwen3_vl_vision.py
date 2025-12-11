@@ -1,12 +1,15 @@
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-
-from .qwen3_vl_config import Qwen3VLVisionConfig
-
+from tvm.relax.op import tensor_to_shape
+from tvm import tir
+from tvm import relax as rx
 
 from mlc_llm.model.qwen3.qwen3_model import ACT2FN
+
+from .qwen3_vl_config import Qwen3VLVisionConfig
 from .qwen2_vl import PatchEmbed, VisionRotaryEmbedding, VisionAttention
 from .qwen_2_5_vl import Qwen2_5_VLVisionBlock
+from .rot_pos_emb import op_strided_slice, op_power, compute_freq_table_tir, populate_pos_ids_tir
 
 class Qwen3VLVisionMLP(nn.Module):
     def __init__(self, config):
@@ -111,47 +114,73 @@ class Qwen3VLVisionModel(nn.Module):
 
         self.gradient_checkpointing = False
 
-    def rot_pos_emb(self, grid_thw: Tensor) -> Tensor:
-        # TODO - translate from pytorch to tvm
-        raise NotImplementedError
+    def rot_pos_emb(self, grid_thw: Tensor, total_tokens: Tensor) -> Tensor:
+        # grid_thw: (N, 3)
+        # total_tokens: scalar tensor
+        
+        # 1. Compute max_hw for rotary embedding precomputation limit
+        # Exclude temporal dim (col 0), take max of height (col 1) and width (col 2)
+        grid_spatial = op_strided_slice(grid_thw, axes=[1], begin=[1], end=[3])
+        max_hw = op.max(grid_spatial) # scalar tensor
+        
+        # Convert max_hw to PrimExpr
+        max_hw_reshaped = op.reshape(max_hw, (1,))
+        max_hw_shape = tensor_to_shape(max_hw_reshaped._expr)
+        
+        m = tir.Var("m", "int64")
+        rx.BlockBuilder.current().match_cast(
+            max_hw_shape,
+            rx.ShapeStructInfo([m])
+        )
+        
+        # 2. Compute frequency table using TIR
+        # Calculate inv_freq manually as in VisionRotaryEmbedding
+        theta = self.rotary_pos_emb.theta
+        dim = self.rotary_pos_emb.dim
+        theta_const = Tensor(_expr=rx.const(theta, "float32"))
+        inv_freq = op.divide(
+            Tensor(_expr=rx.const(1.0, "float32")), 
+            op_power(theta_const, (op.arange(0, dim, 2, dtype="float32") / dim))
+        )
+        
+        freq_table = op.tensor_ir_op(
+            compute_freq_table_tir,
+            "compute_freq_table_tir",
+            args=[max_hw, inv_freq], # Pass max_hw tensor directly (scalar)
+            out=Tensor.placeholder((m, dim // 2), dtype="float32")
+        )
+        
+        # 3. Populate position IDs using TIR
+        merge_size_const = Tensor(_expr=rx.const(self.spatial_merge_size, dtype="int64"))
+        
+        # Convert total_tokens (scalar Tensor) to PrimExpr for shape
+        total_tokens_reshaped = op.reshape(total_tokens, (1,))
+        shape_expr = tensor_to_shape(total_tokens_reshaped._expr)
+        
+        t = tir.Var("t", "int64")
+        rx.BlockBuilder.current().match_cast(
+            shape_expr,
+            rx.ShapeStructInfo([t])
+        )
 
-        # merge_size = self.spatial_merge_size
-
-        # max_hw = int(grid_thw[:, 1:].max().item())
-        # freq_table = self.rotary_pos_emb(max_hw)  # (max_hw, dim // 2)
-        # device = freq_table.device
-
-        # total_tokens = int(torch.prod(grid_thw, dim=1).sum().item())
-        # pos_ids = torch.empty((total_tokens, 2), dtype=torch.long, device=device)
-
-        # offset = 0
-        # for num_frames, height, width in grid_thw:
-        #     merged_h, merged_w = height // merge_size, width // merge_size
-
-        #     block_rows = torch.arange(merged_h, device=device)  # block row indices
-        #     block_cols = torch.arange(merged_w, device=device)  # block col indices
-        #     intra_row = torch.arange(merge_size, device=device)  # intra-block row offsets
-        #     intra_col = torch.arange(merge_size, device=device)  # intra-block col offsets
-
-        #     # Compute full-resolution positions
-        #     row_idx = block_rows[:, None, None, None] * merge_size + intra_row[None, None, :, None]
-        #     col_idx = block_cols[None, :, None, None] * merge_size + intra_col[None, None, None, :]
-
-        #     row_idx = row_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
-        #     col_idx = col_idx.expand(merged_h, merged_w, merge_size, merge_size).reshape(-1)
-
-        #     coords = torch.stack((row_idx, col_idx), dim=-1)
-
-        #     if num_frames > 1:
-        #         coords = coords.repeat(num_frames, 1)
-
-        #     num_tokens = coords.shape[0]
-        #     pos_ids[offset : offset + num_tokens] = coords
-        #     offset += num_tokens
-
-        # embeddings = freq_table[pos_ids]  # lookup rotary embeddings
-        # embeddings = embeddings.flatten(1)
-        # return embeddings
+        pos_ids = op.tensor_ir_op(
+            populate_pos_ids_tir,
+            "populate_pos_ids_tir",
+            args=[grid_thw, merge_size_const],
+            out=Tensor.placeholder((t, 2), dtype="int64") 
+        )
+        
+        # 4. Gather embeddings
+        # op.take with axis=0.
+        embeddings = op.take(freq_table, pos_ids, axis=0) # (total_tokens, 2, dim)
+        
+        # 5. Flatten
+        target_dim = self.rotary_pos_emb.dim 
+        # We need to reshape embeddings. Shape: (total_tokens, target_dim).
+        # We can use the same PrimExpr.
+        embeddings = op.reshape(embeddings, (t, target_dim))
+        
+        return embeddings
 
     def fast_pos_embed_interpolate(self, grid_thw):
         # TODO - translate from pytorch to tvm
