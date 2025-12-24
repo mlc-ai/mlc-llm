@@ -30,6 +30,7 @@ from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
+from .ministral3 import ministral3_loader, ministral3_model, ministral3_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .nemotron import nemotron_loader, nemotron_model, nemotron_quantization
 from .olmo import olmo_loader, olmo_model, olmo_quantization
@@ -135,6 +136,22 @@ MODELS: Dict[str, Model] = {
             "group-quant": mistral_quantization.group_quant,
             "no-quant": mistral_quantization.no_quant,
             "ft-quant": mistral_quantization.ft_quant,
+        },
+    ),
+    "ministral3": Model(
+        name="ministral3",
+        model=ministral3_model.Mistral3ForConditionalGeneration,
+        config=ministral3_model.Ministral3Config,
+        source={
+            "huggingface-torch": ministral3_loader.huggingface,
+            "huggingface-safetensor": ministral3_loader.huggingface,
+            "awq": ministral3_loader.awq,
+        },
+        quantize={
+            "group-quant": ministral3_quantization.group_quant,
+            "no-quant": ministral3_quantization.no_quant,
+            "ft-quant": ministral3_quantization.ft_quant,
+            "block-scale-quant": ministral3_quantization.block_scale_quant,
         },
     ),
     "gemma": Model(

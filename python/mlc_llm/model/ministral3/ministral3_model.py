@@ -47,6 +47,23 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     weight_block_size: Optional[Tuple[int, int]] = None
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
+    @classmethod
+    def from_dict(  # type: ignore[override]
+        cls,
+        source: Dict[str, Any],
+    ) -> "Ministral3Config":
+        if "text_config" in source and isinstance(source["text_config"], dict):
+            top_level = dict(source)
+            text_cfg = top_level.pop("text_config")
+            merged: Dict[str, Any] = dict(top_level)
+            merged.update(text_cfg)
+            if "tie_word_embeddings" in source:
+                merged["tie_word_embeddings"] = source["tie_word_embeddings"]
+            if "dtype" in source:
+                merged["dtype"] = source["dtype"]
+            return super().from_dict(merged)
+        return super().from_dict(source)
+
     def __post_init__(self):  # pylint: disable=too-many-branches
         if "quantization_config" in self.kwargs:
             quantization_config = self.kwargs.pop("quantization_config")
@@ -73,11 +90,10 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                         )
                 else:
                     self.weight_block_size = [128, 128]
-                    
                     logger.info(
-                        "Ignoring quantization_config because it does not provide FP8 block-scale "
-                        "details required by MLC (activation_scheme=%s, quant_method=%s, fmt=%s, "
-                        "weight_block_size=%s)",
+                        "Setting default weight_block_size since quantization_config does not provide "
+                        "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s, "
+                        "fmt=%s, weight_block_size=%s)",
                         activation_scheme,
                         quant_method,
                         fmt,
@@ -210,7 +226,6 @@ class Ministral3Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
         
-        # BODEN: need to verify if this is necessary and correct
         self.softmax_scale = self.head_dim ** (-0.5)
         if config.rope_parameters is not None:
             mscale_all_dim = config.rope_parameters.get("mscale_all_dim", 0)
@@ -280,7 +295,6 @@ class Ministral3Model(nn.Module):
 
     def __init__(self, config: Ministral3Config):
         assert config.hidden_size % config.num_attention_heads == 0
-        # BODEN
         # self.embed_tokens = nn.Embedding("vocab_size", config.hidden_size)
         self.embed_tokens = Ministral3Embedding(config.vocab_size, config.hidden_size)
         self.layers = nn.ModuleList(
@@ -416,7 +430,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
-            rope_scaling=self.rope_parameters, # BODEN
+            rope_scaling=self.rope_parameters,
             dtype=self.dtype,
         )
 

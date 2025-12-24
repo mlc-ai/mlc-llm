@@ -4,6 +4,7 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -12,6 +13,33 @@ from mlc_llm.quantization import Quantization
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 from .ministral3_quantization import awq_quant
+
+
+def _dequantize_block_scale_weight(
+    weight: np.ndarray, weight_scale: np.ndarray, block_size: Tuple[int, int]
+) -> np.ndarray:
+    """Reconstruct float weights from FP8 block-scale storage."""
+
+    rows, cols = weight.shape
+    block_rows, block_cols = block_size
+    out = np.empty((rows, cols), dtype="float32")
+    weight_f32 = weight.astype("float32")
+    num_row_blocks, num_col_blocks = weight_scale.shape
+    for i in range(num_row_blocks):
+        row_start = i * block_rows
+        if row_start >= rows:
+            break
+        row_end = min(row_start + block_rows, rows)
+        scale_row = weight_scale[i]
+        for j in range(num_col_blocks):
+            col_start = j * block_cols
+            if col_start >= cols:
+                break
+            col_end = min(col_start + block_cols, cols)
+            out[row_start:row_end, col_start:col_end] = (
+                weight_f32[row_start:row_end, col_start:col_end] * scale_row[j]
+            )
+    return out
 
 
 def huggingface(model_config: Ministral3Config, quantization: Quantization) -> ExternMapping:
@@ -38,69 +66,120 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         spec=model.get_default_spec(),
         allow_extern=True,
     )
-    named_parameters = dict(_named_params)
+    raw_params = dict(_named_params)
+    if any(name.startswith("language_model.") for name in raw_params):
+        named_parameters = {
+            name.replace("language_model.", "", 1): value
+            for name, value in raw_params.items()
+        }
+    else:
+        named_parameters = raw_params
 
     mapping = ExternMapping()
+
+    hf_prefix = ""
+    if "vision_config" in model_config.kwargs:
+        hf_prefix = "language_model."
+
+    def hf(name: str) -> str:
+        return f"{hf_prefix}{name}"
+
+    weight_block_size = getattr(model_config, "weight_block_size", None)
+    if weight_block_size is not None:
+        weight_block_size = tuple(int(x) for x in weight_block_size)
+    needs_block_dequant = (
+        weight_block_size is not None and quantization.kind != "block-scale-quant"
+    )
+
+    def convert_linear_weight(
+        weight: np.ndarray,
+        scale: Optional[np.ndarray],
+        dtype: str,
+        source_name: str,
+    ):
+        if needs_block_dequant:
+            if scale is None:
+                raise ValueError(f"Missing block-scale metadata for {source_name}.")
+            assert weight_block_size is not None
+            rows, cols = weight.shape
+            block_rows, block_cols = weight_block_size
+            num_row_blocks = (rows + block_rows - 1) // block_rows
+            num_col_blocks = (cols + block_cols - 1) // block_cols
+            scale = np.asarray(scale, dtype="float32").reshape(-1)
+            expected = num_row_blocks * num_col_blocks
+            if scale.size == 1:
+                scale = np.broadcast_to(scale, expected)
+            elif scale.size != expected:
+                raise ValueError(
+                    f"{source_name} weight_scale_inv has {scale.size} elements but "
+                    f"expected {expected} (rows={rows}, cols={cols}, block_size={weight_block_size})"
+                )
+            scale = scale.reshape(num_row_blocks, num_col_blocks)
+            weight = _dequantize_block_scale_weight(weight, scale, weight_block_size)
+        return weight.astype(dtype)
+
+    def block_weight_sources(base_name: str):
+        sources = [hf(base_name)]
+        if needs_block_dequant:
+            sources.append(hf(base_name.replace(".weight", ".weight_scale_inv")))
+        return sources
+
+    def make_concat_func(source_names: Tuple[str, ...], dtype: str):
+        def func(*arrays):
+            arr_iter = iter(arrays)
+            converted = []
+            for source in source_names:
+                weight = next(arr_iter)
+                scale = next(arr_iter) if needs_block_dequant else None
+                converted.append(convert_linear_weight(weight, scale, dtype, hf(source)))
+            return np.concatenate(converted, axis=0)
+
+        return func
+
+    def make_single_linear_func(source_name: str, dtype: str):
+        def func(*arrays):
+            weight = arrays[0]
+            scale = arrays[1] if needs_block_dequant else None
+            return convert_linear_weight(weight, scale, dtype, hf(source_name))
+
+        return func
 
     for i in range(model_config.num_hidden_layers):
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
         mlc_param = named_parameters[mlc_name]
+        proj_sources = tuple(f"{attn}.{proj}.weight" for proj in ["q_proj", "k_proj", "v_proj"])
+        qkv_sources = []
+        for source in proj_sources:
+            qkv_sources.extend(block_weight_sources(source))
         mapping.add_mapping(
             mlc_name,
-            [
-                f"{attn}.q_proj.weight",
-                f"{attn}.k_proj.weight",
-                f"{attn}.v_proj.weight",
-            ],
-            functools.partial(
-                lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
+            qkv_sources,
+            make_concat_func(proj_sources, mlc_param.dtype),
         )
 
         # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
         mlc_name = f"{mlp}.gate_up_proj.weight"
         mlc_param = named_parameters[mlc_name]
+        gate_proj_sources = tuple(f"{mlp}.{proj}.weight" for proj in ["gate_proj", "up_proj"])
+        gate_sources = []
+        for source in gate_proj_sources:
+            gate_sources.extend(block_weight_sources(source))
         mapping.add_mapping(
             mlc_name,
-            [
-                f"{mlp}.gate_proj.weight",
-                f"{mlp}.up_proj.weight",
-            ],
-            functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-                dtype=mlc_param.dtype,
-            ),
+            gate_sources,
+            make_concat_func(gate_proj_sources, mlc_param.dtype),
         )
-        
-        # down_proj, gate_proj, up_proj
-        # mapping.add_mapping(
-        #     mlc_name,
-        #     [
-        #         f"{mlp}.down_proj.activation_scale",
-        #         f"{mlp}.down_proj.weight_scale_inv",
-        #         f"{mlp}.gate_proj.activation_scale",
-        #         f"{mlp}.gate_proj.weight_scale_inv",
-        #         f"{mlp}.up_proj.activation_scale",
-        #         f"{mlp}.up_proj.weight_scale_inv",
-        #     ],
-        #     functools.partial(
-        #         lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-        #         dtype=mlc_param.dtype,
-        #     ),
-        # )
-        
-        # model.layers.0.self_attn.k_proj.activation_scale
-        # model.layers.0.self_attn.k_proj.weight_scale_inv
-        # model.layers.0.self_attn.o_proj.activation_scale
-        # model.layers.0.self_attn.o_proj.weight_scale_inv
-        # model.layers.0.self_attn.q_proj.activation_scale
-        # model.layers.0.self_attn.q_proj.weight_scale_inv
-        # model.layers.0.self_attn.v_proj.activation_scale
-        # model.layers.0.self_attn.v_proj.weight_scale_inv
+
+        for linear_name in [f"{attn}.o_proj.weight", f"{mlp}.down_proj.weight"]:
+            mlc_param = named_parameters[linear_name]
+            mapping.add_mapping(
+                linear_name,
+                block_weight_sources(linear_name),
+                make_single_linear_func(linear_name, mlc_param.dtype),
+            )
         
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
@@ -109,7 +188,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [hf(mlc_name)],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
@@ -141,6 +220,13 @@ def awq(model_config: Ministral3Config, quantization: Quantization) -> ExternMap
     )
     named_parameters = dict(_named_params)
 
+    hf_prefix = ""
+    if "vision_config" in model_config.kwargs:
+        hf_prefix = "language_model."
+
+    def hf(name: str) -> str:
+        return f"{hf_prefix}{name}"
+
     mapping = ExternMapping()
 
     for i in range(model_config.num_hidden_layers):
@@ -153,9 +239,9 @@ def awq(model_config: Ministral3Config, quantization: Quantization) -> ExternMap
             mapping.add_mapping(
                 mlc_name,
                 [
-                    f"{attn}.q_proj.{quantize_suffix}",
-                    f"{attn}.k_proj.{quantize_suffix}",
-                    f"{attn}.v_proj.{quantize_suffix}",
+                    hf(f"{attn}.q_proj.{quantize_suffix}"),
+                    hf(f"{attn}.k_proj.{quantize_suffix}"),
+                    hf(f"{attn}.v_proj.{quantize_suffix}"),
                 ],
                 functools.partial(
                     lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
@@ -172,8 +258,8 @@ def awq(model_config: Ministral3Config, quantization: Quantization) -> ExternMap
             mapping.add_mapping(
                 mlc_name,
                 [
-                    f"{mlp}.gate_proj.{quantize_suffix}",
-                    f"{mlp}.up_proj.{quantize_suffix}",
+                    hf(f"{mlp}.gate_proj.{quantize_suffix}"),
+                    hf(f"{mlp}.up_proj.{quantize_suffix}"),
                 ],
                 functools.partial(
                     lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
@@ -188,7 +274,7 @@ def awq(model_config: Ministral3Config, quantization: Quantization) -> ExternMap
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [hf(mlc_name)],
                 functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
             )
     return mapping
