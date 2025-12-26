@@ -159,7 +159,7 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
                     and not is_moe_gate(name, node)
                 ):
                     if self.config.use_activation_scale:
-                        return BlockScaleQuantizeLinearMinistral3.from_linear(
+                        return BlockScaleQuantizeLinearStaticActivation.from_linear(
                             node, self.config, weight_block_size
                         )
                     return BlockScaleQuantizeLinear.from_linear(
@@ -329,8 +329,8 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
             self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
 
 
-class BlockScaleQuantizeLinearMinistral3(BlockScaleQuantizeLinear):
-    """Block-scale quantization for Ministral3 static activation FP8."""
+class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
+    """Block-scale quantization for static activation FP8."""
 
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -357,9 +357,9 @@ class BlockScaleQuantizeLinearMinistral3(BlockScaleQuantizeLinear):
     @staticmethod
     def from_linear(
         src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
-    ) -> "BlockScaleQuantizeLinearMinistral3":
+    ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
-        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearMinistral3.
+        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
         
         Parameters
         ----------
@@ -374,12 +374,12 @@ class BlockScaleQuantizeLinearMinistral3(BlockScaleQuantizeLinear):
             
         Returns
         -------
-        ret : BlockScaleQuantizeLinearMinistral3
-            The block-scale quantized BlockScaleQuantizeLinearMinistral3
+        ret : BlockScaleQuantizeLinearStaticActivation
+            The block-scale quantized BlockScaleQuantizeLinearStaticActivation
         """
         assert weight_block_size is not None
         out_features, in_features = src.weight.shape
-        quantized_linear = BlockScaleQuantizeLinearMinistral3(
+        quantized_linear = BlockScaleQuantizeLinearStaticActivation(
             in_features=in_features,
             out_features=out_features,
             weight_dtype=config.weight_dtype,

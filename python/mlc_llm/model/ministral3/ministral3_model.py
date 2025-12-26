@@ -46,6 +46,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
     tie_word_embeddings: bool = False
     weight_block_size: Optional[Tuple[int, int]] = None
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    modules_to_not_convert: Tuple[str, ...] = dataclasses.field(default_factory=tuple)
 
     @classmethod
     def from_dict(  # type: ignore[override]
@@ -72,6 +73,9 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 quant_method = quantization_config.get("quant_method", "")
                 fmt = quantization_config.get("fmt", "")
                 weight_block_size = quantization_config.get("weight_block_size")
+                modules_to_not_convert = quantization_config.get("modules_to_not_convert", [])
+                if isinstance(modules_to_not_convert, list):
+                    self.modules_to_not_convert = tuple(modules_to_not_convert)
                 if (
                     quant_method == "fp8"
                     and fmt == "e4m3"
@@ -317,6 +321,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         self.tie_word_embeddings = config.tie_word_embeddings
         if not config.tie_word_embeddings:
             self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False) # "vocab_size"
+        self._mark_modules_no_quant(config.modules_to_not_convert)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
         self.num_key_value_heads = config.num_key_value_heads
@@ -329,6 +334,20 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         self.sliding_window_size = config.sliding_window_size
         self.dtype = config.dtype
         self.weight_block_size = config.weight_block_size
+
+    def _mark_modules_no_quant(self, modules: Tuple[str, ...]):
+        for path in modules:
+            if not path:
+                continue
+            parts = path.split(".")
+            target = self
+            for part in parts:
+                if not hasattr(target, part):
+                    target = None
+                    break
+                target = getattr(target, part)
+            if target is not None:
+                setattr(target, "no_quantization", True)
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)

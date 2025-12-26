@@ -67,7 +67,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         model = quantization.quantize_model(model, QuantizeMapping({}, {}), "")
         if model_config.weight_block_size is None:
             raise ValueError(
-                "The input DeepSeek model is not fp8 block quantized. "
+                "The input Ministral 3 model is not fp8 block quantized. "
                 "Thus BlockScaleQuantize is not supported."
             )
     
@@ -98,7 +98,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         and model_config.weight_block_size is not None
     ):
         raise ValueError(
-            "The input DeepSeek model is fp8 block quantized. "
+            "The input Ministral 3 model is fp8 block quantized. "
             "Please use BlockScaleQuantize for the model."
         )
 
@@ -126,9 +126,9 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                     weight_scale_hf_names,
                     functools.partial(weight_transform_func, dtype=weight_scale_param.dtype),
                 )
-            activation_scale_mlc_name = f"{weight_mlc_name}_activation_scale"
+            activation_scale_mlc_name = f"{weight_mlc_name[: -len('.weight')]}.activation_scale"
             if activation_scale_mlc_name in named_parameters:
-                activation_scale_hf_names = [f"{name}_activation_scale" for name in weight_hf_names]
+                activation_scale_hf_names = [f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names]
                 activation_scale_param = named_parameters[activation_scale_mlc_name]
                 transform = activation_transform_func or weight_transform_func
                 mapping.add_mapping(
@@ -139,9 +139,6 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
 
     def identity_transform(param: np.ndarray, dtype: str):
         return param.astype(dtype)
-
-    def concat_along_dim0(*arrays: np.ndarray, dtype: str):
-        return np.concatenate(arrays, axis=0).astype(dtype)
 
     def make_shared_activation_transform(target_name: str):
         def func(first: np.ndarray, *rest: np.ndarray, dtype: str):
