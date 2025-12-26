@@ -4,15 +4,15 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Callable
 
 import numpy as np
 
-from mlc_llm.loader import ExternMapping
+from mlc_llm.loader import ExternMapping, QuantizeMapping
 from mlc_llm.quantization import Quantization
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
-from .ministral3_quantization import awq_quant
+from .ministral3_quantization import BlockScaleQuantize
 
 
 def _dequantize_block_scale_weight(
@@ -62,6 +62,15 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
     model = Mistral3ForConditionalGeneration(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
+    if isinstance(quantization, BlockScaleQuantize):
+        # Convert the model to block-scale quantized model before loading parameters
+        model = quantization.quantize_model(model, QuantizeMapping({}, {}), "")
+        if model_config.weight_block_size is None:
+            raise ValueError(
+                "The input DeepSeek model is not fp8 block quantized. "
+                "Thus BlockScaleQuantize is not supported."
+            )
+    
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
         spec=model.get_default_spec(),
         allow_extern=True,
@@ -83,64 +92,66 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
 
     def hf(name: str) -> str:
         return f"{hf_prefix}{name}"
-
-    weight_block_size = getattr(model_config, "weight_block_size", None)
-    if weight_block_size is not None:
-        weight_block_size = tuple(int(x) for x in weight_block_size)
-    needs_block_dequant = (
-        weight_block_size is not None and quantization.kind != "block-scale-quant"
-    )
-
-    def convert_linear_weight(
-        weight: np.ndarray,
-        scale: Optional[np.ndarray],
-        dtype: str,
-        source_name: str,
+    
+    if (
+        not isinstance(quantization, BlockScaleQuantize)
+        and model_config.weight_block_size is not None
     ):
-        if needs_block_dequant:
-            if scale is None:
-                raise ValueError(f"Missing block-scale metadata for {source_name}.")
-            assert weight_block_size is not None
-            rows, cols = weight.shape
-            block_rows, block_cols = weight_block_size
-            num_row_blocks = (rows + block_rows - 1) // block_rows
-            num_col_blocks = (cols + block_cols - 1) // block_cols
-            scale = np.asarray(scale, dtype="float32").reshape(-1)
-            expected = num_row_blocks * num_col_blocks
-            if scale.size == 1:
-                scale = np.broadcast_to(scale, expected)
-            elif scale.size != expected:
-                raise ValueError(
-                    f"{source_name} weight_scale_inv has {scale.size} elements but "
-                    f"expected {expected} (rows={rows}, cols={cols}, block_size={weight_block_size})"
+        raise ValueError(
+            "The input DeepSeek model is fp8 block quantized. "
+            "Please use BlockScaleQuantize for the model."
+        )
+
+    # Helper function to add both weight and scale mappings
+    def add_weight_and_scale_mapping(
+        weight_mlc_name: str,
+        weight_hf_names: List[str],
+        weight_transform_func: Callable,
+        activation_transform_func: Optional[Callable] = None,
+    ):
+        mlc_param = named_parameters[weight_mlc_name]
+        mapping.add_mapping(
+            weight_mlc_name,
+            weight_hf_names,
+            functools.partial(weight_transform_func, dtype=mlc_param.dtype),
+        )
+
+        if isinstance(quantization, BlockScaleQuantize):
+            weight_scale_mlc_name = f"{weight_mlc_name}_scale_inv"
+            if weight_scale_mlc_name in named_parameters:
+                weight_scale_hf_names = [f"{name}_scale_inv" for name in weight_hf_names]
+                weight_scale_param = named_parameters[weight_scale_mlc_name]
+                mapping.add_mapping(
+                    weight_scale_mlc_name,
+                    weight_scale_hf_names,
+                    functools.partial(weight_transform_func, dtype=weight_scale_param.dtype),
                 )
-            scale = scale.reshape(num_row_blocks, num_col_blocks)
-            weight = _dequantize_block_scale_weight(weight, scale, weight_block_size)
-        return weight.astype(dtype)
+            activation_scale_mlc_name = f"{weight_mlc_name}_activation_scale"
+            if activation_scale_mlc_name in named_parameters:
+                activation_scale_hf_names = [f"{name}_activation_scale" for name in weight_hf_names]
+                activation_scale_param = named_parameters[activation_scale_mlc_name]
+                transform = activation_transform_func or weight_transform_func
+                mapping.add_mapping(
+                    activation_scale_mlc_name,
+                    activation_scale_hf_names,
+                    functools.partial(transform, dtype=activation_scale_param.dtype),
+                )
 
-    def block_weight_sources(base_name: str):
-        sources = [hf(base_name)]
-        if needs_block_dequant:
-            sources.append(hf(base_name.replace(".weight", ".weight_scale_inv")))
-        return sources
+    def identity_transform(param: np.ndarray, dtype: str):
+        return param.astype(dtype)
 
-    def make_concat_func(source_names: Tuple[str, ...], dtype: str):
-        def func(*arrays):
-            arr_iter = iter(arrays)
-            converted = []
-            for source in source_names:
-                weight = next(arr_iter)
-                scale = next(arr_iter) if needs_block_dequant else None
-                converted.append(convert_linear_weight(weight, scale, dtype, hf(source)))
-            return np.concatenate(converted, axis=0)
+    def concat_along_dim0(*arrays: np.ndarray, dtype: str):
+        return np.concatenate(arrays, axis=0).astype(dtype)
 
-        return func
-
-    def make_single_linear_func(source_name: str, dtype: str):
-        def func(*arrays):
-            weight = arrays[0]
-            scale = arrays[1] if needs_block_dequant else None
-            return convert_linear_weight(weight, scale, dtype, hf(source_name))
+    def make_shared_activation_transform(target_name: str):
+        def func(first: np.ndarray, *rest: np.ndarray, dtype: str):
+            for idx, arr in enumerate(rest, start=1):
+                if not np.allclose(arr, first):
+                    raise ValueError(
+                        f"Activation scales for {target_name} must be identical between "
+                        "concatenated sources."
+                    )
+            return first.astype(dtype)
 
         return func
 
@@ -148,37 +159,30 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         # Add QKV in self attention
         attn = f"model.layers.{i}.self_attn"
         mlc_name = f"{attn}.qkv_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        proj_sources = tuple(f"{attn}.{proj}.weight" for proj in ["q_proj", "k_proj", "v_proj"])
-        qkv_sources = []
-        for source in proj_sources:
-            qkv_sources.extend(block_weight_sources(source))
-        mapping.add_mapping(
+        proj_sources = [hf(f"{attn}.{proj}.weight") for proj in ["q_proj", "k_proj", "v_proj"]]
+        add_weight_and_scale_mapping(
             mlc_name,
-            qkv_sources,
-            make_concat_func(proj_sources, mlc_param.dtype),
+            proj_sources,
+            lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
         )
 
         # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
         mlc_name = f"{mlp}.gate_up_proj.weight"
-        mlc_param = named_parameters[mlc_name]
-        gate_proj_sources = tuple(f"{mlp}.{proj}.weight" for proj in ["gate_proj", "up_proj"])
-        gate_sources = []
-        for source in gate_proj_sources:
-            gate_sources.extend(block_weight_sources(source))
-        mapping.add_mapping(
+        gate_sources = [hf(f"{mlp}.{proj}.weight") for proj in ["gate_proj", "up_proj"]]
+        add_weight_and_scale_mapping(
             mlc_name,
             gate_sources,
-            make_concat_func(gate_proj_sources, mlc_param.dtype),
+            lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
         )
 
         for linear_name in [f"{attn}.o_proj.weight", f"{mlp}.down_proj.weight"]:
-            mlc_param = named_parameters[linear_name]
-            mapping.add_mapping(
+            add_weight_and_scale_mapping(
                 linear_name,
-                block_weight_sources(linear_name),
-                make_single_linear_func(linear_name, mlc_param.dtype),
+                [hf(linear_name)],
+                identity_transform,
             )
         
         # inv_freq is not used in the model
@@ -193,88 +197,5 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
-            )
-    return mapping
-
-
-def awq(model_config: Ministral3Config, quantization: Quantization) -> ExternMapping:
-    """Returns a parameter mapping that maps from the names of MLC LLM parameters to
-    the names of AWQ parameters.
-    Parameters
-    ----------
-    model_config : Ministral3Config
-        The configuration of the Ministral3 model.
-
-    quantization : Quantization
-        The quantization configuration.
-
-    Returns
-    -------
-    param_map : ExternMapping
-        The parameter mapping from MLC to AWQ.
-    """
-    model, _ = awq_quant(model_config, quantization)
-    _, _named_params = model.export_tvm(  # type: ignore[misc]
-        spec=model.get_default_spec(),  # type: ignore[attr-defined]
-        allow_extern=True,
-    )
-    named_parameters = dict(_named_params)
-
-    hf_prefix = ""
-    if "vision_config" in model_config.kwargs:
-        hf_prefix = "language_model."
-
-    def hf(name: str) -> str:
-        return f"{hf_prefix}{name}"
-
-    mapping = ExternMapping()
-
-    for i in range(model_config.num_hidden_layers):
-        # Add QKV in self attention
-        attn = f"model.layers.{i}.self_attn"
-        for quantize_suffix in ["qweight", "qzeros", "scales"]:
-            mlc_name = f"{attn}.qkv_proj.{quantize_suffix}"
-            assert mlc_name in named_parameters
-            mlc_param = named_parameters[mlc_name]
-            mapping.add_mapping(
-                mlc_name,
-                [
-                    hf(f"{attn}.q_proj.{quantize_suffix}"),
-                    hf(f"{attn}.k_proj.{quantize_suffix}"),
-                    hf(f"{attn}.v_proj.{quantize_suffix}"),
-                ],
-                functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-                    dtype=mlc_param.dtype,
-                ),
-            )
-
-        # Concat gate and up in MLP
-        mlp = f"model.layers.{i}.mlp"
-        for quantize_suffix in ["qweight", "qzeros", "scales"]:
-            mlc_name = f"{mlp}.gate_up_proj.{quantize_suffix}"
-            assert mlc_name in named_parameters
-            mlc_param = named_parameters[mlc_name]
-            mapping.add_mapping(
-                mlc_name,
-                [
-                    hf(f"{mlp}.gate_proj.{quantize_suffix}"),
-                    hf(f"{mlp}.up_proj.{quantize_suffix}"),
-                ],
-                functools.partial(
-                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-                    dtype=mlc_param.dtype,
-                ),
-            )
-
-        # inv_freq is not used in the model
-        mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
-
-    for mlc_name, mlc_param in named_parameters.items():
-        if mlc_name not in mapping.param_map:
-            mapping.add_mapping(
-                mlc_name,
-                [hf(mlc_name)],
-                functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
             )
     return mapping
