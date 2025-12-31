@@ -191,11 +191,4 @@ QUANTIZATION: Dict[str, Quantization] = {
         weight_dtype="float8_e4m3fn",
         model_dtype="bfloat16",
     ),
-    "fp8_e4m3fn_bf16_block_scale_static_activation": BlockScaleQuantize(
-        name="fp8_e4m3fn_bf16_block_scale_static_activation",
-        kind="block-scale-quant",
-        weight_dtype="float8_e4m3fn",
-        model_dtype="bfloat16",
-        use_activation_scale=True,
-    ),
 }

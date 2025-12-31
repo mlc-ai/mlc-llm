@@ -17,7 +17,6 @@ from . import (
     hermes,
     llama,
     llava,
-    ministral3,
     mistral,
     nemotron,
     oasst,
