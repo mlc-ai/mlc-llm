@@ -121,20 +121,76 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
             if weight_scale_mlc_name in named_parameters:
                 weight_scale_hf_names = [f"{name}_scale_inv" for name in weight_hf_names]
                 weight_scale_param = named_parameters[weight_scale_mlc_name]
+                expected_weight_scale_shape = tuple(int(dim) for dim in weight_scale_param.shape)
+
+                def _weight_scale_transform(*arrays, dtype: str, _transform=weight_transform_func):
+                    processed = []
+                    for arr in arrays:
+                        arr_np = np.asarray(arr)
+                        if arr_np.ndim == 0:
+                            arr_np = arr_np.reshape((1,))
+                        processed.append(arr_np)
+                    result = _transform(*processed, dtype=dtype)
+                    result = np.asarray(result, dtype=dtype)
+                    if result.shape == expected_weight_scale_shape:
+                        return result
+                    if result.shape == ():
+                        return np.full(expected_weight_scale_shape, result.item(), dtype=dtype)
+                    if result.shape == (1,) and expected_weight_scale_shape != (1,):
+                        return np.broadcast_to(result, expected_weight_scale_shape).astype(dtype)
+                    if (
+                        result.ndim == 1
+                        and result.size > 1
+                        and len(expected_weight_scale_shape) >= 2
+                        and expected_weight_scale_shape[0] % result.size == 0
+                    ):
+                        rows_per_segment = expected_weight_scale_shape[0] // result.size
+                        tiled = np.repeat(result, rows_per_segment)
+                        tiled = tiled.reshape(expected_weight_scale_shape[0], 1)
+                        return np.broadcast_to(tiled, expected_weight_scale_shape).astype(dtype)
+                    raise ValueError(
+                        f"Unexpected weight scale shape {result.shape} for "
+                        f"{weight_scale_mlc_name}, expected {expected_weight_scale_shape}"
+                    )
                 mapping.add_mapping(
                     weight_scale_mlc_name,
                     weight_scale_hf_names,
-                    functools.partial(weight_transform_func, dtype=weight_scale_param.dtype),
+                    functools.partial(_weight_scale_transform, dtype=weight_scale_param.dtype),
                 )
             activation_scale_mlc_name = f"{weight_mlc_name[: -len('.weight')]}.activation_scale"
             if activation_scale_mlc_name in named_parameters:
                 activation_scale_hf_names = [f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names]
                 activation_scale_param = named_parameters[activation_scale_mlc_name]
                 transform = activation_transform_func or weight_transform_func
+                expected_shape = tuple(int(dim) for dim in activation_scale_param.shape)
+
+                def _activation_scale_transform(*arrays, dtype: str, _transform=transform):
+                    result = _transform(*arrays, dtype=dtype)
+                    result = np.asarray(result, dtype=dtype)
+                    if result.shape == expected_shape:
+                        return result
+                    if result.shape == ():
+                        # HF checkpoint stores a single scale; broadcast across the expected dimension.
+                        return np.full(expected_shape, result.item(), dtype=dtype)
+                    if result.shape == (1,) and expected_shape != (1,):
+                        return np.broadcast_to(result, expected_shape).astype(dtype)
+                    if (
+                        result.ndim == 1
+                        and result.size > 1
+                        and len(expected_shape) >= 1
+                        and expected_shape[0] % result.size == 0
+                    ):
+                        rows_per_segment = expected_shape[0] // result.size
+                        tiled = np.repeat(result, rows_per_segment)
+                        return tiled.reshape(expected_shape).astype(dtype)
+                    raise ValueError(
+                        f"Unexpected activation scale shape {result.shape} for "
+                        f"{activation_scale_mlc_name}, expected {expected_shape}"
+                    )
                 mapping.add_mapping(
                     activation_scale_mlc_name,
                     activation_scale_hf_names,
-                    functools.partial(transform, dtype=activation_scale_param.dtype),
+                    functools.partial(_activation_scale_transform, dtype=activation_scale_param.dtype),
                 )
 
     def identity_transform(param: np.ndarray, dtype: str):

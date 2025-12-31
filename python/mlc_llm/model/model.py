@@ -145,7 +145,6 @@ MODELS: Dict[str, Model] = {
         source={
             "huggingface-torch": ministral3_loader.huggingface,
             "huggingface-safetensor": ministral3_loader.huggingface,
-            "awq": ministral3_loader.awq,
         },
         quantize={
             "group-quant": ministral3_quantization.group_quant,
