@@ -390,6 +390,15 @@ def detect_system_lib_prefix(
     return prefix_hint
 
 
+_MACABI_ARCH = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
+if _MACABI_ARCH not in ["arm64", "x86_64"]:
+    _MACABI_ARCH = "arm64"
+_MACABI_MTRIPLE = (
+    "x86_64-apple-ios18.0-macabi"
+    if _MACABI_ARCH == "x86_64"
+    else "arm64-apple-ios18.0-macabi"
+)
+
 PRESET = {
     "iphone:generic": {
         "target": {
@@ -414,7 +423,7 @@ PRESET = {
             "libs": ["macosx"],
             "host": {
                 "kind": "llvm",
-                "mtriple": "arm64-apple-ios18.0-macabi",
+                "mtriple": _MACABI_MTRIPLE,
             },
         },
         "build": _build_iphone,

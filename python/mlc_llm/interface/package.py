@@ -323,21 +323,22 @@ def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
 def build_macabi_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     """Build Mac Catalyst binding in MLC LLM"""
     deployment_target = os.environ.get("MLC_MACABI_DEPLOYMENT_TARGET", "18.0")
+    macabi_arch = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
     logger.info("Build macabi binding (deployment target %s)", deployment_target)
-    subprocess.run(
-        [
-            "bash",
-            mlc_llm_source_dir / "ios" / "prepare_libs.sh",
-            "--catalyst",
-            "--deployment-target",
-            deployment_target,
-        ],
-        check=True,
-        env=os.environ,
-    )
+    cmd = [
+        "bash",
+        mlc_llm_source_dir / "ios" / "prepare_libs.sh",
+        "--catalyst",
+        "--deployment-target",
+        deployment_target,
+    ]
+    if macabi_arch:
+        cmd += ["--arch", macabi_arch]
+    subprocess.run(cmd, check=True, env=os.environ)
 
     # Copy built libraries back to output directory.
-    for static_library in (Path("build-maccatalyst") / "lib").iterdir():
+    build_dir = Path(f"build-maccatalyst-{macabi_arch}")
+    for static_library in (build_dir / "lib").iterdir():
         dst_path = str(output / "lib" / static_library.name)
         logger.info('Copying "%s" to "%s"', static_library, dst_path)
         shutil.copy(static_library, dst_path)

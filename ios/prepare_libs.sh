@@ -64,9 +64,11 @@ if [ "$is_catalyst" = "true" ]; then
     echo "error: --simulator is not supported with --catalyst." >&2
     exit 1
   fi
-  arch="arm64"
+  if [ "$arch" != "x86_64" ]; then
+    arch="arm64"
+  fi
   sysroot="macosx"
-  build_dir="build-maccatalyst"
+  build_dir="build-maccatalyst-$arch"
 fi
 
 if [ "$is_simulator" = "true" ]; then
@@ -83,7 +85,11 @@ else
   # iOS devices
   rustup target add aarch64-apple-ios
   if [ "$is_catalyst" = "true" ]; then
-    rustup target add aarch64-apple-ios-macabi
+    if [ "$arch" = "x86_64" ]; then
+      rustup target add x86_64-apple-ios-macabi
+    else
+      rustup target add aarch64-apple-ios-macabi
+    fi
   fi
 fi
 
@@ -103,9 +109,14 @@ cmake_args=(
 
 if [ "$is_catalyst" = "true" ]; then
   toolchain="$MLC_LLM_SOURCE_DIR/3rdparty/tokenizers-cpp/sentencepiece/cmake/ios.toolchain.cmake"
+  if [ "$arch" = "x86_64" ]; then
+    platform="MAC_CATALYST"
+  else
+    platform="MAC_CATALYST_ARM64"
+  fi
   cmake_args+=(
     -DCMAKE_TOOLCHAIN_FILE="$toolchain"
-    -DPLATFORM=MAC_CATALYST_ARM64
+    -DPLATFORM="$platform"
     -DDEPLOYMENT_TARGET="$deployment_target"
     -DENABLE_BITCODE=OFF
   )
