@@ -171,13 +171,7 @@ It is recommended to have at least 6GB free VRAM to run it.
       MLC LLM on Android
 
 
-Що робити далі
----------------
-
-- Перегляньте :ref:'introduction-to-mlc-llm' для представлення повного робочого процесу в MLC LLM.
-- Залежно від вашого випадку використання, ознайомтеся з нашою документацією API та сторінками навчальних матеріалів:
-
-- :ref:'webllm-runtime'What to Do Next
+What to Do Next
 ---------------
 
 - Check out :ref:`introduction-to-mlc-llm` for the introduction of a complete workflow in MLC LLM.
