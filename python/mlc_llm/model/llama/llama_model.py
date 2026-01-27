@@ -15,6 +15,7 @@ from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
+from mlc_llm.support.numa_utils import get_numa_topology, is_numa_available
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,10 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     pipeline_parallel_stages: int = 1
     max_batch_size: int = 1
     disaggregation: bool = False
+    # NUMA-aware tensor parallel configuration
+    numa_tensor_parallel: bool = False
+    numa_inter_node_penalty: float = 0.3
+    numa_prefer_local_memory: bool = True
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):  # pylint: disable=too-many-branches
@@ -257,6 +262,20 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.disaggregation = config.disaggregation
         self.dtype = "float32"
+
+        # NUMA-aware tensor parallel configuration
+        self.numa_tensor_parallel = config.numa_tensor_parallel
+        self.numa_inter_node_penalty = config.numa_inter_node_penalty
+        self.numa_prefer_local_memory = config.numa_prefer_local_memory
+
+        # Initialize NUMA topology if enabled
+        if self.numa_tensor_parallel and is_numa_available():
+            self.numa_topology = get_numa_topology()
+            logger.info(
+                f"Initialized NUMA-aware Llama model with {self.numa_topology.get_node_count()} NUMA nodes"
+            )
+        else:
+            self.numa_topology = None
 
         def _set_pp():
             # hidden layers
