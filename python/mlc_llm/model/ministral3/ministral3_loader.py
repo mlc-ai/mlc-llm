@@ -9,10 +9,9 @@ from typing import Optional, Tuple, List, Callable
 import numpy as np
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, BlockScaleQuantize
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
-from .ministral3_quantization import BlockScaleQuantize
 
 
 def _dequantize_block_scale_weight(

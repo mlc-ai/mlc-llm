@@ -78,26 +78,32 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 if (
                     quant_method == "fp8"
                     and activation_scheme == "static"
-                    and weight_block_size is not None
                 ):
-                    self.weight_block_size = weight_block_size
-                    if (
-                        not isinstance(self.weight_block_size, (tuple, list))
-                        or len(self.weight_block_size) != 2
-                    ):
-                        raise ValueError(
-                            "Invalid Ministral3 quantization config: "
-                            "weight_block_size must be a tuple of two integers, "
-                            f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
+                    if weight_block_size is not None:
+                        self.weight_block_size = weight_block_size
+                        if (
+                            not isinstance(self.weight_block_size, (tuple, list))
+                            or len(self.weight_block_size) != 2
+                        ):
+                            raise ValueError(
+                                "Invalid Ministral3 quantization config: "
+                                "weight_block_size must be a list or tuple of two integers, "
+                                f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
+                            )
+                    else:
+                        # Set default block size if not provided.
+                        self.weight_block_size = (128, 128)
+                        logger.info(
+                            "Setting default weight_block_size=%s since quantization_config does not provide "
+                            "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s)",
+                            self.weight_block_size,
+                            activation_scheme,
+                            quant_method,
                         )
                 else:
-                    self.weight_block_size = [128, 128]
-                    logger.info(
-                        "Setting default weight_block_size=%s since quantization_config does not provide "
-                        "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s)",
-                        self.weight_block_size,
-                        activation_scheme,
-                        quant_method,
+                    raise ValueError(
+                        "Invalid Ministral 3 model quantization config: only FP8 static quantization is supported, "
+                        f"got activation_scheme={activation_scheme}, quant_method={quant_method}"
                     )
             else:
                 raise ValueError(

@@ -406,12 +406,6 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             self.block_size[1],
             self.weight_dtype,
         )
-        x_scale_triton = broadcast_activation_scale(
-            x,
-            self.activation_scale,
-            self.block_size[1],
-            transpose=False,
-        )
         shape_supported_by_cutlass = (
             self.weight.shape[0] % 128 == 0 and self.weight.shape[1] % 128 == 0
         )
@@ -438,6 +432,12 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
                 self.out_dtype if self.out_dtype is not None else x.dtype,
             )
         else:
+            x_scale_triton = broadcast_activation_scale(
+                x,
+                self.activation_scale,
+                self.block_size[1],
+                transpose=False,
+            )
             out = triton.fp8_groupwise_scaled_gemm(
                 x_fp8,
                 x_scale_triton,
