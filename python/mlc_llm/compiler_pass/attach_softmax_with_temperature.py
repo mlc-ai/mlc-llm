@@ -248,7 +248,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         sch.annotate(unroll, ann_key="pragma_unroll_explicit", ann_val=1)
 
         for block_name in ["sum_exp", "max"]:
-            block = sch.get_block(block_name)
+            block = sch.get_sblock(block_name)
             sch.set_scope(block, buffer_index=0, storage_scope="shared")
             sch.compute_at(block, bx)
             r_loop = sch.get_loops(block)[-1]

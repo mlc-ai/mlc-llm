@@ -527,7 +527,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                 sch.storage_align(block, 0, axis=1, factor=8, offset=vec_len)
             return block
 
-        main_block = sch.get_block("compute")
+        main_block = sch.get_sblock("compute")
         x, y, k = sch.get_loops(main_block)
         ty, yi = sch.split(y, [TY, None])
         tx, xi, vec_c = sch.split(x, [TX, None, VEC_DOT])
@@ -539,12 +539,12 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
         if UNROLL > 0:
             sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=UNROLL)
             sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
-        l2g = sch.get_block("store")
+        l2g = sch.get_sblock("store")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
         _, v = sch.split(sch.get_loops(l2g)[-1], [None, VEC_O])
         sch.vectorize(v)
-        _cooperative_fetch(sch.get_block("X_shared"), vec_len=VEC_X)
-        _cooperative_fetch(sch.get_block("W_shared"), vec_len=VEC_W)
+        _cooperative_fetch(sch.get_sblock("X_shared"), vec_len=VEC_X)
+        _cooperative_fetch(sch.get_sblock("W_shared"), vec_len=VEC_W)
         sch.decompose_reduction(main_block, ko)
         return sch.mod["main"]
 
@@ -733,7 +733,7 @@ def dequantize_group_gemm(
                 sch.storage_align(block, 0, axis=1, factor=8, offset=vec_len)
             return block
 
-        main_block = sch.get_block("compute")
+        main_block = sch.get_sblock("compute")
         x, y, k = sch.get_loops(main_block)
         ty, yi = sch.split(y, [TY, None])
         tx, xi, vec_c = sch.split(x, [TX, None, VEC_DOT])
@@ -745,12 +745,12 @@ def dequantize_group_gemm(
         if UNROLL > 0:
             sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=UNROLL)
             sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
-        l2g = sch.get_block("store")
+        l2g = sch.get_sblock("store")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
         _, v = sch.split(sch.get_loops(l2g)[-1], [None, VEC_O])
         sch.vectorize(v)
-        _cooperative_fetch(sch.get_block("X_shared"), vec_len=VEC_X)
-        _cooperative_fetch(sch.get_block("W_shared"), vec_len=VEC_W)
+        _cooperative_fetch(sch.get_sblock("X_shared"), vec_len=VEC_X)
+        _cooperative_fetch(sch.get_sblock("W_shared"), vec_len=VEC_W)
         sch.decompose_reduction(main_block, ko)
         return sch.mod["main"]
 

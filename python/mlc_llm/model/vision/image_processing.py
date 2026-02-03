@@ -120,7 +120,7 @@ class ImageProcessor(Module):
                                     ]
 
             sch = tir.Schedule(crop_func)
-            self.apply_schedule(sch, sch.get_block("crop"))
+            self.apply_schedule(sch, sch.get_sblock("crop"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         n, c, orig_height, orig_width = image.shape
@@ -166,7 +166,7 @@ class ImageProcessor(Module):
                                     )
 
             sch = tir.Schedule(rescale_func)
-            self.apply_schedule(sch, sch.get_block("rescale"))
+            self.apply_schedule(sch, sch.get_sblock("rescale"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         out = op.tensor_ir_op(
@@ -214,7 +214,7 @@ class ImageProcessor(Module):
                                     ) / stddev[c_idx]
 
             sch = tir.Schedule(normalize_func)
-            self.apply_schedule(sch, sch.get_block("normalize"))
+            self.apply_schedule(sch, sch.get_sblock("normalize"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         out = op.tensor_ir_op(
@@ -253,7 +253,7 @@ class ImageProcessor(Module):
                                     ]
 
             sch = tir.Schedule(pad_func)
-            self.apply_schedule(sch, sch.get_block("pad"))
+            self.apply_schedule(sch, sch.get_sblock("pad"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         h = image.shape[2]
