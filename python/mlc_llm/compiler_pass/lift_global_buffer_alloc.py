@@ -93,7 +93,7 @@ def remove_global_buf_alloc(
     func: tir.PrimFunc,
 ) -> Tuple[tir.PrimFunc, List[relax.TensorStructInfo]]:
     """Remove the global buffer allocation for a given TIR PrimFunc."""
-    assert isinstance(func.body, tir.BlockRealize)
+    assert isinstance(func.body, tir.SBlockRealize)
     params = list(func.params)
     buffer_map = dict(func.buffer_map)
     tensor_sinfo = []
@@ -124,7 +124,7 @@ def remove_global_buf_alloc(
     assert len(prev_root_block.match_buffers) == 0
     assert prev_root_block.name_hint == "root"
     assert prev_root_block.init is None
-    root_block = tir.Block(
+    root_block = tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -136,7 +136,7 @@ def remove_global_buf_alloc(
 
     updated_func = tir.PrimFunc(
         params=params,
-        body=tir.BlockRealize(iter_values=[], predicate=True, block=root_block),
+        body=tir.SBlockRealize(iter_values=[], predicate=True, block=root_block),
         ret_type=func.ret_type,
         buffer_map=buffer_map,
         attrs=func.attrs,

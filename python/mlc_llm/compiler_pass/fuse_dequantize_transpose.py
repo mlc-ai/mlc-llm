@@ -74,7 +74,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
             or not isinstance(dequantize_tir_func.body.block.body, tir.SeqStmt)
             or len(dequantize_tir_func.body.block.body) != 2
             or not isinstance(dequantize_tir_func.body.block.body[1], tir.For)
-            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tir.BlockRealize)
+            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tir.SBlockRealize)
             or dequantize_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
         ):
             return call
@@ -85,10 +85,10 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
         new_func_buffers[-1] = dequantize_tir_func.body.block.alloc_buffers[0]
         new_func = tir.PrimFunc(
             params=new_func_buffers,
-            body=tir.BlockRealize(
+            body=tir.SBlockRealize(
                 iter_values=[],
                 predicate=True,
-                block=tir.Block(
+                block=tir.SBlock(
                     iter_vars=[],
                     reads=[],
                     writes=[],
