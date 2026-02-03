@@ -29,6 +29,7 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
     model_dtype: Literal["float16", "bfloat16"] = "bfloat16"
     quantize_linear: bool = True
     weight_block_size: Optional[Tuple[int, int]] = None
+    use_activation_scale: bool = False
 
     def __post_init__(self):
         assert self.kind == "block-scale-quant"
@@ -157,6 +158,10 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
                     and not is_final_fc(name)
                     and not is_moe_gate(name, node)
                 ):
+                    if self.config.use_activation_scale:
+                        return BlockScaleQuantizeLinearStaticActivation.from_linear(
+                            node, self.config, weight_block_size
+                        )
                     return BlockScaleQuantizeLinear.from_linear(
                         node, self.config, weight_block_size
                     )
@@ -322,6 +327,128 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
             self.bias.to(dtype=dtype)
         if dtype is not None and isinstance(getattr(self, "dtype", None), str):
             self.dtype = dtype  # pylint: disable=attribute-defined-outside-init
+
+
+class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
+    """Block-scale quantization for static activation FP8."""
+
+    def __init__(  # pylint: disable=too-many-arguments
+        self,
+        in_features: int,
+        out_features: int,
+        weight_dtype: Literal["float8_e4m3fn", "float8_e5m2"],
+        block_size: Tuple[int, int],
+        bias: bool = True,
+        dtype: Optional[str] = None,
+        out_dtype: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            in_features=in_features,
+            out_features=out_features,
+            weight_dtype=weight_dtype,
+            block_size=block_size,
+            bias=bias,
+            dtype=dtype,
+            out_dtype=out_dtype,
+        )
+        num_in_groups = (in_features + block_size[1] - 1) // block_size[1]
+        self.activation_scale = nn.Parameter((num_in_groups,), "float32")
+
+    @staticmethod
+    def from_linear(
+        src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
+    ) -> "BlockScaleQuantizeLinearStaticActivation":
+        """
+        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
+        
+        Parameters
+        ----------
+        src : nn.Linear
+            The non-quantized nn.Linear.
+
+        config : BlockScaleQuantize
+            The block-scale quantization config.
+        
+        weight_block_size : Optional[Tuple[int, int]]
+            The weight block size.
+            
+        Returns
+        -------
+        ret : BlockScaleQuantizeLinearStaticActivation
+            The block-scale quantized BlockScaleQuantizeLinearStaticActivation
+        """
+        assert weight_block_size is not None
+        out_features, in_features = src.weight.shape
+        quantized_linear = BlockScaleQuantizeLinearStaticActivation(
+            in_features=in_features,
+            out_features=out_features,
+            weight_dtype=config.weight_dtype,
+            block_size=weight_block_size,
+            bias=getattr(src, "bias", None) is not None,
+            dtype=config.model_dtype,
+            out_dtype=src.out_dtype,
+        )
+        if quantized_linear.bias is not None:
+            quantized_linear.bias.attrs = src.bias.attrs
+        if "shard_strategy" in src.weight.attrs:
+            shard = src.weight.attrs["shard_strategy"]
+            apply_sharding(shard, shard.name, quantized_linear.weight)
+            if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
+                shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
+            apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
+            apply_sharding(shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale)
+        return quantized_linear
+
+    def forward(self, x: nn.Tensor) -> nn.Tensor:
+        x_fp8 = static_activation_group_quant_fp8(
+            x,
+            self.activation_scale,
+            self.block_size[1],
+            self.weight_dtype,
+        )
+        shape_supported_by_cutlass = (
+            self.weight.shape[0] % 128 == 0 and self.weight.shape[1] % 128 == 0
+        )
+        if (
+            extern.get_store().cutlass_gemm
+            and shape_supported_by_cutlass
+            and tvm.get_global_func(
+                "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn", allow_missing=True
+            )
+            is not None
+        ):
+            x_scale = broadcast_activation_scale(
+                x,
+                self.activation_scale,
+                self.block_size[1],
+                transpose=True,
+            )
+            out = cutlass.fp8_groupwise_scaled_gemm(
+                x_fp8,
+                x_scale,
+                self.weight,
+                self.weight_scale_inv,
+                self.block_size,
+                self.out_dtype if self.out_dtype is not None else x.dtype,
+            )
+        else:
+            x_scale_triton = broadcast_activation_scale(
+                x,
+                self.activation_scale,
+                self.block_size[1],
+                transpose=False,
+            )
+            out = triton.fp8_groupwise_scaled_gemm(
+                x_fp8,
+                x_scale_triton,
+                self.weight,
+                self.weight_scale_inv,
+                self.block_size,
+                self.out_dtype if self.out_dtype is not None else x.dtype,
+            )
+        if self.bias is not None:
+            out = out + self.bias
+        return out
 
 
 class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instance-attributes
@@ -560,6 +687,58 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
 
     x_quantized, scale = nn.tensor_expr_op(quantize, name_hint="rowwise_group_quant_fp8", args=[x])
     return x_quantized, scale
+
+
+def static_activation_group_quant_fp8(
+    x: nn.Tensor,
+    activation_scale: nn.Tensor,
+    group_size: int,
+    dtype: Literal["float8_e4m3fn", "float8_e5m2"],
+) -> nn.Tensor:
+    """Quantize activations with a pre-computed scale."""
+
+    assert activation_scale.ndim == 1
+
+    def quantize(x: te.Tensor, scale: te.Tensor):
+        fp8_max = 448.0 if dtype == "float8_e4m3fn" else 57344.0
+        fp8_min = -fp8_max
+
+        def fcompute(*idx):
+            group_idx = tir.indexdiv(idx[-1], group_size)
+            return tir.max(
+                tir.min(
+                    x(*idx).astype("float32") / scale(group_idx),
+                    fp8_max,
+                ),
+                fp8_min,
+            ).astype(dtype)
+
+        return te.compute(shape=x.shape, fcompute=fcompute, name="static_activation_group_fp8")
+
+    quantized = nn.tensor_expr_op(
+        quantize,
+        name_hint="static_activation_group_fp8",
+        args=[x, activation_scale],
+    )
+    return quantized
+
+
+def broadcast_activation_scale(
+    x: nn.Tensor,
+    activation_scale: nn.Tensor,
+    group_size: int,
+    transpose: bool,
+) -> nn.Tensor:
+    """Broadcast stored activation scales."""
+
+    reshape_shape = (1,) * (x.ndim - 1) + (activation_scale.shape[0],)
+    scale = nn.op.reshape(activation_scale, reshape_shape)
+    scale = nn.op.broadcast_to(scale, (*x.shape[:-1], activation_scale.shape[0]))
+    if transpose:
+        axes = list(range(scale.ndim))
+        axes[-1], axes[-2] = axes[-2], axes[-1]
+        scale = nn.op.permute_dims(scale, axes=axes)
+    return scale
 
 
 def dequantize_float8_groupwise_scaled_gemv(
