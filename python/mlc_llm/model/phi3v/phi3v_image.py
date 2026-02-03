@@ -98,7 +98,7 @@ class Phi3ImageEmbedding(Module):
                 for n_idx in T.thread_binding(n * ch0, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c * ch1, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h * ch2, w * ch3):
-                            with T.block("dyn_repeat_4d_tensor"):
+                            with T.sblock("dyn_repeat_4d_tensor"):
                                 T.reads(input_tensor_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 out_buf[n_idx, c_idx, h_idx, w_idx] = input_tensor_buf[
@@ -129,7 +129,7 @@ class Phi3ImageEmbedding(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h1 + h2, w):
-                            with T.block("dyn_concate_dim_2"):
+                            with T.sblock("dyn_concate_dim_2"):
                                 T.reads(input_1_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h1:
@@ -167,7 +167,7 @@ class Phi3ImageEmbedding(Module):
 
                 for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                     for h_idx, w_idx in T.grid(h1 + h2, w):
-                        with T.block("dyn_concate_dim_1"):
+                        with T.sblock("dyn_concate_dim_1"):
                             T.reads(input_1_buf[c_idx, h_idx, w_idx])
                             T.writes(out_buf[c_idx, h_idx, w_idx])
                             if h_idx < h1:

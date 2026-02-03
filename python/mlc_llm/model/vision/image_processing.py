@@ -111,7 +111,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.block("crop"):
+                            with T.sblock("crop"):
                                 if (h_idx + T.int64(top)) < h and (w_idx + T.int64(left)) < w:
                                     T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                     T.reads(image_buf[n_idx, c_idx, h_idx + top, w_idx + left])
@@ -156,7 +156,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.block("rescale"):
+                            with T.sblock("rescale"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h and w_idx < w:
@@ -193,7 +193,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.block("normalize"):
+                            with T.sblock("normalize"):
                                 T.reads(
                                     image_buf[n_idx, c_idx, h_idx, w_idx],
                                     mean[c_idx],
@@ -242,7 +242,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.block("pad"):
+                            with T.sblock("pad"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < t or h_idx > h + b or w_idx < l or w_idx > w + r:

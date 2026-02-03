@@ -103,21 +103,21 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
             local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
-                    with T.block("top_k"):
+                    with T.sblock("top_k"):
                         vi = T.axis.spatial(batch_size, io * TX + ii)
                         T.where(io * TX + ii < batch_size)
-                        with T.block("init"):
+                        with T.sblock("init"):
                             _gating_topk_init_local_top_k(
                                 k_val, dtype, local_top_k, local_top_k_index
                             )
                         for k in range(num_local_experts):
-                            with T.block("update"):
+                            with T.sblock("update"):
                                 vk = T.axis.remap("S", [k])
                                 _gating_topk_process_value(
                                     k_val, x, local_top_k, local_top_k_index, vi, vk
                                 )
                         for j in T.unroll(k_val):
-                            with T.block("output"):
+                            with T.sblock("output"):
                                 vj = T.axis.remap("S", [j])
                                 out[vi, vj] = local_top_k[vj]
                                 out_index[vi, vj] = local_top_k_index[vj]
@@ -194,27 +194,27 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
             local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
-                    with T.block("top_k"):
+                    with T.sblock("top_k"):
                         vi = T.axis.spatial(batch_size, io * TX + ii)
                         T.where(io * TX + ii < batch_size)
-                        with T.block("init"):
+                        with T.sblock("init"):
                             _gating_topk_init_local_top_k(
                                 k_val, dtype, local_top_k, local_top_k_index
                             )
                         for k in range(num_local_experts):
-                            with T.block("update"):
+                            with T.sblock("update"):
                                 vk = T.axis.remap("S", [k])
                                 _gating_topk_process_value(
                                     k_val, x, local_top_k, local_top_k_index, vi, vk
                                 )
                         for j in T.unroll(k_val):
-                            with T.block("cast"):
+                            with T.sblock("cast"):
                                 vj = T.axis.remap("S", [j])
                                 local_top_k_f32[vj] = T.cast(local_top_k[vj], "float32")
-                        with T.block("max"):
+                        with T.sblock("max"):
                             local_top_k_max[0] = _nested_max(local_top_k_f32)
                         for j in T.unroll(k_val):
-                            with T.block("output"):
+                            with T.sblock("output"):
                                 vj = T.axis.remap("S", [j])
                                 out[vi, vj] = T.cast(
                                     T.exp(local_top_k_f32[vj] - local_top_k_max[0])
@@ -322,7 +322,7 @@ def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
             var_output, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
         )
         for i, j, k in T.grid(num_tokens, topk_group, group_size):
-            with T.block("mask_scores"):
+            with T.sblock("mask_scores"):
                 vi, vj, vk = T.axis.remap("SSS", [i, j, k])
                 output[vi, group_idx_tir[vi, vj] * group_size + vk] = scores[
                     vi, group_idx_tir[vi, vj] * group_size + vk
@@ -358,7 +358,7 @@ def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
             )
             output = T.match_buffer(var_output, (num_tokens, top_k), dtype=scores_for_choice.dtype)
             for i, j in T.grid(num_tokens, top_k):
-                with T.block("gather_scores"):
+                with T.sblock("gather_scores"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     output[vi, vj] = scores[vi, expert_indices_tir[vi, vj]]
 
@@ -510,7 +510,7 @@ def get_indices(cumsum: Tensor, expert_indices: Tensor) -> Tuple[Tensor, Tensor]
         token_indices = T.match_buffer(var_token_indices, [batch_size * experts_per_tok], "int32")
         for bj_o in T.thread_binding(0, T.ceildiv(batch_size * experts_per_tok, TX), "blockIdx.x"):
             for bj_i in T.thread_binding(0, TX, "threadIdx.x"):
-                with T.block("indices"):
+                with T.sblock("indices"):
                     T.reads(expert_indices[:, :], cumsum[:])
                     T.writes(reverse_indices[:], token_indices[:])
                     if bj_o * TX + bj_i < batch_size * experts_per_tok:
@@ -585,7 +585,7 @@ def get_indptr(
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
         for vi in T.serial(0, out_shape[0]):
-            with T.block("indptr"):
+            with T.sblock("indptr"):
                 i = T.axis.spatial(out_shape[0], vi)
                 indptr[i] = T.Select(i > 0, cumsum[i * batch_size - 1], T.int32(0))
 
@@ -595,7 +595,7 @@ def get_indptr(
         cumsum = T.match_buffer(var_cumsum, shape=[batch_size * num_local_experts], dtype="int32")
         indptr = T.match_buffer(var_indptr, shape=out_shape, dtype=out_dtype)
         for vi in T.serial(0, out_shape[0]):
-            with T.block("indptr"):
+            with T.sblock("indptr"):
                 i = T.axis.spatial(out_shape[0], vi)
                 indptr[i] = cumsum[(i + 1) * batch_size - 1]
 
@@ -636,7 +636,7 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
         out = T.match_buffer(var_out, [indices_len, hidden_size], dtype)
         for i in T.serial(0, indices_len):
             for j in T.serial(0, hidden_size):
-                with T.block("scatter"):
+                with T.sblock("scatter"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     out[indices[vi], vj] = x[vi, vj]
 

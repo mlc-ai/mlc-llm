@@ -144,7 +144,7 @@ def full(var_result: T.handle, value: T.int32):
     batch_size = T.int32(is_size_var=True)
     result = T.match_buffer(var_result, (batch_size, 1), "int32")
     for i in T.serial(batch_size):
-        with T.block("block"):
+        with T.sblock("block"):
             vi = T.axis.spatial(batch_size, i)
             result[vi, 0] = value
 
@@ -305,7 +305,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
         top_prob_probs = T.match_buffer(var_top_prob_probs, (num_positions,), "float32")
         top_prob_indices = T.match_buffer(var_top_prob_indices, (num_positions,), "int32")
         for i in T.serial(num_positions + num_samples):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.spatial(num_positions + num_samples, i)
                 if vi < num_positions:
                     row = T.floordiv(top_prob_offsets[vi], vocab_size)
