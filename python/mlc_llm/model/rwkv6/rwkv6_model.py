@@ -99,12 +99,12 @@ def create_wkv6_func(
             for h in T.thread_binding(num_heads, thread="blockIdx.x"):
                 for i in T.thread_binding(head_size, thread="threadIdx.x"):
                     for j in range(head_size):
-                        with T.block("init_state"):
+                        with T.sblock("init_state"):
                             vb, vh, vi, vj = T.axis.remap("SSSS", [b, h, i, j])
                             out_state_buf[vb, vh, vi, vj] = state_buf[vb, vh, vi, vj]
 
                     for t in range(seq_len):
-                        with T.block("comput"):
+                        with T.sblock("comput"):
                             vb = T.axis.spatial(batch_size, b)
                             vt = T.axis.opaque(seq_len, t)
                             vh = T.axis.spatial(num_heads, h)

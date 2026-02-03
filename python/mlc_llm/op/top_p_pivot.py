@@ -68,7 +68,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
         final_pivot = T.match_buffer(var_final_pivot, (B,), "float32")
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")
 
-        with T.block("kernel"):
+        with T.sblock("kernel"):
             pivot = T.alloc_buffer((pN,), "float32", scope="local")
             top_p = _var("float32")
 
@@ -98,7 +98,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
 
             for _bx in T.thread_binding(0, B, thread="blockIdx.x"):
                 for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
-                    with T.block("CTA"):
+                    with T.sblock("CTA"):
                         b, tx = T.axis.remap("SS", [_bx, _tx])
 
                         top_p[0] = top_p_arr[b]
@@ -156,7 +156,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                 if it[0] % K == 0:
                                     # reduce total_sum over tx
                                     # T.tvm_storage_sync("shared")
-                                    with T.block("block_cross_thread"):
+                                    with T.sblock("block_cross_thread"):
                                         T.reads(total_sum[0])
                                         T.writes(total_sum_reduce[0])
                                         T.attr(
@@ -178,7 +178,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                             # reduce lsum, lmin, cmin, over tx
                             for pidx in T.serial(0, pN):
                                 # reduce lsum over tx for pivot[j]
-                                with T.block("block_cross_thread"):
+                                with T.sblock("block_cross_thread"):
                                     T.reads(lsum[pidx])
                                     T.writes(lsum_reduce[0])
                                     T.attr(
@@ -189,7 +189,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                     T.tvm_thread_allreduce(T.uint32(1), lsum[pidx], True, lsum_reduce[0], tx, dtype="handle")
 
                                 # reduce lmin over tx for pivot[j]
-                                with T.block("block_cross_thread"):
+                                with T.sblock("block_cross_thread"):
                                     T.reads(lmin[pidx])
                                     T.writes(lmin_reduce[0])
                                     T.attr(
@@ -212,7 +212,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
                                     lmin[pidx] = lmin_reduce[0]
 
                                 # reduce cmin over tx for pivot[j]
-                                with T.block("block_cross_thread"):
+                                with T.sblock("block_cross_thread"):
                                     T.reads(cmin[pidx])
                                     T.writes(cmin_reduce[0])
                                     T.attr(
@@ -314,7 +314,7 @@ def top_p_renorm(target: tvm.target.Target = None):
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")
         renorm_prob = T.match_buffer(var_renorm_prob, (B, N,), "float32")
 
-        with T.block("kernel"):
+        with T.sblock("kernel"):
             pivot = _var("float32")
             lsum = _var("float32")
             BX = T.meta_var(T.ceildiv(CTA_COUNT, B))
@@ -322,7 +322,7 @@ def top_p_renorm(target: tvm.target.Target = None):
             for _by in T.thread_binding(0, B, thread="blockIdx.y"):
                 for _bx in T.thread_binding(0, BX, thread="blockIdx.x"):
                     for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
-                        with T.block("CTA"):
+                        with T.sblock("CTA"):
                             by, bx, tx = T.axis.remap("SSS", [_by, _bx, _tx])
 
                             pivot[0] = final_pivot[by]

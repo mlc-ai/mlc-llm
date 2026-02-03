@@ -86,7 +86,7 @@ def batch_spec_verify(vocab_size):
         uniform_samples = T.match_buffer(var_uniform_samples, (num_nodes,), "float32")
         token_tree_parent_ptr = T.match_buffer(var_token_tree_parent_ptr, (nbatch,), "int32")
 
-        with T.block("kernel"):
+        with T.sblock("kernel"):
             child_ptr = _var()
             parent_ptr = _var()
             child_token = _var()
@@ -104,7 +104,7 @@ def batch_spec_verify(vocab_size):
 
             for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
                 for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
-                    with T.block("CTA"):
+                    with T.sblock("CTA"):
                         # batch size
                         b = T.axis.S(nbatch, _bx)
                         tx = T.axis.S(TX, _tx)
@@ -144,7 +144,7 @@ def batch_spec_verify(vocab_size):
                                             model_prob_local[0] = T.max(model_prob_local[0] - draft_prob_local[0], 0.0)
                                             psum[0] += model_prob_local[0]
 
-                                    with T.block("block_cross_thread"):
+                                    with T.sblock("block_cross_thread"):
                                         T.reads(psum[0])
                                         T.writes(t0[0])
                                         T.attr(

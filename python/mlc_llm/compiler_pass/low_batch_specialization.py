@@ -56,8 +56,8 @@ class LowBatchGemvSpecialize:  # pylint: disable=too-few-public-methods
                         low_batch_funcs[i].body,
                         body,
                     )
-                body = tir.Block([], [], [], "root", body)
-                body = tir.BlockRealize([], True, body)
+                body = tir.SBlock([], [], [], "root", body)
+                body = tir.SBlockRealize([], True, body)
                 new_func = func.with_body(body)
                 new_func = new_func.with_attr("tir.is_scheduled", 1)
                 new_func = new_func.with_attr("tir.HoistIfThenElseExprWithBlock", 1)

@@ -101,7 +101,7 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
 
         for p0 in T.thread_binding(0, (num_token + tx - 1) // tx, "blockIdx.x"):
             for p1 in T.thread_binding(0, tx, "threadIdx.x"):
-                with T.block("block"):
+                with T.sblock("block"):
                     vp = T.axis.spatial(num_token, p0 * tx + p1)
                     T.where(p0 * tx + p1 < num_token)
                     logits[pos2seq_id[vp], token_ids[vp]] += logit_bias[vp]
@@ -139,7 +139,7 @@ def _get_apply_penalty_inplace_cpu():
         penalties = T.match_buffer(var_penalties, (num_seq, 3), "float32")
 
         for token in T.serial(num_token):
-            with T.block("block"):
+            with T.sblock("block"):
                 vp = T.axis.spatial(num_token, token)
                 logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] -= (
                     penalties[pos2seq_id[vp], 0] + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
@@ -189,7 +189,7 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
 
         for p0 in T.thread_binding(0, (num_token + tx - 1) // tx, "blockIdx.x"):
             for p1 in T.thread_binding(0, tx, "threadIdx.x"):
-                with T.block("block"):
+                with T.sblock("block"):
                     vp = T.axis.spatial(num_token, p0 * tx + p1)
                     T.where(p0 * tx + p1 < num_token)
                     # Penalties: (presence_penalty, frequency_penalty, repetition_penalty)
@@ -230,7 +230,7 @@ def _get_apply_bitmask_inplace_cpu():
         bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")
 
         for token in T.serial(num_seq * vocab_size):
-            with T.block("block"):
+            with T.sblock("block"):
                 vs = T.axis.spatial(num_seq, (token) // vocab_size)
                 vv = T.axis.spatial(vocab_size, (token) % vocab_size)
 
@@ -272,7 +272,7 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
 
         for fused_s_v_0 in T.thread_binding(0, (num_seq * vocab_size + tx - 1) // tx, "blockIdx.x"):
             for fused_s_v_1 in T.thread_binding(0, tx, "threadIdx.x"):
-                with T.block("block"):
+                with T.sblock("block"):
                     vs = T.axis.spatial(num_seq, (fused_s_v_0 * tx + fused_s_v_1) // vocab_size)
                     vv = T.axis.spatial(vocab_size, (fused_s_v_0 * tx + fused_s_v_1) % vocab_size)
                     T.where(fused_s_v_0 * tx + fused_s_v_1 < num_seq * vocab_size)

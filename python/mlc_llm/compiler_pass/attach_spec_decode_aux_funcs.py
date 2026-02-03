@@ -46,7 +46,7 @@ def _get_scatter_2d_inplace(dtype: str, global_symbol: str):
         indices = T.match_buffer(var_indices, (batch_size,), "int32")
         dst = T.match_buffer(var_dst, (m, n), dtype)
         for b, j in T.grid(batch_size, n):
-            with T.block("scatter_2d"):
+            with T.sblock("scatter_2d"):
                 vb, vj = T.axis.remap("SS", [b, j])
                 dst[indices[vb], vj] = src[vb, vj]
 
@@ -64,7 +64,7 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
         indices = T.match_buffer(var_indices, (batch_size,), "int32")
         dst = T.match_buffer(var_dst, (batch_size, n), dtype)
         for b, j in T.grid(batch_size, n):
-            with T.block("gather_2d"):
+            with T.sblock("gather_2d"):
                 vb, vj = T.axis.remap("SS", [b, j])
                 dst[vb, vj] = src[indices[vb], vj]
 
