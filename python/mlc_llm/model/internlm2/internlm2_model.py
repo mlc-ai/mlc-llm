@@ -95,7 +95,9 @@ class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.rope_theta = config.rope_theta
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
-        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
+        self.num_key_value_heads = (
+            config.num_key_value_heads // config.tensor_parallel_shards
+        )
         self.max_position_embeddings = config.context_window_size
 
         self.wqkv = nn.Linear(
@@ -103,16 +105,20 @@ class InternLM2Attention(nn.Module):  # pylint: disable=too-many-instance-attrib
             (self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=config.bias,
         )
-        self.wo = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=config.bias)
+        self.wo = nn.Linear(
+            self.num_heads * self.head_dim, self.hidden_size, bias=config.bias
+        )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -127,7 +133,9 @@ class InternLM2MLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
@@ -145,8 +153,12 @@ class InternLM2DecoderLayer(nn.Module):
     def __init__(self, config: InternLM2Config):
         self.attention = InternLM2Attention(config)
         self.feed_forward = InternLM2MLP(config)
-        self.attention_norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.ffn_norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.attention_norm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
+        self.ffn_norm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
 
         def _set_tp():
             def _set(layer, hint):
@@ -171,12 +183,16 @@ class InternLM2DecoderLayer(nn.Module):
                 self.feed_forward.gate_up_proj.weight,
                 tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
             )
-            _set(self.feed_forward.w2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+            _set(
+                self.feed_forward.w2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1)
+            )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         residual = hidden_states
         hidden_states = self.attention_norm(hidden_states)
         hidden_states = self.attention(hidden_states, paged_kv_cache, layer_id)
@@ -258,7 +274,9 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.output(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -328,7 +346,9 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -344,7 +364,9 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -353,7 +375,9 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -361,7 +385,9 @@ class InternLM2ForCausalLM(nn.Module):  # pylint: disable=R0902
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

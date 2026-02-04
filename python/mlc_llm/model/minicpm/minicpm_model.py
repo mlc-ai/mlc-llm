@@ -106,25 +106,32 @@ class MiniCPMAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
 
         self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
         self.head_dim = config.head_dim
-        self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
+        self.num_key_value_heads = (
+            config.num_key_value_heads // self.tensor_parallel_shards
+        )
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.context_window_size
 
         self.wqkv_pack = nn.Linear(
             in_features=self.hidden_size,
-            out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
+            out_features=(self.num_heads + 2 * self.num_key_value_heads)
+            * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(self.num_heads * self.head_dim, self.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            self.num_heads * self.head_dim, self.hidden_size, bias=False
+        )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -162,9 +169,13 @@ class MiniCPMMLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
 
-        self.gate_up_proj = nn.Linear(self.hidden_size, 2 * self.intermediate_size, bias=False)
+        self.gate_up_proj = nn.Linear(
+            self.hidden_size, 2 * self.intermediate_size, bias=False
+        )
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
@@ -179,7 +190,9 @@ class MiniCPMMoE(nn.Module):
         self.num_local_experts = config.num_experts
         self.num_experts_per_tok = config.num_experts_per_tok
         self.gate = nn.Linear(config.hidden_size, config.num_experts, bias=False)
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.e1_e3 = MixtralExperts(
             self.num_local_experts,
             in_features=config.hidden_size,
@@ -210,9 +223,12 @@ class MiniCPMMoE(nn.Module):
         gate: Tensor = self.gate(x)
         # expert_weights: [num_tokens, experts_per_tok]
         # expert_indices: [num_tokens, experts_per_tok]
-        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(gate, experts_per_tok)
+        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(
+            gate, experts_per_tok
+        )
         use_ft = (
-            op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer
+            op_ext.get_store().cutlass_group_gemm
+            or op_ext.get_store().faster_transformer
         ) and self.dtype == "float16"
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
@@ -221,7 +237,9 @@ class MiniCPMMoE(nn.Module):
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, local_experts)
             # indices: [num_tokens * experts_per_tok]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(
+                cumsum, expert_indices
+            )
             if use_ft:
                 # indptr: [num_local_experts]
                 indptr = op_ext.moe_misc.get_indptr(
@@ -263,7 +281,9 @@ class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attri
             self.mlp = MiniCPMMLP(config)
         else:
             self.mlp = MiniCPMMoE(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, config.rms_norm_eps, bias=False
+        )
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
@@ -301,7 +321,9 @@ class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attri
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         residual = hidden_states
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
@@ -397,7 +419,9 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache) / self.scale_width
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
@@ -473,7 +497,9 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -489,7 +515,9 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -498,7 +526,9 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -506,7 +536,9 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

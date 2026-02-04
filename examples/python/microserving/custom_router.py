@@ -27,7 +27,10 @@ class CustomRouter(Router):
             prep_recv_request = microserving_entrypoints.PrepRecvRequest(
                 **request.model_dump(), end=decode_start
             )
-            (kv_addr_info, _,) = await self.send_prepare_receive(
+            (
+                kv_addr_info,
+                _,
+            ) = await self.send_prepare_receive(
                 session=session,
                 request=prep_recv_request,
                 server_url=self.server_urls[

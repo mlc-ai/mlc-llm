@@ -91,9 +91,13 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.num_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
 
-        self.c_attn = nn.Linear(config.hidden_size, 3 * self.num_heads * self.head_dim, bias=True)
+        self.c_attn = nn.Linear(
+            config.hidden_size, 3 * self.num_heads * self.head_dim, bias=True
+        )
 
-        self.c_proj = nn.Linear(self.num_heads * self.head_dim, config.hidden_size, bias=False)
+        self.c_proj = nn.Linear(
+            self.num_heads * self.head_dim, config.hidden_size, bias=False
+        )
 
     def forward(  # pylint: disable=too-many-locals
         self,
@@ -108,7 +112,7 @@ class QWenAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h * d),
         )
@@ -122,13 +126,17 @@ class QWenMLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=self.intermediate_size,
             bias=False,
         )
-        self.c_proj = nn.Linear(self.intermediate_size // 2, config.hidden_size, bias=False)
+        self.c_proj = nn.Linear(
+            self.intermediate_size // 2, config.hidden_size, bias=False
+        )
 
     def forward(self, x: Tensor):
         concat_x1_x2 = self.gate_up_proj(x)
@@ -161,7 +169,9 @@ class QWenBlock(nn.Module):
                 self.attn.c_attn.bias,
                 tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
             )
-            _set(self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1))
+            _set(
+                self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1)
+            )
             _set(
                 self.mlp.gate_up_proj.weight,
                 tp.ShardSingleDim("_shard_mlp_gate_up_proj", segs=[i, i], dim=0),
@@ -171,7 +181,9 @@ class QWenBlock(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         out = self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.ln_2(hidden_states))
@@ -188,8 +200,12 @@ class QWenModel(nn.Module):
     def __init__(self, config: QWenConfig):
         assert config.hidden_size % config.num_attention_heads == 0
         self.wte = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.h = nn.ModuleList([QWenBlock(config) for _ in range(config.num_hidden_layers)])
-        self.ln_f = nn.RMSNorm(config.hidden_size, -1, config.layer_norm_epsilon, bias=False)
+        self.h = nn.ModuleList(
+            [QWenBlock(config) for _ in range(config.num_hidden_layers)]
+        )
+        self.ln_f = nn.RMSNorm(
+            config.hidden_size, -1, config.layer_norm_epsilon, bias=False
+        )
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
@@ -202,7 +218,9 @@ class QWenModel(nn.Module):
 class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: QWenConfig):
         self.transformer = QWenModel(config)
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False, dtype="float32")
+        self.lm_head = nn.Linear(
+            config.hidden_size, config.vocab_size, bias=False, dtype="float32"
+        )
         self.hidden_size = config.hidden_size
         self.vocab_size = config.vocab_size
         self.num_hidden_layers = config.num_hidden_layers
@@ -264,7 +282,9 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
             logits = logits.astype("float32")
         return logits, paged_kv_cache
 
-    def batch_prefill(self, inputs: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache):
+    def batch_prefill(
+        self, inputs: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+    ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(inputs, paged_kv_cache, logit_positions)
@@ -339,7 +359,9 @@ class QWenLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
                 },
             },
             "batch_decode": {
-                "inputs": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "inputs": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

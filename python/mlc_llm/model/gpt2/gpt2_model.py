@@ -97,9 +97,13 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
             out_features=3 * self.num_heads * self.head_dim,
             bias=True,
         )
-        self.c_proj = nn.Linear(self.num_heads * self.head_dim, self.embed_dim, bias=True)
+        self.c_proj = nn.Linear(
+            self.num_heads * self.head_dim, self.embed_dim, bias=True
+        )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
 
@@ -117,7 +121,7 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
                 layer_id,
                 qkv,
                 self.num_heads,
-                sm_scale=attn_score_scaling_factor * (self.head_dim ** -0.5),
+                sm_scale=attn_score_scaling_factor * (self.head_dim**-0.5),
             ),
             (b, s, h * d),
         )
@@ -165,7 +169,9 @@ class GPT2Block(nn.Module):
                 self.attn.c_attn.bias,
                 tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
             )
-            _set(self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1))
+            _set(
+                self.attn.c_proj.weight, tp.ShardSingleDim("_shard_attn_c_proj", dim=1)
+            )
             _set(
                 self.mlp.c_fc.weight,
                 tp.ShardSingleDim("_shard_c_fc_weight", dim=0),
@@ -176,7 +182,9 @@ class GPT2Block(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         with (
             tp.shard_bias(self.attn.c_proj, self.tensor_parallel_shards),
             tp.shard_bias(self.mlp.c_proj, self.tensor_parallel_shards),
@@ -185,7 +193,9 @@ class GPT2Block(nn.Module):
                 self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id),
                 hidden_states,
             )
-            hidden_states = self._apply_residual(self.mlp(self.ln_2(hidden_states)), hidden_states)
+            hidden_states = self._apply_residual(
+                self.mlp(self.ln_2(hidden_states)), hidden_states
+            )
 
         return hidden_states
 
@@ -263,7 +273,9 @@ class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -349,7 +361,9 @@ class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.n_embed], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.n_embed], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -358,7 +372,9 @@ class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.n_embed], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.n_embed], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -366,7 +382,9 @@ class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.n_embed], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.n_embed], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
