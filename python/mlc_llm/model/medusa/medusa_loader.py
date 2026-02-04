@@ -11,9 +11,7 @@ from mlc_llm.quantization import Quantization
 from .medusa_model import MedusaConfig, MedusaModel
 
 
-def huggingface(
-    model_config: MedusaConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: MedusaConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 

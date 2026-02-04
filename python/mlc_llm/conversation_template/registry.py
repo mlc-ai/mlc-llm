@@ -11,9 +11,7 @@ class ConvTemplateRegistry:
     _conv_templates: Dict[str, Conversation] = {}
 
     @staticmethod
-    def register_conv_template(
-        conv_template: Conversation, override: bool = False
-    ) -> None:
+    def register_conv_template(conv_template: Conversation, override: bool = False) -> None:
         """Register a new conversation template in the global registry.
         Using `override = True` to override the previously registered
         template with the same name.

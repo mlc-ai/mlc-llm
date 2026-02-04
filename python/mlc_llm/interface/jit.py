@@ -152,8 +152,8 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                     indent=2,
                 ).encode("utf-8")
             ).hexdigest()
-            system_lib_prefix = (
-                f"{model_type}_{quantization}_{system_lib_hash_value}".replace("-", "_")
+            system_lib_prefix = f"{model_type}_{quantization}_{system_lib_hash_value}".replace(
+                "-", "_"
             )
         hash_key["system_lib_prefix"] = system_lib_prefix
     hash_value = hashlib.md5(

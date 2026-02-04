@@ -69,9 +69,7 @@ def huggingface(model_config: GemmaConfig, quantization: Quantization) -> Extern
                 f"{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )

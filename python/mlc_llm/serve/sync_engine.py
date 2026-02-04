@@ -91,9 +91,7 @@ class SyncMLCEngine:
         mode: Literal["local", "interactive", "server"] = "local",
         engine_config: Optional[EngineConfig] = None,
         enable_tracing: bool = False,
-        request_stream_callback: Optional[
-            Callable[[List[data.RequestStreamOutput]], None]
-        ] = None,
+        request_stream_callback: Optional[Callable[[List[data.RequestStreamOutput]], None]] = None,
     ):
         # - Check the fields fields of `engine_config`.
         if engine_config is None:
@@ -157,9 +155,7 @@ class SyncMLCEngine:
 
     def generate(  # pylint: disable=too-many-locals
         self,
-        prompts: Union[
-            str, List[str], List[int], List[List[int]], List[List[data.Data]]
-        ],
+        prompts: Union[str, List[str], List[int], List[List[int]], List[List[data.Data]]],
         generation_config: Union[GenerationConfig, List[GenerationConfig]],
     ) -> Tuple[List[List[str]], List[Optional[List[List[str]]]]]:
         """Generate texts for a list of input prompts.
@@ -209,9 +205,9 @@ class SyncMLCEngine:
         if not isinstance(generation_config, list):
             generation_config = [generation_config] * num_requests
 
-        assert len(generation_config) == num_requests, (
-            "Number of generation config and number of prompts mismatch"
-        )
+        assert (
+            len(generation_config) == num_requests
+        ), "Number of generation config and number of prompts mismatch"
 
         num_finished_generations = 0
         output_texts: List[List[str]] = []
@@ -247,9 +243,7 @@ class SyncMLCEngine:
                 ):
                     if output_logprobs_str[rid] is not None:
                         assert stream_output.delta_logprob_json_strs is not None
-                        output_logprobs_str[rid][i] += (
-                            stream_output.delta_logprob_json_strs
-                        )
+                        output_logprobs_str[rid][i] += stream_output.delta_logprob_json_strs
 
                     delta_text = stream_output.extra_prefix_string + (
                         text_streamer.put(stream_output.delta_token_ids)
@@ -276,9 +270,7 @@ class SyncMLCEngine:
             return prompt  # type: ignore
 
         # Add requests to engine.
-        for req_id, (prompt, generation_cfg) in enumerate(
-            zip(prompts, generation_config)
-        ):
+        for req_id, (prompt, generation_cfg) in enumerate(zip(prompts, generation_config)):
             input_data = convert_to_data(prompt)  # type: ignore
             self.add_request(
                 self.create_request(

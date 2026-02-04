@@ -28,15 +28,11 @@ class EngineState:
         # ChatCompletionStreamResponse
 
         def _callback(chat_completion_stream_responses_json_str: str) -> None:
-            self._sync_request_stream_callback(
-                chat_completion_stream_responses_json_str
-            )
+            self._sync_request_stream_callback(chat_completion_stream_responses_json_str)
 
         return _callback
 
-    def _sync_request_stream_callback(
-        self, chat_completion_stream_responses_json_str: str
-    ) -> None:
+    def _sync_request_stream_callback(self, chat_completion_stream_responses_json_str: str) -> None:
         # Put the delta outputs to the queue in the unblocking way.
         self.sync_queue.put_nowait(chat_completion_stream_responses_json_str)
 
@@ -58,12 +54,8 @@ class EngineState:
             last_chunk_arrived = False
             while not last_chunk_arrived:
                 chat_completion_responses_json_str = self.sync_queue.get()
-                chat_completion_responses_list = json.loads(
-                    chat_completion_responses_json_str
-                )
-                for (
-                    chat_completion_response_json_dict
-                ) in chat_completion_responses_list:
+                chat_completion_responses_list = json.loads(chat_completion_responses_json_str)
+                for chat_completion_response_json_dict in chat_completion_responses_list:
                     chat_completion_response = (
                         openai_api_protocol.ChatCompletionStreamResponse.model_validate(
                             chat_completion_response_json_dict
@@ -91,9 +83,7 @@ class BackgroundLoops:
         background_stream_back_loop = self._ffi["run_background_stream_back_loop"]
 
         # Create the background engine-driving thread and start the loop.
-        self._background_loop_thread: threading.Thread = threading.Thread(
-            target=background_loop
-        )
+        self._background_loop_thread: threading.Thread = threading.Thread(target=background_loop)
         self._background_stream_back_loop_thread: threading.Thread = threading.Thread(
             target=background_stream_back_loop
         )
@@ -120,9 +110,7 @@ class Completions:
     _state: EngineState
     _background_loops: BackgroundLoops
 
-    def __init__(
-        self, ffi: dict, state: EngineState, background_loops: BackgroundLoops
-    ):
+    def __init__(self, ffi: dict, state: EngineState, background_loops: BackgroundLoops):
         self._ffi = ffi
         self._state = state
         self._background_loops = background_loops
@@ -154,9 +142,7 @@ class Completions:
     ) -> Iterator[openai_api_protocol.ChatCompletionStreamResponse]:
         if request_id is None:
             request_id = f"chatcmpl-{engine_utils.random_uuid()}"
-        debug_config = (
-            extra_body.get("debug_config", None) if extra_body is not None else None
-        )
+        debug_config = extra_body.get("debug_config", None) if extra_body is not None else None
         if not stream:
             raise ValueError("JSONFFIEngine only support stream=True")
         request = openai_api_protocol.ChatCompletionRequest(
@@ -190,9 +176,7 @@ class Completions:
             tool_choice=tool_choice,
             user=user,
             response_format=(
-                openai_api_protocol.RequestResponseFormat.model_validate(
-                    response_format
-                )
+                openai_api_protocol.RequestResponseFormat.model_validate(response_format)
                 if response_format is not None
                 else None
             ),
@@ -206,8 +190,7 @@ class Completions:
             self._ffi,
             request.model_dump_json(by_alias=True),
             include_usage=(
-                request.stream_options is not None
-                and request.stream_options.include_usage
+                request.stream_options is not None and request.stream_options.include_usage
             ),
             request_id=request_id,
         )
@@ -220,9 +203,7 @@ class Chat:
 
     completions: Completions
 
-    def __init__(
-        self, ffi: dict, state: EngineState, background_loops: BackgroundLoops
-    ):
+    def __init__(self, ffi: dict, state: EngineState, background_loops: BackgroundLoops):
         self.completions = Completions(ffi, state, background_loops)
 
 
@@ -256,9 +237,7 @@ class JSONFFIEngine:
 
         # - Initialize engine state and engine.
         self._state = EngineState()
-        module = tvm.get_global_func(
-            "mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False
-        )()
+        module = tvm.get_global_func("mlc.json_ffi.CreateJSONFFIEngine", allow_missing=False)()
         self._ffi = {
             key: module[key]
             for key in [

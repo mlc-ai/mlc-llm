@@ -59,9 +59,7 @@ class Conversation(BaseModel):
     # The conversation history messages.
     # Each message is a pair of strings, denoting "(role, content)".
     # The content can be None.
-    messages: List[Tuple[str, Optional[Union[str, List[Dict]]]]] = Field(
-        default_factory=lambda: []
-    )
+    messages: List[Tuple[str, Optional[Union[str, List[Dict]]]]] = Field(default_factory=lambda: [])
 
     # The separators between messages when concatenating into a single prompt.
     # List size should be either 1 or 2.
@@ -141,9 +139,7 @@ class Conversation(BaseModel):
 
         for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
             if role not in self.roles.keys():
-                raise ValueError(
-                    f'Role "{role}" is not a supported role in {self.roles.keys()}'
-                )
+                raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
 
             if content is None:
@@ -154,11 +150,7 @@ class Conversation(BaseModel):
                 ""
                 # Do not append role prefix if this is the first message and there
                 # is already a system message
-                if (
-                    not self.add_role_after_system_message
-                    and system_msg != ""
-                    and i == 0
-                )
+                if (not self.add_role_after_system_message and system_msg != "" and i == 0)
                 else self.roles[role] + self.role_content_sep
             )
             if isinstance(content, str):
@@ -174,9 +166,7 @@ class Conversation(BaseModel):
             message_list.append(role_prefix)
 
             for item in content:
-                assert isinstance(item, dict), (
-                    "Content should be a string or a list of dicts"
-                )
+                assert isinstance(item, dict), "Content should be a string or a list of dicts"
                 assert "type" in item, "Content item should have a type field"
                 if item["type"] == "text":
                     message = self.role_templates[role].replace(
@@ -212,9 +202,9 @@ def _get_url_from_item(item: Dict) -> str:
     if isinstance(item["image_url"], str):
         image_url = item["image_url"]
     elif isinstance(item["image_url"], dict):
-        assert "url" in item["image_url"], (
-            "Content image_url item should be a string or a dict with a url field"
-        )  # pylint: disable=line-too-long
+        assert (
+            "url" in item["image_url"]
+        ), "Content image_url item should be a string or a dict with a url field"  # pylint: disable=line-too-long
         image_url = item["image_url"]["url"]
     else:
         raise ValueError(

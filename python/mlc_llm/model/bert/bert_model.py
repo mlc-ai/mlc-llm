@@ -178,9 +178,7 @@ class BertLayer(nn.Module):
 
 class BertEncoder(nn.Module):
     def __init__(self, config: BertConfig):
-        self.layer = nn.ModuleList(
-            [BertLayer(config) for _ in range(config.num_hidden_layers)]
-        )
+        self.layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
 
     def forward(self, hidden_states: Tensor, attention_mask: Tensor):
         for layer in self.layer:
@@ -190,15 +188,11 @@ class BertEncoder(nn.Module):
 
 class BertEmbeddings(nn.Module):
     def __init__(self, config: BertConfig):
-        self.word_embeddings = nn.Embedding(
-            config.vocab_size, config.hidden_size, dtype="float32"
-        )
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, dtype="float32")
         self.position_embeddings = nn.Embedding(
             config.context_window_size, config.hidden_size, dtype="float32"
         )
-        self.token_type_embeddings = nn.Embedding(
-            2, config.hidden_size, dtype="float32"
-        )
+        self.token_type_embeddings = nn.Embedding(2, config.hidden_size, dtype="float32")
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(self, input_ids: Tensor, token_type_ids: Tensor, position_ids: Tensor):
@@ -225,9 +219,7 @@ class BertModel(nn.Module):
     def forward(self, inputs: Tensor, attention_mask: Tensor):
         def _input_positions(inputs: te.Tensor):
             b, s = inputs.shape
-            return te.compute(
-                (b, s), lambda _, j: j.astype("int32"), name="input_positions"
-            )
+            return te.compute((b, s), lambda _, j: j.astype("int32"), name="input_positions")
 
         input_positions = op.tensor_expr_op(
             _input_positions,

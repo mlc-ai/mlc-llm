@@ -157,9 +157,7 @@ def _run_quantization(
                 cmd += ["--" + optional_arg.replace("_", "-"), str(optional_arg_val)]
 
         print(" ".join(cmd), file=log_file, flush=True)
-        subprocess.run(
-            cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
-        )
+        subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ)
         if not model_info.gen_config_only:
             cmd = [
                 sys.executable,
@@ -181,10 +179,7 @@ def _run_quantization(
                 env=os.environ,
             )
         logger.info("[MLC] Complete!")
-    if (
-        not (Path(output_dir) / "tensor-cache.json").exists()
-        and not model_info.gen_config_only
-    ):
+    if not (Path(output_dir) / "tensor-cache.json").exists() and not model_info.gen_config_only:
         logger.error(
             "[%s] Model %s. Quantization %s. No weights metadata found.",
             red("FAILED"),
@@ -261,20 +256,14 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
 
         if quantization_diff:
             for q in quantization_diff:
-                logger.info(
-                    "Adding task %s %s %s to the diff.", model_id, conv_template, q
-                )
+                logger.info("Adding task %s %s %s to the diff.", model_id, conv_template, q)
                 task_copy = task.model_copy()
                 task_copy.quantization = [q]
                 task_copy.overrides = {q: overrides.get(q, OverrideConfigs())}
-                task_copy.gen_config_only = (
-                    task_copy.gen_config_only or q in gen_config_only
-                )
+                task_copy.gen_config_only = task_copy.gen_config_only or q in gen_config_only
                 diff_tasks.append(task_copy)
         else:
-            logger.info(
-                "Task %s %s %s is up-to-date.", model_id, conv_template, quantization
-            )
+            logger.info("Task %s %s %s is up-to-date.", model_id, conv_template, quantization)
 
     diff_config = spec.model_copy()
     diff_config.default_quantization = []
@@ -327,8 +316,7 @@ def _main(  # pylint: disable=too-many-locals, too-many-arguments
                 quantizations += task.quantization
 
         default_destination = (
-            delivery_diff.default_destination
-            or "{username}/{model_id}-{quantization}-MLC"
+            delivery_diff.default_destination or "{username}/{model_id}-{quantization}-MLC"
         )
         for quantization in quantizations:
             repo = default_destination.format(

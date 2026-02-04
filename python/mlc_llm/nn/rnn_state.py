@@ -183,9 +183,7 @@ class RNNState(Object):
                     var_storage, (max_batch_size, max_history, shape[0]), dtype
                 )
                 seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(
-                    var_history_slot_ids, (batch_size,), "int32"
-                )
+                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
                 output = T.match_buffer(var_output, (batch_size, shape[0]), dtype)
 
                 for i in range(batch_size):
@@ -210,13 +208,9 @@ class RNNState(Object):
                 batch_size = T.int32(is_size_var=True)
                 T.func_attr({"global_symbol": f"rnn_state_get_{state_id}"})
 
-                storage = T.match_buffer(
-                    var_storage, (max_batch_size, max_history, *shape), dtype
-                )
+                storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)
                 seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(
-                    var_history_slot_ids, (batch_size,), "int32"
-                )
+                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
                 output = T.match_buffer(var_output, (batch_size, *shape), dtype)
 
                 for i in range(batch_size):
@@ -286,9 +280,7 @@ class RNNState(Object):
                     var_storage, (max_batch_size, max_history, shape[0]), dtype
                 )
                 seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(
-                    var_history_slot_ids, (batch_size,), "int32"
-                )
+                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
                 data = T.match_buffer(var_data, (batch_size, shape[0]), dtype)
 
                 for i in range(batch_size):
@@ -314,13 +306,9 @@ class RNNState(Object):
                 batch_size = T.int32(is_size_var=True)
                 T.func_attr({"global_symbol": f"rnn_state_set_{state_id}"})
 
-                storage = T.match_buffer(
-                    var_storage, (max_batch_size, max_history, *shape), dtype
-                )
+                storage = T.match_buffer(var_storage, (max_batch_size, max_history, *shape), dtype)
                 seq_slot_ids = T.match_buffer(var_seq_slot_ids, (batch_size,), "int32")
-                history_slot_ids = T.match_buffer(
-                    var_history_slot_ids, (batch_size,), "int32"
-                )
+                history_slot_ids = T.match_buffer(var_history_slot_ids, (batch_size,), "int32")
                 data = T.match_buffer(var_data, (batch_size, *shape), dtype)
 
                 for i in range(batch_size):

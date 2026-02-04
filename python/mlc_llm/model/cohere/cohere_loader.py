@@ -14,9 +14,7 @@ from .cohere_model import CohereConfig, CohereForCausalLM
 from .cohere_quantization import awq_quant
 
 
-def huggingface(
-    model_config: CohereConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: CohereConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -152,9 +150,7 @@ def awq(model_config: CohereConfig, quantization: Quantization) -> ExternMapping
                     dtype=mlc_param.dtype,
                 ),
             )
-            _add(
-                f"{attn}.out_proj.{quantize_suffix}", f"{attn}.o_proj.{quantize_suffix}"
-            )
+            _add(f"{attn}.out_proj.{quantize_suffix}", f"{attn}.o_proj.{quantize_suffix}")
 
         # Concat gate and up in MLP
         mlp = f"model.layers.{i}.mlp"
@@ -177,8 +173,6 @@ def awq(model_config: CohereConfig, quantization: Quantization) -> ExternMapping
             mapping.add_mapping(
                 mlc_name,
                 [mlc_name],
-                functools.partial(
-                    lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype
-                ),
+                functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
             )
     return mapping

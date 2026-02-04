@@ -75,8 +75,7 @@ def sample_requests(
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
     # Only keep the first two turns of each conversation.
     dataset = [
-        (data["conversations"][0]["value"], data["conversations"][1]["value"])
-        for data in dataset
+        (data["conversations"][0]["value"], data["conversations"][1]["value"]) for data in dataset
     ]
     prompts = [prompt for prompt, _ in dataset]
     prompt_token_ids = tokenizer.encode_batch(prompts)
@@ -160,9 +159,7 @@ def calibrate(
             gpu_memory_utilization=gpu_memory_utilization,
         ),
     )
-    sampled_requests = sample_requests(
-        dataset, num_calibration_samples, async_engine.tokenizer
-    )
+    sampled_requests = sample_requests(dataset, num_calibration_samples, async_engine.tokenizer)
     asyncio.run(
         send_calibration_requests(
             async_engine,

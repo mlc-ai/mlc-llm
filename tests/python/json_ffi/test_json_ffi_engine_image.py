@@ -41,9 +41,7 @@ def run_chat_completion(
     num_requests = 1
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [
-        ["" for _ in range(n)] for _ in range(num_requests)
-    ]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
@@ -83,9 +81,7 @@ def test_chat_completion():
     run_chat_completion(engine, model)
 
     # Test malformed requests.
-    for response in engine._raw_chat_completion(
-        "malformed_string", n=1, request_id="123"
-    ):
+    for response in engine._raw_chat_completion("malformed_string", n=1, request_id="123"):
         assert len(response.choices) == 1
         assert response.choices[0].finish_reason == "error"
 

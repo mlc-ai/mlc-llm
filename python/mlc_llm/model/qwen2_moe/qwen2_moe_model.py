@@ -43,12 +43,8 @@ class Qwen2MoeMLP(nn.Module):
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
         self.intermediate_size = intermediate_size // config.tensor_parallel_shards
-        self.gate_up_proj = nn.Linear(
-            config.hidden_size, 2 * self.intermediate_size, bias=False
-        )
-        self.down_proj = nn.Linear(
-            self.intermediate_size, config.hidden_size, bias=False
-        )
+        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
@@ -69,9 +65,7 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
                 f"Cannot split MoE intermediate size {config.moe_intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.moe_intermediate_size = (
-            config.moe_intermediate_size // config.tensor_parallel_shards
-        )
+        self.moe_intermediate_size = config.moe_intermediate_size // config.tensor_parallel_shards
         self.norm_topk_prob = config.norm_topk_prob
         self.shared_expert = Qwen2MoeMLP(config, config.shared_expert_intermediate_size)
         self.shared_expert_gate = nn.Linear(config.hidden_size, 1, bias=False)
@@ -118,9 +112,7 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, num_experts)
             # indices: [num_tokens * experts_per_tok]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(
-                cumsum, expert_indices
-            )
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
             # indptr: [num_local_experts + 1]
             indptr = op_ext.moe_misc.get_indptr(
                 cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
@@ -128,14 +120,11 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = op.take(x, token_indices, axis=0)
             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
-            moe_hidden_states = op_ext.moe_misc.scatter_output(
-                moe_hidden_states, reverse_indices
-            )
+            moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
         # moe_hidden_states: [num_tokens, experts_per_tok, hidden_size]
         expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1)
         moe_hidden_states = (
-            moe_hidden_states.reshape(num_tokens, experts_per_tok, hidden_size)
-            * expert_weights
+            moe_hidden_states.reshape(num_tokens, experts_per_tok, hidden_size) * expert_weights
         )
         # moe_hidden_states: [num_tokens, hidden_size]
         moe_hidden_states = op_ext.moe_misc.moe_sum(moe_hidden_states, dim=1)
@@ -145,9 +134,7 @@ class Qwen2MoeSparseMoeBlock(nn.Module):  # pylint: disable=too-many-instance-at
             op.sigmoid(self.shared_expert_gate(x)) * shared_expert_hidden_states
         )
         final_hidden_states = moe_hidden_states + shared_expert_hidden_states
-        final_hidden_states = final_hidden_states.reshape(
-            batch_size, seq_len, hidden_size
-        )
+        final_hidden_states = final_hidden_states.reshape(batch_size, seq_len, hidden_size)
         return final_hidden_states
 
 
@@ -155,13 +142,11 @@ class Qwen2MoeDecoderLayer(nn.Module):
     def __init__(self, config: Qwen2MoeConfig):
         super().__init__()
         self.self_attn = QWen2Attention(config)
-        assert config.num_experts > 0 and config.decoder_sparse_step == 1, (
-            "Currently only support use moe for every layer."
-        )
+        assert (
+            config.num_experts > 0 and config.decoder_sparse_step == 1
+        ), "Currently only support use moe for every layer."
         self.mlp = Qwen2MoeSparseMoeBlock(config)
-        self.input_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
@@ -205,9 +190,7 @@ class Qwen2MoeDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.input_layernorm(hidden_states)
         out = self.self_attn(out, paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -288,9 +271,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -360,9 +341,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -378,9 +357,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -389,9 +366,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -399,9 +374,7 @@ class Qwen2MoeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

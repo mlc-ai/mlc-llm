@@ -23,9 +23,7 @@ def _extract_metadata(model_lib: Path) -> Dict[str, Any]:
 
     # pylint: enable=import-outside-toplevel
 
-    return json.loads(
-        VirtualMachine(load_module(model_lib), device("cpu"))["_metadata"]()
-    )
+    return json.loads(VirtualMachine(load_module(model_lib), device("cpu"))["_metadata"]())
 
 
 def _report_all(metadata: Dict[str, Any]) -> None:
@@ -45,9 +43,7 @@ def _report_all(metadata: Dict[str, Any]) -> None:
     print(beautified_json)
 
 
-def _read_dynamic_shape(
-    shape: List[Union[int, str]], config: Union[Dict, ConfigBase]
-) -> List[int]:
+def _read_dynamic_shape(shape: List[Union[int, str]], config: Union[Dict, ConfigBase]) -> List[int]:
     if isinstance(config, ConfigBase):
         config = asdict(config)
     param_shape = []
@@ -79,9 +75,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
     params_bytes = 0.0
     for param in metadata["params"]:
         if all(isinstance(v, int) for v in param["shape"]):
-            assert all(v > 0 for v in param["shape"]), (
-                "All shapes should be strictly positive."
-            )
+            assert all(v > 0 for v in param["shape"]), "All shapes should be strictly positive."
             param_shape = param["shape"]
         else:
             # Contains dynamic shape; use config to look up concrete values
@@ -94,9 +88,7 @@ def _compute_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBa
     return params_bytes, temp_func_bytes
 
 
-def _report_memory_usage(
-    metadata: Dict[str, Any], config: Union[Dict, ConfigBase]
-) -> None:
+def _report_memory_usage(metadata: Dict[str, Any], config: Union[Dict, ConfigBase]) -> None:
     params_bytes, temp_func_bytes = _compute_memory_usage(metadata, config)
     total_size = params_bytes + temp_func_bytes
     logger.info(
@@ -152,9 +144,7 @@ def _report_memory_usage(
 
 def main():
     """Entry point for the model metadata tool."""
-    parser = ArgumentParser(
-        description="A tool that inspects the metadata of a model lib."
-    )
+    parser = ArgumentParser(description="A tool that inspects the metadata of a model lib.")
     parser.add_argument(
         "model_lib",
         type=Path,
@@ -186,9 +176,7 @@ def main():
     try:
         metadata = _extract_metadata(parsed.model_lib)
     except:  # pylint: disable=bare-except
-        logger.exception(
-            "%s to read metadata section in legacy model lib.", red("FAILED")
-        )
+        logger.exception("%s to read metadata section in legacy model lib.", red("FAILED"))
         return
     # Load mlc_chat_config if provided
     cfg = None

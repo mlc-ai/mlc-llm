@@ -40,9 +40,7 @@ def detect_device(device_hint: str) -> Optional[Device]:
     except Exception as err:
         raise ValueError(f"Invalid device name: {device_hint}") from err
     if not _device_exists(device):
-        raise ValueError(
-            f"Device is not found on your local environment: {device_hint}"
-        )
+        raise ValueError(f"Device is not found on your local environment: {device_hint}")
     return device
 
 

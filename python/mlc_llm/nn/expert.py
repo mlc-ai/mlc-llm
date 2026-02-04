@@ -9,9 +9,7 @@ from mlc_llm.op import cutlass, extern, ft_gemm, moe_matmul
 class MixtralExperts(nn.Module):
     """Mixtral experts"""
 
-    def __init__(
-        self, num_local_experts, in_features, out_features, tensor_parallel_shards=1
-    ):
+    def __init__(self, num_local_experts, in_features, out_features, tensor_parallel_shards=1):
         self.num_local_experts = num_local_experts
         self.in_features = in_features
         self.out_features = out_features

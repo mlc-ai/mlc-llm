@@ -131,9 +131,7 @@ def check_openai_nonstream_response(
     usage = response["usage"]
     if usage is not None:
         assert isinstance(usage, dict)
-        assert (
-            usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
-        )
+        assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
         assert usage["prompt_tokens"] > 0
         if completion_tokens is not None:
             assert usage["completion_tokens"] == completion_tokens
@@ -190,10 +188,7 @@ def check_openai_stream_response(
             usage = response["usage"]
             if usage is not None:
                 assert isinstance(usage, dict)
-                assert (
-                    usage["total_tokens"]
-                    == usage["prompt_tokens"] + usage["completion_tokens"]
-                )
+                assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
                 assert usage["prompt_tokens"] >= 0
                 if completion_tokens is not None:
                     assert usage["completion_tokens"] <= completion_tokens
@@ -794,7 +789,9 @@ def test_openai_v1_completions_prompt_overlong(
     }
 
     response = requests.post(OPENAI_V1_COMPLETION_URL, json=payload, timeout=180)
-    error_msg_prefix = f"Request prompt has {num_tokens} tokens in total, larger than the model input length limit"
+    error_msg_prefix = (
+        f"Request prompt has {num_tokens} tokens in total, larger than the model input length limit"
+    )
     if not stream:
         expect_error(response.json(), msg_prefix=error_msg_prefix)
     else:
@@ -1237,9 +1234,7 @@ def test_openai_v1_chat_completions_ignore_eos(
     # `served_model` and `launch_server` are pytest fixtures
     # defined in conftest.py.
 
-    messages = [
-        {"role": "user", "content": "Write a sentence with less than 20 words."}
-    ]
+    messages = [{"role": "user", "content": "Write a sentence with less than 20 words."}]
     max_tokens = 128
     payload = {
         "model": served_model[0],
@@ -1378,12 +1373,8 @@ if __name__ == "__main__":
         test_openai_v1_chat_completions(MODEL, None, stream=True, messages=msg)
         test_openai_v1_chat_completions_n(MODEL, None, stream=False, messages=msg)
         test_openai_v1_chat_completions_n(MODEL, None, stream=True, messages=msg)
-        test_openai_v1_chat_completions_openai_package(
-            MODEL, None, stream=False, messages=msg
-        )
-        test_openai_v1_chat_completions_openai_package(
-            MODEL, None, stream=True, messages=msg
-        )
+        test_openai_v1_chat_completions_openai_package(MODEL, None, stream=False, messages=msg)
+        test_openai_v1_chat_completions_openai_package(MODEL, None, stream=True, messages=msg)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=False)
     test_openai_v1_chat_completions_max_tokens(MODEL, None, stream=True)
     test_openai_v1_chat_completions_json(MODEL, None, stream=False)

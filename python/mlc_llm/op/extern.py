@@ -37,9 +37,7 @@ STORE: ExternModuleStore = ExternModuleStore()
 """Singleton of `ExternModuleStore`."""
 
 
-def enable(
-    target: Target, flashinfer: bool, faster_transformer: bool, cutlass: bool
-) -> None:
+def enable(target: Target, flashinfer: bool, faster_transformer: bool, cutlass: bool) -> None:
     """Enable external modules. It should be called before any compilation happens."""
     global STORE  # pylint: disable=global-statement
     cutlass = (

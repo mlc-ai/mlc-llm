@@ -126,9 +126,7 @@ class DeepseekV2Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
 
 
 class DeepseekV2MLP(nn.Module):
-    def __init__(
-        self, config: DeepseekV2Config, hidden_size=None, intermediate_size=None
-    ):
+    def __init__(self, config: DeepseekV2Config, hidden_size=None, intermediate_size=None):
         super().__init__()
         self.hidden_size = config.hidden_size if hidden_size is None else hidden_size
         intermediate_size = (
@@ -141,9 +139,7 @@ class DeepseekV2MLP(nn.Module):
             )
         self.intermediate_size = intermediate_size // config.tensor_parallel_shards
 
-        self.gate_up_proj = nn.Linear(
-            self.hidden_size, 2 * self.intermediate_size, bias=False
-        )
+        self.gate_up_proj = nn.Linear(self.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -235,16 +231,12 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.block_size = config.weight_block_size
 
         if self.q_lora_rank is None:
-            self.q_proj = nn.Linear(
-                self.hidden_size, self.num_heads * self.q_head_dim, bias=False
-            )
+            self.q_proj = nn.Linear(self.hidden_size, self.num_heads * self.q_head_dim, bias=False)
         else:
             self.q_a_proj = nn.Linear(
                 self.hidden_size, config.q_lora_rank, bias=config.attention_bias
             )
-            self.q_a_layernorm = nn.RMSNorm(
-                config.q_lora_rank, -1, config.rms_norm_eps, bias=False
-            )
+            self.q_a_layernorm = nn.RMSNorm(config.q_lora_rank, -1, config.rms_norm_eps, bias=False)
             self.q_b_proj = nn.Linear(
                 config.q_lora_rank, self.num_heads * self.q_head_dim, bias=False
             )
@@ -254,18 +246,13 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             config.kv_lora_rank + config.qk_rope_head_dim,
             bias=config.attention_bias,
         )
-        self.kv_a_layernorm = nn.RMSNorm(
-            config.kv_lora_rank, -1, config.rms_norm_eps, bias=False
-        )
+        self.kv_a_layernorm = nn.RMSNorm(config.kv_lora_rank, -1, config.rms_norm_eps, bias=False)
         self.kv_b_proj = nn.Linear(
             config.kv_lora_rank,
-            self.num_heads
-            * (self.q_head_dim - self.qk_rope_head_dim + self.v_head_dim),
+            self.num_heads * (self.q_head_dim - self.qk_rope_head_dim + self.v_head_dim),
             bias=False,
         )
-        self.w_uk = nn.Parameter(
-            (self.num_heads, config.kv_lora_rank, self.qk_nope_head_dim)
-        )
+        self.w_uk = nn.Parameter((self.num_heads, config.kv_lora_rank, self.qk_nope_head_dim))
         self.w_uv = nn.Parameter((self.num_heads, self.v_head_dim, config.kv_lora_rank))
 
         self.o_proj = nn.Linear(
@@ -298,9 +285,7 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             q = self.q_b_proj(
                 self.q_a_layernorm(self.q_a_proj(hidden_states))
             )  # (b, s, num_heads * q_head_dim)
-        q = op.reshape(
-            q, (b, s, self.num_heads, self.q_head_dim)
-        )  # (b, s, num_heads, q_head_dim)
+        q = op.reshape(q, (b, s, self.num_heads, self.q_head_dim))  # (b, s, num_heads, q_head_dim)
         q_nope, q_pe = op.split(
             q, [self.qk_nope_head_dim], axis=-1
         )  # (b, s, num_heads, qk_nope_head_dim), (b, s, num_heads, qk_rope_head_dim)
@@ -318,23 +303,17 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         paged_kv_cache = paged_kv_cache.append_mla_kv(layer_id, kv_states)
 
         if forward_mode == "prefill":
-            output, _ = self.self_attn(
-                q_nope, compressed_kv, q_pe, k_pe, paged_kv_cache, layer_id
-            )
+            output, _ = self.self_attn(q_nope, compressed_kv, q_pe, k_pe, paged_kv_cache, layer_id)
         elif forward_mode == "decode":
             output, _ = self.cross_attn(q_nope, q_pe, paged_kv_cache, layer_id)
         elif forward_mode == "extend":
-            o1, lse1 = self.self_attn(
-                q_nope, compressed_kv, q_pe, k_pe, paged_kv_cache, layer_id
-            )
+            o1, lse1 = self.self_attn(q_nope, compressed_kv, q_pe, k_pe, paged_kv_cache, layer_id)
             o2, lse2 = self.cross_attn(q_nope, q_pe, paged_kv_cache, layer_id)
             output, _ = paged_kv_cache.merge_attn_output_inplace(o1, lse1, o2, lse2)
         else:
             raise ValueError(f"Invalid forward mode: {forward_mode}")
 
-        return self.o_proj(
-            output.reshape(b, s, self.num_heads * self.v_head_dim)
-        ), paged_kv_cache
+        return self.o_proj(output.reshape(b, s, self.num_heads * self.v_head_dim)), paged_kv_cache
 
     def self_attn(  # pylint: disable=too-many-arguments
         self,
@@ -356,9 +335,7 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         k, v = op.split(kv, [self.qk_nope_head_dim], axis=-1)
         k_pe = op.broadcast_to(k_pe, (b, s, self.num_heads, self.qk_rope_head_dim))
         k = op.concat([k, k_pe], dim=-1)
-        output, lse = paged_kv_cache.self_attention(
-            layer_id, q, k, v, self.softmax_scale
-        )
+        output, lse = paged_kv_cache.self_attention(layer_id, q, k, v, self.softmax_scale)
         return output, lse
 
     def cross_attn(
@@ -371,16 +348,12 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         b, s, _, _ = q_nope.shape
         if not hasattr(self, "w_uk_scale_inv"):
             q_nope = op.matmul(
-                q_nope.reshape(
-                    b * s, self.num_heads, self.qk_nope_head_dim
-                ).permute_dims(1, 0, 2),
+                q_nope.reshape(b * s, self.num_heads, self.qk_nope_head_dim).permute_dims(1, 0, 2),
                 self.w_uk.permute_dims(0, 2, 1),
             )
         else:
             q_nope = batch_matmul.quantized_bmm(
-                q_nope.reshape(
-                    b * s, self.num_heads, self.qk_nope_head_dim
-                ).permute_dims(1, 0, 2),
+                q_nope.reshape(b * s, self.num_heads, self.qk_nope_head_dim).permute_dims(1, 0, 2),
                 self.w_uk,
                 self.w_uk_scale_inv,  # pylint: disable=no-member
                 self.block_size,
@@ -400,23 +373,17 @@ class DeepseekV2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
         )  # (b, s, num_heads, kv_lora_rank)
         if getattr(self, "w_uv_scale_inv", None) is None:
             output = op.matmul(
-                output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(
-                    1, 0, 2
-                ),
+                output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(1, 0, 2),
                 self.w_uv.permute_dims(0, 2, 1),
             )
         else:
             output = batch_matmul.quantized_bmm(
-                output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(
-                    1, 0, 2
-                ),
+                output.reshape(b * s, self.num_heads, self.kv_lora_rank).permute_dims(1, 0, 2),
                 self.w_uv,
                 self.w_uv_scale_inv,  # pylint: disable=no-member
                 self.block_size,
             )
-        output = output.permute_dims(1, 0, 2).reshape(
-            b, s, self.num_heads * self.v_head_dim
-        )
+        output = output.permute_dims(1, 0, 2).reshape(b, s, self.num_heads * self.v_head_dim)
         return output, lse
 
 
@@ -445,9 +412,7 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
                 f"Cannot split MoE intermediate size {config.moe_intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.moe_intermediate_size = (
-            config.moe_intermediate_size // config.tensor_parallel_shards
-        )
+        self.moe_intermediate_size = config.moe_intermediate_size // config.tensor_parallel_shards
 
         self.moe_gate_up_proj = MixtralExperts(
             self.num_routed_experts,
@@ -485,15 +450,11 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         elif self.scoring_func == "sigmoid":
             scores = op.sigmoid(logits)
         else:
-            raise ValueError(
-                f"Unsupported deepseek scoring function: {self.scoring_func}"
-            )
+            raise ValueError(f"Unsupported deepseek scoring function: {self.scoring_func}")
 
         # select top-k experts
         if self.topk_method == "greedy":
-            expert_weights, expert_indices = op_ext.moe_misc.gating_topk(
-                scores, experts_per_tok
-            )
+            expert_weights, expert_indices = op_ext.moe_misc.gating_topk(scores, experts_per_tok)
         elif self.topk_method in ["group_limited_greedy", "noaux_tc"]:
             expert_weights, expert_indices = op_ext.moe_misc.group_limited_greedy_topk(
                 scores,
@@ -525,9 +486,7 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, num_experts)
             # indices: [num_tokens * experts_per_tok]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(
-                cumsum, expert_indices
-            )
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
             if use_cutlass:
                 # indptr: [num_routed_experts]
                 indptr = op_ext.moe_misc.get_indptr(
@@ -541,14 +500,10 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = op.take(x, token_indices, axis=0)
             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
-            moe_hidden_states = op_ext.moe_misc.scatter_output(
-                moe_hidden_states, reverse_indices
-            )
+            moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
 
         # moe_hidden_states: [num_tokens, experts_per_tok, hidden_size]
-        expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1).astype(
-            x.dtype
-        )
+        expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1).astype(x.dtype)
         moe_hidden_states = (
             moe_hidden_states.reshape(num_tokens, experts_per_tok, h) * expert_weights
         )
@@ -581,9 +536,7 @@ class DeepseekV2DecoderLayer(nn.Module):
             )
             else DeepseekV2MLP(config)
         )
-        self.input_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
@@ -622,9 +575,7 @@ class DeepseekV2DecoderLayer(nn.Module):
                 mi = self.mlp.moe_intermediate_size
                 _set(
                     self.mlp.shared_experts.gate_up_proj.weight,
-                    tp.ShardSingleDim(
-                        "_shard_shared_experts_gate_up", segs=[si, si], dim=0
-                    ),
+                    tp.ShardSingleDim("_shard_shared_experts_gate_up", segs=[si, si], dim=0),
                 )
                 _set(
                     self.mlp.shared_experts.down_proj.weight,
@@ -695,9 +646,7 @@ class DeepseekV2Model(nn.Module):
         forward_mode: Literal["prefill", "decode", "extend"],
     ):
         hidden_states = inputs
-        query_positions = paged_kv_cache.get_query_positions(
-            inputs.shape[0] * inputs.shape[1]
-        )
+        query_positions = paged_kv_cache.get_query_positions(inputs.shape[0] * inputs.shape[1])
         for layer_id, layer in enumerate(self.layers):
             hidden_states, paged_kv_cache = layer(
                 hidden_states, paged_kv_cache, layer_id, query_positions, forward_mode
@@ -740,9 +689,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
     ):
         op_ext.configure()
 
-        hidden_states, paged_kv_cache = self.model(
-            input_embeds, paged_kv_cache, forward_mode
-        )
+        hidden_states, paged_kv_cache = self.model(input_embeds, paged_kv_cache, forward_mode)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         logits = self.lm_head(hidden_states)
@@ -762,12 +709,8 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states, paged_kv_cache = self.model(
-            input_embed, paged_kv_cache, "prefill"
-        )
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states, paged_kv_cache = self.model(input_embed, paged_kv_cache, "prefill")
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -780,12 +723,8 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             b, s, d = x.shape
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
-        hidden_states, paged_kv_cache = self.model(
-            input_embed, paged_kv_cache, "extend"
-        )
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states, paged_kv_cache = self.model(input_embed, paged_kv_cache, "extend")
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -794,9 +733,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states, paged_kv_cache = self.model(
-            input_embed, paged_kv_cache, "decode"
-        )
+        hidden_states, paged_kv_cache = self.model(input_embed, paged_kv_cache, "decode")
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -829,15 +766,11 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits, paged_kv_cache = self.batch_forward(
-            input_embeds, paged_kv_cache, "decode", None
-        )
+        logits, paged_kv_cache = self.batch_forward(input_embeds, paged_kv_cache, "decode", None)
         return logits, paged_kv_cache
 
     def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits, paged_kv_cache = self.batch_forward(
-            input_embeds, paged_kv_cache, "extend", None
-        )
+        logits, paged_kv_cache = self.batch_forward(input_embeds, paged_kv_cache, "extend", None)
         return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
@@ -878,9 +811,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -888,9 +819,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "extend": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -906,9 +835,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -917,9 +844,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_extend": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -928,9 +853,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -938,9 +861,7 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

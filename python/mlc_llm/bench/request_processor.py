@@ -62,14 +62,10 @@ class SampleRequests(RequestProcessor):  # pylint: disable=too-few-public-method
 
         # We expect the input request records to be all grouped or all plain.
         if isinstance(request_records[0], GroupedRequestRecord):
-            assert all(
-                isinstance(record, GroupedRequestRecord) for record in request_records
-            )
+            assert all(isinstance(record, GroupedRequestRecord) for record in request_records)
             return self._sample_from_grouped_request_records(request_records)
 
-        assert all(
-            not isinstance(record, GroupedRequestRecord) for record in request_records
-        )
+        assert all(not isinstance(record, GroupedRequestRecord) for record in request_records)
         return self._sample_from_plain_request_records(request_records)
 
     def _sample_from_plain_request_records(
@@ -146,9 +142,7 @@ class AttachRequestRateTimestamp(RequestProcessor):  # pylint: disable=too-few-p
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         timestamp = 0.0
         for request_record in request_records:
-            assert request_record.timestamp is None, (
-                "The request record already has a timestamp"
-            )
+            assert request_record.timestamp is None, "The request record already has a timestamp"
             request_record.timestamp = timestamp
             timestamp += float(np.random.exponential(1.0 / self.request_rate))
         return request_records
@@ -232,9 +226,7 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 continue
 
             metrics.output_tokens = len(
-                self.tokenizer.encode(
-                    request_record.output_str, add_special_tokens=False
-                )
+                self.tokenizer.encode(request_record.output_str, add_special_tokens=False)
             )
             first_chunk_output_tokens = len(
                 self.tokenizer.encode(
@@ -250,9 +242,7 @@ class MetricAnalyzer(RequestProcessor):  # pylint: disable=too-few-public-method
                 )
                 continue
             assert metrics.input_tokens > 0, "Invalid prompt tokens"
-            metrics.inter_token_latency_s = (
-                metrics.end_to_end_latency_s / metrics.output_tokens
-            )
+            metrics.inter_token_latency_s = metrics.end_to_end_latency_s / metrics.output_tokens
             if metrics.time_to_first_token_s is None:
                 metrics.time_to_first_token_s = 0
             metrics.time_per_output_token_s = (
@@ -308,43 +298,30 @@ class WarmupAndRun(RequestProcessor):  # pylint: disable=too-few-public-methods,
                 self.num_warmup_requests, example_request=example_request
             )
         else:
-            assert (
-                len(request_records)
-                == self.num_warmup_requests + self.num_benchmark_requests
-            )
+            assert len(request_records) == self.num_warmup_requests + self.num_benchmark_requests
             benchmark_requests = request_records[: -self.num_warmup_requests]
             warmup_requests = request_records[-self.num_warmup_requests :]
         for request_record in warmup_requests:
-            request_record.timestamp = (
-                0 if request_record.timestamp is not None else None
-            )
+            request_record.timestamp = 0 if request_record.timestamp is not None else None
         warmup_requests = self._process_warmup_requests(warmup_requests)
         logger.info("Warmup with %d request(s)...", self.num_warmup_requests)
         self.pipeline(warmup_requests)
 
         # Then run benchmark
         if self.cuda_profile_url is not None:
-            cuda_profiler_start_url = (
-                self.cuda_profile_url + "/debug/cuda_profiler_start"
-            )
-            cuda_profiler_start_response = requests.post(
-                cuda_profiler_start_url, timeout=60
-            )
+            cuda_profiler_start_url = self.cuda_profile_url + "/debug/cuda_profiler_start"
+            cuda_profiler_start_response = requests.post(cuda_profiler_start_url, timeout=60)
             assert cuda_profiler_start_response.status_code == 200
         logger.info("Warmup finished. Start benchmarking...")
         updated_request_records = self.pipeline(benchmark_requests)
         if self.cuda_profile_url is not None:
             cuda_profiler_stop_url = self.cuda_profile_url + "/debug/cuda_profiler_stop"
-            cuda_profiler_stop_response = requests.post(
-                cuda_profiler_stop_url, timeout=60
-            )
+            cuda_profiler_stop_response = requests.post(cuda_profiler_stop_url, timeout=60)
             assert cuda_profiler_stop_response.status_code == 200
 
         return updated_request_records
 
-    def _process_warmup_requests(
-        self, warmup_requests: List[RequestRecord]
-    ) -> List[RequestRecord]:
+    def _process_warmup_requests(self, warmup_requests: List[RequestRecord]) -> List[RequestRecord]:
         if len(warmup_requests) == 0:
             return warmup_requests
         # NOTE: to warm up the server for as more different batch sizes as possible,
@@ -421,9 +398,7 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         pbar = None if self.disable_tqdm else tqdm(total=len(request_records))
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=self.num_processes
-        ) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_processes) as pool:
             futures = [
                 pool.submit(
                     FixedConcurrentRequestExecutor._process_task,
@@ -463,9 +438,7 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
             multi_round: bool,
         ) -> List[RequestRecord]:
             api_endpoint = f_create_api_endpoint()
-            updated_request_records: List[RequestRecord] = [
-                None for _ in request_records
-            ]
+            updated_request_records: List[RequestRecord] = [None for _ in request_records]
             async with api_endpoint:
                 num_sent_request = 0
 
@@ -486,19 +459,14 @@ class FixedConcurrentRequestExecutor(Executor):  # pylint: disable=too-few-publi
                         updated_request_records[idx] = await api_endpoint(request)
 
                         if multi_round:
-                            chat_history[i] = updated_request_records[
-                                idx
-                            ].chat_cmpl.messages + [
+                            chat_history[i] = updated_request_records[idx].chat_cmpl.messages + [
                                 ChatCompletionMessage(
                                     content=updated_request_records[idx].output_str,
                                     role="assistant",
                                 )
                             ]
 
-                tasks = [
-                    asyncio.create_task(_task(i))
-                    for i in range(num_concurrent_requests)
-                ]
+                tasks = [asyncio.create_task(_task(i)) for i in range(num_concurrent_requests)]
                 await asyncio.gather(*tasks)
 
             return updated_request_records
@@ -534,9 +502,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
 
     def __call__(self, request_records: List[RequestRecord]) -> List[RequestRecord]:
         assert len(request_records) > 0
-        assert all(
-            request_record.timestamp is not None for request_record in request_records
-        )
+        assert all(request_record.timestamp is not None for request_record in request_records)
         # Sort the request records in timestamp ascending order before partitioning.
         request_records.sort(key=lambda request_record: request_record.timestamp)
         base_timestamp = request_records[0].timestamp
@@ -550,9 +516,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         pbar = None if self.disable_tqdm else tqdm(total=len(request_records))
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=self.num_processes
-        ) as pool:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=self.num_processes) as pool:
             futures = [
                 pool.submit(
                     FixTimestampExecutor._process_task,
@@ -614,9 +578,7 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
                         request_record,
                     )
                     # Sleep to allow runs of other scheduled tasks if any.
-                    await asyncio.sleep(
-                        max(launch_time - loop.time() - max_schedule_gap, 0)
-                    )
+                    await asyncio.sleep(max(launch_time - loop.time() - max_schedule_gap, 0))
 
                 # Sleep until all the tasks are launched.
                 await asyncio.sleep(launch_time - loop.time() + max_schedule_gap)
@@ -664,18 +626,12 @@ def create_pipelines(  # pylint: disable=too-many-branches
             )
             pipelines.append(
                 SequentialProcessor(
-                    LogMessage(
-                        f"Fixing number of concurrent requests: {num_concurrent_requests}"
-                    ),
+                    LogMessage(f"Fixing number of concurrent requests: {num_concurrent_requests}"),
                     SampleRequests(args.num_requests + num_warmup_requests),
                     AttachModelName(args.tokenizer),
                     AttachStreamFlag(args.stream),
-                    AttachSamplingOptions(
-                        args.temperature, args.top_p, args.ignore_eos
-                    ),
-                    AttachExecutionFeature(
-                        {"num_concurrent_requests": num_concurrent_requests}
-                    ),
+                    AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
+                    AttachExecutionFeature({"num_concurrent_requests": num_concurrent_requests}),
                     WarmupAndRun(
                         num_warmup_requests=num_warmup_requests,
                         num_benchmark_requests=args.num_requests,
@@ -701,9 +657,7 @@ def create_pipelines(  # pylint: disable=too-many-branches
         if args.replay_timestamp_scale is not None:
             raise ValueError("Dataset replay is unsupported when fixing request rates.")
         num_total_requests = int(
-            args.num_requests
-            if not args.per_gpu_workload
-            else args.num_requests * args.num_gpus
+            args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
         )
         if dataset.require_fake_warmup:
             num_samples = num_total_requests
@@ -715,9 +669,7 @@ def create_pipelines(  # pylint: disable=too-many-branches
                 SampleRequests(num_samples),
                 AttachModelName(args.tokenizer),
                 AttachRequestRateTimestamp(
-                    request_rate
-                    if not args.per_gpu_workload
-                    else request_rate * args.num_gpus
+                    request_rate if not args.per_gpu_workload else request_rate * args.num_gpus
                 ),
                 AttachStreamFlag(args.stream),
                 AttachSamplingOptions(args.temperature, args.top_p, args.ignore_eos),
@@ -748,9 +700,7 @@ def create_pipelines(  # pylint: disable=too-many-branches
             'and "request_rate".'
         )
     if args.per_gpu_workload:
-        raise ValueError(
-            "Fixing per-GPU workload is not compatible with dataset replay."
-        )
+        raise ValueError("Fixing per-GPU workload is not compatible with dataset replay.")
     if args.num_warmup_requests is None:
         raise ValueError(
             "Please specify the number of warmup requests via "

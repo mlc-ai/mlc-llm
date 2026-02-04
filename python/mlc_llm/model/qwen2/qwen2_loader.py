@@ -55,9 +55,7 @@ def huggingface(model_config: QWen2Config, quantization: Quantization) -> Extern
                     f"{attn}.v_proj.{weight_type}",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
-                        dtype
-                    ),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -72,9 +70,7 @@ def huggingface(model_config: QWen2Config, quantization: Quantization) -> Extern
                 f"{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )

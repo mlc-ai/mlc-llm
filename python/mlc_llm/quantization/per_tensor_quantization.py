@@ -91,9 +91,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         self.tensor_parallel_shards = tensor_parallel_shards
 
         class _Mutator(nn.Mutator):
-            def __init__(
-                self, config: PerTensorQuantize, quant_map: QuantizeMapping
-            ) -> None:
+            def __init__(self, config: PerTensorQuantize, quant_map: QuantizeMapping) -> None:
                 super().__init__()
                 self.config = config
                 self.quant_map = quant_map
@@ -232,9 +230,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
             # min_scaling_factor taken from TRT-LLM
             def _compute_scale(x: te.Tensor) -> te.Tensor:
                 max_abs = topi.max(topi.abs(x))
-                min_scaling_factor = tir.const(
-                    1.0 / (self.max_int_value * 512.0), self.model_dtype
-                )
+                min_scaling_factor = tir.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
                 scale = topi.maximum(
                     max_abs.astype(self.model_dtype) / self.max_int_value,
                     min_scaling_factor,
@@ -246,9 +242,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         else:
             scale = None
 
-        def _compute_quantized_tensor(
-            weight: te.Tensor, scale: Optional[te.Tensor]
-        ) -> te.Tensor:
+        def _compute_quantized_tensor(weight: te.Tensor, scale: Optional[te.Tensor]) -> te.Tensor:
             elem_storage_dtype = (
                 f"uint{DataType(quantize_dtype).bits}"
                 if DataType(storage_dtype).type_code == DataTypeCode.UINT
@@ -262,9 +256,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                         elem_storage_dtype,
                         tir.Cast(
                             quantize_dtype,
-                            weight(*idx) / scale(0)
-                            if scale is not None
-                            else weight(*idx),
+                            weight(*idx) / scale(0) if scale is not None else weight(*idx),
                         ),
                     ),
                 ),
@@ -327,9 +319,7 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
         else:
             dequantized_tensor = q_tensor.astype(self.model_dtype)
         if scale is not None:
-            dequantized_tensor = dequantized_tensor * scale.astype(
-                dequantized_tensor.dtype
-            )
+            dequantized_tensor = dequantized_tensor * scale.astype(dequantized_tensor.dtype)
         return dequantized_tensor
 
 
@@ -443,13 +433,9 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                 out=nn.Tensor.placeholder(x_scale.shape, x_scale.dtype),
             )
             x_q = (x / x_scale.astype(x.dtype)).astype(self.config.activation_dtype)
-            x = x_q.astype(self.config.model_dtype) * x_scale.astype(
-                self.config.model_dtype
-            )
+            x = x_q.astype(self.config.model_dtype) * x_scale.astype(self.config.model_dtype)
         else:
-            raise ValueError(
-                f"Unknown calibration mode: {self.config.calibration_mode}"
-            )
+            raise ValueError(f"Unknown calibration mode: {self.config.calibration_mode}")
 
         if (
             self.config.weight_dtype == self.config.storage_dtype
@@ -464,9 +450,7 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                     x_scale * self.q_scale
                     if self.config.use_scale
                     else nn.wrap_nested(
-                        relax.Constant(
-                            runtime.tensor(np.array([1.0]).astype("float32"))
-                        ),
+                        relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))),
                         "scale",
                     )
                 )
@@ -575,9 +559,7 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 weight,
                 scale,
                 out_shape=[
-                    tir.IntImm("int64", self.num)
-                    if isinstance(self.num, int)
-                    else weight.shape[0],
+                    tir.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0],
                     tir.IntImm("int64", self.dim),
                 ],
             ),
@@ -610,9 +592,7 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 weight,
                 scale,
                 out_shape=[
-                    tir.IntImm("int64", self.num)
-                    if isinstance(self.num, int)
-                    else weight.shape[0],
+                    tir.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0],
                     tir.IntImm("int64", self.dim),
                 ],
             ),

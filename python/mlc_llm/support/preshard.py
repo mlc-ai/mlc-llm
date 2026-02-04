@@ -31,9 +31,7 @@ def _create_shard_func(
     #     2. split the sharded weight along dim 0, result: num_shards * [1, *sharded_weight_shape]
     #     3. squeeze the 0th-dim of all shards, result: num_shards * [*sharded_weight_shape]
     weight_shape = param.shape
-    weight_shape[shard_strategy.dim] = (
-        weight_shape[shard_strategy.dim] * tensor_parallel_shards
-    )
+    weight_shape[shard_strategy.dim] = weight_shape[shard_strategy.dim] * tensor_parallel_shards
     sharded_weight_shape = [tensor_parallel_shards, *param.shape]
     weight_var = relax.Var("weight", relax.TensorStructInfo(weight_shape, param.dtype))
     with bb.function(name=shard_strategy.name, params=[weight_var]):
@@ -45,9 +43,7 @@ def _create_shard_func(
                     out_sinfo=relax.TensorStructInfo(sharded_weight_shape, param.dtype),
                 )
             )
-            lv1 = bb.emit(
-                relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0)
-            )
+            lv1 = bb.emit(relax.op.split(lv0, indices_or_sections=tensor_parallel_shards, axis=0))
             output_vars = []
             for i in range(tensor_parallel_shards):
                 lvi = bb.emit(relax.TupleGetItem(lv1, i))

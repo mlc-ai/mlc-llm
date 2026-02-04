@@ -13,9 +13,7 @@ from mlc_llm.quantization import Quantization
 from .llama4_model import Llama4Config, Llama4ForCausalLM
 
 
-def huggingface(
-    model_config: Llama4Config, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: Llama4Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -55,9 +53,7 @@ def huggingface(
                 f"language_model.{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )

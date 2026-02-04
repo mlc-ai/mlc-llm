@@ -31,19 +31,13 @@ class BLASDispatch:  # pylint: disable=too-few-public-methods,broad-exception-ra
         else:
             raise Exception(f"Unsupported target {target.kind.name} for BLAS dispatch.")
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         model_names = [
-            gv.name_hint
-            for gv, func in mod.functions.items()
-            if isinstance(func, relax.Function)
+            gv.name_hint for gv, func in mod.functions.items() if isinstance(func, relax.Function)
         ]
         # exclude single batch decode
-        model_names = [
-            name for name in model_names if "batch" in name or "decode" not in name
-        ]
+        model_names = [name for name in model_names if "batch" in name or "decode" not in name]
         mod = tvm.transform.Sequential(
             [
                 relax.transform.FuseOpsByPattern(

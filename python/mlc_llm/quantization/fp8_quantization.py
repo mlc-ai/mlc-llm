@@ -11,7 +11,9 @@ from . import per_tensor_quantization as ptq
 from .utils import apply_sharding
 
 
-class FP8PerTensorQuantizeMixtralExperts(ptq.PerTensorQuantizeMixtralExperts):  # pylint: disable=too-many-instance-attributes
+class FP8PerTensorQuantizeMixtralExperts(
+    ptq.PerTensorQuantizeMixtralExperts
+):  # pylint: disable=too-many-instance-attributes
     """MixtralExperts with per-tensor quantization in FP8."""
 
     def __init__(
@@ -62,9 +64,7 @@ class FP8PerTensorQuantizeMixtralExperts(ptq.PerTensorQuantizeMixtralExperts):  
 
         if "shard_strategy" in src.weight.attrs:
             shard = src.weight.attrs["shard_strategy"]
-            apply_sharding(
-                shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight
-            )
+            apply_sharding(shard, f"{shard.name}_q_weight", quantized_mistral_experts.q_weight)
             # scale doesn't need to be sharded since it's the same for all shards
 
         return quantized_mistral_experts
@@ -86,9 +86,7 @@ class FP8PerTensorQuantizeMixtralExperts(ptq.PerTensorQuantizeMixtralExperts):  
                 out=nn.Tensor.placeholder(x_scale.shape, x_scale.dtype),
             )
             x_q = (x / x_scale.astype(x.dtype)).astype(self.config.activation_dtype)
-            x = x_q.astype(self.config.model_dtype) * x_scale.astype(
-                self.config.model_dtype
-            )
+            x = x_q.astype(self.config.model_dtype) * x_scale.astype(self.config.model_dtype)
 
         if indptr.ndim == 2:
             assert indptr.shape[0] == 1

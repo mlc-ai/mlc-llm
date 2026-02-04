@@ -14,9 +14,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 class ScatterTupleGetItem:  # pylint: disable=too-few-public-methods
     """A compiler pass that scatters TupleGetItem for lazy TupleGetItems."""
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _Scatter(mod).transform()
 

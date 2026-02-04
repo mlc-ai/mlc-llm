@@ -108,33 +108,28 @@ class DeepseekAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
 
         self.attention_bias = config.attention_bias
         self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
-        self.num_key_value_heads = (
-            config.num_key_value_heads // self.tensor_parallel_shards
-        )
+        self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.head_dim = config.head_dim
         self.max_position_embeddings = config.context_window_size
 
         self.wqkv_pack = nn.Linear(
             in_features=self.hidden_size,
-            out_features=(self.num_heads + 2 * self.num_key_value_heads)
-            * self.head_dim,
+            out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=self.attention_bias,
         )
         self.o_proj = nn.Linear(
             self.num_heads * self.head_dim, self.hidden_size, bias=self.attention_bias
         )
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )
@@ -163,9 +158,7 @@ class DeepseekMLP(nn.Module):
             config.intermediate_size if intermediate_size is None else intermediate_size
         ) // config.tensor_parallel_shards
 
-        self.gate_up_proj = nn.Linear(
-            self.hidden_size, 2 * self.intermediate_size, bias=False
-        )
+        self.gate_up_proj = nn.Linear(self.hidden_size, 2 * self.intermediate_size, bias=False)
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
@@ -181,9 +174,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.num_experts_per_tok = config.num_experts_per_tok
         self.gate = nn.Linear(config.hidden_size, config.n_routed_experts, bias=False)
         self.norm_topk_prob = config.norm_topk_prob
-        self.moe_intermediate_size = (
-            config.moe_intermediate_size // config.tensor_parallel_shards
-        )
+        self.moe_intermediate_size = config.moe_intermediate_size // config.tensor_parallel_shards
         self.moe_gate_up_proj = MixtralExperts(
             self.num_local_experts,
             in_features=config.hidden_size,
@@ -200,9 +191,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
 
         if config.n_shared_experts is not None:
             intermediate_size = self.moe_intermediate_size * config.n_shared_experts
-            self.shared_experts = DeepseekMLP(
-                config, intermediate_size=intermediate_size
-            )
+            self.shared_experts = DeepseekMLP(config, intermediate_size=intermediate_size)
 
     def forward(self, x: Tensor):  # pylint: disable=too-many-locals
         def _expert_forward(x: Tensor, indptr: Tensor):
@@ -228,9 +217,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, num_experts)
             # indices: [num_tokens * experts_per_tok]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(
-                cumsum, expert_indices
-            )
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
             # indptr: [num_local_experts + 1]
             indptr = op_ext.moe_misc.get_indptr(
                 cumsum, num_experts, num_tokens, inclusive=False, out_dtype="int32"
@@ -238,9 +225,7 @@ class DeepseekMoE(nn.Module):  # pylint: disable=too-many-instance-attributes
             # x: [num_tokens * experts_per_tok, hidden_size]
             moe_hidden_states = op.take(x, token_indices, axis=0)
             moe_hidden_states = _expert_forward(moe_hidden_states, indptr)
-            moe_hidden_states = op_ext.moe_misc.scatter_output(
-                moe_hidden_states, reverse_indices
-            )
+            moe_hidden_states = op_ext.moe_misc.scatter_output(moe_hidden_states, reverse_indices)
 
         # moe_hidden_states: [num_tokens, experts_per_tok, hidden_size]
         expert_weights = expert_weights.reshape(num_tokens, experts_per_tok, 1)
@@ -272,9 +257,7 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
             )
             else DeepseekMLP(config)
         )
-        self.input_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
@@ -329,9 +312,7 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.input_layernorm(hidden_states)
         out = self.self_attn(out, paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -415,9 +396,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
 
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
@@ -488,9 +467,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -506,9 +483,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -517,9 +492,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -527,9 +500,7 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

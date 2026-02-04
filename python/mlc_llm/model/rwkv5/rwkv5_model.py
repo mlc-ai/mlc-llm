@@ -46,13 +46,9 @@ class RWKV5Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     def __post_init__(self):
         if self.model_version != "5_2":
             raise ValueError(f"Only support RWKV v5_2, got {self.model_version}.")
-        self.intermediate_size = (
-            self.intermediate_size or int((self.hidden_size * 3.5)) // 32 * 32
-        )
+        self.intermediate_size = self.intermediate_size or int((self.hidden_size * 3.5)) // 32 * 32
         self.num_heads = (
-            self.hidden_size // self.head_size
-            if self.num_heads == 0
-            else self.num_heads
+            self.hidden_size // self.head_size if self.num_heads == 0 else self.num_heads
         )
         if self.num_heads * self.head_size != self.hidden_size:
             raise ValueError(
@@ -86,28 +82,16 @@ def create_wkv5_func(
         T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
         batch_size, seq_len = T.int64(), T.int64()
         # Inputs
-        r_buf = T.match_buffer(
-            r, (batch_size, seq_len, num_heads, head_size), dtype=dtype
-        )
-        k_buf = T.match_buffer(
-            k, (batch_size, seq_len, num_heads, head_size), dtype=dtype
-        )
-        v_buf = T.match_buffer(
-            v, (batch_size, seq_len, num_heads, head_size), dtype=dtype
-        )
-        time_decay_buf = T.match_buffer(
-            time_decay, (num_heads, head_size), dtype="float32"
-        )
-        time_faaaa_buf = T.match_buffer(
-            time_faaaa, (num_heads, head_size), dtype="float32"
-        )
+        r_buf = T.match_buffer(r, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
+        k_buf = T.match_buffer(k, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
+        v_buf = T.match_buffer(v, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
+        time_decay_buf = T.match_buffer(time_decay, (num_heads, head_size), dtype="float32")
+        time_faaaa_buf = T.match_buffer(time_faaaa, (num_heads, head_size), dtype="float32")
         state_buf = T.match_buffer(
             state, (batch_size, num_heads, head_size, head_size), dtype=state_dtype
         )
         # Outputs
-        out_buf = T.match_buffer(
-            out, (batch_size, seq_len, num_heads, head_size), dtype=out_dtype
-        )
+        out_buf = T.match_buffer(out, (batch_size, seq_len, num_heads, head_size), dtype=out_dtype)
         out_state_buf = T.match_buffer(
             out_state, (batch_size, num_heads, head_size, head_size), dtype=state_dtype
         )
@@ -132,13 +116,11 @@ def create_wkv5_func(
                                 out_buf[vb, vt, vh, vi] += T.cast(
                                     r_buf[vb, vt, vh, k], out_dtype
                                 ) * T.cast(
-                                    time_faaaa_buf[vh, k] * x
-                                    + out_state_buf[vb, vh, vi, k],
+                                    time_faaaa_buf[vh, k] * x + out_state_buf[vb, vh, vi, k],
                                     out_dtype,
                                 )
                                 out_state_buf[vb, vh, vi, k] = (
-                                    out_state_buf[vb, vh, vi, k] * time_decay_buf[vh, k]
-                                    + x
+                                    out_state_buf[vb, vh, vi, k] * time_decay_buf[vh, k] + x
                                 )
 
     return wkv_func
@@ -162,9 +144,7 @@ def last_token(x: Tensor):
     batch, seq_len, hidden_size = x.shape
 
     def _te_last_token(x: te.Tensor):
-        return te.compute(
-            (batch, 1, hidden_size), lambda b, _, j: x[b, x.shape[1] - 1, j]
-        )
+        return te.compute((batch, 1, hidden_size), lambda b, _, j: x[b, x.shape[1] - 1, j])
 
     return x if seq_len == 1 else op.tensor_expr_op(_te_last_token, "last_token", [x])
 
@@ -229,9 +209,7 @@ class RWKV5_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
             self.head_size,
             self.num_heads,
         )
-        x_state = state.get(
-            self.layer_id, StateID.ATT_X, (batch, self.hidden_size), x.dtype
-        )
+        x_state = state.get(self.layer_id, StateID.ATT_X, (batch, self.hidden_size), x.dtype)
         x_state = token_shift(x_state, x)
         kv_state = state.get(
             self.layer_id,
@@ -269,9 +247,7 @@ class RWKV5_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         last_x = last_token(x).reshape(batch, hidden_size)
         state = state.set(self.layer_id, StateID.ATT_X, last_x)
         state = state.set(self.layer_id, StateID.ATT_KV, kv_state)
-        out = op.astype(
-            self.ln_x(op.reshape(out, x.shape), channel_axis=-1, axes=[]), self.dtype
-        )
+        out = op.astype(self.ln_x(op.reshape(out, x.shape), channel_axis=-1, axes=[]), self.dtype)
         return self.output(out * g), state
 
     def to(self, dtype: Optional[str] = None):
@@ -394,9 +370,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         """Decoding step."""
         return self.forward(input_embed, state)
 
-    def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, state: RNNState
-    ):
+    def batch_prefill(self, input_embeds: Tensor, logit_positions: Tensor, state: RNNState):
         """Prefilling the prompt."""
         return self.forward(input_embeds, state, logit_positions=logit_positions)
 
@@ -416,9 +390,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         """Create RNN state."""
         init_values = [
             op.zeros((self.hidden_size,), dtype=self.dtype),  # ATT_X
-            op.zeros(
-                (self.num_heads, self.head_size, self.head_size), dtype="float32"
-            ),  # ATT_KV
+            op.zeros((self.num_heads, self.head_size, self.head_size), dtype="float32"),  # ATT_KV
             op.zeros((self.hidden_size,), dtype=self.dtype),  # FFN_X
         ]
         return RNNState.create(
@@ -438,9 +410,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",
@@ -456,9 +426,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
@@ -467,9 +435,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",
@@ -477,9 +443,7 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",

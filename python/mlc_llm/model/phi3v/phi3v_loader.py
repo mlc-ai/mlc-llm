@@ -104,12 +104,8 @@ def huggingface(model_config: Phi3VConfig, quantization: Quantization) -> Extern
 
     _add_vision("vision_embed_tokens.sub_GN")
     _add_vision("vision_embed_tokens.glb_GN")
-    _add_vision(
-        "vision_embed_tokens.img_processor.vision_model.embeddings.class_embedding"
-    )
-    _add_vision(
-        "vision_embed_tokens.img_processor.vision_model.embeddings.patch_embedding.weight"
-    )
+    _add_vision("vision_embed_tokens.img_processor.vision_model.embeddings.class_embedding")
+    _add_vision("vision_embed_tokens.img_processor.vision_model.embeddings.patch_embedding.weight")
     _add_vision(
         "vision_embed_tokens.img_processor.vision_model.embeddings.position_embedding.weight"
     )

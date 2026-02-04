@@ -63,9 +63,9 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             if "rope_type" not in self.rope_scaling:
                 self.rope_scaling = None
             else:
-                assert self.rope_scaling["rope_type"] == "llama3", (
-                    f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
-                )
+                assert (
+                    self.rope_scaling["rope_type"] == "llama3"
+                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
 
         # Define which layers to avoid RoPE
         if self.no_rope_layers == []:
@@ -76,9 +76,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             for layer_idx in range(self.num_hidden_layers)
         ]
 
-        self.no_rope_layers = (
-            self.no_rope_layers if self.no_rope_layers else default_no_rope_layers
-        )
+        self.no_rope_layers = self.no_rope_layers if self.no_rope_layers else default_no_rope_layers
 
         # Define which layers to apply MoE
         self.moe_layers = (
@@ -139,10 +137,7 @@ class Llama4Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
             self.text_config.head_dim = (
                 self.text_config.hidden_size // self.text_config.num_attention_heads
             )
-        assert (
-            self.text_config.num_attention_heads % self.text_config.num_key_value_heads
-            == 0
-        )
+        assert self.text_config.num_attention_heads % self.text_config.num_key_value_heads == 0
         if self.prefill_chunk_size == 0:
             logger.info(
                 "%s defaults to %d",
@@ -219,25 +214,17 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.floor_scale = config.text_config.floor_scale
         self.num_attention_heads = config.text_config.num_attention_heads
         self.num_kv_heads = config.text_config.num_key_value_heads
-        self.num_q_heads = (
-            config.text_config.num_attention_heads // config.tensor_parallel_shards
-        )
-        assert (
-            config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), (
+        self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
+        assert config.text_config.num_key_value_heads % config.tensor_parallel_shards == 0, (
             f"num_kv_heads({config.text_config.num_key_value_heads}) must be divisible by "
             f"tensor_parallel_shards"
         )
 
-        assert (
-            config.text_config.num_key_value_heads >= config.tensor_parallel_shards
-        ), (
+        assert config.text_config.num_key_value_heads >= config.tensor_parallel_shards, (
             f"Too large tensor_parallel_shards, must be smaller than "
             f"{config.text_config.num_key_value_heads}"
         )
-        self.num_kv_heads = (
-            config.text_config.num_key_value_heads // config.tensor_parallel_shards
-        )
+        self.num_kv_heads = config.text_config.num_key_value_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
             config.text_config.hidden_size,
             self.num_q_heads * self.head_dim,
@@ -326,8 +313,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
             attn_scales = (
                 op.log(
                     op.floor(
-                        (op.astype(cache_position, query_states.dtype) + 1.0)
-                        / self.floor_scale
+                        (op.astype(cache_position, query_states.dtype) + 1.0) / self.floor_scale
                     )
                     + 1.0
                 )
@@ -343,7 +329,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )
@@ -362,15 +348,11 @@ class Llama4TextExperts(nn.Module):
         self.gate_up_proj = nn.Parameter(
             shape=(self.num_experts, self.hidden_size, 2 * self.expert_dim)
         )
-        self.down_proj = nn.Parameter(
-            shape=(self.num_experts, self.expert_dim, self.hidden_size)
-        )
+        self.down_proj = nn.Parameter(shape=(self.num_experts, self.expert_dim, self.hidden_size))
         self.act_fn = ACT2FN[config.text_config.hidden_act]
 
     def forward(self, hidden_states):
-        hidden_states = hidden_states.reshape(
-            self.gate_up_proj.shape[0], -1, self.hidden_size
-        )
+        hidden_states = hidden_states.reshape(self.gate_up_proj.shape[0], -1, self.hidden_size)
         gate_up = op.matmul(hidden_states, self.gate_up_proj)
         gate, up = op.chunk(gate_up, chunks=2, dim=-1)
         next_states = op.matmul((up * self.act_fn(gate)), self.down_proj)
@@ -391,9 +373,7 @@ class Llama4Router(nn.Module):
 
     def forward(self, hidden_states):
         router_logits = self.router(hidden_states)
-        router_top_value, router_indices = op_ext.moe_misc.gating_topk(
-            router_logits, self.top_k
-        )
+        router_top_value, router_indices = op_ext.moe_misc.gating_topk(router_logits, self.top_k)
 
         j_axis = op.arange(0, self.num_experts)
         j_axis = op.unsqueeze(j_axis, 0)
@@ -428,16 +408,12 @@ class Llama4TextMoe(nn.Module):
         )
         routed_in = routed_in.reshape(-1, self.hidden_dim)
 
-        routed_in = routed_in * op.permute_dims(router_scores, axes=[1, 0]).reshape(
-            -1, 1
-        )
+        routed_in = routed_in * op.permute_dims(router_scores, axes=[1, 0]).reshape(-1, 1)
 
         routed_out = self.experts(routed_in)
         out = self.shared_expert(hidden_states)
 
-        out += op.sum(
-            routed_out.reshape(router_scores.shape[1], -1, routed_out.shape[-1]), axis=0
-        )
+        out += op.sum(routed_out.reshape(router_scores.shape[1], -1, routed_out.shape[-1]), axis=0)
 
         return out
 
@@ -542,9 +518,7 @@ class Llama4TextDecoderLayer(nn.Module):
 
 class Llama4TextModel(nn.Module):
     def __init__(self, config: Llama4Config):
-        assert (
-            config.text_config.hidden_size % config.text_config.num_attention_heads == 0
-        )
+        assert config.text_config.hidden_size % config.text_config.num_attention_heads == 0
         self.embed_tokens = LlamaEmbedding("vocab_size", config.text_config.hidden_size)
         self.layers = nn.ModuleList(
             [
@@ -566,9 +540,7 @@ class Llama4TextModel(nn.Module):
         )
 
         for layer_id, layer in enumerate(self.layers):
-            hidden_states = layer(
-                hidden_states, paged_kv_cache, layer_id, cache_position
-            )
+            hidden_states = layer(hidden_states, paged_kv_cache, layer_id, cache_position)
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
@@ -579,9 +551,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.model = Llama4TextModel(config)
         self.tie_word_embeddings = self.text_config.tie_word_embeddings
         if not self.text_config.tie_word_embeddings:
-            self.lm_head = nn.Linear(
-                self.text_config.hidden_size, "vocab_size", bias=False
-            )
+            self.lm_head = nn.Linear(self.text_config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = self.text_config.num_hidden_layers
         self.num_attention_heads = self.text_config.num_attention_heads
         self.num_key_value_heads = self.text_config.num_key_value_heads
@@ -639,9 +609,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
             logits = logits.astype("float32")
         return logits
 
-    def batch_select_last_hidden_states(
-        self, hidden_states: Tensor, logit_positions: Tensor
-    ):
+    def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
         op_ext.configure()
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -656,9 +624,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -669,17 +635,13 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
-    def prefill_to_last_hidden_states(
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def decode_to_last_hidden_states(
-        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
@@ -705,25 +667,19 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
     def batch_prefill_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(
-            input_embeds, paged_kv_cache
-        )
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
     def batch_decode_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(
-            input_embeds, paged_kv_cache
-        )
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
     def batch_verify_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(
-            input_embeds, paged_kv_cache
-        )
+        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
@@ -764,18 +720,14 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "get_logits": {
-                "hidden_states": nn.spec.Tensor(
-                    ["seq_len", self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
                 },
             },
             "batch_select_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(
-                    ["seq_len", self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "$": {
                     "param_mode": "none",
@@ -783,9 +735,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -801,9 +751,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "prefill_to_last_hidden_states": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -819,9 +767,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -830,9 +776,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -840,9 +784,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -850,9 +792,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_prefill_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -860,9 +800,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_decode_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -870,9 +808,7 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "batch_verify_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

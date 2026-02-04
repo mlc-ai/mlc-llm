@@ -11,9 +11,7 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 class FuseDequantizeTranspose:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses transpose + dequantize."""
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """IRModule-level transformation"""
         return _DequantizeTransposeFuser(mod).transform()
 
@@ -76,11 +74,8 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
             or not isinstance(dequantize_tir_func.body.block.body, tir.SeqStmt)
             or len(dequantize_tir_func.body.block.body) != 2
             or not isinstance(dequantize_tir_func.body.block.body[1], tir.For)
-            or not isinstance(
-                dequantize_tir_func.body.block.body[1].body.body, tir.SBlockRealize
-            )
-            or dequantize_tir_func.body.block.body[1].body.body.block.name_hint
-            != "T_transpose"
+            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tir.SBlockRealize)
+            or dequantize_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
         ):
             return call
 
@@ -107,10 +102,6 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
         new_func = tir.stmt_functor.renew_defs(new_func)
         g_var = self.builder_.add_func(new_func, func_name="dequantize")
         dequantize_matmul_rhs = self.builder_.emit(
-            relax.call_tir(
-                g_var, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info
-            )
+            relax.call_tir(g_var, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info)
         )
-        return relax.op.matmul(
-            call.args[0], dequantize_matmul_rhs, out_dtype=call.attrs.out_dtype
-        )
+        return relax.op.matmul(call.args[0], dequantize_matmul_rhs, out_dtype=call.attrs.out_dtype)

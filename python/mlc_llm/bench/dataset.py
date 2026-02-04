@@ -59,16 +59,15 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         _dataset = [
             (data["conversations"][0]["value"], data["conversations"][1]["value"])
             for data in raw_dataset
-            if len(data["conversations"]) >= 2
-            and data["conversations"][0]["from"] == "human"
+            if len(data["conversations"]) >= 2 and data["conversations"][0]["from"] == "human"
         ]
         # Tokenize the prompts and completions.
         self.tokenizer = tokenizer
         prompts = [prompt for prompt, _ in _dataset]
         if apply_chat_template:
-            assert getattr(tokenizer, "chat_template", None) is not None, (
-                '"--apply-chat-template" is set but the tokenizer does not have chat template.'
-            )
+            assert (
+                getattr(tokenizer, "chat_template", None) is not None
+            ), '"--apply-chat-template" is set but the tokenizer does not have chat template.'
             prompts = [
                 tokenizer.apply_chat_template(
                     [{"role": "user", "content": prompt}],
@@ -115,9 +114,9 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
         if self.apply_chat_template:
-            assert input_len is None, (
-                '"--apply-chat-template" is not supported when "--input-len" is specified.'
-            )
+            assert (
+                input_len is None
+            ), '"--apply-chat-template" is not supported when "--input-len" is specified.'
 
         request_records = []
         for prompt, input_token_ids, output_length in self._tokenized_dataset:
@@ -128,9 +127,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
 
             if input_len is not None:
                 input_length = round(
-                    float(
-                        np.random.normal(loc=input_len, scale=input_len_std, size=1)[0]
-                    )
+                    float(np.random.normal(loc=input_len, scale=input_len_std, size=1)[0])
                 )
                 input_token_ids = input_token_ids[:input_length]
                 input_truncated = True
@@ -138,11 +135,7 @@ class ShareGPTDataset(Dataset):  # pylint: disable=too-few-public-methods
                 input_truncated = False
             if output_len is not None:
                 output_length = round(
-                    float(
-                        np.random.normal(loc=output_len, scale=output_len_std, size=1)[
-                            0
-                        ]
-                    )
+                    float(np.random.normal(loc=output_len, scale=output_len_std, size=1)[0])
                 )
             elif output_length <= 1:
                 continue
@@ -201,10 +194,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
             qa_pairs = eval(data["qa_pairs"])  # pylint: disable=eval-used
             questions.append([j["Q"] for j in qa_pairs])
             generate_lens.append(
-                [
-                    len(tokenizer.encode(j["A"], add_special_tokens=False))
-                    for j in qa_pairs
-                ]
+                [len(tokenizer.encode(j["A"], add_special_tokens=False)) for j in qa_pairs]
             )
         prompt_token_ids = tokenizer(
             prompts,
@@ -226,9 +216,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
     ) -> List[RequestRecord]:
         request_records = []
         for prompt, input_token_ids, questions, generate_lens in self.dataset:
-            input_length = round(
-                float(np.random.normal(loc=input_len, scale=input_len_std))
-            )
+            input_length = round(float(np.random.normal(loc=input_len, scale=input_len_std)))
             if len(input_token_ids) > input_length:
                 input_token_ids = input_token_ids[:input_length]
                 prompt = self.tokenizer.decode(input_token_ids)
@@ -238,13 +226,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
                 full_prompt = self.prompt_format.format(**json_obj)
 
                 output_length = (
-                    round(
-                        float(
-                            np.random.normal(
-                                loc=output_len, scale=output_len_std, size=1
-                            )[0]
-                        )
-                    )
+                    round(float(np.random.normal(loc=output_len, scale=output_len_std, size=1)[0]))
                     if output_len is not None
                     else generate_len
                 )
@@ -282,9 +264,7 @@ class LoogleDataset(Dataset):  # pylint: disable=too-few-public-methods
 class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
     """The dataset class for LLMPerf dataset."""
 
-    def __init__(
-        self, dataset_path: str, num_requests: int, tokenizer: AutoTokenizer
-    ) -> None:
+    def __init__(self, dataset_path: str, num_requests: int, tokenizer: AutoTokenizer) -> None:
         self.tokenizer = tokenizer
         self.num_requests = num_requests
 
@@ -316,12 +296,8 @@ class LLMPerfDataset(Dataset):  # pylint: disable=too-few-public-methods
 
         request_records = []
         for _ in range(self.num_requests):
-            input_length = round(
-                float(np.random.normal(loc=input_len, scale=input_len_std))
-            )
-            output_length = round(
-                float(np.random.normal(loc=output_len, scale=output_len_std))
-            )
+            input_length = round(float(np.random.normal(loc=input_len, scale=input_len_std)))
+            output_length = round(float(np.random.normal(loc=output_len, scale=output_len_std)))
 
             prompt = (
                 "Randomly stream lines from the following text "
@@ -409,9 +385,7 @@ class JSONModeEvalDataset(Dataset):  # pylint: disable=too-few-public-methods
                 RequestRecord(
                     chat_cmpl=ChatCompletionRequest(
                         messages=[
-                            ChatCompletionMessage(
-                                content=message["content"], role=message["role"]
-                            )
+                            ChatCompletionMessage(content=message["content"], role=message["role"])
                             for message in messages
                         ],
                         model="",
@@ -514,9 +488,7 @@ Action 3: Finish[yes]
         with open(dataset_path) as fin:  # pylint: disable=unspecified-encoding
             for line in fin:
                 line_content = json.loads(line)
-                raw_entries += list(
-                    {"question": k, "triplets": v} for k, v in line_content.items()
-                )
+                raw_entries += list({"question": k, "triplets": v} for k, v in line_content.items())
 
         self._dataset = []
         max_rounds = 0
@@ -538,9 +510,7 @@ Action 3: Finish[yes]
                             + triplet["action"]
                             + "\n",
                             truncation=True,
-                            max_length=min(
-                                tokenizer.model_max_length, self.truncate_length
-                            ),
+                            max_length=min(tokenizer.model_max_length, self.truncate_length),
                             add_special_tokens=False,
                         ).input_ids
                     )
@@ -552,9 +522,7 @@ Action 3: Finish[yes]
                     tokenizer(
                         seq,
                         truncation=True,
-                        max_length=min(
-                            tokenizer.model_max_length, self.truncate_length
-                        ),
+                        max_length=min(tokenizer.model_max_length, self.truncate_length),
                         add_special_tokens=False,
                     ).input_ids
                 )
@@ -587,9 +555,7 @@ Action 3: Finish[yes]
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
         if input_len is not None or output_len is not None:
-            raise ValueError(
-                "ReAct dataset does not support specifying input/output length."
-            )
+            raise ValueError("ReAct dataset does not support specifying input/output length.")
 
         request_records = []
         for processed_entries in self._dataset:
@@ -646,9 +612,9 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
             prompts.append(prompt)
             completions.append(completion)
         if apply_chat_template:
-            assert getattr(tokenizer, "chat_template", None) is not None, (
-                '"--apply-chat-template" is set but the tokenizer does not have chat template.'
-            )
+            assert (
+                getattr(tokenizer, "chat_template", None) is not None
+            ), '"--apply-chat-template" is set but the tokenizer does not have chat template.'
             prompts = [
                 tokenizer.apply_chat_template(
                     [{"role": "user", "content": prompt}],
@@ -689,9 +655,9 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
         output_len_std: float = 0.0,
     ) -> List[RequestRecord]:
         if self.apply_chat_template:
-            assert input_len is None, (
-                '"--apply-chat-template" is not supported when "--input-len" is specified.'
-            )
+            assert (
+                input_len is None
+            ), '"--apply-chat-template" is not supported when "--input-len" is specified.'
 
         request_records = []
         for prompt, input_token_ids, output_length in self._tokenized_dataset:
@@ -702,9 +668,7 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
 
             if input_len is not None:
                 input_length = round(
-                    float(
-                        np.random.normal(loc=input_len, scale=input_len_std, size=1)[0]
-                    )
+                    float(np.random.normal(loc=input_len, scale=input_len_std, size=1)[0])
                 )
                 input_token_ids = input_token_ids[:input_length]
                 input_truncated = True
@@ -712,11 +676,7 @@ class WildChatDataset(Dataset):  # pylint: disable=too-few-public-methods
                 input_truncated = False
             if output_len is not None:
                 output_length = round(
-                    float(
-                        np.random.normal(loc=output_len, scale=output_len_std, size=1)[
-                            0
-                        ]
-                    )
+                    float(np.random.normal(loc=output_len, scale=output_len_std, size=1)[0])
                 )
             elif output_length <= 1:
                 continue
@@ -795,32 +755,23 @@ class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-metho
 
             if input_len is not None:
                 input_length = round(
-                    float(
-                        np.random.normal(loc=input_len, scale=input_len_std, size=1)[0]
-                    )
+                    float(np.random.normal(loc=input_len, scale=input_len_std, size=1)[0])
                 )
             if output_len is not None:
                 output_length = round(
-                    float(
-                        np.random.normal(loc=output_len, scale=output_len_std, size=1)[
-                            0
-                        ]
-                    )
+                    float(np.random.normal(loc=output_len, scale=output_len_std, size=1)[0])
                 )
             elif output_length <= 1:
                 continue
 
             prompt_token_ids = [
-                random.randint(0, self.tokenizer.vocab_size - 1)
-                for _ in range(input_length)
+                random.randint(0, self.tokenizer.vocab_size - 1) for _ in range(input_length)
             ]
             while True:
                 # Adjust the token ids until the retokenization on the decoded string
                 # matches the required input length.
                 prompt = self.tokenizer.decode(prompt_token_ids)
-                retokenized_token_ids = self.tokenizer.encode(
-                    prompt, add_special_tokens=False
-                )
+                retokenized_token_ids = self.tokenizer.encode(prompt, add_special_tokens=False)
                 if len(retokenized_token_ids) < input_length:
                     prompt_token_ids = retokenized_token_ids + [
                         random.randint(0, self.tokenizer.vocab_size - 1)
@@ -831,9 +782,7 @@ class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-metho
                 else:
                     break
 
-            time_diff = (
-                datetime.strptime(timestamp[:-1], time_fmt) - start_time
-            ).total_seconds()
+            time_diff = (datetime.strptime(timestamp[:-1], time_fmt) - start_time).total_seconds()
             request_records.append(
                 RequestRecord(
                     chat_cmpl=ChatCompletionRequest(
@@ -870,9 +819,7 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
 ) -> Dataset:
     """Create a dataset instance with regard to the specified dataset kind and file path."""
     if args.dataset_path is not None and not isinstance(args.dataset_path, str):
-        raise TypeError(
-            f"Invalid dataset path {args.dataset_path}. Please use a string."
-        )
+        raise TypeError(f"Invalid dataset path {args.dataset_path}. Please use a string.")
     if args.dataset is None and args.dataset_path is not None:
         # Auto-detect the dataset kind by looking into the dataset path.
         if "sharegpt" in args.dataset_path.lower():
@@ -893,36 +840,36 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
             raise ValueError(
                 'LLMPerf dataset requires dataset path. Please specify it with "--dataset-path".'
             )
-        assert args.apply_chat_template is False, (
-            "LLMPerf dataset does not support applying chat template"
-        )
+        assert (
+            args.apply_chat_template is False
+        ), "LLMPerf dataset does not support applying chat template"
         return LLMPerfDataset(
             args.dataset_path,
             (args.num_requests + args.num_warmup_requests) * 4,
             tokenizer,
         )
     if args.dataset == "json-mode-eval":
-        assert args.apply_chat_template is False, (
-            "JSON mode evaluation does not support applying chat template"
-        )
+        assert (
+            args.apply_chat_template is False
+        ), "JSON mode evaluation does not support applying chat template"
         return JSONModeEvalDataset(tokenizer)
     if args.dataset == "loogle":
         if args.dataset_path is None:
             raise ValueError(
                 'Loogle dataset requires a testset name. Please specify it with "--dataset-path".'
             )
-        assert args.apply_chat_template is False, (
-            "Loogle dataset does not support applying chat template"
-        )
+        assert (
+            args.apply_chat_template is False
+        ), "Loogle dataset does not support applying chat template"
         return LoogleDataset(tokenizer, testset_name=args.dataset_path)
     if args.dataset == "react":
         if args.dataset_path is None:
             raise ValueError(
                 'ReAct dataset requires dataset path. Please specify it with "--dataset-path".'
             )
-        assert args.apply_chat_template is False, (
-            "ReAct dataset does not support applying chat template"
-        )
+        assert (
+            args.apply_chat_template is False
+        ), "ReAct dataset does not support applying chat template"
         return ReActDataset(args.dataset_path, tokenizer)
     if args.dataset == "wildchat":
         return WildChatDataset(tokenizer, args.apply_chat_template)
@@ -932,8 +879,8 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
                 "AzureLLMInference dataset requires dataset path. "
                 'Please specify it with "--dataset-path".'
             )
-        assert args.apply_chat_template is False, (
-            "AzureLLMInference dataset does not support applying chat template"
-        )
+        assert (
+            args.apply_chat_template is False
+        ), "AzureLLMInference dataset does not support applying chat template"
         return AzureLLMInferenceDataset(args.dataset_path, tokenizer)
     raise ValueError(f"Unrecognized dataset {args.dataset}")

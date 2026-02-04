@@ -13,9 +13,7 @@ from mlc_llm.quantization import Quantization
 from .nemotron_model import NemotronConfig, NemotronForCausalLM
 
 
-def huggingface(
-    model_config: NemotronConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: NemotronConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 

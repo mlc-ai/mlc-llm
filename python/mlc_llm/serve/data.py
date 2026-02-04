@@ -192,11 +192,7 @@ class RequestStreamOutput(Object):  # pylint: disable=too-few-public-methods
         if request_final_usage_json_str is not None:
             return (
                 request_id,
-                [
-                    SingleRequestStreamOutput(
-                        [], None, None, request_final_usage_json_str, ""
-                    )
-                ],
+                [SingleRequestStreamOutput([], None, None, request_final_usage_json_str, "")],
             )
 
         stream_outputs = []
@@ -212,9 +208,7 @@ class RequestStreamOutput(Object):  # pylint: disable=too-few-public-methods
                 SingleRequestStreamOutput(
                     delta_token_ids=list(delta_token_ids),
                     delta_logprob_json_strs=delta_logprob_json_strs,
-                    finish_reason=str(finish_reason)
-                    if finish_reason is not None
-                    else None,
+                    finish_reason=str(finish_reason) if finish_reason is not None else None,
                     request_final_usage_json_str=None,
                     extra_prefix_string=str(extra_prefix_string),
                 )

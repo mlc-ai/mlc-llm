@@ -39,9 +39,7 @@ def test_engine_generate() -> None:
     ]
     for rid in range(num_requests):
         print(f"generating for request {rid}")
-        for delta_outputs in engine._generate(
-            prompts[rid], generation_cfg, request_id=str(rid)
-        ):
+        for delta_outputs in engine._generate(prompts[rid], generation_cfg, request_id=str(rid)):
             assert len(delta_outputs) == generation_cfg.n
             for i, delta_output in enumerate(delta_outputs):
                 output_texts[rid][i] += delta_output.delta_text

@@ -26,9 +26,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
         self.non_negative_var = ["vocab_size"]
         self.target = target
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         if str(self.target.kind) not in ["cuda", "vulkan", "metal", "webgpu"]:
             # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
@@ -71,18 +69,12 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
     batch_size = tir.SizeVar("batch_size", "int64")
     num_samples = tir.SizeVar("num_samples", "int64")
     vocab_size = tir.SizeVar("vocab_size", "int64")
-    probs = relax.Var(
-        "probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
-    )
+    probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     uniform_samples = relax.Var(
         "uniform_samples", relax.TensorStructInfo((num_samples,), "float32")
     )
-    sample_indices = relax.Var(
-        "sample_indices", relax.TensorStructInfo((num_samples,), "int32")
-    )
-    with bb.function(
-        "multinomial_from_uniform", [probs, uniform_samples, sample_indices]
-    ):
+    sample_indices = relax.Var("sample_indices", relax.TensorStructInfo((num_samples,), "int32"))
+    with bb.function("multinomial_from_uniform", [probs, uniform_samples, sample_indices]):
         with bb.dataflow():
             sample_shape = relax.ShapeExpr([num_samples, 1])
             probs_tensor = nn.wrap_nested(probs, name="probs")
@@ -127,14 +119,10 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
 def _attach_argsort_func(bb: relax.BlockBuilder):
     batch_size = tir.SizeVar("batch_size", "int64")
     vocab_size = tir.SizeVar("vocab_size", "int64")
-    probs = relax.Var(
-        "probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
-    )
+    probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     with bb.function("argsort_probs", [probs]):
         with bb.dataflow():
-            sorted_indices = bb.emit(
-                relax.op.argsort(probs, descending=True, dtype="int32")
-            )
+            sorted_indices = bb.emit(relax.op.argsort(probs, descending=True, dtype="int32"))
             sorted_values = bb.emit_te(
                 lambda unsorted_probs, sorted_indices: te.compute(
                     (batch_size, vocab_size),
@@ -174,9 +162,7 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-ma
     uniform_samples = relax.Var(
         "uniform_samples", relax.TensorStructInfo((num_samples,), "float32")
     )
-    sample_indices = relax.Var(
-        "sample_indices", relax.TensorStructInfo((num_samples,), "int32")
-    )
+    sample_indices = relax.Var("sample_indices", relax.TensorStructInfo((num_samples,), "int32"))
     top_p = relax.Var("top_p", relax.TensorStructInfo((batch_size,), "float32"))
 
     with bb.function(
@@ -187,9 +173,7 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-ma
             sample_shape = relax.ShapeExpr([num_samples, 1])
             top_p_shape = relax.ShapeExpr([batch_size, 1])
             sorted_probs_tensor = nn.wrap_nested(sorted_probs, name="sorted_probs")
-            sorted_indices_tensor = nn.wrap_nested(
-                sorted_indices, name="sorted_indices"
-            )
+            sorted_indices_tensor = nn.wrap_nested(sorted_indices, name="sorted_indices")
             uniform_samples_tensor = nn.wrap_nested(
                 relax.call_pure_packed(
                     "vm.builtin.reshape",
@@ -227,13 +211,15 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-ma
                 ),
             )
 
-            result_tensor = nn.sample_top_p_top_k_from_sorted_prob(  # pylint:disable=too-many-function-args
-                sorted_probs_tensor,
-                sorted_indices_tensor,
-                top_p_tensor,
-                top_k_tensor,
-                uniform_samples_tensor,
-                sample_indices_tensor,
+            result_tensor = (
+                nn.sample_top_p_top_k_from_sorted_prob(  # pylint:disable=too-many-function-args
+                    sorted_probs_tensor,
+                    sorted_indices_tensor,
+                    top_p_tensor,
+                    top_k_tensor,
+                    uniform_samples_tensor,
+                    sample_indices_tensor,
+                )
             )
             result = bb.emit_output(
                 relax.call_pure_packed(
@@ -251,9 +237,7 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
     batch_size = tir.SizeVar("batch_size", "int64")
     vocab_size = tir.SizeVar("vocab_size", "int64")
     num_pivots = 3
-    probs = relax.Var(
-        "probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
-    )
+    probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     top_p = relax.Var("top_p", relax.TensorStructInfo((batch_size,), "float32"))
     init_pivots = relax.Var(
         "init_pivots", relax.TensorStructInfo((batch_size, num_pivots), "float32")
@@ -291,12 +275,8 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
     sorted_indices = relax.Var(
         "sorted_indices", relax.TensorStructInfo((batch_size, vocab_size), "int32")
     )
-    sample_indices = relax.Var(
-        "sample_indices", relax.TensorStructInfo((num_samples,), "int32")
-    )
-    sampling_results = relax.Var(
-        "sampling_result", relax.TensorStructInfo((num_samples,), "int32")
-    )
+    sample_indices = relax.Var("sample_indices", relax.TensorStructInfo((num_samples,), "int32"))
+    sampling_results = relax.Var("sampling_result", relax.TensorStructInfo((num_samples,), "int32"))
     top_prob_offsets = relax.Var(
         "lobprob_offsets", relax.TensorStructInfo((num_positions,), "int32")
     )
@@ -316,22 +296,14 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
         num_samples = T.int32(is_size_var=True)
         num_positions = T.int32(is_size_var=True)
         vocab_size = T.int32(is_size_var=True)
-        unsorted_probs = T.match_buffer(
-            var_unsorted_probs, (batch_size, vocab_size), "float32"
-        )
-        sorted_indices = T.match_buffer(
-            var_sorted_indices, (batch_size, vocab_size), "int32"
-        )
+        unsorted_probs = T.match_buffer(var_unsorted_probs, (batch_size, vocab_size), "float32")
+        sorted_indices = T.match_buffer(var_sorted_indices, (batch_size, vocab_size), "int32")
         sample_indices = T.match_buffer(var_sample_indices, (num_samples,), "int32")
         sampling_results = T.match_buffer(var_sampling_results, (num_samples,), "int32")
-        top_prob_offsets = T.match_buffer(
-            var_top_prob_offsets, (num_positions,), "int32"
-        )
+        top_prob_offsets = T.match_buffer(var_top_prob_offsets, (num_positions,), "int32")
         sampled_values = T.match_buffer(var_sampled_values, (num_samples,), "float32")
         top_prob_probs = T.match_buffer(var_top_prob_probs, (num_positions,), "float32")
-        top_prob_indices = T.match_buffer(
-            var_top_prob_indices, (num_positions,), "int32"
-        )
+        top_prob_indices = T.match_buffer(var_top_prob_indices, (num_positions,), "int32")
         for i in T.serial(num_positions + num_samples):
             with T.sblock("block"):
                 vi = T.axis.spatial(num_positions + num_samples, i)
@@ -342,9 +314,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
                     top_prob_probs[vi] = unsorted_probs[row, sorted_indices[row, col]]
                 else:
                     vj: T.int32 = vi - num_positions
-                    sampled_values[vj] = unsorted_probs[
-                        sample_indices[vj], sampling_results[vj]
-                    ]
+                    sampled_values[vj] = unsorted_probs[sample_indices[vj], sampling_results[vj]]
 
     args = [
         unsorted_probs,
@@ -377,9 +347,7 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
     draft_probs = relax.Var(
         "draft_probs", relax.TensorStructInfo((num_nodes, vocab_size), "float32")
     )
-    draft_tokens = relax.Var(
-        "draft_tokens", relax.TensorStructInfo((num_nodes,), "int32")
-    )
+    draft_tokens = relax.Var("draft_tokens", relax.TensorStructInfo((num_nodes,), "int32"))
     model_probs = relax.Var(
         "model_probs", relax.TensorStructInfo((num_nodes, vocab_size), "float32")
     )
@@ -389,9 +357,7 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
     token_tree_next_sibling = relax.Var(
         "token_tree_next_sibling", relax.TensorStructInfo((num_nodes,), "int32")
     )
-    uniform_samples = relax.Var(
-        "uniform_samples", relax.TensorStructInfo((num_nodes,), "float32")
-    )
+    uniform_samples = relax.Var("uniform_samples", relax.TensorStructInfo((num_nodes,), "float32"))
     token_tree_parent_ptr = relax.Var(
         "token_tree_parent_ptr", relax.TensorStructInfo((nbatch,), "int32")
     )

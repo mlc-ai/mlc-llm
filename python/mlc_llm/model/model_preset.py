@@ -328,9 +328,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "summary_proj_to_labels": True,
         "summary_type": "cls_index",
         "summary_use_proj": True,
-        "task_specific_params": {
-            "text-generation": {"do_sample": True, "max_length": 50}
-        },
+        "task_specific_params": {"text-generation": {"do_sample": True, "max_length": 50}},
         "vocab_size": 50257,
     },
     "gpt2_medium": {
@@ -356,9 +354,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "summary_proj_to_labels": True,
         "summary_type": "cls_index",
         "summary_use_proj": True,
-        "task_specific_params": {
-            "text-generation": {"do_sample": True, "max_length": 50}
-        },
+        "task_specific_params": {"text-generation": {"do_sample": True, "max_length": 50}},
         "vocab_size": 50257,
     },
     "gpt_bigcode": {

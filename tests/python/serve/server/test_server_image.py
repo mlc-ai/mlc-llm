@@ -134,10 +134,7 @@ def check_openai_stream_response(
         if not is_chat_completion:
             usage = response["usage"]
             assert isinstance(usage, dict)
-            assert (
-                usage["total_tokens"]
-                == usage["prompt_tokens"] + usage["completion_tokens"]
-            )
+            assert usage["total_tokens"] == usage["prompt_tokens"] + usage["completion_tokens"]
             assert usage["prompt_tokens"] > 0
             if completion_tokens is not None:
                 assert usage["completion_tokens"] <= completion_tokens

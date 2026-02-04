@@ -206,9 +206,5 @@ if __name__ == "__main__":
     MODEL = (os.path.dirname(model_lib), model_lib)
 
     for msg in CHAT_COMPLETION_MESSAGES:
-        test_openai_v1_chat_completion_function_call(
-            MODEL, None, stream=False, messages=msg
-        )
-        test_openai_v1_chat_completion_function_call(
-            MODEL, None, stream=True, messages=msg
-        )
+        test_openai_v1_chat_completion_function_call(MODEL, None, stream=False, messages=msg)
+        test_openai_v1_chat_completion_function_call(MODEL, None, stream=True, messages=msg)

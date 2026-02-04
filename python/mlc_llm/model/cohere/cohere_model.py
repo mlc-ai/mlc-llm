@@ -78,12 +78,12 @@ class CohereConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 self.num_key_value_heads = self.num_attention_heads
             if self.head_dim == 0:
                 self.head_dim = self.hidden_size // self.num_attention_heads
-            assert self.head_dim * self.num_attention_heads == self.hidden_size, (
-                "head_dim * num_attention_heads != hidden_size"
-            )
-            assert self.num_attention_heads % self.num_key_value_heads == 0, (
-                "num_attention_heads % num_key_value_heads != 0"
-            )
+            assert (
+                self.head_dim * self.num_attention_heads == self.hidden_size
+            ), "head_dim * num_attention_heads != hidden_size"
+            assert (
+                self.num_attention_heads % self.num_key_value_heads == 0
+            ), "num_attention_heads % num_key_value_heads != 0"
 
 
 # pylint: disable=invalid-name,missing-docstring
@@ -98,16 +98,10 @@ class CohereMLP(nn.Module):
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
 
-        self.intermediate_size = (
-            config.intermediate_size // config.tensor_parallel_shards
-        )
-        self.gate_proj = nn.Linear(
-            config.hidden_size, self.intermediate_size, bias=False
-        )
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.gate_proj = nn.Linear(config.hidden_size, self.intermediate_size, bias=False)
         self.up_proj = nn.Linear(config.hidden_size, self.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(
-            self.intermediate_size, config.hidden_size, bias=False
-        )
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
 
     def forward(self, x):
         down_proj = self.down_proj(op.silu(self.gate_proj(x)) * self.up_proj(x))
@@ -124,9 +118,7 @@ class CohereAttention(nn.Module):
             f"num_attention_heads({config.num_attention_heads}) "
             "must be divisible by tensor_parallel_shards"
         )
-        self.num_key_value_heads = (
-            config.num_key_value_heads // config.tensor_parallel_shards
-        )
+        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
         assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
             f"num_attention_heads({config.num_key_value_heads}) "
             "must be divisible by tensor_parallel_shards"
@@ -135,17 +127,12 @@ class CohereAttention(nn.Module):
 
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
-            out_features=(self.num_q_heads + 2 * self.num_key_value_heads)
-            * self.head_dim,
+            out_features=(self.num_q_heads + 2 * self.num_key_value_heads) * self.head_dim,
             bias=False,
         )
-        self.out_proj = nn.Linear(
-            self.num_q_heads * self.head_dim, config.hidden_size, bias=False
-        )
+        self.out_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -154,7 +141,7 @@ class CohereAttention(nn.Module):
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )
@@ -186,17 +173,13 @@ class CohereDecoderLayer(nn.Module):
                 self.mlp.gate_proj,
                 tp.ShardSingleDim("_shard_mlp_gate", segs=[i, i], dim=0),
             )
-            _set(
-                self.mlp.up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
-            )
+            _set(self.mlp.up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         hidden_ln = self.input_layernorm(hidden_states)
         attn = self.self_attn(hidden_ln, paged_kv_cache, layer_id)
         mlp = self.mlp(hidden_ln)
@@ -206,9 +189,7 @@ class CohereDecoderLayer(nn.Module):
 
     def _apply_parallel_residual(self, mlp_out, residual):
         if self.tensor_parallel_shards > 1:
-            return op.ccl_allreduce(
-                mlp_out + residual / self.tensor_parallel_shards, "sum"
-            )
+            return op.ccl_allreduce(mlp_out + residual / self.tensor_parallel_shards, "sum")
         return mlp_out + residual
 
 
@@ -301,9 +282,7 @@ class CohereForCausalLM(nn.Module):
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         # logits = self.lm_head(hidden_states)
         logits = self.model.embed_tokens.lm_head_forward(hidden_states)  # type: ignore
 
@@ -382,9 +361,7 @@ class CohereForCausalLM(nn.Module):
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -400,9 +377,7 @@ class CohereForCausalLM(nn.Module):
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -411,9 +386,7 @@ class CohereForCausalLM(nn.Module):
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -421,9 +394,7 @@ class CohereForCausalLM(nn.Module):
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

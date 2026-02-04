@@ -11,9 +11,7 @@ class AttachCUDAGraphAllocInitFunc:  # pylint: disable=too-few-public-methods
     def __init__(self):
         pass
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         bb = relax.BlockBuilder(mod)
         alloc_func_gv = None

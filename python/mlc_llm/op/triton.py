@@ -199,17 +199,13 @@ def _get_triton_w8a8_block_fp8_group_gemm():
         token_end = tl.load(indptr_ptr + expert_id + 1)
         start_pid_m = tl.cdiv(token_begin, BLOCK_SIZE_M) + expert_id
         offs_token_id = (
-            token_begin
-            + (pid_m - start_pid_m) * BLOCK_SIZE_M
-            + tl.arange(0, BLOCK_SIZE_M)
+            token_begin + (pid_m - start_pid_m) * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
         )
         token_mask = offs_token_id < token_end
 
         offs_bn = (pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)) % N
         offs_k = tl.arange(0, BLOCK_SIZE_K)
-        a_ptrs = (
-            a_ptr + offs_token_id[:, None] * stride_am + offs_k[None, :] * stride_ak
-        )
+        a_ptrs = a_ptr + offs_token_id[:, None] * stride_am + offs_k[None, :] * stride_ak
 
         b_ptrs = (
             b_ptr
@@ -244,16 +240,12 @@ def _get_triton_w8a8_block_fp8_group_gemm():
                     mask=token_mask[:, None] & (offs_k[None, :] < K - k * BLOCK_SIZE_K),
                     other=0.0,
                 )
-                b = tl.load(
-                    b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0
-                )
+                b = tl.load(b_ptrs, mask=offs_k[:, None] < K - k * BLOCK_SIZE_K, other=0.0)
 
             # We accumulate along the K dimension.
             k_start = k * BLOCK_SIZE_K
             offs_ks = k_start // group_k
-            a_scale = tl.load(
-                a_scale_ptrs + offs_ks * stride_ask, mask=token_mask, other=0.0
-            )
+            a_scale = tl.load(a_scale_ptrs + offs_ks * stride_ask, mask=token_mask, other=0.0)
             b_scale = tl.load(b_scale_ptrs + offs_ks * stride_bsk)
 
             accumulator += tl.dot(a, b) * a_scale[:, None] * b_scale[None, :]
@@ -271,9 +263,7 @@ def _get_triton_w8a8_block_fp8_group_gemm():
         # -----------------------------------------------------------
         # Write back the block of the output
         offs_cn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
-        c_ptrs = (
-            c_ptr + stride_cm * offs_token_id[:, None] + stride_cn * offs_cn[None, :]
-        )
+        c_ptrs = c_ptr + stride_cm * offs_token_id[:, None] + stride_cn * offs_cn[None, :]
         c_mask = token_mask[:, None] & (offs_cn[None, :] < N)
         tl.store(c_ptrs, accumulator, mask=c_mask)
 
@@ -299,13 +289,9 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
     # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tir.PrimFunc], str]"
     # will cause the failure of the type resolution in mypy.
     if triton is None:
-        raise RuntimeError(
-            "Triton is not installed. Please install it with `pip install triton`."
-        )
+        raise RuntimeError("Triton is not installed. Please install it with `pip install triton`.")
 
-    name_suffix = (
-        f"_N{N}_K{K}_block_n{block_n}_block_k{block_k}_in{in_dtype}_out{out_dtype}"
-    )
+    name_suffix = f"_N{N}_K{K}_block_n{block_n}_block_k{block_k}_in{in_dtype}_out{out_dtype}"
     kernel_name = f"triton_w8a8_block_fp8_gemm{name_suffix}"
     tir_name = f"tir_w8a8_block_fp8_matmul{name_suffix}"
     for ext_mod in extern_mods:
@@ -402,9 +388,7 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
 ):
     """Get the TIR function for the w8a8_block_fp8_group_gemm kernel."""
     if triton is None:
-        raise RuntimeError(
-            "Triton is not installed. Please install it with `pip install triton`."
-        )
+        raise RuntimeError("Triton is not installed. Please install it with `pip install triton`.")
 
     name_suffix = (
         f"_N{N}_K{K}_num_experts{num_experts}_block_n{block_n}"
@@ -463,18 +447,13 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
                         0 : (N + block_n - 1) // block_n,
                         0 : (K + block_k - 1) // block_k,
                     ],
-                    expert_ids[
-                        0 : (EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts
-                    ],
+                    expert_ids[0 : (EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts],
                     indptr[0 : num_experts + 1],
                 )
                 T.writes(C[0:EM, 0:N])
                 T.call_kernel(
                     triton.jit(triton_kernel),
-                    (
-                        (T.ceildiv(EM, BLOCK_SIZE_M) + num_experts)
-                        * T.ceildiv(N, BLOCK_SIZE_N),
-                    ),
+                    ((T.ceildiv(EM, BLOCK_SIZE_M) + num_experts) * T.ceildiv(N, BLOCK_SIZE_N),),
                     A.data,
                     B.data,
                     C.data,
@@ -495,8 +474,7 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
                     1,  # stride_cn
                     (K + block_k - 1) // block_k,  # stride_asm
                     1,  # stride_ask
-                    ((N + block_n - 1) // block_n)
-                    * ((K + block_k - 1) // block_k),  # stride_bse
+                    ((N + block_n - 1) // block_n) * ((K + block_k - 1) // block_k),  # stride_bse
                     1,  # stride_bsk
                     (K + block_k - 1) // block_k,  # stride_Bs_n
                     block_n,
@@ -562,9 +540,7 @@ def _compute_expert_id_per_block(
         )
         with T.sblock("root"):
             for eid in T.thread_binding(0, num_experts, thread="threadIdx.x"):
-                start_block_id: T.int32 = (
-                    indptr[eid] + BLOCK_SIZE_M - 1
-                ) // BLOCK_SIZE_M + eid
+                start_block_id: T.int32 = (indptr[eid] + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + eid
                 num_blocks: T.int32 = (
                     indptr[eid + 1] - indptr[eid] + BLOCK_SIZE_M - 1
                 ) // BLOCK_SIZE_M
@@ -631,12 +607,8 @@ def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments,too-many-lo
     assert x.shape[-1] == weight.shape[1]
     assert x.shape[:-1] == x_scale.shape[:-1]
     assert (x.shape[-1] + block_size[1] - 1) // block_size[1] == x_scale.shape[-1]
-    assert (weight.shape[1] + block_size[1] - 1) // block_size[1] == weight_scale.shape[
-        1
-    ]
-    assert (weight.shape[0] + block_size[0] - 1) // block_size[0] == weight_scale.shape[
-        0
-    ]
+    assert (weight.shape[1] + block_size[1] - 1) // block_size[1] == weight_scale.shape[1]
+    assert (weight.shape[0] + block_size[0] - 1) // block_size[0] == weight_scale.shape[0]
 
     if x.dtype != "float8_e4m3fn" or weight.dtype != "float8_e4m3fn":
         raise ValueError(
@@ -738,12 +710,8 @@ def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-m
     assert weight_scale.ndim == weight.ndim
     assert x.shape[-1] == weight.shape[2]
     assert (x.shape[-1] + block_size[1] - 1) // block_size[1] == x_scale.shape[-1]
-    assert (weight.shape[2] + block_size[1] - 1) // block_size[1] == weight_scale.shape[
-        2
-    ]
-    assert (weight.shape[1] + block_size[0] - 1) // block_size[0] == weight_scale.shape[
-        1
-    ]
+    assert (weight.shape[2] + block_size[1] - 1) // block_size[1] == weight_scale.shape[2]
+    assert (weight.shape[1] + block_size[0] - 1) // block_size[0] == weight_scale.shape[1]
 
     num_experts = weight.shape[0]
     M = x.shape[0]

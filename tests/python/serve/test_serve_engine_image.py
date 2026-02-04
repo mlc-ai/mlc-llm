@@ -7,9 +7,7 @@ from mlc_llm.serve.sync_engine import EngineConfig, SyncMLCEngine
 
 
 def get_test_image(config) -> data.ImageData:
-    return data.ImageData.from_url(
-        "https://llava-vl.github.io/static/images/view.jpg", config
-    )
+    return data.ImageData.from_url("https://llava-vl.github.io/static/images/view.jpg", config)
 
 
 def test_engine_generate():

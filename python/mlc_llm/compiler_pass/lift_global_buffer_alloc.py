@@ -64,9 +64,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
 
         assert len(call.sinfo_args) == 1
         if any(_has_symbolic_var(sinfo) for sinfo in tensor_sinfo):
-            tensor_sinfo, success = _resolve_tir_var_mapping(
-                func_before_update, call, tensor_sinfo
-            )
+            tensor_sinfo, success = _resolve_tir_var_mapping(func_before_update, call, tensor_sinfo)
             if not success:
                 # Cannot resolve TIR var mapping. Fall back to no lifting.
                 self.gv2new_tensor_sinfo.pop(g_var)
@@ -78,9 +76,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
             new_call = relax.Call(
                 call.op,
                 args=args,
-                sinfo_args=[
-                    relax.TupleStructInfo(list(call.sinfo_args) + tensor_sinfo)
-                ],
+                sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args) + tensor_sinfo)],
                 attrs=call.attrs,
             )
             emitted_tuple = self.builder_.emit(new_call)
@@ -89,9 +85,7 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         return relax.Call(
             call.op,
             args=args,
-            sinfo_args=[
-                relax.TupleStructInfo(list(call.sinfo_args[0].fields) + tensor_sinfo)
-            ],
+            sinfo_args=[relax.TupleStructInfo(list(call.sinfo_args[0].fields) + tensor_sinfo)],
             attrs=call.attrs,
         )
 
@@ -118,9 +112,7 @@ def remove_global_buf_alloc(
             params.insert(insertion_point, param)
             insertion_point += 1
             buffer_map[param] = buf_alloc
-            tensor_sinfo.append(
-                relax.TensorStructInfo(buf_alloc.shape, buf_alloc.dtype)
-            )
+            tensor_sinfo.append(relax.TensorStructInfo(buf_alloc.shape, buf_alloc.dtype))
         else:
             alloc_buffers.append(buf_alloc)
 

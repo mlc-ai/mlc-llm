@@ -13,9 +13,7 @@ from mlc_llm.quantization import Quantization
 from .deepseek_model import DeepseekConfig, DeepseekForCausalLM
 
 
-def huggingface(
-    model_config: DeepseekConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: DeepseekConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -57,18 +55,13 @@ def huggingface(
                     f"{attn}.v_proj.{weight_type}",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
-                        dtype
-                    ),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
 
     for i in range(model_config.num_hidden_layers):
-        if (
-            i >= model_config.first_k_dense_replace
-            and i % model_config.moe_layer_freq == 0
-        ):
+        if i >= model_config.first_k_dense_replace and i % model_config.moe_layer_freq == 0:
             # map mlp shared expert weight
             mlp = f"model.layers.{i}.mlp"
             shared_expert = f"{mlp}.shared_experts"
@@ -81,9 +74,7 @@ def huggingface(
                     f"{shared_expert}.up_proj.weight",
                 ],
                 functools.partial(
-                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                        dtype
-                    ),
+                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -93,9 +84,7 @@ def huggingface(
             def combine_expert_gate_up(*hf_params, dtype):
                 stack = []
                 for i in range(0, len(hf_params), 2):
-                    stack.append(
-                        np.concatenate([hf_params[i], hf_params[i + 1]], axis=0)
-                    )
+                    stack.append(np.concatenate([hf_params[i], hf_params[i + 1]], axis=0))
                 return np.stack(stack, axis=0).astype(dtype)
 
             mapping.add_mapping(
@@ -142,9 +131,7 @@ def huggingface(
                     f"{mlp}.up_proj.weight",
                 ],
                 functools.partial(
-                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                        dtype
-                    ),
+                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )

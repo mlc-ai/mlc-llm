@@ -45,9 +45,7 @@ def huggingface(model_config: RWKV5Config, quantization: Quantization) -> Extern
         hf_name = f"rwkv.blocks.{i}.attention.time_decay"
         mlc_param = named_parameters[mlc_name]
         if mlc_param.dtype != "float32":
-            raise ValueError(
-                f"RWKV5 time_decay should be float32, got {mlc_param.dtype}"
-            )
+            raise ValueError(f"RWKV5 time_decay should be float32, got {mlc_param.dtype}")
         mapping.add_mapping(
             mlc_name,
             [hf_name],
@@ -68,7 +66,7 @@ def huggingface(model_config: RWKV5Config, quantization: Quantization) -> Extern
                     mlc_name,
                     [hf_name],
                     functools.partial(
-                        lambda x, dtype, t: x.astype(dtype) / (2**t),
+                        lambda x, dtype, t: x.astype(dtype) / (2 ** t),
                         dtype=mlc_param.dtype,
                         t=i // model_config.rescale_every,
                     ),

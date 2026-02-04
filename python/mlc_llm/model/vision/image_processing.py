@@ -60,12 +60,8 @@ class ImageProcessor(Module):
                 pad_num = 336 if "pad_num" not in params else params["pad_num"]
                 ratio = tir.Select(
                     w > h,
-                    tir.div(
-                        tir.generic.cast(w, "float32"), tir.generic.cast(h, "float32")
-                    ),
-                    tir.div(
-                        tir.generic.cast(h, "float32"), tir.generic.cast(w, "float32")
-                    ),
+                    tir.div(tir.generic.cast(w, "float32"), tir.generic.cast(h, "float32")),
+                    tir.div(tir.generic.cast(h, "float32"), tir.generic.cast(w, "float32")),
                 )
 
                 scale = tir.ceil(tir.sqrt(tir.generic.cast(hd_num, "float32") * ratio))
@@ -110,29 +106,19 @@ class ImageProcessor(Module):
                 left: T.int64(),
                 right: T.int64(),
             ):
-                T.func_attr(
-                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
-                )
+                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(
-                    out, (n, c, bottom - top, right - left), dtype=dtype
-                )
+                out_buf = T.match_buffer(out, (n, c, bottom - top, right - left), dtype=dtype)
                 out_h = bottom - top
                 out_w = right - left
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
                             with T.sblock("crop"):
-                                if (h_idx + T.int64(top)) < h and (
-                                    w_idx + T.int64(left)
-                                ) < w:
+                                if (h_idx + T.int64(top)) < h and (w_idx + T.int64(left)) < w:
                                     T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
-                                    T.reads(
-                                        image_buf[
-                                            n_idx, c_idx, h_idx + top, w_idx + left
-                                        ]
-                                    )
+                                    T.reads(image_buf[n_idx, c_idx, h_idx + top, w_idx + left])
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = image_buf[
                                         n_idx, c_idx, h_idx + top, w_idx + left
                                     ]
@@ -166,9 +152,7 @@ class ImageProcessor(Module):
         def create_rescale_func(rescale_factor, dtype, o_dtype):
             @T.prim_func
             def rescale_func(image: T.handle, out: T.handle):
-                T.func_attr(
-                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
-                )
+                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, c, h, w), dtype=o_dtype)
@@ -258,9 +242,7 @@ class ImageProcessor(Module):
         def create_pad_func(l, r, fill=255):
             @T.prim_func
             def pad_func(image: T.handle, out: T.handle, t: T.int64(), b: T.int64()):
-                T.func_attr(
-                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
-                )
+                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, c, h + t + b, w + l + r), dtype=dtype)
@@ -273,12 +255,7 @@ class ImageProcessor(Module):
                             with T.sblock("pad"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
-                                if (
-                                    h_idx < t
-                                    or h_idx > h + b
-                                    or w_idx < l
-                                    or w_idx > w + r
-                                ):
+                                if h_idx < t or h_idx > h + b or w_idx < l or w_idx > w + r:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = fill
                                 else:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = image_buf[

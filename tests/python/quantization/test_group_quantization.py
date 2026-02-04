@@ -25,9 +25,7 @@ def quantize_np(config: GroupQuantize, weight: np.ndarray):
         ((0, 0), (0, (config.group_size - k % config.group_size) % config.group_size)),
     )
     n, k = weight_padded.shape
-    weight_reshaped = np.reshape(
-        weight_padded, (n, k // config.group_size, config.group_size)
-    )
+    weight_reshaped = np.reshape(weight_padded, (n, k // config.group_size, config.group_size))
     max_abs = np.maximum(np.max(np.abs(weight_reshaped), axis=-1), 1e-4)
     scale = np.divide(max_abs, config.max_int_value)
     scale_reshaped = np.reshape(scale, (*scale.shape, 1))
@@ -74,8 +72,7 @@ def dequantize_np(
     weight_bin = np.bitwise_and(
         np.right_shift(
             weight_repeated,
-            (indice_j % config.num_elem_per_storage)
-            * DataType(config.quantize_dtype).bits,
+            (indice_j % config.num_elem_per_storage) * DataType(config.quantize_dtype).bits,
         ),
         bin_mask,
     )
@@ -100,9 +97,7 @@ def test_quantize_weight(quant_name: str, shape: List[int], dtype: str, device: 
     config = QUANTIZATION[quant_name]
     assert isinstance(config, GroupQuantize)
     weight_np = np.random.random(shape).astype(dtype)
-    output = config.quantize_weight(
-        tvm.runtime.tensor(weight_np, device=tvm.device(device))
-    )
+    output = config.quantize_weight(tvm.runtime.tensor(weight_np, device=tvm.device(device)))
     quantized_weight, scale = output[0].numpy(), output[1].numpy()
     quantized_weight_ref, scale_ref = quantize_np(config, weight_np)
     tvm.testing.assert_allclose(scale, scale_ref, rtol=1e-3, atol=1e-3)
@@ -146,9 +141,7 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     mod = config.quantize_model(Test(), QuantizeMapping({}, {}), "")
     mod.linear.q_weight.data = weight_np
     mod.linear.q_scale.data = scale_np
-    model = mod.jit(
-        spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}}
-    )
+    model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
     out = model["forward"](
         torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
     )

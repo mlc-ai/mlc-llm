@@ -44,9 +44,7 @@ class MixtralMoE(nn.Module):
                 f"Cannot split MoE intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = (
-            config.intermediate_size // config.tensor_parallel_shards
-        )
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
         self.gate = nn.Linear(
             in_features=config.hidden_size,
             out_features=config.num_local_experts,
@@ -82,12 +80,9 @@ class MixtralMoE(nn.Module):
         gate: Tensor = self.gate(x)
         # expert_weights: [num_tokens, experts_per_tok]
         # expert_indices: [num_tokens, experts_per_tok]
-        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(
-            gate, experts_per_tok
-        )
+        expert_weights, expert_indices = op_ext.moe_misc.gating_softmax_topk(gate, experts_per_tok)
         use_ft = (
-            op_ext.get_store().cutlass_group_gemm
-            or op_ext.get_store().faster_transformer
+            op_ext.get_store().cutlass_group_gemm or op_ext.get_store().faster_transformer
         ) and self.dtype == "float16"
         if num_tokens == 1:
             # x: [num_tokens * experts_per_tok, hidden_size]
@@ -96,9 +91,7 @@ class MixtralMoE(nn.Module):
             # cumsum: [num_tokens * local_experts]
             cumsum = op_ext.moe_misc.moe_cumsum(expert_indices, local_experts)
             # indices: [num_tokens * experts_per_tok]
-            reverse_indices, token_indices = op_ext.moe_misc.get_indices(
-                cumsum, expert_indices
-            )
+            reverse_indices, token_indices = op_ext.moe_misc.get_indices(cumsum, expert_indices)
             if use_ft:
                 # indptr: [num_local_experts]
                 indptr = op_ext.moe_misc.get_indptr(
@@ -137,9 +130,7 @@ class MixtralDecoderLayer(nn.Module):
         self.self_attn = LlamaAttention(config)
         self.moe = MixtralMoE(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, eps, bias=False
-        )
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, eps, bias=False)
 
         def _set_tp():
             def _set(layer, hint):
@@ -161,24 +152,16 @@ class MixtralDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var
-    ):
+    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
-        out = self.self_attn(
-            self.input_layernorm(hidden_states), attention_mask, total_seq_len
-        )
+        out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.moe(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
         return hidden_states
 
-    def batch_forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
-        out = self.self_attn(
-            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
-        )
+    def batch_forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.moe(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)

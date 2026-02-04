@@ -11,9 +11,7 @@ from mlc_llm.quantization import Quantization
 from .phi3_model import Phi3Config, Phi3ForCausalLM
 
 
-def phi3_huggingface(
-    model_config: Phi3Config, quantization: Quantization
-) -> ExternMapping:
+def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of Phi-1/Phi-1.5 HuggingFace PyTorch parameters.
 

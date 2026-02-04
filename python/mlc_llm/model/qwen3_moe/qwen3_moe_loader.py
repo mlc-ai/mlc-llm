@@ -14,9 +14,7 @@ from mlc_llm.quantization import BlockScaleQuantize, Quantization
 from .qwen3_moe_model import Qwen3MoeConfig, Qwen3MoeForCausalLM
 
 
-def huggingface(
-    model_config: Qwen3MoeConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: Qwen3MoeConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -109,9 +107,7 @@ def huggingface(
                     f"{attn}.v_proj.bias",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
-                        dtype
-                    ),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )

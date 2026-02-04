@@ -87,10 +87,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 )
 
     for i in range(model_config.num_hidden_layers):
-        if (
-            i >= model_config.first_k_dense_replace
-            and i % model_config.moe_layer_freq == 0
-        ):
+        if i >= model_config.first_k_dense_replace and i % model_config.moe_layer_freq == 0:
             # map mlp shared expert weight
             mlp = f"model.layers.{i}.mlp"
             shared_expert = f"{mlp}.shared_experts"
@@ -100,18 +97,14 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                     f"{shared_expert}.gate_proj.weight",
                     f"{shared_expert}.up_proj.weight",
                 ],
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
             )
 
             # map mlp moe gate and up weight
             def combine_expert_gate_up(*hf_params, dtype):
                 stack = []
                 for i in range(0, len(hf_params), 2):
-                    stack.append(
-                        np.concatenate([hf_params[i], hf_params[i + 1]], axis=0)
-                    )
+                    stack.append(np.concatenate([hf_params[i], hf_params[i + 1]], axis=0))
                 return np.stack(stack, axis=0).astype(dtype)
 
             add_weight_and_scale_mapping(
@@ -160,9 +153,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                     f"{mlp}.gate_proj.weight",
                     f"{mlp}.up_proj.weight",
                 ],
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
             )
 
         # map MLA kv_b_proj weight
@@ -200,17 +191,12 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                         np.split(
                             kv_b_proj.reshape(
                                 model_config.num_key_value_heads,
-                                (
-                                    model_config.qk_nope_head_dim
-                                    + model_config.v_head_dim
-                                )
+                                (model_config.qk_nope_head_dim + model_config.v_head_dim)
                                 // quantization.weight_block_size[0],
-                                model_config.kv_lora_rank
-                                // quantization.weight_block_size[1],
+                                model_config.kv_lora_rank // quantization.weight_block_size[1],
                             ),
                             indices_or_sections=[
-                                model_config.qk_nope_head_dim
-                                // quantization.weight_block_size[0]
+                                model_config.qk_nope_head_dim // quantization.weight_block_size[0]
                             ],
                             axis=1,
                         )[0]
@@ -250,12 +236,10 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                             model_config.num_key_value_heads,
                             (model_config.qk_nope_head_dim + model_config.v_head_dim)
                             // quantization.weight_block_size[0],
-                            model_config.kv_lora_rank
-                            // quantization.weight_block_size[1],
+                            model_config.kv_lora_rank // quantization.weight_block_size[1],
                         ),
                         indices_or_sections=[
-                            model_config.qk_nope_head_dim
-                            // quantization.weight_block_size[0]
+                            model_config.qk_nope_head_dim // quantization.weight_block_size[0]
                         ],
                         axis=1,
                     )[1].astype(dtype),

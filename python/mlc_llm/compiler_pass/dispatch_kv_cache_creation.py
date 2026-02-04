@@ -20,9 +20,7 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
     assert isinstance(func.body.blocks[0], relax.DataflowBlock)
     assert isinstance(func.body.blocks[0].bindings[0], relax.VarBinding)
     assert isinstance(func.body.blocks[0].bindings[0].value, relax.Call)
-    assert func.body.blocks[0].bindings[0].value.op == tvm.ir.Op.get(
-        "relax.call_pure_packed"
-    )
+    assert func.body.blocks[0].bindings[0].value.op == tvm.ir.Op.get("relax.call_pure_packed")
     call_args = func.body.blocks[0].bindings[0].value.args
     assert isinstance(call_args[0], relax.ExternFunc)
     assert call_args[0].global_symbol == "mlc.create_paged_kv_cache_generic"
@@ -103,9 +101,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         self.flashinfer = flashinfer
         self.metadata = metadata
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         func_dict = {}
         creation_func = None
@@ -133,9 +129,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
 
         mod = bb.finalize()
         mod_attrs = dict(mod.attrs) if mod.attrs else {}
-        mod = mod.with_attr(
-            "external_mods", mod_attrs.get("external_mods", []) + extern_mods
-        )
+        mod = mod.with_attr("external_mods", mod_attrs.get("external_mods", []) + extern_mods)
         return mod
 
     def attach_kv_cache_metadata(self, kwargs: Dict[str, Any]):
@@ -160,9 +154,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         prefill_chunk_size = relax.Var(
             "prefill_chunk_size_", relax.ShapeStructInfo([kwargs["prefill_chunk_size"]])
         )
-        page_size = relax.Var(
-            "page_size_", relax.ShapeStructInfo([kwargs["page_size"]])
-        )
+        page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
             "support_sliding_window_",
             relax.ShapeStructInfo([kwargs["support_sliding_window"]]),
@@ -215,9 +207,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         prefill_chunk_size = relax.Var(
             "prefill_chunk_size_", relax.ShapeStructInfo([kwargs["prefill_chunk_size"]])
         )
-        page_size = relax.Var(
-            "page_size_", relax.ShapeStructInfo([kwargs["page_size"]])
-        )
+        page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
             "support_sliding_window_",
             relax.ShapeStructInfo([kwargs["support_sliding_window"]]),

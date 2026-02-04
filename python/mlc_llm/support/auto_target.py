@@ -28,9 +28,7 @@ NOT_FOUND = red("Not found")
 BuildFunc = Callable[[IRModule, "CompileArgs", Pass], None]
 
 
-def detect_target_and_host(
-    target_hint: str, host_hint: str = "auto"
-) -> Tuple[Target, BuildFunc]:
+def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -74,13 +72,9 @@ def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
             try:
                 target = Target.from_device(device)
             except ValueError:
-                logger.info(
-                    "%s: Cannot detect target from device: %s", NOT_FOUND, device_str
-                )
+                logger.info("%s: Cannot detect target from device: %s", NOT_FOUND, device_str)
         if target is None:
-            raise ValueError(
-                f"No target detected from device: {hint}. Please specify explicitly"
-            )
+            raise ValueError(f"No target detected from device: {hint}. Please specify explicitly")
         logger.info(
             '%s configuration of target device "%s": %s',
             FOUND,
@@ -150,11 +144,7 @@ def _build_metal_x86_64():
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".dylib"
-        relax.build(
-            mod,
-            target=args.target,
-            relax_pipeline=pipeline,
-        ).export_library(
+        relax.build(mod, target=args.target, relax_pipeline=pipeline,).export_library(
             str(output),
             fcompile=xcode.create_dylib,
             sdk="macosx",
@@ -246,9 +236,7 @@ def _build_webgpu():
         if os.environ.get("MLC_LLM_SOURCE_DIR", None):
             mlc_source_home_dir = os.environ["MLC_LLM_SOURCE_DIR"]
             bc_candidates.append(
-                os.path.join(
-                    mlc_source_home_dir, "web", "dist", "wasm", "mlc_wasm_runtime.bc"
-                )
+                os.path.join(mlc_source_home_dir, "web", "dist", "wasm", "mlc_wasm_runtime.bc")
             )
         error_info = (
             "Cannot find library: mlc_wasm_runtime.bc\n"
@@ -303,13 +291,9 @@ def _build_default():
         elif output.suffix in [".so", ".dylib", ".dll"]:
             system_lib = False
         else:
-            logger.warning(
-                "Unknown output suffix: %s. Assuming shared library.", output.suffix
-            )
+            logger.warning("Unknown output suffix: %s. Assuming shared library.", output.suffix)
             system_lib = False
-        mod = _add_system_lib_prefix(
-            mod, args.system_lib_prefix, is_system_lib=system_lib
-        )
+        mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=system_lib)
         relax.build(
             mod,
             target=args.target,

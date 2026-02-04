@@ -86,9 +86,6 @@ def _pattern(n_aux_tensor: int, match_tir_vars: bool):
             dequantize.args[0], relax.GlobalVar
         ):
             return False
-        return (
-            "take" in take.args[0].name_hint
-            and "dequantize" in dequantize.args[0].name_hint
-        )
+        return "take" in take.args[0].name_hint and "dequantize" in dequantize.args[0].name_hint
 
     return take, annotations, _check

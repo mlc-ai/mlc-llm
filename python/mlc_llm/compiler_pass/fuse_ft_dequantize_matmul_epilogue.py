@@ -56,15 +56,10 @@ def fuse_bias(func: relax.Function) -> relax.Function:
     """
     decode_matmul = is_op("relax.call_dps_packed")(varg_default_wildcard=True)
     bias = wildcard()
-    pattern = is_op("relax.add")(decode_matmul, bias) | is_op("relax.add")(
-        bias, decode_matmul
-    )
+    pattern = is_op("relax.add")(decode_matmul, bias) | is_op("relax.add")(bias, decode_matmul)
 
     def rewriter(expr, match):
-        if (
-            match[decode_matmul].args[0].global_symbol
-            == "fastertransformer.gemm_fp16_int"
-        ):
+        if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int":
             assert len(match[decode_matmul].args) == 2
             args_list = match[decode_matmul].args[1]
             assert len(args_list) == 8
@@ -135,10 +130,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
     )
 
     def rewriter(expr, match):
-        if (
-            match[decode_matmul].args[0].global_symbol
-            == "fastertransformer.gemm_fp16_int"
-        ):
+        if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int":
             matched_activation = match[pattern]
             assert matched_activation.op.name in [
                 "relax.nn.silu",
@@ -162,10 +154,7 @@ def fuse_activation(func: relax.Function) -> relax.Function:
                 ],
                 out_sinfo=match[decode_matmul].struct_info,
             )
-        if (
-            match[decode_matmul].args[0].global_symbol
-            == "fastertransformer.gemm_fp16_int_bias"
-        ):
+        if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int_bias":
             matched_activation = match[pattern]
             assert matched_activation.op.name in [
                 "relax.nn.silu",
@@ -240,10 +229,7 @@ def fuse_residual_binary(func: relax.Function) -> relax.Function:
     )
 
     def rewriter(expr, match):
-        if (
-            match[decode_matmul].args[0].global_symbol
-            == "fastertransformer.gemm_fp16_int_bias"
-        ):
+        if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int_bias":
             matched_binary = match[pattern]
             assert matched_binary.op.name in ["relax.add", "relax.multiply"]
             binary_op = "plus" if matched_binary.op.name == "relax.add" else "multiply"

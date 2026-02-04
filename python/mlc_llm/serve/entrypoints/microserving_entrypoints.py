@@ -20,9 +20,7 @@ app = fastapi.APIRouter()
 
 
 @app.post("/microserving/prep_recv")
-async def prep_recv(
-    request: PrepRecvRequest, raw_request: fastapi.Request
-) -> PrepRecvResponse:
+async def prep_recv(request: PrepRecvRequest, raw_request: fastapi.Request) -> PrepRecvResponse:
     """Handle the microserving request for receive preparation.
     Match the prompt in the prefix cache (when enabled),
     allocate entries in the KV cache to prepare receiving the KV data of the prompt.

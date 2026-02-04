@@ -38,10 +38,7 @@ class LowBatchGemvSpecialize:  # pylint: disable=too-few-public-methods
                 buffers = func.buffer_map.values()
                 shapes = [buffer.shape for buffer in buffers]
                 symbolic_vars = set(
-                    expr
-                    for shape in shapes
-                    for expr in shape
-                    if isinstance(expr, tir.Var)
+                    expr for shape in shapes for expr in shape if isinstance(expr, tir.Var)
                 )
                 if len(symbolic_vars) != 1:
                     continue

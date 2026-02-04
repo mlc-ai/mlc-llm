@@ -91,9 +91,7 @@ async def test_chat_completion(model: str):
     num_requests = 2
     max_tokens = 32
     n = 1
-    output_texts: List[List[str]] = [
-        ["" for _ in range(n)] for _ in range(num_requests)
-    ]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     async def generate_task(prompt: str, request_id: str):
         print(f"generate chat completion task for request {request_id}")
@@ -144,9 +142,7 @@ async def test_chat_completion_non_stream(model: str):
     num_requests = 2
     max_tokens = 32
     n = 1
-    output_texts: List[List[str]] = [
-        ["" for _ in range(n)] for _ in range(num_requests)
-    ]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     async def generate_task(prompt: str, request_id: str):
         print(f"generate chat completion task for request {request_id}")
@@ -196,9 +192,7 @@ async def test_completion(model: str):
     num_requests = 2
     max_tokens = 128
     n = 1
-    output_texts: List[List[str]] = [
-        ["" for _ in range(n)] for _ in range(num_requests)
-    ]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     async def generate_task(prompt: str, request_id: str):
         print(f"generate completion task for request {request_id}")
@@ -248,9 +242,7 @@ async def test_completion_non_stream(model: str):
     num_requests = 2
     max_tokens = 128
     n = 1
-    output_texts: List[List[str]] = [
-        ["" for _ in range(n)] for _ in range(num_requests)
-    ]
+    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
 
     async def generate_task(prompt: str, request_id: str):
         print(f"generate completion task for request {request_id}")

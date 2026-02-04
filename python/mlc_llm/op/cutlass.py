@@ -51,27 +51,13 @@ def group_gemm(
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
     # pylint: disable=too-many-boolean-expressions
-    if (
-        x.dtype == "float8_e5m2"
-        and weight_dtype == "float8_e5m2"
-        and out_dtype == "float16"
-    ):
+    if x.dtype == "float8_e5m2" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e5m2_e5m2_fp16"
-    elif (
-        x.dtype == "float8_e4m3fn"
-        and weight_dtype == "float8_e5m2"
-        and out_dtype == "float16"
-    ):
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e5m2_fp16"
-    elif (
-        x.dtype == "float8_e4m3fn"
-        and weight_dtype == "float8_e4m3fn"
-        and out_dtype == "float16"
-    ):
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e4m3fn" and out_dtype == "float16":
         func_name = "cutlass.group_gemm_e4m3_e4m3_fp16"
-    elif (
-        x.dtype == "float16" and weight_dtype == "float16" and out_dtype == "float16"
-    ) or (
+    elif (x.dtype == "float16" and weight_dtype == "float16" and out_dtype == "float16") or (
         x.dtype == "bfloat16" and weight_dtype == "bfloat16" and out_dtype == "bfloat16"
     ):
         func_name = "cutlass.group_gemm"
@@ -131,23 +117,11 @@ def fp8_gemm(
     out_dtype = out_dtype if out_dtype else x.dtype
     weight_dtype = weight_dtype if weight_dtype else weight.dtype
 
-    if (
-        x.dtype == "float8_e5m2"
-        and weight_dtype == "float8_e5m2"
-        and out_dtype == "float16"
-    ):
+    if x.dtype == "float8_e5m2" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.gemm_e5m2_e5m2_fp16"
-    elif (
-        x.dtype == "float8_e4m3fn"
-        and weight_dtype == "float8_e5m2"
-        and out_dtype == "float16"
-    ):
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e5m2" and out_dtype == "float16":
         func_name = "cutlass.gemm_e5m2_e4m3_fp16"
-    elif (
-        x.dtype == "float8_e4m3fn"
-        and weight_dtype == "float8_e4m3fn"
-        and out_dtype == "float16"
-    ):
+    elif x.dtype == "float8_e4m3fn" and weight_dtype == "float8_e4m3fn" and out_dtype == "float16":
         func_name = "cutlass.gemm_e4m3_e4m3_fp16"
     else:
         raise NotImplementedError(
@@ -302,9 +276,7 @@ def fp8_groupwise_scaled_bmm(  # pylint: disable=too-many-arguments
             block_size[0],
             block_size[1],
         ],
-        out=nn.Tensor.placeholder(
-            (x.shape[0], x.shape[1], weight.shape[1]), dtype=out_dtype
-        ),
+        out=nn.Tensor.placeholder((x.shape[0], x.shape[1], weight.shape[1]), dtype=out_dtype),
     )
 
 
@@ -353,12 +325,8 @@ def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-m
     assert weight_scale.ndim == weight.ndim
     assert x.shape[-1] == weight.shape[2]
     assert (x.shape[-1] + block_size[1] - 1) // block_size[1] == x_scale.shape[-1]
-    assert (weight.shape[2] + block_size[1] - 1) // block_size[1] == weight_scale.shape[
-        2
-    ]
-    assert (weight.shape[1] + block_size[0] - 1) // block_size[0] == weight_scale.shape[
-        1
-    ]
+    assert (weight.shape[2] + block_size[1] - 1) // block_size[1] == weight_scale.shape[2]
+    assert (weight.shape[1] + block_size[0] - 1) // block_size[0] == weight_scale.shape[1]
 
     if block_size[0] != 128 or block_size[1] != 128:
         raise ValueError(f"block_size must be (128, 128), but got {block_size}")

@@ -27,9 +27,7 @@ def pipeline_stage_boundary(*tensors: Tensor) -> List[Tensor]:
             sinfo_args=(
                 tensors[0]._expr.struct_info
                 if len(tensors) == 1
-                else relax.TupleStructInfo(
-                    [tensor._expr.struct_info for tensor in tensors]
-                )
+                else relax.TupleStructInfo([tensor._expr.struct_info for tensor in tensors])
             ),
         ),
         name="pipeline_stage_boundary",

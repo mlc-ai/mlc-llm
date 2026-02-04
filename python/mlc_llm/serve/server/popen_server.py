@@ -81,38 +81,28 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
                 if isinstance(additional_model, str):
                     args_additional_model.append(additional_model)
                 else:
-                    args_additional_model.append(
-                        additional_model[0] + "," + additional_model[1]
-                    )
+                    args_additional_model.append(additional_model[0] + "," + additional_model[1])
             cmd += ["--additional-models", *args_additional_model]
         cmd += ["--speculative-mode", self.engine_config.speculative_mode]
         cmd += ["--prefix-cache-mode", self.engine_config.prefix_cache_mode]
 
         args_overrides = []
         if self.engine_config.max_num_sequence is not None:
-            args_overrides.append(
-                f"max_num_sequence={self.engine_config.max_num_sequence}"
-            )
+            args_overrides.append(f"max_num_sequence={self.engine_config.max_num_sequence}")
         if self.engine_config.max_total_sequence_length is not None:
             args_overrides.append(
                 f"max_total_seq_length={self.engine_config.max_total_sequence_length}"
             )
         if self.engine_config.prefill_chunk_size is not None:
-            args_overrides.append(
-                f"prefill_chunk_size={self.engine_config.prefill_chunk_size}"
-            )
+            args_overrides.append(f"prefill_chunk_size={self.engine_config.prefill_chunk_size}")
         if self.engine_config.max_history_size is not None:
-            args_overrides.append(
-                f"max_history_size={self.engine_config.max_history_size}"
-            )
+            args_overrides.append(f"max_history_size={self.engine_config.max_history_size}")
         if self.engine_config.gpu_memory_utilization is not None:
             args_overrides.append(
                 f"gpu_memory_utilization={self.engine_config.gpu_memory_utilization}"
             )
         if self.engine_config.spec_draft_length is not None:
-            args_overrides.append(
-                f"spec_draft_length={self.engine_config.spec_draft_length}"
-            )
+            args_overrides.append(f"spec_draft_length={self.engine_config.spec_draft_length}")
         if self.engine_config.prefix_cache_max_num_recycling_seqs is not None:
             args_overrides.append(
                 "prefix_cache_max_num_recycling_seqs="

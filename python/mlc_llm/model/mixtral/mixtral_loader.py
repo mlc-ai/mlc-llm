@@ -13,9 +13,7 @@ from mlc_llm.quantization import Quantization
 from .mixtral_model import MixtralConfig, MixtralForCasualLM
 
 
-def huggingface(
-    model_config: MixtralConfig, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: MixtralConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 

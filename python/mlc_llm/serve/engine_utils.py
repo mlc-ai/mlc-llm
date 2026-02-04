@@ -49,9 +49,7 @@ def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]
         # exceeding model capability or hit any stop criteria.
         kwargs["max_tokens"] = -1
     if request.stop is not None:
-        kwargs["stop_strs"] = (
-            [request.stop] if isinstance(request.stop, str) else request.stop
-        )
+        kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
     if isinstance(request, openai_api_protocol.ChatCompletionRequest):
         kwargs["logprobs"] = request.logprobs
         kwargs["top_logprobs"] = request.top_logprobs
@@ -179,9 +177,7 @@ def convert_prompts_to_data(
     if isinstance(prompts, str):
         return [data.TextData(prompts)]
     if isinstance(prompts[0], int):
-        assert isinstance(prompts, list) and all(
-            isinstance(token_id, int) for token_id in prompts
-        )
+        assert isinstance(prompts, list) and all(isinstance(token_id, int) for token_id in prompts)
         return [data.TokenData(prompts)]  # type: ignore
     return [convert_prompts_to_data(x)[0] for x in prompts]  # type: ignore
 

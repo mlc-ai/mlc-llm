@@ -146,9 +146,7 @@ class LibCompare(LibCompareVMInstrument):
 def get_instrument(args):
     """Get the debug instrument from the CLI arguments"""
     if args.cmp_device is None:
-        assert args.cmp_lib_path is None, (
-            "cmp_lib_path must be None if cmp_device is None"
-        )
+        assert args.cmp_lib_path is None, "cmp_lib_path must be None if cmp_device is None"
         args.cmp_device = args.device
         args.cmp_lib_path = args.model_lib
 

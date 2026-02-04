@@ -35,12 +35,8 @@ class EagleDecoderLayer(nn.Module):
         self.mlp = LlamaFFN(config)
         self.index = index
         if self.index != 0:
-            self.input_layernorm = nn.RMSNorm(
-                config.hidden_size, -1, rms_norm_eps, bias=False
-            )
-        self.post_attention_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, rms_norm_eps, bias=False
-        )
+            self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
 
         def _set_tp():
             def _set(layer, hint):
@@ -65,9 +61,7 @@ class EagleDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         if self.index != 0:
             hidden_states = self.input_layernorm(hidden_states)
         out = self.self_attn(hidden_states, paged_kv_cache, layer_id)
@@ -111,20 +105,14 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         hidden_states = self.fc(hidden_states)
         return hidden_states
 
-    def forward_to_last_hidden_states(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def forward_to_last_hidden_states(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache):
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         return hidden_states
 
-    def forward(
-        self, input_embed: Tensor, hidden_states: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def forward(self, input_embed: Tensor, hidden_states: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = self.fuse_embed_hidden_states(input_embed, hidden_states)
-        hidden_states = self.forward_to_last_hidden_states(
-            hidden_states, paged_kv_cache
-        )
+        hidden_states = self.forward_to_last_hidden_states(hidden_states, paged_kv_cache)
         return hidden_states
 
     def to(self, dtype: Optional[str] = None):
@@ -140,9 +128,7 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
     ):
         op_ext.configure()
 
-        hidden_states = self.forward_to_last_hidden_states(
-            hidden_states, paged_kv_cache
-        )
+        hidden_states = self.forward_to_last_hidden_states(hidden_states, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         return hidden_states
@@ -152,24 +138,16 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.embed_tokens(input_ids)
 
-    def prefill_to_last_hidden_states(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def prefill_to_last_hidden_states(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.forward_to_last_hidden_states(
-            hidden_states, paged_kv_cache
-        )
+        hidden_states = self.forward_to_last_hidden_states(hidden_states, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def decode_to_last_hidden_states(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache
-    ):
+    def decode_to_last_hidden_states(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self.forward_to_last_hidden_states(
-            hidden_states, paged_kv_cache
-        )
+        hidden_states = self.forward_to_last_hidden_states(hidden_states, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
     def batch_prefill_to_last_hidden_states(
@@ -222,21 +200,15 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "fuse_embed_hidden_states": {
-                "input_embed": nn.spec.Tensor(
-                    ["seq_len", self.hidden_size], self.dtype
-                ),
-                "hidden_states": nn.spec.Tensor(
-                    ["seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
                 },
             },
             "prefill_to_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -252,9 +224,7 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_prefill_to_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -262,9 +232,7 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_decode_to_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

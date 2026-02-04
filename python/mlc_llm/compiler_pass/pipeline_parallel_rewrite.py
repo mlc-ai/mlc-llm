@@ -35,26 +35,19 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
     def transform(self) -> IRModule:  # pylint: disable=too-many-locals
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
-            if (
-                not isinstance(func, relax.Function)
-                or "pipeline_parallel_stages" not in func.attrs
-            ):
+            if not isinstance(func, relax.Function) or "pipeline_parallel_stages" not in func.attrs:
                 continue
             num_stages = int(func.attrs["pipeline_parallel_stages"])
             if num_stages == 1:
                 continue
 
-            pipeline_stages, stage_send_vars, stage_receive_vars = (
-                _extract_pipeline_stages(func)
-            )
+            pipeline_stages, stage_send_vars, stage_receive_vars = _extract_pipeline_stages(func)
             assert len(pipeline_stages) == num_stages, (
                 "Number of pipeline stages mismatches: "
                 f"expecting {num_stages} stages, but {len(pipeline_stages)} are found in the IR."
             )
 
-            required_func_params = _analyze_required_func_params(
-                pipeline_stages, func.params
-            )
+            required_func_params = _analyze_required_func_params(pipeline_stages, func.params)
 
             assert "num_input" in func.attrs
             num_input = int(func.attrs["num_input"])
@@ -64,9 +57,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
                 and func.params[num_input].name_hint == "packed_params"
             ), 'Only the extra "packed_params" parameter is allowed'
             self.old_packed_params_var = func.params[num_input]
-            self.new_main_packed_params_var = relax.Var(
-                "packed_params", relax.ObjectStructInfo()
-            )
+            self.new_main_packed_params_var = relax.Var("packed_params", relax.ObjectStructInfo())
             for required_params in required_func_params:
                 for i, param in enumerate(required_params):
                     if param.same_as(self.old_packed_params_var):
@@ -129,12 +120,8 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         for new_param, old_param in zip(params, required_func_params):
             self.set_var_remap(old_param.vid, new_param)
         # Create new packed params
-        self.new_stage_func_packed_params = relax.Var(
-            "packed_params", relax.ObjectStructInfo()
-        )
-        self.set_var_remap(
-            self.old_packed_params_var.vid, self.new_stage_func_packed_params
-        )
+        self.new_stage_func_packed_params = relax.Var("packed_params", relax.ObjectStructInfo())
+        self.set_var_remap(self.old_packed_params_var.vid, self.new_stage_func_packed_params)
 
         new_func_outputs = []
         with self.builder_.function(func_name, pure=False):
@@ -152,9 +139,8 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
                     self.set_var_remap(receive_var.vid, new_receive_var)
                 # Process the bindings in this stage.
                 for stage_binding in stage_bindings:
-                    if (
-                        stage_binding.var in stage_send_vars
-                        or stage_binding.var.same_as(func_output)
+                    if stage_binding.var in stage_send_vars or stage_binding.var.same_as(
+                        func_output
                     ):
                         assert isinstance(stage_binding, relax.VarBinding)
                         new_var = self.builder_.emit_output(
@@ -197,9 +183,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
                 (
                     new_func_outputs[0]
                     if len(new_func_outputs) == 1
-                    and isinstance(
-                        new_func_outputs[0].struct_info, relax.TupleStructInfo
-                    )
+                    and isinstance(new_func_outputs[0].struct_info, relax.TupleStructInfo)
                     else new_func_outputs
                 ),
                 params=params,
@@ -231,17 +215,14 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             binding.var.struct_info, self.undefined_param_shape_vars_remap
         )
         has_new_undefined_shape_var = (
-            len(self.undefined_param_shape_vars_remap)
-            != cur_num_undefined_param_shape_vars
+            len(self.undefined_param_shape_vars_remap) != cur_num_undefined_param_shape_vars
         )
         self.undefined_shape_vars_remap = {
             **self.undefined_shape_vars_remap,
             **self.undefined_param_shape_vars_remap,
         }
         ret_sinfo = (
-            new_tensor_struct_info
-            if not has_new_undefined_shape_var
-            else relax.ObjectStructInfo()
+            new_tensor_struct_info if not has_new_undefined_shape_var else relax.ObjectStructInfo()
         )
         call = relax.call_pure_packed(
             "vm.builtin.tuple_getitem",
@@ -262,9 +243,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             call.op,
             call.args,
             call.attrs,
-            sinfo_args=[
-                self._update_struct_info(struct_info) for struct_info in call.sinfo_args
-            ],
+            sinfo_args=[self._update_struct_info(struct_info) for struct_info in call.sinfo_args],
         )
 
     def _prepare_stage_func_params_and_args(
@@ -292,15 +271,12 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
                     self._update_shape(struct_info.shape.values, undefined_var_remap),
                     struct_info.dtype,
                 )
-                if struct_info.shape is not None
-                and isinstance(struct_info.shape, relax.ShapeExpr)
+                if struct_info.shape is not None and isinstance(struct_info.shape, relax.ShapeExpr)
                 else struct_info
             )
         if isinstance(struct_info, relax.ShapeStructInfo):
             return (
-                relax.ShapeStructInfo(
-                    self._update_shape(struct_info.values, undefined_var_remap)
-                )
+                relax.ShapeStructInfo(self._update_shape(struct_info.values, undefined_var_remap))
                 if struct_info.values is not None
                 else struct_info
             )
@@ -308,10 +284,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             return relax.ObjectStructInfo()
         if isinstance(struct_info, relax.TupleStructInfo):
             return relax.TupleStructInfo(
-                [
-                    self._update_struct_info(field_sinfo)
-                    for field_sinfo in struct_info.fields
-                ]
+                [self._update_struct_info(field_sinfo) for field_sinfo in struct_info.fields]
             )
         return struct_info
 
@@ -356,14 +329,11 @@ def _extract_pipeline_stages(
             isinstance(binding, relax.VarBinding)
             and isinstance(binding.value, relax.Call)
             and binding.value.op == tvm.ir.Op.get("relax.call_pure_packed")
-            and binding.value.args[0].global_symbol
-            == "mlc.pipeline_parallel_stage_boundary"
+            and binding.value.args[0].global_symbol == "mlc.pipeline_parallel_stage_boundary"
         ):
             assert len(current_stage_bindings) > 0
             pipeline_stages.append(current_stage_bindings)
-            assert all(
-                receive_var is not None for receive_var in current_stage_receive_vars
-            )
+            assert all(receive_var is not None for receive_var in current_stage_receive_vars)
             stage_receive_vars.append(current_stage_receive_vars)
             args = binding.value.args[1:]
             assert len(args) >= 1 and all(isinstance(arg, relax.Var) for arg in args)
@@ -371,9 +341,7 @@ def _extract_pipeline_stages(
 
             boundary_var = binding.var
             current_stage_bindings = []
-            current_stage_receive_vars = (
-                [boundary_var] if len(args) == 1 else [None for _ in args]
-            )
+            current_stage_receive_vars = [boundary_var] if len(args) == 1 else [None for _ in args]
         elif (
             isinstance(binding, relax.VarBinding)
             and isinstance(binding.value, relax.TupleGetItem)

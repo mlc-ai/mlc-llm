@@ -24,9 +24,7 @@ def pytest_configure(config):
         "markers",
         "unittest: unittests for modules, do not require GPU, usually run fast",
     )
-    config.addinivalue_line(
-        "markers", "op_correctness: unittest for op corectness, requires GPU"
-    )
+    config.addinivalue_line("markers", "op_correctness: unittest for op corectness, requires GPU")
     config.addinivalue_line(
         "markers",
         (

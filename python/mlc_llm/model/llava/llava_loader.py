@@ -69,9 +69,7 @@ def huggingface(model_config: LlavaConfig, quantization: Quantization) -> Extern
                 f"{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                    dtype
-                ),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )
@@ -128,9 +126,7 @@ def awq(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
                     f"{attn}.v_proj.{quantize_suffix}",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
-                        dtype
-                    ),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -148,9 +144,7 @@ def awq(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
                     f"{mlp}.up_proj.{quantize_suffix}",
                 ],
                 functools.partial(
-                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
-                        dtype
-                    ),
+                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -163,8 +157,6 @@ def awq(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
             mapping.add_mapping(
                 mlc_name,
                 [mlc_name],
-                functools.partial(
-                    lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype
-                ),
+                functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
             )
     return mapping

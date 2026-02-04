@@ -54,9 +54,7 @@ def test_top_p_renorm(batch_size, vocab):
 
         sum_larger_than_pivot = np.sum(np.where(sorted_probs >= pivot, sorted_probs, 0))
         sum_larger_than_pivot_exclude_min = np.sum(
-            np.where(
-                filtered_sorted_probs != min_larger_than_pivot, filtered_sorted_probs, 0
-            )
+            np.where(filtered_sorted_probs != min_larger_than_pivot, filtered_sorted_probs, 0)
         )
 
         probs[probs < pivot] = 0
@@ -75,9 +73,7 @@ def test_top_p_renorm(batch_size, vocab):
             print("filtered_sorted_probs:", filtered_sorted_probs)
             print("min_larger_than_pivot:", min_larger_than_pivot)
             print("sum_larger_than_pivot:", sum_larger_than_pivot)
-            print(
-                "sum_larger_than_pivot_exclude_min:", sum_larger_than_pivot_exclude_min
-            )
+            print("sum_larger_than_pivot_exclude_min:", sum_larger_than_pivot_exclude_min)
             print("renom_prob:", renorm_prob)
             print("renorm:", renorm)
             raise

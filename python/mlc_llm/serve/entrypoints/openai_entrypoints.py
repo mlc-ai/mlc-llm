@@ -28,9 +28,7 @@ async def request_models() -> ListResponse:
     API reference: https://platform.openai.com/docs/api-reference/models
     """
     server_context: ServerContext = ServerContext.current()
-    return ListResponse(
-        data=[ModelResponse(id=model) for model in server_context.get_model_list()]
-    )
+    return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
 
 
 ################ v1/completions ################
@@ -57,11 +55,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
-    request_id = (
-        request.user
-        if request.user is not None
-        else f"cmpl-{engine_utils.random_uuid()}"
-    )
+    request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
 
     # Streaming response.
     if request.stream:
@@ -119,10 +113,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             continue
         for choice in response.choices:
             output_texts[choice.index] += choice.text
-            if (
-                choice.finish_reason is not None
-                and finish_reasons[choice.index] is None
-            ):
+            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 if logprob_results[choice.index] is None:
@@ -132,9 +123,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                         choice.logprobs.token_logprobs
                     )
                     logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
-                    logprob_results[choice.index].top_logprobs.extend(
-                        choice.logprobs.top_logprobs
-                    )
+                    logprob_results[choice.index].top_logprobs.extend(choice.logprobs.top_logprobs)
 
     return engine_base.wrap_completion_response(
         request_id=request_id,
@@ -173,9 +162,7 @@ async def request_chat_completion(
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
     request_id = (
-        request.user
-        if request.user is not None
-        else f"chatcmpl-{engine_utils.random_uuid()}"
+        request.user if request.user is not None else f"chatcmpl-{engine_utils.random_uuid()}"
     )
 
     # Streaming response.
@@ -237,10 +224,7 @@ async def request_chat_completion(
         for choice in response.choices:
             assert isinstance(choice.delta.content, str)
             output_texts[choice.index] += choice.delta.content
-            if (
-                choice.finish_reason is not None
-                and finish_reasons[choice.index] is None
-            ):
+            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 assert logprob_results is not None

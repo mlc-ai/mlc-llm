@@ -68,9 +68,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         assert self.model_dtype == "float16"
         assert self.group_size in [None, 64, 128]
         if storage_dtype.bits < quantize_dtype.bits:
-            raise ValueError(
-                "Storage unit should be greater or equal to quantized element"
-            )
+            raise ValueError("Storage unit should be greater or equal to quantized element")
 
         self.num_elem_per_storage = storage_dtype.bits // quantize_dtype.bits
         self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
@@ -135,14 +133,8 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         # pylint: disable=too-many-boolean-expressions
                         is_final_fc(name)
                         or node.out_dtype == "float32"
-                        or (
-                            self.config.quantize_dtype == "int4"
-                            and node.out_features % 8 != 0
-                        )
-                        or (
-                            self.config.quantize_dtype == "int8"
-                            and node.out_features % 4 != 0
-                        )
+                        or (self.config.quantize_dtype == "int4" and node.out_features % 8 != 0)
+                        or (self.config.quantize_dtype == "int8" and node.out_features % 4 != 0)
                     ):
                         # Under any of the conditions we fall back to GroupQuantize
                         # For `is_final_fc()` see https://github.com/mlc-ai/mlc-llm/issues/1723
@@ -156,14 +148,10 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                             node.out_dtype,
                         )
                         group_quantize = self.config.fallback_group_quantize()
-                        self.quant_map.map_func[weight_name] = (
-                            group_quantize.quantize_weight
-                        )
+                        self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                         return GroupQuantizeLinear.from_linear(node, group_quantize)
                     if not is_moe_gate(name, node):
-                        self.quant_map.map_func[weight_name] = (
-                            self.config.quantize_weight
-                        )
+                        self.quant_map.map_func[weight_name] = self.config.quantize_weight
                         return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):
                     weight_name = f"{name}.weight"
@@ -172,9 +160,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         f"{name}.q_scale",
                     ]
                     group_quantize = self.config.fallback_group_quantize()
-                    self.quant_map.map_func[weight_name] = (
-                        group_quantize.quantize_weight
-                    )
+                    self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, group_quantize)
                 return self.visit(name, node)
 
@@ -221,7 +207,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                     )
                     with bb.function(name="main", params=[weight_var]):
                         with bb.dataflow():
-                            lv0 = bb.emit_te(self._quantize, weight_var)  # pylint: disable=invalid-name
+                            lv0 = bb.emit_te(
+                                self._quantize, weight_var
+                            )  # pylint: disable=invalid-name
                             lv1 = bb.normalize(lv0[0])
                             lv2 = bb.emit(
                                 relax.call_pure_packed(
@@ -232,7 +220,9 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                                     sinfo_args=lv1.struct_info,
                                 )
                             )
-                            gv = bb.emit_output(relax.Tuple([lv2, lv0[1]]))  # pylint: disable=invalid-name
+                            gv = bb.emit_output(
+                                relax.Tuple([lv2, lv0[1]])
+                            )  # pylint: disable=invalid-name
                         bb.emit_func_output(gv)
                     return bb.finalize()
 

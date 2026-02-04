@@ -87,9 +87,7 @@ class OpenAIChatEndPoint(APIEndPoint):
         server_metrics = None
 
         try:
-            async with self.client.post(
-                self.url, json=payload, headers=self.headers
-            ) as response:
+            async with self.client.post(self.url, json=payload, headers=self.headers) as response:
                 assert response.status == 200, await response.text()
                 if payload["stream"]:
                     async for chunk in response.content:
@@ -145,9 +143,7 @@ class OpenAIChatEndPoint(APIEndPoint):
                         # pylint: enable=line-too-long
                         # fmt: on
         except Exception:  # pylint: disable=broad-except
-            error_msg = (
-                "API endpoint errored when sending request: " + traceback.format_exc()
-            )
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
@@ -208,9 +204,9 @@ class OpenAIEndPoint(APIEndPoint):
         self.headers = {"Content-Type": "application/json"}
         if os.getenv("MLC_LLM_API_KEY"):
             self.headers["Authorization"] = f"Bearer {os.getenv('MLC_LLM_API_KEY')}"
-        assert not include_server_metrics, (
-            '"include_server_metrics" only works for "openai-chat" endpoint for now'
-        )
+        assert (
+            not include_server_metrics
+        ), '"include_server_metrics" only works for "openai-chat" endpoint for now'
         self.no_debug_config = no_debug_config
 
     async def __aenter__(self) -> Self:
@@ -225,9 +221,9 @@ class OpenAIEndPoint(APIEndPoint):
     async def __call__(  # pylint: disable=too-many-branches,too-many-statements
         self, request_record: RequestRecord
     ) -> RequestRecord:
-        assert len(request_record.chat_cmpl.messages) == 1, (
-            'Endpoint "openai" does not support system prompt and multi-round conversation.'
-        )
+        assert (
+            len(request_record.chat_cmpl.messages) == 1
+        ), 'Endpoint "openai" does not support system prompt and multi-round conversation.'
         assert isinstance(request_record.chat_cmpl.messages[0].content, str)
         payload = {
             "model": request_record.chat_cmpl.model,
@@ -279,9 +275,7 @@ class OpenAIEndPoint(APIEndPoint):
                     data = await response.json()
                     generated_text = data["choices"][0]["message"]["content"]
         except Exception:  # pylint: disable=broad-except
-            error_msg = (
-                "API endpoint errored when sending request: " + traceback.format_exc()
-            )
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
@@ -358,9 +352,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
                 if request_record.chat_cmpl.temperature
                 else 1
             ),
-            "top_p": request_record.chat_cmpl.top_p
-            if request_record.chat_cmpl.top_p
-            else 1,
+            "top_p": request_record.chat_cmpl.top_p if request_record.chat_cmpl.top_p else 1,
             "max_tokens": request_record.chat_cmpl.max_tokens,
             "stream": request_record.chat_cmpl.stream,
         }
@@ -401,9 +393,7 @@ class TensorRTLLMEndPoint(APIEndPoint):
                     data = await response.json()
                     generated_text = data["text_output"]
         except Exception:  # pylint: disable=broad-except
-            error_msg = (
-                "API endpoint errored when sending request: " + traceback.format_exc()
-            )
+            error_msg = "API endpoint errored when sending request: " + traceback.format_exc()
             logger.info(error_msg)
             finish_time = time.monotonic()
             request_record.output_str = generated_text
@@ -458,9 +448,7 @@ SUPPORTED_BACKENDS = [
 def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
     """Create an API endpoint instance with regard to the specified endpoint kind."""
     if args.api_endpoint in ["openai", "mlc", "sglang"]:
-        return OpenAIEndPoint(
-            args.host, args.port, args.timeout, args.include_server_metrics
-        )
+        return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
     if args.api_endpoint == "vllm":
         return OpenAIEndPoint(
             args.host,
@@ -470,9 +458,7 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
             no_debug_config=True,
         )
     if args.api_endpoint == "openai-chat":
-        return OpenAIChatEndPoint(
-            args.host, args.port, args.timeout, args.include_server_metrics
-        )
+        return OpenAIChatEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
     if args.api_endpoint == "tensorrt-llm":
         return TensorRTLLMEndPoint(args.host, args.port, args.timeout)
     raise ValueError(f'Unrecognized endpoint "{args.api_endpoint}"')

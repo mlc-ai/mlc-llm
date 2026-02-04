@@ -32,9 +32,7 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
         shape=out_shape,
         fcompute=lambda *idx: tir.bitwise_and(
             tir.shift_right(
-                weight(
-                    *idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]
-                ),
+                weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                 (
                     (
                         (idx[axis] % num_elem_per_storage) % 2 * 4
@@ -58,11 +56,7 @@ def is_final_fc(name: str) -> bool:
 
 def is_moe_gate(name: str, node: nn.Linear) -> bool:
     """Check whether the parameter is the MoE gate layer."""
-    return (
-        name.endswith("gate")
-        and isinstance(node.out_features, int)
-        and node.out_features <= 256
-    )
+    return name.endswith("gate") and isinstance(node.out_features, int) and node.out_features <= 256
 
 
 def compile_quantize_func(mod: IRModule, device) -> Callable:
@@ -132,9 +126,7 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
             quant_dtype,
             tir.bitwise_and(
                 tir.shift_right(
-                    weight(
-                        *idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]
-                    ),
+                    weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                     ((idx[axis] % num_elem_per_storage) * bits).astype(storage_dtype),
                 ).astype(elem_storage_dtype),
                 tir_bin_mask,
@@ -187,9 +179,7 @@ def pack_weight(
         fcompute=lambda *idx: tir.sum(
             tir.if_then_else(
                 idx[axis] * num_elem_per_storage + r < k,
-                weight(
-                    *idx[:axis], idx[axis] * num_elem_per_storage + r, *idx[axis + 1 :]
-                )
+                weight(*idx[:axis], idx[axis] * num_elem_per_storage + r, *idx[axis + 1 :])
                 << (r * DataType(weight_dtype).bits),
                 tir.const(0, storage_dtype),
             ),

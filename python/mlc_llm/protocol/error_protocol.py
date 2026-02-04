@@ -22,14 +22,10 @@ class ErrorResponse(BaseModel):
     code: Optional[int] = None
 
 
-def create_error_response(
-    status_code: HTTPStatus, message: str
-) -> fastapi.responses.JSONResponse:
+def create_error_response(status_code: HTTPStatus, message: str) -> fastapi.responses.JSONResponse:
     """Create a JSON response that reports error with regarding the input message."""
     return fastapi.responses.JSONResponse(
-        ErrorResponse(message=message, code=status_code.value).model_dump_json(
-            by_alias=True
-        ),
+        ErrorResponse(message=message, code=status_code.value).model_dump_json(by_alias=True),
         status_code=status_code.value,
     )
 

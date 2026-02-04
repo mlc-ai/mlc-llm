@@ -107,9 +107,7 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
                     f"{attn}.v_proj.bias",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
-                        dtype
-                    ),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )

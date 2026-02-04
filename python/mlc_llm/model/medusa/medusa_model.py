@@ -53,10 +53,7 @@ class MedusaModel(nn.Module):
         self.medusa_head = nn.ModuleList(
             [
                 nn.ModuleList(
-                    [
-                        ResBlock(config.hidden_size)
-                        for _ in range(config.medusa_num_layers)
-                    ]
+                    [ResBlock(config.hidden_size) for _ in range(config.medusa_num_layers)]
                     + [nn.Linear(config.hidden_size, config.vocab_size, bias=False)]
                 )
                 for _ in range(config.medusa_num_heads)
@@ -66,9 +63,7 @@ class MedusaModel(nn.Module):
     def get_default_spec(self):
         mod_spec = {
             "get_logits": {
-                "hidden_states": nn.spec.Tensor(
-                    ["batch_size", self.hidden_size], self.dtype
-                ),
+                "hidden_states": nn.spec.Tensor(["batch_size", self.hidden_size], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",

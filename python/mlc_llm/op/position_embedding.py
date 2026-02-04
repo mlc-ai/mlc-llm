@@ -74,14 +74,11 @@ def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     orig_freq_var = tir.Var("orig_freq", "float32")
     inv_diff_freq_factor = 1.0 / (high_freq_factor - low_freq_factor)
     llama3_inv_scaling_factor = 1.0 / factor
-    llama3_alpha = (
-        original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
-    )
+    llama3_alpha = original_max_position_embeddings / (2 * math.pi) * inv_diff_freq_factor
     llama3_beta = low_freq_factor * inv_diff_freq_factor
     smooth = tir.max(0.0, tir.min(1.0, llama3_alpha * orig_freq_var - llama3_beta))
     smoothed_freq = s * (
-        (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor
-        + smooth * orig_freq_var
+        (1.0 - smooth) * orig_freq_var * llama3_inv_scaling_factor + smooth * orig_freq_var
     )
     smoothed_freq_var = tir.Var("smoothed_freq", "float32")
     cos_freq = tir.cos(smoothed_freq_var).astype(dtype)
@@ -140,12 +137,8 @@ def yarn_find_correction_range(
     max_position_embeddings: int,
 ):
     """Find the correction range based on the number of rotations"""
-    low = tir.floor(
-        yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings)
-    )
-    high = tir.ceil(
-        yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings)
-    )
+    low = tir.floor(yarn_find_correction_dim(low_rot, d, theta, max_position_embeddings))
+    high = tir.ceil(yarn_find_correction_dim(high_rot, d, theta, max_position_embeddings))
     return tir.max(low, 0), tir.min(high, d - 1)
 
 
@@ -198,24 +191,18 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
             factor=rope_scaling["factor"],
             low_freq_factor=rope_scaling["low_freq_factor"],
             high_freq_factor=rope_scaling["high_freq_factor"],
-            original_max_position_embeddings=rope_scaling[
-                "original_max_position_embeddings"
-            ],
+            original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
         )
     if rope_scaling["rope_type"] == "longrope":
         return partial(
             rope_freq_longrope,
             max_position_embeddings=rope_scaling["max_position_embeddings"],
-            original_max_position_embeddings=rope_scaling[
-                "original_max_position_embeddings"
-            ],
+            original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
         )
     if rope_scaling["rope_type"] == "yarn":
         return partial(
             rope_freq_yarn,
-            original_max_position_embeddings=rope_scaling[
-                "original_max_position_embeddings"
-            ],
+            original_max_position_embeddings=rope_scaling["original_max_position_embeddings"],
             scaling_factor=rope_scaling["factor"],
             beta_fast=rope_scaling["beta_fast"],
             beta_slow=rope_scaling["beta_slow"],
@@ -327,9 +314,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         )
         batch_size = T.int64()
         seq_len = T.int64()
-        qkv = T.match_buffer(
-            var_qkv, (batch_size, seq_len, fused_heads, head_dim), dtype
-        )
+        qkv = T.match_buffer(var_qkv, (batch_size, seq_len, fused_heads, head_dim), dtype)
         q = T.match_buffer(var_q, (batch_size, seq_len, num_q_heads, head_dim), dtype)
         k = T.match_buffer(var_k, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
         v = T.match_buffer(var_v, (batch_size, seq_len, num_kv_heads, head_dim), dtype)
@@ -422,17 +407,23 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
         cos = cos_freq * x[s, h, d].astype("float32")
         if "rope_type" in rope_scaling and rope_scaling["rope_type"] == "gptj":
-            sin = sin_freq * tir.if_then_else(
-                d % 2 == 0,
-                -x[s, h, d + 1],
-                x[s, h, d - 1],
-            ).astype("float32")
+            sin = (
+                sin_freq
+                * tir.if_then_else(
+                    d % 2 == 0,
+                    -x[s, h, d + 1],
+                    x[s, h, d - 1],
+                ).astype("float32")
+            )
         else:
-            sin = sin_freq * tir.if_then_else(
-                d < rotary_dim // 2,
-                -x[s, h, d + rotary_dim // 2],
-                x[s, h, d - rotary_dim // 2],
-            ).astype("float32")
+            sin = (
+                sin_freq
+                * tir.if_then_else(
+                    d < rotary_dim // 2,
+                    -x[s, h, d + rotary_dim // 2],
+                    x[s, h, d - rotary_dim // 2],
+                ).astype("float32")
+            )
         expr = (cos + sin).astype(dtype)
         for var, value in var_map.items():
             expr = tir.Let(var, value, expr)

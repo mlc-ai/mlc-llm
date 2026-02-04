@@ -78,9 +78,7 @@ class OptimizationFlags:
             faster_transformer=results.faster_transformer,
             cudagraph=results.cudagraph,
             cutlass=results.cutlass,
-            ipc_allreduce_strategy=IPCAllReduceStrategyType[
-                results.ipc_allreduce_strategy
-            ],
+            ipc_allreduce_strategy=IPCAllReduceStrategyType[results.ipc_allreduce_strategy],
         )
 
     def update(self, target, quantization) -> None:
@@ -159,9 +157,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
-        print(
-            f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end=""
-        )
+        print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
         print(
             f";pipeline_parallel_stages={self.pipeline_parallel_stages}",
             file=out,

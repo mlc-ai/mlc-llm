@@ -54,9 +54,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
         self.num_running_requests = [0] * self.num_servers
 
         # Call nvshmem_init here to get uid, then pass to env variables to server.start() below
-        f_init_nvshmem_uid = tvm.get_global_func(
-            "runtime.disco.nvshmem.init_nvshmem_uid"
-        )
+        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
         uid = list(f_init_nvshmem_uid())
 
         # Start underlying servers concurrently. Otherwise 1 server cannot start on its own
@@ -71,12 +69,8 @@ class Router:  # pylint: disable=too-many-instance-attributes
         def start_server(i: int):
             nvshmem_config = {
                 "uid": uid,
-                "npes": self.device_id_starts[
-                    -1
-                ],  # total number of workers in the nvshmem world
-                "pe_start": self.device_id_starts[
-                    i
-                ],  # start of PE for this endpoint's workers
+                "npes": self.device_id_starts[-1],  # total number of workers in the nvshmem world
+                "pe_start": self.device_id_starts[i],  # start of PE for this endpoint's workers
             }
 
             server = PopenServer(
@@ -93,11 +87,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
                 ),
             )
             self.servers.append(server)
-            server.start(
-                extra_env={
-                    "MLC_NVSHMEM_INIT_CONFIG_JSON_STR": json.dumps(nvshmem_config)
-                }
-            )
+            server.start(extra_env={"MLC_NVSHMEM_INIT_CONFIG_JSON_STR": json.dumps(nvshmem_config)})
 
         threads = []
         num_used_gpus = 0
@@ -207,9 +197,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
                         # Commented because we still want usage chunk to be passed back
                         # if not data["choices"]:
                         #     continue
-                        response = (
-                            openai_api_protocol.CompletionResponse.model_validate(data)
-                        )
+                        response = openai_api_protocol.CompletionResponse.model_validate(data)
                         if response.choices:
                             reason = response.choices[0].finish_reason
                             if reason == "preempt":
@@ -217,9 +205,7 @@ class Router:  # pylint: disable=too-many-instance-attributes
                         yield response
                 else:
                     data = await response.json()
-                    response = openai_api_protocol.CompletionResponse.model_validate(
-                        data
-                    )
+                    response = openai_api_protocol.CompletionResponse.model_validate(data)
                     if response.choices:
                         reason = response.choices[0].finish_reason
                         if reason == "preempt":

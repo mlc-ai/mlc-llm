@@ -15,9 +15,7 @@ class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
     def __init__(self, tensor_parallel_shards: int):
         self.tensor_parallel_shards = tensor_parallel_shards
 
-    def transform_module(
-        self, mod: IRModule, _ctx: tvm.transform.PassContext
-    ) -> IRModule:
+    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
         bb = BlockBuilder(mod)
@@ -30,9 +28,9 @@ class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
             "gather_probs",
         )
         if "prefill_to_last_hidden_states" in mod:
-            hidden_states_struct_info = mod[
-                "prefill_to_last_hidden_states"
-            ].ret_struct_info.fields[0]  # pylint: disable=no-member
+            hidden_states_struct_info = mod["prefill_to_last_hidden_states"].ret_struct_info.fields[
+                0
+            ]  # pylint: disable=no-member
             dtype = hidden_states_struct_info.dtype
             _add_gather_hidden_states(bb, self.tensor_parallel_shards, dtype)
             _add_scatter_hidden_states(bb, self.tensor_parallel_shards, dtype)
@@ -75,9 +73,7 @@ def _get_gather_2d_inplace(dtype: str, global_symbol: str):
     return _gather_2d
 
 
-def _add_scatter_hidden_states(
-    bb: BlockBuilder, tensor_parallel_shards: int, dtype: str
-):
+def _add_scatter_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
     batch_size = tir.SizeVar("batch_size", "int64")
     m = tir.SizeVar("m", "int64")
     n = tir.SizeVar("n", "int64")
@@ -103,9 +99,7 @@ def _add_scatter_hidden_states(
     return gv
 
 
-def _add_gather_hidden_states(
-    bb: BlockBuilder, tensor_parallel_shards: int, dtype: str
-):
+def _add_gather_hidden_states(bb: BlockBuilder, tensor_parallel_shards: int, dtype: str):
     batch_size = tir.SizeVar("batch_size", "int64")
     m = tir.SizeVar("m", "int64")
     n = tir.SizeVar("n", "int64")
