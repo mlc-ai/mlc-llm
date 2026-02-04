@@ -155,7 +155,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     logger.info(
         "%s after quantization: %.3f GB",
         green("Parameter size"),
-        total_bytes / (1024**3),
+        total_bytes / (1024 ** 3),
     )
     logger.info(f"%s: {total_params:,}", green("Total parameters"))
     logger.info(

@@ -403,17 +403,23 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         )
         cos = cos_freq * x[s, h, d].astype("float32")
         if "rope_type" in rope_scaling and rope_scaling["rope_type"] == "gptj":
-            sin = sin_freq * tir.if_then_else(
-                d % 2 == 0,
-                -x[s, h, d + 1],
-                x[s, h, d - 1],
-            ).astype("float32")
+            sin = (
+                sin_freq
+                * tir.if_then_else(
+                    d % 2 == 0,
+                    -x[s, h, d + 1],
+                    x[s, h, d - 1],
+                ).astype("float32")
+            )
         else:
-            sin = sin_freq * tir.if_then_else(
-                d < rotary_dim // 2,
-                -x[s, h, d + rotary_dim // 2],
-                x[s, h, d - rotary_dim // 2],
-            ).astype("float32")
+            sin = (
+                sin_freq
+                * tir.if_then_else(
+                    d < rotary_dim // 2,
+                    -x[s, h, d + rotary_dim // 2],
+                    x[s, h, d - rotary_dim // 2],
+                ).astype("float32")
+            )
         expr = (cos + sin).astype(dtype)
         for var, value in var_map.items():
             expr = tir.Let(var, value, expr)

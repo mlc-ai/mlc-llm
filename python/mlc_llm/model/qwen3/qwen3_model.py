@@ -140,7 +140,7 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.concat([q, k, v], dim=2)
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )

@@ -154,7 +154,7 @@ class GemmaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )
@@ -212,7 +212,7 @@ class GemmaModel(nn.Module):
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
-        hidden_states = hidden_states * (self.hidden_size**0.5)
+        hidden_states = hidden_states * (self.hidden_size ** 0.5)
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)

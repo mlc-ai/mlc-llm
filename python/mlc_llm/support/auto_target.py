@@ -144,11 +144,7 @@ def _build_metal_x86_64():
         output = args.output
         mod = _add_system_lib_prefix(mod, args.system_lib_prefix, is_system_lib=False)
         assert output.suffix == ".dylib"
-        relax.build(
-            mod,
-            target=args.target,
-            relax_pipeline=pipeline,
-        ).export_library(
+        relax.build(mod, target=args.target, relax_pipeline=pipeline,).export_library(
             str(output),
             fcompile=xcode.create_dylib,
             sdk="macosx",

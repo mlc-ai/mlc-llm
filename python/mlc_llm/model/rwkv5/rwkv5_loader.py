@@ -66,7 +66,7 @@ def huggingface(model_config: RWKV5Config, quantization: Quantization) -> Extern
                     mlc_name,
                     [hf_name],
                     functools.partial(
-                        lambda x, dtype, t: x.astype(dtype) / (2**t),
+                        lambda x, dtype, t: x.astype(dtype) / (2 ** t),
                         dtype=mlc_param.dtype,
                         t=i // model_config.rescale_every,
                     ),

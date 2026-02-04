@@ -196,7 +196,7 @@ class Gemma3Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
             config.text_config.head_dim, -1, config.text_config.rms_norm_eps, bias=False
         )
         # self.scaling_factor = (self.head_dim / config.text_config.query_pre_attn_scalar) ** 0.5
-        self.scaling = config.text_config.query_pre_attn_scalar**-0.5
+        self.scaling = config.text_config.query_pre_attn_scalar ** -0.5
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q = self.head_dim, self.num_q_heads
@@ -289,7 +289,7 @@ class Gemma3TextModel(nn.Module):
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
-        hidden_states = hidden_states * (self.hidden_size**0.5)
+        hidden_states = hidden_states * (self.hidden_size ** 0.5)
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)

@@ -120,7 +120,7 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim ** -0.5
             ),
             (batch_size, seq_len, self.head_dim * self.num_attention_heads),
         )

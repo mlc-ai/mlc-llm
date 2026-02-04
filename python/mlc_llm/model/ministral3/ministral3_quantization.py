@@ -6,7 +6,13 @@ from typing import Tuple
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import QuantizeMapping
-from mlc_llm.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize, BlockScaleQuantize
+from mlc_llm.quantization import (
+    AWQQuantize,
+    FTQuantize,
+    GroupQuantize,
+    NoQuantize,
+    BlockScaleQuantize,
+)
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 

@@ -64,7 +64,7 @@ def test_nn_module_paged_kv_cache():
             cache: PagedKVCache,
             qkv: core.Tensor,
         ) -> core.Tensor:
-            return cache.attention_with_fused_qkv(0, qkv, num_qo_heads=32, sm_scale=128**-0.5)
+            return cache.attention_with_fused_qkv(0, qkv, num_qo_heads=32, sm_scale=128 ** -0.5)
 
         def create_paged_kv_cache(
             self,
