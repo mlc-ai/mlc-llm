@@ -45,9 +45,7 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
             )
             assert x_fp8.dtype == w.dtype
             assert x_scale.dtype == "float32"
-            o = cutlass.fp8_groupwise_scaled_gemm(
-                x_fp8, x_scale, w, w_scale, block_size, x.dtype
-            )
+            o = cutlass.fp8_groupwise_scaled_gemm(x_fp8, x_scale, w, w_scale, block_size, x.dtype)
             return x_fp8, x_scale, o
 
     mod, _, ext_mods = TestModule().export_tvm(
@@ -76,21 +74,11 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
     vm = relax.VirtualMachine(exec, device)
 
     x_torch = torch.rand(M, K, dtype=getattr(torch, dtype), device=torch_device) * 2 - 1
-    w_full_torch = (
-        torch.rand(N, K, dtype=getattr(torch, dtype), device=torch_device) * 2 - 1
-    )
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
-    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(
-        x_torch, block_size, torch_fp8_dtype
-    )
-    o_torch = blockwise_matmul(
-        x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype
-    )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    w_full_torch = torch.rand(N, K, dtype=getattr(torch, dtype), device=torch_device) * 2 - 1
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
+    o_torch = blockwise_matmul(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -106,9 +94,7 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         atol=1e-1,
         rtol=1e-1,
     )
-    np.testing.assert_allclose(
-        x_scale_tvm.T, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5
-    )
+    np.testing.assert_allclose(x_scale_tvm.T, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5)
     atol = 0.5
     rtol = 1e-4
     o_tvm_flat = o_tvm.flatten()
@@ -183,18 +169,10 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
 
     x_torch = torch.randn(M, K, dtype=getattr(torch, dtype), device=torch_device)
     w_full_torch = torch.randn(N, K, dtype=getattr(torch, dtype), device=torch_device)
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
-    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(
-        x_torch, block_size, torch_fp8_dtype
-    )
-    o_torch = blockwise_matmul(
-        x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype
-    )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
+    o_torch = blockwise_matmul(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -209,9 +187,7 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
         atol=1e-1,
         rtol=1e-1,
     )
-    np.testing.assert_allclose(
-        x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5
-    )
+    np.testing.assert_allclose(x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5)
     atol = 0.5
     rtol = 1e-4
     o_tvm_flat = o_tvm.flatten()
@@ -304,9 +280,7 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
     factor = 1
     # Balance so that the number of tokens for each expert is a multiple of `factor`
     token_balance = 0
-    num_tokens_list = [
-        int((expert_choices == i).sum().to("cpu")) for i in range(num_experts)
-    ]
+    num_tokens_list = [int((expert_choices == i).sum().to("cpu")) for i in range(num_experts)]
     for i in range(num_experts):
         if token_balance > 0:
             diff = min(token_balance, num_tokens_list[i])
@@ -326,18 +300,10 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         token_ids = torch.where(expert_choices == i)[0]
         token_ids_list.append(token_ids)
 
-    x_torch = torch.randn(
-        M * top_k, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_full_torch = torch.randn(
-        num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
-    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(
-        x_torch, block_size, torch_fp8_dtype
-    )
+    x_torch = torch.randn(M * top_k, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_full_torch = torch.randn(num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
     o_torch = blockwise_group_matmul(
         x_fp8_torch,
         x_scale_torch,
@@ -346,9 +312,7 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         indptr,
         x_torch.dtype,
     )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -369,9 +333,7 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         atol=1e-1,
         rtol=1e-1,
     )
-    np.testing.assert_allclose(
-        x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5
-    )
+    np.testing.assert_allclose(x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5)
     atol = 0.5
     rtol = 1e-4
     o_tvm_flat = o_tvm.flatten()
@@ -471,18 +433,10 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         token_ids = torch.where(expert_choices == i)[0]
         token_ids_list.append(token_ids)
 
-    x_torch = torch.randn(
-        M * top_k, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_full_torch = torch.randn(
-        num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
-    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(
-        x_torch, block_size, torch_fp8_dtype
-    )
+    x_torch = torch.randn(M * top_k, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_full_torch = torch.randn(num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
     o_torch = blockwise_group_matmul(
         x_fp8_torch,
         x_scale_torch,
@@ -491,9 +445,7 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         indptr,
         x_torch.dtype,
     )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -514,9 +466,7 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         atol=1e-1,
         rtol=1e-1,
     )
-    np.testing.assert_allclose(
-        x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5
-    )
+    np.testing.assert_allclose(x_scale_tvm, x_scale_torch.cpu().numpy(), atol=1e-5, rtol=1e-5)
     atol = 0.5
     rtol = 1e-4
     o_tvm_flat = o_tvm.flatten()
@@ -579,21 +529,11 @@ def test_fp8_block_bmm_cutlass(M: int, N: int, K: int, H: int, dtype: str):
     vm = relax.VirtualMachine(exec, device)
 
     x_torch = torch.randn(H, M, K, dtype=getattr(torch, dtype), device=torch_device)
-    w_full_torch = torch.randn(
-        H, N, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
-    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(
-        x_torch, block_size, torch_fp8_dtype
-    )
-    o_torch = blockwise_bmm(
-        x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype
-    )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    w_full_torch = torch.randn(H, N, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
+    x_torch, x_fp8_torch, x_scale_torch = rowwise_quant_fp8(x_torch, block_size, torch_fp8_dtype)
+    o_torch = blockwise_bmm(x_fp8_torch, x_scale_torch, w_torch, w_scale_torch, x_torch.dtype)
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -683,9 +623,7 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
     vm = relax.VirtualMachine(exec, device)
 
     # Randomly sample `top_k` experts for each token with pytorch
-    expert_choices = torch.randint(
-        0, num_experts, (top_k,), device=torch_device, dtype=torch.int32
-    )
+    expert_choices = torch.randint(0, num_experts, (top_k,), device=torch_device, dtype=torch.int32)
     indptr = torch.zeros(num_experts + 1, device=torch_device, dtype=torch.int32)
     for i in range(num_experts):
         indptr[i + 1] = indptr[i] + (expert_choices == i).sum()
@@ -696,19 +634,13 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
         token_ids_list.append(token_ids)
 
     x_torch = torch.randn(M, K, dtype=getattr(torch, dtype), device=torch_device)
-    w_full_torch = torch.randn(
-        num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device
-    )
-    w_torch, w_scale_torch = blockwise_quant_fp8(
-        w_full_torch, block_size, torch_fp8_dtype
-    )
+    w_full_torch = torch.randn(num_experts, N, K, dtype=getattr(torch, dtype), device=torch_device)
+    w_torch, w_scale_torch = blockwise_quant_fp8(w_full_torch, block_size, torch_fp8_dtype)
     x_input_torch = torch.repeat_interleave(x_torch, top_k, dim=0) if up else x_torch
     o_torch = blockwise_group_matmul_unquantized(
         x_input_torch, w_torch, w_scale_torch, expert_choices
     )
-    x_tvm = tvm.runtime.tensor(
-        x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device
-    )
+    x_tvm = tvm.runtime.tensor(x_torch.view(torch.float16).cpu().numpy().view(dtype), device=device)
     w_tvm = tvm.runtime.tensor(
         w_torch.view(torch.uint8).cpu().numpy().view(fp8_dtype), device=device
     )
@@ -749,24 +681,15 @@ def blockwise_matmul(
     )
     for j in range(w_scale_torch.shape[0]):
         for k in range(w_scale_torch.shape[1]):
-            o_torch[
-                :,
-                j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),
-            ] += (
+            o_torch[:, j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),] += (
                 torch.matmul(
                     x_fp8_torch[
                         :,
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], x_fp8_torch.shape[1]
-                        ),
+                        k * block_size[1] : min((k + 1) * block_size[1], x_fp8_torch.shape[1]),
                     ].to(dtype),
                     w_torch[
-                        j * block_size[0] : min(
-                            (j + 1) * block_size[0], w_torch.shape[0]
-                        ),
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], w_torch.shape[1]
-                        ),
+                        j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),
+                        k * block_size[1] : min((k + 1) * block_size[1], w_torch.shape[1]),
                     ].T.to(dtype),
                 )
                 * x_scale_torch[:, k : k + 1]
@@ -799,18 +722,12 @@ def blockwise_group_matmul(
                     torch.matmul(
                         x_fp8_torch.to(dtype)[
                             indices,
-                            k * block_size[1] : min(
-                                (k + 1) * block_size[1], x_fp8_torch.shape[1]
-                            ),
+                            k * block_size[1] : min((k + 1) * block_size[1], x_fp8_torch.shape[1]),
                         ],
                         w_torch[
                             e,
-                            j * block_size[0] : min(
-                                (j + 1) * block_size[0], w_torch.shape[1]
-                            ),
-                            k * block_size[1] : min(
-                                (k + 1) * block_size[1], w_torch.shape[2]
-                            ),
+                            j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
+                            k * block_size[1] : min((k + 1) * block_size[1], w_torch.shape[2]),
                         ].T.to(dtype),
                     )
                     * x_scale_torch[indices, k : k + 1]
@@ -837,18 +754,12 @@ def blockwise_group_matmul_unquantized(
                 ] += torch.matmul(
                     x_torch[
                         i,
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], x_torch.shape[1]
-                        ),
+                        k * block_size[1] : min((k + 1) * block_size[1], x_torch.shape[1]),
                     ],
                     w_torch[
                         e,
-                        j * block_size[0] : min(
-                            (j + 1) * block_size[0], w_torch.shape[1]
-                        ),
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], w_torch.shape[2]
-                        ),
+                        j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
+                        k * block_size[1] : min((k + 1) * block_size[1], w_torch.shape[2]),
                     ].T.to(x_torch.dtype)
                     * w_scale_torch[e, j, k].to(x_torch.dtype),
                 )
@@ -869,25 +780,16 @@ def blockwise_bmm(
     )
     for j in range(w_scale_torch.shape[1]):
         for k in range(w_scale_torch.shape[2]):
-            o_torch[
-                ...,
-                j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
-            ] += (
+            o_torch[..., j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),] += (
                 torch.bmm(
                     x_fp8_torch[
                         ...,
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], x_fp8_torch.shape[2]
-                        ),
+                        k * block_size[1] : min((k + 1) * block_size[1], x_fp8_torch.shape[2]),
                     ].to(dtype),
                     w_torch[
                         ...,
-                        j * block_size[0] : min(
-                            (j + 1) * block_size[0], w_torch.shape[1]
-                        ),
-                        k * block_size[1] : min(
-                            (k + 1) * block_size[1], w_torch.shape[2]
-                        ),
+                        j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
+                        k * block_size[1] : min((k + 1) * block_size[1], w_torch.shape[2]),
                     ]
                     .transpose(1, 2)
                     .to(dtype),
@@ -907,21 +809,15 @@ def blockwise_quant_fp8(
         (w_full_torch.shape[-1] + block_size[1] - 1) // block_size[1],
     )
     # For each (block_size[0], block_size[1]) block, compute the max abs value of `w_full_torch`
-    w_max_abs_torch = torch.zeros(
-        w_scale_shape, dtype=torch.float32, device=torch_device
-    )
+    w_max_abs_torch = torch.zeros(w_scale_shape, dtype=torch.float32, device=torch_device)
     for i in range(w_scale_shape[-2]):
         for j in range(w_scale_shape[-1]):
             w_max_abs_torch[..., i, j] = torch.max(
                 torch.abs(
                     w_full_torch[
                         ...,
-                        i * block_size[0] : min(
-                            (i + 1) * block_size[0], w_full_torch.shape[-2]
-                        ),
-                        j * block_size[1] : min(
-                            (j + 1) * block_size[1], w_full_torch.shape[-1]
-                        ),
+                        i * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
+                        j * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
                     ]
                 ).flatten(-2, -1),
                 dim=-1,
@@ -936,20 +832,12 @@ def blockwise_quant_fp8(
         for i in range(w_scale_shape[-2]):
             for j in range(w_scale_shape[-1]):
                 w_torch[
-                    i * block_size[0] : min(
-                        (i + 1) * block_size[0], w_full_torch.shape[-2]
-                    ),
-                    j * block_size[1] : min(
-                        (j + 1) * block_size[1], w_full_torch.shape[-1]
-                    ),
+                    i * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
+                    j * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
                 ] = torch.clamp(
                     w_full_torch[
-                        i * block_size[0] : min(
-                            (i + 1) * block_size[0], w_full_torch.shape[-2]
-                        ),
-                        j * block_size[1] : min(
-                            (j + 1) * block_size[1], w_full_torch.shape[-1]
-                        ),
+                        i * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
+                        j * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
                     ]
                     / w_scale_torch[..., i, j],
                     -fp8_max,
@@ -961,21 +849,15 @@ def blockwise_quant_fp8(
                 for j in range(w_scale_shape[-1]):
                     w_torch[
                         e,
-                        i * block_size[0] : min(
-                            (i + 1) * block_size[0], w_full_torch.shape[-2]
-                        ),
-                        j * block_size[1] : min(
-                            (j + 1) * block_size[1], w_full_torch.shape[-1]
-                        ),
+                        i * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
+                        j * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
                     ] = torch.clamp(
                         w_full_torch[
                             e,
-                            i * block_size[0] : min(
-                                (i + 1) * block_size[0], w_full_torch.shape[-2]
-                            ),
-                            j * block_size[1] : min(
-                                (j + 1) * block_size[1], w_full_torch.shape[-1]
-                            ),
+                            i
+                            * block_size[0] : min((i + 1) * block_size[0], w_full_torch.shape[-2]),
+                            j
+                            * block_size[1] : min((j + 1) * block_size[1], w_full_torch.shape[-1]),
                         ]
                         / w_scale_torch[e, i, j],
                         -fp8_max,
@@ -983,8 +865,7 @@ def blockwise_quant_fp8(
                     )
 
     w_scale_torch = (
-        torch.rand(w_scale_torch.shape, dtype=torch.float32, device=torch_device)
-        / fp8_max
+        torch.rand(w_scale_torch.shape, dtype=torch.float32, device=torch_device) / fp8_max
     )
     return w_torch, w_scale_torch
 
@@ -997,17 +878,13 @@ def rowwise_quant_fp8(
         (x_full_torch.shape[-1] + block_size[1] - 1) // block_size[1],
     )
     # For each (block_size[1]) block, compute the max abs value of `w_full_torch`
-    x_max_abs_torch = torch.zeros(
-        x_scale_shape, dtype=torch.float32, device=torch_device
-    )
+    x_max_abs_torch = torch.zeros(x_scale_shape, dtype=torch.float32, device=torch_device)
     for i in range(x_scale_shape[-1]):
         x_max_abs_torch[..., i] = torch.max(
             torch.abs(
                 x_full_torch[
                     ...,
-                    i * block_size[1] : min(
-                        (i + 1) * block_size[1], x_full_torch.shape[-1]
-                    ),
+                    i * block_size[1] : min((i + 1) * block_size[1], x_full_torch.shape[-1]),
                 ]
             ),
             dim=-1,
@@ -1025,9 +902,7 @@ def rowwise_quant_fp8(
         ] = torch.clamp(
             x_full_torch[
                 ...,
-                i * block_size[1] : min(
-                    (i + 1) * block_size[1], x_full_torch.shape[-1]
-                ),
+                i * block_size[1] : min((i + 1) * block_size[1], x_full_torch.shape[-1]),
             ]
             / x_scale_torch[..., i : i + 1],
             -fp8_max,
@@ -1035,8 +910,7 @@ def rowwise_quant_fp8(
         )
 
     x_scale_torch = (
-        torch.rand(x_scale_torch.shape, dtype=torch.float32, device=torch_device)
-        / fp8_max
+        torch.rand(x_scale_torch.shape, dtype=torch.float32, device=torch_device) / fp8_max
     )
     for i in range(x_scale_shape[-1]):
         x_full_torch[
@@ -1045,9 +919,7 @@ def rowwise_quant_fp8(
         ] = (
             x_torch[
                 ...,
-                i * block_size[1] : min(
-                    (i + 1) * block_size[1], x_full_torch.shape[-1]
-                ),
+                i * block_size[1] : min((i + 1) * block_size[1], x_full_torch.shape[-1]),
             ].to(x_scale_torch.dtype)
             * x_scale_torch[..., i : i + 1]
         )

@@ -114,18 +114,13 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
                 f"Cannot split {config.num_key_value_heads} key-value attention heads "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.num_attention_heads = (
-            config.num_attention_heads // config.tensor_parallel_shards
-        )
-        self.num_key_value_heads = (
-            config.num_key_value_heads // config.tensor_parallel_shards
-        )
+        self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
+        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.rope_theta = config.rope_theta
 
         self.c_attn = nn.Linear(
             in_features=config.hidden_size,
-            out_features=(2 * self.num_key_value_heads + self.num_attention_heads)
-            * self.head_dim,
+            out_features=(2 * self.num_key_value_heads + self.num_attention_heads) * self.head_dim,
             bias=config.attention_bias,
         )
         self.o_proj = nn.Linear(
@@ -136,9 +131,7 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         self.q_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
         self.k_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.c_attn(hidden_states)
@@ -149,7 +142,7 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.concat([q, k, v], dim=2)
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim**-0.5
+                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim ** -0.5
             ),
             (b, s, h_q * d),
         )
@@ -186,15 +179,9 @@ class Qwen3MLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = (
-            config.intermediate_size // config.tensor_parallel_shards
-        )
-        self.gate_up_proj = nn.Linear(
-            config.hidden_size, 2 * self.intermediate_size, bias=False
-        )
-        self.down_proj = nn.Linear(
-            self.intermediate_size, config.hidden_size, bias=False
-        )
+        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * self.intermediate_size, bias=False)
+        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
@@ -207,9 +194,7 @@ class Qwen3DecoderLayer(nn.Module):
     def __init__(self, config: Qwen3Config):
         self.self_attn = Qwen3Attention(config)
         self.mlp = Qwen3MLP(config)
-        self.input_layernorm = nn.RMSNorm(
-            config.hidden_size, -1, config.rms_norm_eps, bias=False
-        )
+        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
             config.hidden_size, -1, config.rms_norm_eps, bias=False
         )
@@ -242,9 +227,7 @@ class Qwen3DecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
-    ):
+    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
         out = self.input_layernorm(hidden_states)
         out = self.self_attn(out, paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -332,9 +315,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(
-            _index, name_hint="index", args=[hidden_states]
-        )
+        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
@@ -410,9 +391,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -428,9 +407,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -439,9 +416,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -449,9 +424,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

@@ -75,9 +75,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     named_params = dict(_named_params)
 
     if pre_shards_num is not None:
-        named_params, preshard_funcs = apply_preshard(
-            named_params, int(pre_shards_num), args
-        )
+        named_params, preshard_funcs = apply_preshard(named_params, int(pre_shards_num), args)
     else:
         preshard_funcs = None
 
@@ -128,9 +126,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
                 ),
                 quantize_param_map=quantize_map,
             )
-            for name, param in loader.load(
-                device=args.device, preshard_funcs=preshard_funcs
-            ):
+            for name, param in loader.load(device=args.device, preshard_funcs=preshard_funcs):
                 _check_param(name, param)
                 param_names.add(name)
                 param = param.copyto(cpu_device())
@@ -154,14 +150,12 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         show_progress=False,
     )
     if named_params:
-        raise ValueError(
-            f"Parameter not found in source: {', '.join(named_params.keys())}"
-        )
+        raise ValueError(f"Parameter not found in source: {', '.join(named_params.keys())}")
     # Log necessary statistics
     logger.info(
         "%s after quantization: %.3f GB",
         green("Parameter size"),
-        total_bytes / (1024**3),
+        total_bytes / (1024 ** 3),
     )
     logger.info(f"%s: {total_params:,}", green("Total parameters"))
     logger.info(
@@ -182,8 +176,6 @@ def convert_weight(  # pylint: disable=too-many-arguments
     output: Path,
 ):
     """MLC LLM's weight conversation and quantization flow."""
-    args = ConversionArgs(
-        config, quantization, model, device, source, source_format, output
-    )
+    args = ConversionArgs(config, quantization, model, device, source, source_format, output)
     args.display()
     _convert_args(args)

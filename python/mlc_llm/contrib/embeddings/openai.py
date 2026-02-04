@@ -120,11 +120,9 @@ class MLCEmbeddings(OpenAIEmbeddings):
             num_tokens_in_batch[idx].append(len(tokens_i))
 
         embeddings = []
-        empty_average = embed_with_retry(
-            self,
-            input="",
-            **self._invocation_params,
-        )["data"][0]["embedding"]
+        empty_average = embed_with_retry(self, input="", **self._invocation_params,)["data"][
+            0
+        ]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average
@@ -154,13 +152,9 @@ class MLCEmbeddings(OpenAIEmbeddings):
             num_tokens_in_batch[idx].append(len(tokens_i))
 
         embeddings = []
-        empty_average = (
-            await async_embed_with_retry(
-                self,
-                input="",
-                **self._invocation_params,
-            )
-        )["data"][0]["embedding"]
+        empty_average = (await async_embed_with_retry(self, input="", **self._invocation_params,))[
+            "data"
+        ][0]["embedding"]
         for _result, num_tokens in zip(results, num_tokens_in_batch):
             if len(_result) == 0:
                 average = empty_average

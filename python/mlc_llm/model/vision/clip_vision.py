@@ -64,15 +64,11 @@ class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attribu
 
         self.num_patches = (self.image_size // self.patch_size) ** 2
         self.num_positions = self.num_patches + 1
-        self.position_embedding = nn.Embedding(
-            num=self.num_positions, dim=self.embed_dim
-        )
+        self.position_embedding = nn.Embedding(num=self.num_positions, dim=self.embed_dim)
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         batch_size = pixel_values.shape[0]
-        patch_embeds = self.patch_embedding(
-            pixel_values
-        )  # shape = [*, width, grid, grid]
+        patch_embeds = self.patch_embedding(pixel_values)  # shape = [*, width, grid, grid]
         patch_embeds = reshape(patch_embeds, shape=(batch_size, self.embed_dim, -1))
         patch_embeds = permute_dims(
             patch_embeds, axes=(0, 2, 1)
@@ -143,7 +139,7 @@ class CLIPAttention(Module):  # pylint: disable=too-many-instance-attributes
                 f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim}"
                 f" and `num_heads`: {self.num_heads})."
             )
-        self.scale = self.head_dim**-0.5
+        self.scale = self.head_dim ** -0.5
         self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
@@ -170,13 +166,9 @@ class CLIPEncoderLayer(Module):
         super().__init__()
         self.embed_dim = config.hidden_size
         self.self_attn = CLIPAttention(config)
-        self.layer_norm1 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps
-        )
+        self.layer_norm1 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
         self.mlp = CLIPMLP(config)
-        self.layer_norm2 = nn.LayerNorm(
-            normalized_shape=self.embed_dim, eps=config.layer_norm_eps
-        )
+        self.layer_norm2 = nn.LayerNorm(normalized_shape=self.embed_dim, eps=config.layer_norm_eps)
 
     def forward(self, hidden_states: Tensor) -> Tensor:
         residual = hidden_states
