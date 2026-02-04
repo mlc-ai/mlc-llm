@@ -20,7 +20,9 @@ from mlc_llm.quantization.group_quantization import (
 def test_llama2_group_quantization(model_name: str, quant_name: str):
     model_info = MODELS["llama"]
     config = model_info.config.from_dict(MODEL_PRESETS[model_name])
-    model, quant_map = model_info.quantize["group-quant"](config, QUANTIZATION[quant_name])
+    model, quant_map = model_info.quantize["group-quant"](
+        config, QUANTIZATION[quant_name]
+    )
     assert "model.embed_tokens.weight" in quant_map.param_map
     assert isinstance(
         model.model.embed_tokens,  # type: ignore[attr-defined]

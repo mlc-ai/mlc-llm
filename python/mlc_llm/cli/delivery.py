@@ -157,7 +157,9 @@ def _run_quantization(
                 cmd += ["--" + optional_arg.replace("_", "-"), str(optional_arg_val)]
 
         print(" ".join(cmd), file=log_file, flush=True)
-        subprocess.run(cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ)
+        subprocess.run(
+            cmd, check=True, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
+        )
         if not model_info.gen_config_only:
             cmd = [
                 sys.executable,
@@ -172,10 +174,17 @@ def _run_quantization(
             ]
             print(" ".join(cmd), file=log_file, flush=True)
             subprocess.run(
-                cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
+                cmd,
+                check=False,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=os.environ,
             )
         logger.info("[MLC] Complete!")
-    if not (Path(output_dir) / "tensor-cache.json").exists() and not model_info.gen_config_only:
+    if (
+        not (Path(output_dir) / "tensor-cache.json").exists()
+        and not model_info.gen_config_only
+    ):
         logger.error(
             "[%s] Model %s. Quantization %s. No weights metadata found.",
             red("FAILED"),
@@ -225,7 +234,13 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
         quantization = task.quantization
         overrides = {**default_overrides, **task.overrides}
 
-        logger.info("Checking task: %s %s %s %s", model_id, conv_template, quantization, overrides)
+        logger.info(
+            "Checking task: %s %s %s %s",
+            model_id,
+            conv_template,
+            quantization,
+            overrides,
+        )
         log_tasks = [t for t in log.tasks if t.model_id == model_id]
         delivered_quantizations = set()
         gen_config_only = set()
@@ -246,21 +261,30 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
 
         if quantization_diff:
             for q in quantization_diff:
-                logger.info("Adding task %s %s %s to the diff.", model_id, conv_template, q)
+                logger.info(
+                    "Adding task %s %s %s to the diff.", model_id, conv_template, q
+                )
                 task_copy = task.model_copy()
                 task_copy.quantization = [q]
                 task_copy.overrides = {q: overrides.get(q, OverrideConfigs())}
-                task_copy.gen_config_only = task_copy.gen_config_only or q in gen_config_only
+                task_copy.gen_config_only = (
+                    task_copy.gen_config_only or q in gen_config_only
+                )
                 diff_tasks.append(task_copy)
         else:
-            logger.info("Task %s %s %s is up-to-date.", model_id, conv_template, quantization)
+            logger.info(
+                "Task %s %s %s is up-to-date.", model_id, conv_template, quantization
+            )
 
     diff_config = spec.model_copy()
     diff_config.default_quantization = []
     diff_config.default_overrides = {}
     diff_config.tasks = diff_tasks
 
-    logger.info("Model delivery diff: %s", diff_config.model_dump_json(indent=4, exclude_none=True))
+    logger.info(
+        "Model delivery diff: %s",
+        diff_config.model_dump_json(indent=4, exclude_none=True),
+    )
 
     return diff_config
 
@@ -303,7 +327,8 @@ def _main(  # pylint: disable=too-many-locals, too-many-arguments
                 quantizations += task.quantization
 
         default_destination = (
-            delivery_diff.default_destination or "{username}/{model_id}-{quantization}-MLC"
+            delivery_diff.default_destination
+            or "{username}/{model_id}-{quantization}-MLC"
         )
         for quantization in quantizations:
             repo = default_destination.format(

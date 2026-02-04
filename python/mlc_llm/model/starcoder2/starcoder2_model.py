@@ -98,28 +98,33 @@ class Starcoder2Attention(nn.Module):  # pylint: disable=too-many-instance-attri
 
         self.num_heads = config.num_attention_heads // self.tensor_parallel_shards
         self.head_dim = config.head_dim
-        self.num_key_value_heads = config.num_key_value_heads // self.tensor_parallel_shards
+        self.num_key_value_heads = (
+            config.num_key_value_heads // self.tensor_parallel_shards
+        )
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.context_window_size
         self.use_bias = config.use_bias
 
         self.wqkv_pack = nn.Linear(
             in_features=self.hidden_size,
-            out_features=(self.num_heads + 2 * self.num_key_value_heads) * self.head_dim,
+            out_features=(self.num_heads + 2 * self.num_key_value_heads)
+            * self.head_dim,
             bias=self.use_bias,
         )
         self.o_proj = nn.Linear(
             self.num_heads * self.head_dim, self.hidden_size, bias=self.use_bias
         )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.wqkv_pack(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -134,7 +139,9 @@ class Starcoder2MLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         embed_dim = config.hidden_size
 
         self.c_fc = nn.Linear(
@@ -157,7 +164,9 @@ class Starcoder2DecoderLayer(nn.Module):
         self.self_attn = Starcoder2Attention(config)
         self.mlp = Starcoder2MLP(config)
         self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
-        self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=config.norm_epsilon)
+        self.post_attention_layernorm = nn.LayerNorm(
+            config.hidden_size, eps=config.norm_epsilon
+        )
 
         def _set_tp():
             def _set(layer, hint):
@@ -189,13 +198,20 @@ class Starcoder2DecoderLayer(nn.Module):
             _set(self.mlp.c_proj.weight, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
 
             if config.use_bias:
-                _set(self.mlp.c_proj.bias, tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0))
+                _set(
+                    self.mlp.c_proj.bias,
+                    tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0),
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -273,7 +289,9 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -289,7 +307,10 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -340,7 +361,9 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -356,7 +379,9 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -365,7 +390,9 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -373,7 +400,9 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

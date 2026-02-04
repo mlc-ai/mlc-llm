@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
-ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCausalLM, "MistralForCausalLM": MistralForCasualLM}
+ARCHITECTURE_MAP = {
+    "LlamaForCausalLM": LlamaForCausalLM,
+    "MistralForCausalLM": MistralForCasualLM,
+}
 
 
 @dataclasses.dataclass
@@ -94,7 +97,9 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             # pylint: disable=import-outside-toplevel, import-error
             from transformers import AutoConfig
 
-            hf_config = AutoConfig.from_pretrained(text_config_dict["_name_or_path"]).to_dict()
+            hf_config = AutoConfig.from_pretrained(
+                text_config_dict["_name_or_path"]
+            ).to_dict()
         except (ImportError, OSError) as e:
             # If transformers is not installed, get the config from preset
             # Llama2 is gated so it throws an OSError. Get the config from preset instead
@@ -105,7 +110,9 @@ class LlavaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 "mistralai/Mistral-7B-v0.1": "mistral_7b",
             }
             if text_config_dict["_name_or_path"] in preset_mapping:
-                hf_config = MODEL_PRESETS[preset_mapping[text_config_dict["_name_or_path"]]]
+                hf_config = MODEL_PRESETS[
+                    preset_mapping[text_config_dict["_name_or_path"]]
+                ]
             else:
                 raise ValueError("Unsupported text model") from e
 
@@ -141,7 +148,9 @@ class LlavaForCasualLM(Module):
         self.vision_tower = CLIPVisionModel(config.vision_config)
         self.image_processor = ImageProcessor()
         self.multi_modal_projector = LlavaMultiModalProjector(config)
-        self.language_model = ARCHITECTURE_MAP[config.text_architecture](config.text_config)
+        self.language_model = ARCHITECTURE_MAP[config.text_architecture](
+            config.text_config
+        )
         self.vocab_size = config.vocab_size
         self.dtype = "float32"
 
@@ -187,7 +196,9 @@ class LlavaForCasualLM(Module):
             name="slice",
         )
         image_features = self.multi_modal_projector(image_features)
-        image_features = reshape(image_features, shape=(-1, self.config.text_config.hidden_size))
+        image_features = reshape(
+            image_features, shape=(-1, self.config.text_config.hidden_size)
+        )
         return image_features
 
     def batch_forward(
@@ -198,7 +209,9 @@ class LlavaForCasualLM(Module):
     ):
         op_ext.configure()
 
-        return self.language_model.batch_forward(input_embeds, paged_kv_cache, logit_positions)
+        return self.language_model.batch_forward(
+            input_embeds, paged_kv_cache, logit_positions
+        )
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
@@ -211,9 +224,14 @@ class LlavaForCasualLM(Module):
         return self.language_model.decode(input_embed, paged_kv_cache)
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
-        return self.language_model.batch_prefill(input_embeds, logit_positions, paged_kv_cache)
+        return self.language_model.batch_prefill(
+            input_embeds, logit_positions, paged_kv_cache
+        )
 
     def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
         return self.language_model.batch_decode(input_embeds, paged_kv_cache)

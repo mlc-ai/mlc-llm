@@ -121,7 +121,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             for name, loader_param in self._load_or_quantize(mlc_name, param, device):
                 # Apply presharding if needed
                 if preshard_funcs is not None and name in preshard_funcs:
-                    for shard_id, shard_param in enumerate(preshard_funcs[name](loader_param)):
+                    for shard_id, shard_param in enumerate(
+                        preshard_funcs[name](loader_param)
+                    ):
                         yield _sharded_param_name(name, shard_id), shard_param
                 else:
                     yield name, loader_param
@@ -149,7 +151,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
         for path in files_to_load:
             self._load_file(path)
         # Step 3. Collect all torch parameters in order
-        torch_params = [self.cached_files[self.torch_to_path[i]][i] for i in torch_names]
+        torch_params = [
+            self.cached_files[self.torch_to_path[i]][i] for i in torch_names
+        ]
         # Step 4. Apply the mapping function
         with self.stats.timer("map_time_sec"):
             param = self.extern_param_map.map_func[mlc_name](*torch_params)
@@ -183,7 +187,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
 
     def _load_file(self, path: Path) -> None:
         logger.info("Loading HF parameters from: %s", path)
-        load_func = load_safetensor_shard if path.suffix == ".safetensors" else load_torch_shard
+        load_func = (
+            load_safetensor_shard if path.suffix == ".safetensors" else load_torch_shard
+        )
         with self.stats.timer("load_time_sec"):
             result = {}
             for name, param in load_func(path):
@@ -202,7 +208,9 @@ class HuggingFaceLoader:  # pylint: disable=too-few-public-methods
             gc.collect()
 
 
-def _loading_order(param_map: ExternMapping, torch_to_path: Dict[str, Path]) -> List[str]:
+def _loading_order(
+    param_map: ExternMapping, torch_to_path: Dict[str, Path]
+) -> List[str]:
     # Step 1. Build a map from path to torch parameters
     path_to_torch: Dict[Path, List[str]] = defaultdict(list)
     for torch_name, path in torch_to_path.items():

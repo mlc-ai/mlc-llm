@@ -4,7 +4,6 @@
 # decouple conversation template apply from the conversation protocol
 # data structure
 
-
 # model preset templates
 from . import (
     cohere,

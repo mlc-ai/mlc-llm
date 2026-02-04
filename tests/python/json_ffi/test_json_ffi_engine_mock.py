@@ -28,7 +28,8 @@ def check_error_handling(engine, expect_str, **params):
 
     if expect_str not in response.choices[0].delta.content:
         raise RuntimeError(
-            f"expect '{expect_str}' in error msg, " f"but get '{response.choices[0].delta.content}'"
+            f"expect '{expect_str}' in error msg, "
+            f"but get '{response.choices[0].delta.content}'"
         )
 
 

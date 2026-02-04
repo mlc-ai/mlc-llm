@@ -49,9 +49,9 @@ def detect_weight(
         The valid weight format.
     """
     if weight_path is None:
-        assert (
-            config_json_path is not None and config_json_path.exists()
-        ), "Please provide config.json path."
+        assert config_json_path is not None and config_json_path.exists(), (
+            "Please provide config.json path."
+        )
 
         # 1. Find the weight_path in config.json
         with open(config_json_path, encoding="utf-8") as i_f:

@@ -14,7 +14,9 @@ def test_two_stage_softmax():
     chunk_size = 4096
     target = tvm.target.Target("cuda")
     f_chunk_lse, f_softmax_with_lse = _get_lse_and_softmax_func(target, chunk_size)
-    mod = tvm.IRModule({"chunk_lse": f_chunk_lse, "softmax_with_chunked_lse": f_softmax_with_lse})
+    mod = tvm.IRModule(
+        {"chunk_lse": f_chunk_lse, "softmax_with_chunked_lse": f_softmax_with_lse}
+    )
     with target:
         mod = dlight.ApplyDefaultSchedule(dlight.gpu.GeneralReduction())(mod)
 
@@ -25,9 +27,9 @@ def test_two_stage_softmax():
     vocab_size = 128256
     for batch_size in [1, 2, 4, 8, 16, 32, 64, 128]:
         for _ in range(num_runs):
-            x_np = np.random.uniform(low=-10, high=10, size=(batch_size, vocab_size)).astype(
-                "float32"
-            )
+            x_np = np.random.uniform(
+                low=-10, high=10, size=(batch_size, vocab_size)
+            ).astype("float32")
             y_np = scipy.special.softmax(x_np, axis=-1)
 
             x_nd = tvm.runtime.tensor(x_np, device=device)

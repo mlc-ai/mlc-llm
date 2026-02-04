@@ -243,7 +243,9 @@ class AsyncChatCompletion:  # pylint: disable=too-few-public-methods
             user=user,
             response_format=response_format,
             request_id=request_id,
-            debug_config=(extra_body.get("debug_config", None) if extra_body is not None else None),
+            debug_config=(
+                extra_body.get("debug_config", None) if extra_body is not None else None
+            ),
         )
 
 
@@ -438,7 +440,9 @@ class ChatCompletion:  # pylint: disable=too-few-public-methods
             user=user,
             response_format=response_format,
             request_id=request_id,
-            debug_config=(extra_body.get("debug_config", None) if extra_body is not None else None),
+            debug_config=(
+                extra_body.get("debug_config", None) if extra_body is not None else None
+            ),
         )
 
 
@@ -633,7 +637,9 @@ class AsyncCompletion:  # pylint: disable=too-few-public-methods
             user=user,
             response_format=response_format,
             request_id=request_id,
-            debug_config=(extra_body.get("debug_config", None) if extra_body is not None else None),
+            debug_config=(
+                extra_body.get("debug_config", None) if extra_body is not None else None
+            ),
         )
 
 
@@ -828,7 +834,9 @@ class Completion:  # pylint: disable=too-few-public-methods
             user=user,
             response_format=response_format,
             request_id=request_id,
-            debug_config=(extra_body.get("debug_config", None) if extra_body is not None else None),
+            debug_config=(
+                extra_body.get("debug_config", None) if extra_body is not None else None
+            ),
         )
 
 
@@ -1001,14 +1009,19 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 temperature=temperature,
                 top_p=top_p,
                 tools=(
-                    [openai_api_protocol.ChatTool.model_validate(tool) for tool in tools]
+                    [
+                        openai_api_protocol.ChatTool.model_validate(tool)
+                        for tool in tools
+                    ]
                     if tools is not None
                     else None
                 ),
                 tool_choice=tool_choice,
                 user=user,
                 response_format=(
-                    openai_api_protocol.RequestResponseFormat.model_validate(response_format)
+                    openai_api_protocol.RequestResponseFormat.model_validate(
+                        response_format
+                    )
                     if response_format is not None
                     else None
                 ),
@@ -1040,7 +1053,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 for choice in response.choices:
                     assert isinstance(choice.delta.content, str)
                     output_texts[choice.index] += choice.delta.content
-                    if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                    if (
+                        choice.finish_reason is not None
+                        and finish_reasons[choice.index] is None
+                    ):
                         finish_reasons[choice.index] = choice.finish_reason
                     if choice.logprobs is not None:
                         assert logprob_results is not None
@@ -1051,12 +1067,14 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             # for cancelled error, we can simply pass it through
             raise
         except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Error in chat completion with request ID %s: %s", request_id, err)
+            logger.error(
+                "Error in chat completion with request ID %s: %s", request_id, err
+            )
             raise
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
-        use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
+        use_function_calling, tool_calls_list = (
+            engine_base.process_function_call_output(output_texts, finish_reasons)
         )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
@@ -1142,7 +1160,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 top_p=top_p,
                 user=user,
                 response_format=(
-                    openai_api_protocol.RequestResponseFormat.model_validate(response_format)
+                    openai_api_protocol.RequestResponseFormat.model_validate(
+                        response_format
+                    )
                     if response_format is not None
                     else None
                 ),
@@ -1162,7 +1182,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         request_final_usage = None
         output_texts = [""] * n
         finish_reasons: List[Optional[str]] = [None] * n
-        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [
+            None
+        ] * n
 
         async for response in cmpl_generator:
             # this is the final chunk
@@ -1171,7 +1193,10 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 continue
             for choice in response.choices:
                 output_texts[choice.index] += choice.text
-                if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                if (
+                    choice.finish_reason is not None
+                    and finish_reasons[choice.index] is None
+                ):
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
                     logprob_results[choice.index] = choice.logprobs
@@ -1227,7 +1252,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompts, generation_cfg, request_id  # type: ignore
+                prompts,
+                generation_cfg,
+                request_id,  # type: ignore
             ):
                 response = engine_base.process_chat_completion_stream_output(
                     delta_outputs,
@@ -1248,7 +1275,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             # for cancelled error, we can simply pass it through
             raise
         except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Error in _handle_chat_completion for request %s: %s", request_id, err)
+            logger.error(
+                "Error in _handle_chat_completion for request %s: %s", request_id, err
+            )
             raise
 
     async def _handle_completion(
@@ -1292,7 +1321,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompt, generation_cfg, request_id  # type: ignore
+                prompt,
+                generation_cfg,
+                request_id,  # type: ignore
             ):
                 response = engine_base.process_completion_stream_output(
                     delta_outputs,
@@ -1318,7 +1349,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             # for cancelled error, we can simply pass it through
             raise
         except Exception as err:  # pylint: disable=broad-exception-caught
-            logger.error("Error in _handle_completion for request %s: %s", request_id, err)
+            logger.error(
+                "Error in _handle_completion for request %s: %s", request_id, err
+            )
             raise
 
     async def _generate(
@@ -1394,7 +1427,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
                 # for cancelled error, we can simply pass it through
                 raise
             except Exception as exception:  # pylint: disable=broad-exception-caught
-                logger.error("Exception in _generate for request %s: %s", request_id, exception)
+                logger.error(
+                    "Exception in _generate for request %s: %s", request_id, exception
+                )
                 raise
 
     def _abort(self, request_id: str):
@@ -1570,14 +1605,19 @@ class MLCEngine(engine_base.MLCEngineBase):
                 temperature=temperature,
                 top_p=top_p,
                 tools=(
-                    [openai_api_protocol.ChatTool.model_validate(tool) for tool in tools]
+                    [
+                        openai_api_protocol.ChatTool.model_validate(tool)
+                        for tool in tools
+                    ]
                     if tools is not None
                     else None
                 ),
                 tool_choice=tool_choice,
                 user=user,
                 response_format=(
-                    openai_api_protocol.RequestResponseFormat.model_validate(response_format)
+                    openai_api_protocol.RequestResponseFormat.model_validate(
+                        response_format
+                    )
                     if response_format is not None
                     else None
                 ),
@@ -1607,7 +1647,10 @@ class MLCEngine(engine_base.MLCEngineBase):
             for choice in response.choices:
                 assert isinstance(choice.delta.content, str)
                 output_texts[choice.index] += choice.delta.content
-                if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                if (
+                    choice.finish_reason is not None
+                    and finish_reasons[choice.index] is None
+                ):
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
                     assert logprob_results is not None
@@ -1616,8 +1659,8 @@ class MLCEngine(engine_base.MLCEngineBase):
                     ] += choice.logprobs.content
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
-        use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
+        use_function_calling, tool_calls_list = (
+            engine_base.process_function_call_output(output_texts, finish_reasons)
         )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
@@ -1704,7 +1747,9 @@ class MLCEngine(engine_base.MLCEngineBase):
                 top_p=top_p,
                 user=user,
                 response_format=(
-                    openai_api_protocol.RequestResponseFormat.model_validate(response_format)
+                    openai_api_protocol.RequestResponseFormat.model_validate(
+                        response_format
+                    )
                     if response_format is not None
                     else None
                 ),
@@ -1723,7 +1768,9 @@ class MLCEngine(engine_base.MLCEngineBase):
         request_final_usage = None
         output_texts = [""] * n
         finish_reasons: List[Optional[str]] = [None] * n
-        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [None] * n
+        logprob_results: List[Optional[openai_api_protocol.CompletionLogProbs]] = [
+            None
+        ] * n
 
         for response in cmpl_generator:
             # this is the final chunk
@@ -1732,7 +1779,10 @@ class MLCEngine(engine_base.MLCEngineBase):
                 continue
             for choice in response.choices:
                 output_texts[choice.index] += choice.text
-                if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                if (
+                    choice.finish_reason is not None
+                    and finish_reasons[choice.index] is None
+                ):
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
                     logprob_results[choice.index] = choice.logprobs
@@ -1904,8 +1954,8 @@ class MLCEngine(engine_base.MLCEngineBase):
         with engine_utils.ErrorCleanupScope(abort_request):
             while True:
                 delta_outputs = self.state.sync_output_queue.get()
-                request_outputs, request_final_usage_json_str = self._request_stream_callback_impl(
-                    delta_outputs
+                request_outputs, request_final_usage_json_str = (
+                    self._request_stream_callback_impl(delta_outputs)
                 )
                 for request_output in request_outputs:  # pylint: disable=use-yield-from
                     yield request_output
@@ -1939,7 +1989,9 @@ class MLCEngine(engine_base.MLCEngineBase):
                 return (batch_outputs, stream_outputs[0].request_final_usage_json_str)
 
             outputs: List[engine_base.CallbackStreamOutput] = []
-            for stream_output, text_streamer in zip(stream_outputs, self.state.sync_text_streamers):
+            for stream_output, text_streamer in zip(
+                stream_outputs, self.state.sync_text_streamers
+            ):
                 self.state.record_event(request_id, event="start detokenization")
                 delta_text = stream_output.extra_prefix_string + (
                     text_streamer.put(stream_output.delta_token_ids)

@@ -80,7 +80,9 @@ class NemotronMLP(nn.Module):
         self.hidden_size = config.hidden_size
         self.intermediate_size = config.intermediate_size
 
-        self.up_proj = nn.Linear(config.hidden_size, config.intermediate_size, bias=config.mlp_bias)
+        self.up_proj = nn.Linear(
+            config.hidden_size, config.intermediate_size, bias=config.mlp_bias
+        )
         self.down_proj = nn.Linear(
             config.intermediate_size, config.hidden_size, bias=config.mlp_bias
         )
@@ -107,7 +109,9 @@ class NemotronEmbedding(nn.Embedding):
 class NemotronLayerNorm1P(nn.LayerNorm):
     """Nemotron LayerNorm1P module."""
 
-    def __init__(self, normalized_shape: int, eps: float = 1e-5, elementwise_affine: bool = True):
+    def __init__(
+        self, normalized_shape: int, eps: float = 1e-5, elementwise_affine: bool = True
+    ):
         super().__init__(normalized_shape, eps, elementwise_affine)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -125,21 +129,25 @@ class NemotronAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
     def __init__(self, config: NemotronConfig):
         self.head_dim = config.head_dim
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        )
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.qkv_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            self.num_q_heads * self.head_dim, config.hidden_size, bias=False
+        )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -148,7 +156,7 @@ class NemotronAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -160,7 +168,9 @@ class NemotronDecoderLayer(nn.Module):
         self.self_attn = NemotronAttention(config)
         self.mlp = NemotronMLP(config)
         self.input_layernorm = NemotronLayerNorm1P(config.hidden_size, config.norm_eps)
-        self.post_attention_layernorm = NemotronLayerNorm1P(config.hidden_size, config.norm_eps)
+        self.post_attention_layernorm = NemotronLayerNorm1P(
+            config.hidden_size, config.norm_eps
+        )
 
         def _set_tp():
             def _set(layer, hint):
@@ -170,7 +180,10 @@ class NemotronDecoderLayer(nn.Module):
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             _set(self.mlp.up_proj, tp.ShardSingleDim("_shard_mlp_up", dim=1))
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
@@ -178,8 +191,12 @@ class NemotronDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -243,7 +260,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         def _set_pp():
             # hidden layers
             for layer_id in range(config.num_hidden_layers):
-                stage = layer_id // (config.num_hidden_layers // config.pipeline_parallel_stages)
+                stage = layer_id // (
+                    config.num_hidden_layers // config.pipeline_parallel_stages
+                )
                 for _, param in self.model.layers[layer_id].named_parameters():
                     param.attrs["pipeline_stages"] = [stage]
             # last stage
@@ -302,7 +321,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             logits = logits.astype("float32")
         return logits
 
-    def batch_select_last_hidden_states(self, hidden_states: Tensor, logit_positions: Tensor):
+    def batch_select_last_hidden_states(
+        self, hidden_states: Tensor, logit_positions: Tensor
+    ):
         op_ext.configure()
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -317,7 +338,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -328,20 +351,27 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
-    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+    def prefill_to_last_hidden_states(
+        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
+    ):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
-    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+    def decode_to_last_hidden_states(
+        self, input_embed: Tensor, paged_kv_cache: PagedKVCache
+    ):
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         return hidden_states, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
@@ -357,19 +387,25 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
     def batch_prefill_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def batch_decode_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def batch_verify_to_last_hidden_states(
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
@@ -412,14 +448,18 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "get_logits": {
-                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(
+                    ["seq_len", self.hidden_size], self.dtype
+                ),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
                 },
             },
             "batch_select_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(
+                    ["seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "$": {
                     "param_mode": "none",
@@ -427,7 +467,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -443,7 +485,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "prefill_to_last_hidden_states": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -459,7 +503,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -468,7 +514,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -476,7 +524,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -484,7 +534,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_prefill_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -492,7 +544,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_decode_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -500,7 +554,9 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_verify_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

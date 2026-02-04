@@ -56,7 +56,9 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
         if global_symbol == "mlc.triton.w8a8_block_fp8_matmul":
             return self.w8a8_block_fp8_matmul(call.args[1].fields, call.struct_info)
         if global_symbol == "mlc.triton.w8a8_block_fp8_group_matmul":
-            return self.w8a8_block_fp8_group_matmul(call.args[1].fields, call.struct_info)
+            return self.w8a8_block_fp8_group_matmul(
+                call.args[1].fields, call.struct_info
+            )
         raise ValueError(f"Unknown mlc.triton kernel identifier: {global_symbol}")
 
     def w8a8_block_fp8_matmul(  # pylint: disable=too-many-locals
@@ -101,7 +103,9 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
             # Add the TIR function to the IRModule
             gv = self.builder_.add_func(prim_func, func_name)
 
-        return relax.call_tir(gv, [x, weight, x_scale, weight_scale], out_sinfo=out_sinfo)
+        return relax.call_tir(
+            gv, [x, weight, x_scale, weight_scale], out_sinfo=out_sinfo
+        )
 
     def w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-locals
         self, args: List[relax.Expr], out_sinfo: relax.StructInfo
@@ -166,7 +170,9 @@ class DispatchTritonKernel:  # pylint: disable=too-many-instance-attributes,too-
         """
         self.target = target
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """Entrypoint"""
         if self.target.kind.name != "cuda":
             return mod

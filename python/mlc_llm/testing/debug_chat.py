@@ -256,15 +256,21 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         self.tokenizer = Tokenizer(str(self.model_path))
 
         self.add_sequence_func = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
-        self.begin_forward_func = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
+        self.begin_forward_func = tvm.get_global_func(
+            "vm.builtin.kv_state_begin_forward"
+        )
         self.end_forward_func = tvm.get_global_func("vm.builtin.kv_state_end_forward")
         self.nd_view_func = tvm.get_global_func("vm.builtin.reshape")
-        self.sample_topp_from_prob_func = tvm.get_global_func("vm.builtin.sample_top_p_from_prob")
+        self.sample_topp_from_prob_func = tvm.get_global_func(
+            "vm.builtin.sample_top_p_from_prob"
+        )
 
         try:
             self.embed_func = self.mod["embed"]
         except AttributeError as exc:
-            raise RuntimeError("DebugChat only supports separate embedding layer") from exc
+            raise RuntimeError(
+                "DebugChat only supports separate embedding layer"
+            ) from exc
 
         if is_image_model:
             try:
@@ -290,7 +296,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
     def _preprocess_prompts(
         self, prompt: str, image_url: Optional[str] = None
     ) -> List[Union[List[int], data.ImageData]]:
-        print("======================= Starts Tokenization & Embedding =======================")
+        print(
+            "======================= Starts Tokenization & Embedding ======================="
+        )
         # Step 0. Generate prompt string using conversation template
         if image_url is None:
             self.conversation.messages.append(("user", prompt))
@@ -333,7 +341,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
                 image_input = data_input.image
                 if data_input.image.device != self.device:
                     image_input = data_input.image.copyto(self.device)
-                embeddings.append(self.embed_image_func(image_input, self.params).asnumpy())
+                embeddings.append(
+                    self.embed_image_func(image_input, self.params).asnumpy()
+                )
             else:
                 # Process token data
                 data_input = tvm.runtime.tensor(
@@ -427,7 +437,9 @@ class DebugChat:  # pylint: disable=too-many-instance-attributes, too-few-public
         logits_np = logits.numpy()
 
         if presence_penalty != 0.0 or frequency_penalty != 0.0:
-            self._apply_presence_and_freq_penalty(logits_np, presence_penalty, frequency_penalty)
+            self._apply_presence_and_freq_penalty(
+                logits_np, presence_penalty, frequency_penalty
+            )
 
         logits_np = self._softmax_with_temperature(logits_np, temperature)
         if self.instrument is not None:
@@ -497,7 +509,10 @@ def main():
         help="The user input prompt.",
     )
     parser.add_argument(
-        "--generate-len", type=int, help="Number of output tokens to generate.", required=True
+        "--generate-len",
+        type=int,
+        help="Number of output tokens to generate.",
+        required=True,
     )
     parser.add_argument(
         "--model",

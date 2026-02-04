@@ -76,7 +76,11 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         return repr(OptimizationFlags.from_str(opt))
 
     def _get_overrides() -> str:
-        forbid_list = ["context_window_size", "sliding_window_size", "attention_sink_size"]
+        forbid_list = [
+            "context_window_size",
+            "sliding_window_size",
+            "attention_sink_size",
+        ]
         result = []
         for field in dataclasses.fields(ModelConfigOverride):
             value = overrides.get(field.name, None)
@@ -95,7 +99,13 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                 model_config[field.name] = value
         return MODELS[model_type].config.from_dict(model_config).asdict()
 
-    def _run_jit(opt: str, overrides: str, device: str, system_lib_prefix: Optional[str], dst: str):
+    def _run_jit(
+        opt: str,
+        overrides: str,
+        device: str,
+        system_lib_prefix: Optional[str],
+        dst: str,
+    ):
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
             dso_path = os.path.join(tmp_dir, f"lib.{lib_suffix}")
             cmd = [
@@ -142,8 +152,8 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                     indent=2,
                 ).encode("utf-8")
             ).hexdigest()
-            system_lib_prefix = f"{model_type}_{quantization}_{system_lib_hash_value}".replace(
-                "-", "_"
+            system_lib_prefix = (
+                f"{model_type}_{quantization}_{system_lib_hash_value}".replace("-", "_")
             )
         hash_key["system_lib_prefix"] = system_lib_prefix
     hash_value = hashlib.md5(

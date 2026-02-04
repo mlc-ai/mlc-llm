@@ -31,7 +31,10 @@ class CalibrationObserver:
     @tvm.register_global_func("mlc_llm.calibration_observer")
     @staticmethod
     def callback(
-        name: str, mode: str, value: "tvm.runtime.Tensor", out_value: "tvm.runtime.Tensor"
+        name: str,
+        mode: str,
+        value: "tvm.runtime.Tensor",
+        out_value: "tvm.runtime.Tensor",
     ):
         """The callback function to update the saved calibration parameters."""
         instance = CalibrationObserver.get()
@@ -72,7 +75,8 @@ def sample_requests(
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
     # Only keep the first two turns of each conversation.
     dataset = [
-        (data["conversations"][0]["value"], data["conversations"][1]["value"]) for data in dataset
+        (data["conversations"][0]["value"], data["conversations"][1]["value"])
+        for data in dataset
     ]
     prompts = [prompt for prompt, _ in dataset]
     prompt_token_ids = tokenizer.encode_batch(prompts)
@@ -156,10 +160,14 @@ def calibrate(
             gpu_memory_utilization=gpu_memory_utilization,
         ),
     )
-    sampled_requests = sample_requests(dataset, num_calibration_samples, async_engine.tokenizer)
+    sampled_requests = sample_requests(
+        dataset, num_calibration_samples, async_engine.tokenizer
+    )
     asyncio.run(
         send_calibration_requests(
-            async_engine, sampled_requests, max_concurrent_requests=max_num_sequence or 32
+            async_engine,
+            sampled_requests,
+            max_concurrent_requests=max_num_sequence or 32,
         )
     )
     async_engine.terminate()

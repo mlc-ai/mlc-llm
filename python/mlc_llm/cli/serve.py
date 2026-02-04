@@ -39,7 +39,9 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";max_total_seq_length={self.max_total_seq_length}", file=out, end="")
         print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
         print(f";max_history_size={self.max_history_size}", file=out, end="")
-        print(f";gpu_memory_utilization={self.gpu_memory_utilization}", file=out, end="")
+        print(
+            f";gpu_memory_utilization={self.gpu_memory_utilization}", file=out, end=""
+        )
         print(f";spec_draft_length={self.spec_draft_length}", file=out, end="")
         print(f";spec_tree_width={self.spec_tree_width}", file=out, end="")
         print(f";prefix_cache_mode={self.prefix_cache_mode}", file=out, end="")
@@ -52,8 +54,14 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";context_window_size={self.context_window_size}", file=out, end="")
         print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
-        print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
-        print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(
+            f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end=""
+        )
+        print(
+            f";pipeline_parallel_stages={self.pipeline_parallel_stages}",
+            file=out,
+            end="",
+        )
         print(f";opt={self.opt}", file=out, end="")
         return out.getvalue().rstrip()
 
@@ -70,7 +78,9 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         parser.add_argument("--spec_draft_length", type=int, default=None)
         parser.add_argument("--spec_tree_width", type=int, default=None)
         parser.add_argument("--prefix_cache_mode", type=str, default="radix")
-        parser.add_argument("--prefix_cache_max_num_recycling_seqs", type=int, default=None)
+        parser.add_argument(
+            "--prefix_cache_max_num_recycling_seqs", type=int, default=None
+        )
         parser.add_argument("--prefill_mode", type=str, default="hybrid")
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
@@ -162,7 +172,9 @@ def main(argv):
         default="",
         help=HELP["overrides_serve"],
     )
-    parser.add_argument("--enable-tracing", action="store_true", help=HELP["enable_tracing_serve"])
+    parser.add_argument(
+        "--enable-tracing", action="store_true", help=HELP["enable_tracing_serve"]
+    )
     parser.add_argument(
         "--host",
         type=str,
@@ -175,7 +187,9 @@ def main(argv):
         default=8000,
         help="port" + ' (default: "%(default)s")',
     )
-    parser.add_argument("--allow-credentials", action="store_true", help="allow credentials")
+    parser.add_argument(
+        "--allow-credentials", action="store_true", help="allow credentials"
+    )
     parser.add_argument(
         "--allow-origins",
         type=json.loads,

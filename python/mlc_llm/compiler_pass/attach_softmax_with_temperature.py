@@ -21,7 +21,9 @@ class AttachSoftmaxWithTemperature:  # pylint: disable=too-few-public-methods
         self.target = target
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """IRModule-level transformation"""
         return _Rewriter(mod, self.target, self.metadata).transform()
 
@@ -29,23 +31,34 @@ class AttachSoftmaxWithTemperature:  # pylint: disable=too-few-public-methods
 @mutator
 class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
     def __init__(
-        self, mod: IRModule, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None
+        self,
+        mod: IRModule,
+        target: tvm.target.Target,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(mod)
         self.mod = mod
         self.target = target
         self.metadata = metadata
         self.chunk_size = 4096
-        self.active_vocab_size = self.metadata.get("active_vocab_size") if self.metadata else None
+        self.active_vocab_size = (
+            self.metadata.get("active_vocab_size") if self.metadata else None
+        )
 
     def transform(self) -> IRModule:
         """Entry point"""
         batch_size = tir.SizeVar("batch_size", "int64")
         vocab_size = tir.SizeVar("vocab_size", "int64")
         dtype = "float32"
-        logits = relax.Var("logits", relax.TensorStructInfo([batch_size, 1, vocab_size], dtype))
-        temperature = relax.Var("temperature", relax.TensorStructInfo([batch_size], dtype))
-        with self.builder_.function("softmax_with_temperature", params=[logits, temperature]):
+        logits = relax.Var(
+            "logits", relax.TensorStructInfo([batch_size, 1, vocab_size], dtype)
+        )
+        temperature = relax.Var(
+            "temperature", relax.TensorStructInfo([batch_size], dtype)
+        )
+        with self.builder_.function(
+            "softmax_with_temperature", params=[logits, temperature]
+        ):
             with self.builder_.dataflow():
                 output_struct_info = logits.struct_info  # pylint: disable=no-member
                 new_shape = relax.ShapeExpr([batch_size, vocab_size])
@@ -66,14 +79,19 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
                     relax.call_tir(
                         self.builder_.add_func(f_chunk_lse, "chunk_lse"),
                         args=[logits, temperature],
-                        out_sinfo=[chunked_result_struct_info, chunked_result_struct_info],
+                        out_sinfo=[
+                            chunked_result_struct_info,
+                            chunked_result_struct_info,
+                        ],
                     )
                 )
                 chunked_sum = chunked_results[0]
                 chunked_max = chunked_results[1]
                 softmax = self.builder_.emit(
                     relax.call_tir(
-                        self.builder_.add_func(f_softmax_with_lse, "softmax_with_chunked_sum"),
+                        self.builder_.add_func(
+                            f_softmax_with_lse, "softmax_with_chunked_sum"
+                        ),
                         args=[logits, temperature, chunked_sum, chunked_max],
                         out_sinfo=logits.struct_info,
                     )
@@ -124,9 +142,15 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         num_chunks = T.int64(is_size_var=True)
         A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
         temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
-        chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
-        chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
-        A_pad = T.alloc_buffer((batch_size, num_chunks, T.int64(chunk_size)), dtype="float32")
+        chunked_sum = T.match_buffer(
+            var_chunked_sum, (batch_size, num_chunks), dtype="float32"
+        )
+        chunked_max = T.match_buffer(
+            var_chunked_max, (batch_size, num_chunks), dtype="float32"
+        )
+        A_pad = T.alloc_buffer(
+            (batch_size, num_chunks, T.int64(chunk_size)), dtype="float32"
+        )
         temp_max = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
         temp_sum = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
 
@@ -135,7 +159,11 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
                 A_pad[v0, v1, v2] = T.Select(
                     v1 * T.int64(chunk_size) + v2
-                    < (active_vocab_size if active_vocab_size is not None else vocab_size),
+                    < (
+                        active_vocab_size
+                        if active_vocab_size is not None
+                        else vocab_size
+                    ),
                     T.if_then_else(
                         temperature[v0] > T.float32(1e-5),
                         A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0],
@@ -156,7 +184,11 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                     temp_sum[v0, v1] = T.float32(0)
                 temp_sum[v0, v1] += T.if_then_else(
                     v1 * T.int64(chunk_size) + v2
-                    < (active_vocab_size if active_vocab_size is not None else vocab_size),
+                    < (
+                        active_vocab_size
+                        if active_vocab_size is not None
+                        else vocab_size
+                    ),
                     T.Select(
                         temperature[v0] > T.float32(1e-5),
                         T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
@@ -188,8 +220,12 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         num_chunks = T.int64(is_size_var=True)
         A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
         temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
-        chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
-        chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
+        chunked_sum = T.match_buffer(
+            var_chunked_sum, (batch_size, num_chunks), dtype="float32"
+        )
+        chunked_max = T.match_buffer(
+            var_chunked_max, (batch_size, num_chunks), dtype="float32"
+        )
         softmax = T.match_buffer(var_softmax, (batch_size, vocab_size), dtype="float32")
         temp_max = T.alloc_buffer((batch_size,), dtype="float32")
         temp_sum = T.alloc_buffer((batch_size,), dtype="float32")
@@ -207,7 +243,8 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 temp_sum[v0] += T.Select(
                     temperature[v0] > T.float32(1e-5),
                     T.exp(chunked_sum[v0, v1] + chunked_max[v0, v1] - temp_max[v0]),
-                    T.cast(chunked_max[v0, v1] == temp_max[v0], "float32") * chunked_sum[v0, v1],
+                    T.cast(chunked_max[v0, v1] == temp_max[v0], "float32")
+                    * chunked_sum[v0, v1],
                 )
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with T.sblock("log_pad"):
@@ -215,20 +252,29 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                 if v1 * T.int64(chunk_size) + v2 < vocab_size:
                     softmax[v0, v1 * T.int64(chunk_size) + v2] = T.Select(
                         v1 * T.int64(chunk_size) + v2
-                        < (active_vocab_size if active_vocab_size is not None else vocab_size),
+                        < (
+                            active_vocab_size
+                            if active_vocab_size is not None
+                            else vocab_size
+                        ),
                         T.if_then_else(
                             temperature[v0] > T.float32(1e-5),
                             T.exp(
                                 A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0]
                                 - (T.log(temp_sum[v0]) + temp_max[v0])
                             ),
-                            T.cast(A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0], "float32")
+                            T.cast(
+                                A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0],
+                                "float32",
+                            )
                             / temp_sum[v0],
                         ),
                         T.float32(0),
                     )
 
-    sch = tvm.tir.Schedule(IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum}))
+    sch = tvm.tir.Schedule(
+        IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum})
+    )
 
     def apply_gpu_schedule(target, sch):
         max_threads = get_max_num_threads_per_block(target)
@@ -244,7 +290,9 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         unroll, ty, tx = sch.split(l2, [None, TY, TX])
         sch.bind(ty, "threadIdx.y")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(unroll, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(
+            unroll, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth
+        )
         sch.annotate(unroll, ann_key="pragma_unroll_explicit", ann_val=1)
 
         for block_name in ["sum_exp", "max"]:
@@ -255,7 +303,9 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
             r_loop, tx = sch.split(r_loop, [None, TX])
             sch.reorder(tx, r_loop)
             sch.bind(tx, "threadIdx.x")
-            sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
+            sch.annotate(
+                r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth
+            )
             sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
 
         return chunk_lse, sch.mod["softmax_with_chunked_sum"]

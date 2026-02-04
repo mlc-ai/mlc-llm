@@ -26,7 +26,11 @@ def bpe(
         if min_rank is None or (max_rank is not None and min_rank >= max_rank):
             break
         assert min_idx is not None
-        parts = parts[:min_idx] + [parts[min_idx] + parts[min_idx + 1]] + parts[min_idx + 2 :]
+        parts = (
+            parts[:min_idx]
+            + [parts[min_idx] + parts[min_idx + 1]]
+            + parts[min_idx + 2 :]
+        )
     return parts
 
 
@@ -71,7 +75,9 @@ def convert_tiktoken(model_path, output_dir, context_window_size=None):
             'Please install the "transformers" package to convert toktoken tokenizer'
         )
 
-    tiktoken_tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+    tiktoken_tokenizer = AutoTokenizer.from_pretrained(
+        model_path, trust_remote_code=True
+    )
     encoder = tiktoken_tokenizer.tokenizer
 
     vocab, merges = generate_vocab_and_merges(encoder, tiktoken_tokenizer.get_vocab())
@@ -139,7 +145,9 @@ def convert_tiktoken(model_path, output_dir, context_window_size=None):
     tokenizer_config_template["tokenizer_class"] = tokenizer_name
     if context_window_size:
         tokenizer_config_template["model_max_length"] = context_window_size
-    tokenizer_config_template = dict(sorted(tokenizer_config_template.items(), key=lambda x: x[0]))
+    tokenizer_config_template = dict(
+        sorted(tokenizer_config_template.items(), key=lambda x: x[0])
+    )
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -150,10 +158,14 @@ def convert_tiktoken(model_path, output_dir, context_window_size=None):
     with open(os.path.join(output_dir, "tokenizer.json"), "w", encoding="utf-8") as fp:
         json.dump(tokenizer_template, fp, indent=2, ensure_ascii=False)
 
-    with open(os.path.join(output_dir, "tokenizer_config.json"), "w", encoding="utf-8") as fp:
+    with open(
+        os.path.join(output_dir, "tokenizer_config.json"), "w", encoding="utf-8"
+    ) as fp:
         json.dump(tokenizer_config_template, fp, indent=2, ensure_ascii=False)
 
-    with open(os.path.join(output_dir, "special_tokens_map.json"), "w", encoding="utf-8") as fp:
+    with open(
+        os.path.join(output_dir, "special_tokens_map.json"), "w", encoding="utf-8"
+    ) as fp:
         json.dump(
             {
                 "bos_token": "<|endoftext|>",

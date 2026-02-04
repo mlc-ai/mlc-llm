@@ -77,7 +77,9 @@ def test_dequantize_weight(quant_name: str, shape: List[int], dtype: str):
     mod.linear.qweight.data = weight_np
     mod.linear.qzeros.data = zeros_np
     mod.linear.scales.data = scale_np
-    model = mod.jit(spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}})
+    model = mod.jit(
+        spec={"forward": {"x": nn.spec.Tensor((shape[1], shape[1]), dtype)}}
+    )
     out = model["forward"](
         torch.from_numpy(np.diag(np.ones(shape[1]).astype(dtype)))  # pylint: disable=no-member
     )

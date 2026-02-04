@@ -69,7 +69,9 @@ def load_safetensor_shard(path: Path) -> Iterator[Tuple[str, np.ndarray]]:
             elif dtype == "torch.float8_e4m3fn":
                 import ml_dtypes  # pylint: disable=import-outside-toplevel
 
-                param = param.view(torch.uint8).cpu().numpy().view(ml_dtypes.float8_e4m3fn)
+                param = (
+                    param.view(torch.uint8).cpu().numpy().view(ml_dtypes.float8_e4m3fn)
+                )
             else:
                 param = param.numpy()
             yield name, param

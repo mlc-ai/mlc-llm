@@ -77,7 +77,9 @@ class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %d", bold("prefill_chunk_size"), min(self.context_window_size, 8192)
+                "%s defaults to %d",
+                bold("prefill_chunk_size"),
+                min(self.context_window_size, 8192),
             )
             self.prefill_chunk_size = min(self.context_window_size, 8192)
         elif self.prefill_chunk_size > self.context_window_size:
@@ -116,12 +118,12 @@ class OLMoEmbedding(nn.Embedding):
 class OLMoAttention(nn.Module):  # pylint: disable=missing-class-docstring
     def __init__(self, config: OLMoConfig):
         self.num_q_heads = config.num_attention_heads // config.tensor_parallel_shards
-        assert (
-            config.num_key_value_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
-        assert (
-            config.num_key_value_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        assert config.num_key_value_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {config.num_key_value_heads}"
+        )
+        assert config.num_key_value_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({config.num_key_value_heads}) must be divisible by tensor_parallel_shards"
+        )
         self.num_kv_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.head_dim = config.head_dim
         self.qkv_proj = nn.Linear(
@@ -153,7 +155,7 @@ class OLMoAttention(nn.Module):  # pylint: disable=missing-class-docstring
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -178,7 +180,9 @@ class OLMoFFN(nn.Module):  # pylint: disable=missing-class-docstring
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
@@ -224,9 +228,15 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -240,7 +250,9 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
     def forward(  # pylint: disable=missing-function-docstring
         self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
     ):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -306,7 +318,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         def _set_pp():
             # hidden layers
             for layer_id in range(config.num_hidden_layers):
-                stage = layer_id // (config.num_hidden_layers // config.pipeline_parallel_stages)
+                stage = layer_id // (
+                    config.num_hidden_layers // config.pipeline_parallel_stages
+                )
                 for _, param in self.model.layers[layer_id].named_parameters():
                     param.attrs["pipeline_stages"] = [stage]
 
@@ -381,7 +395,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
 
         # pylint: disable=trailing-whitespace
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -409,7 +425,10 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         return hidden_states, paged_kv_cache
 
     def batch_prefill(  # pylint: disable=missing-function-docstring
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache
@@ -429,19 +448,25 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
     def batch_prefill_to_last_hidden_states(  # pylint: disable=missing-function-docstring
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def batch_decode_to_last_hidden_states(  # pylint: disable=missing-function-docstring
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def batch_verify_to_last_hidden_states(  # pylint: disable=missing-function-docstring
         self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
     ):
-        hidden_states = self.batch_forward_to_last_hidden_states(input_embeds, paged_kv_cache)
+        hidden_states = self.batch_forward_to_last_hidden_states(
+            input_embeds, paged_kv_cache
+        )
         return hidden_states, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=missing-function-docstring,too-many-arguments
@@ -482,14 +507,18 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "get_logits": {
-                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(
+                    ["seq_len", self.hidden_size], self.dtype
+                ),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
                 },
             },
             "batch_select_last_hidden_states": {
-                "hidden_states": nn.spec.Tensor(["seq_len", self.hidden_size], self.dtype),
+                "hidden_states": nn.spec.Tensor(
+                    ["seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "$": {
                     "param_mode": "none",
@@ -497,7 +526,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -513,7 +544,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "prefill_to_last_hidden_states": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -529,7 +562,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -538,7 +573,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -546,7 +583,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -554,7 +593,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_prefill_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -562,7 +603,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_decode_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -570,7 +613,9 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
                 },
             },
             "batch_verify_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

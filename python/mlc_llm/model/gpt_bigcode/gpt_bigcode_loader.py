@@ -11,7 +11,9 @@ from mlc_llm.quantization import Quantization
 from .gpt_bigcode_model import GPTBigCodeConfig, GPTBigCodeForCausalLM
 
 
-def huggingface(model_config: GPTBigCodeConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: GPTBigCodeConfig, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -44,7 +46,9 @@ def huggingface(model_config: GPTBigCodeConfig, quantization: Quantization) -> E
             mapping.add_mapping(
                 mlc_name,
                 [mlc_name],
-                functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
+                functools.partial(
+                    lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype
+                ),
             )
 
     return mapping

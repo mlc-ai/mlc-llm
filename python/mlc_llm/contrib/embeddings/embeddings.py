@@ -35,7 +35,10 @@ def _load_params(
 
 
 def _get_tvm_module(
-    model_weight_path: str, lib_path: str, device: Device, instrument: tvm_ffi.Function = None
+    model_weight_path: str,
+    lib_path: str,
+    device: Device,
+    instrument: tvm_ffi.Function = None,
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
@@ -163,7 +166,9 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         """
         tokens, attention_mask = self._tokenize_queries(queries)
         tokens_tvm = tvm.runtime.tensor(tokens.astype("int32"), device=self.device)
-        attention_mask_tvm = tvm.runtime.tensor(attention_mask.astype("int32"), device=self.device)
+        attention_mask_tvm = tvm.runtime.tensor(
+            attention_mask.astype("int32"), device=self.device
+        )
         output = self.prefill_func(tokens_tvm, attention_mask_tvm, self.params)
         return output
 
@@ -171,8 +176,12 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         tokens = engine_utils.process_prompts(queries, self.tokenizer.encode)  # type: ignore
         max_query_length = max(len(token_seq) for token_seq in tokens)
 
-        token_inputs: np.ndarray = np.zeros((len(tokens), max_query_length), dtype=np.int32)
-        attention_mask: np.ndarray = np.zeros((len(tokens), max_query_length), dtype=np.int32)
+        token_inputs: np.ndarray = np.zeros(
+            (len(tokens), max_query_length), dtype=np.int32
+        )
+        attention_mask: np.ndarray = np.zeros(
+            (len(tokens), max_query_length), dtype=np.int32
+        )
 
         for i, token_seq in enumerate(tokens):
             token_inputs[i, : len(token_seq)] = token_seq

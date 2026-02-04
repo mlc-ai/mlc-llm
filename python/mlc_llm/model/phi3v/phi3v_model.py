@@ -84,14 +84,17 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
                 if self.rope_scaling["type"] == "su":
                     self.rope_scaling["type"] = "longrope"
 
-                assert (
-                    self.rope_scaling["type"] == "longrope"
-                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Phi3'
+                assert self.rope_scaling["type"] == "longrope", (
+                    f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Phi3"
+                )
                 self.rope_scaling["rope_type"] = self.rope_scaling["type"]
                 (
                     self.rope_scaling["max_position_embeddings"],
                     self.rope_scaling["original_max_position_embeddings"],
-                ) = (self.max_position_embeddings, self.original_max_position_embeddings)
+                ) = (
+                    self.max_position_embeddings,
+                    self.original_max_position_embeddings,
+                )
 
         if self.context_window_size == 0:
             self.context_window_size = self.max_position_embeddings
@@ -184,7 +187,9 @@ class Phi3VForCausalLM(nn.Module):
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.lm_head(hidden_states)
 
         if logits.dtype != "float32":
@@ -202,7 +207,10 @@ class Phi3VForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -243,14 +251,17 @@ class Phi3VForCausalLM(nn.Module):
             .match_cast(
                 global_image._expr,
                 relax.TensorStructInfo(
-                    [global_image.shape[0], global_image.shape[1], 336, 336], global_image.dtype
+                    [global_image.shape[0], global_image.shape[1], 336, 336],
+                    global_image.dtype,
                 ),
             ),
             "global_image",
         )
 
         n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
-        assert isinstance(h, tir.Mul) and isinstance(h.b, tir.IntImm) and h.b.value == 336
+        assert (
+            isinstance(h, tir.Mul) and isinstance(h.b, tir.IntImm) and h.b.value == 336
+        )
         pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
         pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))
@@ -274,10 +285,17 @@ class Phi3VForCausalLM(nn.Module):
         return combined_image
 
     def image_embed(  # pylint: disable=too-many-arguments
-        self, pixel_values: Tensor, resized_height, resized_width, crop_height, crop_width
+        self,
+        pixel_values: Tensor,
+        resized_height,
+        resized_width,
+        crop_height,
+        crop_width,
     ) -> Tensor:
         n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
-        pixel_values = self.image_preprocess(pixel_values, resized_height, resized_width)
+        pixel_values = self.image_preprocess(
+            pixel_values, resized_height, resized_width
+        )
         pixel_values = pixel_values.astype(self.dtype)
         return self.vision_embed_tokens(pixel_values, crop_height, crop_width)
 
@@ -332,7 +350,9 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -348,7 +368,9 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -357,7 +379,9 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -365,7 +389,9 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

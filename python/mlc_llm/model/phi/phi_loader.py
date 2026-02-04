@@ -57,8 +57,14 @@ def huggingface(model_config: PhiConfig, quantization: Quantization) -> ExternMa
             _add(f"{prefix}.{i}.ln.bias", f"layers.{i + 1}.ln.bias")
             _add(f"{prefix}.{i}.mixer.Wqkv.weight", f"layers.{i + 1}.mixer.Wqkv.weight")
             _add(f"{prefix}.{i}.mixer.Wqkv.bias", f"layers.{i + 1}.mixer.Wqkv.bias")
-            _add(f"{prefix}.{i}.mixer.out_proj.weight", f"layers.{i + 1}.mixer.out_proj.weight")
-            _add(f"{prefix}.{i}.mixer.out_proj.bias", f"layers.{i + 1}.mixer.out_proj.bias")
+            _add(
+                f"{prefix}.{i}.mixer.out_proj.weight",
+                f"layers.{i + 1}.mixer.out_proj.weight",
+            )
+            _add(
+                f"{prefix}.{i}.mixer.out_proj.bias",
+                f"layers.{i + 1}.mixer.out_proj.bias",
+            )
             _add(f"{prefix}.{i}.mlp.fc1.weight", f"layers.{i + 1}.mlp.fc1.weight")
             _add(f"{prefix}.{i}.mlp.fc1.bias", f"layers.{i + 1}.mlp.fc1.bias")
             _add(f"{prefix}.{i}.mlp.fc2.weight", f"layers.{i + 1}.mlp.fc2.weight")
@@ -78,7 +84,9 @@ def huggingface(model_config: PhiConfig, quantization: Quantization) -> ExternMa
     return mapping
 
 
-def phi1_huggingface(model_config: Phi1Config, quantization: Quantization) -> ExternMapping:
+def phi1_huggingface(
+    model_config: Phi1Config, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of Phi-1/Phi-1.5 HuggingFace PyTorch parameters.
 
@@ -152,8 +160,13 @@ def phi1_huggingface(model_config: Phi1Config, quantization: Quantization) -> Ex
                 f"{hf_prefix}.{i}.self_attn.v_proj.bias",
             ],
         )
-        _add(f"{prefix}.{i}.mixer.out_proj.weight", f"{hf_prefix}.{i}.self_attn.dense.weight")
-        _add(f"{prefix}.{i}.mixer.out_proj.bias", f"{hf_prefix}.{i}.self_attn.dense.bias")
+        _add(
+            f"{prefix}.{i}.mixer.out_proj.weight",
+            f"{hf_prefix}.{i}.self_attn.dense.weight",
+        )
+        _add(
+            f"{prefix}.{i}.mixer.out_proj.bias", f"{hf_prefix}.{i}.self_attn.dense.bias"
+        )
         _add(f"{prefix}.{i}.mlp.fc1.weight", f"{hf_prefix}.{i}.mlp.fc1.weight")
         _add(f"{prefix}.{i}.mlp.fc1.bias", f"{hf_prefix}.{i}.mlp.fc1.bias")
         _add(f"{prefix}.{i}.mlp.fc2.weight", f"{hf_prefix}.{i}.mlp.fc2.weight")

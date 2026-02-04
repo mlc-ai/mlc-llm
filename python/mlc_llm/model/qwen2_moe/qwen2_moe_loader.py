@@ -13,7 +13,9 @@ from mlc_llm.quantization import Quantization
 from .qwen2_moe_model import Qwen2MoeConfig, Qwen2MoeForCausalLM
 
 
-def huggingface(model_config: Qwen2MoeConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: Qwen2MoeConfig, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -55,7 +57,9 @@ def huggingface(model_config: Qwen2MoeConfig, quantization: Quantization) -> Ext
                     f"{attn}.v_proj.{weight_type}",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
+                        dtype
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -71,7 +75,9 @@ def huggingface(model_config: Qwen2MoeConfig, quantization: Quantization) -> Ext
                 f"{shared_expert}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
+                    dtype
+                ),
                 dtype=mlc_param.dtype,
             ),
         )

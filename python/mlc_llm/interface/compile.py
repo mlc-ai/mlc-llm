@@ -51,7 +51,9 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--model-type'):<25} {self.model.name}", file=out)
         print(f"  {bold('--target'):<25} {self.target.export()}", file=out)
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
-        print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
+        print(
+            f'  {bold("--system-lib-prefix"):<25} "{self.system_lib_prefix}"', file=out
+        )
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
         # As it's debug only, no need to display
@@ -108,7 +110,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         if hasattr(model_config, "sliding_window_size"):
             return {
                 "rolling_cache_len": model_config.sliding_window_size,
-                "kv_seq_len": model_config.sliding_window_size + model_config.prefill_chunk_size,
+                "kv_seq_len": model_config.sliding_window_size
+                + model_config.prefill_chunk_size,
                 "seq_len": model_config.prefill_chunk_size,
                 "batch_size": getattr(model_config, "max_batch_size", 1),
             }
@@ -155,7 +158,9 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             raise NotImplementedError(
                 "KN layout (q3f16_0 and q4f16_0) is not supported for tensor parallelism"
             )
-        model, _ = args.model.quantize[args.quantization.kind](model_config, args.quantization)
+        model, _ = args.model.quantize[args.quantization.kind](
+            model_config, args.quantization
+        )
         # Step 2. Exporting the model to TVM
         logger.info("Exporting the model to TVM compiler")
         mod, named_params, ext_mods = model.export_tvm(
@@ -164,7 +169,9 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         )
         # Step 3. Running relax compilation pipeline
         logger.info("Running optimizations using TVM")
-        additional_tirs = _apply_preproc_to_params_and_check_pipeline(named_params, model_config)
+        additional_tirs = _apply_preproc_to_params_and_check_pipeline(
+            named_params, model_config
+        )
         variable_bounds = _get_variable_bounds(model_config)
         cuda_graph_symbolic_capture_hints = {
             "batch_decode": ["batch_size"],
@@ -183,14 +190,18 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "attention_sink_size": getattr(model_config, "attention_sink_size", -1),
             "prefill_chunk_size": model_config.prefill_chunk_size,  # type: ignore
             "tensor_parallel_shards": model_config.tensor_parallel_shards,  # type: ignore
-            "pipeline_parallel_stages": getattr(model_config, "pipeline_parallel_stages", 1),
+            "pipeline_parallel_stages": getattr(
+                model_config, "pipeline_parallel_stages", 1
+            ),
             "disaggregation": getattr(model_config, "disaggregation", False),
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
             "active_vocab_size": avs,
         }
         logger.info("Registering metadata: %s", metadata)
-        metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
+        metadata["params"] = [
+            _get_param_metadata(name, param) for name, param in named_params
+        ]
         with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):
             args.build_func(
                 mod,

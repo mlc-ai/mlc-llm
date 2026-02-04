@@ -24,7 +24,9 @@ class AttachLogitProcessFunc:  # pylint: disable=too-few-public-methods
         """
         self.target = target
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
         if str(self.target.kind) == "llvm":
@@ -142,12 +144,15 @@ def _get_apply_penalty_inplace_cpu():
             with T.sblock("block"):
                 vp = T.axis.spatial(num_token, token)
                 logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] -= (
-                    penalties[pos2seq_id[vp], 0] + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
+                    penalties[pos2seq_id[vp], 0]
+                    + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
                 )
                 logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] = T.if_then_else(
                     logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] < T.float32(0),
-                    logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] * penalties[pos2seq_id[vp], 2],
-                    logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] / penalties[pos2seq_id[vp], 2],
+                    logits[seq_ids[pos2seq_id[vp]], token_ids[vp]]
+                    * penalties[pos2seq_id[vp], 2],
+                    logits[seq_ids[pos2seq_id[vp]], token_ids[vp]]
+                    / penalties[pos2seq_id[vp], 2],
                 )
 
     return _apply_penalty_inplace
@@ -194,7 +199,8 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
                     T.where(p0 * tx + p1 < num_token)
                     # Penalties: (presence_penalty, frequency_penalty, repetition_penalty)
                     logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] -= (
-                        penalties[pos2seq_id[vp], 0] + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
+                        penalties[pos2seq_id[vp], 0]
+                        + token_cnt[vp] * penalties[pos2seq_id[vp], 1]
                     )
                     logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] = T.if_then_else(
                         logits[seq_ids[pos2seq_id[vp]], token_ids[vp]] < T.float32(0),
@@ -227,7 +233,9 @@ def _get_apply_bitmask_inplace_cpu():
         num_seq = T.int32(is_size_var=True)
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
-        bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")
+        bitmask = T.match_buffer(
+            var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32"
+        )
 
         for token in T.serial(num_seq * vocab_size):
             with T.sblock("block"):
@@ -268,13 +276,21 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
         num_seq = T.int32(is_size_var=True)
         logits = T.match_buffer(var_logits, (batch_size, vocab_size), "float32")
         seq_ids = T.match_buffer(var_seq_ids, (num_seq,), "int32")
-        bitmask = T.match_buffer(var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32")
+        bitmask = T.match_buffer(
+            var_bitmask, (batch_size, (vocab_size + 31) // 32), "int32"
+        )
 
-        for fused_s_v_0 in T.thread_binding(0, (num_seq * vocab_size + tx - 1) // tx, "blockIdx.x"):
+        for fused_s_v_0 in T.thread_binding(
+            0, (num_seq * vocab_size + tx - 1) // tx, "blockIdx.x"
+        ):
             for fused_s_v_1 in T.thread_binding(0, tx, "threadIdx.x"):
                 with T.sblock("block"):
-                    vs = T.axis.spatial(num_seq, (fused_s_v_0 * tx + fused_s_v_1) // vocab_size)
-                    vv = T.axis.spatial(vocab_size, (fused_s_v_0 * tx + fused_s_v_1) % vocab_size)
+                    vs = T.axis.spatial(
+                        num_seq, (fused_s_v_0 * tx + fused_s_v_1) // vocab_size
+                    )
+                    vv = T.axis.spatial(
+                        vocab_size, (fused_s_v_0 * tx + fused_s_v_1) % vocab_size
+                    )
                     T.where(fused_s_v_0 * tx + fused_s_v_1 < num_seq * vocab_size)
                     logits[seq_ids[vs], vv] = T.if_then_else(
                         (bitmask[seq_ids[vs], vv // 32] >> (vv % 32)) & 1 == 1,

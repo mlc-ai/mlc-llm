@@ -35,8 +35,12 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
 
     model_entries = package_config.get("model_list", [])
     if not isinstance(model_entries, list):
-        raise ValueError('The "model_list" in "mlc-package-config.json" is expected to be a list.')
-    model_lib_path_for_prepare_libs = package_config.get("model_lib_path_for_prepare_libs", {})
+        raise ValueError(
+            'The "model_list" in "mlc-package-config.json" is expected to be a list.'
+        )
+    model_lib_path_for_prepare_libs = package_config.get(
+        "model_lib_path_for_prepare_libs", {}
+    )
     if not isinstance(model_lib_path_for_prepare_libs, dict):
         raise ValueError(
             'The "model_lib_path_for_prepare_libs" in "mlc-package-config.json" is expected to be '
@@ -57,24 +61,34 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
 
         estimated_vram_bytes = model_entry["estimated_vram_bytes"]
         if not isinstance(model, str):
-            raise ValueError('The value of "model" in "model_list" is expected to be a string.')
+            raise ValueError(
+                'The value of "model" in "model_list" is expected to be a string.'
+            )
         if not isinstance(model_id, str):
-            raise ValueError('The value of "model_id" in "model_list" is expected to be a string.')
+            raise ValueError(
+                'The value of "model_id" in "model_list" is expected to be a string.'
+            )
         if not isinstance(bundle_weight, bool):
             raise ValueError(
                 'The value of "bundle_weight" in "model_list" is expected to be a boolean.'
             )
         if not isinstance(overrides, dict):
-            raise ValueError('The value of "overrides" in "model_list" is expected to be a dict.')
+            raise ValueError(
+                'The value of "overrides" in "model_list" is expected to be a dict.'
+            )
         if model_lib is not None and not isinstance(model_lib, str):
-            raise ValueError('The value of "model_lib" in "model_list" is expected to be string.')
+            raise ValueError(
+                'The value of "model_lib" in "model_list" is expected to be string.'
+            )
 
         # - Load model config. Download happens when needed.
         model_path = download_cache.get_or_download_model(model)
 
         # - Jit compile if the model lib path is not specified.
         model_lib_path = (
-            model_lib_path_for_prepare_libs.get(model_lib, None) if model_lib is not None else None
+            model_lib_path_for_prepare_libs.get(model_lib, None)
+            if model_lib is not None
+            else None
         )
         if model_lib_path is None:
             if model_lib is None:
@@ -102,7 +116,9 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
 
         # - Set "model_url"/"model_path" and "model_id"
         app_config_model_entry = {}
-        is_local_model = not model.startswith("HF://") and not model.startswith("https://")
+        is_local_model = not model.startswith("HF://") and not model.startswith(
+            "https://"
+        )
         app_config_model_entry["model_id"] = model_id
         app_config_model_entry["model_lib"] = model_lib
 
@@ -137,7 +153,9 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
         if bundle_weight and device == "iphone":
             app_config_model_entry["model_path"] = model_id
         else:
-            app_config_model_entry["model_url"] = model.replace("HF://", "https://huggingface.co/")
+            app_config_model_entry["model_url"] = model.replace(
+                "HF://", "https://huggingface.co/"
+            )
 
         # - estimated_vram_bytes
         app_config_model_entry["estimated_vram_bytes"] = estimated_vram_bytes
@@ -184,13 +202,17 @@ def validate_model_lib(  # pylint: disable=too-many-locals
         model_lib_path = os.path.join(model_lib_path)
         lib_path_valid = os.path.isfile(model_lib_path)
         if not lib_path_valid:
-            raise RuntimeError(f"Cannot find file {model_lib_path} as an {device} model library")
+            raise RuntimeError(
+                f"Cannot find file {model_lib_path} as an {device} model library"
+            )
         tar_list.append(model_lib_path)
         model_set.add(model)
 
     os.makedirs(output / "lib", exist_ok=True)
     lib_path = (
-        output / "lib" / ("libmodel_iphone.a" if device == "iphone" else "libmodel_android.a")
+        output
+        / "lib"
+        / ("libmodel_iphone.a" if device == "iphone" else "libmodel_android.a")
     )
 
     def _get_model_libs(lib_path: Path) -> List[str]:
@@ -272,7 +294,9 @@ def build_android_binding(mlc_llm_source_dir: Path, output: Path) -> None:
 
     # Build mlc4j
     logger.info("Building mlc4j")
-    subprocess.run([sys.executable, mlc4j_path / "prepare_libs.py"], check=True, env=os.environ)
+    subprocess.run(
+        [sys.executable, mlc4j_path / "prepare_libs.py"], check=True, env=os.environ
+    )
     # Copy built files back to output directory.
     lib_path = output / "lib" / "mlc4j"
     os.makedirs(lib_path, exist_ok=True)
@@ -308,7 +332,9 @@ def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     # Build iphone binding
     logger.info("Build iphone binding")
     subprocess.run(
-        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"], check=True, env=os.environ
+        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"],
+        check=True,
+        env=os.environ,
     )
 
     # Copy built libraries back to output directory.
@@ -337,7 +363,9 @@ def package(
 
     # - Read device.
     if "device" not in package_config:
-        raise ValueError(f'JSON file "{package_config_path}" is required to have field "device".')
+        raise ValueError(
+            f'JSON file "{package_config_path}" is required to have field "device".'
+        )
     device = package_config["device"]
     if device not in SUPPORTED_DEVICES:
         raise ValueError(
@@ -353,7 +381,11 @@ def package(
     )
     # - Validate model libraries.
     validate_model_lib(
-        app_config_path, package_config_path, model_lib_path_for_prepare_libs, device, output
+        app_config_path,
+        package_config_path,
+        model_lib_path_for_prepare_libs,
+        device,
+        output,
     )
 
     # - Copy model libraries

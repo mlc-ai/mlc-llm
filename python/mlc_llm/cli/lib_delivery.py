@@ -74,13 +74,17 @@ def _run_compilation(model_info: ModelInfo, repo_dir: Path) -> bool:
     succeeded = True
     with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as temp_dir:
         log_path = Path(temp_dir) / "logs.txt"
-        model_lib_name = f"{model_info.model_id}-{model_info.quantization}-{model_info.device}"
+        model_lib_name = (
+            f"{model_info.model_id}-{model_info.quantization}-{model_info.device}"
+        )
         lib_ext = get_lib_ext(model_info.device)
         if lib_ext == "":
             raise ValueError(f"Unsupported device: {model_info.device}")
         model_lib_name += lib_ext
         with log_path.open("a", encoding="utf-8") as log_file:
-            overrides = ";".join(f"{key}={value}" for key, value in model_info.overrides.items())
+            overrides = ";".join(
+                f"{key}={value}" for key, value in model_info.overrides.items()
+            )
             cmd = [
                 sys.executable,
                 "-m",
@@ -136,8 +140,12 @@ def _main(  # pylint: disable=too-many-locals
             "model_id": task["model_id"],
             "model": task["model"],
         }
-        for compile_opt in spec["default_compile_options"] + task.get("compile_options", []):
-            for quantization in spec["default_quantization"] + task.get("quantization", []):
+        for compile_opt in spec["default_compile_options"] + task.get(
+            "compile_options", []
+        ):
+            for quantization in spec["default_quantization"] + task.get(
+                "quantization", []
+            ):
                 model_info["quantization"] = quantization
                 model_info["device"] = compile_opt["device"]
                 model_info["overrides"] = compile_opt.get("overrides", {})

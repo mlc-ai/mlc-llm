@@ -43,7 +43,9 @@ def serve(
     router_app = fastapi.APIRouter()
 
     @router_app.post("/v1/completions")
-    async def request_completion(request: CompletionRequest, raw_request: fastapi.Request):
+    async def request_completion(
+        request: CompletionRequest, raw_request: fastapi.Request
+    ):
         """OpenAI-compatible completion API.
         API reference: https://platform.openai.com/docs/api-reference/completions/create
         """
@@ -104,7 +106,10 @@ def serve(
             #     continue
             for choice in response.choices:
                 output_texts[choice.index] += choice.text
-                if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+                if (
+                    choice.finish_reason is not None
+                    and finish_reasons[choice.index] is None
+                ):
                     finish_reasons[choice.index] = choice.finish_reason
                 if choice.logprobs is not None:
                     logprob_results[choice.index] = choice.logprobs
@@ -123,7 +128,9 @@ def serve(
     app = fastapi.FastAPI()
     app.add_middleware(CORSMiddleware)
     app.include_router(router_app)
-    app.exception_handler(error_protocol.BadRequestError)(error_protocol.bad_request_error_handler)
+    app.exception_handler(error_protocol.BadRequestError)(
+        error_protocol.bad_request_error_handler
+    )
 
     # 3. Run
     uvicorn.run(app, host=router_host, port=router_port, log_level="info")

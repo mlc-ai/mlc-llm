@@ -61,12 +61,16 @@ def run_chat_completion(
     num_requests = 2
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
         for response in engine.chat.completions.create(
-            messages=[{"role": "user", "content": [{"type": "text", "text": prompts[rid]}]}],
+            messages=[
+                {"role": "user", "content": [{"type": "text", "text": prompts[rid]}]}
+            ],
             model=model,
             max_tokens=max_tokens,
             n=n,
@@ -98,7 +102,9 @@ def run_json_schema_function_calling(
     num_requests = 2
     max_tokens = 64
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     class ToolCall(BaseModel):
         name: str

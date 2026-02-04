@@ -14,7 +14,9 @@ from .mistral_model import MistralConfig, MistralForCasualLM
 from .mistral_quantization import awq_quant
 
 
-def huggingface(model_config: MistralConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: MistralConfig, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -70,7 +72,9 @@ def huggingface(model_config: MistralConfig, quantization: Quantization) -> Exte
                 f"{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
+                    dtype
+                ),
                 dtype=mlc_param.dtype,
             ),
         )
@@ -130,7 +134,9 @@ def awq(model_config: MistralConfig, quantization: Quantization) -> ExternMappin
                     f"{attn}.v_proj.{quantize_suffix}",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
+                        dtype
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -148,7 +154,9 @@ def awq(model_config: MistralConfig, quantization: Quantization) -> ExternMappin
                     f"{mlp}.up_proj.{quantize_suffix}",
                 ],
                 functools.partial(
-                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                    lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
+                        dtype
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -161,6 +169,8 @@ def awq(model_config: MistralConfig, quantization: Quantization) -> ExternMappin
             mapping.add_mapping(
                 mlc_name,
                 [mlc_name],
-                functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
+                functools.partial(
+                    lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype
+                ),
             )
     return mapping

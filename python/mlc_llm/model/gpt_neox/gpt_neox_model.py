@@ -98,7 +98,9 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
                 f"Cannot split {config.num_attention_heads} attention heads "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
+        self.num_attention_heads = (
+            config.num_attention_heads // config.tensor_parallel_shards
+        )
         self.head_dim = config.head_dim
         self.query_key_value = nn.Linear(
             in_features=self.hidden_size,
@@ -109,18 +111,22 @@ class GPTNeoXAttention(nn.Module):  # pylint: disable=too-many-instance-attribut
             self.num_attention_heads * self.head_dim, self.hidden_size, bias=True
         )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         # hidden_states: [batch_size, seq_len, hidden_size]
         batch_size, seq_len, _ = hidden_states.shape
 
         # q/k/v states: [batch_size, seq_len, hidden_size]
         qkv = self.query_key_value(hidden_states)
-        qkv = op.reshape(qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim))
+        qkv = op.reshape(
+            qkv, (batch_size, seq_len, 3 * self.num_attention_heads, self.head_dim)
+        )
 
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_attention_heads, sm_scale=self.head_dim**-0.5
             ),
             (batch_size, seq_len, self.head_dim * self.num_attention_heads),
         )
@@ -137,7 +143,9 @@ class GPTNeoXMLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.dense_h_to_4h = nn.Linear(
             config.hidden_size,
             self.intermediate_size,
@@ -165,8 +173,12 @@ class GPTNeoXMLP(nn.Module):
 
 class GPTNeoXLayer(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
-        self.input_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        self.post_attention_layernorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.input_layernorm = nn.LayerNorm(
+            config.hidden_size, eps=config.layer_norm_eps
+        )
+        self.post_attention_layernorm = nn.LayerNorm(
+            config.hidden_size, eps=config.layer_norm_eps
+        )
         self.attention = GPTNeoXAttention(config)
         self.mlp = GPTNeoXMLP(config)
         self.use_parallel_residual = config.use_parallel_residual
@@ -190,13 +202,21 @@ class GPTNeoXLayer(nn.Module):
                 self.mlp.dense_h_to_4h.weight,
                 tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
             )
-            _set(self.mlp.dense_h_to_4h.bias, tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0))
-            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
+            _set(
+                self.mlp.dense_h_to_4h.bias,
+                tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
+            )
+            _set(
+                self.mlp.dense_4h_to_h.weight,
+                tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1),
+            )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         dtype = hidden_states.dtype
         attn_input = self.input_layernorm(hidden_states)
         with tp.shard_bias(self.attention.dense, self.tensor_parallel_shards):
@@ -226,8 +246,12 @@ class GPTNeoXLayer(nn.Module):
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
         self.embed_in = nn.Embedding(num="vocab_size", dim=config.hidden_size)
-        self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
-        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.layers = nn.ModuleList(
+            [GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)]
+        )
+        self.final_layer_norm = nn.LayerNorm(
+            config.hidden_size, eps=config.layer_norm_eps
+        )
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
@@ -291,7 +315,9 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.embed_out(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -307,7 +333,10 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -359,7 +388,9 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -375,7 +406,9 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -384,7 +417,9 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -392,7 +427,9 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

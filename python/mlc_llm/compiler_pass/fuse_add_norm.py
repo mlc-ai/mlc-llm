@@ -38,7 +38,10 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
             for v_tx in T.thread_binding(
                 TX,
                 thread="threadIdx.x",
-                annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
+                annotations={
+                    "pragma_auto_unroll_max_step": 256,
+                    "pragma_unroll_explicit": 1,
+                },
             ):
                 for i in range(add_local_size):
                     with T.sblock("T_add"):
@@ -56,7 +59,9 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                 for v_i, _j in T.grid(add_local_size, 1):
                     with T.sblock("T_multiply_red_rf_update"):
                         tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
-                        sum_local[tx, bx, 0] += T.float32(add_local[i]) * T.float32(add_local[i])
+                        sum_local[tx, bx, 0] += T.float32(add_local[i]) * T.float32(
+                            add_local[i]
+                        )
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
                     with T.sblock("T_multiply_red"):
@@ -106,7 +111,10 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
             for v_tx in T.thread_binding(
                 TX,
                 thread="threadIdx.x",
-                annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
+                annotations={
+                    "pragma_auto_unroll_max_step": 256,
+                    "pragma_unroll_explicit": 1,
+                },
             ):
                 for v_i in range(add_local_size):
                     with T.sblock("T_add"):
@@ -123,7 +131,9 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
                 for v_i, _j in T.grid(add_local_size, 1):
                     with T.sblock("T_multiply_red_rf_update"):
                         tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
-                        sum_local[tx, 0, bx] += T.float32(add_local[i]) * T.float32(add_local[i])
+                        sum_local[tx, 0, bx] += T.float32(add_local[i]) * T.float32(
+                            add_local[i]
+                        )
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
                     with T.sblock("T_multiply_red"):
@@ -160,7 +170,9 @@ class FuseAddRMSNorm:  # pylint: disable=too-few-public-methods
         """
         self.target = target
 
-    def transform_module(self, mod: tvm.IRModule, _ctx: tvm.transform.PassContext) -> tvm.IRModule:
+    def transform_module(
+        self, mod: tvm.IRModule, _ctx: tvm.transform.PassContext
+    ) -> tvm.IRModule:
         """IRModule-level transformation."""
         return _FuseAddRMSNormRewriter(mod.clone(), self.target).transform()
 
@@ -188,7 +200,9 @@ class _FuseAddRMSNormRewriter(PyExprMutator):  # pylint: disable=abstract-method
         call = super().visit_call_(call)
 
         # Match the "rms_norm(add(x1, x2), w)" pattern
-        if call.op != tvm.ir.Op.get("relax.nn.rms_norm") or call.struct_info.dtype not in [
+        if call.op != tvm.ir.Op.get(
+            "relax.nn.rms_norm"
+        ) or call.struct_info.dtype not in [
             "bfloat16",
             "float16",
         ]:

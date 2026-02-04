@@ -62,7 +62,8 @@ class Tokenizer(Object):
     def __init__(self, tokenizer_path: str) -> None:  # pylint: disable=super-init-not-called
         """Create the tokenizer from tokenizer directory path."""
         self.__init_handle_by_constructor__(
-            _ffi_api.Tokenizer, tokenizer_path  # type: ignore  # pylint: disable=no-member
+            _ffi_api.Tokenizer,
+            tokenizer_path,  # type: ignore  # pylint: disable=no-member
         )
 
     def encode(self, text: str) -> List[int]:

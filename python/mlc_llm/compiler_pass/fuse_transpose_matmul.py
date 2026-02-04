@@ -10,7 +10,9 @@ from tvm.relax.expr_functor import PyExprMutator, mutator
 class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
     """A compiler pass that fuses transpose + matmul."""
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """IRModule-level transformation"""
         mod = relax.transform.FuseOpsByPattern(
             [
@@ -80,7 +82,11 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                 b_shape.append(1)
 
             is_a_larger = len(a_shape) > len(b_shape)
-            offset = len(a_shape) - len(b_shape) if is_a_larger else len(b_shape) - len(a_shape)
+            offset = (
+                len(a_shape) - len(b_shape)
+                if is_a_larger
+                else len(b_shape) - len(a_shape)
+            )
 
             a_relax = relax.Var("a", relax.TensorStructInfo(a.shape))
             bT_shape = list(b.shape)
@@ -102,7 +108,9 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                             a_indices.append(idx_spatial[i])
                         else:
                             b_indices.append(idx_spatial[i])
-                    for i in range(offset, len(output_shape) - (2 - a_prepended - b_appended)):
+                    for i in range(
+                        offset, len(output_shape) - (2 - a_prepended - b_appended)
+                    ):
                         a_dim = a_shape[i if is_a_larger else i - offset]
                         b_dim = b_shape[i if not is_a_larger else i - offset]
                         dim_equal = a_dim == b_dim

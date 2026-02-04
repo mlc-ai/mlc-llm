@@ -111,17 +111,21 @@ class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=config.add_bias_linear or config.add_qkv_bias,
         )
         self.dense = nn.Linear(
-            self.num_heads * self.head_dim, config.hidden_size, bias=config.add_bias_linear
+            self.num_heads * self.head_dim,
+            config.hidden_size,
+            bias=config.add_bias_linear,
         )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_heads, self.num_key_value_heads
         b, s, _ = hidden_states.shape
         qkv = self.query_key_value(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, h_q, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, h_q, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -190,9 +194,15 @@ class GLMBlock(nn.Module):
                     self.self_attention.query_key_value.bias,
                     tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
                 )
-            _set(self.self_attention.dense.weight, tp.ShardSingleDim("_shard_dense_weight", dim=1))
+            _set(
+                self.self_attention.dense.weight,
+                tp.ShardSingleDim("_shard_dense_weight", dim=1),
+            )
             if config.add_bias_linear:
-                _set(self.self_attention.dense.bias, tp.ShardSingleDim("_shard_dense_bias", dim=0))
+                _set(
+                    self.self_attention.dense.bias,
+                    tp.ShardSingleDim("_shard_dense_bias", dim=0),
+                )
             _set(
                 self.mlp.dense_h_to_4h.weight,
                 tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
@@ -202,7 +212,10 @@ class GLMBlock(nn.Module):
                     self.mlp.dense_h_to_4h.bias,
                     tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
                 )
-            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
+            _set(
+                self.mlp.dense_4h_to_h.weight,
+                tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1),
+            )
             if config.add_bias_linear:
                 _set(
                     self.mlp.dense_4h_to_h.bias,
@@ -212,8 +225,12 @@ class GLMBlock(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attention(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attention(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -235,7 +252,9 @@ class GLMTransformer(nn.Module):
         self.num_layers = config.num_layers
 
         # Transformer layers.
-        self.layers = nn.ModuleList([GLMBlock(config) for _ in range(config.num_layers)])
+        self.layers = nn.ModuleList(
+            [GLMBlock(config) for _ in range(config.num_layers)]
+        )
 
         if self.post_layer_norm:
             if config.rmsnorm:
@@ -243,7 +262,9 @@ class GLMTransformer(nn.Module):
                     config.hidden_size, -1, config.layernorm_epsilon, bias=False
                 )
             else:
-                self.final_layernorm = nn.LayerNorm(config.hidden_size, config.layernorm_epsilon)
+                self.final_layernorm = nn.LayerNorm(
+                    config.hidden_size, config.layernorm_epsilon
+                )
 
     def forward(self, inputs: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = inputs
@@ -316,7 +337,9 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.transformer.output_layer(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -332,7 +355,10 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -383,7 +409,9 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -399,7 +427,9 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -408,7 +438,9 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -416,7 +448,9 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

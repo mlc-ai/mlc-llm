@@ -13,7 +13,9 @@ from mlc_llm.quantization import Quantization
 from .internlm_model import InternLMConfig, InternLMForCausalLM
 
 
-def huggingface(model_config: InternLMConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: InternLMConfig, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -69,7 +71,9 @@ def huggingface(model_config: InternLMConfig, quantization: Quantization) -> Ext
                     f"{attn}.v_proj.bias",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
+                        dtype
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )
@@ -84,7 +88,9 @@ def huggingface(model_config: InternLMConfig, quantization: Quantization) -> Ext
                 f"{mlp}.up_proj.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
+                    dtype
+                ),
                 dtype=mlc_param.dtype,
             ),
         )

@@ -11,7 +11,9 @@ from mlc_llm.quantization import Quantization
 from .phi3_model import Phi3Config, Phi3ForCausalLM
 
 
-def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> ExternMapping:
+def phi3_huggingface(
+    model_config: Phi3Config, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of Phi-1/Phi-1.5 HuggingFace PyTorch parameters.
 
@@ -58,12 +60,24 @@ def phi3_huggingface(model_config: Phi3Config, quantization: Quantization) -> Ex
     hf_prefix = "model.layers"
     for i in range(model_config.num_hidden_layers):
         _add(f"{prefix}.{i}.ln.weight", f"{hf_prefix}.{i}.input_layernorm.weight")
-        _add(f"{prefix}.{i}.mlp.down_proj.weight", f"{hf_prefix}.{i}.mlp.down_proj.weight")
-        _add(f"{prefix}.{i}.mlp.gate_up_proj.weight", f"{hf_prefix}.{i}.mlp.gate_up_proj.weight")
+        _add(
+            f"{prefix}.{i}.mlp.down_proj.weight",
+            f"{hf_prefix}.{i}.mlp.down_proj.weight",
+        )
+        _add(
+            f"{prefix}.{i}.mlp.gate_up_proj.weight",
+            f"{hf_prefix}.{i}.mlp.gate_up_proj.weight",
+        )
         _add(
             f"{prefix}.{i}.post_attention_layernorm.weight",
             f"{hf_prefix}.{i}.post_attention_layernorm.weight",
         )
-        _add(f"{prefix}.{i}.mixer.out_proj.weight", f"{hf_prefix}.{i}.self_attn.o_proj.weight")
-        _add(f"{prefix}.{i}.mixer.qkv_proj.weight", f"{hf_prefix}.{i}.self_attn.qkv_proj.weight")
+        _add(
+            f"{prefix}.{i}.mixer.out_proj.weight",
+            f"{hf_prefix}.{i}.self_attn.o_proj.weight",
+        )
+        _add(
+            f"{prefix}.{i}.mixer.qkv_proj.weight",
+            f"{hf_prefix}.{i}.self_attn.qkv_proj.weight",
+        )
     return mapping

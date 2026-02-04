@@ -16,7 +16,9 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def create_generic(  # pylint: disable=too-many-locals
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
+        attn_kind: Union[
+            Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]
+        ],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,

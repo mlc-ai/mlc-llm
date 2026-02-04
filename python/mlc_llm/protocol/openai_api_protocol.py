@@ -150,7 +150,9 @@ class CompletionRequest(BaseModel):
         if self.logprobs is not None and (
             self.logprobs < 0 or self.logprobs > COMPLETION_MAX_TOP_LOGPROBS
         ):
-            raise ValueError(f'"logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}]')
+            raise ValueError(
+                f'"logprobs" must be in range [0, {COMPLETION_MAX_TOP_LOGPROBS}]'
+            )
         return self
 
 
@@ -262,7 +264,10 @@ class ChatCompletionRequest(BaseModel):
     @model_validator(mode="after")
     def check_logprobs(self) -> "ChatCompletionRequest":
         """Check if the logprobs requirements are valid."""
-        if self.top_logprobs < 0 or self.top_logprobs > CHAT_COMPLETION_MAX_TOP_LOGPROBS:
+        if (
+            self.top_logprobs < 0
+            or self.top_logprobs > CHAT_COMPLETION_MAX_TOP_LOGPROBS
+        ):
             raise ValueError(
                 f'"top_logprobs" must be in range [0, {CHAT_COMPLETION_MAX_TOP_LOGPROBS}]'
             )
@@ -276,7 +281,9 @@ class ChatCompletionRequest(BaseModel):
         if self.stream_options is None:
             return self
         if not self.stream:
-            raise ValueError("stream must be set to True when stream_options is present")
+            raise ValueError(
+                "stream must be set to True when stream_options is present"
+            )
         return self
 
     @model_validator(mode="after")
@@ -292,7 +299,9 @@ class ChatCompletionRequest(BaseModel):
             raise ValueError("DebugConfig.special_request requires stream=True")
 
         if self.stream_options is None or not self.stream_options.include_usage:
-            raise ValueError("DebugConfig.special_request requires include_usage in stream_options")
+            raise ValueError(
+                "DebugConfig.special_request requires include_usage in stream_options"
+            )
 
         return self
 
@@ -305,14 +314,22 @@ class ChatCompletionRequest(BaseModel):
                 )
             if message.tool_call_id is not None:
                 if message.role != "tool":
-                    raise BadRequestError("Non-tool message having `tool_call_id` is invalid.")
+                    raise BadRequestError(
+                        "Non-tool message having `tool_call_id` is invalid."
+                    )
             if isinstance(message.content, list):
                 if message.role != "user":
-                    raise BadRequestError("Non-user message having a list of content is invalid.")
+                    raise BadRequestError(
+                        "Non-user message having a list of content is invalid."
+                    )
             if message.tool_calls is not None:
                 if message.role != "assistant":
-                    raise BadRequestError("Non-assistant message having `tool_calls` is invalid.")
-                raise BadRequestError("Assistant message having `tool_calls` is not supported yet.")
+                    raise BadRequestError(
+                        "Non-assistant message having `tool_calls` is invalid."
+                    )
+                raise BadRequestError(
+                    "Assistant message having `tool_calls` is not supported yet."
+                )
 
     def check_function_call_usage(self, conv_template: Conversation) -> None:
         """Check if function calling is used and update the conversation template.
@@ -320,7 +337,9 @@ class ChatCompletionRequest(BaseModel):
         """
 
         # return if no tools are provided or tool_choice is set to none
-        if self.tools is None or (isinstance(self.tool_choice, str) and self.tool_choice == "none"):
+        if self.tools is None or (
+            isinstance(self.tool_choice, str) and self.tool_choice == "none"
+        ):
             conv_template.use_function_calling = False
             return
 
@@ -330,7 +349,9 @@ class ChatCompletionRequest(BaseModel):
                 raise BadRequestError("Only 'function' tool choice is supported")
 
             if len(self.tool_choice["function"]) > 1:  # pylint: disable=unsubscriptable-object
-                raise BadRequestError("Only one tool is supported when tool_choice is specified")
+                raise BadRequestError(
+                    "Only one tool is supported when tool_choice is specified"
+                )
 
             for tool in self.tools:  # pylint: disable=not-an-iterable
                 if (
@@ -340,7 +361,9 @@ class ChatCompletionRequest(BaseModel):
                     ]
                 ):
                     conv_template.use_function_calling = True
-                    conv_template.function_string = tool.function.model_dump_json(by_alias=True)
+                    conv_template.function_string = tool.function.model_dump_json(
+                        by_alias=True
+                    )
                     return
 
             # pylint: disable=unsubscriptable-object

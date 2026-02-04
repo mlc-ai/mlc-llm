@@ -53,7 +53,9 @@ def huggingface(model_config: QWenConfig, quantization: Quantization) -> ExternM
                 f"{mlp}.w2.weight",
             ],
             functools.partial(
-                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
+                lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(
+                    dtype
+                ),
                 dtype=mlc_param.dtype,
             ),
         )

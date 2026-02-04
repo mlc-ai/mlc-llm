@@ -38,7 +38,11 @@ class OptimizationFlags:
         print(f";faster_transformer={int(self.faster_transformer)}", file=out, end="")
         print(f";cudagraph={int(self.cudagraph)}", file=out, end="")
         print(f";cutlass={int(self.cutlass)}", file=out, end="")
-        print(f";ipc_allreduce_strategy={self.ipc_allreduce_strategy.name}", file=out, end="")
+        print(
+            f";ipc_allreduce_strategy={self.ipc_allreduce_strategy.name}",
+            file=out,
+            end="",
+        )
         return out.getvalue().rstrip()
 
     @staticmethod
@@ -74,7 +78,9 @@ class OptimizationFlags:
             faster_transformer=results.faster_transformer,
             cudagraph=results.cudagraph,
             cutlass=results.cutlass,
-            ipc_allreduce_strategy=IPCAllReduceStrategyType[results.ipc_allreduce_strategy],
+            ipc_allreduce_strategy=IPCAllReduceStrategyType[
+                results.ipc_allreduce_strategy
+            ],
         )
 
     def update(self, target, quantization) -> None:
@@ -153,8 +159,14 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         print(f";prefill_chunk_size={self.prefill_chunk_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";max_batch_size={self.max_batch_size}", file=out, end="")
-        print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
-        print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(
+            f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end=""
+        )
+        print(
+            f";pipeline_parallel_stages={self.pipeline_parallel_stages}",
+            file=out,
+            end="",
+        )
         print(f";disaggregation={self.disaggregation}", file=out, end="")
         return out.getvalue().rstrip()
 
@@ -171,7 +183,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         parser.add_argument("--pipeline_parallel_stages", type=int, default=None)
         parser.add_argument(
             "--disaggregation",
-            type=lambda x: (str(x).lower() in ["true", "1", "yes", "True"]),
+            type=lambda x: str(x).lower() in ["true", "1", "yes", "True"],
             default=None,
         )
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])

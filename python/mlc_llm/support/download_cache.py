@@ -89,7 +89,9 @@ def git_lfs_pull(repo_dir: Path, ignore_extensions: Optional[List[str]] = None) 
             for filename in filenames
             if not any(filename.endswith(extension) for extension in ignore_extensions)
         ]
-    logger.info("[Git LFS] Downloading %d files with Git LFS: %s", len(filenames), filenames)
+    logger.info(
+        "[Git LFS] Downloading %d files with Git LFS: %s", len(filenames), filenames
+    )
     with tqdm.redirect():
         for file in tqdm.tqdm(filenames):
             logger.info("[Git LFS] Downloading %s", file)
@@ -132,7 +134,9 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     """Download weights for a model from the HuggingFace Git LFS repo."""
     log_download_cache_policy()
     if MLC_DOWNLOAD_CACHE_POLICY == "OFF":
-        raise RuntimeError(f"Cannot download {model_url} as MLC_DOWNLOAD_CACHE_POLICY=OFF")
+        raise RuntimeError(
+            f"Cannot download {model_url} as MLC_DOWNLOAD_CACHE_POLICY=OFF"
+        )
 
     prefixes, mlc_prefix = ["HF://", "https://huggingface.co/"], ""
     mlc_prefix = next(p for p in prefixes if model_url.startswith(p))
@@ -141,7 +145,9 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
     git_url_template = "https://huggingface.co/{user}/{repo}"
     bin_url_template = "https://huggingface.co/{user}/{repo}/resolve/main/{record_name}"
 
-    if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(mlc_prefix):
+    if model_url.count("/") != 1 + mlc_prefix.count("/") or not model_url.startswith(
+        mlc_prefix
+    ):
         raise ValueError(f"Invalid model URL: {model_url}")
     user, repo = model_url[len(mlc_prefix) :].split("/")
     domain = "hf"
@@ -186,10 +192,14 @@ def download_and_cache_mlc_weights(  # pylint: disable=too-many-locals
             futures = []
             for record in param_metadata:
                 record_name = record["dataPath"]
-                file_url = bin_url_template.format(user=user, repo=repo, record_name=record_name)
+                file_url = bin_url_template.format(
+                    user=user, repo=repo, record_name=record_name
+                )
                 file_dest = tmp_dir / record_name
                 file_md5 = record.get("md5sum", None)
-                futures.append(executor.submit(download_file, file_url, file_dest, file_md5))
+                futures.append(
+                    executor.submit(download_file, file_url, file_dest, file_md5)
+                )
             with tqdm.redirect():
                 for future in tqdm.tqdm(cf.as_completed(futures), total=len(futures)):
                     file_url, file_dest = future.result()
@@ -234,4 +244,6 @@ def get_or_download_model(model: str) -> Path:
     mlc_config_path = model_path / "mlc-chat-config.json"
     if mlc_config_path.is_file():
         return model_path
-    raise FileNotFoundError(f"Cannot find {str(mlc_config_path)} in the model directory provided")
+    raise FileNotFoundError(
+        f"Cannot find {str(mlc_config_path)} in the model directory provided"
+    )

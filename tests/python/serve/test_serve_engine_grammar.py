@@ -51,7 +51,9 @@ def test_batch_generation_with_grammar(model: str):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     seed=random.randint(0, 1 << 30),
-                    extra_body={"debug_config": DebugConfig(grammar_execution_mode="constraint")},
+                    extra_body={
+                        "debug_config": DebugConfig(grammar_execution_mode="constraint")
+                    },
                 )
             )
 
@@ -113,7 +115,9 @@ def test_batch_generation_with_schema(model: str):
         "You are a helpful assistant. Always respond only with JSON based on the "
         f"following JSON schema: {schema_str}."
     )
-    prompt = "Generate a JSON that describes the product according to the given JSON schema."
+    prompt = (
+        "Generate a JSON that describes the product according to the given JSON schema."
+    )
 
     repeat = 8
     top_p = 0.9
@@ -135,7 +139,9 @@ def test_batch_generation_with_schema(model: str):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 seed=random.randint(0, 1 << 30),
-                extra_body={"debug_config": DebugConfig(grammar_execution_mode="constraint")},
+                extra_body={
+                    "debug_config": DebugConfig(grammar_execution_mode="constraint")
+                },
             )
         )
 
@@ -160,7 +166,9 @@ def test_batch_generation_with_schema(model: str):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 seed=random.randint(0, 1 << 30),
-                extra_body={"debug_config": DebugConfig(grammar_execution_mode="constraint")},
+                extra_body={
+                    "debug_config": DebugConfig(grammar_execution_mode="constraint")
+                },
             )
         )
 
@@ -185,7 +193,9 @@ def test_batch_generation_with_schema(model: str):
                 temperature=temperature,
                 max_tokens=max_tokens,
                 seed=random.randint(0, 1 << 30),
-                extra_body={"debug_config": DebugConfig(grammar_execution_mode="constraint")},
+                extra_body={
+                    "debug_config": DebugConfig(grammar_execution_mode="constraint")
+                },
             )
         )
 
@@ -201,7 +211,9 @@ def test_batch_generation_with_schema(model: str):
 
 
 @require_test_model(LLAMA_3_MODEL)
-def test_batch_generation_jump_forward(model: str, jump_forward: bool = True, repeat: int = 1):
+def test_batch_generation_jump_forward(
+    model: str, jump_forward: bool = True, repeat: int = 1
+):
     # Create engine
     engine = MLCEngine(model=model, mode="server")
 
@@ -220,7 +232,9 @@ def test_batch_generation_jump_forward(model: str, jump_forward: bool = True, re
         "You are a helpful assistant. Always respond only with JSON based on the "
         f"following JSON schema: {schema_str}."
     )
-    prompt = "Generate a JSON that describes the product according to the given JSON schema."
+    prompt = (
+        "Generate a JSON that describes the product according to the given JSON schema."
+    )
 
     top_p = 0.9
     temperature = 0.6
@@ -243,7 +257,9 @@ def test_batch_generation_jump_forward(model: str, jump_forward: bool = True, re
                 max_tokens=max_tokens,
                 seed=random.randint(0, 1 << 30),
                 extra_body={
-                    "debug_config": DebugConfig(grammar_execution_mode=grammar_execution_mode)
+                    "debug_config": DebugConfig(
+                        grammar_execution_mode=grammar_execution_mode
+                    )
                 },
             )
         )
@@ -291,7 +307,9 @@ async def run_async_engine(
         "You are a helpful assistant. Always respond only with JSON based on the "
         f"following JSON schema: {schema_str}."
     )
-    prompt = "Generate a JSON that describes the product according to the given JSON schema."
+    prompt = (
+        "Generate a JSON that describes the product according to the given JSON schema."
+    )
 
     top_p = 0.9
     temperature = 0.6
@@ -314,7 +332,11 @@ async def run_async_engine(
             max_tokens=max_tokens,
             seed=random.randint(0, 1 << 30),
             stream=True,
-            extra_body={"debug_config": DebugConfig(grammar_execution_mode=grammar_execution_mode)},
+            extra_body={
+                "debug_config": DebugConfig(
+                    grammar_execution_mode=grammar_execution_mode
+                )
+            },
         ):
             assert len(response.choices) == 1
             choice = response.choices[0]
@@ -323,7 +345,8 @@ async def run_async_engine(
             responses[rid] += choice.delta.content
 
     tasks = [
-        asyncio.create_task(generate_task(prompt, request_id=str(i))) for i in range(num_requests)
+        asyncio.create_task(generate_task(prompt, request_id=str(i)))
+        for i in range(num_requests)
     ]
 
     await asyncio.gather(*tasks)

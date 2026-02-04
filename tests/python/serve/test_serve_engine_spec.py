@@ -149,7 +149,9 @@ def test_engine_eagle_basic(model: str):
 
     # Create engine
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
-    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    small_model_lib = (
+        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    )
     engine = SyncMLCEngine(
         model=model,
         mode="server",
@@ -257,14 +259,20 @@ def test_engine_continuous_batching_1(model: str, small_model: str):
     for request in requests:
         engine.add_request(request)
 
-    num_steps = num_requests + max(request.generation_config.max_tokens for request in requests) - 1
+    num_steps = (
+        num_requests
+        + max(request.generation_config.max_tokens for request in requests)
+        - 1
+    )
     # Run steps
     for step in range(num_steps):
         timer.step()
         assert timer.timer == step
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
         # assert fin_time == request.generation_config.max_tokens - 1
@@ -343,14 +351,20 @@ def test_engine_eagle_continuous_batching_1(model: str):
     for request in requests:
         engine.add_request(request)
 
-    num_steps = num_requests + max(request.generation_config.max_tokens for request in requests) - 1
+    num_steps = (
+        num_requests
+        + max(request.generation_config.max_tokens for request in requests)
+        - 1
+    )
     # Run steps
     for step in range(num_steps):
         timer.step()
         assert timer.timer == step
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
         # assert fin_time == request.generation_config.max_tokens - 1
@@ -581,7 +595,8 @@ def test_engine_spec_efficiency(model: str, small_model: str):
             print("total accepted tokens:", metrics["sum_num_accepted_tokens"])
             print(
                 "Accept rate:",
-                metrics["sum_num_accepted_tokens"] / (1e-10 + metrics["sum_num_draft_tokens"]),
+                metrics["sum_num_accepted_tokens"]
+                / (1e-10 + metrics["sum_num_draft_tokens"]),
             )
         print("engine total decode time:", metrics["engine_decode_time_sum"])
         print()
@@ -610,7 +625,9 @@ def test_engine_eagle_spec_efficiency(model: str):
 
     # Create engine
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
-    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    small_model_lib = (
+        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    )
     spec_engine = SyncMLCEngine(
         model=model,
         mode="server",

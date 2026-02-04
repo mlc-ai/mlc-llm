@@ -160,14 +160,16 @@ class Gemma3MLP(nn.Module):
 class Gemma3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: Gemma3Config):
         self.head_dim = config.text_config.head_dim
-        self.num_q_heads = config.text_config.num_attention_heads // config.tensor_parallel_shards
+        self.num_q_heads = (
+            config.text_config.num_attention_heads // config.tensor_parallel_shards
+        )
         self.num_kv_heads = config.text_config.num_key_value_heads
-        assert (
-            self.num_kv_heads % config.tensor_parallel_shards == 0
-        ), f"num_kv_heads({self.num_kv_heads}) must be divisible by tensor_parallel_shards"
-        assert (
-            self.num_kv_heads >= config.tensor_parallel_shards
-        ), f"Too large tensor_parallel_shards, must be smaller than {self.num_kv_heads}"
+        assert self.num_kv_heads % config.tensor_parallel_shards == 0, (
+            f"num_kv_heads({self.num_kv_heads}) must be divisible by tensor_parallel_shards"
+        )
+        assert self.num_kv_heads >= config.tensor_parallel_shards, (
+            f"Too large tensor_parallel_shards, must be smaller than {self.num_kv_heads}"
+        )
         self.num_kv_heads = self.num_kv_heads // config.tensor_parallel_shards
         self.q_proj = nn.Linear(
             in_features=config.text_config.hidden_size,
@@ -196,9 +198,11 @@ class Gemma3Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
             config.text_config.head_dim, -1, config.text_config.rms_norm_eps, bias=False
         )
         # self.scaling_factor = (self.head_dim / config.text_config.query_pre_attn_scalar) ** 0.5
-        self.scaling = config.text_config.query_pre_attn_scalar ** -0.5
+        self.scaling = config.text_config.query_pre_attn_scalar**-0.5
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q = self.head_dim, self.num_q_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -251,14 +255,21 @@ class Gemma3DecoderLayer(nn.Module):
             _set(self.self_attn.q_norm, tp.ShardSingleDim("_shard_q_norm", dim=0))
             _set(self.self_attn.k_norm, tp.ShardSingleDim("_shard_k_norm", dim=0))
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         out = self._apply_post_matmul_norm(out, norm=self.post_attention_layernorm)
         hidden_states = out + hidden_states
 
@@ -278,18 +289,26 @@ class Gemma3DecoderLayer(nn.Module):
 class Gemma3TextModel(nn.Module):
     def __init__(self, config: Gemma3Config):
         self.hidden_size = config.text_config.hidden_size
-        assert config.text_config.hidden_size % config.text_config.num_attention_heads == 0
+        assert (
+            config.text_config.hidden_size % config.text_config.num_attention_heads == 0
+        )
         self.embed_tokens = GemmaEmbedding("vocab_size", config.text_config.hidden_size)
         self.layers = nn.ModuleList(
-            [Gemma3DecoderLayer(config) for _ in range(config.text_config.num_hidden_layers)]
+            [
+                Gemma3DecoderLayer(config)
+                for _ in range(config.text_config.num_hidden_layers)
+            ]
         )
         self.norm = nn.RMSNorm(
-            config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False
+            config.text_config.hidden_size,
+            -1,
+            config.text_config.rms_norm_eps,
+            bias=False,
         )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
-        hidden_states = hidden_states * (self.hidden_size ** 0.5)
+        hidden_states = hidden_states * (self.hidden_size**0.5)
         for layer_id, layer in enumerate(self.layers):
             hidden_states = layer(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self.norm(hidden_states)
@@ -349,7 +368,9 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -361,7 +382,10 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -423,7 +447,9 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -439,7 +465,9 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -448,7 +476,9 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -456,7 +486,9 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -526,7 +558,9 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.language_model.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -538,7 +572,10 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -612,7 +649,9 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
                 },
             },
             "decode": {
-                "input_embed": nn.spec.Tensor([1, 1, self.language_model.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, 1, self.language_model.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

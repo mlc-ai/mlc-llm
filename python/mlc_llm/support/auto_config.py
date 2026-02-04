@@ -41,7 +41,9 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
     # pylint: enable=import-outside-toplevel
 
     if mlc_chat_config.startswith("HF://") or mlc_chat_config.startswith("http"):
-        mlc_chat_config_path = Path(download_and_cache_mlc_weights(model_url=mlc_chat_config))
+        mlc_chat_config_path = Path(
+            download_and_cache_mlc_weights(model_url=mlc_chat_config)
+        )
     elif isinstance(mlc_chat_config, str) and mlc_chat_config in MODEL_PRESETS:
         logger.info("%s mlc preset model: %s", FOUND, mlc_chat_config)
         content = MODEL_PRESETS[mlc_chat_config].copy()
@@ -63,7 +65,9 @@ def detect_mlc_chat_config(mlc_chat_config: str) -> Path:
         # search mlc-chat-config.json under path
         mlc_chat_config_json_path = mlc_chat_config_path / "mlc-chat-config.json"
         if not mlc_chat_config_json_path.exists():
-            raise ValueError(f"Fail to find mlc-chat-config.json under {mlc_chat_config_path}.")
+            raise ValueError(
+                f"Fail to find mlc-chat-config.json under {mlc_chat_config_path}."
+            )
     else:
         mlc_chat_config_json_path = mlc_chat_config_path
 
@@ -148,12 +152,20 @@ def detect_model_type(model_type: str, config: Path) -> "Model":
                 f"'model_type' not found in: {config}. "
                 f"Please explicitly specify `--model-type` instead."
             )
-        model_type = cfg["model_type"] if "model_type" in cfg else cfg["model_config"]["model_type"]
+        model_type = (
+            cfg["model_type"]
+            if "model_type" in cfg
+            else cfg["model_config"]["model_type"]
+        )
     if model_type in ["mixformer-sequential"]:
         model_type = "phi-msft"
-    logger.info("%s model type: %s. Use `--model-type` to override.", FOUND, bold(model_type))
+    logger.info(
+        "%s model type: %s. Use `--model-type` to override.", FOUND, bold(model_type)
+    )
     if model_type not in MODELS:
-        raise ValueError(f"Unknown model type: {model_type}. Available ones: {list(MODELS.keys())}")
+        raise ValueError(
+            f"Unknown model type: {model_type}. Available ones: {list(MODELS.keys())}"
+        )
     return MODELS[model_type]
 
 

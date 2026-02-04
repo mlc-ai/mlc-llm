@@ -59,11 +59,15 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         assert storage_dtype.type_code == DataTypeCode.UINT
         assert model_dtype.type_code == DataTypeCode.FLOAT
         if storage_dtype.bits < quantize_dtype.bits:
-            raise ValueError("Storage unit should be greater or equal to quantized element")
+            raise ValueError(
+                "Storage unit should be greater or equal to quantized element"
+            )
 
         self.num_elem_per_storage = storage_dtype.bits // quantize_dtype.bits
         if self.group_size % self.num_elem_per_storage != 0:
-            raise ValueError("Group size should be divisible by numbers of elements per storage")
+            raise ValueError(
+                "Group size should be divisible by numbers of elements per storage"
+            )
         self.num_storage_per_group = self.group_size // self.num_elem_per_storage
         self.max_int_value = (2 ** (quantize_dtype.bits - 1)) - 1
 
@@ -189,10 +193,14 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.out_dtype = out_dtype
         self.config = config
         self.qweight = nn.Parameter(
-            (in_features, out_features // config.num_elem_per_storage), config.storage_dtype
+            (in_features, out_features // config.num_elem_per_storage),
+            config.storage_dtype,
         )
         self.qzeros = nn.Parameter(
-            (in_features // config.group_size, out_features // config.num_elem_per_storage),
+            (
+                in_features // config.group_size,
+                out_features // config.num_elem_per_storage,
+            ),
             config.storage_dtype,
         )
         self.scales = nn.Parameter(
@@ -250,7 +258,10 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
                 weight,
                 zeros,
                 scale,
-                [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
+                [
+                    tir.IntImm("int64", self.out_features),
+                    tir.IntImm("int64", self.in_features),
+                ],
             ),
             name_hint="dequantize",
             args=[self.qweight, self.qzeros, self.scales],

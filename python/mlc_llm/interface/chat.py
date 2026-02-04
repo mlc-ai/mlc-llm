@@ -173,7 +173,10 @@ class ChatState:
         # TODO(mlc-team): possibly leverage debug option
         # pass a simple prompt to warm up
         for _ in self.engine.chat.completions.create(
-            messages=[{"role": "user", "content": ""}], max_tokens=1, model=self.model, stream=True
+            messages=[{"role": "user", "content": ""}],
+            max_tokens=1,
+            model=self.model,
+            stream=True,
         ):
             pass
 
@@ -228,7 +231,9 @@ class ChatState:
                 return "N/A"
             prefill_speed = last_finished_request.get("prefill_tokens_per_s", None)
             decode_speed = last_finished_request.get("decode_tokens_per_s", None)
-            prefill_speed = f"{prefill_speed:.1f}" if prefill_speed is not None else "N/A"
+            prefill_speed = (
+                f"{prefill_speed:.1f}" if prefill_speed is not None else "N/A"
+            )
             decode_speed = f"{decode_speed:.1f}" if decode_speed is not None else "N/A"
             return f"prefill: {prefill_speed} tok/s, decode: {decode_speed} tok/s"
 

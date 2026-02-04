@@ -102,7 +102,9 @@ def run_pipeline(
     )
     request_records = pipeline(request_records)
     num_total_requests = (
-        args.num_requests if not args.per_gpu_workload else args.num_requests * args.num_gpus
+        args.num_requests
+        if not args.per_gpu_workload
+        else args.num_requests * args.num_gpus
     )
     assert len(request_records) == num_total_requests
     sorted_requests: List[RequestRecord] = [None] * num_total_requests
@@ -112,14 +114,18 @@ def run_pipeline(
         sorted_requests[request_record.request_id] = request_record
 
     request_records = MetricAnalyzer(tokenizer)(request_records)
-    report = generate_metrics_summary(request_records, num_total_requests, args.num_gpus)
+    report = generate_metrics_summary(
+        request_records, num_total_requests, args.num_gpus
+    )
     return report, sorted_requests
 
 
 def query_mlc_server_metrics(host: str, port: int):
     """Try to get the MLC server metrics whenever it exists."""
     try:
-        r = requests.post(f"http://{host}:{port}/debug/dump_engine_metrics", json={}, timeout=10)
+        r = requests.post(
+            f"http://{host}:{port}/debug/dump_engine_metrics", json={}, timeout=10
+        )
         if r.status_code == 200:
             print(f"MLC server metrics: {r.json()}")
     except Exception:  # pylint: disable=broad-exception-caught

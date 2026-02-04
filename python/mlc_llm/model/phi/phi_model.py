@@ -194,21 +194,25 @@ class PhiMLP(nn.Module):
 class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: PhiConfig):
         self.num_q_heads = config.n_head // config.tensor_parallel_shards
-        assert (
-            config.n_head % config.tensor_parallel_shards == 0
-        ), f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
+        assert config.n_head % config.tensor_parallel_shards == 0, (
+            f"n_head({config.n_head}) must be divisible by tensor_parallel_shards"
+        )
         self.n_head_kv = config.n_head_kv // config.tensor_parallel_shards
-        assert (
-            config.n_head_kv % config.tensor_parallel_shards == 0
-        ), f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
+        assert config.n_head_kv % config.tensor_parallel_shards == 0, (
+            f"n_head({config.n_head_kv}) must be divisible by tensor_parallel_shards"
+        )
         self.head_dim = config.head_dim
         op_size = self.head_dim * (self.num_q_heads + 2 * self.n_head_kv)
         hidden_size = config.n_embd
 
         self.Wqkv = nn.Linear(hidden_size, op_size, bias=True)
-        self.out_proj = nn.Linear(self.num_q_heads * self.head_dim, hidden_size, bias=True)
+        self.out_proj = nn.Linear(
+            self.num_q_heads * self.head_dim, hidden_size, bias=True
+        )
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.n_head_kv
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -217,7 +221,7 @@ class PhiMHA(nn.Module):  # pylint: disable=too-many-instance-attributes
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -248,7 +252,9 @@ class PhiParallelBlock(nn.Module):
                 self.mixer.Wqkv.bias,
                 tp.ShardSingleDim("_shard_qkv_bias", segs=[q, k, v], dim=0),
             )
-            _set(self.mixer.out_proj.weight, tp.ShardSingleDim("_shard_o_weight", dim=1))
+            _set(
+                self.mixer.out_proj.weight, tp.ShardSingleDim("_shard_o_weight", dim=1)
+            )
             _set(self.mlp.fc1.weight, tp.ShardSingleDim("_shard_mlp_fc1_weight", dim=0))
             _set(self.mlp.fc1.bias, tp.ShardSingleDim("_shard_mlp_fc1_bias", dim=0))
             _set(self.mlp.fc2.weight, tp.ShardSingleDim("_shard_mlp_fc2_weight", dim=1))
@@ -256,7 +262,9 @@ class PhiParallelBlock(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         residual = hidden_states
         hidden_states = self.ln(hidden_states)
 
@@ -301,7 +309,9 @@ class PhiModel(nn.Module):
     def __init__(self, config: PhiConfig) -> None:
         super().__init__()
         self.embd = nn.Embedding(config.vocab_size, config.n_embd)
-        self.h = nn.ModuleList([PhiParallelBlock(config) for _ in range(config.n_layer)])
+        self.h = nn.ModuleList(
+            [PhiParallelBlock(config) for _ in range(config.n_layer)]
+        )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         hidden_states = input_embed
@@ -361,7 +371,9 @@ class PhiForCausalLM(nn.Module):
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.lm_head(hidden_states)
 
         if logits.dtype != "float32":
@@ -379,7 +391,10 @@ class PhiForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -437,7 +452,9 @@ class PhiForCausalLM(nn.Module):
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -453,7 +470,9 @@ class PhiForCausalLM(nn.Module):
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -462,7 +481,9 @@ class PhiForCausalLM(nn.Module):
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -470,7 +491,9 @@ class PhiForCausalLM(nn.Module):
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

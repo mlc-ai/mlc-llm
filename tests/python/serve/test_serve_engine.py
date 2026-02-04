@@ -40,7 +40,9 @@ def test_engine_generate(model: str):
     ]
     for rid in range(num_requests):
         print(f"generating for request {rid}")
-        for delta_outputs in engine._generate(prompts[rid], generation_cfg, request_id=str(rid)):
+        for delta_outputs in engine._generate(
+            prompts[rid], generation_cfg, request_id=str(rid)
+        ):
             assert len(delta_outputs) == generation_cfg.n
             for i, delta_output in enumerate(delta_outputs):
                 output_texts[rid][i] += delta_output.delta_text
@@ -73,7 +75,9 @@ def test_chat_completion(model: str):
     num_requests = 2
     max_tokens = 64
     n = 2
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
@@ -118,7 +122,9 @@ def test_chat_completion_non_stream(model: str):
     num_requests = 2
     max_tokens = 64
     n = 2
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     for rid in range(num_requests):
         print(f"chat completion for request {rid}")
@@ -162,7 +168,9 @@ def test_completion(model: str):
     num_requests = 2
     max_tokens = 128
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     for rid in range(num_requests):
         print(f"completion for request {rid}")
@@ -206,7 +214,9 @@ def test_completion_non_stream(model: str):
     num_requests = 2
     max_tokens = 128
     n = 1
-    output_texts: List[List[str]] = [["" for _ in range(n)] for _ in range(num_requests)]
+    output_texts: List[List[str]] = [
+        ["" for _ in range(n)] for _ in range(num_requests)
+    ]
 
     for rid in range(num_requests):
         print(f"completion for request {rid}")

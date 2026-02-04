@@ -76,8 +76,12 @@ class GPTBigCodeMLP(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         super().__init__()
         self.n_inner = config.n_inner // config.tensor_parallel_shards
-        self.c_fc = nn.Linear(in_features=config.n_embd, out_features=self.n_inner, bias=True)
-        self.c_proj = nn.Linear(in_features=self.n_inner, out_features=config.n_embd, bias=True)
+        self.c_fc = nn.Linear(
+            in_features=config.n_embd, out_features=self.n_inner, bias=True
+        )
+        self.c_proj = nn.Linear(
+            in_features=self.n_inner, out_features=config.n_embd, bias=True
+        )
 
     def forward(self, x: Tensor):
         hidden_states = self.c_fc(x)
@@ -92,9 +96,9 @@ class GPTBigCodeAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.head_dim = config.n_embd // config.n_head
         self.num_q_heads = config.n_head // config.tensor_parallel_shards
         self.num_kv_heads = 1
-        assert (
-            config.tensor_parallel_shards == 1
-        ), "GPT bigcode only support tensor parallel shards = 1"
+        assert config.tensor_parallel_shards == 1, (
+            "GPT bigcode only support tensor parallel shards = 1"
+        )
         self.c_attn = nn.Linear(
             in_features=self.n_embd,
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
@@ -121,7 +125,7 @@ class GPTBigCodeAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         # Attention
         output = op.reshape(
             paged_kv_cache.attention_with_fused_qkv(
-                layer_id, qkv, h_q, sm_scale=self.head_dim ** -0.5
+                layer_id, qkv, h_q, sm_scale=self.head_dim**-0.5
             ),
             (b, s, h_q * d),
         )
@@ -143,7 +147,10 @@ class GPTBigCodeBlock(nn.Module):
             q = config.n_head * hd
             k = 1 * hd
             v = 1 * hd
-            _set(self.attn.c_attn, tp.ShardSingleDim("_shard_c_attn", dim=0, segs=[q, k, v]))
+            _set(
+                self.attn.c_attn,
+                tp.ShardSingleDim("_shard_c_attn", dim=0, segs=[q, k, v]),
+            )
             _set(self.attn.c_proj, tp.ShardSingleDim("_shard_c_proj", dim=1))
             _set(self.mlp.c_fc, tp.ShardSingleDim("_shard_mlp_c_fc", dim=0))
             _set(self.mlp.c_proj, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
@@ -151,7 +158,9 @@ class GPTBigCodeBlock(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         out = self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id)
         hidden_states = out + hidden_states
         out = self.mlp(self.ln_2(hidden_states))
@@ -228,7 +237,9 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
@@ -244,7 +255,10 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -320,7 +334,9 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.n_embd], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.n_embd], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

@@ -17,7 +17,11 @@ def get_unsupported_fields(request: RequestProtocol) -> List[str]:
     Return the list of unsupported field names.
     """
     if isinstance(
-        request, (openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest)
+        request,
+        (
+            openai_api_protocol.CompletionRequest,
+            openai_api_protocol.ChatCompletionRequest,
+        ),
     ):
         return openai_api_protocol.openai_api_get_unsupported_fields(request)
     raise RuntimeError("Cannot reach here")
@@ -45,7 +49,9 @@ def openai_api_get_generation_config(request: RequestProtocol) -> Dict[str, Any]
         # exceeding model capability or hit any stop criteria.
         kwargs["max_tokens"] = -1
     if request.stop is not None:
-        kwargs["stop_strs"] = [request.stop] if isinstance(request.stop, str) else request.stop
+        kwargs["stop_strs"] = (
+            [request.stop] if isinstance(request.stop, str) else request.stop
+        )
     if isinstance(request, openai_api_protocol.ChatCompletionRequest):
         kwargs["logprobs"] = request.logprobs
         kwargs["top_logprobs"] = request.top_logprobs
@@ -64,7 +70,11 @@ def get_generation_config(
     """Create the generation config in MLC LLM out from the input request protocol."""
     kwargs: Dict[str, Any]
     if isinstance(
-        request, (openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest)
+        request,
+        (
+            openai_api_protocol.CompletionRequest,
+            openai_api_protocol.ChatCompletionRequest,
+        ),
     ):
         kwargs = openai_api_get_generation_config(request)
     else:
@@ -96,7 +106,7 @@ def check_unsupported_fields(request: RequestProtocol) -> None:
     if len(unsupported_fields) != 0:
         unsupported_fields = [f'"{field}"' for field in unsupported_fields]
         raise error_protocol.BadRequestError(
-            f'Request fields {", ".join(unsupported_fields)} are not supported right now.',
+            f"Request fields {', '.join(unsupported_fields)} are not supported right now.",
         )
 
 
@@ -169,7 +179,9 @@ def convert_prompts_to_data(
     if isinstance(prompts, str):
         return [data.TextData(prompts)]
     if isinstance(prompts[0], int):
-        assert isinstance(prompts, list) and all(isinstance(token_id, int) for token_id in prompts)
+        assert isinstance(prompts, list) and all(
+            isinstance(token_id, int) for token_id in prompts
+        )
         return [data.TokenData(prompts)]  # type: ignore
     return [convert_prompts_to_data(x)[0] for x in prompts]  # type: ignore
 

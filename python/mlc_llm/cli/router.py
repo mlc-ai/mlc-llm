@@ -61,7 +61,8 @@ def main(argv):
         nargs="*",
         type=int,
         default=[1],
-        help="Number of GPUs of each endpoint, separated by space." + ' (default: "%(default)s")',
+        help="Number of GPUs of each endpoint, separated by space."
+        + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--enable-prefix-cache",

@@ -54,8 +54,12 @@ class Gemma2DecoderLayer(nn.Module):
         self.self_attn = Gemma2Attention(config)
         self.mlp = GemmaMLP(config)
         # Gemma RMSNorm adds 1 to the weights. It is already fused in the loader
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, rms_norm_eps, bias=False
+        )
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, rms_norm_eps, bias=False
+        )
         self.pre_feedforward_layernorm = nn.RMSNorm(
             config.hidden_size, -1, rms_norm_eps, bias=False
         )
@@ -72,16 +76,26 @@ class Gemma2DecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         out = self._apply_post_matmul_norm(out, norm=self.post_attention_layernorm)
         hidden_states = out + hidden_states
 
@@ -115,5 +129,8 @@ class Gemma2ForCausalLM(GemmaForCausalLM):  # pylint: disable=too-many-instance-
     def get_logits(self, hidden_states: Tensor):
         logits = super().get_logits(hidden_states)
         if self.final_logit_softcapping is not None:
-            logits = op.tanh(logits / self.final_logit_softcapping) * self.final_logit_softcapping
+            logits = (
+                op.tanh(logits / self.final_logit_softcapping)
+                * self.final_logit_softcapping
+            )
         return logits

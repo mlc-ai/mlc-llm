@@ -50,14 +50,18 @@ def test_engine_system_prompt(engine):
     _, _ = engine.generate(prompts[:4], generation_config)
     metrics = engine.metrics()
     # first 4 prompts are removed and need to prefill again
-    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + sum(input_token_lens[:4])
+    assert metrics["prefill_tokens_sum"] == sum_prefill_tokens + sum(
+        input_token_lens[:4]
+    )
 
 
 def test_engine_multi_round(engine):
     num_requests = 10
     max_tokens = 8
     generation_config = GenerationConfig(temperature=0, max_tokens=max_tokens)
-    input_token_lens = [len(engine.tokenizer.encode(prompt)) for prompt in prompts[:num_requests]]
+    input_token_lens = [
+        len(engine.tokenizer.encode(prompt)) for prompt in prompts[:num_requests]
+    ]
 
     output_texts, _ = engine.generate(prompts[:num_requests], generation_config)
     metrics = engine.metrics()
@@ -119,7 +123,9 @@ def test_engine_spec_multi_round(model: str, small_model: str):
 def test_engine_eagle_multi_round(model: str):
     # Create engine
     small_model = "dist/Eagle-llama2-7b-chat-q0f16-MLC"
-    small_model_lib = "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    small_model_lib = (
+        "dist/Eagle-llama2-7b-chat-q0f16-MLC/Eagle-llama2-7b-chat-q0f16-MLC-cuda.so"
+    )
     engine = SyncMLCEngine(
         model=model,
         mode="server",

@@ -52,7 +52,9 @@ class _LogProgress:  # pylint: disable=too-few-public-methods
     def __init__(self, *args):
         self.args = args
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """A dummy transformation"""
         logger.info(*self.args)
         return mod
@@ -63,12 +65,16 @@ class _DebugDump:  # pylint: disable=too-few-public-methods
     """A dummy compiler pass that does nothing but logging.
     Only enabled when debug_dump is not None"""
 
-    def __init__(self, file_name: str, file_path: Optional[Path], show_meta: bool = False):
+    def __init__(
+        self, file_name: str, file_path: Optional[Path], show_meta: bool = False
+    ):
         self.file_name = file_name
         self.file_path = file_path
         self.show_meta = show_meta
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """A dummy transformation that dumps the module to file"""
         if self.file_path is not None:
             # NOTE: We use debug level here to avoid spamming the console
@@ -100,7 +106,9 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
 
     @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+    def _pipeline(
+        mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext
+    ) -> tvm.ir.IRModule:
         seq = tvm.transform.Sequential(
             [
                 # Phase 0. Add additional information for compilation and remove unused Relax func
@@ -116,7 +124,9 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 AttachSequenceLengthPaddingFactor(target, metadata),
-                tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+                tvm.tir.transform.BindTarget(
+                    tvm.target.Target.current(allow_none=False)
+                ),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),

@@ -128,7 +128,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     num_storage = group_size // num_elem_per_storage * num_group
 
     def _dequantize(w, s, e, i, j):
-        tir_bin_mask = tir.const((2 ** quantize_dtype_bits) - 1, storage_dtype)
+        tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         tir_max_int = tir.const((2 ** (quantize_dtype_bits - 1)) - 1, model_dtype)
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
@@ -140,8 +140,14 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         return x[0, j] if x_leading_dim == 1 else x[e, j]
 
     assert x.shape == [x_leading_dim, in_features] and x.dtype == model_dtype
-    assert w.shape == [local_experts, out_features, num_storage] and w.dtype == storage_dtype
-    assert scale.shape == [local_experts, out_features, num_group] and scale.dtype == model_dtype
+    assert (
+        w.shape == [local_experts, out_features, num_storage]
+        and w.dtype == storage_dtype
+    )
+    assert (
+        scale.shape == [local_experts, out_features, num_group]
+        and scale.dtype == model_dtype
+    )
     assert indptr.shape == [1, experts_per_tok] and indptr.dtype == "int32"
     assert x_leading_dim in [1, experts_per_tok]
 
@@ -219,12 +225,16 @@ def dequantize_float8_gemv(
             w = tir.reinterpret(quantize_dtype, w[e, i, j])
         else:
             assert DataType(storage_dtype).type_code == DataTypeCode.UINT
-            tir_bin_mask = tir.const((2 ** quantize_dtype_bits) - 1, storage_dtype)
+            tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
             w = w[e, i, j // num_elem_per_storage]
-            shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
+            shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(
+                storage_dtype
+            )
             w = tir.reinterpret(
                 quantize_dtype,
-                tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype("uint8"),
+                tir.bitwise_and(tir.shift_right(w, shift), tir_bin_mask).astype(
+                    "uint8"
+                ),
             )
         w = w.astype(model_dtype)
         if s is not None:
@@ -341,9 +351,9 @@ def dequantize_block_scale_float8_gemv(
     assert k % block_size[1] == 0
 
     def _dequantize(w, s, e, i, j):
-        return w[e, i, j].astype(model_dtype) * s[e, i // block_size[0], j // block_size[1]].astype(
-            model_dtype
-        )
+        return w[e, i, j].astype(model_dtype) * s[
+            e, i // block_size[0], j // block_size[1]
+        ].astype(model_dtype)
 
     def load_x(x, e, j):
         return x[0, j] if x_leading_dim == 1 else x[e, j]
@@ -353,7 +363,8 @@ def dequantize_block_scale_float8_gemv(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, k), quantize_dtype),
         w_scale: T.Buffer(
-            (local_experts, out_features // block_size[0], k // block_size[1]), "float32"
+            (local_experts, out_features // block_size[0], k // block_size[1]),
+            "float32",
         ),
         expert_indices: T.Buffer((1, experts_per_tok), "int32"),
         o: T.Buffer((experts_per_tok, out_features), out_dtype),
@@ -467,7 +478,9 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                         # fetch current tile position
                         e: T.int32 = cur_e[0]  # type: ignore[no-redef]
                         num_tiles: T.int32 = tile_id[0] - sum[0]
-                        m_offset: T.int32 = BLK_M * T.floordiv(num_tiles, tiles_per_row) + row[0]
+                        m_offset: T.int32 = (
+                            BLK_M * T.floordiv(num_tiles, tiles_per_row) + row[0]
+                        )
                         n_offset: T.int32 = BLK_N * T.floormod(num_tiles, tiles_per_row)
                         with T.sblock("gemm"):
                             T.reads(
@@ -475,10 +488,17 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                 X[m_offset : m_offset + BLK_M, :],
                                 W[e, n_offset : n_offset + BLK_N, :],
                             )
-                            T.writes(O[m_offset : m_offset + BLK_M, n_offset : n_offset + BLK_N])
+                            T.writes(
+                                O[
+                                    m_offset : m_offset + BLK_M,
+                                    n_offset : n_offset + BLK_N,
+                                ]
+                            )
                             X_tile = T.alloc_buffer((BLK_M, K), dtype, scope="shared")
                             W_tile = T.alloc_buffer((BLK_N, K), dtype, scope="shared")
-                            O_tile = T.alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
+                            O_tile = T.alloc_buffer(
+                                (BLK_M, BLK_N), dtype, scope="local"
+                            )
                             for a0, a1 in T.grid(BLK_M, K):
                                 with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
@@ -681,10 +701,21 @@ def dequantize_group_gemm(
                                 w[e, n_offset : n_offset + BLK_N, :],
                                 scale[e, n_offset : n_offset + BLK_N, :],
                             )
-                            T.writes(O[m_offset : m_offset + BLK_M, n_offset : n_offset + BLK_N])
-                            X_tile = T.alloc_buffer((BLK_M, K), model_dtype, scope="shared")
-                            W_tile = T.alloc_buffer((BLK_N, K), model_dtype, scope="shared")
-                            O_tile = T.alloc_buffer((BLK_M, BLK_N), "float32", scope="local")
+                            T.writes(
+                                O[
+                                    m_offset : m_offset + BLK_M,
+                                    n_offset : n_offset + BLK_N,
+                                ]
+                            )
+                            X_tile = T.alloc_buffer(
+                                (BLK_M, K), model_dtype, scope="shared"
+                            )
+                            W_tile = T.alloc_buffer(
+                                (BLK_N, K), model_dtype, scope="shared"
+                            )
+                            O_tile = T.alloc_buffer(
+                                (BLK_M, BLK_N), "float32", scope="local"
+                            )
                             for a0, a1 in T.grid(BLK_M, K):
                                 with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])

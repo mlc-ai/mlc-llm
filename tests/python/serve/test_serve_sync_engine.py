@@ -177,19 +177,25 @@ def test_engine_continuous_batching_1(model: str):
     for request in requests:
         engine.add_request(request)
 
-    num_steps = num_requests + max(request.generation_config.max_tokens for request in requests) - 1
+    num_steps = (
+        num_requests
+        + max(request.generation_config.max_tokens for request in requests)
+        - 1
+    )
     # Run steps
     for step in range(num_steps):
         timer.step()
         assert timer.timer == step
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
-        assert (
-            fin_time == request.generation_config.max_tokens - 1
-        ), f"finish time = {fin_time}, max tokens = {request.generation_config.max_tokens - 1}"
+        assert fin_time == request.generation_config.max_tokens - 1, (
+            f"finish time = {fin_time}, max tokens = {request.generation_config.max_tokens - 1}"
+        )
 
 
 @require_test_model("Llama-2-7b-chat-hf-q0f16-MLC")
@@ -265,7 +271,9 @@ def test_engine_continuous_batching_2(model: str):
         assert timer.timer == step
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         if fin_time < num_requests + max_tokens - 2:
             print(f"Request {req_id} ends early on the stop token")
@@ -354,7 +362,9 @@ def test_engine_continuous_batching_3(model: str):
 
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Finish time: {fin_time}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
@@ -459,12 +469,14 @@ def test_engine_hybrid_prefill(model: str):
         assert timer.timer == step + num_requests
         engine.step()
 
-    for req_id, (request, output, fin_time) in enumerate(zip(requests, outputs, finish_time)):
+    for req_id, (request, output, fin_time) in enumerate(
+        zip(requests, outputs, finish_time)
+    ):
         print(f"Prompt {req_id}: {request.inputs[0]}")
         print(f"Output {req_id}:{engine.tokenizer.decode(output)}\n")
-        assert (
-            fin_time == req_id + request.generation_config.max_tokens - 1
-        ), f"finish time = {fin_time}, max tokens = {req_id + request.generation_config.max_tokens - 1}"
+        assert fin_time == req_id + request.generation_config.max_tokens - 1, (
+            f"finish time = {fin_time}, max tokens = {req_id + request.generation_config.max_tokens - 1}"
+        )
 
 
 if __name__ == "__main__":

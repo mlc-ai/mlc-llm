@@ -94,26 +94,36 @@ def generate_metrics_summary(
     report["total_input_tokens"] = total_input_tokens
     report["total_output_tokens"] = total_output_tokens
     report["input_token_throughput"] = total_input_tokens / duration
-    report["input_token_throughput_per_gpu"] = report["input_token_throughput"] / num_gpus
+    report["input_token_throughput_per_gpu"] = (
+        report["input_token_throughput"] / num_gpus
+    )
     report["output_token_throughput"] = total_output_tokens / duration
-    report["output_token_throughput_per_gpu"] = report["output_token_throughput"] / num_gpus
+    report["output_token_throughput_per_gpu"] = (
+        report["output_token_throughput"] / num_gpus
+    )
 
     # Generate the server metrics statistics
-    server_metrics = [metric.server_metrics for metric in request_metrics if metric.server_metrics]
+    server_metrics = [
+        metric.server_metrics for metric in request_metrics if metric.server_metrics
+    ]
     server_report = _compute_metrics_statistics(server_metrics)
     if server_report is not None and len(server_report) > 0:
         report["server_metrics"] = server_report
 
     report = {
         "exec_feature": (
-            request_records[0].metrics.exec_feature if num_completed_requests > 0 else None
+            request_records[0].metrics.exec_feature
+            if num_completed_requests > 0
+            else None
         ),
         **report,
     }
     return report
 
 
-def _compute_metrics_statistics(metrics: List[Union[Metrics, ServerMetrics]]) -> Dict[str, Any]:
+def _compute_metrics_statistics(
+    metrics: List[Union[Metrics, ServerMetrics]],
+) -> Dict[str, Any]:
     """
     Compute the statistics of the metrics.
 
@@ -133,14 +143,22 @@ def _compute_metrics_statistics(metrics: List[Union[Metrics, ServerMetrics]]) ->
     report: Dict = {}
     df = pd.DataFrame([metric.model_dump() for metric in metrics])
     for key, _ in metrics[0].model_fields.items():
-        if key in ["success", "start_time", "finish_time", "server_metrics", "exec_feature"]:
+        if key in [
+            "success",
+            "start_time",
+            "finish_time",
+            "server_metrics",
+            "exec_feature",
+        ]:
             continue
         if key in df.columns:
             series = df[key].dropna()
             report[key] = {
                 "quantiles": {
                     f"p{int(q * 100)}": v
-                    for q, v in series.quantile([0.25, 0.5, 0.75, 0.9, 0.95, 0.99]).items()
+                    for q, v in series.quantile(
+                        [0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
+                    ).items()
                 },
                 "mean": series.mean(),
                 "min": series.min(),

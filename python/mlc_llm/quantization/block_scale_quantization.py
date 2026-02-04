@@ -72,7 +72,9 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
         weight_block_size = model.weight_block_size
 
         class _Mutator(nn.Mutator):
-            def __init__(self, config: BlockScaleQuantize, quant_map: QuantizeMapping) -> None:
+            def __init__(
+                self, config: BlockScaleQuantize, quant_map: QuantizeMapping
+            ) -> None:
                 super().__init__()
                 self.config = config
                 self.quant_map = quant_map
@@ -138,7 +140,9 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
                     )
                     if w_uk_shard_strategy is not None:
                         assert w_uk_shard_strategy.segs is None
-                        apply_sharding(w_uk_shard_strategy, w_uk_shard_strategy.name, node.w_uk)
+                        apply_sharding(
+                            w_uk_shard_strategy, w_uk_shard_strategy.name, node.w_uk
+                        )
                         apply_sharding(
                             w_uk_shard_strategy,
                             f"{w_uk_shard_strategy.name}_scale_inv",
@@ -146,7 +150,9 @@ class BlockScaleQuantize:  # pylint: disable=too-many-instance-attributes
                         )
                     if w_uv_shard_strategy is not None:
                         assert w_uv_shard_strategy.segs is None
-                        apply_sharding(w_uv_shard_strategy, w_uv_shard_strategy.name, node.w_uv)
+                        apply_sharding(
+                            w_uv_shard_strategy, w_uv_shard_strategy.name, node.w_uv
+                        )
                         apply_sharding(
                             w_uv_shard_strategy,
                             f"{w_uv_shard_strategy.name}_scale_inv",
@@ -206,13 +212,17 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
         self.weight_dtype = weight_dtype
         self.block_size = block_size
         if bias:
-            self.bias = nn.Parameter((out_features,), dtype if out_dtype is None else out_dtype)
+            self.bias = nn.Parameter(
+                (out_features,), dtype if out_dtype is None else out_dtype
+            )
         else:
             self.bias = None
 
     @staticmethod
     def from_linear(
-        src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
+        src: nn.Linear,
+        config: BlockScaleQuantize,
+        weight_block_size: Optional[Tuple[int, int]],
     ) -> "BlockScaleQuantizeLinear":
         """
         Converts a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinear
@@ -251,7 +261,9 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
             apply_sharding(shard, shard.name, quantized_linear.weight)
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
-            apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
+            apply_sharding(
+                shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv
+            )
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:
@@ -356,7 +368,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
 
     @staticmethod
     def from_linear(
-        src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
+        src: nn.Linear,
+        config: BlockScaleQuantize,
+        weight_block_size: Optional[Tuple[int, int]],
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
         Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
@@ -395,9 +409,13 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             apply_sharding(shard, shard.name, quantized_linear.weight)
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
-            apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
             apply_sharding(
-                shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale
+                shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv
+            )
+            apply_sharding(
+                shard,
+                f"{shard.name}_activation_scale",
+                quantized_linear.activation_scale,
             )
         return quantized_linear
 
@@ -468,7 +486,9 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
         self.num_local_experts = num_local_experts
         self.in_features = in_features
         self.out_features = out_features
-        self.weight = nn.Parameter((num_local_experts, out_features, in_features), weight_dtype)
+        self.weight = nn.Parameter(
+            (num_local_experts, out_features, in_features), weight_dtype
+        )
         self.weight_scale_inv = nn.Parameter(
             (
                 num_local_experts,
@@ -520,7 +540,9 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim - 1] for x in shard.segs]
             apply_sharding(
-                shard, f"{shard.name}_scale_inv", quantized_mistral_experts.weight_scale_inv
+                shard,
+                f"{shard.name}_scale_inv",
+                quantized_mistral_experts.weight_scale_inv,
             )
         return quantized_mistral_experts
 
@@ -641,9 +663,9 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
                     idx[-1] * group_size + max_abs_reduce_axis < x.shape[-1],
                     tir.Max(
                         te.abs(
-                            x(*idx[:-1], idx[-1] * group_size + max_abs_reduce_axis).astype(
-                                scale_dtype
-                            )
+                            x(
+                                *idx[:-1], idx[-1] * group_size + max_abs_reduce_axis
+                            ).astype(scale_dtype)
                         ),
                         eps,
                     ),
@@ -665,7 +687,9 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
             shape=x.shape,
             fcompute=lambda *idx: tir.max(
                 tir.min(
-                    x(*idx).astype(scale_dtype) / scale(*idx[:-1], idx[-1] // group_size), fp8_max
+                    x(*idx).astype(scale_dtype)
+                    / scale(*idx[:-1], idx[-1] // group_size),
+                    fp8_max,
                 ),
                 fp8_min,
             ).astype(dtype),
@@ -687,7 +711,9 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
                 )
         return x_quantized, scale
 
-    x_quantized, scale = nn.tensor_expr_op(quantize, name_hint="rowwise_group_quant_fp8", args=[x])
+    x_quantized, scale = nn.tensor_expr_op(
+        quantize, name_hint="rowwise_group_quant_fp8", args=[x]
+    )
     return x_quantized, scale
 
 
@@ -715,7 +741,9 @@ def static_activation_group_quant_fp8(
                 fp8_min,
             ).astype(dtype)
 
-        return te.compute(shape=x.shape, fcompute=fcompute, name="static_activation_group_fp8")
+        return te.compute(
+            shape=x.shape, fcompute=fcompute, name="static_activation_group_fp8"
+        )
 
     quantized = nn.tensor_expr_op(
         quantize,
@@ -784,16 +812,19 @@ def dequantize_float8_groupwise_scaled_gemv(
     assert (k + block_size[1] - 1) // block_size[1] == w_scale.shape[1]
 
     def _dequantize(w, s, i, j):
-        return w[i, j].astype(model_dtype) * s[i // block_size[0], j // block_size[1]].astype(
-            model_dtype
-        )
+        return w[i, j].astype(model_dtype) * s[
+            i // block_size[0], j // block_size[1]
+        ].astype(model_dtype)
 
     @T.prim_func(private=True)
     def _func(
         x: T.Buffer((1, k), model_dtype),  # type: ignore
         w: T.Buffer((n, k), quantize_dtype),  # type: ignore
         w_scale: T.Buffer(  # type: ignore
-            ((n + block_size[0] - 1) // block_size[0], (k + block_size[1] - 1) // block_size[1]),
+            (
+                (n + block_size[0] - 1) // block_size[0],
+                (k + block_size[1] - 1) // block_size[1],
+            ),
             "float32",
         ),
         o: T.Buffer((n,), out_dtype),  # type: ignore

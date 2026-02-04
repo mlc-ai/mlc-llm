@@ -26,7 +26,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     def gen_full_binary_tree(height):
         mask = list()
         pos = list()
-        num_nodes = 2 ** height - 1
+        num_nodes = 2**height - 1
         for i in range(num_nodes):
             if i == 0:
                 mask_0 = [0] * num_nodes
@@ -58,7 +58,7 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         else:
             height = np.random.randint(2, 6)
             res = gen_full_binary_tree(height)
-            num_nodes += 2 ** height - 1
+            num_nodes += 2**height - 1
         m_list.append(res[0])
         mn_list.append(res[0] ** 2)
         mask_list.extend(res[1])
@@ -113,7 +113,9 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
     lse_tvm = tvm.runtime.tensor(lse, dev)
 
     target = tvm.target.Target("cuda")
-    kernel = tree_attn(h_kv=h_kv, h_q=h_q, d=d, dtype="float16", rope_scaling={}, target=target)
+    kernel = tree_attn(
+        h_kv=h_kv, h_q=h_q, d=d, dtype="float16", rope_scaling={}, target=target
+    )
     mod = tvm.build(kernel, target=target)
     mod(
         q_tvm,
@@ -160,7 +162,9 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
         def rope(buffer, offset, rotary_dim, theta, scale, dtype):
             result = buffer.copy()
             for l, h, d in np.ndindex(buffer.shape):
-                cos_freq, sin_freq = rope_freq(offset[l] * scale, d, rotary_dim, theta, dtype)
+                cos_freq, sin_freq = rope_freq(
+                    offset[l] * scale, d, rotary_dim, theta, dtype
+                )
                 cos = cos_freq * buffer[l, h, d]
                 sin = sin_freq * (
                     -buffer[l, h, d + rotary_dim // 2]
@@ -179,7 +183,9 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
             q_i = q[q_base : q_base + num_nodes]  # (num_nodes, h_q, d)
             k_i = k[kv_base : kv_base + num_nodes]  # (num_nodes, h_kv, d)
             v_i = v[kv_base : kv_base + num_nodes]  # (num_nodes, h_kv, d)
-            mask_i = mask[base : base + num_nodes * num_nodes].reshape(num_nodes, num_nodes)
+            mask_i = mask[base : base + num_nodes * num_nodes].reshape(
+                num_nodes, num_nodes
+            )
 
             if rotary_mode == 1:
                 q_i = rope(q_i, q_pos, d, rotary_theta, rotary_scale, q_i.dtype)
@@ -206,7 +212,11 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
             # print("v_reshape:", v_reshape.shape)
 
             # qk: (h_q, num_nodes, num_nodes)
-            qk = np.matmul(q_reshape, k_reshape) * attn_score_scaling_factor / math.sqrt(float(d))
+            qk = (
+                np.matmul(q_reshape, k_reshape)
+                * attn_score_scaling_factor
+                / math.sqrt(float(d))
+            )
             # softmax(qk, axis=-1), numerical stability
             qk[:, mask_i == 0] = -np.inf
             qk_max = np.max(qk, axis=-1, keepdims=True)
@@ -214,7 +224,9 @@ def test_tree_attn(nbatch, h_q, h_kv, d, rotary_mode):
             qk = qk / np.sum(qk, axis=-1, keepdims=True)
 
             # attention
-            output_i = np.matmul(qk, v_reshape).transpose(1, 0, 2)  # (num_nodes, h_q, d)
+            output_i = np.matmul(qk, v_reshape).transpose(
+                1, 0, 2
+            )  # (num_nodes, h_q, d)
             # print(output_i)
 
             tvm.testing.assert_allclose(

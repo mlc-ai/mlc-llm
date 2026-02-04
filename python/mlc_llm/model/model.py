@@ -57,7 +57,9 @@ a class method `from_file` with the following signature:
 """
 
 FuncGetExternMap = Callable[[ModelConfig, Quantization], ExternMapping]
-FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]]
+FuncQuantization = Callable[
+    [ModelConfig, Quantization], Tuple[nn.Module, QuantizeMapping]
+]
 
 
 @dataclasses.dataclass

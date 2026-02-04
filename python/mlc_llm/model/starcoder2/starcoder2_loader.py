@@ -13,7 +13,9 @@ from mlc_llm.quantization import Quantization
 from .starcoder2_model import Starcoder2Config, Starcoder2ForCausalLM
 
 
-def huggingface(model_config: Starcoder2Config, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: Starcoder2Config, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -80,7 +82,9 @@ def huggingface(model_config: Starcoder2Config, quantization: Quantization) -> E
                     f"{attn}.v_proj.bias",
                 ],
                 functools.partial(
-                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
+                    lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(
+                        dtype
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )

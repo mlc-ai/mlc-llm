@@ -28,7 +28,9 @@ async def request_models() -> ListResponse:
     API reference: https://platform.openai.com/docs/api-reference/models
     """
     server_context: ServerContext = ServerContext.current()
-    return ListResponse(data=[ModelResponse(id=model) for model in server_context.get_model_list()])
+    return ListResponse(
+        data=[ModelResponse(id=model) for model in server_context.get_model_list()]
+    )
 
 
 ################ v1/completions ################
@@ -50,11 +52,16 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
-    request_id = request.user if request.user is not None else f"cmpl-{engine_utils.random_uuid()}"
+    request_id = (
+        request.user
+        if request.user is not None
+        else f"cmpl-{engine_utils.random_uuid()}"
+    )
 
     # Streaming response.
     if request.stream:
@@ -62,7 +69,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -88,7 +97,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
 
     async for response in async_engine._handle_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -108,7 +119,10 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
             continue
         for choice in response.choices:
             output_texts[choice.index] += choice.text
-            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+            if (
+                choice.finish_reason is not None
+                and finish_reasons[choice.index] is None
+            ):
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 if logprob_results[choice.index] is None:
@@ -118,7 +132,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
                         choice.logprobs.token_logprobs
                     )
                     logprob_results[choice.index].tokens.extend(choice.logprobs.tokens)
-                    logprob_results[choice.index].top_logprobs.extend(choice.logprobs.top_logprobs)
+                    logprob_results[choice.index].top_logprobs.extend(
+                        choice.logprobs.top_logprobs
+                    )
 
     return engine_base.wrap_completion_response(
         request_id=request_id,
@@ -151,12 +167,15 @@ async def request_chat_completion(
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
     request_id = (
-        request.user if request.user is not None else f"chatcmpl-{engine_utils.random_uuid()}"
+        request.user
+        if request.user is not None
+        else f"chatcmpl-{engine_utils.random_uuid()}"
     )
 
     # Streaming response.
@@ -165,7 +184,9 @@ async def request_chat_completion(
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_chat_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -193,7 +214,9 @@ async def request_chat_completion(
     )
 
     async for response in async_engine._handle_chat_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -214,7 +237,10 @@ async def request_chat_completion(
         for choice in response.choices:
             assert isinstance(choice.delta.content, str)
             output_texts[choice.index] += choice.delta.content
-            if choice.finish_reason is not None and finish_reasons[choice.index] is None:
+            if (
+                choice.finish_reason is not None
+                and finish_reasons[choice.index] is None
+            ):
                 finish_reasons[choice.index] = choice.finish_reason
             if choice.logprobs is not None:
                 assert logprob_results is not None

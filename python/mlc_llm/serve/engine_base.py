@@ -174,7 +174,9 @@ def _process_model_args(
     return model_args, config_file_paths, conversation
 
 
-def _print_engine_mode_logging_msg(mode: Literal["local", "interactive", "server"]) -> None:
+def _print_engine_mode_logging_msg(
+    mode: Literal["local", "interactive", "server"],
+) -> None:
     """Print the logging info for engine mode selection."""
     if mode == "local":
         logger.info(
@@ -350,7 +352,9 @@ class AsyncRequestStream:
         self._queue = asyncio.Queue()
         self._finished = False
 
-    def push(self, item_or_exception: Union[List[CallbackStreamOutput], Exception]) -> None:
+    def push(
+        self, item_or_exception: Union[List[CallbackStreamOutput], Exception]
+    ) -> None:
         """Push a new token to the stream."""
         if self._finished:
             # No new item is expected after finish.
@@ -464,7 +468,9 @@ class EngineState:
         if self.async_event_loop is None:
             self.async_event_loop = asyncio.get_event_loop()
 
-    def _async_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+    def _async_request_stream_callback(
+        self, delta_outputs: List[data.RequestStreamOutput]
+    ) -> None:
         """The request stream callback function for AsyncMLCEngine to stream back
         the request generation results.
 
@@ -506,7 +512,9 @@ class EngineState:
                     delta_text="",
                     delta_logprob_json_strs=None,
                     finish_reason=None,
-                    request_final_usage_json_str=stream_outputs[0].request_final_usage_json_str,
+                    request_final_usage_json_str=stream_outputs[
+                        0
+                    ].request_final_usage_json_str,
                 )
                 stream.push([output])
                 stream.finish()
@@ -538,7 +546,9 @@ class EngineState:
             stream.push(outputs)
             self.record_event(request_id, event="finish callback")
 
-    def _sync_request_stream_callback(self, delta_outputs: List[data.RequestStreamOutput]) -> None:
+    def _sync_request_stream_callback(
+        self, delta_outputs: List[data.RequestStreamOutput]
+    ) -> None:
         """The request stream callback function for MLCEngine to stream back
         the request generation results.
         """
@@ -602,7 +612,9 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
 
         # - Initialize engine state and engine.
         self.state = EngineState(enable_tracing)
-        module = tvm.get_global_func("mlc.serve.create_threaded_engine", allow_missing=False)()
+        module = tvm.get_global_func(
+            "mlc.serve.create_threaded_engine", allow_missing=False
+        )()
         self._ffi = {
             key: module[key]
             for key in [
@@ -630,7 +642,9 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         background_stream_back_loop = self._ffi["run_background_stream_back_loop"]
 
         # - Create the background engine-driving thread and start the loop.
-        self._background_loop_thread: threading.Thread = threading.Thread(target=background_loop)
+        self._background_loop_thread: threading.Thread = threading.Thread(
+            target=background_loop
+        )
         self._background_stream_back_loop_thread: threading.Thread = threading.Thread(
             target=background_stream_back_loop
         )
@@ -643,7 +657,9 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         engine_config.additional_models = model_args[1:]  # type: ignore
         engine_config.mode = mode
         self._ffi["reload"](engine_config.asjson())
-        self.engine_config = EngineConfig.from_json(self._ffi["get_complete_engine_config"]())
+        self.engine_config = EngineConfig.from_json(
+            self._ffi["get_complete_engine_config"]()
+        )
         self.max_input_sequence_length = min(
             self.engine_config.max_single_sequence_length,
             self.engine_config.max_total_sequence_length,
@@ -762,7 +778,9 @@ def process_chat_completion_request(  # pylint: disable=too-many-arguments
             prompts[0] = conv_template.system_prefix_token_ids + prompts[0]
         else:
             prompts.insert(0, conv_template.system_prefix_token_ids)
-    prompt_length = engine_utils.check_and_get_prompts_length(prompts, max_input_sequence_length)
+    prompt_length = engine_utils.check_and_get_prompts_length(
+        prompts, max_input_sequence_length
+    )
 
     # Process generation config. Create request id.
     generation_cfg = engine_utils.get_generation_config(
@@ -889,7 +907,9 @@ def process_completion_request(  # pylint: disable=too-many-arguments
     tokenizer: Tokenizer,
     max_input_sequence_length: int,
     conv_template: Conversation,
-) -> Tuple[List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]]:
+) -> Tuple[
+    List[int], GenerationConfig, int, Optional[openai_api_protocol.CompletionResponse]
+]:
     """Process the given CompletionRequest, apply request validity
     checks, and return the processed prompts, and other info.
 
@@ -936,7 +956,9 @@ def process_completion_request(  # pylint: disable=too-many-arguments
     engine_state.record_event(request_id, event="start tokenization")
     prompts = engine_utils.process_prompts(request.prompt, tokenizer.encode)
     engine_state.record_event(request_id, event="finish tokenization")
-    prompt_length = engine_utils.check_and_get_prompts_length(prompts, max_input_sequence_length)
+    prompt_length = engine_utils.check_and_get_prompts_length(
+        prompts, max_input_sequence_length
+    )
     prompt = prompts[0]
     assert isinstance(prompt, list)
 
@@ -985,7 +1007,9 @@ def get_logprobs_from_delta(
     tokens = []
     top_logprobs = []
     for logprob_json_str in delta_logprob_json_strs:
-        content = openai_api_protocol.LogProbsContent.model_validate_json(logprob_json_str)
+        content = openai_api_protocol.LogProbsContent.model_validate_json(
+            logprob_json_str
+        )
         tokens.append(content.token)
         token_logprobs.append(content.logprob)
         top_logprob_dict = {}
@@ -1179,8 +1203,12 @@ def process_function_call_output(
     Return whether the output has function call, and the list of tool calls.
     """
     n = len(output_texts)
-    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]] = [[] for _ in range(n)]
-    use_function_calling = any(finish_reason == "tool_calls" for finish_reason in finish_reasons)
+    tool_calls_list: List[List[openai_api_protocol.ChatToolCall]] = [
+        [] for _ in range(n)
+    ]
+    use_function_calling = any(
+        finish_reason == "tool_calls" for finish_reason in finish_reasons
+    )
     if use_function_calling:
         for i, output_text in enumerate(output_texts):
             try:
@@ -1225,7 +1253,9 @@ def wrap_chat_completion_response(  # pylint: disable=too-many-arguments
                 index=i,
                 finish_reason=finish_reasons[i],
                 message=(
-                    openai_api_protocol.ChatCompletionMessage(role="assistant", content=output_text)
+                    openai_api_protocol.ChatCompletionMessage(
+                        role="assistant", content=output_text
+                    )
                     if not use_function_calling or finish_reason == "error"
                     else openai_api_protocol.ChatCompletionMessage(
                         role="assistant", tool_calls=tool_calls
@@ -1265,7 +1295,9 @@ def wrap_completion_response(  # pylint: disable=too-many-arguments
                 text=output_text,
                 logprobs=logprob_results[i],
             )
-            for i, (output_text, finish_reason) in enumerate(zip(output_texts, finish_reasons))
+            for i, (output_text, finish_reason) in enumerate(
+                zip(output_texts, finish_reasons)
+            )
         ],
         model=model,
         usage=usage,

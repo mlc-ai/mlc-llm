@@ -72,7 +72,9 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 activation_scheme = quantization_config.get("activation_scheme", "")
                 quant_method = quantization_config.get("quant_method", "")
                 weight_block_size = quantization_config.get("weight_block_size")
-                modules_to_not_convert = quantization_config.get("modules_to_not_convert", [])
+                modules_to_not_convert = quantization_config.get(
+                    "modules_to_not_convert", []
+                )
                 if isinstance(modules_to_not_convert, list):
                     self.modules_to_not_convert = tuple(modules_to_not_convert)
                 if quant_method == "fp8" and activation_scheme == "static":
@@ -109,7 +111,10 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 )
 
         if self.position_embedding_base == 0:
-            if self.rope_parameters is not None and "rope_theta" in self.rope_parameters:
+            if (
+                self.rope_parameters is not None
+                and "rope_theta" in self.rope_parameters
+            ):
                 self.position_embedding_base = self.rope_parameters.pop("rope_theta")
             elif "rope_theta" in self.kwargs:
                 self.position_embedding_base = self.kwargs.pop("rope_theta")
@@ -196,13 +201,17 @@ class Ministral3MLP(nn.Module):
                 f"Cannot split MLP intermediate size {config.intermediate_size} "
                 f"evenly to {config.tensor_parallel_shards} GPUs."
             )
-        self.intermediate_size = config.intermediate_size // config.tensor_parallel_shards
+        self.intermediate_size = (
+            config.intermediate_size // config.tensor_parallel_shards
+        )
         self.gate_up_proj = nn.Linear(
             in_features=config.hidden_size,
             out_features=2 * self.intermediate_size,
             bias=False,
         )
-        self.down_proj = nn.Linear(self.intermediate_size, config.hidden_size, bias=False)
+        self.down_proj = nn.Linear(
+            self.intermediate_size, config.hidden_size, bias=False
+        )
         self.act_fn = ACT2FN[config.hidden_act]
 
     def forward(self, x: Tensor):
@@ -234,7 +243,9 @@ class Ministral3Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             out_features=(self.num_q_heads + 2 * self.num_kv_heads) * self.head_dim,
             bias=False,
         )
-        self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
+        self.o_proj = nn.Linear(
+            self.num_q_heads * self.head_dim, config.hidden_size, bias=False
+        )
 
         self.softmax_scale = self.head_dim ** (-0.5)
         if config.rope_parameters is not None:
@@ -244,7 +255,9 @@ class Ministral3Attention(nn.Module):  # pylint: disable=too-many-instance-attri
                 sm_scale = yarn_get_sm_scale(scaling_factor, mscale_all_dim)
                 self.softmax_scale = self.softmax_scale * sm_scale * sm_scale
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
         d, h_q, h_kv = self.head_dim, self.num_q_heads, self.num_kv_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -267,8 +280,12 @@ class Ministral3DecoderLayer(nn.Module):
         rms_norm_eps = config.rms_norm_eps
         self.self_attn = Ministral3Attention(config)
         self.mlp = Ministral3MLP(config)
-        self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
-        self.post_attention_layernorm = nn.RMSNorm(config.hidden_size, -1, rms_norm_eps, bias=False)
+        self.input_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, rms_norm_eps, bias=False
+        )
+        self.post_attention_layernorm = nn.RMSNorm(
+            config.hidden_size, -1, rms_norm_eps, bias=False
+        )
 
         def _set_tp():
             def _set(layer, hint):
@@ -279,16 +296,26 @@ class Ministral3DecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
-        out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
+    def forward(
+        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int
+    ):
+        out = self.self_attn(
+            self.input_layernorm(hidden_states), paged_kv_cache, layer_id
+        )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.mlp(self.post_attention_layernorm(hidden_states))
         hidden_states = self._apply_residual(out, residual=hidden_states)
@@ -395,7 +422,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
             return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = op.tensor_expr_op(
+            _index, name_hint="index", args=[hidden_states]
+        )
 
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
@@ -419,7 +448,10 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -471,7 +503,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embed": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -487,7 +521,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -496,7 +532,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    ["batch_size", 1, self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -504,7 +542,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "input_embeds": nn.spec.Tensor(
+                    [1, "seq_len", self.hidden_size], self.dtype
+                ),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",

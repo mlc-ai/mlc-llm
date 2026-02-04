@@ -13,7 +13,9 @@ class AttachAllocEmbeddingTensorFunc:  # pylint: disable=too-few-public-methods
     def __init__(self, metadata: Dict[str, Any]):
         self.metadata = metadata
 
-    def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+    def transform_module(
+        self, mod: IRModule, _ctx: tvm.transform.PassContext
+    ) -> IRModule:
         """Entrypoint"""
         embed_func = None
         for gv, func in mod.functions_items():
@@ -30,7 +32,9 @@ class AttachAllocEmbeddingTensorFunc:  # pylint: disable=too-few-public-methods
             bb.emit_func_output(
                 bb.emit(
                     relax.op.builtin.alloc_tensor(
-                        relax.ShapeExpr([self.metadata["prefill_chunk_size"], hidden_size]),
+                        relax.ShapeExpr(
+                            [self.metadata["prefill_chunk_size"], hidden_size]
+                        ),
                         dtype,
                         runtime_device_index=0,
                     )

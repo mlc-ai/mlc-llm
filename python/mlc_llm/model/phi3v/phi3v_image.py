@@ -29,7 +29,9 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
             .current()
             .match_cast(
                 image_features._expr,  # pylint: disable=protected-access
-                relax.TensorStructInfo([shape_1, image_features.shape[1]], image_features.dtype),
+                relax.TensorStructInfo(
+                    [shape_1, image_features.shape[1]], image_features.dtype
+                ),
             ),
             "image_features",
         )
@@ -42,7 +44,9 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
             .current()
             .match_cast(
                 hidden_states._expr,  # pylint: disable=protected-access
-                relax.TensorStructInfo([shape_2, hidden_states.shape[1]], hidden_states.dtype),
+                relax.TensorStructInfo(
+                    [shape_2, hidden_states.shape[1]], hidden_states.dtype
+                ),
             ),
             "hidden_states",
         )
@@ -90,10 +94,16 @@ class Phi3ImageEmbedding(Module):
                 ch2: T.int64(),
                 ch3: T.int64(),
             ):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr(
+                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
+                )
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
-                input_tensor_buf = T.match_buffer(input_tensor, (n, c, h, w), dtype=dtype)
-                out_buf = T.match_buffer(output, (n * ch0, c * ch1, h * ch2, w * ch3), dtype=dtype)
+                input_tensor_buf = T.match_buffer(
+                    input_tensor, (n, c, h, w), dtype=dtype
+                )
+                out_buf = T.match_buffer(
+                    output, (n * ch0, c * ch1, h * ch2, w * ch3), dtype=dtype
+                )
 
                 for n_idx in T.thread_binding(n * ch0, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c * ch1, thread="blockIdx.y"):
@@ -119,8 +129,12 @@ class Phi3ImageEmbedding(Module):
     def dyn_concate_dim_2(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
             @T.prim_func
-            def dyn_concate_dim_2_func(input_1: T.handle, input_2: T.handle, output: T.handle):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+            def dyn_concate_dim_2_func(
+                input_1: T.handle, input_2: T.handle, output: T.handle
+            ):
+                T.func_attr(
+                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
+                )
                 n, c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64(), T.int64()
                 input_1_buf = T.match_buffer(input_1, (n, c, h1, w), dtype=dtype)
                 input_2_buf = T.match_buffer(input_2, (n, c, h2, w), dtype=dtype)
@@ -158,8 +172,12 @@ class Phi3ImageEmbedding(Module):
     def dyn_concate_dim_1(self, input_1, input_2) -> Tensor:
         def create_dyn_concate_func(dtype):
             @T.prim_func
-            def dyn_concate_dim_1_func(input_1: T.handle, input_2: T.handle, output: T.handle):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+            def dyn_concate_dim_1_func(
+                input_1: T.handle, input_2: T.handle, output: T.handle
+            ):
+                T.func_attr(
+                    {"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1}
+                )
                 c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64()
                 input_1_buf = T.match_buffer(input_1, (c, h1, w), dtype=dtype)
                 input_2_buf = T.match_buffer(input_2, (c, h2, w), dtype=dtype)
@@ -171,9 +189,13 @@ class Phi3ImageEmbedding(Module):
                             T.reads(input_1_buf[c_idx, h_idx, w_idx])
                             T.writes(out_buf[c_idx, h_idx, w_idx])
                             if h_idx < h1:
-                                out_buf[c_idx, h_idx, w_idx] = input_1_buf[c_idx, h_idx, w_idx]
+                                out_buf[c_idx, h_idx, w_idx] = input_1_buf[
+                                    c_idx, h_idx, w_idx
+                                ]
                             else:
-                                out_buf[c_idx, h_idx, w_idx] = input_2_buf[c_idx, h_idx - h1, w_idx]
+                                out_buf[c_idx, h_idx, w_idx] = input_2_buf[
+                                    c_idx, h_idx - h1, w_idx
+                                ]
 
             return dyn_concate_dim_1_func
 
@@ -191,14 +213,18 @@ class Phi3ImageEmbedding(Module):
 
     def get_img_features(self, img_embeds: Tensor) -> Tensor:
         img_processor_output = self.img_processor(img_embeds)
-        patch_feature = nn.op.split(img_processor_output, indices_or_sections=[1], axis=1)
+        patch_feature = nn.op.split(
+            img_processor_output, indices_or_sections=[1], axis=1
+        )
         return patch_feature[1]
 
     def reshape_hd_patches_2x2merge(self, image_features, h_crop, w_crop):
         N, L, C = image_features.shape
         num_images = 1
-        H = int(L ** 0.5)
-        image_features = nn.op.reshape(image_features, ([N, H, H, C]))  # N, 24, 24, 1024
+        H = int(L**0.5)
+        image_features = nn.op.reshape(
+            image_features, ([N, H, H, C])
+        )  # N, 24, 24, 1024
         image_features = nn.op.reshape(
             image_features, ([N, H // 2, 2, H // 2, 2, C])
         )  # N, 12, 2, 12, 2, 1024
@@ -273,7 +299,9 @@ class Phi3ImageEmbedding(Module):
         temp_sub_GN = self.dyn_repeat_4d_tensor(
             self.sub_GN, T.int64(1), T.int64(h), T.int64(1), T.int64(1)
         )
-        image_features_hd_newline = self.dyn_concate_dim_2(image_features_hd, temp_sub_GN)
+        image_features_hd_newline = self.dyn_concate_dim_2(
+            image_features_hd, temp_sub_GN
+        )
         image_features_hd_newline = nn.op.reshape(
             image_features_hd_newline, ([num_images, -1, hid_dim])
         )
@@ -285,17 +313,27 @@ class Phi3ImageEmbedding(Module):
         img_features = nn.op.split(img_features, indices_or_sections=[1], axis=0)
 
         global_image_features = img_features[0]
-        global_image_features_hd = self.reshape_hd_patches_2x2merge(global_image_features, 1, 1)
-        global_image_features_hd_newline = self.add_image_newline(global_image_features_hd)
+        global_image_features_hd = self.reshape_hd_patches_2x2merge(
+            global_image_features, 1, 1
+        )
+        global_image_features_hd_newline = self.add_image_newline(
+            global_image_features_hd
+        )
 
         sub_image_features = img_features[1]
-        sub_image_features_hd = self.reshape_hd_patches_2x2merge(sub_image_features, h_crop, w_crop)
+        sub_image_features_hd = self.reshape_hd_patches_2x2merge(
+            sub_image_features, h_crop, w_crop
+        )
         sub_image_features_hd_newline = self.add_image_newline(sub_image_features_hd)
 
         global_image_features_hd = nn.op.squeeze(global_image_features_hd_newline, 0)
 
-        combined_image = self.dyn_concate_dim_1(sub_image_features_hd_newline, self.glb_GN)
-        combined_image = self.dyn_concate_dim_1(combined_image, global_image_features_hd_newline)
+        combined_image = self.dyn_concate_dim_1(
+            sub_image_features_hd_newline, self.glb_GN
+        )
+        combined_image = self.dyn_concate_dim_1(
+            combined_image, global_image_features_hd_newline
+        )
         combined_image = nn.op.squeeze(combined_image, 0)
 
         new_s7 = tir.Var("new_s7", "int64")
@@ -305,7 +343,9 @@ class Phi3ImageEmbedding(Module):
             .current()
             .match_cast(
                 combined_image._expr,  # pylint: disable=protected-access
-                relax.TensorStructInfo([new_s7, combined_image.shape[1]], combined_image.dtype),
+                relax.TensorStructInfo(
+                    [new_s7, combined_image.shape[1]], combined_image.dtype
+                ),
             ),
             "combined_image",
         )
