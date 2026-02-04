@@ -87,7 +87,7 @@ class ImageProcessor(Module):
             else:
                 assert False, "not supported resize parameter"
 
-        (new_h, new_w) = get_output_image_size(image)
+        new_h, new_w = get_output_image_size(image)
         out = op.interpolate(image, (new_h, new_w), data_layout="NCHW", mode="linear")
         return out
 

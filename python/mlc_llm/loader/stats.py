@@ -62,14 +62,14 @@ class Stats:
 
     def mem_add(self, nbytes: int):
         """Add the memory usage by the given number of bytes."""
-        mem_gb = float(nbytes) / float(1024 ** 3)
+        mem_gb = float(nbytes) / float(1024**3)
         self.current_memory_gb += mem_gb
         self.total_memory_gb += mem_gb
         self.max_memory_gb = max(self.max_memory_gb, self.current_memory_gb)
 
     def mem_rm(self, nbytes: int):
         """Remove the memory usage by the given number of bytes."""
-        mem_gb = float(nbytes) / float(1024 ** 3)
+        mem_gb = float(nbytes) / float(1024**3)
         self.current_memory_gb -= mem_gb
 
     def log_time_info(self, weight_format: str):

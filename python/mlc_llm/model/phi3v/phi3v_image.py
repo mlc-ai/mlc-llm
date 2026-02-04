@@ -197,7 +197,7 @@ class Phi3ImageEmbedding(Module):
     def reshape_hd_patches_2x2merge(self, image_features, h_crop, w_crop):
         N, L, C = image_features.shape
         num_images = 1
-        H = int(L ** 0.5)
+        H = int(L**0.5)
         image_features = nn.op.reshape(image_features, ([N, H, H, C]))  # N, 24, 24, 1024
         image_features = nn.op.reshape(
             image_features, ([N, H // 2, 2, H // 2, 2, C])

@@ -56,7 +56,7 @@ def test_batch_spec_verify(nbatch, vocab, plist):
     def gen_full_binary_tree(height, base):
         token_tree_first_child = list()
         token_tree_next_sibling = list()
-        num_nodes = 2 ** height - 1
+        num_nodes = 2**height - 1
         for i in range(num_nodes):
             token_tree_first_child.append(base + i * 2 + 1 if i * 2 + 1 < num_nodes else -1)
             token_tree_next_sibling.append(base + i * 2 + 2 if i * 2 + 2 < num_nodes else -1)
@@ -77,7 +77,7 @@ def test_batch_spec_verify(nbatch, vocab, plist):
         else:
             height = np.random.randint(3, 5)
             res = gen_full_binary_tree(height, num_nodes)
-            num_nodes += 2 ** height - 1
+            num_nodes += 2**height - 1
         token_tree_first_child.extend(res[0])
         token_tree_next_sibling.extend(res[1])
         token_tree_parent_ptr.append(res[2])

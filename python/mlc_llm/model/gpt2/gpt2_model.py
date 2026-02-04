@@ -117,7 +117,7 @@ class GPT2Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
                 layer_id,
                 qkv,
                 self.num_heads,
-                sm_scale=attn_score_scaling_factor * (self.head_dim ** -0.5),
+                sm_scale=attn_score_scaling_factor * (self.head_dim**-0.5),
             ),
             (b, s, h * d),
         )

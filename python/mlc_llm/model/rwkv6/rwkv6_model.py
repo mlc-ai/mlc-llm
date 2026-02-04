@@ -266,13 +266,10 @@ class RWKV6_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         v = op.reshape(self.value(xv), (B, T, N, H))
         g = op.silu(self.gate(xg))
 
-        w = (
-            op.reshape(self.time_decay, (1, N, H)).astype("float32")
-            + op.reshape(
-                op.matmul(op.tanh(op.matmul(xw, self.time_decay_w1)), self.time_decay_w2),
-                (B, T, N, H),
-            ).astype("float32")
-        )
+        w = op.reshape(self.time_decay, (1, N, H)).astype("float32") + op.reshape(
+            op.matmul(op.tanh(op.matmul(xw, self.time_decay_w1)), self.time_decay_w2),
+            (B, T, N, H),
+        ).astype("float32")
         w = op.exp(op.negative(op.exp(w)))
         # w = op.reshape(w, [B, T, N, H])
 

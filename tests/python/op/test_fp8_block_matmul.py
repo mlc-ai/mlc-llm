@@ -681,7 +681,10 @@ def blockwise_matmul(
     )
     for j in range(w_scale_torch.shape[0]):
         for k in range(w_scale_torch.shape[1]):
-            o_torch[:, j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),] += (
+            o_torch[
+                :,
+                j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),
+            ] += (
                 torch.matmul(
                     x_fp8_torch[
                         :,
@@ -780,7 +783,10 @@ def blockwise_bmm(
     )
     for j in range(w_scale_torch.shape[1]):
         for k in range(w_scale_torch.shape[2]):
-            o_torch[..., j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),] += (
+            o_torch[
+                ...,
+                j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
+            ] += (
                 torch.bmm(
                     x_fp8_torch[
                         ...,

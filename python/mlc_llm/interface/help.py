@@ -1,8 +1,7 @@
 """Help message for CLI arguments."""
 
 HELP = {
-    "config": (
-        """
+    "config": ("""
 1) Path to a HuggingFace model directory that contains a `config.json` or
 2) Path to `config.json` in HuggingFace format, or
 3) The name of a pre-defined model architecture.
@@ -16,8 +15,7 @@ the non-quantized model weights in PyTorch or SafeTensor format, tokenizer confi
 as well as an optional `generation_config.json` provides additional default configuration for
 text generation.
 Example: https://huggingface.co/codellama/CodeLlama-7b-hf/tree/main.
-"""
-    ).strip(),
+""").strip(),
     "quantization": """
 The quantization mode we use to compile. If unprovided, will infer from `model`.
 """.strip(),

@@ -114,9 +114,7 @@ def test_find_weight_fail():
 
 
 if __name__ == "__main__":
-    test_detect_weight(
-        "huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch"
-    )
+    test_detect_weight("huggingface-torch", "pytorch_model.bin.index.json", "huggingface-torch")
     test_detect_weight(
         "huggingface-safetensor",
         "model.safetensors.index.json",
@@ -132,9 +130,7 @@ if __name__ == "__main__":
         "model.safetensors.index.json",
         "huggingface-safetensor",
     )
-    test_detect_weight_in_config_json(
-        "auto", "pytorch_model.bin.index.json", "huggingface-torch"
-    )
+    test_detect_weight_in_config_json("auto", "pytorch_model.bin.index.json", "huggingface-torch")
     test_detect_weight_in_config_json(
         "auto", "model.safetensors.index.json", "huggingface-safetensor"
     )

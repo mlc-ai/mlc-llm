@@ -128,7 +128,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     num_storage = group_size // num_elem_per_storage * num_group
 
     def _dequantize(w, s, e, i, j):
-        tir_bin_mask = tir.const((2 ** quantize_dtype_bits) - 1, storage_dtype)
+        tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
         tir_max_int = tir.const((2 ** (quantize_dtype_bits - 1)) - 1, model_dtype)
         w = w[e, i, j // num_elem_per_storage]
         s = s[e, i, j // group_size]
@@ -219,7 +219,7 @@ def dequantize_float8_gemv(
             w = tir.reinterpret(quantize_dtype, w[e, i, j])
         else:
             assert DataType(storage_dtype).type_code == DataTypeCode.UINT
-            tir_bin_mask = tir.const((2 ** quantize_dtype_bits) - 1, storage_dtype)
+            tir_bin_mask = tir.const((2**quantize_dtype_bits) - 1, storage_dtype)
             w = w[e, i, j // num_elem_per_storage]
             shift = (j % num_elem_per_storage * quantize_dtype_bits).astype(storage_dtype)
             w = tir.reinterpret(

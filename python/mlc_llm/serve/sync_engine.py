@@ -237,7 +237,7 @@ class SyncMLCEngine:
                 request_id, stream_outputs = delta_output.unpack()
                 rid = int(request_id)
 
-                assert len(stream_outputs) == generation_config[rid].n  # type:ignore
+                assert len(stream_outputs) == generation_config[rid].n  # type: ignore
                 for i, (stream_output, text_streamer) in enumerate(
                     zip(stream_outputs, text_streamers[rid])
                 ):
