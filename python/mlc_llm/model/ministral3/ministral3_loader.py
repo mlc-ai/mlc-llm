@@ -4,12 +4,12 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Optional, Tuple, List, Callable
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
-from mlc_llm.quantization import Quantization, BlockScaleQuantize
+from mlc_llm.quantization import BlockScaleQuantize, Quantization
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 

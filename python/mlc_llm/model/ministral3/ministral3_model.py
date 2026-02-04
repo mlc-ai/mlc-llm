@@ -3,8 +3,8 @@ Implementation for Ministral 3 architecture.
 """
 
 import dataclasses
-from functools import partial
 import math
+from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 from tvm import te, tir
