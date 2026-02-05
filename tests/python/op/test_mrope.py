@@ -83,10 +83,11 @@ def _run_mlc_mrope(
 
         def forward(
             self,
-            q: nn.Tensor,  # pylint: disable=missing-function-docstring
+            q: nn.Tensor,
             k: nn.Tensor,
             pos: nn.Tensor,
         ):
+            """Run MRoPE on test tensors and return rotated query/key outputs."""
             cos, sin = self.rotary(q, pos)
             return apply_multimodal_rotary_pos_emb(q, k, cos, sin, mrope_section)
 

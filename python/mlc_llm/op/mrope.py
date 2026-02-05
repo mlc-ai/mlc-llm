@@ -181,7 +181,6 @@ def _grid_chunk(
         raise ValueError(
             f"Invalid grid shape t={grid_t}, h={grid_h}, w={grid_w} for multimodal positions."
         )
-    grid_size = grid_t * grid_h * grid_w
     time_axis = (np.arange(grid_t, dtype=np.float32) * second_per_grid * tokens_per_second).astype(
         np.int64
     )
@@ -199,7 +198,166 @@ def _find_token_index(tokens: Sequence[int], token_id: int, start: int) -> int:
     return len(tokens)
 
 
-def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-locals
+def _next_chunk_offset(chunks: Sequence[np.ndarray]) -> int:
+    if not chunks:
+        return 0
+    return int(chunks[-1].max()) + 1
+
+
+def _count_vision_items(
+    token_array: np.ndarray,
+    vision_start_token_id: int,
+    image_token_id: int,
+    video_token_id: int,
+) -> Tuple[int, int]:
+    vision_starts = np.where(token_array == vision_start_token_id)[0]
+    valid_starts = vision_starts[vision_starts + 1 < token_array.shape[0]]
+    following_tokens = token_array[valid_starts + 1]
+    image_count = int(np.sum(following_tokens == image_token_id))
+    video_count = int(np.sum(following_tokens == video_token_id))
+    return image_count, video_count
+
+
+def _next_vision_block(
+    tokens: Sequence[int],
+    start: int,
+    meta: VisionPositionMetadata,
+    has_images: bool,
+    has_videos: bool,
+):
+    sentinel = len(tokens) + 1
+    image_end = _find_token_index(tokens, meta.image_token_id, start) if has_images else sentinel
+    video_end = _find_token_index(tokens, meta.video_token_id, start) if has_videos else sentinel
+    if image_end < video_end:
+        return "image", image_end
+    return "video", video_end
+
+
+def _load_grid_for_block(  # pylint: disable=too-many-arguments
+    block_kind: str,
+    image_grid_thw: Optional[np.ndarray],
+    video_grid_thw: Optional[np.ndarray],
+    second_per_grid_ts: Optional[np.ndarray],
+    image_index: int,
+    video_index: int,
+) -> Tuple[int, int, int, float, int, int]:
+    if block_kind == "image":
+        if image_grid_thw is None:
+            raise ValueError("Image grids are required for sequences with image tokens.")
+        grid_t, grid_h, grid_w = image_grid_thw[image_index]
+        return int(grid_t), int(grid_h), int(grid_w), 0.0, image_index + 1, video_index
+
+    if video_grid_thw is None:
+        raise ValueError("Video grids are required for sequences with video tokens.")
+    grid_t, grid_h, grid_w = video_grid_thw[video_index]
+    second_per_grid = (
+        float(second_per_grid_ts[video_index]) if second_per_grid_ts is not None else 1.0
+    )
+    return int(grid_t), int(grid_h), int(grid_w), second_per_grid, image_index, video_index + 1
+
+
+def _build_sequence_position_ids(  # pylint: disable=too-many-arguments,too-many-locals
+    input_tokens: Sequence[int],
+    meta: VisionPositionMetadata,
+    image_grid_thw: Optional[np.ndarray],
+    video_grid_thw: Optional[np.ndarray],
+    second_per_grid_ts: Optional[np.ndarray],
+    image_index: int,
+    video_index: int,
+) -> Tuple[np.ndarray, int, int, int]:
+    token_array = np.asarray(input_tokens, dtype=np.int64)
+    image_count, video_count = _count_vision_items(
+        token_array,
+        vision_start_token_id=meta.vision_start_token_id,
+        image_token_id=meta.image_token_id,
+        video_token_id=meta.video_token_id,
+    )
+    if image_count > 0 and image_grid_thw is None:
+        raise ValueError("Image grids are required for sequences with image tokens.")
+    if video_count > 0 and video_grid_thw is None:
+        raise ValueError("Video grids are required for sequences with video tokens.")
+
+    llm_pos_ids_list: List[np.ndarray] = []
+    start = 0
+    remain_images = image_count
+    remain_videos = video_count
+    for _ in range(image_count + video_count):
+        block_kind, block_end = _next_vision_block(
+            tokens=input_tokens,
+            start=start,
+            meta=meta,
+            has_images=remain_images > 0,
+            has_videos=remain_videos > 0,
+        )
+        (
+            grid_t,
+            grid_h,
+            grid_w,
+            second_per_grid,
+            image_index,
+            video_index,
+        ) = _load_grid_for_block(
+            block_kind=block_kind,
+            image_grid_thw=image_grid_thw,
+            video_grid_thw=video_grid_thw,
+            second_per_grid_ts=second_per_grid_ts,
+            image_index=image_index,
+            video_index=video_index,
+        )
+        if block_kind == "image":
+            remain_images -= 1
+        else:
+            remain_videos -= 1
+
+        llm_grid_h, llm_grid_w = meta.merged_hw(grid_h, grid_w)
+        text_len = block_end - start
+        text_offset = _next_chunk_offset(llm_pos_ids_list)
+        llm_pos_ids_list.append(_text_chunk(text_len, text_offset))
+        grid_offset = text_offset + text_len
+        llm_pos_ids_list.append(
+            _grid_chunk(
+                grid_t=grid_t,
+                grid_h=llm_grid_h,
+                grid_w=llm_grid_w,
+                offset=grid_offset,
+                tokens_per_second=meta.tokens_per_second,
+                second_per_grid=second_per_grid,
+            )
+        )
+        start = block_end + grid_t * llm_grid_h * llm_grid_w
+
+    if start < len(input_tokens):
+        tail_len = len(input_tokens) - start
+        tail_offset = _next_chunk_offset(llm_pos_ids_list)
+        llm_pos_ids_list.append(_text_chunk(tail_len, tail_offset))
+
+    if not llm_pos_ids_list:
+        empty_positions = np.zeros((3, 0), dtype=np.int64)
+        return empty_positions, 0, image_index, video_index
+    llm_positions = np.concatenate(llm_pos_ids_list, axis=1).reshape(3, -1)
+    delta = int(llm_positions.max()) + 1 - len(input_tokens)
+    return llm_positions, delta, image_index, video_index
+
+
+def _text_only_position_ids(
+    input_ids: np.ndarray,
+    attention_mask: Optional[np.ndarray],
+) -> Tuple[np.ndarray, np.ndarray]:
+    batch, seq_len = input_ids.shape
+    if attention_mask is None:
+        base = np.arange(seq_len, dtype=np.int64).reshape(1, 1, -1)
+        tiled = np.broadcast_to(base, (3, batch, seq_len))
+        return tiled, np.zeros((batch, 1), dtype=np.int64)
+
+    position = attention_mask.cumsum(axis=-1) - 1
+    position = np.where(attention_mask == 0, 1, position)
+    position = np.expand_dims(position, axis=0).repeat(3, axis=0)
+    max_pos = position.max(axis=0, keepdims=False).max(axis=-1, keepdims=True)
+    delta = (max_pos + 1 - seq_len).astype(np.int64)
+    return position.astype(np.int64), delta
+
+
+def get_mrope_position_ids(  # pylint: disable=too-many-arguments
     input_ids: np.ndarray,
     meta: VisionPositionMetadata,
     attention_mask: Optional[np.ndarray] = None,
@@ -245,17 +403,7 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-local
         )
 
     if not (contains_image_tokens or contains_video_tokens):
-        if attention is not None:
-            position = attention_mask.cumsum(axis=-1) - 1  # type: ignore[union-attr]
-            position = np.where(attention_mask == 0, 1, position)
-            position = np.expand_dims(position, axis=0).repeat(3, axis=0)
-            max_pos = position.max(axis=0, keepdims=False).max(axis=-1, keepdims=True)
-            delta = (max_pos + 1 - seq_len).astype(np.int64)
-            return position, delta
-
-        base = np.arange(seq_len, dtype=np.int64).reshape(1, 1, -1)
-        tiled = np.broadcast_to(base, (3, batch, seq_len))
-        return tiled, np.zeros((batch, 1), dtype=np.int64)
+        return _text_only_position_ids(input_ids, attention_mask)
 
     image_index = 0
     video_index = 0
@@ -267,108 +415,23 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-local
             tokens = tokens[attention[batch_idx]]
         input_tokens = tokens.tolist()
         if not input_tokens:
-            deltas.append(-tokens.shape[0])
+            deltas.append(0)
             continue
 
-        token_array = np.array(input_tokens, dtype=np.int64)
-        vision_starts = np.where(token_array == meta.vision_start_token_id)[0]
-        valid_starts = vision_starts[vision_starts + 1 < token_array.shape[0]]
-        following_tokens = token_array[valid_starts + 1]
-        image_nums = int(np.sum(following_tokens == meta.image_token_id))
-        video_nums = int(np.sum(following_tokens == meta.video_token_id))
-        if image_nums > 0 and image_grid_thw is None:
-            raise ValueError("Image grids are required for sequences with image tokens.")
-        if video_nums > 0 and video_grid_thw is None:
-            raise ValueError("Video grids are required for sequences with video tokens.")
-
-        llm_pos_ids_list: List[np.ndarray] = []
-        st = 0
-        remain_images = image_nums
-        remain_videos = video_nums
-
-        for _ in range(image_nums + video_nums):
-            if remain_images > 0:
-                try:
-                    ed_image = input_tokens.index(meta.image_token_id, st)
-                except ValueError:
-                    ed_image = len(input_tokens) + 1
-            else:
-                ed_image = len(input_tokens) + 1
-
-            if remain_videos > 0:
-                try:
-                    ed_video = input_tokens.index(meta.video_token_id, st)
-                except ValueError:
-                    ed_video = len(input_tokens) + 1
-            else:
-                ed_video = len(input_tokens) + 1
-            if ed_image < ed_video:
-                grid_t, grid_h, grid_w = image_grid_thw[image_index]  # type: ignore[index]
-                second_per_grid = 0.0
-                image_index += 1
-                remain_images -= 1
-                ed = ed_image
-            else:
-                grid_t, grid_h, grid_w = video_grid_thw[video_index]  # type: ignore[index]
-                if second_per_grid_ts is not None:
-                    second_per_grid = float(second_per_grid_ts[video_index])
-                else:
-                    second_per_grid = 1.0
-                video_index += 1
-                remain_videos -= 1
-                ed = ed_video
-
-            llm_grid_t = int(grid_t)
-            llm_grid_h, llm_grid_w = meta.merged_hw(int(grid_h), int(grid_w))
-            text_len = ed - st
-            st_idx = llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
-            text_range = np.arange(text_len, dtype=np.int64).reshape(1, -1)
-            text_chunk = np.broadcast_to(text_range, (3, text_len)) + st_idx
-            llm_pos_ids_list.append(text_chunk)
-
-            t_index = (
-                (
-                    np.broadcast_to(
-                        np.arange(llm_grid_t, dtype=np.float32).reshape(-1, 1),
-                        (llm_grid_t, llm_grid_h * llm_grid_w),
-                    )
-                    * second_per_grid
-                    * meta.tokens_per_second
-                )
-                .astype(np.int64)
-                .reshape(-1)
-            )
-            h_index = (
-                np.arange(llm_grid_h, dtype=np.int64)
-                .reshape(1, -1, 1)
-                .repeat(llm_grid_t, axis=0)
-                .repeat(llm_grid_w, axis=2)
-                .reshape(-1)
-            )
-            w_index = (
-                np.arange(llm_grid_w, dtype=np.int64)
-                .reshape(1, 1, -1)
-                .repeat(llm_grid_t, axis=0)
-                .repeat(llm_grid_h, axis=1)
-                .reshape(-1)
-            )
-            grid_chunk = np.stack([t_index, h_index, w_index]) + text_len + st_idx
-            llm_pos_ids_list.append(grid_chunk)
-            st = ed + llm_grid_t * llm_grid_h * llm_grid_w
-
-        if st < len(input_tokens):
-            st_idx = llm_pos_ids_list[-1].max() + 1 if llm_pos_ids_list else 0
-            text_len = len(input_tokens) - st
-            tail_range = np.arange(text_len, dtype=np.int64).reshape(1, -1)
-            tail_chunk = np.broadcast_to(tail_range, (3, text_len)) + st_idx
-            llm_pos_ids_list.append(tail_chunk)
-
-        llm_positions = np.concatenate(llm_pos_ids_list, axis=1).reshape(3, -1)
+        llm_positions, delta, image_index, video_index = _build_sequence_position_ids(
+            input_tokens=input_tokens,
+            meta=meta,
+            image_grid_thw=image_grid_thw,
+            video_grid_thw=video_grid_thw,
+            second_per_grid_ts=second_per_grid_ts,
+            image_index=image_index,
+            video_index=video_index,
+        )
         if attention is not None:
             position_ids[:, batch_idx, attention[batch_idx]] = llm_positions
         else:
             position_ids[:, batch_idx, :] = llm_positions
-        deltas.append(int(llm_positions.max()) + 1 - len(input_tokens))
+        deltas.append(delta)
 
     deltas = np.asarray(deltas, dtype=np.int64).reshape(batch, 1)
     return position_ids, deltas

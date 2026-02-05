@@ -28,6 +28,36 @@ ACT2FN = {
 
 
 @dataclasses.dataclass
+class Qwen25VLVisionTokenConfig:
+    """Vision token IDs used by Qwen2.5-VL."""
+
+    image_token_id: int = 151655
+    video_token_id: int = 151656
+    vision_start_token_id: int = 151652
+    vision_end_token_id: int = 151653
+
+
+@dataclasses.dataclass
+class Qwen25VLVisionGridConfig:
+    """Vision grid configuration for multimodal position IDs."""
+
+    spatial_merge_size: int = 2
+    temporal_patch_size: int = 2
+    tokens_per_second: float = 4.0
+
+
+@dataclasses.dataclass(frozen=True)
+class Qwen25VLAttentionState:
+    """Derived attention dimensions used across Qwen2.5-VL attention code paths."""
+
+    head_dim: int
+    num_attention_heads: int
+    num_key_value_heads: int
+    mrope_section: Tuple[int, int, int]
+    softmax_scale: float
+
+
+@dataclasses.dataclass
 class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration for the Qwen2.5-VL model."""
 
@@ -49,13 +79,12 @@ class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     max_batch_size: int = 1
     rope_parameters: Optional[Dict[str, Any]] = None
     mrope_section: Optional[Tuple[int, int, int]] = None
-    image_token_id: int = 151655
-    video_token_id: int = 151656
-    vision_start_token_id: int = 151652
-    vision_end_token_id: int = 151653
-    spatial_merge_size: int = 2
-    temporal_patch_size: int = 2
-    tokens_per_second: float = 4.0
+    vision_tokens: Qwen25VLVisionTokenConfig = dataclasses.field(
+        default_factory=Qwen25VLVisionTokenConfig
+    )
+    vision_grid: Qwen25VLVisionGridConfig = dataclasses.field(
+        default_factory=Qwen25VLVisionGridConfig
+    )
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self):
@@ -83,19 +112,70 @@ class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
         if len(self.mrope_section) != 3:
             raise ValueError(f"mrope_section must contain 3 integers, got {self.mrope_section}.")
 
+        for key in [
+            "image_token_id",
+            "video_token_id",
+            "vision_start_token_id",
+            "vision_end_token_id",
+        ]:
+            if key in self.kwargs:
+                setattr(self.vision_tokens, key, int(self.kwargs.pop(key)))
+        for key in ["spatial_merge_size", "temporal_patch_size"]:
+            if key in self.kwargs:
+                setattr(self.vision_grid, key, int(self.kwargs.pop(key)))
+        if "tokens_per_second" in self.kwargs:
+            self.vision_grid.tokens_per_second = float(self.kwargs.pop("tokens_per_second"))
+
         vision_cfg = self.kwargs.pop("vision_config", {})
-        self.spatial_merge_size = vision_cfg.get("spatial_merge_size", self.spatial_merge_size)
-        self.temporal_patch_size = vision_cfg.get("temporal_patch_size", self.temporal_patch_size)
-        self.tokens_per_second = vision_cfg.get("tokens_per_second", self.tokens_per_second)
+        if vision_cfg:
+            if not isinstance(vision_cfg, dict):
+                raise ValueError(f"vision_config must be a dict, got {type(vision_cfg)}.")
+            self.vision_grid.spatial_merge_size = int(
+                vision_cfg.get("spatial_merge_size", self.vision_grid.spatial_merge_size)
+            )
+            self.vision_grid.temporal_patch_size = int(
+                vision_cfg.get("temporal_patch_size", self.vision_grid.temporal_patch_size)
+            )
+            self.vision_grid.tokens_per_second = float(
+                vision_cfg.get("tokens_per_second", self.vision_grid.tokens_per_second)
+            )
+
+    @property
+    def image_token_id(self) -> int:
+        return self.vision_tokens.image_token_id
+
+    @property
+    def video_token_id(self) -> int:
+        return self.vision_tokens.video_token_id
+
+    @property
+    def vision_start_token_id(self) -> int:
+        return self.vision_tokens.vision_start_token_id
+
+    @property
+    def vision_end_token_id(self) -> int:
+        return self.vision_tokens.vision_end_token_id
+
+    @property
+    def spatial_merge_size(self) -> int:
+        return self.vision_grid.spatial_merge_size
+
+    @property
+    def temporal_patch_size(self) -> int:
+        return self.vision_grid.temporal_patch_size
+
+    @property
+    def tokens_per_second(self) -> float:
+        return self.vision_grid.tokens_per_second
 
     @property
     def vision_metadata(self) -> VisionPositionMetadata:
         return VisionPositionMetadata(
-            vision_start_token_id=self.vision_start_token_id,
-            image_token_id=self.image_token_id,
-            video_token_id=self.video_token_id,
-            spatial_merge_size=self.spatial_merge_size,
-            tokens_per_second=self.tokens_per_second,
+            vision_start_token_id=self.vision_tokens.vision_start_token_id,
+            image_token_id=self.vision_tokens.image_token_id,
+            video_token_id=self.vision_tokens.video_token_id,
+            spatial_merge_size=self.vision_grid.spatial_merge_size,
+            tokens_per_second=self.vision_grid.tokens_per_second,
         )
 
 
@@ -107,30 +187,47 @@ class Qwen25VLEmbedding(nn.Embedding):
         return nn.op.matmul(x, weight, out_dtype="float32")
 
 
-class Qwen25VLAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen25VLAttention(nn.Module):
     def __init__(self, config: Qwen25VLConfig):
-        self.head_dim = config.head_dim
         if config.num_key_value_heads % config.tensor_parallel_shards != 0:
             raise ValueError(
                 f"Cannot split {config.num_key_value_heads} key-value heads "
                 f"evenly to {config.tensor_parallel_shards} shards."
             )
-        self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
-        self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
-        self.mrope_section = tuple(config.mrope_section or (0, 0, 0))
-        self.softmax_scale = self.head_dim**-0.5
+        head_dim = config.head_dim
+        num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
+        num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
+        self.state = Qwen25VLAttentionState(
+            head_dim=head_dim,
+            num_attention_heads=num_attention_heads,
+            num_key_value_heads=num_key_value_heads,
+            mrope_section=tuple(config.mrope_section or (0, 0, 0)),
+            softmax_scale=head_dim**-0.5,
+        )
 
-        out_features = (self.num_attention_heads + 2 * self.num_key_value_heads) * self.head_dim
+        out_features = (num_attention_heads + 2 * num_key_value_heads) * head_dim
         self.c_attn = nn.Linear(
             in_features=config.hidden_size,
             out_features=out_features,
             bias=True,
         )
         self.o_proj = nn.Linear(
-            self.num_attention_heads * self.head_dim,
+            num_attention_heads * head_dim,
             config.hidden_size,
             bias=False,
         )
+
+    @property
+    def head_dim(self) -> int:
+        return self.state.head_dim
+
+    @property
+    def num_attention_heads(self) -> int:
+        return self.state.num_attention_heads
+
+    @property
+    def num_key_value_heads(self) -> int:
+        return self.state.num_key_value_heads
 
     def forward(
         self,
@@ -139,14 +236,18 @@ class Qwen25VLAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         layer_id: int,
         position_embeddings: Tuple[Tensor, Tensor],
     ):
-        d, h_q, h_kv = self.head_dim, self.num_attention_heads, self.num_key_value_heads
+        d, h_q, h_kv = (
+            self.state.head_dim,
+            self.state.num_attention_heads,
+            self.state.num_key_value_heads,
+        )
         b, s, _ = hidden_states.shape
         qkv = self.c_attn(hidden_states)
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         q, k, v = op.split(qkv, [h_q, h_q + h_kv], axis=2)
         cos, sin = position_embeddings
-        q, k = apply_multimodal_rotary_pos_emb(q, k, cos, sin, self.mrope_section)
-        output, _ = paged_kv_cache.self_attention(layer_id, q, k, v, self.softmax_scale)
+        q, k = apply_multimodal_rotary_pos_emb(q, k, cos, sin, self.state.mrope_section)
+        output, _ = paged_kv_cache.self_attention(layer_id, q, k, v, self.state.softmax_scale)
         output = op.reshape(output, (b, s, h_q * d))
         return self.o_proj(output)
 
@@ -254,7 +355,7 @@ class Qwen25VLModel(nn.Module):
         return self.norm(hidden_states)
 
 
-class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attributes
+class Qwen25VLLMHeadModel(nn.Module):
     def __init__(self, config: Qwen25VLConfig):
         self.config = config
         self.model = Qwen25VLModel(config)
@@ -262,17 +363,6 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
         if not self.tie_word_embeddings:
             self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self.dtype = config.dtype
-        self.hidden_size = config.hidden_size
-        self.num_hidden_layers = config.num_hidden_layers
-        self.intermediate_size = config.intermediate_size
-        self.num_attention_heads = config.num_attention_heads
-        self.num_key_value_heads = config.num_key_value_heads
-        self.rms_norm_eps = config.rms_norm_eps
-        self.rope_theta = config.rope_theta
-        self.vocab_size = config.vocab_size
-        self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.head_dim = config.head_dim
-        self.mrope_section = config.mrope_section
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -348,7 +438,7 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
         logit_positions: Tensor,
         paged_kv_cache: PagedKVCache,
     ):
-        if self.tensor_parallel_shards > 1:
+        if self.config.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
         logits = self.batch_forward(
             input_embeds, position_ids, mrope_deltas, logit_positions, paged_kv_cache
@@ -382,7 +472,7 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
         return self.batch_decode(input_embeds, paged_kv_cache)
 
     def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
+        if self.config.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
@@ -394,6 +484,7 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
         page_size: tir.Var,
         support_sliding_window: tir.Var,
     ) -> PagedKVCache:
+        cfg = self.config
         return PagedKVCache.create_generic(
             attn_kind="mha",
             max_batch_size=max_batch_size,
@@ -401,21 +492,22 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
             prefill_chunk_size=prefill_chunk_size,
             page_size=page_size,
             support_sliding_window=support_sliding_window,
-            num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            num_key_value_heads=self.num_key_value_heads // self.tensor_parallel_shards,
-            qk_head_dim=self.head_dim,
-            v_head_dim=self.head_dim,
+            num_hidden_layers=cfg.num_hidden_layers,
+            num_attention_heads=cfg.num_attention_heads // cfg.tensor_parallel_shards,
+            num_key_value_heads=cfg.num_key_value_heads // cfg.tensor_parallel_shards,
+            qk_head_dim=cfg.head_dim,
+            v_head_dim=cfg.head_dim,
             rope_mode=RopeMode.NORMAL,
-            rope_scaling=self.config.rope_parameters,
+            rope_scaling=cfg.rope_parameters,
             rope_scale=1,
-            rope_theta=self.rope_theta,
+            rope_theta=cfg.rope_theta,
             dtype=self.dtype,
         )
 
     def get_default_spec(self):
+        cfg = self.config
         seq_len = "seq_len"
-        hidden = self.hidden_size
+        hidden = cfg.hidden_size
         dtype = self.dtype
         mod_spec = {
             "embed": {
