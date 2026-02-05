@@ -428,7 +428,6 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             x_scale = broadcast_activation_scale(
                 x,
                 self.activation_scale,
-                self.block_size[1],
                 transpose=True,
             )
             out = cutlass.fp8_groupwise_scaled_gemm(
@@ -443,7 +442,6 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             x_scale_triton = broadcast_activation_scale(
                 x,
                 self.activation_scale,
-                self.block_size[1],
                 transpose=False,
             )
             out = triton.fp8_groupwise_scaled_gemm(
@@ -737,7 +735,6 @@ def static_activation_group_quant_fp8(
 def broadcast_activation_scale(
     x: nn.Tensor,
     activation_scale: nn.Tensor,
-    group_size: int,
     transpose: bool,
 ) -> nn.Tensor:
     """Broadcast stored activation scales."""
