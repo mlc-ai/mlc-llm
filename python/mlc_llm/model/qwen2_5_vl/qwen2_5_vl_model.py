@@ -1,5 +1,7 @@
 """Implementation for Qwen2.5-VL architecture with MRoPE pre-rotation support."""
 
+# pylint: disable=missing-function-docstring,missing-class-docstring
+
 import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
@@ -87,7 +89,7 @@ class Qwen25VLConfig(ConfigBase):  # pylint: disable=too-many-instance-attribute
     )
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self):  # pylint: disable=too-many-branches
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
                 if name in self.kwargs:
@@ -197,11 +199,14 @@ class Qwen25VLAttention(nn.Module):
         head_dim = config.head_dim
         num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
+        mrope_section: Tuple[int, int, int] = (
+            config.mrope_section if config.mrope_section is not None else (0, 0, 0)
+        )
         self.state = Qwen25VLAttentionState(
             head_dim=head_dim,
             num_attention_heads=num_attention_heads,
             num_key_value_heads=num_key_value_heads,
-            mrope_section=tuple(config.mrope_section or (0, 0, 0)),
+            mrope_section=mrope_section,
             softmax_scale=head_dim**-0.5,
         )
 
@@ -229,7 +234,7 @@ class Qwen25VLAttention(nn.Module):
     def num_key_value_heads(self) -> int:
         return self.state.num_key_value_heads
 
-    def forward(
+    def forward(  # pylint: disable=too-many-locals
         self,
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
@@ -400,7 +405,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         base = op.broadcast_to(base, (batch, seq_len))
         delta = self._get_mrope_delta(paged_kv_cache, batch)
         base = base + delta
-        base = op.expand_dims(base, axis=0)
+        base = op.unsqueeze(base, dim=0)
         return op.broadcast_to(base, (3, batch, seq_len))
 
     def prefill(
@@ -430,7 +435,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         logits = self._apply_lm_head(hidden_states)
         return logits, paged_kv_cache
 
-    def batch_prefill(
+    def batch_prefill(  # pylint: disable=too-many-arguments
         self,
         input_embeds: Tensor,
         position_ids: Tensor,
@@ -445,7 +450,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         )
         return logits, paged_kv_cache
 
-    def batch_forward(
+    def batch_forward(  # pylint: disable=too-many-arguments
         self,
         input_embeds: Tensor,
         position_ids: Tensor,
@@ -476,7 +481,7 @@ class Qwen25VLLMHeadModel(nn.Module):
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
-    def create_paged_kv_cache(
+    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
@@ -500,7 +505,7 @@ class Qwen25VLLMHeadModel(nn.Module):
             rope_mode=RopeMode.NORMAL,
             rope_scaling=cfg.rope_parameters,
             rope_scale=1,
-            rope_theta=cfg.rope_theta,
+            rope_theta=int(cfg.rope_theta),
             dtype=self.dtype,
         )
 

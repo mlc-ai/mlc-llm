@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
-from tvm import relax as rx
 from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -120,7 +119,7 @@ class MultimodalRotaryEmbedding(nn.Module):
         return cos.astype(dtype), sin.astype(dtype)
 
 
-def apply_multimodal_rotary_pos_emb(
+def apply_multimodal_rotary_pos_emb(  # pylint: disable=too-many-arguments
     q: Tensor,
     k: Tensor,
     cos: Tensor,
@@ -153,6 +152,8 @@ class VisionPositionMetadata:
     tokens_per_second: float
 
     def merged_hw(self, height: int, width: int) -> Tuple[int, int]:
+        """Return merged height/width after applying ``spatial_merge_size``."""
+
         if height % self.spatial_merge_size != 0 or width % self.spatial_merge_size != 0:
             raise ValueError(
                 "Image or video grid is not divisible by spatial_merge_size "
@@ -162,14 +163,16 @@ class VisionPositionMetadata:
 
 
 def _text_chunk(length: int, offset: int) -> np.ndarray:
+    """Create a text-position chunk with a shared scalar offset for T/H/W axes."""
+
     if length <= 0:
         return np.zeros((3, 0), dtype=np.int64)
-    seq = np.arange(length, dtype=np.int64)
+    seq: np.ndarray = np.arange(length, dtype=np.int64)
     chunk = np.broadcast_to(seq.reshape(1, -1), (3, length))
     return chunk + offset
 
 
-def _grid_chunk(
+def _grid_chunk(  # pylint: disable=too-many-arguments
     grid_t: int,
     grid_h: int,
     grid_w: int,
@@ -224,7 +227,7 @@ def _next_vision_block(
     meta: VisionPositionMetadata,
     has_images: bool,
     has_videos: bool,
-):
+) -> Tuple[str, int]:
     sentinel = len(tokens) + 1
     image_end = _find_token_index(tokens, meta.image_token_id, start) if has_images else sentinel
     video_end = _find_token_index(tokens, meta.video_token_id, start) if has_videos else sentinel
@@ -332,7 +335,7 @@ def _build_sequence_position_ids(  # pylint: disable=too-many-arguments,too-many
         llm_pos_ids_list.append(_text_chunk(tail_len, tail_offset))
 
     if not llm_pos_ids_list:
-        empty_positions = np.zeros((3, 0), dtype=np.int64)
+        empty_positions: np.ndarray = np.zeros((3, 0), dtype=np.int64)
         return empty_positions, 0, image_index, video_index
     llm_positions = np.concatenate(llm_pos_ids_list, axis=1).reshape(3, -1)
     delta = int(llm_positions.max()) + 1 - len(input_tokens)
@@ -345,7 +348,7 @@ def _text_only_position_ids(
 ) -> Tuple[np.ndarray, np.ndarray]:
     batch, seq_len = input_ids.shape
     if attention_mask is None:
-        base = np.arange(seq_len, dtype=np.int64).reshape(1, 1, -1)
+        base: np.ndarray = np.arange(seq_len, dtype=np.int64).reshape(1, 1, -1)
         tiled = np.broadcast_to(base, (3, batch, seq_len))
         return tiled, np.zeros((batch, 1), dtype=np.int64)
 
@@ -357,7 +360,7 @@ def _text_only_position_ids(
     return position.astype(np.int64), delta
 
 
-def get_mrope_position_ids(  # pylint: disable=too-many-arguments
+def get_mrope_position_ids(  # pylint: disable=too-many-arguments,too-many-locals
     input_ids: np.ndarray,
     meta: VisionPositionMetadata,
     attention_mask: Optional[np.ndarray] = None,
@@ -413,7 +416,8 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments
         tokens = input_ids[batch_idx]
         if attention is not None:
             tokens = tokens[attention[batch_idx]]
-        input_tokens = tokens.tolist()
+        token_values = np.asarray(tokens, dtype=np.int64).tolist()
+        input_tokens: List[int] = [int(token) for token in token_values]
         if not input_tokens:
             deltas.append(0)
             continue
@@ -433,5 +437,5 @@ def get_mrope_position_ids(  # pylint: disable=too-many-arguments
             position_ids[:, batch_idx, :] = llm_positions
         deltas.append(delta)
 
-    deltas = np.asarray(deltas, dtype=np.int64).reshape(batch, 1)
-    return position_ids, deltas
+    delta_array = np.asarray(deltas, dtype=np.int64).reshape(batch, 1)
+    return position_ids, delta_array
