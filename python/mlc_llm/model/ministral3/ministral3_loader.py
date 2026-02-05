@@ -22,7 +22,7 @@ def _dequantize_block_scale_weight(
     rows, cols = weight.shape
     block_rows, block_cols = block_size
     out = np.empty((rows, cols), dtype="float32")
-    weight_f32 = weight.astype("float32")
+    weight = weight.astype("float32")
     num_row_blocks, num_col_blocks = weight_scale.shape
     for i in range(num_row_blocks):
         row_start = i * block_rows
@@ -36,7 +36,7 @@ def _dequantize_block_scale_weight(
                 break
             col_end = min(col_start + block_cols, cols)
             out[row_start:row_end, col_start:col_end] = (
-                weight_f32[row_start:row_end, col_start:col_end] * scale_row[j]
+                weight[row_start:row_end, col_start:col_end] * scale_row[j]
             )
     return out
 
@@ -171,7 +171,8 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                     if result.shape == expected_shape:
                         return result
                     if result.shape == ():
-                        # HF checkpoint stores a single scale; broadcast across the expected dimension.
+                        # HF checkpoint stores a single scale; broadcast across the expected
+                        # dimension.
                         return np.full(expected_shape, result.item(), dtype=dtype)
                     if result.shape == (1,) and expected_shape != (1,):
                         return np.broadcast_to(result, expected_shape).astype(dtype)
@@ -202,7 +203,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
 
     def make_shared_activation_transform(target_name: str):
         def func(first: np.ndarray, *rest: np.ndarray, dtype: str):
-            for idx, arr in enumerate(rest, start=1):
+            for _, arr in enumerate(rest, start=1):
                 if not np.allclose(arr, first):
                     raise ValueError(
                         f"Activation scales for {target_name} must be identical between "
