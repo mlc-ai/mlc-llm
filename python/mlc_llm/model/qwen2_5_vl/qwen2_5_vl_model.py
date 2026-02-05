@@ -18,7 +18,6 @@ from mlc_llm.op.mrope import (
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 
-
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -119,11 +118,9 @@ class Qwen25VLAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.num_attention_heads = config.num_attention_heads // config.tensor_parallel_shards
         self.num_key_value_heads = config.num_key_value_heads // config.tensor_parallel_shards
         self.mrope_section = tuple(config.mrope_section or (0, 0, 0))
-        self.softmax_scale = self.head_dim ** -0.5
+        self.softmax_scale = self.head_dim**-0.5
 
-        out_features = (
-            (self.num_attention_heads + 2 * self.num_key_value_heads) * self.head_dim
-        )
+        out_features = (self.num_attention_heads + 2 * self.num_key_value_heads) * self.head_dim
         self.c_attn = nn.Linear(
             in_features=config.hidden_size,
             out_features=out_features,
@@ -353,7 +350,9 @@ class Qwen25VLLMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attri
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, position_ids, mrope_deltas, logit_positions, paged_kv_cache)
+        logits = self.batch_forward(
+            input_embeds, position_ids, mrope_deltas, logit_positions, paged_kv_cache
+        )
         return logits, paged_kv_cache
 
     def batch_forward(

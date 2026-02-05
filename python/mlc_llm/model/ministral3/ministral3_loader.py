@@ -4,12 +4,12 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Optional, Tuple, List, Callable
+from typing import Callable, List, Optional, Tuple
 
 import numpy as np
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
-from mlc_llm.quantization import Quantization, BlockScaleQuantize
+from mlc_llm.quantization import BlockScaleQuantize, Quantization
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 
@@ -69,7 +69,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                 "The input Ministral 3 model is not fp8 block quantized. "
                 "Thus BlockScaleQuantize is not supported."
             )
-    
+
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
         spec=model.get_default_spec(),
         allow_extern=True,
@@ -77,8 +77,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
     raw_params = dict(_named_params)
     if any(name.startswith("language_model.") for name in raw_params):
         named_parameters = {
-            name.replace("language_model.", "", 1): value
-            for name, value in raw_params.items()
+            name.replace("language_model.", "", 1): value for name, value in raw_params.items()
         }
     else:
         named_parameters = raw_params
@@ -91,7 +90,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
 
     def hf(name: str) -> str:
         return f"{hf_prefix}{name}"
-    
+
     if (
         not isinstance(quantization, BlockScaleQuantize)
         and model_config.weight_block_size is not None
@@ -151,6 +150,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                         f"Unexpected weight scale shape {result.shape} for "
                         f"{weight_scale_mlc_name}, expected {expected_weight_scale_shape}"
                     )
+
                 mapping.add_mapping(
                     weight_scale_mlc_name,
                     weight_scale_hf_names,
@@ -158,7 +158,9 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                 )
             activation_scale_mlc_name = f"{weight_mlc_name[: -len('.weight')]}.activation_scale"
             if activation_scale_mlc_name in named_parameters:
-                activation_scale_hf_names = [f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names]
+                activation_scale_hf_names = [
+                    f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names
+                ]
                 activation_scale_param = named_parameters[activation_scale_mlc_name]
                 transform = activation_transform_func or weight_transform_func
                 expected_shape = tuple(int(dim) for dim in activation_scale_param.shape)
@@ -186,10 +188,13 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                         f"Unexpected activation scale shape {result.shape} for "
                         f"{activation_scale_mlc_name}, expected {expected_shape}"
                     )
+
                 mapping.add_mapping(
                     activation_scale_mlc_name,
                     activation_scale_hf_names,
-                    functools.partial(_activation_scale_transform, dtype=activation_scale_param.dtype),
+                    functools.partial(
+                        _activation_scale_transform, dtype=activation_scale_param.dtype
+                    ),
                 )
 
     def identity_transform(param: np.ndarray, dtype: str):
@@ -216,7 +221,9 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
             mlc_name,
             proj_sources,
             lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
+            activation_transform_func=make_shared_activation_transform(
+                f"{mlc_name}_activation_scale"
+            ),
         )
 
         # Add gates in MLP
@@ -227,7 +234,9 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
             mlc_name,
             gate_sources,
             lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
+            activation_transform_func=make_shared_activation_transform(
+                f"{mlc_name}_activation_scale"
+            ),
         )
 
         for linear_name in [f"{attn}.o_proj.weight", f"{mlp}.down_proj.weight"]:
@@ -236,7 +245,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
                 [hf(linear_name)],
                 identity_transform,
             )
-        
+
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 
