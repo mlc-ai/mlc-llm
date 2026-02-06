@@ -689,3 +689,6 @@ MODELS: Dict[str, Model] = {
         },
     ),
 }
+
+# Keep compatibility with HF config files that report `model_type = "mistral3"`.
+MODELS["mistral3"] = MODELS["ministral3"]
