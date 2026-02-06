@@ -5,6 +5,12 @@ from .attention import attention
 from .batch_spec_verify import batch_spec_verify
 from .extern import configure, enable, get_store
 from .ft_gemm import faster_transformer_dequantize_gemm
+from .mrope import (
+    MultimodalRotaryEmbedding,
+    VisionPositionMetadata,
+    apply_multimodal_rotary_pos_emb,
+    get_mrope_position_ids,
+)
 from .pipeline_parallel import pipeline_stage_boundary
 from .position_embedding import llama_rope
 from .top_p_pivot import top_p_pivot, top_p_renorm

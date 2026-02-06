@@ -359,8 +359,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
-        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
-        
+        Convert a non-quantized nn.Linear to a block-scale quantized
+        BlockScaleQuantizeLinearStaticActivation.
+
         Parameters
         ----------
         src : nn.Linear
@@ -368,10 +369,10 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
 
         config : BlockScaleQuantize
             The block-scale quantization config.
-        
+
         weight_block_size : Optional[Tuple[int, int]]
             The weight block size.
-            
+
         Returns
         -------
         ret : BlockScaleQuantizeLinearStaticActivation
@@ -396,7 +397,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
             apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
-            apply_sharding(shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale)
+            apply_sharding(
+                shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale
+            )
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:
@@ -731,6 +734,7 @@ def broadcast_activation_scale(
 ) -> nn.Tensor:
     """Broadcast stored activation scales."""
 
+    assert group_size > 0
     reshape_shape = (1,) * (x.ndim - 1) + (activation_scale.shape[0],)
     scale = nn.op.reshape(activation_scale, reshape_shape)
     scale = nn.op.broadcast_to(scale, (*x.shape[:-1], activation_scale.shape[0]))
