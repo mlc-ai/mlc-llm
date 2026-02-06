@@ -228,7 +228,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                         T.float32(0),
                     )
 
-    sch = tvm.tir.Schedule(IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum}))
+    sch = tvm.s_tir.Schedule(IRModule({"softmax_with_chunked_sum": softmax_with_chunked_sum}))
 
     def apply_gpu_schedule(target, sch):
         max_threads = get_max_num_threads_per_block(target)
