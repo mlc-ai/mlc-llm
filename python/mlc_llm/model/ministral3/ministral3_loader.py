@@ -22,7 +22,7 @@ def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
     rows, cols = weight.shape
     block_rows, block_cols = block_size
     out = np.empty((rows, cols), dtype="float32")
-    weight_f32 = weight.astype("float32")
+    weight_f32: np.ndarray = weight.astype("float32")
     num_row_blocks, num_col_blocks = weight_scale.shape
     for i in range(num_row_blocks):
         row_start = i * block_rows
