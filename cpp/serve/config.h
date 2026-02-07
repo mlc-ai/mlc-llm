@@ -306,6 +306,20 @@ class EngineConfigNode : public Object {
   /*************** Debug ***************/
   bool verbose = false;
 
+  /*************** NUMA-aware tensor parallelism ***************/
+
+  /*! \brief Whether to enable NUMA-aware tensor parallelism for CPU inference. */
+  bool numa_tensor_parallel = false;
+
+  /*! \brief List of NUMA node IDs to use for tensor parallel workers. */
+  std::vector<int> numa_nodes;
+
+  /*! \brief Communication penalty factor for cross-NUMA-node operations (0.0-1.0). */
+  float numa_inter_node_penalty = 0.3f;
+
+  /*! \brief Whether to prefer allocating memory on the local NUMA node. */
+  bool numa_prefer_local_memory = true;
+
   String AsJSONString() const;
 
   static void RegisterReflection() {
