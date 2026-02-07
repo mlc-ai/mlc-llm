@@ -4,17 +4,17 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Callable, List, Optional, Tuple
+from typing import Optional, Tuple, List, Callable
 
 import numpy as np
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
-from mlc_llm.quantization import BlockScaleQuantize, Quantization
+from mlc_llm.quantization import Quantization, BlockScaleQuantize
 
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 
 
-def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
+def _dequantize_block_scale_weight(
     weight: np.ndarray, weight_scale: np.ndarray, block_size: Tuple[int, int]
 ) -> np.ndarray:
     """Reconstruct float weights from FP8 block-scale storage."""
@@ -22,7 +22,7 @@ def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
     rows, cols = weight.shape
     block_rows, block_cols = block_size
     out = np.empty((rows, cols), dtype="float32")
-    weight_f32: np.ndarray = weight.astype("float32")
+    weight_f32 = weight.astype("float32")
     num_row_blocks, num_col_blocks = weight_scale.shape
     for i in range(num_row_blocks):
         row_start = i * block_rows
@@ -41,9 +41,7 @@ def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
     return out
 
 
-def huggingface(  # pylint: disable=too-many-locals,too-many-statements
-    model_config: Ministral3Config, quantization: Quantization
-) -> ExternMapping:
+def huggingface(model_config: Ministral3Config, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -71,7 +69,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 "The input Ministral 3 model is not fp8 block quantized. "
                 "Thus BlockScaleQuantize is not supported."
             )
-
+    
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
         spec=model.get_default_spec(),
         allow_extern=True,
@@ -79,7 +77,8 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
     raw_params = dict(_named_params)
     if any(name.startswith("language_model.") for name in raw_params):
         named_parameters = {
-            name.replace("language_model.", "", 1): value for name, value in raw_params.items()
+            name.replace("language_model.", "", 1): value
+            for name, value in raw_params.items()
         }
     else:
         named_parameters = raw_params
@@ -92,7 +91,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
 
     def hf(name: str) -> str:
         return f"{hf_prefix}{name}"
-
+    
     if (
         not isinstance(quantization, BlockScaleQuantize)
         and model_config.weight_block_size is not None
@@ -103,7 +102,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
         )
 
     # Helper function to add both weight and scale mappings
-    def add_weight_and_scale_mapping(  # pylint: disable=too-many-locals
+    def add_weight_and_scale_mapping(
         weight_mlc_name: str,
         weight_hf_names: List[str],
         weight_transform_func: Callable,
@@ -152,7 +151,6 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                         f"Unexpected weight scale shape {result.shape} for "
                         f"{weight_scale_mlc_name}, expected {expected_weight_scale_shape}"
                     )
-
                 mapping.add_mapping(
                     weight_scale_mlc_name,
                     weight_scale_hf_names,
@@ -160,9 +158,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 )
             activation_scale_mlc_name = f"{weight_mlc_name[: -len('.weight')]}.activation_scale"
             if activation_scale_mlc_name in named_parameters:
-                activation_scale_hf_names = [
-                    f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names
-                ]
+                activation_scale_hf_names = [f"{name[: -len('.weight')]}.activation_scale" for name in weight_hf_names]
                 activation_scale_param = named_parameters[activation_scale_mlc_name]
                 transform = activation_transform_func or weight_transform_func
                 expected_shape = tuple(int(dim) for dim in activation_scale_param.shape)
@@ -173,8 +169,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                     if result.shape == expected_shape:
                         return result
                     if result.shape == ():
-                        # HF checkpoint stores a single scale; broadcast across
-                        # the expected dimension.
+                        # HF checkpoint stores a single scale; broadcast across the expected dimension.
                         return np.full(expected_shape, result.item(), dtype=dtype)
                     if result.shape == (1,) and expected_shape != (1,):
                         return np.broadcast_to(result, expected_shape).astype(dtype)
@@ -191,13 +186,10 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                         f"Unexpected activation scale shape {result.shape} for "
                         f"{activation_scale_mlc_name}, expected {expected_shape}"
                     )
-
                 mapping.add_mapping(
                     activation_scale_mlc_name,
                     activation_scale_hf_names,
-                    functools.partial(
-                        _activation_scale_transform, dtype=activation_scale_param.dtype
-                    ),
+                    functools.partial(_activation_scale_transform, dtype=activation_scale_param.dtype),
                 )
 
     def identity_transform(param: np.ndarray, dtype: str):
@@ -205,7 +197,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
 
     def make_shared_activation_transform(target_name: str):
         def func(first: np.ndarray, *rest: np.ndarray, dtype: str):
-            for arr in rest:
+            for idx, arr in enumerate(rest, start=1):
                 if not np.allclose(arr, first):
                     raise ValueError(
                         f"Activation scales for {target_name} must be identical between "
@@ -224,9 +216,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
             mlc_name,
             proj_sources,
             lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
-            activation_transform_func=make_shared_activation_transform(
-                f"{mlc_name}_activation_scale"
-            ),
+            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
         )
 
         # Add gates in MLP
@@ -237,9 +227,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
             mlc_name,
             gate_sources,
             lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
-            activation_transform_func=make_shared_activation_transform(
-                f"{mlc_name}_activation_scale"
-            ),
+            activation_transform_func=make_shared_activation_transform(f"{mlc_name}_activation_scale"),
         )
 
         for linear_name in [f"{attn}.o_proj.weight", f"{mlp}.down_proj.weight"]:
@@ -248,7 +236,7 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 [hf(linear_name)],
                 identity_transform,
             )
-
+        
         # inv_freq is not used in the model
         mapping.add_unused(f"{attn}.rotary_emb.inv_freq")
 

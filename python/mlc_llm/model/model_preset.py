@@ -251,7 +251,9 @@ MODEL_PRESETS: Dict[str, Any] = {
         "vocab_size": 32768,
     },
     "ministral3_3b_reasoning_2512": {
-        "architectures": ["Mistral3ForConditionalGeneration"],
+        "architectures": [
+            "Mistral3ForConditionalGeneration"
+        ],
         "dtype": "bfloat16",
         "image_token_index": 10,
         "model_type": "mistral3",
@@ -281,12 +283,12 @@ MODEL_PRESETS: Dict[str, Any] = {
                 "original_max_position_embeddings": 16384,
                 "rope_theta": 1000000.0,
                 "rope_type": "yarn",
-                "type": "yarn",
+                "type": "yarn"
             },
             "sliding_window": None,
             "tie_word_embeddings": True,
             "use_cache": True,
-            "vocab_size": 131072,
+            "vocab_size": 131072
         },
         "transformers_version": "5.0.0.dev0",
         "vision_config": {
@@ -302,10 +304,13 @@ MODEL_PRESETS: Dict[str, Any] = {
             "num_channels": 3,
             "num_hidden_layers": 24,
             "patch_size": 14,
-            "rope_parameters": {"rope_theta": 10000.0, "rope_type": "default"},
-            "rope_theta": 10000.0,
+            "rope_parameters": {
+                "rope_theta": 10000.0,
+                "rope_type": "default"
+            },
+            "rope_theta": 10000.0
         },
-        "vision_feature_layer": -1,
+        "vision_feature_layer": -1
     },
     "gpt2": {
         "activation_function": "gelu_new",

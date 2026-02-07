@@ -25,11 +25,11 @@ ConvTemplateRegistry.register_conv_template(
             "state that you don't have the information and avoid making up anything.\n"
             "If the user's question is not clear, ambiguous, or does not provide enough "
             "context for you to accurately answer the question, you do not try to answer it "
-            'right away and you rather ask the user to clarify their request (e.g. "What are '
-            'some good restaurants around me?" => "Where are you?" or "When is the next '
-            'flight to Tokyo" => "Where do you travel from?").\n'
+            "right away and you rather ask the user to clarify their request (e.g. \"What are "
+            "some good restaurants around me?\" => \"Where are you?\" or \"When is the next "
+            "flight to Tokyo\" => \"Where do you travel from?\").\n"
             "You are always very attentive to dates, in particular you try to resolve dates "
-            '(e.g. "yesterday" is {yesterday}) and when asked about information at specific '
+            "(e.g. \"yesterday\" is {yesterday}) and when asked about information at specific "
             "dates, you discard information that is at another date.\n"
             "You follow these instructions in all languages, and always respond to the user in "
             "the language they use or request.\n"

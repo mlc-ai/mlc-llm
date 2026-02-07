@@ -149,11 +149,8 @@ class Phi3VForCausalLM(nn.Module):
         )
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
-        self.image_dtype = (
-            "uint32"
-            if target.Target.current() and target.Target.current().kind.name == "webgpu"
-            else "uint8"
-        )
+        self.image_dtype = "uint32" if target.Target.current() and \
+            target.Target.current().kind.name == "webgpu" else "uint8"
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -320,7 +317,8 @@ class Phi3VForCausalLM(nn.Module):
             },
             "image_embed": {
                 "pixel_values": nn.spec.Tensor(
-                    [1, "image_height", "image_width", 3], self.image_dtype
+                    [1, "image_height", "image_width", 3],
+                    self.image_dtype
                 ),
                 "resized_height": nn.spec.Int(),
                 "resized_width": nn.spec.Int(),
