@@ -360,7 +360,7 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
         Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
-        
+
         Parameters
         ----------
         src : nn.Linear
@@ -368,10 +368,10 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
 
         config : BlockScaleQuantize
             The block-scale quantization config.
-        
+
         weight_block_size : Optional[Tuple[int, int]]
             The weight block size.
-            
+
         Returns
         -------
         ret : BlockScaleQuantizeLinearStaticActivation
@@ -396,7 +396,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
             apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
-            apply_sharding(shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale)
+            apply_sharding(
+                shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale
+            )
         return quantized_linear
 
     def forward(self, x: nn.Tensor) -> nn.Tensor:

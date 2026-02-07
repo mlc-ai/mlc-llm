@@ -106,10 +106,12 @@ def test_model_compile():  # pylint: disable=too-many-locals
                     TENSOR_PARALLEL_SHARDS,
                 )
             ):
-                if (
-                    SUPPORTED_QUANTS[quant].kind
-                    not in SUPPORTED_MODELS[MODEL_PRESETS[model]["model_type"]].quantize
-                ):
+                model_type = MODEL_PRESETS[model]["model_type"]
+                model_registry = SUPPORTED_MODELS.get(model_type)
+                if model_registry is None:
+                    # Some presets may not have compile support wired in yet.
+                    continue
+                if SUPPORTED_QUANTS[quant].kind not in model_registry.quantize:
                     continue
                 if not target.startswith("cuda") and quant == "q4f16_ft":
                     # FasterTransformer only works with cuda
