@@ -62,7 +62,7 @@ class Tokenizer(Object):
     def __init__(self, tokenizer_path: str) -> None:  # pylint: disable=super-init-not-called
         """Create the tokenizer from tokenizer directory path."""
         self.__init_handle_by_constructor__(
-            _ffi_api.Tokenizer,  # pylint: disable=no-member
+            _ffi_api.Tokenizer,  # type: ignore[attr-defined]  # pylint: disable=no-member
             tokenizer_path,  # type: ignore
         )
 

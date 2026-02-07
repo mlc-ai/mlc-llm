@@ -1227,7 +1227,7 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompts,
+                prompts,  # type: ignore[arg-type]
                 generation_cfg,
                 request_id,  # type: ignore
             ):
