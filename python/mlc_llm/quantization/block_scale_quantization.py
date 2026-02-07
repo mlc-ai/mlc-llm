@@ -359,7 +359,8 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
-        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
+        Convert a non-quantized nn.Linear to a block-scale quantized
+        BlockScaleQuantizeLinearStaticActivation.
 
         Parameters
         ----------
@@ -732,6 +733,7 @@ def broadcast_activation_scale(
     transpose: bool,
 ) -> nn.Tensor:
     """Broadcast stored activation scales."""
+    _ = group_size
 
     reshape_shape = (1,) * (x.ndim - 1) + (activation_scale.shape[0],)
     scale = nn.op.reshape(activation_scale, reshape_shape)
