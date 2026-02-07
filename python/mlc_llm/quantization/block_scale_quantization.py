@@ -363,7 +363,7 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
         weight_block_size: Optional[Tuple[int, int]],
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
-        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.
+        Convert a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinearStaticActivation.  # pylint: disable=line-too-long
 
         Parameters
         ----------

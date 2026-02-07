@@ -14,7 +14,7 @@ from mlc_llm.quantization import BlockScaleQuantize, Quantization
 from .ministral3_model import Ministral3Config, Mistral3ForConditionalGeneration
 
 
-def _dequantize_block_scale_weight(
+def _dequantize_block_scale_weight(  # pylint: disable=too-many-locals
     weight: np.ndarray, weight_scale: np.ndarray, block_size: Tuple[int, int]
 ) -> np.ndarray:
     """Reconstruct float weights from FP8 block-scale storage."""
@@ -41,7 +41,9 @@ def _dequantize_block_scale_weight(
     return out
 
 
-def huggingface(model_config: Ministral3Config, quantization: Quantization) -> ExternMapping:
+def huggingface(  # pylint: disable=too-many-locals,too-many-statements
+    model_config: Ministral3Config, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -101,7 +103,7 @@ def huggingface(model_config: Ministral3Config, quantization: Quantization) -> E
         )
 
     # Helper function to add both weight and scale mappings
-    def add_weight_and_scale_mapping(
+    def add_weight_and_scale_mapping(  # pylint: disable=too-many-locals
         weight_mlc_name: str,
         weight_hf_names: List[str],
         weight_transform_func: Callable,

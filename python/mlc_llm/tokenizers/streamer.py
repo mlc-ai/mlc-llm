@@ -18,8 +18,8 @@ class TextStreamer(Object):
     def __init__(self, tokenizer: Tokenizer) -> None:  # pylint: disable=super-init-not-called
         """Create the text streamer from tokenizer"""
         self.__init_handle_by_constructor__(
-            _ffi_api.TextStreamer,
-            tokenizer,  # type: ignore  # pylint: disable=no-member
+            _ffi_api.TextStreamer,  # pylint: disable=no-member
+            tokenizer,  # type: ignore
         )
 
     def put(self, delta_tokens: Union[List[int], ShapeTuple]) -> str:
