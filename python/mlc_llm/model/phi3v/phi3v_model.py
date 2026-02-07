@@ -5,7 +5,7 @@ Implementation for Phi architecture.
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import relax, te, tir
+from tvm import relax, target, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -143,10 +143,17 @@ class Phi3VForCausalLM(nn.Module):
         self.rope_scaling = config.rope_scaling
         self.rope_theta = config.position_embedding_base
         self.rope_ext_factors = (
-            config.rope_scaling["long_factor"] if config.rope_scaling is not None else None
+            (config.rope_scaling["long_factor"] + config.rope_scaling["short_factor"])
+            if config.rope_scaling is not None
+            else None
         )
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
+        self.image_dtype = (
+            "uint32"
+            if target.Target.current() and target.Target.current().kind.name == "webgpu"
+            else "uint8"
+        )
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -224,7 +231,7 @@ class Phi3VForCausalLM(nn.Module):
         pixel_values = self.image_processor.resize(
             pixel_values, params={"height": resized_height, "width": resized_width}
         )
-        pixel_values = self.image_processor.pad(pixel_values)
+        pixel_values = self.image_processor.pad(pixel_values, dtype=self.image_dtype)
         pixel_values = self.image_processor.rescale(pixel_values)
         pixel_values = self.image_processor.normalize(pixel_values)
         global_image = self.image_processor.resize(
@@ -312,7 +319,9 @@ class Phi3VForCausalLM(nn.Module):
                 },
             },
             "image_embed": {
-                "pixel_values": nn.spec.Tensor([1, "image_height", "image_width", 3], "uint8"),
+                "pixel_values": nn.spec.Tensor(
+                    [1, "image_height", "image_width", 3], self.image_dtype
+                ),
                 "resized_height": nn.spec.Int(),
                 "resized_width": nn.spec.Int(),
                 "crop_height": nn.spec.Int(),
