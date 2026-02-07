@@ -47,7 +47,7 @@ def main(argv):
         "--endpoint-hosts",
         type=list_of_strings,
         default="127.0.0.1",
-        help="Host of each endpoint, seperated by comma." + ' (default: "%(default)s")',
+        help="Host of each endpoint, separated by comma." + ' (default: "%(default)s")',
     )
     parser.add_argument(
         "--endpoint-ports",
