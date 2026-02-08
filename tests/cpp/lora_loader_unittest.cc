@@ -1,15 +1,15 @@
 #include <gtest/gtest.h>
-
-#include <fstream>
-#include <filesystem>
-#include <random>
-#include <vector>
-#include <sstream>
-
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include "serve/lora_manager.h"
+
+#include <filesystem>
+#include <fstream>
+#include <random>
+#include <sstream>
+#include <vector>
+
 #include "3rdparty/cnpy/cnpy.h"
+#include "serve/lora_manager.h"
 
 using namespace mlc::serve;
 
@@ -34,7 +34,7 @@ std::vector<char> BuildNpy(const std::vector<float>& data, const std::vector<siz
   hdr << "), }";
   // Pad header to 64-byte alignment
   std::string hdr_str = hdr.str();
-  size_t header_len = hdr_str.size() + 1;  // include newline
+  size_t header_len = hdr_str.size() + 1;      // include newline
   size_t pad = 64 - ((10 + header_len) % 64);  // 10 = magic+ver+len
   hdr_str.append(pad, ' ');
   hdr_str.push_back('\n');
@@ -48,8 +48,7 @@ std::vector<char> BuildNpy(const std::vector<float>& data, const std::vector<siz
 }
 
 // Write a minimal uncompressed .npz containing one member "delta.w".
-void WriteMinimalNpz(const std::filesystem::path& path,
-                     const std::vector<char>& npy_bytes,
+void WriteMinimalNpz(const std::filesystem::path& path, const std::vector<char>& npy_bytes,
                      const std::string& member_name) {
   std::ofstream ofs(path, std::ios::binary);
   // Local file header (no compression)
@@ -117,4 +116,4 @@ TEST(LoraLoaderTest, LoadAndFetchDelta) {
   std::filesystem::remove_all(temp_dir);
 }
 
-}  // namespace 
+}  // namespace

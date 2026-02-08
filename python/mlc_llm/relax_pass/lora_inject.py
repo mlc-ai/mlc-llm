@@ -1,7 +1,10 @@
+"""LoRA injection pass for Relax."""
+
 from __future__ import annotations
 
-import tvm
 from tvm import ir, relax
+
+# pylint: disable=abstract-method,arguments-renamed,no-member
 
 
 class _LoraInjectMutator(relax.PyExprMutator):

@@ -57,7 +57,9 @@ def _read_peft_adapter(file_path: Path) -> Dict[str, np.ndarray]:
 
     # 1. Load state-dict
     if file_path.suffix in {".bin", ".pt", ".pth"}:
-        state_dict: Dict[str, torch.Tensor] = torch.load(file_path, map_location="cpu")  # type: ignore[arg-type]
+        state_dict: Dict[str, torch.Tensor] = torch.load(  # type: ignore[arg-type]
+            file_path, map_location="cpu"
+        )
     elif file_path.suffix == ".safetensors" and _HAS_SAFETENSORS:
         state_dict = {}
         with safe_open(file_path, framework="pt", device="cpu") as f:
@@ -129,7 +131,10 @@ def pack_lora_adapter(adapter_path: Union[str, Path], out_file: Union[str, Path]
     deltas = _read_peft_adapter(ckpt)
 
     # Save npz – enforce deterministic key order for reproducibility.
-    np.savez(out_file, **{f"delta.{k}": v.astype(np.float16) for k, v in sorted(deltas.items())})
+    np.savez(
+        out_file,
+        **{f"delta.{k}": v.astype(np.float16) for k, v in sorted(deltas.items())},
+    )  # type: ignore[arg-type]
 
     # Write manifest JSON for easy introspection (alpha defaults to 1.0, can be
     # overridden later by metadata in package).

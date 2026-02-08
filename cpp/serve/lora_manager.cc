@@ -1,11 +1,11 @@
 #include "lora_manager.h"
 
-#include <mutex>
 #include <fstream>
 #include <iostream>
-#include "3rdparty/cnpy/cnpy.h"
-
+#include <mutex>
 #include <regex>
+
+#include "3rdparty/cnpy/cnpy.h"
 
 namespace mlc::serve {
 
@@ -13,7 +13,7 @@ namespace {
 // Mutex to guard singleton construction (call-once).
 std::once_flag g_once;
 LoraManager* g_inst{nullptr};
-}
+}  // namespace
 
 LoraManager* LoraManager::Global() {
   std::call_once(g_once, []() { g_inst = new LoraManager(); });
@@ -21,8 +21,9 @@ LoraManager* LoraManager::Global() {
 }
 
 void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha) {
-  std::cout << "UploadAdapter called with: " << adapter_npz_path << ", alpha=" << alpha << std::endl;
-  
+  std::cout << "UploadAdapter called with: " << adapter_npz_path << ", alpha=" << alpha
+            << std::endl;
+
   // Load manifest JSON (same dir, same base + .json) to grab layer names if present.
   std::string manifest_path = adapter_npz_path + ".json";
   std::unordered_map<std::string, float> scaling_map;  // full_param_name -> scaling
@@ -43,8 +44,9 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
   // Load every array in the .npz file via cnpy.
   std::cout << "Loading NPZ file: " << adapter_npz_path << std::endl;
   std::map<std::string, cnpy::NpyArray> arrays = cnpy::npz_load(adapter_npz_path);
-  std::cout << "Loaded NPZ file: " << adapter_npz_path << " (placeholder implementation)" << std::endl;
-  
+  std::cout << "Loaded NPZ file: " << adapter_npz_path << " (placeholder implementation)"
+            << std::endl;
+
   tvm::Device cpu_dev{kDLCPU, 0};
   for (const auto& kv : arrays) {
     const std::string& name = kv.first;  // e.g., "decoder.layers.0.mlp.w1.delta"
@@ -134,7 +136,8 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     }
 
     // If we allocated on CPU but runtime device is GPU, copy now.
-    if (target_dev.device_type != runtime_device_.device_type || target_dev.device_id != runtime_device_.device_id) {
+    if (target_dev.device_type != runtime_device_.device_type ||
+        target_dev.device_id != runtime_device_.device_id) {
       nd = nd.CopyTo(runtime_device_);
     }
 
@@ -145,7 +148,7 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     // safe to do now.
     owned_buffers_.push_back(arr.data_holder);
   }
-  
+
   std::cout << "LoRA adapter upload completed. Total deltas: " << delta_map_.size() << std::endl;
 }
 
@@ -166,4 +169,4 @@ tvm::runtime::NDArray LoraManager::Lookup(const std::string& param_name) const {
   }
 }
 
-}  // namespace mlc::serve 
+}  // namespace mlc::serve

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Utility Relax op helpers for LoRA.
 
 This is a *temporary* pure-Python implementation that builds the LoRA fused
@@ -8,6 +6,8 @@ all targets today.  Once a dedicated C++ op / fused schedule lands we can swap
 this helper out behind the same call-site without touching the rest of the
 Python stack.
 """
+
+from __future__ import annotations
 
 from typing import Union
 
@@ -47,6 +47,6 @@ def lora_dense(
     out_lora = op.matmul(x, op.permute_dims(lora_weight))
 
     if not isinstance(alpha, nn.Tensor):
-        alpha = nn.const(alpha, x.dtype)
+        alpha = nn.const(alpha, x.dtype)  # pylint: disable=no-member
 
     return out_base + out_lora * alpha

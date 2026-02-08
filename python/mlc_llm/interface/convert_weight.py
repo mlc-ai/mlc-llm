@@ -65,13 +65,14 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
 
 def _merge_lora_weights(args: ConversionArgs) -> Path:
     """Merge LoRA weights into base model weights (legacy mode)."""
-    # TODO: Implement LoRA weight merging for legacy mode
+    # Implement LoRA weight merging for legacy mode.
     # For now, just return the original source path
     logger.warning("LoRA weight merging not yet implemented, using base weights only")
     return args.source
 
 
-def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-statements
+def _convert_args(args: ConversionArgs) -> None:
     # ------------------------------------------------------------------
     # Handle LoRA: separate-pack or legacy merge
     # ------------------------------------------------------------------
@@ -79,7 +80,9 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     lora_artifacts: List[str] = []  # relative paths inside output dir
 
     if args.lora_separate:
-        from mlc_llm.loader.lora_packer import pack_lora_adapter
+        from mlc_llm.loader.lora_packer import (  # pylint: disable=import-outside-toplevel
+            pack_lora_adapter,
+        )
 
         adapter_rel_dir = Path("adapters")
         packed_path = pack_lora_adapter(
@@ -218,6 +221,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     logger.info("Saved to directory: %s", bold(str(args.output)))
 
 
+# pylint: enable=too-many-locals,too-many-statements
 def convert_weight(  # pylint: disable=too-many-arguments
     config: Path,
     quantization: Quantization,

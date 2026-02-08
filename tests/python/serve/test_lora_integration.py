@@ -15,7 +15,7 @@ from mlc_llm.serve.engine import MLCEngine
 def create_simple_npz(path: Path, delta_data: np.ndarray, param_name: str):
     """Create a simple .npz file with LoRA delta for testing."""
     # Create uncompressed NPZ (stores as individual .npy files in ZIP)
-    np.savez_compressed(path, **{param_name: delta_data})
+    np.savez_compressed(path, **{param_name: delta_data})  # type: ignore[arg-type]
 
 
 def create_lora_manifest(npz_path: Path, param_name: str, alpha: float = 1.0):

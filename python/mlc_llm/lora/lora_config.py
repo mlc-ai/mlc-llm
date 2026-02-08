@@ -5,7 +5,7 @@ from typing import List, Optional
 
 
 @dataclass
-class LoRAConfig:
+class LoRAConfig:  # pylint: disable=too-many-instance-attributes
     """Configuration for LoRA (Low-Rank Adaptation) parameters.
 
     This configuration is used to define LoRA adaptation parameters

@@ -3,17 +3,20 @@
 import math
 from typing import Optional, Union
 
-from tvm import relax, tir
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm.lora.lora_config import LoRAConfig  # Use shared config implementation
+from mlc_llm.op.lora import lora_dense
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
 
 
-class LoRALinear(nn.Module):
+class LoRALinear(
+    nn.Module
+):  # pylint: disable=too-many-instance-attributes,too-many-arguments,invalid-name
     """
     Linear layer with LoRA (Low-Rank Adaptation) support.
 
@@ -81,8 +84,11 @@ class LoRALinear(nn.Module):
             # Freezing the pre-trained weight matrix
             self.weight.requires_grad = False
             logger.info(
-                f"Created LoRA layer: in_features={in_features}, "
-                f"out_features={out_features}, r={r}, alpha={lora_alpha}"
+                "Created LoRA layer: in_features=%s, out_features=%s, r=%s, alpha=%s",
+                in_features,
+                out_features,
+                r,
+                lora_alpha,
             )
         else:
             self.lora_A = None
@@ -93,15 +99,12 @@ class LoRALinear(nn.Module):
         if self.r > 0:
             # Initialize A with Kaiming uniform and B with zeros
             # This ensures LoRA starts from zero
-            nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
-            nn.init.zeros_(self.lora_B)
+            nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))  # pylint: disable=no-member
+            nn.init.zeros_(self.lora_B)  # pylint: disable=no-member
 
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass with optional LoRA adaptation."""
         if self.r > 0 and not self.merged:
-            # Use the fused helper so we have identical code-path everywhere.
-            from mlc_llm.op.lora import lora_dense  # local import to avoid cycle
-
             # Compose delta = BA (shape: out_features × in_features)
             if self.lora_A is None or self.lora_B is None:  # pragma: no cover
                 raise RuntimeError("LoRA parameters not initialised properly")
@@ -113,12 +116,11 @@ class LoRALinear(nn.Module):
                 result = result + self.bias
 
             return result
-        else:
-            # Use merged weights or no LoRA
-            result = op.matmul(x, op.permute_dims(self.weight))
-            if self.bias is not None:
-                result = result + self.bias
-            return result
+        # Use merged weights or no LoRA
+        result = op.matmul(x, op.permute_dims(self.weight))
+        if self.bias is not None:
+            result = result + self.bias
+        return result
 
     def merge_weights(self):
         """Merge LoRA weights into the base weights for efficient inference."""

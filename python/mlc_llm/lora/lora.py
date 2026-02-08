@@ -34,7 +34,7 @@ def _ensure_library_loaded():
         print("✗ No MLC-LLM library found")
         return False
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         print(f"✗ Failed to load MLC-LLM library: {e}")
         return False
 
@@ -120,7 +120,6 @@ def register_lora_dir(directory: Union[str, Path]) -> None:
 
 def clear_lora_registrations() -> None:
     """Clear all registered LoRA directories."""
-    global _registered_lora_dirs
     count = len(_registered_lora_dirs)
     _registered_lora_dirs.clear()
     print(f"✓ Cleared {count} LoRA registrations")

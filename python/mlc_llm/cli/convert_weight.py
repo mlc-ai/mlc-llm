@@ -90,13 +90,19 @@ def main(argv):
         "--lora-adapter",
         type=_parse_lora_adapter,
         default=None,
-        help="Path to LoRA adapter directory. When provided, LoRA weights will be merged into base weights before quantization (legacy mode).",
+        help=(
+            "Path to LoRA adapter directory. When provided, LoRA weights will be merged "
+            "into base weights before quantization (legacy mode)."
+        ),
     )
     lora_group.add_argument(
         "--lora-separate",
         type=_parse_lora_adapter,
         default=None,
-        help="Path to LoRA adapter directory. When provided, adapter weights will be packed into a separate artifact and kept separate at runtime.",
+        help=(
+            "Path to LoRA adapter directory. When provided, adapter weights will be packed "
+            "into a separate artifact and kept separate at runtime."
+        ),
     )
     parser.add_argument(
         "--lora-alpha",
