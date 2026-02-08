@@ -100,7 +100,9 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
     lora_inject_pass = tvm.transform.Sequential([])
     if metadata.get("LoRASeparate", False):
-        from ..relax_pass import make_lora_inject_pass  # pylint: disable=import-outside-toplevel
+        from ..relax_pass import (
+            make_lora_inject_pass,  # pylint: disable=import-outside-toplevel
+        )
 
         lora_inject_pass = make_lora_inject_pass(True)
 
