@@ -64,6 +64,7 @@ class _InjectLoRADelta:  # pylint: disable=too-few-public-methods
         self.enabled = enabled
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
+        """Apply LoRA injection when enabled, otherwise return module unchanged."""
         if not self.enabled:
             return mod
         return _LoraInjectMutator(mod).transform()
