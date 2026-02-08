@@ -731,9 +731,10 @@ def broadcast_activation_scale(
     activation_scale: nn.Tensor,
     group_size: int,
     transpose: bool,
-) -> nn.Tensor:  # pylint: disable=unused-argument
+) -> nn.Tensor:
     """Broadcast stored activation scales."""
 
+    _ = group_size
     reshape_shape = (1,) * (x.ndim - 1) + (activation_scale.shape[0],)
     scale = nn.op.reshape(activation_scale, reshape_shape)
     scale = nn.op.broadcast_to(scale, (*x.shape[:-1], activation_scale.shape[0]))

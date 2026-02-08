@@ -94,7 +94,8 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                         logger.info(
                             "Setting default weight_block_size=%s since "
                             "quantization_config does not provide "
-                            "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s)",
+                            "FP8 block-scale details required by MLC "
+                            "(activation_scheme=%s, quant_method=%s)",
                             self.weight_block_size,
                             activation_scheme,
                             quant_method,
@@ -107,7 +108,8 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                     )
             else:
                 raise ValueError(
-                    "Invalid Ministral 3 model quantization config: unrecognized quantization config: "
+                    "Invalid Ministral 3 model quantization config: "
+                    "unrecognized quantization config: "
                     f"{quantization_config}"
                 )
 
