@@ -11,19 +11,23 @@
 #define TVM_USE_LIBBACKTRACE 0
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/module.h>
 
 using namespace tvm::runtime;
 using tvm::ffi::Function;
+using tvm::ffi::Module;
+using tvm::ffi::Optional;
 using tvm::ffi::String;
 using tvm::ffi::TypedFunction;
 
 @implementation JSONFFIEngine {
   // Internal c++ classes
   // internal module backed by JSON FFI
-  Module json_ffi_engine_;
+  Optional<Module> json_ffi_engine_;
   // member functions
   Function init_background_engine_func_;
   Function unload_func_;
@@ -41,16 +45,21 @@ using tvm::ffi::TypedFunction;
     // load chat module
     Function f_json_ffi_create = Function::GetGlobalRequired("mlc.json_ffi.CreateJSONFFIEngine");
     json_ffi_engine_ = f_json_ffi_create().cast<Module>();
-    init_background_engine_func_ = json_ffi_engine_->GetFunction("init_background_engine");
-    reload_func_ = json_ffi_engine_->GetFunction("reload");
-    unload_func_ = json_ffi_engine_->GetFunction("unload");
-    reset_func_ = json_ffi_engine_->GetFunction("reset");
-    chat_completion_func_ = json_ffi_engine_->GetFunction("chat_completion");
-    abort_func_ = json_ffi_engine_->GetFunction("abort");
-    run_background_loop_func_ = json_ffi_engine_->GetFunction("run_background_loop");
-    run_background_stream_back_loop_func_ =
-        json_ffi_engine_->GetFunction("run_background_stream_back_loop");
-    exit_background_loop_func_ = json_ffi_engine_->GetFunction("exit_background_loop");
+    init_background_engine_func_ =
+        json_ffi_engine_.value()->GetFunction("init_background_engine").value_or(Function(nullptr));
+    reload_func_ = json_ffi_engine_.value()->GetFunction("reload").value_or(Function(nullptr));
+    unload_func_ = json_ffi_engine_.value()->GetFunction("unload").value_or(Function(nullptr));
+    reset_func_ = json_ffi_engine_.value()->GetFunction("reset").value_or(Function(nullptr));
+    chat_completion_func_ =
+        json_ffi_engine_.value()->GetFunction("chat_completion").value_or(Function(nullptr));
+    abort_func_ = json_ffi_engine_.value()->GetFunction("abort").value_or(Function(nullptr));
+    run_background_loop_func_ =
+        json_ffi_engine_.value()->GetFunction("run_background_loop").value_or(Function(nullptr));
+    run_background_stream_back_loop_func_ = json_ffi_engine_.value()
+                                                ->GetFunction("run_background_stream_back_loop")
+                                                .value_or(Function(nullptr));
+    exit_background_loop_func_ =
+        json_ffi_engine_.value()->GetFunction("exit_background_loop").value_or(Function(nullptr));
 
     ICHECK(init_background_engine_func_ != nullptr);
     ICHECK(reload_func_ != nullptr);

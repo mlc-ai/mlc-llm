@@ -230,7 +230,7 @@ class BatchJumpForwardActionObj : public EngineActionObj {
 
 EngineAction EngineAction::BatchJumpForward(Array<Model> models, Tokenizer tokenizer,
                                             Optional<EventTraceRecorder> trace_recorder) {
-  return EngineAction(make_object<BatchJumpForwardActionObj>(
+  return EngineAction(tvm::ffi::make_object<BatchJumpForwardActionObj>(
       std::move(models), std::move(tokenizer), std::move(trace_recorder)));
 }
 

@@ -9,7 +9,7 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-TVM_REGISTER_OBJECT_TYPE(EngineActionObj);
+TVM_FFI_STATIC_INIT_BLOCK() { EngineActionObj::RegisterReflection(); }
 
 }  // namespace serve
 }  // namespace llm

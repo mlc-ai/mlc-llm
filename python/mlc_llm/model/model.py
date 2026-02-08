@@ -25,9 +25,11 @@ from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
 from .internlm import internlm_loader, internlm_model, internlm_quantization
 from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
 from .llama import llama_loader, llama_model, llama_quantization
+from .llama4 import llama4_loader, llama4_model, llama4_quantization
 from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
+from .ministral3 import ministral3_loader, ministral3_model, ministral3_quantization
 from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .nemotron import nemotron_loader, nemotron_model, nemotron_quantization
@@ -106,6 +108,21 @@ MODELS: Dict[str, Model] = {
             "per-tensor-quant": llama_quantization.per_tensor_quant,
         },
     ),
+    "llama4": Model(
+        name="llama4",
+        model=llama4_model.Llama4ForCausalLM,
+        config=llama4_model.Llama4Config,
+        source={
+            "huggingface-torch": llama4_loader.huggingface,
+            "huggingface-safetensor": llama4_loader.huggingface,
+        },
+        quantize={
+            "no-quant": llama4_quantization.no_quant,
+            "group-quant": llama4_quantization.group_quant,
+            "ft-quant": llama4_quantization.ft_quant,
+            "per-tensor-quant": llama4_quantization.per_tensor_quant,
+        },
+    ),
     "mistral": Model(
         name="mistral",
         model=mistral_model.MistralForCasualLM,
@@ -119,6 +136,21 @@ MODELS: Dict[str, Model] = {
             "group-quant": mistral_quantization.group_quant,
             "no-quant": mistral_quantization.no_quant,
             "ft-quant": mistral_quantization.ft_quant,
+        },
+    ),
+    "ministral3": Model(
+        name="ministral3",
+        model=ministral3_model.Mistral3ForConditionalGeneration,
+        config=ministral3_model.Ministral3Config,
+        source={
+            "huggingface-torch": ministral3_loader.huggingface,
+            "huggingface-safetensor": ministral3_loader.huggingface,
+        },
+        quantize={
+            "group-quant": ministral3_quantization.group_quant,
+            "no-quant": ministral3_quantization.no_quant,
+            "ft-quant": ministral3_quantization.ft_quant,
+            "block-scale-quant": ministral3_quantization.block_scale_quant,
         },
     ),
     "gemma": Model(

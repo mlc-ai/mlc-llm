@@ -4,7 +4,7 @@
  * \brief The implementation for CPU sampler functions.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
@@ -16,6 +16,8 @@
 namespace mlc {
 namespace llm {
 namespace serve {
+
+TVM_FFI_STATIC_INIT_BLOCK() { SamplerObj::RegisterReflection(); }
 
 /*!
  * \brief Sample a value from the input probability distribution with top-p.
@@ -30,7 +32,7 @@ namespace serve {
  * \note This function is an enhancement of SampleTopPFromProb in TVM Unity.
  * We will upstream the enhancement after it gets stable.
  */
-TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_offset, double top_p,
+TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_offset, double top_p,
                                  double uniform_sample) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
@@ -167,7 +169,7 @@ TokenProbPair SampleTopPFromProb(NDArray prob, int unit_offset, int input_prob_o
  * \param top_p The top p value for renormalization.
  * \param eps A small epsilon value for comparison stability.
  */
-void RenormalizeProbByTopP(NDArray prob, int unit_offset, double top_p, double eps) {
+void RenormalizeProbByTopP(Tensor prob, int unit_offset, double top_p, double eps) {
   // prob: (*, v)
   // The prob array may have arbitrary ndim and shape.
   // The last dimension corresponds to the prob distribution size.
@@ -297,8 +299,7 @@ std::vector<TokenProbPair> ComputeTopProbsImpl(const float* p_prob, int ndata) {
 }  // namespace detail
 
 /*! \brief Get the probs of a few number of tokens with top probabilities. */
-inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
-                                                  int num_top_probs) {
+inline std::vector<TokenProbPair> ComputeTopProbs(Tensor prob, int unit_offset, int num_top_probs) {
   ICHECK_LE(num_top_probs, 5);
   ICHECK_EQ(prob->ndim, 2);
   int ndata = prob->shape[1];
@@ -323,22 +324,20 @@ inline std::vector<TokenProbPair> ComputeTopProbs(NDArray prob, int unit_offset,
 
 /********************* CPU Sampler *********************/
 
-TVM_REGISTER_OBJECT_TYPE(SamplerObj);
-
 class CPUSampler : public SamplerObj {
  public:
   explicit CPUSampler(Optional<EventTraceRecorder> trace_recorder)
       : trace_recorder_(std::move(trace_recorder)) {}
 
-  NDArray BatchRenormalizeProbsByTopP(NDArray probs_on_device,                 //
-                                      const std::vector<int>& sample_indices,  //
-                                      const Array<String>& request_ids,        //
-                                      const Array<GenerationConfig>& generation_cfg) final {
+  Tensor BatchRenormalizeProbsByTopP(Tensor probs_on_device,                  //
+                                     const std::vector<int>& sample_indices,  //
+                                     const Array<String>& request_ids,        //
+                                     const Array<GenerationConfig>& generation_cfg) final {
     // probs_on_device: (n, v)
     CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_on_host = CopyProbsToCPU(probs_on_device);
+    Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
@@ -374,7 +373,7 @@ class CPUSampler : public SamplerObj {
   }
 
   std::vector<SampleResult> BatchSampleTokensWithProbBeforeTopP(
-      NDArray probs_on_device,                        //
+      Tensor probs_on_device,                         //
       const std::vector<int>& sample_indices,         //
       const Array<String>& request_ids,               //
       const Array<GenerationConfig>& generation_cfg,  //
@@ -383,7 +382,7 @@ class CPUSampler : public SamplerObj {
     CHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
-    NDArray probs_on_host = CopyProbsToCPU(probs_on_device);
+    Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
     RECORD_EVENT(trace_recorder_, request_ids, "finish copy probs to CPU");
 
     return BatchSampleTokensImpl(probs_on_host, sample_indices, request_ids, generation_cfg, rngs,
@@ -391,7 +390,7 @@ class CPUSampler : public SamplerObj {
   }
 
   std::vector<SampleResult> BatchSampleTokensWithProbAfterTopP(
-      NDArray probs_on_host,                          //
+      Tensor probs_on_host,                           //
       const std::vector<int>& sample_indices,         //
       const Array<String>& request_ids,               //
       const Array<GenerationConfig>& generation_cfg,  //
@@ -402,11 +401,11 @@ class CPUSampler : public SamplerObj {
 
   std::pair<std::vector<std::vector<SampleResult>>, std::vector<int>>
   BatchVerifyDraftTokensWithProbAfterTopP(
-      NDArray probs_on_host, const Array<String>& request_ids,
+      Tensor probs_on_host, const Array<String>& request_ids,
       const std::vector<int>& cum_verify_lengths, const Array<GenerationConfig>& generation_cfg,
       const std::vector<RandomGenerator*>& rngs,
       const std::vector<std::vector<SampleResult>>& draft_output_tokens,
-      const std::vector<int64_t>& token_tree_parent_ptr, NDArray draft_probs_on_device) final {
+      const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
     CHECK_EQ(probs_on_host->ndim, 2);
@@ -415,7 +414,7 @@ class CPUSampler : public SamplerObj {
     CHECK_EQ(rngs.size(), num_sequence);
     CHECK_EQ(draft_output_tokens.size(), num_sequence);
 
-    NDArray draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
+    Tensor draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
     std::vector<std::vector<SampleResult>> sample_results;
     sample_results.resize(num_sequence);
 
@@ -504,7 +503,7 @@ class CPUSampler : public SamplerObj {
   }
 
  private:
-  std::vector<SampleResult> BatchSampleTokensImpl(NDArray probs_on_host,                          //
+  std::vector<SampleResult> BatchSampleTokensImpl(Tensor probs_on_host,                           //
                                                   const std::vector<int>& sample_indices,         //
                                                   const Array<String>& request_ids,               //
                                                   const Array<GenerationConfig>& generation_cfg,  //
@@ -544,7 +543,7 @@ class CPUSampler : public SamplerObj {
   }
 
   /*! \brief Copy prob distributions from device to CPU. */
-  NDArray CopyProbsToCPU(NDArray probs_on_device) {
+  Tensor CopyProbsToCPU(Tensor probs_on_device) {
     // probs_on_device: (n, v)
     if (probs_on_device->device.device_type == kDLCPU) {
       return probs_on_device;
@@ -563,10 +562,10 @@ class CPUSampler : public SamplerObj {
     }
     if (!probs_host_.defined() || init_size != probs_host_->shape[0]) {
       probs_host_ =
-          NDArray::Empty({init_size, vocab_size}, probs_on_device->dtype, DLDevice{kDLCPU, 0});
+          Tensor::Empty({init_size, vocab_size}, probs_on_device->dtype, DLDevice{kDLCPU, 0});
     }
     ICHECK_LE(num_tokens, probs_host_->shape[0]);
-    NDArray view = probs_host_.CreateView({num_tokens, vocab_size}, probs_on_device->dtype);
+    Tensor view = probs_host_.CreateView({num_tokens, vocab_size}, probs_on_device->dtype);
     view.CopyFrom(probs_on_device);
     return view;
   }
@@ -576,12 +575,12 @@ class CPUSampler : public SamplerObj {
   /*! \brief Customized function which computes prob distribution from logits */
   Function flogits_to_probs_inplace_;
   /*! \brief Probability distribution array on CPU. */
-  NDArray probs_host_{nullptr};
+  Tensor probs_host_{nullptr};
   const float eps_ = 1e-5;
 };
 
 Sampler Sampler::CreateCPUSampler(Optional<EventTraceRecorder> trace_recorder) {
-  return Sampler(make_object<CPUSampler>(std::move(trace_recorder)));
+  return Sampler(tvm::ffi::make_object<CPUSampler>(std::move(trace_recorder)));
 }
 
 }  // namespace serve

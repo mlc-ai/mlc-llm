@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import tvm
+import tvm_ffi
 from tvm import relax
 from tvm.contrib import tvmjs
 from tvm.runtime import Device, Module
@@ -22,8 +23,8 @@ def _extract_metadata(mod: Module):
 
 def _load_params(
     model_weight_path: str, device: Device, model_metadata: Dict[str, Any]
-) -> List[tvm.nd.NDArray]:
-    params, meta = tvmjs.load_ndarray_cache(model_weight_path, device)
+) -> List[tvm.runtime.Tensor]:
+    params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
     param_names = [param["name"] for param in model_metadata["params"]]
     assert len(param_names) == meta["ParamSize"]
 
@@ -34,7 +35,7 @@ def _load_params(
 
 
 def _get_tvm_module(
-    model_weight_path: str, lib_path: str, device: Device, instrument: tvm.ffi.Function = None
+    model_weight_path: str, lib_path: str, device: Device, instrument: tvm_ffi.Function = None
 ):
     ex = tvm.runtime.load_module(lib_path)
     vm = relax.VirtualMachine(ex, device)
@@ -96,7 +97,7 @@ class DefaultDebugInstrument:
         # Save the arguments to npz
         arg_dict = {}
         for i, arg in enumerate(args):
-            if isinstance(arg, tvm.nd.NDArray):
+            if isinstance(arg, tvm.runtime.Tensor):
                 arg_dict[f"arg_{i}"] = arg.numpy()
 
         np.savez(self.debug_out / f"{func_name}.npz", **arg_dict)
@@ -146,7 +147,7 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
         self.tokenizer = Tokenizer(self.model_path)
         self.prefill_func = self.mod["prefill"]
 
-    def embed(self, queries: List[str]) -> tvm.runtime.NDArray:
+    def embed(self, queries: List[str]) -> tvm.runtime.Tensor:
         """
         Embeds a list of queries in a single batch.
 
@@ -161,8 +162,8 @@ class MLCEmbeddings:  # pylint: disable=too-few-public-methods
             A list of embeddings for the queries.
         """
         tokens, attention_mask = self._tokenize_queries(queries)
-        tokens_tvm = tvm.nd.array(tokens.astype("int32"), device=self.device)
-        attention_mask_tvm = tvm.nd.array(attention_mask.astype("int32"), device=self.device)
+        tokens_tvm = tvm.runtime.tensor(tokens.astype("int32"), device=self.device)
+        attention_mask_tvm = tvm.runtime.tensor(attention_mask.astype("int32"), device=self.device)
         output = self.prefill_func(tokens_tvm, attention_mask_tvm, self.params)
         return output
 

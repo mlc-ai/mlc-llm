@@ -7,6 +7,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/int_tuple.h>
@@ -23,6 +24,9 @@ namespace serve {
 
 using namespace tvm;
 using namespace tvm::runtime;
+using tvm::ffi::Array;
+using tvm::ffi::Optional;
+using tvm::ffi::String;
 
 /****************** GenerationConfig ******************/
 
@@ -132,10 +136,14 @@ class GenerationConfigNode : public Object {
 
   picojson::object AsJSON() const;
 
-  static constexpr const char* _type_key = "mlc.serve.GenerationConfig";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GenerationConfigNode>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(GenerationConfigNode, Object);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.GenerationConfig", GenerationConfigNode, Object);
 };
 
 class GenerationConfig : public ObjectRef {
@@ -157,7 +165,7 @@ class GenerationConfig : public ObjectRef {
   /*! \brief Get the default generation config from the model config. */
   static GenerationConfig GetDefaultFromModelConfig(const picojson::object& json);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(GenerationConfig, ObjectRef, GenerationConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
 
 /****************** Engine config ******************/
@@ -300,10 +308,15 @@ class EngineConfigNode : public Object {
 
   String AsJSONString() const;
 
-  static constexpr const char* _type_key = "mlc.serve.EngineConfig";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EngineConfigNode>();
+  }
+
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
-  TVM_DECLARE_BASE_OBJECT_INFO(EngineConfigNode, Object);
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EngineConfig", EngineConfigNode, Object);
 };
 
 class EngineConfig : public ObjectRef {
@@ -319,7 +332,7 @@ class EngineConfig : public ObjectRef {
   static Result<std::vector<std::pair<std::string, std::string>>>
   GetModelsAndModelLibsFromJSONString(const std::string& json_str);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(EngineConfig, ObjectRef, EngineConfigNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EngineConfig, ObjectRef, EngineConfigNode);
 };
 
 /*! \brief A subset of engine config that is inferrable. */

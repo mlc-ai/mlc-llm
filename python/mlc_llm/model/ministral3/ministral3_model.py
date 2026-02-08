@@ -65,7 +65,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
             return super().from_dict(merged)
         return super().from_dict(source)
 
-    def __post_init__(self):  # pylint: disable=too-many-branches,too-many-statements
+    def __post_init__(self):  # pylint: disable=too-many-branches
         if "quantization_config" in self.kwargs:
             quantization_config = self.kwargs.pop("quantization_config")
             if isinstance(quantization_config, dict):
@@ -85,30 +85,26 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                             raise ValueError(
                                 "Invalid Ministral3 quantization config: "
                                 "weight_block_size must be a list or tuple of two integers, "
-                                f"got {self.weight_block_size} "
-                                f"of type {type(self.weight_block_size)}"
+                                f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
                             )
                     else:
                         # Set default block size if not provided.
                         self.weight_block_size = (128, 128)
                         logger.info(
-                            "Setting default weight_block_size=%s since quantization_config does "
-                            "not provide FP8 block-scale details required by MLC "
-                            "(activation_scheme=%s, quant_method=%s)",
+                            "Setting default weight_block_size=%s since quantization_config does not provide "
+                            "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s)",
                             self.weight_block_size,
                             activation_scheme,
                             quant_method,
                         )
                 else:
                     raise ValueError(
-                        "Invalid Ministral 3 model quantization config: "
-                        "only FP8 static quantization is supported, "
+                        "Invalid Ministral 3 model quantization config: only FP8 static quantization is supported, "
                         f"got activation_scheme={activation_scheme}, quant_method={quant_method}"
                     )
             else:
                 raise ValueError(
-                    "Invalid Ministral 3 model quantization config: "
-                    "unrecognized quantization config: "
+                    "Invalid Ministral 3 model quantization config: unrecognized quantization config: "
                     f"{quantization_config}"
                 )
 

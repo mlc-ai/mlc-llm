@@ -57,12 +57,12 @@ def gemv(x: Tensor, w: Tensor, indptr: Tensor) -> Tensor:
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
         for e in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
-            with T.block("gemv_o"):
+            with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, e)
                 T.reads(x[:, :], w[indptr[0, e], :, :], indptr[0, e])
                 T.writes(o[e, :])
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("gemv"):
+                    with T.sblock("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
                         with T.init():
                             o[e, i] = T.cast(T.float16(0), dtype)
@@ -156,15 +156,15 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
-            with T.block("gemv_o"):
+            with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
                 y = T.alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("dequantize"):
+                    with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
                         y[i, j] = _dequantize(w, scale, indptr[0, e], i, j)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("gemv"):
+                    with T.sblock("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
                         with T.init():
                             o[e, i] = T.cast(T.float16(0), model_dtype)
@@ -245,15 +245,15 @@ def dequantize_float8_gemv(
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
-            with T.block("gemv_o"):
+            with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
                 y = T.alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("dequantize"):
+                    with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
                         y[i, j] = _dequantize(w, scale, indptr[0, e], i, j)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("gemv"):
+                    with T.sblock("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
                         with T.init():
                             o[e, i] = T.cast(T.float16(0), model_dtype)
@@ -268,15 +268,15 @@ def dequantize_float8_gemv(
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
-            with T.block("gemv_o"):
+            with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
                 y = T.alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("dequantize"):
+                    with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
                         y[i, j] = _dequantize(w, None, indptr[0, e], i, j)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("gemv"):
+                    with T.sblock("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
                         with T.init():
                             o[e, i] = T.cast(T.float16(0), model_dtype)
@@ -361,15 +361,15 @@ def dequantize_block_scale_float8_gemv(
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
-            with T.block("gemv_o"):
+            with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
                 y = T.alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("dequantize"):
+                    with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
                         y[i, j] = _dequantize(w, w_scale, expert_indices[0, e], i, j)
                 for i1, i2 in T.grid(out_features, in_features):
-                    with T.block("gemv"):
+                    with T.sblock("gemv"):
                         i, j = T.axis.remap("SR", [i1, i2])
                         with T.init():
                             o[e, i] = T.cast(T.float16(0), out_dtype)
@@ -435,7 +435,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
         O = T.match_buffer(var_o, (B, N), dtype)
 
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
-            with T.block("CTA"):
+            with T.sblock("CTA"):
                 bx = T.axis.spatial(CTA_COUNT, _bx)
                 T.reads(indptr[:], X[:, :], W[:, :, :])
                 T.writes(O[:, :])
@@ -470,7 +470,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                         num_tiles: T.int32 = tile_id[0] - sum[0]
                         m_offset: T.int32 = BLK_M * T.floordiv(num_tiles, tiles_per_row) + row[0]
                         n_offset: T.int32 = BLK_N * T.floormod(num_tiles, tiles_per_row)
-                        with T.block("gemm"):
+                        with T.sblock("gemm"):
                             T.reads(
                                 row[1],
                                 X[m_offset : m_offset + BLK_M, :],
@@ -481,7 +481,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                             W_tile = T.alloc_buffer((BLK_N, K), dtype, scope="shared")
                             O_tile = T.alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
                             for a0, a1 in T.grid(BLK_M, K):
-                                with T.block("X_shared"):
+                                with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     X_tile[i, j] = T.if_then_else(
                                         m_offset + i < row[1],
@@ -489,7 +489,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                         zero,
                                     )
                             for a0, a1 in T.grid(BLK_N, K):
-                                with T.block("W_shared"):
+                                with T.sblock("W_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     W_tile[i, j] = T.if_then_else(
                                         n_offset + i < N,
@@ -497,13 +497,13 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                         zero,
                                     )
                             for a0, a1, a2 in T.grid(BLK_M, BLK_N, K):
-                                with T.block("compute"):
+                                with T.sblock("compute"):
                                     i, j, k = T.axis.remap("SSR", [a0, a1, a2])
                                     with T.init():
                                         O_tile[i, j] = zero
                                     O_tile[i, j] += X_tile[i, k] * W_tile[j, k]
                             for a0, a1 in T.grid(BLK_M, BLK_N):
-                                with T.block("store"):
+                                with T.sblock("store"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     if m_offset + i < row[1] and n_offset + j < N:
                                         O[m_offset + i, n_offset + j] = O_tile[i, j]
@@ -528,7 +528,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                 sch.storage_align(block, 0, axis=1, factor=8, offset=vec_len)
             return block
 
-        main_block = sch.get_block("compute")
+        main_block = sch.get_sblock("compute")
         x, y, k = sch.get_loops(main_block)
         ty, yi = sch.split(y, [TY, None])
         tx, xi, vec_c = sch.split(x, [TX, None, VEC_DOT])
@@ -540,12 +540,12 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
         if UNROLL > 0:
             sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=UNROLL)
             sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
-        l2g = sch.get_block("store")
+        l2g = sch.get_sblock("store")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
         _, v = sch.split(sch.get_loops(l2g)[-1], [None, VEC_O])
         sch.vectorize(v)
-        _cooperative_fetch(sch.get_block("X_shared"), vec_len=VEC_X)
-        _cooperative_fetch(sch.get_block("W_shared"), vec_len=VEC_W)
+        _cooperative_fetch(sch.get_sblock("X_shared"), vec_len=VEC_X)
+        _cooperative_fetch(sch.get_sblock("W_shared"), vec_len=VEC_W)
         sch.decompose_reduction(main_block, ko)
         return sch.mod["main"]
 
@@ -640,7 +640,7 @@ def dequantize_group_gemm(
         X = T.match_buffer(var_x, (B, K), model_dtype)
         O = T.match_buffer(var_o, (B, N), model_dtype)
         for _bx in T.thread_binding(CTA_COUNT, thread="blockIdx.x"):
-            with T.block("CTA"):
+            with T.sblock("CTA"):
                 bx = T.axis.spatial(CTA_COUNT, _bx)
                 T.reads(X[:, :], w[:, :, :], scale[:, :, :], indptr[:])
                 T.writes(O[:, :])
@@ -675,7 +675,7 @@ def dequantize_group_gemm(
                         num_tiles = tile_id[0] - sum[0]
                         m_offset = T.floordiv(num_tiles, tiles_per_row) * BLK_M + row[0]
                         n_offset = T.floormod(num_tiles, tiles_per_row) * BLK_N
-                        with T.block("gemm"):
+                        with T.sblock("gemm"):
                             T.reads(
                                 row[1],
                                 X[m_offset : m_offset + BLK_M, :],
@@ -687,7 +687,7 @@ def dequantize_group_gemm(
                             W_tile = T.alloc_buffer((BLK_N, K), model_dtype, scope="shared")
                             O_tile = T.alloc_buffer((BLK_M, BLK_N), "float32", scope="local")
                             for a0, a1 in T.grid(BLK_M, K):
-                                with T.block("X_shared"):
+                                with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     X_tile[i, j] = T.if_then_else(
                                         m_offset + i < row[1],
@@ -695,7 +695,7 @@ def dequantize_group_gemm(
                                         zero,
                                     )
                             for a0, a1 in T.grid(BLK_N, K):
-                                with T.block("W_shared"):
+                                with T.sblock("W_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     W_tile[i, j] = T.if_then_else(
                                         n_offset + i < N,
@@ -703,13 +703,13 @@ def dequantize_group_gemm(
                                         zero,
                                     )
                             for a0, a1, a2 in T.grid(BLK_M, BLK_N, K):
-                                with T.block("compute"):
+                                with T.sblock("compute"):
                                     i, j, k = T.axis.remap("SSR", [a0, a1, a2])
                                     with T.init():
                                         O_tile[i, j] = zero
                                     O_tile[i, j] += X_tile[i, k] * W_tile[j, k]
                             for a0, a1 in T.grid(BLK_M, BLK_N):
-                                with T.block("store"):
+                                with T.sblock("store"):
                                     i, j = T.axis.remap("SS", [a0, a1])
                                     if m_offset + i < row[1] and n_offset + j < N:
                                         O[m_offset + i, n_offset + j] = O_tile[i, j]
@@ -734,7 +734,7 @@ def dequantize_group_gemm(
                 sch.storage_align(block, 0, axis=1, factor=8, offset=vec_len)
             return block
 
-        main_block = sch.get_block("compute")
+        main_block = sch.get_sblock("compute")
         x, y, k = sch.get_loops(main_block)
         ty, yi = sch.split(y, [TY, None])
         tx, xi, vec_c = sch.split(x, [TX, None, VEC_DOT])
@@ -746,12 +746,12 @@ def dequantize_group_gemm(
         if UNROLL > 0:
             sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=UNROLL)
             sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
-        l2g = sch.get_block("store")
+        l2g = sch.get_sblock("store")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
         _, v = sch.split(sch.get_loops(l2g)[-1], [None, VEC_O])
         sch.vectorize(v)
-        _cooperative_fetch(sch.get_block("X_shared"), vec_len=VEC_X)
-        _cooperative_fetch(sch.get_block("W_shared"), vec_len=VEC_W)
+        _cooperative_fetch(sch.get_sblock("X_shared"), vec_len=VEC_X)
+        _cooperative_fetch(sch.get_sblock("W_shared"), vec_len=VEC_W)
         sch.decompose_reduction(main_block, ko)
         return sch.mod["main"]
 

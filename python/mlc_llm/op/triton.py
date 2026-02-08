@@ -320,7 +320,7 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
                 var_Bs, ((N + block_n - 1) // block_n, (K + block_k - 1) // block_k), "float32"
             )
             C = T.match_buffer(var_C, (M, N), dtype=out_dtype)
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(
                     A[0:M, 0:K],
                     B[0:N, 0:K],
@@ -426,7 +426,7 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
             indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
             C = T.match_buffer(var_C, (EM, N), dtype=out_dtype)
 
-            with T.block("root"):
+            with T.sblock("root"):
                 T.reads(
                     A[0:EM, 0:K],
                     B[0:num_experts, 0:N, 0:K],
@@ -525,7 +525,7 @@ def _compute_expert_id_per_block(
         expert_ids = T.match_buffer(
             var_expert_ids, ((M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,), "int32"
         )
-        with T.block("root"):
+        with T.sblock("root"):
             for eid in T.thread_binding(0, num_experts, thread="threadIdx.x"):
                 start_block_id: T.int32 = (indptr[eid] + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + eid
                 num_blocks: T.int32 = (

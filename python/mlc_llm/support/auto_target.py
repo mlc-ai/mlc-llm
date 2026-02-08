@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 from tvm import IRModule, relax
 from tvm.contrib import ndk, tar, xcode
-from tvm.ffi import get_global_func, register_func
 from tvm.ir.transform import Pass
 from tvm.target import Target
+from tvm_ffi import get_global_func, register_global_func
 
 from . import logging
 from .auto_device import AUTO_DETECT_DEVICES, detect_device, device2str
@@ -159,7 +159,7 @@ def _build_metal_x86_64():
 
 
 def _build_iphone():
-    @register_func("tvm_callback_metal_compile", override=True)
+    @register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
         if target.libs:
             return xcode.compile_metal(src, sdk=target.libs[0])
@@ -198,7 +198,7 @@ def _build_android():
             fcompile=tar.tar,
         )
         if args.debug_dump is not None:
-            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imports[0].imports[0].inspect_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
@@ -221,7 +221,7 @@ def _build_android_so():
             fcompile=ndk.create_shared,
         )
         if args.debug_dump is not None:
-            source = ex.mod.imported_modules[0].imported_modules[0].get_source()
+            source = ex.mod.imports[0].imports[0].inspect_source()
             with open(args.debug_dump / "kernel.cl", "w", encoding="utf-8") as f:
                 f.write(source)
 
@@ -343,7 +343,7 @@ def _register_cuda_hook(target: Target):
         multi_arch = [x.strip() for x in MLC_MULTI_ARCH.split(",")]
         logger.info("Generating code for CUDA architecture: %s", multi_arch)
 
-    @register_func("tvm_callback_cuda_compile", override=True)
+    @register_global_func("tvm_callback_cuda_compile", override=True)
     def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
         """use nvcc to generate fatbin code for better optimization"""
         from tvm.contrib import nvcc  # pylint: disable=import-outside-toplevel

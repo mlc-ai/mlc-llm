@@ -28,22 +28,32 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        if str(self.target.kind) not in ["cuda", "vulkan"]:
-            # Only enable GPU sampling for CUDA.
+        if str(self.target.kind) not in ["cuda", "vulkan", "metal", "webgpu"]:
+            # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
             return mod
 
         bb = relax.BlockBuilder(mod)
-        gv_names = [
-            gv.name_hint
-            for gv in [
-                _attach_multinomial_sampling_func(bb),
-                _attach_argsort_func(bb),
-                _attach_sample_with_top_p(bb),
-                _attach_take_probs_func(bb),
-                _attach_batch_verifier(bb),
-                _attach_renormalize_by_top_p(bb, self.target),
+        if str(self.target.kind) == "webgpu":
+            # Only attach functions that do not contain i8s for WebGPU
+            gv_names = [
+                gv.name_hint
+                for gv in [
+                    _attach_argsort_func(bb),
+                    _attach_sample_with_top_p(bb),
+                ]
             ]
-        ]
+        else:
+            gv_names = [
+                gv.name_hint
+                for gv in [
+                    _attach_multinomial_sampling_func(bb),
+                    _attach_argsort_func(bb),
+                    _attach_sample_with_top_p(bb),
+                    _attach_take_probs_func(bb),
+                    _attach_batch_verifier(bb),
+                    _attach_renormalize_by_top_p(bb, self.target),
+                ]
+            ]
 
         mod = bb.finalize()
         for gv_name in gv_names:
@@ -134,7 +144,7 @@ def full(var_result: T.handle, value: T.int32):
     batch_size = T.int32(is_size_var=True)
     result = T.match_buffer(var_result, (batch_size, 1), "int32")
     for i in T.serial(batch_size):
-        with T.block("block"):
+        with T.sblock("block"):
             vi = T.axis.spatial(batch_size, i)
             result[vi, 0] = value
 
@@ -295,7 +305,7 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
         top_prob_probs = T.match_buffer(var_top_prob_probs, (num_positions,), "float32")
         top_prob_indices = T.match_buffer(var_top_prob_indices, (num_positions,), "int32")
         for i in T.serial(num_positions + num_samples):
-            with T.block("block"):
+            with T.sblock("block"):
                 vi = T.axis.spatial(num_positions + num_samples, i)
                 if vi < num_positions:
                     row = T.floordiv(top_prob_offsets[vi], vocab_size)

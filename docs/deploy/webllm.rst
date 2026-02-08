@@ -106,13 +106,13 @@ installing the prebuilt package. Verify ``mlc_llm`` installation in command line
 
 **Step 2. Verify TVM**
 
-To compile models, you also need to follow :ref:`install-tvm-unity`.
-Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-unity-validate`):
+To compile models, you also need to follow :ref:`install-tvm`.
+Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-validate`):
 
 .. code:: bash
 
     $ python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+    /some-path/lib/python3.13/site-packages/tvm/__init__.py
 
 
 .. _webllm-add-model-variant:
@@ -316,7 +316,7 @@ After following the steps above, you should end up with:
 
     ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
       mlc-chat-config.json                             # ===> the chat config
-      ndarray-cache.json                               # ===> the model weight info
+      tensor-cache.json                               # ===> the model weight info
       params_shard_0.bin                               # ===> the model weights
       params_shard_1.bin
       ...

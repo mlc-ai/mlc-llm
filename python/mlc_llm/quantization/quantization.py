@@ -24,7 +24,7 @@ It is also required to have the following method:
     def quantize_model(self, module: nn.Module) -> nn.Module:
         ...
 
-    def quantize_weight(self, weight: tvm.runtime.NDArray) -> List[tvm.runtime.NDArray]:
+    def quantize_weight(self, weight: tvm.runtime.Tensor) -> List[tvm.runtime.Tensor]:
         ...
 """
 
@@ -190,5 +190,12 @@ QUANTIZATION: Dict[str, Quantization] = {
         kind="block-scale-quant",
         weight_dtype="float8_e4m3fn",
         model_dtype="bfloat16",
+    ),
+    "fp8_e4m3fn_bf16_block_scale_static_activation": BlockScaleQuantize(
+        name="fp8_e4m3fn_bf16_block_scale_static_activation",
+        kind="block-scale-quant",
+        weight_dtype="float8_e4m3fn",
+        model_dtype="bfloat16",
+        use_activation_scale=True,
     ),
 }

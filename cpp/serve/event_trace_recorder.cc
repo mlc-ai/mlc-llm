@@ -6,6 +6,7 @@
 
 #include <picojson.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 #include <algorithm>
@@ -33,8 +34,6 @@ struct PairHash {
 };
 
 }  // namespace detail
-
-TVM_REGISTER_OBJECT_TYPE(EventTraceRecorderObj);
 
 /*! \brief The implementation of event trace recorder. */
 class EventTraceRecorderImpl : public EventTraceRecorderObj {
@@ -117,7 +116,8 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
     return picojson::value(event_array).serialize();
   }
 
-  TVM_DECLARE_BASE_OBJECT_INFO(EventTraceRecorderImpl, EventTraceRecorderObj);
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EventTraceRecorder", EventTraceRecorderImpl,
+                              EventTraceRecorderObj);
 
  private:
   /*! \brief The internal impl of AddEvent, taking the event time as input. */
@@ -147,16 +147,16 @@ EventTraceRecorder EventTraceRecorder::Create() {
   return EventTraceRecorder(tvm::ffi::make_object<EventTraceRecorderImpl>());
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.EventTraceRecorder").set_body_typed([]() {
-  return EventTraceRecorder::Create();
-});
-
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.EventTraceRecorderAddEvent")
-    .set_body_typed([](const EventTraceRecorder& trace_recorder, const String& request_id,
-                       const std::string& event) { trace_recorder->AddEvent(request_id, event); });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.serve.EventTraceRecorderDumpJSON")
-    .set_body_method(&EventTraceRecorderObj::DumpJSON);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  EventTraceRecorderImpl::RegisterReflection();
+  refl::GlobalDef()
+      .def("mlc.serve.EventTraceRecorder", []() { return EventTraceRecorder::Create(); })
+      .def("mlc.serve.EventTraceRecorderAddEvent",
+           [](const EventTraceRecorder& trace_recorder, const String& request_id,
+              const std::string& event) { trace_recorder->AddEvent(request_id, event); })
+      .def_method("mlc.serve.EventTraceRecorderDumpJSON", &EventTraceRecorderObj::DumpJSON);
+}
 
 }  // namespace serve
 }  // namespace llm

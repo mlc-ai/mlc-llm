@@ -105,7 +105,7 @@ After installation, you can run ``vulkaninfo`` in command line and see if you ca
 Vulkan SDK
 ----------
 
-Vulkan SDK is required for compiling models to Vulkan backend. To build TVM Unity compiler from source, you will need to install Vulkan SDK as a dependency, but our :doc:`pre-built wheels <../install/mlc_llm>` already ships with Vulkan SDK.
+Vulkan SDK is required for compiling models to Vulkan backend. To build TVM compiler from source, you will need to install Vulkan SDK as a dependency, but our :doc:`pre-built wheels <../install/mlc_llm>` already ships with Vulkan SDK.
 
 Check Vulkan SDK installation guide according to your platform:
 
@@ -127,7 +127,7 @@ Check Vulkan SDK installation guide according to your platform:
 
       `Getting Started with the macOS Vulkan SDK <https://vulkan.lunarg.com/doc/sdk/latest/mac/getting_started.html>`__
 
-Please refer to installation and setup page for next steps to build TVM-Unity from source.
+Please refer to installation and setup page for next steps to build TVM from source.
 
 OpenCL SDK
 ----------

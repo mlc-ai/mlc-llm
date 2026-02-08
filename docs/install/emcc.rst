@@ -37,7 +37,7 @@ Step 2: Set TVM_SOURCE_DIR and MLC_LLM_SOURCE_DIR
 -------------------------------------------------
 
 We need to set a path to a tvm source in order to build tvm runtime.
-Note that you do not need to build tvm unity from the source. The source here is only used to build the web runtime component.
+Note that you do not need to build TVM from the source. The source here is only used to build the web runtime component.
 Set environment variable in your shell startup profile in to point to ``3rdparty/tvm`` (if preferred, you could also
 point to your own TVM address if you installed TVM from source).
 

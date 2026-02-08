@@ -41,25 +41,25 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                 annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
             ):
                 for i in range(add_local_size):
-                    with T.block("T_add"):
+                    with T.sblock("T_add"):
                         bx = T.axis.spatial(batch_size, v_bx)
                         h = T.axis.spatial(hidden_size, i * TX + v_tx)
                         add_local[h // TX] = A[bx, 0, h] + B[bx, 0, h]
-                    with T.block("T_write_back"):
+                    with T.sblock("T_write_back"):
                         bx = T.axis.spatial(batch_size, v_bx)
                         v_ax1 = T.axis.spatial(1, 0)
                         h = T.axis.spatial(hidden_size, i * TX + v_tx)
                         add[bx, v_ax1, h] = add_local[h // TX]
-                with T.block("T_multiply_red_rf_init"):
+                with T.sblock("T_multiply_red_rf_init"):
                     tx, bx = T.axis.remap("SS", [v_tx, v_bx])
                     sum_local[tx, bx, 0] = T.float32(0)
                 for v_i, _j in T.grid(add_local_size, 1):
-                    with T.block("T_multiply_red_rf_update"):
+                    with T.sblock("T_multiply_red_rf_update"):
                         tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, bx, 0] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.block("T_multiply_red"):
+                    with T.sblock("T_multiply_red"):
                         tx, bx = T.axis.remap("RS", [v_tx_2, v_bx])
                         T.reads(sum_local[tx, bx, 0])
                         T.writes(sum_shared[bx, 0])
@@ -68,7 +68,7 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
                         sum_shared[bx, 0] += sum_local[tx, bx, 0]
             for i in range(add_local_size):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.block("T_cast_2"):
+                    with T.sblock("T_cast_2"):
                         bx = T.axis.spatial(batch_size, v_bx)
                         h = T.axis.spatial(hidden_size, i * TX + v_tx_2)
                         O[bx, 0, h] = T.cast(
@@ -109,31 +109,31 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
                 annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
             ):
                 for v_i in range(add_local_size):
-                    with T.block("T_add"):
+                    with T.sblock("T_add"):
                         bx = T.axis.spatial(seq_len, v_bx)
                         h = T.axis.spatial(hidden_size, v_i * TX + v_tx)
                         add_local[h // TX] = A[0, bx, h] + B[0, bx, h]
-                    with T.block("T_write_back"):
+                    with T.sblock("T_write_back"):
                         bx = T.axis.spatial(seq_len, v_bx)
                         h = T.axis.spatial(hidden_size, v_i * TX + v_tx)
                         add[0, bx, h] = add_local[h // TX]
-                with T.block("T_multiply_red_rf_init"):
+                with T.sblock("T_multiply_red_rf_init"):
                     tx, bx = T.axis.remap("SS", [v_tx, v_bx])
                     sum_local[tx, 0, bx] = T.float32(0)
                 for v_i, _j in T.grid(add_local_size, 1):
-                    with T.block("T_multiply_red_rf_update"):
+                    with T.sblock("T_multiply_red_rf_update"):
                         tx, bx, i = T.axis.remap("SSR", [v_tx, v_bx, v_i])
                         sum_local[tx, 0, bx] += T.float32(add_local[i]) * T.float32(add_local[i])
             for _j in range(1):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.block("T_multiply_red"):
+                    with T.sblock("T_multiply_red"):
                         tx, bx = T.axis.remap("RS", [v_tx_2, v_bx])
                         with T.init():
                             sum_shared[0, bx] = T.float32(0)
                         sum_shared[0, bx] = sum_shared[0, bx] + sum_local[tx, 0, bx]
             for v_i in range(add_local_size):
                 for v_tx_2 in T.thread_binding(TX, thread="threadIdx.x"):
-                    with T.block("T_cast_2"):
+                    with T.sblock("T_cast_2"):
                         bx = T.axis.spatial(seq_len, v_bx)
                         v1 = T.axis.spatial(hidden_size, v_i * TX + v_tx_2)
                         O[0, bx, v1] = T.cast(

@@ -29,7 +29,7 @@ or be used to explicit create model libraries.
 We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for all platforms.
 
 .. note::
-    Before you proceed, make sure you followed :ref:`install-tvm-unity`, a required
+    Before you proceed, make sure you followed :ref:`install-tvm`, a required
     backend to compile models with MLC LLM.
 
     Please also follow the instructions in :ref:`deploy-cli` / :ref:`deploy-python-engine` to obtain
@@ -40,7 +40,7 @@ We compile ``RedPajama-INCITE-Chat-3B-v1`` with ``q4f16_1`` as an example for al
     :depth: 1
     :local:
 
-0. Verify Installation
+1. Verify Installation
 ----------------------
 
 **Step 1. Verify mlc_llm**
@@ -60,13 +60,13 @@ installing the prebuilt package. Verify ``mlc_llm`` installation in command line
 
 **Step 2. Verify TVM**
 
-To compile models, you also need to follow :ref:`install-tvm-unity`.
-Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-unity-validate`):
+To compile models, you also need to follow :ref:`install-tvm`.
+Here we verify ``tvm`` quickly with command line (for full verification, see :ref:`tvm-validate`):
 
 .. code:: bash
 
     $ python -c "import tvm; print(tvm.__file__)"
-    /some-path/lib/python3.11/site-packages/tvm/__init__.py
+    /some-path/lib/python3.13/site-packages/tvm/__init__.py
 
 1. Clone from HF and convert_weight
 -----------------------------------
@@ -281,7 +281,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -317,7 +317,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -354,7 +354,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -390,7 +390,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -409,7 +409,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -428,7 +428,7 @@ We can check the output with the commands below:
 
             ~/mlc-llm > ls dist/RedPajama-INCITE-Chat-3B-v1-q4f16_1-MLC
               mlc-chat-config.json                             # ===> the chat config
-              ndarray-cache.json                               # ===> the model weight info
+              tensor-cache.json                               # ===> the model weight info
               params_shard_0.bin                               # ===> the model weights
               params_shard_1.bin
               ...
@@ -938,7 +938,7 @@ Note that ``CONFIG`` is a positional argument. Arguments wrapped with ``[ ]`` ar
 --source-format SOURCE_FORMAT       The format of source model weight, infer from ``config`` if missing.
 
 --output OUTPUT                     The output directory to save the quantized model weight.
-                                    Will create ``params_shard_*.bin`` and ```ndarray-cache.json``` in this directory.
+                                    Will create ``params_shard_*.bin`` and ```tensor-cache.json``` in this directory.
 
 2. Generate MLC Chat Config
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

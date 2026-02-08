@@ -31,11 +31,11 @@ Steps to reproduce the behavior:
  - Operating system (e.g. Ubuntu/Windows/MacOS/...):
  - Device (e.g. iPhone 12 Pro, PC+RTX 3090, ...)
  - How you installed MLC-LLM (`conda`, source):
- - How you installed TVM-Unity (`pip`, source):
+ - How you installed TVM (`pip`, source):
  - Python version (e.g. 3.10):
  - GPU driver version (if applicable):
  - CUDA/cuDNN version (if applicable):
- - TVM Unity Hash Tag (`python -c "import tvm; print('\n'.join(f'{k}: {v}' for k, v in tvm.support.libinfo().items()))"`, applicable if you compile models):
+ - TVM Hash Tag (`python -c "import tvm; print('\n'.join(f'{k}: {v}' for k, v in tvm.support.libinfo().items()))"`, applicable if you compile models):
  - Any other relevant information:
 
 ## Additional context

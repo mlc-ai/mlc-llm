@@ -129,6 +129,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         quantization=quantization.name,
         model_config=model_config.asdict(),
         vocab_size=model_config.vocab_size,
+        active_vocab_size=getattr(model_config, "active_vocab_size", model_config.vocab_size),
         context_window_size=getattr(model_config, "context_window_size", -1),
         sliding_window_size=getattr(model_config, "sliding_window_size", -1),
         prefill_chunk_size=model_config.prefill_chunk_size,
@@ -245,6 +246,30 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
 
     # Step 4. Load system default value
     apply_system_defaults_for_missing_fields(mlc_chat_config)
+
+    # Step 5. Use HF tokenizer to detect active vocab size via len(tokenizer)
+    if tokenizer_json_file.exists():
+        try:
+            from transformers import (  # pylint: disable=import-error,import-outside-toplevel
+                AutoTokenizer,
+            )
+
+            hf_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
+            active_vocab_size = len(hf_tokenizer)
+            if mlc_chat_config.active_vocab_size != active_vocab_size:
+                logger.info(
+                    "Overriding active_vocab_size from %d to %d using HF tokenizer",
+                    mlc_chat_config.active_vocab_size,
+                    active_vocab_size,
+                )
+                mlc_chat_config.active_vocab_size = active_vocab_size
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Detecting active_vocab_size %s with the exception below. Skipping.",
+                FAILED,
+                exc_info=True,
+            )
+
     # Step 5. Dump the configuration file to output directory
     with (output / "mlc-chat-config.json").open("w", encoding="utf-8") as out_file:
         json.dump(mlc_chat_config.model_dump(by_alias=True), out_file, indent=2)
@@ -262,6 +287,7 @@ TOKENIZER_FILES = [
 # FIXME: Copy RWKV tokenizer file # pylint: disable=fixme
 
 CONV_TEMPLATES = {
+    "llama-4",
     "llama-3",
     "llama-3_1",
     "chatml",
@@ -272,6 +298,7 @@ CONV_TEMPLATES = {
     "llama_default",
     "llama-2",
     "mistral_default",
+    "ministral3",
     "gpt2",
     "codellama_completion",
     "codellama_instruct",

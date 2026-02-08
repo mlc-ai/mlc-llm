@@ -113,7 +113,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
                 f'Please set \'"bundle_weight": true\' in the entry of model "{model}".'
             )
         if bundle_weight:
-            if not os.path.isfile(model_path / "ndarray-cache.json"):
+            if not os.path.isfile(model_path / "tensor-cache.json"):
                 raise ValueError(
                     f'Bundle weight is set for model "{model}". However, model weights are not'
                     f'found under the directory "{model}". '
@@ -197,7 +197,7 @@ def validate_model_lib(  # pylint: disable=too-many-locals
         """Get the model lib prefixes in the given static lib path."""
         global_symbol_map = cc.get_global_symbol_section_map(lib_path)
         libs = []
-        suffix = "___tvm_ffi_library_bin"
+        suffix = "___tvm_ffi__library_bin"
         for name, _ in global_symbol_map.items():
             if name.endswith(suffix):
                 model_lib = name[: -len(suffix)]
@@ -231,7 +231,7 @@ def validate_model_lib(  # pylint: disable=too-many-locals
                 f"model_lib_path_for_prepare_libs={model_lib_path_for_prepare_libs}"
             )
 
-        model_prefix_pattern = model_lib.replace("-", "_") + "___tvm_ffi_library_bin"
+        model_prefix_pattern = model_lib.replace("-", "_") + "___tvm_ffi__library_bin"
         if (
             model_prefix_pattern not in global_symbol_map
             and "_" + model_prefix_pattern not in global_symbol_map

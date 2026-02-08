@@ -40,6 +40,7 @@ class MLCChatConfig(BaseModel):
     tensor_parallel_shards: int
     pipeline_parallel_stages: int = 1
     # Configuration of text generation
+    active_vocab_size: int = None
     temperature: Optional[float] = None
     presence_penalty: Optional[float] = None
     frequency_penalty: Optional[float] = None

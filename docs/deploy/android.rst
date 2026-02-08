@@ -39,7 +39,7 @@ Prerequisite
   ANDROID_NDK: %HOME%/AppData/Local/Android/Sdk/ndk/27.0.11718014
   TVM_NDK_CC: %ANDROID_NDK%/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android24-clang
 
-**JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM Unity runtime.
+**JDK**, such as OpenJDK >= 17, to compile Java bindings of TVM runtime.
 We strongly recommend setting the ``JAVA_HOME`` to the JDK bundled with Android Studio.
 e.g.
 ``export JAVA_HOME=/Applications/Android\ Studio.app/Contents/jbr/Contents/Home`` for macOS.
@@ -52,7 +52,7 @@ Set up the following environment variable:
 
 Please ensure that the JDK versions for Android Studio and JAVA_HOME are the same.
 
-**TVM Unity runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
+**TVM runtime** is placed under `3rdparty/tvm <https://github.com/mlc-ai/mlc-llm/tree/main/3rdparty>`__ in MLC LLM, so there is no need to install anything extra. Set up the following environment variable:
 
 - ``export TVM_SOURCE_DIR=/path/to/mlc-llm/3rdparty/tvm``.
 
@@ -71,7 +71,7 @@ Check if **environment variable** are properly set as the last check. One way to
   export ANDROID_NDK=...  # Android NDK toolchain
   export TVM_NDK_CC=...   # Android NDK clang
   export JAVA_HOME=...    # Java
-  export TVM_SOURCE_DIR=...     # TVM Unity runtime
+  export TVM_SOURCE_DIR=...     # TVM runtime
 
 Additional Guides for Windows Users
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -356,3 +356,12 @@ The models with ``bundle_weight`` set to true will have their weights already on
 
   cd /path/to/MLCChat  # e.g., "android/MLCChat"
   python bundle_weight.py --apk-path app/release/app-release.apk
+
+Known issues
+------------
+
+One known issue that has been observed on Android devices equipped with Adreno GPUs is that model formats ending with a ``_1`` suffix cause a ~20-50 seconds system UI freeze that occurs at prefill stage (initialization before the first inference; the issue does not happen on any subsequent inference of a given model instance).
+It has been observed that models with a ``_0`` suffix do not experience this issue.
+The two suffixes denote the layouts of weights in the models that differ by a transpose operation.
+In case you encounter the freeze issue, the workaround to avoid this problem is to use a model in the ``_0`` weight layout.
+For more details, please consult `issue #3363 <https://github.com/mlc-ai/mlc-llm/issues/3363>`_.

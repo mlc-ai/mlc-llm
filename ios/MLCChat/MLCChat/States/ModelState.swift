@@ -64,11 +64,11 @@ final class ModelState: ObservableObject, Identifiable {
         // create local params dir
         let paramsConfigURL = modelLocalBaseURL.appending(path: Constants.paramsConfigFileName)
         if fileManager.fileExists(atPath: paramsConfigURL.path()) {
-            // ndarray-cache.json already downloaded
+            // tensor-cache.json already downloaded
             loadParamsConfig()
             switchToIndexing()
         } else {
-            // download ndarray-cache.json
+            // download tensor-cache.json
             downloadParamsConfig()
         }
     }

@@ -2,7 +2,6 @@
 Implements the CLIP Image processor.
 """
 
-import tvm
 from tvm import tir
 from tvm.relax.frontend.nn import Module, Tensor, op
 from tvm.script import tir as T
@@ -112,7 +111,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.block("crop"):
+                            with T.sblock("crop"):
                                 if (h_idx + T.int64(top)) < h and (w_idx + T.int64(left)) < w:
                                     T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                     T.reads(image_buf[n_idx, c_idx, h_idx + top, w_idx + left])
@@ -120,8 +119,8 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx + top, w_idx + left
                                     ]
 
-            sch = tvm.s_tir.Schedule(crop_func)
-            self.apply_schedule(sch, sch.get_block("crop"))
+            sch = tir.Schedule(crop_func)
+            self.apply_schedule(sch, sch.get_sblock("crop"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         n, c, orig_height, orig_width = image.shape
@@ -157,7 +156,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.block("rescale"):
+                            with T.sblock("rescale"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h and w_idx < w:
@@ -166,8 +165,8 @@ class ImageProcessor(Module):
                                         * rescale_factor
                                     )
 
-            sch = tvm.s_tir.Schedule(rescale_func)
-            self.apply_schedule(sch, sch.get_block("rescale"))
+            sch = tir.Schedule(rescale_func)
+            self.apply_schedule(sch, sch.get_sblock("rescale"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         out = op.tensor_ir_op(
@@ -194,7 +193,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(h, w):
-                            with T.block("normalize"):
+                            with T.sblock("normalize"):
                                 T.reads(
                                     image_buf[n_idx, c_idx, h_idx, w_idx],
                                     mean[c_idx],
@@ -214,8 +213,8 @@ class ImageProcessor(Module):
                                         - mean[c_idx]
                                     ) / stddev[c_idx]
 
-            sch = tvm.s_tir.Schedule(normalize_func)
-            self.apply_schedule(sch, sch.get_block("normalize"))
+            sch = tir.Schedule(normalize_func)
+            self.apply_schedule(sch, sch.get_sblock("normalize"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         out = op.tensor_ir_op(
@@ -243,7 +242,7 @@ class ImageProcessor(Module):
                 for n_idx in T.thread_binding(n, thread="blockIdx.x"):
                     for c_idx in T.thread_binding(c, thread="blockIdx.y"):
                         for h_idx, w_idx in T.grid(out_h, out_w):
-                            with T.block("pad"):
+                            with T.sblock("pad"):
                                 T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < t or h_idx > h + b or w_idx < l or w_idx > w + r:
@@ -253,8 +252,8 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx - t, w_idx - l
                                     ]
 
-            sch = tvm.s_tir.Schedule(pad_func)
-            self.apply_schedule(sch, sch.get_block("pad"))
+            sch = tir.Schedule(pad_func)
+            self.apply_schedule(sch, sch.get_sblock("pad"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         h = image.shape[2]

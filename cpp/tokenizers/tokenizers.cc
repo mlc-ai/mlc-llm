@@ -8,6 +8,7 @@
 #include <picojson.h>
 #include <tokenizers_cpp.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 
@@ -23,8 +24,12 @@
 namespace mlc {
 namespace llm {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TokenizerInfoNode::RegisterReflection();
+  TokenizerObj::RegisterReflection();
+}
+
 #ifndef COMPILE_MLC_WASM_RUNTIME
-TVM_REGISTER_OBJECT_TYPE(TokenizerInfoNode);
 
 String TokenizerInfoNode::AsJSONString() const {
   picojson::object obj;
@@ -58,8 +63,6 @@ TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
 
   return TokenizerInfo(n);
 }
-
-TVM_REGISTER_OBJECT_TYPE(TokenizerObj);
 
 Tokenizer::Tokenizer(std::unique_ptr<tokenizers::Tokenizer> tokenizer, TokenizerInfo info) {
   ObjectPtr<TokenizerObj> n = tvm::ffi::make_object<TokenizerObj>();
@@ -455,61 +458,61 @@ const std::vector<std::string>& TokenizerObj::PostProcessedTokenTable() {
   return post_processed_token_table_;
 }
 
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.Tokenizer").set_body_typed([](const String& path) {
-  return Tokenizer::FromPath(path);
-});
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("mlc.tokenizers.Tokenizer", [](const String& path) { return Tokenizer::FromPath(path); })
+      .def("mlc.tokenizers.TokenizerEncode",
+           [](const Tokenizer& tokenizer, const String& text) {
+             std::vector<int32_t> token_ids = tokenizer->Encode(text);
+             return IntTuple{token_ids.begin(), token_ids.end()};
+           })
+      .def("mlc.tokenizers.TokenizerEncodeBatch",
+           [](const Tokenizer& tokenizer, const Array<String>& texts) {
+             std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
+             Array<IntTuple> ret;
+             ret.reserve(results.size());
+             for (const auto& result : results) {
+               ret.push_back(IntTuple{result.begin(), result.end()});
+             }
+             return ret;
+           })
+      .def("mlc.tokenizers.TokenizerDecode",
+           [](const Tokenizer& tokenizer, const IntTuple& token_ids) {
+             return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
+           })
+      .def("mlc.tokenizers.DetectTokenizerInfo",
+           [](const String& path) { return Tokenizer::DetectTokenizerInfo(path)->AsJSONString(); });
+}
 
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncode")
-    .set_body_typed([](const Tokenizer& tokenizer, const String& text) {
-      std::vector<int32_t> token_ids = tokenizer->Encode(text);
-      return IntTuple{token_ids.begin(), token_ids.end()};
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerEncodeBatch")
-    .set_body_typed([](const Tokenizer& tokenizer, const Array<String>& texts) {
-      std::vector<std::vector<int32_t>> results = tokenizer->EncodeBatch(texts);
-      Array<IntTuple> ret;
-      ret.reserve(results.size());
-      for (const auto& result : results) {
-        ret.push_back(IntTuple{result.begin(), result.end()});
-      }
-      return ret;
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.TokenizerDecode")
-    .set_body_typed([](const Tokenizer& tokenizer, const IntTuple& token_ids) {
-      return tokenizer->Decode({token_ids->data, token_ids->data + token_ids->size});
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.DetectTokenizerInfo")
-    .set_body_typed([](const String& path) {
-      return Tokenizer::DetectTokenizerInfo(path)->AsJSONString();
-    });
 #endif
 
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.PostProcessTokenTable")
-    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
-      Array<String> token_table_arr = args[0].cast<Array<String>>();
-      std::string token_postproc_method = args[args.size() - 1].cast<String>();
-      std::vector<std::string> token_table;
-      for (int i = 0; i < token_table_arr.size(); ++i) {
-        token_table.push_back(token_table_arr[i]);
-      }
-      std::vector<std::string> processed_token_table =
-          Tokenizer::PostProcessTokenTable(token_table, token_postproc_method);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("mlc.tokenizers.PostProcessTokenTable",
+                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+                    Array<String> token_table_arr = args[0].cast<Array<String>>();
+                    std::string token_postproc_method = args[args.size() - 1].cast<String>();
+                    std::vector<std::string> token_table;
+                    for (int i = 0; i < token_table_arr.size(); ++i) {
+                      token_table.push_back(token_table_arr[i]);
+                    }
+                    std::vector<std::string> processed_token_table =
+                        Tokenizer::PostProcessTokenTable(token_table, token_postproc_method);
 
-      // Convert std::vector<std::string> to Array<String>
-      Array<String> processed_token_table_tvm;
-      for (int i = 0; i < processed_token_table.size(); ++i) {
-        processed_token_table_tvm.push_back(processed_token_table[i]);
-      }
-      *rv = processed_token_table_tvm;
-    });
-
-TVM_FFI_REGISTER_GLOBAL("mlc.tokenizers.PostProcessToken")
-    .set_body_typed([](const String& token, const String& token_postproc_method) {
-      return PostProcessToken(token, token_postproc_method);
-    });
+                    // Convert std::vector<std::string> to Array<String>
+                    Array<String> processed_token_table_tvm;
+                    for (int i = 0; i < processed_token_table.size(); ++i) {
+                      processed_token_table_tvm.push_back(processed_token_table[i]);
+                    }
+                    *rv = processed_token_table_tvm;
+                  })
+      .def("mlc.tokenizers.PostProcessToken",
+           [](const String& token, const String& token_postproc_method) {
+             return PostProcessToken(token, token_postproc_method);
+           });
+}
 
 }  // namespace llm
 }  // namespace mlc
