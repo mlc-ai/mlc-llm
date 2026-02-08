@@ -5,7 +5,7 @@
 #include <mutex>
 #include <regex>
 
-#include "3rdparty/cnpy/cnpy.h"
+#include "cnpy/cnpy.h"
 
 namespace mlc::serve {
 
@@ -73,16 +73,16 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     for (auto d : arr.shape) numel *= d;
 
     tvm::Device target_dev = runtime_device_;
-    tvm::runtime::NDArray nd;
+    tvm::runtime::Tensor nd;
     bool alloc_failed = false;
     try {
-      nd = tvm::runtime::NDArray::Empty(shape, dtype, target_dev);
+      nd = tvm::runtime::Tensor::Empty(shape, dtype, target_dev);
     } catch (const std::exception&) {
       alloc_failed = true;
     }
     if (alloc_failed) {
       target_dev = cpu_dev;
-      nd = tvm::runtime::NDArray::Empty(shape, dtype, cpu_dev);
+      nd = tvm::runtime::Tensor::Empty(shape, dtype, cpu_dev);
     }
 
     if (promote_to_fp32) {
@@ -144,7 +144,7 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
     delta_map_[name] = nd;
 
     // Keep the backing buffer alive for the lifetime of the manager.  This is
-    // only necessary if we ever move to zero-copy NDArray creation, but is
+    // only necessary if we ever move to zero-copy tensor creation, but is
     // safe to do now.
     owned_buffers_.push_back(arr.data_holder);
   }
@@ -152,7 +152,7 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
   std::cout << "LoRA adapter upload completed. Total deltas: " << delta_map_.size() << std::endl;
 }
 
-tvm::runtime::NDArray LoraManager::Lookup(const std::string& param_name) const {
+tvm::runtime::Tensor LoraManager::Lookup(const std::string& param_name) const {
   std::cout << "LoRA: GetLoraDelta called with: " << param_name << std::endl;
   auto it = delta_map_.find(param_name);
   if (it != delta_map_.end()) {
@@ -165,7 +165,7 @@ tvm::runtime::NDArray LoraManager::Lookup(const std::string& param_name) const {
     return it->second;
   } else {
     std::cout << "LoRA: No delta found for: " << param_name << std::endl;
-    return tvm::runtime::NDArray();  // undefined if not present.
+    return tvm::runtime::Tensor();  // undefined if not present.
   }
 }
 

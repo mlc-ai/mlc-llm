@@ -27,10 +27,11 @@ class LoraManager {
    */
   void UploadAdapter(const std::string& adapter_npz_path, float alpha);
 
-  /*!\brief Look up delta tensor for a parameter.  Returns an undefined NDArray
-   *  if not present.
+  /*!\brief Look up delta tensor for a parameter.  Returns an undefined Tensor
+   *  if not
+   * present.
    */
-  tvm::runtime::NDArray Lookup(const std::string& param_name) const;
+  tvm::runtime::Tensor Lookup(const std::string& param_name) const;
 
   /*!\brief Record the runtime device (set once by Python engine). */
   void SetDevice(int device_type, int device_id) {
@@ -41,8 +42,8 @@ class LoraManager {
 
  private:
   LoraManager() = default;
-  std::unordered_map<std::string, tvm::runtime::NDArray> delta_map_;
-  // Hold shared ownership of raw buffers backing the NDArrays to guarantee
+  std::unordered_map<std::string, tvm::runtime::Tensor> delta_map_;
+  // Hold shared ownership of raw buffers backing the tensors to guarantee
   // they stay alive as long as the manager lives.
   std::vector<std::shared_ptr<std::vector<char>>> owned_buffers_;
 
