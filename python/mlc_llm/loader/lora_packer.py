@@ -131,10 +131,10 @@ def pack_lora_adapter(adapter_path: Union[str, Path], out_file: Union[str, Path]
     deltas = _read_peft_adapter(ckpt)
 
     # Save npz – enforce deterministic key order for reproducibility.
-    np.savez(
-        out_file,
-        **{f"delta.{k}": v.astype(np.float16) for k, v in sorted(deltas.items())},
-    )  # type: ignore[arg-type]
+    savez_kwargs: Dict[str, np.ndarray] = {
+        f"delta.{k}": v.astype(np.float16) for k, v in sorted(deltas.items())
+    }
+    np.savez(out_file, **savez_kwargs)  # type: ignore[arg-type]
 
     # Write manifest JSON for easy introspection (alpha defaults to 1.0, can be
     # overridden later by metadata in package).
