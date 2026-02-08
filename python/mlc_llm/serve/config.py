@@ -132,7 +132,7 @@ class EngineConfig:  # pylint: disable=too-many-instance-attributes
 
     verbose : bool
         A boolean indicating whether to print logging info in engine.
-    
+
     lora_dirs : List[str]
         List of directories containing LoRA adapters to load.
     """

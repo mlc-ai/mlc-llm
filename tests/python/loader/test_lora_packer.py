@@ -45,4 +45,6 @@ def test_pack_lora_adapter_roundtrip(tmp_path):
         tensors = torch.load(ckpt, map_location="cpu")
         delta_ref = tensors["layer0.lora_B.weight"] @ tensors["layer0.lora_A.weight"]
 
-    np.testing.assert_allclose(data[delta_key], delta_ref.numpy().astype(np.float16), rtol=1e-3, atol=1e-3) 
+    np.testing.assert_allclose(
+        data[delta_key], delta_ref.numpy().astype(np.float16), rtol=1e-3, atol=1e-3
+    )

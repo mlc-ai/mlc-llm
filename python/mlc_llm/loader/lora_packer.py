@@ -46,6 +46,7 @@ except ImportError:  # pragma: no cover – plenty of setups lack safetensors
 # Helper – read delta tensors from PEFT checkpoint
 # ---------------------------------------------------------------------------
 
+
 def _read_peft_adapter(file_path: Path) -> Dict[str, np.ndarray]:
     """Return a dict *name → ndarray* with LoRA delta tensors.
 
@@ -82,7 +83,7 @@ def _read_peft_adapter(file_path: Path) -> Dict[str, np.ndarray]:
         if layer not in b_tensors:  # pragma: no cover – malformed ckpt
             raise ValueError(f"Missing lora_B for layer {layer}")
         b = b_tensors[layer]
-        delta = b @ a  # type: ignore[operator] – torch matmul
+        delta = torch.matmul(b, a)
         deltas[layer] = delta.cpu().numpy()
 
     return deltas
@@ -91,6 +92,7 @@ def _read_peft_adapter(file_path: Path) -> Dict[str, np.ndarray]:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def pack_lora_adapter(adapter_path: Union[str, Path], out_file: Union[str, Path]) -> Path:
     """Convert *adapter_path* into a ``.npz`` file stored at *out_file*.
@@ -120,9 +122,7 @@ def pack_lora_adapter(adapter_path: Union[str, Path], out_file: Union[str, Path]
             if ckpt.exists():
                 break
         else:  # pragma: no cover – directory without ckpt
-            raise FileNotFoundError(
-                "No adapter checkpoint found in directory: " f"{adapter_path}"
-            )
+            raise FileNotFoundError("No adapter checkpoint found in directory: " f"{adapter_path}")
     else:
         ckpt = adapter_path
 
@@ -146,4 +146,4 @@ def pack_lora_adapter(adapter_path: Union[str, Path], out_file: Union[str, Path]
     if src_cfg.exists():
         shutil.copy(src_cfg, out_file.with_name("adapter_config.json"))
 
-    return out_file 
+    return out_file

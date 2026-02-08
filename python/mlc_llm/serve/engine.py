@@ -915,7 +915,8 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             meta = {}
 
         if meta.get("LoRASeparate"):
-            base = Path(self.cache_dir)
+            assert self.engine_config.model is not None
+            base = Path(self.engine_config.model)
             for rel_path in meta.get("LoRAPaths", []):
                 upload_lora(base / rel_path, device=self.device)
         else:
@@ -1502,7 +1503,8 @@ class MLCEngine(engine_base.MLCEngineBase):
             meta = {}
 
         if meta.get("LoRASeparate"):
-            base = Path(self.cache_dir)
+            assert self.engine_config.model is not None
+            base = Path(self.engine_config.model)
             for rel_path in meta.get("LoRAPaths", []):
                 upload_lora(base / rel_path, device=self.device)
         else:

@@ -1,6 +1,7 @@
 import numpy as np
 import tvm
 from tvm.relax.frontend import nn
+
 from mlc_llm.op import lora_dense
 
 
@@ -31,4 +32,4 @@ def test_lora_dense_numerical():
     res = vm["main"]()
 
     np_expected = _np_lora_dense(x_np, w_base_np, w_delta_np, alpha)
-    np.testing.assert_allclose(res.numpy(), np_expected, rtol=1e-5, atol=1e-5) 
+    np.testing.assert_allclose(res.numpy(), np_expected, rtol=1e-5, atol=1e-5)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tvm
-from tvm import relax, ir
+from tvm import ir, relax
 
 
 class _LoraInjectMutator(relax.PyExprMutator):
@@ -39,17 +39,20 @@ def make_lora_inject_pass(enabled: bool) -> ir.transform.Pass:
             # Fallback: create a pass that does nothing
             def _identity_transform(func: relax.Function, _mod: ir.IRModule, _ctx):
                 return func
+
             return relax.transform.FunctionPass(
                 _identity_transform,
                 opt_level=0,
                 name="IdentityLoRAPass",
             )
 
-    def _transform(func: relax.Function, _mod: ir.IRModule, _ctx):  # pylint: disable=unused-argument
+    def _transform(
+        func: relax.Function, _mod: ir.IRModule, _ctx
+    ):  # pylint: disable=unused-argument
         return _LoraInjectMutator().visit_expr(func)  # type: ignore[arg-type]
 
     return relax.transform.FunctionPass(
         _transform,
         opt_level=0,
         name="InjectLoRADelta",
-    ) 
+    )

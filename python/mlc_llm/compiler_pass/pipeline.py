@@ -12,6 +12,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.interface.compiler_flags import IPCAllReduceStrategyType
 from mlc_llm.support import logging
 
+from ..relax_pass import make_lora_inject_pass
 from .attach_cuda_graph_alloc_init_func import AttachCUDAGraphAllocInitFunc
 from .attach_embedding_allocator import AttachAllocEmbeddingTensorFunc
 from .attach_logit_processor import AttachLogitProcessFunc
@@ -41,7 +42,6 @@ from .lift_global_buffer_alloc import LiftTIRGlobalBufferAlloc
 from .low_batch_specialization import LowBatchGemvSpecialize
 from .pipeline_parallel_rewrite import PipelineParallelRewrite
 from .scatter_tuple_get_item import ScatterTupleGetItem
-from ..relax_pass import make_lora_inject_pass
 
 logger = logging.getLogger(__name__)
 

@@ -47,4 +47,4 @@ def test_engine_uploads_separate_lora(monkeypatch, dummy_pkg):
     engine = MLCEngine(model=str(dummy_pkg), mode="local", engine_config=engine_cfg)
 
     expected_path = dummy_pkg / "adapters/adapter0.npz"
-    assert called == [expected_path] 
+    assert called == [expected_path]

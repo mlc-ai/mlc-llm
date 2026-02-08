@@ -5,7 +5,7 @@ import math
 import os
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from tvm import tir
 from tvm.contrib import tvmjs
@@ -76,7 +76,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
     # Handle LoRA: separate-pack or legacy merge
     # ------------------------------------------------------------------
 
-    lora_artifacts = []  # relative paths inside output dir
+    lora_artifacts: List[str] = []  # relative paths inside output dir
 
     if args.lora_separate:
         from mlc_llm.loader.lora_packer import pack_lora_adapter
@@ -174,7 +174,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         total_params = loader.stats.total_param_num
 
     def _metadata_callback() -> Dict[str, Any]:
-        metadata = {
+        metadata: Dict[str, Any] = {
             "ParamSize": len(param_names),
             "ParamBytes": total_bytes,
             "BitsPerParam": total_bytes * 8.0 / total_params,

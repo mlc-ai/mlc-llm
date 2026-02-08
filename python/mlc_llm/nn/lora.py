@@ -1,4 +1,5 @@
 """LoRA (Low-Rank Adaptation) implementation for MLC LLM."""
+
 import math
 from typing import Optional, Union
 
@@ -6,8 +7,8 @@ from tvm import relax, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm.support import logging
 from mlc_llm.lora.lora_config import LoRAConfig  # Use shared config implementation
+from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,12 @@ logger = logging.getLogger(__name__)
 class LoRALinear(nn.Module):
     """
     Linear layer with LoRA (Low-Rank Adaptation) support.
-    
+
     This implementation follows the paper: https://arxiv.org/abs/2106.09685
-    
+
     LoRA decomposes the weight update into two low-rank matrices:
     h = Wx + BAx where B ∈ R^{d×r}, A ∈ R^{r×k}
-    
+
     Parameters
     ----------
     in_features : int
@@ -42,7 +43,7 @@ class LoRALinear(nn.Module):
     dtype : Optional[str]
         Data type of the layer
     """
-    
+
     def __init__(
         self,
         in_features: int,
@@ -62,16 +63,16 @@ class LoRALinear(nn.Module):
         self.lora_alpha = lora_alpha
         self.lora_dropout = lora_dropout
         self.fan_in_fan_out = fan_in_fan_out
-        self.merge_weights = merge_weights
+        self.merge_weights_enabled = merge_weights
         self.merged = False
-        
+
         # Base linear layer
         self.weight = nn.Parameter((out_features, in_features), dtype=dtype)
         if bias:
             self.bias = nn.Parameter((out_features,), dtype=dtype)
         else:
             self.bias = None
-            
+
         # LoRA layers
         if r > 0:
             self.lora_A = nn.Parameter((r, in_features), dtype=dtype)
@@ -86,7 +87,7 @@ class LoRALinear(nn.Module):
         else:
             self.lora_A = None
             self.lora_B = None
-    
+
     def reset_parameters(self):
         """Initialize LoRA parameters."""
         if self.r > 0:
@@ -94,7 +95,7 @@ class LoRALinear(nn.Module):
             # This ensures LoRA starts from zero
             nn.init.kaiming_uniform_(self.lora_A, a=math.sqrt(5))
             nn.init.zeros_(self.lora_B)
-    
+
     def forward(self, x: Tensor) -> Tensor:
         """Forward pass with optional LoRA adaptation."""
         if self.r > 0 and not self.merged:
@@ -118,7 +119,7 @@ class LoRALinear(nn.Module):
             if self.bias is not None:
                 result = result + self.bias
             return result
-    
+
     def merge_weights(self):
         """Merge LoRA weights into the base weights for efficient inference."""
         if self.r > 0 and not self.merged:
@@ -127,7 +128,7 @@ class LoRALinear(nn.Module):
             self.weight.data += delta_w
             self.merged = True
             logger.info("Merged LoRA weights into base weights")
-    
+
     def unmerge_weights(self):
         """Unmerge LoRA weights from the base weights."""
         if self.r > 0 and self.merged:
@@ -136,7 +137,7 @@ class LoRALinear(nn.Module):
             self.weight.data -= delta_w
             self.merged = False
             logger.info("Unmerged LoRA weights from base weights")
-    
+
     @staticmethod
     def from_linear(
         linear: nn.Linear,
@@ -148,7 +149,7 @@ class LoRALinear(nn.Module):
     ) -> "LoRALinear":
         """
         Convert a standard nn.Linear layer to LoRALinear.
-        
+
         Parameters
         ----------
         linear : nn.Linear
@@ -163,7 +164,7 @@ class LoRALinear(nn.Module):
             Whether to use fan_in_fan_out convention
         merge_weights : bool
             Whether to merge weights during inference
-            
+
         Returns
         -------
         LoRALinear
@@ -181,21 +182,21 @@ class LoRALinear(nn.Module):
             bias=getattr(linear, "bias", None) is not None,
             dtype=linear.weight.dtype,
         )
-        
+
         # Copy weights from original linear layer
         lora_linear.weight.data = linear.weight.data
         if hasattr(linear, "bias") and linear.bias is not None:
             lora_linear.bias.data = linear.bias.data
-            
+
         # Initialize LoRA parameters
         lora_linear.reset_parameters()
-        
+
         # Copy attributes
         if hasattr(linear.weight, "attrs"):
             lora_linear.weight.attrs = linear.weight.attrs
         if hasattr(linear, "bias") and linear.bias is not None and hasattr(linear.bias, "attrs"):
             lora_linear.bias.attrs = linear.bias.attrs
-            
+
         return lora_linear
 
 
@@ -208,4 +209,4 @@ class LoRALinear(nn.Module):
 __all__ = [
     "LoRALinear",
     "LoRAConfig",
-] 
+]
