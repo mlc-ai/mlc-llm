@@ -1,4 +1,6 @@
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/tensor.h>
 
@@ -11,6 +13,7 @@ namespace mlc::serve {
 
 using namespace tvm;
 using namespace tvm::runtime;
+using tvm::ffi::String;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
