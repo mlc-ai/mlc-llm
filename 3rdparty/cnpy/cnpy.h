@@ -10,13 +10,13 @@
 
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <map>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
-#include <memory>
-#include <stdexcept>
-#include <fstream>
-#include <sstream>
 
 // We depend on <zlib>.  It is available on Linux and macOS by default; on
 // Windows we rely on the system's zlib development package (or vcpkg).
@@ -27,7 +27,7 @@ namespace cnpy {
 struct NpyArray {
   std::vector<size_t> shape;
   bool fortran_order{false};
-  size_t word_size{0};   // bytes per element
+  size_t word_size{0};                             // bytes per element
   std::shared_ptr<std::vector<char>> data_holder;  // shared so copies are cheap
 
   template <typename T>
@@ -148,7 +148,7 @@ inline std::map<std::string, NpyArray> npz_load(const std::string& fname) {
   while (true) {
     uint32_t sig;
     fs.read(reinterpret_cast<char*>(&sig), 4);
-    if (!fs) break;              // EOF
+    if (!fs) break;  // EOF
     if (sig != kSig) {
       throw std::runtime_error("Unsupported compression in npz (need stored) or bad signature");
     }
@@ -192,4 +192,4 @@ inline NpyArray npz_load(const std::string& fname, const std::string& varname) {
   return it->second;
 }
 
-}  // namespace cnpy 
+}  // namespace cnpy
