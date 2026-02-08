@@ -32,8 +32,8 @@ void LoraManager::UploadAdapter(const std::string& adapter_npz_path, float alpha
   if (std::ifstream mf(manifest_path); mf.good()) {
     std::string text((std::istreambuf_iterator<char>(mf)), std::istreambuf_iterator<char>());
     // Very small regex-based parser assuming {"key": 1.0, "k2": 0.5}
-    std::regex kv_re(R"("([^"]+)"\s * :\s * ([0 - 9. + -eE] +)) ");
-        auto begin = std::sregex_iterator(text.begin(), text.end(), kv_re);
+    std::regex kv_re(R"REGEX("([^"]+)"\s*:\s*([0-9.+-eE]+))REGEX");
+    auto begin = std::sregex_iterator(text.begin(), text.end(), kv_re);
     auto end = std::sregex_iterator();
     for (auto it = begin; it != end; ++it) {
       std::string k = (*it)[1].str();
