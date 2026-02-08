@@ -2,6 +2,7 @@
 
 from typing import Literal, Optional, Tuple
 
+import tvm
 from tvm import DataType, DataTypeCode, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
@@ -510,7 +511,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                     tile_id[0] += CTA_COUNT
 
     def _schedule():
-        sch = tir.Schedule(_func)
+        sch = tvm.s_tir.Schedule(_func)
 
         def _cooperative_fetch(block, vec_len):
             num_loops = len(sch.get_loops(block))
@@ -716,7 +717,7 @@ def dequantize_group_gemm(
                     tile_id[0] += CTA_COUNT
 
     def _schedule():
-        sch = tir.Schedule(_func)
+        sch = tvm.s_tir.Schedule(_func)
 
         def _cooperative_fetch(block, vec_len):
             num_loops = len(sch.get_loops(block))

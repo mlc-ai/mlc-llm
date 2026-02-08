@@ -2,6 +2,7 @@
 Implements the CLIP Image processor.
 """
 
+import tvm
 from tvm import tir
 from tvm.relax.frontend.nn import Module, Tensor, op
 from tvm.script import tir as T
@@ -119,7 +120,7 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx + top, w_idx + left
                                     ]
 
-            sch = tir.Schedule(crop_func)
+            sch = tvm.s_tir.Schedule(crop_func)
             self.apply_schedule(sch, sch.get_block("crop"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -165,7 +166,7 @@ class ImageProcessor(Module):
                                         * rescale_factor
                                     )
 
-            sch = tir.Schedule(rescale_func)
+            sch = tvm.s_tir.Schedule(rescale_func)
             self.apply_schedule(sch, sch.get_block("rescale"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -213,7 +214,7 @@ class ImageProcessor(Module):
                                         - mean[c_idx]
                                     ) / stddev[c_idx]
 
-            sch = tir.Schedule(normalize_func)
+            sch = tvm.s_tir.Schedule(normalize_func)
             self.apply_schedule(sch, sch.get_block("normalize"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -252,7 +253,7 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx - t, w_idx - l
                                     ]
 
-            sch = tir.Schedule(pad_func)
+            sch = tvm.s_tir.Schedule(pad_func)
             self.apply_schedule(sch, sch.get_block("pad"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
