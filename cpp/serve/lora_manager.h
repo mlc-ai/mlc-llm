@@ -1,6 +1,6 @@
 #pragma once
 
-#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/tensor.h>
 
 #include <memory>
 #include <string>
