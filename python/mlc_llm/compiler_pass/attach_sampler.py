@@ -11,6 +11,17 @@ from mlc_llm.op.batch_spec_verify import batch_spec_verify
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
 
 
+def _is_ios_metal_target(target: tvm.target.Target) -> bool:
+    """Check whether the target is Metal for iOS compilation."""
+    if str(target.kind) != "metal":
+        return False
+    libs = {str(lib) for lib in (getattr(target, "libs", None) or [])}
+    if "iphoneos" in libs or "iphonesimulator" in libs:
+        return True
+    target_repr = str(target)
+    return "iphoneos" in target_repr or "iphonesimulator" in target_repr
+
+
 @tvm.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
 class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
     """Attach GPU sampling functions to IRModule."""
@@ -28,6 +39,11 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
+        if _is_ios_metal_target(self.target):
+            # iOS Metal toolchain currently fails to compile the sort kernels used by argsort.
+            # Keep compilation green by skipping GPU sampler attachment on iOS.
+            return mod
+
         if str(self.target.kind) not in ["cuda", "vulkan", "metal", "webgpu"]:
             # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
             return mod
