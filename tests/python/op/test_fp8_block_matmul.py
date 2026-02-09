@@ -6,10 +6,10 @@ import numpy as np
 import pytest
 import torch
 import tvm
-from tvm import dlight as dl
 from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import spec
+from tvm.s_tir import dlight as dl
 
 from mlc_llm.compiler_pass.dispatch_triton_kernel import DispatchTritonKernel
 from mlc_llm.op import batch_matmul, cutlass, moe_matmul, triton

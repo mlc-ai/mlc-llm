@@ -4,11 +4,10 @@ from dataclasses import dataclass
 from typing import Any, Callable, List, Literal, Optional, Tuple
 
 import tvm
-from tvm import DataType, DataTypeCode, IRModule
-from tvm import dlight as dl
-from tvm import relax, te, tir
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import Tensor
+from tvm.s_tir import dlight as dl
 from tvm.target import Target
 
 from ..loader import QuantizeMapping
