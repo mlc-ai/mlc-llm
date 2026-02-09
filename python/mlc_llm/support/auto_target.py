@@ -353,7 +353,10 @@ def _register_cuda_hook(target: Target):
         else:
             arch = []
             for compute_version in multi_arch:
-                arch += ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+                arch += [
+                    "-gencode",
+                    f"arch=compute_{compute_version},code=sm_{compute_version}",
+                ]
             ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
         return ptx
 

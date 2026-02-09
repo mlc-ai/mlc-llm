@@ -21,7 +21,8 @@ import pytest
 def pytest_configure(config):
     """Register markers"""
     config.addinivalue_line(
-        "markers", "unittest: unittests for modules, do not require GPU, usually run fast"
+        "markers",
+        "unittest: unittests for modules, do not require GPU, usually run fast",
     )
     config.addinivalue_line("markers", "op_correctness: unittest for op corectness, requires GPU")
     config.addinivalue_line(

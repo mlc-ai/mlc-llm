@@ -31,7 +31,10 @@ class CalibrationObserver:
     @tvm.register_global_func("mlc_llm.calibration_observer")
     @staticmethod
     def callback(
-        name: str, mode: str, value: "tvm.runtime.Tensor", out_value: "tvm.runtime.Tensor"
+        name: str,
+        mode: str,
+        value: "tvm.runtime.Tensor",
+        out_value: "tvm.runtime.Tensor",
     ):
         """The callback function to update the saved calibration parameters."""
         instance = CalibrationObserver.get()
@@ -159,7 +162,9 @@ def calibrate(
     sampled_requests = sample_requests(dataset, num_calibration_samples, async_engine.tokenizer)
     asyncio.run(
         send_calibration_requests(
-            async_engine, sampled_requests, max_concurrent_requests=max_num_sequence or 32
+            async_engine,
+            sampled_requests,
+            max_concurrent_requests=max_num_sequence or 32,
         )
     )
     async_engine.terminate()

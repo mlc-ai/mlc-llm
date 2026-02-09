@@ -60,7 +60,7 @@ def benchmark(args: argparse.Namespace):
             if num_requests * input_length >= 16384:
                 continue
             for output_length in [4]:
-                print(f"nreq={num_requests}\t" f"in={input_length}\t" f"out={output_length}")
+                print(f"nreq={num_requests}\tin={input_length}\tout={output_length}")
                 prompt_ids, generation_config = generate_requests(
                     num_requests, input_length, output_length
                 )

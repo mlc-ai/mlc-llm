@@ -189,7 +189,10 @@ class Starcoder2DecoderLayer(nn.Module):
             _set(self.mlp.c_proj.weight, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
 
             if config.use_bias:
-                _set(self.mlp.c_proj.bias, tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0))
+                _set(
+                    self.mlp.c_proj.bias,
+                    tp.ShardSingleDim("_shard_mlp_c_proj_bias", dim=0),
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
@@ -289,7 +292,10 @@ class Starcoder2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

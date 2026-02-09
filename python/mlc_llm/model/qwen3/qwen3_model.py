@@ -124,7 +124,9 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=config.attention_bias,
         )
         self.o_proj = nn.Linear(
-            self.num_attention_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
+            self.num_attention_heads * self.head_dim,
+            config.hidden_size,
+            bias=config.attention_bias,
         )
         self.q_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
         self.k_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
@@ -217,7 +219,8 @@ class Qwen3DecoderLayer(nn.Module):
                 )
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
             _set(
-                self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
+                self.mlp.gate_up_proj.weight,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
             )
             _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
@@ -334,7 +337,10 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

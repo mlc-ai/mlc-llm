@@ -20,10 +20,12 @@ class AttachSpecDecodeAuxFuncs:  # pylint: disable=too-few-public-methods
         mod = mod.clone()
         bb = BlockBuilder(mod)
         bb.add_func(
-            _get_scatter_2d_inplace(dtype="float32", global_symbol="scatter_probs"), "scatter_probs"
+            _get_scatter_2d_inplace(dtype="float32", global_symbol="scatter_probs"),
+            "scatter_probs",
         )
         bb.add_func(
-            _get_gather_2d_inplace(dtype="float32", global_symbol="gather_probs"), "gather_probs"
+            _get_gather_2d_inplace(dtype="float32", global_symbol="gather_probs"),
+            "gather_probs",
         )
         if "prefill_to_last_hidden_states" in mod:
             hidden_states_struct_info = mod["prefill_to_last_hidden_states"].ret_struct_info.fields[

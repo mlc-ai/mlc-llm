@@ -113,7 +113,9 @@ def generate_metrics_summary(
     return report
 
 
-def _compute_metrics_statistics(metrics: List[Union[Metrics, ServerMetrics]]) -> Dict[str, Any]:
+def _compute_metrics_statistics(
+    metrics: List[Union[Metrics, ServerMetrics]],
+) -> Dict[str, Any]:
     """
     Compute the statistics of the metrics.
 
@@ -133,7 +135,13 @@ def _compute_metrics_statistics(metrics: List[Union[Metrics, ServerMetrics]]) ->
     report: Dict = {}
     df = pd.DataFrame([metric.model_dump() for metric in metrics])
     for key, _ in metrics[0].model_fields.items():
-        if key in ["success", "start_time", "finish_time", "server_metrics", "exec_feature"]:
+        if key in [
+            "success",
+            "start_time",
+            "finish_time",
+            "server_metrics",
+            "exec_feature",
+        ]:
             continue
         if key in df.columns:
             series = df[key].dropna()

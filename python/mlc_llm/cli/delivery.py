@@ -172,7 +172,11 @@ def _run_quantization(
             ]
             print(" ".join(cmd), file=log_file, flush=True)
             subprocess.run(
-                cmd, check=False, stdout=log_file, stderr=subprocess.STDOUT, env=os.environ
+                cmd,
+                check=False,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                env=os.environ,
             )
         logger.info("[MLC] Complete!")
     if not (Path(output_dir) / "tensor-cache.json").exists() and not model_info.gen_config_only:
@@ -225,7 +229,13 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
         quantization = task.quantization
         overrides = {**default_overrides, **task.overrides}
 
-        logger.info("Checking task: %s %s %s %s", model_id, conv_template, quantization, overrides)
+        logger.info(
+            "Checking task: %s %s %s %s",
+            model_id,
+            conv_template,
+            quantization,
+            overrides,
+        )
         log_tasks = [t for t in log.tasks if t.model_id == model_id]
         delivered_quantizations = set()
         gen_config_only = set()
@@ -260,7 +270,10 @@ def _generate_model_delivery_diff(  # pylint: disable=too-many-locals
     diff_config.default_overrides = {}
     diff_config.tasks = diff_tasks
 
-    logger.info("Model delivery diff: %s", diff_config.model_dump_json(indent=4, exclude_none=True))
+    logger.info(
+        "Model delivery diff: %s",
+        diff_config.model_dump_json(indent=4, exclude_none=True),
+    )
 
     return diff_config
 

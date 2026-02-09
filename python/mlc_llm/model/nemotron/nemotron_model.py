@@ -170,7 +170,10 @@ class NemotronDecoderLayer(nn.Module):
             q = self.self_attn.num_q_heads * hd
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             _set(self.mlp.up_proj, tp.ShardSingleDim("_shard_mlp_up", dim=1))
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
@@ -341,7 +344,10 @@ class NemotronForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         return hidden_states, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache

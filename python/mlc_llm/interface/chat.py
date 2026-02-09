@@ -173,7 +173,10 @@ class ChatState:
         # TODO(mlc-team): possibly leverage debug option
         # pass a simple prompt to warm up
         for _ in self.engine.chat.completions.create(
-            messages=[{"role": "user", "content": ""}], max_tokens=1, model=self.model, stream=True
+            messages=[{"role": "user", "content": ""}],
+            max_tokens=1,
+            model=self.model,
+            stream=True,
         ):
             pass
 

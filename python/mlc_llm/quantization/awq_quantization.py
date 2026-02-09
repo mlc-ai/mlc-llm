@@ -189,10 +189,14 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
         self.out_dtype = out_dtype
         self.config = config
         self.qweight = nn.Parameter(
-            (in_features, out_features // config.num_elem_per_storage), config.storage_dtype
+            (in_features, out_features // config.num_elem_per_storage),
+            config.storage_dtype,
         )
         self.qzeros = nn.Parameter(
-            (in_features // config.group_size, out_features // config.num_elem_per_storage),
+            (
+                in_features // config.group_size,
+                out_features // config.num_elem_per_storage,
+            ),
             config.storage_dtype,
         )
         self.scales = nn.Parameter(
@@ -250,7 +254,10 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
                 weight,
                 zeros,
                 scale,
-                [tir.IntImm("int64", self.out_features), tir.IntImm("int64", self.in_features)],
+                [
+                    tir.IntImm("int64", self.out_features),
+                    tir.IntImm("int64", self.in_features),
+                ],
             ),
             name_hint="dequantize",
             args=[self.qweight, self.qzeros, self.scales],

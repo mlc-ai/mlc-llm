@@ -3,8 +3,8 @@ Implementation for Ministral 3 architecture.
 """
 
 import dataclasses
-from functools import partial
 import math
+from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
 from tvm import te, tir
@@ -65,7 +65,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
             return super().from_dict(merged)
         return super().from_dict(source)
 
-    def __post_init__(self):  # pylint: disable=too-many-branches
+    def __post_init__(self):  # pylint: disable=too-many-branches,too-many-statements
         if "quantization_config" in self.kwargs:
             quantization_config = self.kwargs.pop("quantization_config")
             if isinstance(quantization_config, dict):
@@ -75,10 +75,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                 modules_to_not_convert = quantization_config.get("modules_to_not_convert", [])
                 if isinstance(modules_to_not_convert, list):
                     self.modules_to_not_convert = tuple(modules_to_not_convert)
-                if (
-                    quant_method == "fp8"
-                    and activation_scheme == "static"
-                ):
+                if quant_method == "fp8" and activation_scheme == "static":
                     if weight_block_size is not None:
                         self.weight_block_size = weight_block_size
                         if (
@@ -86,31 +83,36 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                             or len(self.weight_block_size) != 2
                         ):
                             raise ValueError(
-                                "Invalid Ministral3 quantization config: "
-                                "weight_block_size must be a list or tuple of two integers, "
-                                f"got {self.weight_block_size} of type {type(self.weight_block_size)}"
+                                "Invalid Ministral3 quantization config: ",
+                                "weight_block_size must be a list or tuple of two integers, ",
+                                f"got {self.weight_block_size} of type",
+                                f"{type(self.weight_block_size)}",
                             )
                     else:
                         # Set default block size if not provided.
                         self.weight_block_size = (128, 128)
-                        logger.info(
-                            "Setting default weight_block_size=%s since quantization_config does not provide "
-                            "FP8 block-scale details required by MLC (activation_scheme=%s, quant_method=%s)",
+                        logger.info(  # pylint: disable=logging-too-many-args
+                            "Setting default weight_block_size=%s, ",
+                            "since quantization_config does not provide ",
+                            "FP8 block-scale details required by ",
+                            "MLC (activation_scheme=%s, quant_method=%s)",
                             self.weight_block_size,
                             activation_scheme,
                             quant_method,
                         )
                 else:
                     raise ValueError(
-                        "Invalid Ministral 3 model quantization config: only FP8 static quantization is supported, "
-                        f"got activation_scheme={activation_scheme}, quant_method={quant_method}"
+                        "Invalid Ministral 3 model quantization config: ",
+                        "only FP8 static quantization is supported, ",
+                        f"got activation_scheme={activation_scheme}, quant_method={quant_method}",
                     )
             else:
                 raise ValueError(
-                    "Invalid Ministral 3 model quantization config: unrecognized quantization config: "
-                    f"{quantization_config}"
+                    "Invalid Ministral 3 model quantization config: ",
+                    "unrecognized quantization config: ",
+                    f"{quantization_config}",
                 )
-        
+
         if self.position_embedding_base == 0:
             if self.rope_parameters is not None and "rope_theta" in self.rope_parameters:
                 self.position_embedding_base = self.rope_parameters.pop("rope_theta")
@@ -163,6 +165,7 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
             )
             self.prefill_chunk_size = min(*prefill_chunk_size_candidates, 8192)
 
+
 ACT2FN = {
     "gelu": partial(nn.gelu, approximate=False),
     "relu": nn.relu,
@@ -170,6 +173,7 @@ ACT2FN = {
     "swish": nn.silu,
     "gelu_new": partial(nn.gelu, approximate=True),
 }
+
 
 class Ministral3Embedding(nn.Embedding):
     """The embedding module specialized for Ministral3 so that
@@ -182,6 +186,7 @@ class Ministral3Embedding(nn.Embedding):
         """
         weight = nn.op.permute_dims(self.weight)
         return nn.op.matmul(x, weight, out_dtype="float32")
+
 
 # pylint: disable=invalid-name,missing-docstring
 
@@ -210,6 +215,7 @@ class Ministral3MLP(nn.Module):
         x1, x2 = op.split(concat_x1_x2, 2, axis=-1)
         return self.down_proj(self.act_fn(x1) * x2)
 
+
 def yarn_get_sm_scale(scale=1, mscale=1):
     if scale <= 1:
         return 1.0
@@ -234,7 +240,7 @@ class Ministral3Attention(nn.Module):  # pylint: disable=too-many-instance-attri
             bias=False,
         )
         self.o_proj = nn.Linear(self.num_q_heads * self.head_dim, config.hidden_size, bias=False)
-        
+
         self.softmax_scale = self.head_dim ** (-0.5)
         if config.rope_parameters is not None:
             mscale_all_dim = config.rope_parameters.get("mscale_all_dim", 0)
@@ -278,9 +284,15 @@ class Ministral3DecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -325,7 +337,9 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         self.model = Ministral3Model(config)
         self.tie_word_embeddings = config.tie_word_embeddings
         if not config.tie_word_embeddings:
-            self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False) # "vocab_size"
+            self.lm_head = nn.Linear(
+                config.hidden_size, config.vocab_size, bias=False
+            )  # "vocab_size"
         self._mark_modules_no_quant(config.modules_to_not_convert)
         self.num_hidden_layers = config.num_hidden_layers
         self.num_attention_heads = config.num_attention_heads
@@ -370,7 +384,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         hidden_states = self.model(input_embeds, paged_kv_cache)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        
+
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
@@ -393,7 +407,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
 
         hidden_states = self.model(input_embed, paged_kv_cache)
         hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        
+
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
@@ -406,7 +420,7 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         op_ext.configure()
 
         hidden_states = self.model(input_embed, paged_kv_cache)
-        
+
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
         else:
@@ -416,7 +430,10 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

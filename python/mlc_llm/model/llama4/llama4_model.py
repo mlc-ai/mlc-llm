@@ -65,7 +65,7 @@ class Llama4TextConfig(ConfigBase):  # pylint: disable=too-many-instance-attribu
             else:
                 assert (
                     self.rope_scaling["rope_type"] == "llama3"
-                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Llama'
+                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
 
         # Define which layers to avoid RoPE
         if self.no_rope_layers == []:
@@ -262,7 +262,11 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         self.k_norm = Llama4TextL2Norm(self.rms_norm_eps, self.head_dim)
 
     def forward(  # pylint: disable=too-many-locals
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        layer_id: int,
+        cache_position,
     ):
 
         d, h_q = self.head_dim, self.num_q_heads
@@ -449,7 +453,10 @@ class Llama4TextDecoderLayer(nn.Module):
                     self.feed_forward.gate_up_proj,
                     tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
                 )
-                _set(self.feed_forward.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+                _set(
+                    self.feed_forward.down_proj,
+                    tp.ShardSingleDim("_shard_mlp_down", dim=1),
+                )
             else:
                 assert isinstance(self.feed_forward, Llama4TextMoe)
                 i = self.feed_forward.shared_expert.intermediate_size
@@ -472,17 +479,27 @@ class Llama4TextDecoderLayer(nn.Module):
                     tp.ShardSingleDim("_shard_expert_mlp_down", dim=1),
                 )
 
-                _set(self.feed_forward.router.router, tp.ShardSingleDim("_shard_router", dim=0))
+                _set(
+                    self.feed_forward.router.router,
+                    tp.ShardSingleDim("_shard_router", dim=0),
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
     def forward(
-        self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int, cache_position
+        self,
+        hidden_states: Tensor,
+        paged_kv_cache: PagedKVCache,
+        layer_id: int,
+        cache_position,
     ):
 
         out = self.self_attn(
-            self.input_layernorm(hidden_states), paged_kv_cache, layer_id, cache_position
+            self.input_layernorm(hidden_states),
+            paged_kv_cache,
+            layer_id,
+            cache_position,
         )
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.feed_forward(self.post_attention_layernorm(hidden_states))
@@ -510,7 +527,10 @@ class Llama4TextModel(nn.Module):
             ]
         )
         self.norm = nn.RMSNorm(
-            config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False
+            config.text_config.hidden_size,
+            -1,
+            config.text_config.rms_norm_eps,
+            bias=False,
         )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -628,7 +648,10 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         return hidden_states, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache

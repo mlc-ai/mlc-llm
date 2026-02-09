@@ -67,7 +67,9 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -105,7 +107,10 @@ def test_fp8_block_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -156,7 +161,9 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
     )
     mod = DispatchTritonKernel(target)(mod)  # type: ignore
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -193,7 +200,10 @@ def test_fp8_block_matmul_triton(M: int, N: int, K: int, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -256,7 +266,9 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         allow_extern=True,
     )
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -334,7 +346,10 @@ def test_fp8_block_group_matmul_cutlass(M: int, N: int, K: int, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -398,7 +413,9 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
     )
     mod = DispatchTritonKernel(target)(mod)  # type: ignore
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -462,7 +479,10 @@ def test_fp8_block_group_matmul_triton(M: int, N: int, K: int, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -502,7 +522,9 @@ def test_fp8_block_bmm_cutlass(M: int, N: int, K: int, H: int, dtype: str):
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -530,7 +552,10 @@ def test_fp8_block_bmm_cutlass(M: int, N: int, K: int, H: int, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -591,7 +616,9 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
             dl.gpu.Fallback(),
         )(mod)
     exec = relax.build(
-        mod, target=target, relax_pipeline=relax.backend.cuda.get_default_pipeline(target)
+        mod,
+        target=target,
+        relax_pipeline=relax.backend.cuda.get_default_pipeline(target),
     )
     vm = relax.VirtualMachine(exec, device)
 
@@ -635,7 +662,10 @@ def test_fp8_block_gemv_tir(N: int, K: int, up: bool, dtype: str):
         print(f"o_tvm_flat[failed_indices]: {o_tvm_flat[failed_indices]}")
         print(f"o_torch_flat[failed_indices]: {o_torch_flat[failed_indices]}")
     np.testing.assert_allclose(
-        o_tvm, o_torch.view(torch.float16).cpu().numpy().view(dtype), atol=atol, rtol=rtol
+        o_tvm,
+        o_torch.view(torch.float16).cpu().numpy().view(dtype),
+        atol=atol,
+        rtol=rtol,
     )
 
 
@@ -657,7 +687,8 @@ def blockwise_matmul(
             ] += (
                 torch.matmul(
                     x_fp8_torch[
-                        :, k * block_size[1] : min((k + 1) * block_size[1], x_fp8_torch.shape[1])
+                        :,
+                        k * block_size[1] : min((k + 1) * block_size[1], x_fp8_torch.shape[1]),
                     ].to(dtype),
                     w_torch[
                         j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[0]),
@@ -724,7 +755,10 @@ def blockwise_group_matmul_unquantized(
                     i,
                     j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),
                 ] += torch.matmul(
-                    x_torch[i, k * block_size[1] : min((k + 1) * block_size[1], x_torch.shape[1])],
+                    x_torch[
+                        i,
+                        k * block_size[1] : min((k + 1) * block_size[1], x_torch.shape[1]),
+                    ],
                     w_torch[
                         e,
                         j * block_size[0] : min((j + 1) * block_size[0], w_torch.shape[1]),

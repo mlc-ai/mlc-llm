@@ -79,7 +79,8 @@ class CLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attribu
         embeddings = concat([class_embeds, patch_embeds], dim=1)
 
         posi_ids = reshape(
-            wrap_nested(arange(0, self.num_positions, dtype="int32"), name="arange"), shape=(1, -1)
+            wrap_nested(arange(0, self.num_positions, dtype="int32"), name="arange"),
+            shape=(1, -1),
         )
         batch_position_embedding = broadcast_to(
             self.position_embedding(posi_ids),

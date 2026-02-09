@@ -51,7 +51,7 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--model-type'):<25} {self.model.name}", file=out)
         print(f"  {bold('--target'):<25} {self.target.export()}", file=out)
         print(f"  {bold('--opt'):<25} {self.opt}", file=out)
-        print(f"  {bold('--system-lib-prefix'):<25} \"{self.system_lib_prefix}\"", file=out)
+        print(f'  {bold("--system-lib-prefix"):<25} "{self.system_lib_prefix}"', file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
         print(f"  {bold('--overrides'):<25} {self.overrides}", file=out)
         # As it's debug only, no need to display

@@ -156,7 +156,8 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         )
         page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
-            "support_sliding_window_", relax.ShapeStructInfo([kwargs["support_sliding_window"]])
+            "support_sliding_window_",
+            relax.ShapeStructInfo([kwargs["support_sliding_window"]]),
         )
 
         # Ensure 'enable_disaggregation' is optional
@@ -208,7 +209,8 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         )
         page_size = relax.Var("page_size_", relax.ShapeStructInfo([kwargs["page_size"]]))
         support_sliding_window = relax.Var(
-            "support_sliding_window_", relax.ShapeStructInfo([kwargs["support_sliding_window"]])
+            "support_sliding_window_",
+            relax.ShapeStructInfo([kwargs["support_sliding_window"]]),
         )
 
         try:

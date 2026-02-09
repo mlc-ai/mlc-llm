@@ -68,7 +68,8 @@ class AttachCUDAGraphSymbolicCaptureHints:  # pylint: disable=too-few-public-met
             if isinstance(func, relax.Function):
                 if func_name in self.hints:
                     mod[g_var] = func.with_attr(
-                        "relax.rewrite_cuda_graph.capture_symbolic_vars", self.hints[func_name]
+                        "relax.rewrite_cuda_graph.capture_symbolic_vars",
+                        self.hints[func_name],
                     )
 
         return mod

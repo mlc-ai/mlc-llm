@@ -262,7 +262,9 @@ class JSONFFIEngine:
         self.engine_config = engine_config
 
         self._ffi["init_background_engine"](
-            device.dlpack_device_type(), device.index, self._state.get_request_stream_callback()
+            device.dlpack_device_type(),
+            device.index,
+            self._state.get_request_stream_callback(),
         )
         self._ffi["reload"](self.engine_config.asjson())
 

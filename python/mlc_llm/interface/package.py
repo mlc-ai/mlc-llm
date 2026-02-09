@@ -308,7 +308,9 @@ def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     # Build iphone binding
     logger.info("Build iphone binding")
     subprocess.run(
-        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"], check=True, env=os.environ
+        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"],
+        check=True,
+        env=os.environ,
     )
 
     # Copy built libraries back to output directory.
@@ -353,7 +355,11 @@ def package(
     )
     # - Validate model libraries.
     validate_model_lib(
-        app_config_path, package_config_path, model_lib_path_for_prepare_libs, device, output
+        app_config_path,
+        package_config_path,
+        model_lib_path_for_prepare_libs,
+        device,
+        output,
     )
 
     # - Copy model libraries

@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional, Tuple
 
-from tvm import DataType, DataTypeCode, tir
+from tvm import DataType, DataTypeCode, s_tir, tir
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
 
@@ -353,7 +353,8 @@ def dequantize_block_scale_float8_gemv(
         x: T.Buffer((x_leading_dim, in_features), model_dtype),
         w: T.Buffer((local_experts, out_features, k), quantize_dtype),
         w_scale: T.Buffer(
-            (local_experts, out_features // block_size[0], k // block_size[1]), "float32"
+            (local_experts, out_features // block_size[0], k // block_size[1]),
+            "float32",
         ),
         expert_indices: T.Buffer((1, experts_per_tok), "int32"),
         o: T.Buffer((experts_per_tok, out_features), out_dtype),
@@ -475,7 +476,12 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                 X[m_offset : m_offset + BLK_M, :],
                                 W[e, n_offset : n_offset + BLK_N, :],
                             )
-                            T.writes(O[m_offset : m_offset + BLK_M, n_offset : n_offset + BLK_N])
+                            T.writes(
+                                O[
+                                    m_offset : m_offset + BLK_M,
+                                    n_offset : n_offset + BLK_N,
+                                ]
+                            )
                             X_tile = T.alloc_buffer((BLK_M, K), dtype, scope="shared")
                             W_tile = T.alloc_buffer((BLK_N, K), dtype, scope="shared")
                             O_tile = T.alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
@@ -510,7 +516,7 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                     tile_id[0] += CTA_COUNT
 
     def _schedule():
-        sch = tir.Schedule(_func)
+        sch = s_tir.Schedule(_func)
 
         def _cooperative_fetch(block, vec_len):
             num_loops = len(sch.get_loops(block))
@@ -681,7 +687,12 @@ def dequantize_group_gemm(
                                 w[e, n_offset : n_offset + BLK_N, :],
                                 scale[e, n_offset : n_offset + BLK_N, :],
                             )
-                            T.writes(O[m_offset : m_offset + BLK_M, n_offset : n_offset + BLK_N])
+                            T.writes(
+                                O[
+                                    m_offset : m_offset + BLK_M,
+                                    n_offset : n_offset + BLK_N,
+                                ]
+                            )
                             X_tile = T.alloc_buffer((BLK_M, K), model_dtype, scope="shared")
                             W_tile = T.alloc_buffer((BLK_N, K), model_dtype, scope="shared")
                             O_tile = T.alloc_buffer((BLK_M, BLK_N), "float32", scope="local")
@@ -716,7 +727,7 @@ def dequantize_group_gemm(
                     tile_id[0] += CTA_COUNT
 
     def _schedule():
-        sch = tir.Schedule(_func)
+        sch = s_tir.Schedule(_func)
 
         def _cooperative_fetch(block, vec_len):
             num_loops = len(sch.get_loops(block))

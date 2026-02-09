@@ -125,7 +125,10 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                 """
                 if isinstance(node, nn.Linear):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [
+                        f"{name}.q_weight",
+                        f"{name}.q_scale",
+                    ]
                     if (
                         # pylint: disable=too-many-boolean-expressions
                         is_final_fc(name)
@@ -152,7 +155,10 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                         return FTQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [
+                        f"{name}.q_weight",
+                        f"{name}.q_scale",
+                    ]
                     group_quantize = self.config.fallback_group_quantize()
                     self.quant_map.map_func[weight_name] = group_quantize.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, group_quantize)
@@ -230,7 +236,14 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
                     vm = relax.VirtualMachine(ex, device)  # pylint: disable=invalid-name
                     return vm["main"]
 
-                key = str((int(weight.shape[0]), int(weight.shape[1]), weight.dtype, device_type))
+                key = str(
+                    (
+                        int(weight.shape[0]),
+                        int(weight.shape[1]),
+                        weight.dtype,
+                        device_type,
+                    )
+                )
                 quantize_func = self._quantize_func_cache.get(key, None)
                 if quantize_func is None:
                     logger.info("Compiling quantize function for key: %s", key)
@@ -276,14 +289,16 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         bin_mask = tir.const((1 << quantize_dtype.bits) - 1, self.storage_dtype)
         scaled_weight = te.compute(
             shape=weight.shape,
-            fcompute=lambda i, j: tir.min(
-                tir.max(
-                    tir.round(weight[i, j] / scale[j // cur_group_size, i]),
-                    -max_int - 1,
-                ),
-                max_int,
-            ).astype(self.storage_dtype)
-            & bin_mask,
+            fcompute=lambda i, j: (
+                tir.min(
+                    tir.max(
+                        tir.round(weight[i, j] / scale[j // cur_group_size, i]),
+                        -max_int - 1,
+                    ),
+                    max_int,
+                ).astype(self.storage_dtype)
+                & bin_mask
+            ),
         )
 
         quantized_weight_shape = (k, tir.ceildiv(n, self.num_elem_per_storage))

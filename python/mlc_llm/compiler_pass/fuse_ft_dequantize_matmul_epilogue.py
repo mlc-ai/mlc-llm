@@ -132,7 +132,11 @@ def fuse_activation(func: relax.Function) -> relax.Function:
     def rewriter(expr, match):
         if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int":
             matched_activation = match[pattern]
-            assert matched_activation.op.name in ["relax.nn.silu", "relax.nn.gelu", "relax.nn.relu"]
+            assert matched_activation.op.name in [
+                "relax.nn.silu",
+                "relax.nn.gelu",
+                "relax.nn.relu",
+            ]
             assert len(match[decode_matmul].args) == 2
             args_list = match[decode_matmul].args[1]
             assert len(args_list) == 8
@@ -152,7 +156,11 @@ def fuse_activation(func: relax.Function) -> relax.Function:
             )
         if match[decode_matmul].args[0].global_symbol == "fastertransformer.gemm_fp16_int_bias":
             matched_activation = match[pattern]
-            assert matched_activation.op.name in ["relax.nn.silu", "relax.nn.gelu", "relax.nn.relu"]
+            assert matched_activation.op.name in [
+                "relax.nn.silu",
+                "relax.nn.gelu",
+                "relax.nn.relu",
+            ]
             assert len(match[decode_matmul].args) == 2
             args_list = match[decode_matmul].args[1]
             assert len(args_list) == 10
@@ -296,7 +304,11 @@ def fuse_residual_unary(func: relax.Function) -> relax.Function:
             == "fastertransformer.gemm_fp16_int_bias_residual"
         ):
             matched_activation = match[pattern]
-            assert matched_activation.op.name in ["relax.nn.silu", "relax.nn.gelu", "relax.nn.relu"]
+            assert matched_activation.op.name in [
+                "relax.nn.silu",
+                "relax.nn.gelu",
+                "relax.nn.relu",
+            ]
             assert len(match[decode_matmul].args) == 2
             args_list = match[decode_matmul].args[1]
             assert len(args_list) == 12

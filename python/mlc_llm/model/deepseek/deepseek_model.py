@@ -294,14 +294,20 @@ class DeepseekDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attr
                     self.mlp.moe_gate_up_proj.weight,
                     tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1),
                 )
-                _set(self.mlp.moe_down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=2))
+                _set(
+                    self.mlp.moe_down_proj.weight,
+                    tp.ShardSingleDim("_shard_mlp_down", dim=2),
+                )
 
             else:
                 _set(
                     self.mlp.gate_up_proj.weight,
                     tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
                 )
-                _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+                _set(
+                    self.mlp.down_proj.weight,
+                    tp.ShardSingleDim("_shard_mlp_down", dim=1),
+                )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
@@ -407,7 +413,10 @@ class DeepseekForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attri
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

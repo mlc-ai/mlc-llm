@@ -601,7 +601,9 @@ class FixTimestampExecutor(Executor):  # pylint: disable=too-few-public-methods
 
 
 def create_pipelines(  # pylint: disable=too-many-branches
-    args: argparse.Namespace, f_create_api_endpoint: Callable[[], APIEndPoint], dataset: Dataset
+    args: argparse.Namespace,
+    f_create_api_endpoint: Callable[[], APIEndPoint],
+    dataset: Dataset,
 ) -> List[RequestProcessor]:
     """Creating request processing pipelines with regard to the specified args."""
     cuda_profile_url = f"http://{args.host}:{args.port}" if args.cuda_profile else None

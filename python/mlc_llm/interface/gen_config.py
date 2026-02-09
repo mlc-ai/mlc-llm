@@ -148,7 +148,12 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             for key, value in generation_config_json.items():
                 if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
                     setattr(mlc_chat_config, key, value)
-                    logger.info("[%s] Setting %s: %s", generation_config_filename, bold(key), value)
+                    logger.info(
+                        "[%s] Setting %s: %s",
+                        generation_config_filename,
+                        bold(key),
+                        value,
+                    )
         else:
             logger.info("%s %s: %s", NOT_FOUND, generation_config_filename, generation_config)
 
@@ -168,7 +173,10 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     for item in config.parent.iterdir():
         if item.is_file() and pattern.match(item.name):
             logger.info(
-                "%s RWKV vocab file: %s. Genetating %s", FOUND, item, bold("tokenizer_model")
+                "%s RWKV vocab file: %s. Genetating %s",
+                FOUND,
+                item,
+                bold("tokenizer_model"),
             )
             if item.name.endswith(".txt"):
                 txt2rwkv_tokenizer(item, output)
@@ -193,7 +201,10 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
             fast_tokenizer.backend_tokenizer.save(str(tokenizer_json_save_dest))
             mlc_chat_config.tokenizer_files.append("tokenizer.json")
-            logger.info("Successfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
+            logger.info(
+                "Successfully converted `tokenizer.model` to: %s",
+                tokenizer_json_save_dest,
+            )
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "Converting to `tokenizer.json` %s with the exception below. "

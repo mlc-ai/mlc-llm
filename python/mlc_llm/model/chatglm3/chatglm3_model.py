@@ -111,7 +111,9 @@ class GLMAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=config.add_bias_linear or config.add_qkv_bias,
         )
         self.dense = nn.Linear(
-            self.num_heads * self.head_dim, config.hidden_size, bias=config.add_bias_linear
+            self.num_heads * self.head_dim,
+            config.hidden_size,
+            bias=config.add_bias_linear,
         )
 
     def forward(self, hidden_states: Tensor, paged_kv_cache: PagedKVCache, layer_id: int):
@@ -190,9 +192,15 @@ class GLMBlock(nn.Module):
                     self.self_attention.query_key_value.bias,
                     tp.ShardSingleDim("_shard_qkv_bias", dim=0, segs=[q, k, v]),
                 )
-            _set(self.self_attention.dense.weight, tp.ShardSingleDim("_shard_dense_weight", dim=1))
+            _set(
+                self.self_attention.dense.weight,
+                tp.ShardSingleDim("_shard_dense_weight", dim=1),
+            )
             if config.add_bias_linear:
-                _set(self.self_attention.dense.bias, tp.ShardSingleDim("_shard_dense_bias", dim=0))
+                _set(
+                    self.self_attention.dense.bias,
+                    tp.ShardSingleDim("_shard_dense_bias", dim=0),
+                )
             _set(
                 self.mlp.dense_h_to_4h.weight,
                 tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
@@ -202,7 +210,10 @@ class GLMBlock(nn.Module):
                     self.mlp.dense_h_to_4h.bias,
                     tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
                 )
-            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
+            _set(
+                self.mlp.dense_4h_to_h.weight,
+                tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1),
+            )
             if config.add_bias_linear:
                 _set(
                     self.mlp.dense_4h_to_h.bias,
@@ -332,7 +343,10 @@ class ChatGLMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

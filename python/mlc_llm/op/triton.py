@@ -317,7 +317,9 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
             B = T.match_buffer(var_B, (N, K), dtype=in_dtype)
             As = T.match_buffer(var_As, (M, (K + block_k - 1) // block_k), "float32")
             Bs = T.match_buffer(
-                var_Bs, ((N + block_n - 1) // block_n, (K + block_k - 1) // block_k), "float32"
+                var_Bs,
+                ((N + block_n - 1) // block_n, (K + block_k - 1) // block_k),
+                "float32",
             )
             C = T.match_buffer(var_C, (M, N), dtype=out_dtype)
             with T.sblock("root"):
@@ -325,7 +327,10 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
                     A[0:M, 0:K],
                     B[0:N, 0:K],
                     As[0:M, 0 : (K + block_k - 1) // block_k],
-                    Bs[0 : (N + block_n - 1) // block_n, 0 : (K + block_k - 1) // block_k],
+                    Bs[
+                        0 : (N + block_n - 1) // block_n,
+                        0 : (K + block_k - 1) // block_k,
+                    ],
                 )
                 T.writes(C[0:M, 0:N])
                 T.call_kernel(
@@ -417,11 +422,17 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
             As = T.match_buffer(var_As, (EM, (K + block_k - 1) // block_k), "float32")
             Bs = T.match_buffer(
                 var_Bs,
-                (num_experts, (N + block_n - 1) // block_n, (K + block_k - 1) // block_k),
+                (
+                    num_experts,
+                    (N + block_n - 1) // block_n,
+                    (K + block_k - 1) // block_k,
+                ),
                 "float32",
             )
             expert_ids = T.match_buffer(
-                var_expert_ids, ((EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,), "int32"
+                var_expert_ids,
+                ((EM + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
+                "int32",
             )
             indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
             C = T.match_buffer(var_C, (EM, N), dtype=out_dtype)
@@ -523,7 +534,9 @@ def _compute_expert_id_per_block(
         T.func_attr({"op_pattern": 8, "tir.is_scheduled": 1})
         indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
         expert_ids = T.match_buffer(
-            var_expert_ids, ((M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,), "int32"
+            var_expert_ids,
+            ((M + BLOCK_SIZE_M - 1) // BLOCK_SIZE_M + num_experts,),
+            "int32",
         )
         with T.sblock("root"):
             for eid in T.thread_binding(0, num_experts, thread="threadIdx.x"):

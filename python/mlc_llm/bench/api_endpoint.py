@@ -451,7 +451,11 @@ def create_api_endpoint(args: argparse.Namespace) -> APIEndPoint:
         return OpenAIEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)
     if args.api_endpoint == "vllm":
         return OpenAIEndPoint(
-            args.host, args.port, args.timeout, include_server_metrics=False, no_debug_config=True
+            args.host,
+            args.port,
+            args.timeout,
+            include_server_metrics=False,
+            no_debug_config=True,
         )
     if args.api_endpoint == "openai-chat":
         return OpenAIChatEndPoint(args.host, args.port, args.timeout, args.include_server_metrics)

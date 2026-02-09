@@ -230,7 +230,11 @@ class MiniCPMMoE(nn.Module):
             else:
                 # indptr: [num_local_experts + 1]
                 indptr = op_ext.moe_misc.get_indptr(
-                    cumsum, local_experts, num_tokens, inclusive=False, out_dtype="int32"
+                    cumsum,
+                    local_experts,
+                    num_tokens,
+                    inclusive=False,
+                    out_dtype="int32",
                 )
             # x: [num_tokens * experts_per_tok, hidden_size]
             x = op.take(x, token_indices, axis=0)
@@ -283,9 +287,15 @@ class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attri
                     self.mlp.gate_up_proj.weight,
                     tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
                 )
-                _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
+                _set(
+                    self.mlp.down_proj.weight,
+                    tp.ShardSingleDim("_shard_mlp_down", dim=1),
+                )
             else:
-                _set(self.mlp.e1_e3.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1))
+                _set(
+                    self.mlp.e1_e3.weight,
+                    tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1),
+                )
                 _set(self.mlp.e2.weight, tp.ShardSingleDim("_shard_mlp_down", dim=2))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -296,13 +306,15 @@ class MiniCPMDecoderLayer(nn.Module):  # pylint: disable=too-many-instance-attri
         hidden_states = self.input_layernorm(hidden_states)
         hidden_states = self.self_attn(hidden_states, paged_kv_cache, layer_id)
         hidden_states = self._apply_residual(
-            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)), residual
+            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)),
+            residual,
         )
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = self._apply_residual(
-            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)), residual
+            hidden_states * (self.scale_depth / math.sqrt(self.num_hidden_layers)),
+            residual,
         )
         return hidden_states
 
@@ -407,7 +419,10 @@ class MiniCPMForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
