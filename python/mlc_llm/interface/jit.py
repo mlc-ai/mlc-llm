@@ -67,7 +67,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         mlc_chat_config = json.load(in_file)
     model_type = mlc_chat_config.pop("model_type")
     quantization = mlc_chat_config.pop("quantization")
-    lib_suffix = MLC_DSO_SUFFIX if device not in ["iphone", "android"] else "tar"
+    lib_suffix = MLC_DSO_SUFFIX if device not in ["iphone", "macabi", "android"] else "tar"
 
     def _get_optimization_flags() -> str:
         opt = overrides.pop("opt", None)
@@ -143,7 +143,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         "model_type": model_type,
         "quantization": quantization,
     }
-    if device in ["iphone", "android"]:
+    if device in ["iphone", "macabi", "android"]:
         if system_lib_prefix is None:
             system_lib_hash_value = hashlib.md5(
                 json.dumps(

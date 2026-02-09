@@ -15,7 +15,7 @@ from mlc_llm.support import download_cache, logging, style
 logging.enable_logging()
 logger = logging.getLogger(__name__)
 
-SUPPORTED_DEVICES = ["iphone", "android"]
+SUPPORTED_DEVICES = ["iphone", "macabi", "android"]
 
 
 def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,too-many-statements
@@ -134,7 +134,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
             if bundle_model_weight_path.exists():
                 shutil.rmtree(bundle_model_weight_path)
             shutil.copytree(model_path, bundle_model_weight_path)
-        if bundle_weight and device == "iphone":
+        if bundle_weight and device in ["iphone", "macabi"]:
             app_config_model_entry["model_path"] = model_id
         else:
             app_config_model_entry["model_url"] = model.replace("HF://", "https://huggingface.co/")
@@ -163,7 +163,7 @@ def validate_model_lib(  # pylint: disable=too-many-locals
     app_config_path: Path,
     package_config_path: Path,
     model_lib_path_for_prepare_libs: dict,
-    device: Literal["iphone", "android"],
+    device: Literal["iphone", "macabi", "android"],
     output: Path,
 ) -> None:
     """Validate the model lib prefixes of model libraries."""
@@ -189,9 +189,11 @@ def validate_model_lib(  # pylint: disable=too-many-locals
         model_set.add(model)
 
     os.makedirs(output / "lib", exist_ok=True)
-    lib_path = (
-        output / "lib" / ("libmodel_iphone.a" if device == "iphone" else "libmodel_android.a")
-    )
+    if device in ["iphone", "macabi"]:
+        lib_name = "libmodel_iphone.a"
+    else:
+        lib_name = "libmodel_android.a"
+    lib_path = output / "lib" / lib_name
 
     def _get_model_libs(lib_path: Path) -> List[str]:
         """Get the model lib prefixes in the given static lib path."""
@@ -320,6 +322,30 @@ def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
         shutil.copy(static_library, dst_path)
 
 
+def build_macabi_binding(mlc_llm_source_dir: Path, output: Path) -> None:
+    """Build Mac Catalyst binding in MLC LLM"""
+    deployment_target = os.environ.get("MLC_MACABI_DEPLOYMENT_TARGET", "18.0")
+    macabi_arch = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
+    logger.info("Build macabi binding (deployment target %s)", deployment_target)
+    cmd = [
+        "bash",
+        mlc_llm_source_dir / "ios" / "prepare_libs.sh",
+        "--catalyst",
+        "--deployment-target",
+        deployment_target,
+    ]
+    if macabi_arch:
+        cmd += ["--arch", macabi_arch]
+    subprocess.run(cmd, check=True, env=os.environ)
+
+    # Copy built libraries back to output directory.
+    build_dir = Path(f"build-maccatalyst-{macabi_arch}")
+    for static_library in (build_dir / "lib").iterdir():
+        dst_path = str(output / "lib" / static_library.name)
+        logger.info('Copying "%s" to "%s"', static_library, dst_path)
+        shutil.copy(static_library, dst_path)
+
+
 def package(
     package_config_path: Path,
     mlc_llm_source_dir: Path,
@@ -367,6 +393,8 @@ def package(
         build_android_binding(mlc_llm_source_dir, output)
     elif device == "iphone":
         build_iphone_binding(mlc_llm_source_dir, output)
+    elif device == "macabi":
+        build_macabi_binding(mlc_llm_source_dir, output)
     else:
         assert False, "Cannot reach here"
 
