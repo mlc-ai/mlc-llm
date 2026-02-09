@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import scipy.special
 import tvm
-from tvm import dlight
+from tvm.s_tir import dlight
 
 # test category "op_correctness"
 pytestmark = [pytest.mark.op_correctness]

@@ -2,11 +2,10 @@
 
 from typing import Callable, List, Optional, Sequence
 
-from tvm import IRModule
-from tvm import dlight as dl
-from tvm import relax, te, tir
+from tvm import IRModule, relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import DataType, DataTypeCode
+from tvm.s_tir import dlight as dl
 from tvm.target import Target
 
 from mlc_llm.support import tensor_parallel as tp
