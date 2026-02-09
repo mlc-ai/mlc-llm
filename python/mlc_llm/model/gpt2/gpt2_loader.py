@@ -52,7 +52,12 @@ def huggingface(model_config: GPT2Config, quantization: Quantization) -> ExternM
         mapping.add_unused(f"h.{i}.attn.bias")
 
         # Transpose c_attn, c_proj and c_fc weights since GPT-2 uses Conv1D
-        for conv1d_weight_name in ["attn.c_attn", "attn.c_proj", "mlp.c_proj", "mlp.c_fc"]:
+        for conv1d_weight_name in [
+            "attn.c_attn",
+            "attn.c_proj",
+            "mlp.c_proj",
+            "mlp.c_fc",
+        ]:
             src_name = f"h.{i}.{conv1d_weight_name}.weight"
             mlc_name = f"transformer.{src_name}"
             mapping.add_mapping(

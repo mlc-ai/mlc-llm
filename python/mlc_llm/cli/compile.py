@@ -121,7 +121,10 @@ def main(argv):
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
     parsed.quantization = detect_quantization(parsed.quantization, parsed.model)
     parsed.system_lib_prefix = detect_system_lib_prefix(
-        parsed.device, parsed.system_lib_prefix, parsed.model_type.name, parsed.quantization.name
+        parsed.device,
+        parsed.system_lib_prefix,
+        parsed.model_type.name,
+        parsed.quantization.name,
     )
     with open(parsed.model, "r", encoding="utf-8") as config_file:
         config = json.load(config_file)

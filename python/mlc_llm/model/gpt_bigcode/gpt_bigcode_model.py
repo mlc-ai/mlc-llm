@@ -143,7 +143,10 @@ class GPTBigCodeBlock(nn.Module):
             q = config.n_head * hd
             k = 1 * hd
             v = 1 * hd
-            _set(self.attn.c_attn, tp.ShardSingleDim("_shard_c_attn", dim=0, segs=[q, k, v]))
+            _set(
+                self.attn.c_attn,
+                tp.ShardSingleDim("_shard_c_attn", dim=0, segs=[q, k, v]),
+            )
             _set(self.attn.c_proj, tp.ShardSingleDim("_shard_c_proj", dim=1))
             _set(self.mlp.c_fc, tp.ShardSingleDim("_shard_mlp_c_fc", dim=0))
             _set(self.mlp.c_proj, tp.ShardSingleDim("_shard_mlp_c_proj", dim=1))
@@ -244,7 +247,10 @@ class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

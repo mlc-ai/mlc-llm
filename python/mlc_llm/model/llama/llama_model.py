@@ -54,7 +54,7 @@ class LlamaConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
             else:
                 assert (
                     self.rope_scaling["rope_type"] == "llama3"
-                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Llama'
+                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Llama"
 
         if self.context_window_size == 0:
             for name in ["max_position_embeddings", "max_sequence_length"]:
@@ -189,9 +189,15 @@ class LlamaDecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -359,7 +365,10 @@ class LlamaForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         return hidden_states, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache

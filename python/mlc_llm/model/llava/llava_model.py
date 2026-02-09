@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 
 
 CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
-ARCHITECTURE_MAP = {"LlamaForCausalLM": LlamaForCausalLM, "MistralForCausalLM": MistralForCasualLM}
+ARCHITECTURE_MAP = {
+    "LlamaForCausalLM": LlamaForCausalLM,
+    "MistralForCausalLM": MistralForCasualLM,
+}
 
 
 @dataclasses.dataclass
@@ -211,7 +214,10 @@ class LlavaForCasualLM(Module):
         return self.language_model.decode(input_embed, paged_kv_cache)
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         return self.language_model.batch_prefill(input_embeds, logit_positions, paged_kv_cache)
 

@@ -72,9 +72,15 @@ class Gemma2DecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards

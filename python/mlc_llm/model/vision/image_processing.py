@@ -2,8 +2,7 @@
 Implements the CLIP Image processor.
 """
 
-import tvm
-from tvm import tir
+from tvm import s_tir, tir
 from tvm.relax.frontend.nn import Module, Tensor, op
 from tvm.script import tir as T
 
@@ -42,14 +41,16 @@ class ImageProcessor(Module):
                 short = tir.Select(w < h, w, h)
                 long = tir.Select(w > h, w, h)
                 requested_new_short = params["shortest_edge"]
-                new_short, new_long = tir.generic.cast(
-                    requested_new_short, "int64"
-                ), tir.generic.cast(
-                    requested_new_short
-                    * tir.div(
-                        tir.generic.cast(long, "float32"), tir.generic.cast(short, "float32")
+                new_short, new_long = (
+                    tir.generic.cast(requested_new_short, "int64"),
+                    tir.generic.cast(
+                        requested_new_short
+                        * tir.div(
+                            tir.generic.cast(long, "float32"),
+                            tir.generic.cast(short, "float32"),
+                        ),
+                        "int64",
                     ),
-                    "int64",
                 )
                 ret_h = tir.Select(w <= h, new_long, new_short)
                 ret_w = tir.Select(w <= h, new_short, new_long)
@@ -78,13 +79,15 @@ class ImageProcessor(Module):
                     tir.generic.cast(tir.div(scale * pad_num, ratio), "int64"),
                 )
                 new_h = tir.Select(
-                    w >= h, tir.generic.cast(tir.div(new_w, ratio), "int64"), scale * pad_num
+                    w >= h,
+                    tir.generic.cast(tir.div(new_w, ratio), "int64"),
+                    scale * pad_num,
                 )
                 return (new_h, new_w)
             else:
                 assert False, "not supported resize parameter"
 
-        (new_h, new_w) = get_output_image_size(image)
+        new_h, new_w = get_output_image_size(image)
         out = op.interpolate(image, (new_h, new_w), data_layout="NCHW", mode="linear")
         return out
 
@@ -120,7 +123,7 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx + top, w_idx + left
                                     ]
 
-            sch = tvm.s_tir.Schedule(crop_func)
+            sch = s_tir.Schedule(crop_func)
             self.apply_schedule(sch, sch.get_sblock("crop"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -162,11 +165,14 @@ class ImageProcessor(Module):
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 if h_idx < h and w_idx < w:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = (
-                                        T.cast(image_buf[n_idx, c_idx, h_idx, w_idx], o_dtype)
+                                        T.cast(
+                                            image_buf[n_idx, c_idx, h_idx, w_idx],
+                                            o_dtype,
+                                        )
                                         * rescale_factor
                                     )
 
-            sch = tvm.s_tir.Schedule(rescale_func)
+            sch = s_tir.Schedule(rescale_func)
             self.apply_schedule(sch, sch.get_sblock("rescale"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -210,11 +216,14 @@ class ImageProcessor(Module):
                                     stddev[2] = 0.27577711
                                 if h_idx < h and w_idx < w:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = (
-                                        T.cast(image_buf[n_idx, c_idx, h_idx, w_idx], o_dtype)
+                                        T.cast(
+                                            image_buf[n_idx, c_idx, h_idx, w_idx],
+                                            o_dtype,
+                                        )
                                         - mean[c_idx]
                                     ) / stddev[c_idx]
 
-            sch = tvm.s_tir.Schedule(normalize_func)
+            sch = s_tir.Schedule(normalize_func)
             self.apply_schedule(sch, sch.get_sblock("normalize"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
@@ -253,7 +262,7 @@ class ImageProcessor(Module):
                                         n_idx, c_idx, h_idx - t, w_idx - l
                                     ]
 
-            sch = tvm.s_tir.Schedule(pad_func)
+            sch = s_tir.Schedule(pad_func)
             self.apply_schedule(sch, sch.get_sblock("pad"))
             return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 

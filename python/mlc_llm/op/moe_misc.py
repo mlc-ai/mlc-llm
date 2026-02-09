@@ -351,7 +351,9 @@ def group_limited_greedy_topk(  # pylint: disable=too-many-arguments
         def gather_scores(var_scores: T.handle, var_expert_indices: T.handle, var_output: T.handle):
             T.func_attr({"tir.noalias": True})
             scores = T.match_buffer(
-                var_scores, (num_tokens, num_routed_experts), dtype=scores_for_choice.dtype
+                var_scores,
+                (num_tokens, num_routed_experts),
+                dtype=scores_for_choice.dtype,
             )
             expert_indices_tir = T.match_buffer(
                 var_expert_indices, (num_tokens, top_k), dtype=expert_indices.dtype

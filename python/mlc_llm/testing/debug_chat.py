@@ -497,7 +497,10 @@ def main():
         help="The user input prompt.",
     )
     parser.add_argument(
-        "--generate-len", type=int, help="Number of output tokens to generate.", required=True
+        "--generate-len",
+        type=int,
+        help="Number of output tokens to generate.",
+        required=True,
     )
     parser.add_argument(
         "--model",

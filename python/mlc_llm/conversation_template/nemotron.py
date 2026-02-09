@@ -9,7 +9,7 @@ from .registry import ConvTemplateRegistry
 ConvTemplateRegistry.register_conv_template(
     Conversation(
         name="nemotron",
-        system_template=("<extra_id_0>System\n" f"{MessagePlaceholders.SYSTEM.value}\n\n"),
+        system_template=(f"<extra_id_0>System\n{MessagePlaceholders.SYSTEM.value}\n\n"),
         system_message="",
         roles={
             "user": "<extra_id_1>User",

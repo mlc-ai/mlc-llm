@@ -237,7 +237,7 @@ class SyncMLCEngine:
                 request_id, stream_outputs = delta_output.unpack()
                 rid = int(request_id)
 
-                assert len(stream_outputs) == generation_config[rid].n  # type:ignore
+                assert len(stream_outputs) == generation_config[rid].n  # type: ignore
                 for i, (stream_output, text_streamer) in enumerate(
                     zip(stream_outputs, text_streamers[rid])
                 ):
@@ -260,7 +260,9 @@ class SyncMLCEngine:
         # Override the callback function in engine.
         self._ffi["set_request_stream_callback"](request_stream_callback)
 
-        def convert_to_data(prompt: Union[str, List[int], List[data.Data]]) -> List[data.Data]:
+        def convert_to_data(
+            prompt: Union[str, List[int], List[data.Data]],
+        ) -> List[data.Data]:
             if isinstance(prompt, str):
                 return [data.TextData(prompt)]
             if isinstance(prompt[0], int):

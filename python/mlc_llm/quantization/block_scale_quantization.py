@@ -212,7 +212,9 @@ class BlockScaleQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-
 
     @staticmethod
     def from_linear(
-        src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
+        src: nn.Linear,
+        config: BlockScaleQuantize,
+        weight_block_size: Optional[Tuple[int, int]],
     ) -> "BlockScaleQuantizeLinear":
         """
         Converts a non-quantized nn.Linear to a block-scale quantized BlockScaleQuantizeLinear
@@ -356,7 +358,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
 
     @staticmethod
     def from_linear(
-        src: nn.Linear, config: BlockScaleQuantize, weight_block_size: Optional[Tuple[int, int]]
+        src: nn.Linear,
+        config: BlockScaleQuantize,
+        weight_block_size: Optional[Tuple[int, int]],
     ) -> "BlockScaleQuantizeLinearStaticActivation":
         """
         Convert a non-quantized nn.Linear to a block-scale quantized
@@ -398,7 +402,9 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
                 shard.segs = [x // weight_block_size[shard.dim] for x in shard.segs]
             apply_sharding(shard, f"{shard.name}_scale_inv", quantized_linear.weight_scale_inv)
             apply_sharding(
-                shard, f"{shard.name}_activation_scale", quantized_linear.activation_scale
+                shard,
+                f"{shard.name}_activation_scale",
+                quantized_linear.activation_scale,
             )
         return quantized_linear
 
@@ -423,7 +429,6 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             x_scale = broadcast_activation_scale(
                 x,
                 self.activation_scale,
-                self.block_size[1],
                 transpose=True,
             )
             out = cutlass.fp8_groupwise_scaled_gemm(
@@ -438,7 +443,6 @@ class BlockScaleQuantizeLinearStaticActivation(BlockScaleQuantizeLinear):
             x_scale_triton = broadcast_activation_scale(
                 x,
                 self.activation_scale,
-                self.block_size[1],
                 transpose=False,
             )
             out = triton.fp8_groupwise_scaled_gemm(
@@ -521,7 +525,9 @@ class BlockScaleQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-i
             if isinstance(shard, tp.ShardSingleDim) and shard.segs is not None:
                 shard.segs = [x // weight_block_size[shard.dim - 1] for x in shard.segs]
             apply_sharding(
-                shard, f"{shard.name}_scale_inv", quantized_mistral_experts.weight_scale_inv
+                shard,
+                f"{shard.name}_scale_inv",
+                quantized_mistral_experts.weight_scale_inv,
             )
         return quantized_mistral_experts
 
@@ -666,7 +672,8 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
             shape=x.shape,
             fcompute=lambda *idx: tir.max(
                 tir.min(
-                    x(*idx).astype(scale_dtype) / scale(*idx[:-1], idx[-1] // group_size), fp8_max
+                    x(*idx).astype(scale_dtype) / scale(*idx[:-1], idx[-1] // group_size),
+                    fp8_max,
                 ),
                 fp8_min,
             ).astype(dtype),
@@ -729,7 +736,6 @@ def static_activation_group_quant_fp8(
 def broadcast_activation_scale(
     x: nn.Tensor,
     activation_scale: nn.Tensor,
-    group_size: int,
     transpose: bool,
 ) -> nn.Tensor:
     """Broadcast stored activation scales."""
@@ -795,7 +801,10 @@ def dequantize_float8_groupwise_scaled_gemv(
         x: T.Buffer((1, k), model_dtype),  # type: ignore
         w: T.Buffer((n, k), quantize_dtype),  # type: ignore
         w_scale: T.Buffer(  # type: ignore
-            ((n + block_size[0] - 1) // block_size[0], (k + block_size[1] - 1) // block_size[1]),
+            (
+                (n + block_size[0] - 1) // block_size[0],
+                (k + block_size[1] - 1) // block_size[1],
+            ),
             "float32",
         ),
         o: T.Buffer((n,), out_dtype),  # type: ignore

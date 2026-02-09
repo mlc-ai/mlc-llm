@@ -105,7 +105,8 @@ class FP8PerTensorQuantizeMixtralExperts(
                 x_scale * self.q_scale
                 if self.q_scale is not None
                 else nn.wrap_nested(
-                    relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))), "scale"
+                    relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))),
+                    "scale",
                 )
             )
             return cutlass.group_gemm(

@@ -38,7 +38,10 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
             for v_tx in T.thread_binding(
                 TX,
                 thread="threadIdx.x",
-                annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
+                annotations={
+                    "pragma_auto_unroll_max_step": 256,
+                    "pragma_unroll_explicit": 1,
+                },
             ):
                 for i in range(add_local_size):
                     with T.sblock("T_add"):
@@ -106,7 +109,10 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
             for v_tx in T.thread_binding(
                 TX,
                 thread="threadIdx.x",
-                annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1},
+                annotations={
+                    "pragma_auto_unroll_max_step": 256,
+                    "pragma_unroll_explicit": 1,
+                },
             ):
                 for v_i in range(add_local_size):
                     with T.sblock("T_add"):

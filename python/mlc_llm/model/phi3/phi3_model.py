@@ -59,12 +59,15 @@ class Phi3Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
                 assert (
                     self.rope_scaling["type"] == "longrope"
-                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Phi3'
+                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Phi3"
                 self.rope_scaling["rope_type"] = self.rope_scaling["type"]
                 (
                     self.rope_scaling["max_position_embeddings"],
                     self.rope_scaling["original_max_position_embeddings"],
-                ) = (self.max_position_embeddings, self.original_max_position_embeddings)
+                ) = (
+                    self.max_position_embeddings,
+                    self.original_max_position_embeddings,
+                )
 
         if self.context_window_size == 0:
             self.context_window_size = self.max_position_embeddings
@@ -184,9 +187,15 @@ class Phi3ParallelBlock(nn.Module):
             v = self.mixer.num_key_value_heads * hd
             i = self.mlp.intermediate_size
 
-            _set(self.mixer.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.mixer.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.mixer.out_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -294,7 +303,10 @@ class Phi3ForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

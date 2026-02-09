@@ -332,7 +332,13 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
                     vj: T.int32 = vi - num_positions
                     sampled_values[vj] = unsorted_probs[sample_indices[vj], sampling_results[vj]]
 
-    args = [unsorted_probs, sorted_indices, sample_indices, sampling_results, top_prob_offsets]
+    args = [
+        unsorted_probs,
+        sorted_indices,
+        sample_indices,
+        sampling_results,
+        top_prob_offsets,
+    ]
     with bb.function("sampler_take_probs", args):
         with bb.dataflow():
             taken_probs_indices = bb.emit_output(
@@ -384,9 +390,15 @@ def _attach_batch_verifier(bb: relax.BlockBuilder):
         with bb.dataflow():
             res = bb.emit_output(
                 relax.call_tir_inplace(
-                    bb.add_func(batch_spec_verify(vocab_size), "batch_verify_on_gpu_single_kernel"),
+                    bb.add_func(
+                        batch_spec_verify(vocab_size),
+                        "batch_verify_on_gpu_single_kernel",
+                    ),
                     args,
-                    inplace_indices=[args.index(model_probs), args.index(token_tree_parent_ptr)],
+                    inplace_indices=[
+                        args.index(model_probs),
+                        args.index(token_tree_parent_ptr),
+                    ],
                     out_sinfo=[
                         model_probs.struct_info,  # pylint: disable=no-member
                         token_tree_parent_ptr.struct_info,  # pylint: disable=no-member

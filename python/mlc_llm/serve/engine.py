@@ -1246,7 +1246,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompts, generation_cfg, request_id  # type: ignore
+                prompts,  # type: ignore[arg-type]
+                generation_cfg,
+                request_id,  # type: ignore
             ):
                 response = engine_base.process_chat_completion_stream_output(
                     delta_outputs,
@@ -1311,7 +1313,9 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
         self.state.record_event(request_id, event="invoke generate")
         try:
             async for delta_outputs in self._generate(
-                prompt, generation_cfg, request_id  # type: ignore
+                prompt,
+                generation_cfg,
+                request_id,  # type: ignore
             ):
                 response = engine_base.process_completion_stream_output(
                     delta_outputs,

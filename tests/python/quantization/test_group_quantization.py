@@ -21,7 +21,8 @@ from mlc_llm.quantization.group_quantization import (
 def quantize_np(config: GroupQuantize, weight: np.ndarray):
     n, k = weight.shape
     weight_padded = np.pad(
-        weight, ((0, 0), (0, (config.group_size - k % config.group_size) % config.group_size))
+        weight,
+        ((0, 0), (0, (config.group_size - k % config.group_size) % config.group_size)),
     )
     n, k = weight_padded.shape
     weight_reshaped = np.reshape(weight_padded, (n, k // config.group_size, config.group_size))
@@ -39,7 +40,8 @@ def quantize_np(config: GroupQuantize, weight: np.ndarray):
     weight_filtered = np.reshape(weight_scaled_reshaped, (n, k))
     weight_filtered[..., weight.shape[1] :] = 0
     weight_scaled = np.reshape(
-        weight_filtered, (n, k // config.num_elem_per_storage, config.num_elem_per_storage)
+        weight_filtered,
+        (n, k // config.num_elem_per_storage, config.num_elem_per_storage),
     )
     indice_k = np.indices(weight_scaled.shape, dtype=config.storage_dtype)[-1]
     quantized_weight = np.sum(

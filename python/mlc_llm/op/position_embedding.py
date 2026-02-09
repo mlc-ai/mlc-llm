@@ -83,7 +83,11 @@ def rope_freq_llama3(  # pylint: disable=too-many-arguments,too-many-locals
     smoothed_freq_var = tir.Var("smoothed_freq", "float32")
     cos_freq = tir.cos(smoothed_freq_var).astype(dtype)
     sin_freq = tir.sin(smoothed_freq_var).astype(dtype)
-    return cos_freq, sin_freq, {smoothed_freq_var: smoothed_freq, orig_freq_var: orig_freq}
+    return (
+        cos_freq,
+        sin_freq,
+        {smoothed_freq_var: smoothed_freq, orig_freq_var: orig_freq},
+    )
 
 
 def rope_freq_longrope(  # pylint: disable=too-many-arguments
@@ -203,7 +207,7 @@ def switch_rope_freq_func(rope_scaling: Dict[str, Any]) -> Callable:
             beta_fast=rope_scaling["beta_fast"],
             beta_slow=rope_scaling["beta_slow"],
         )
-    raise ValueError(f'Unsupported RoPE scaling type: {rope_scaling["rope_type"]}')
+    raise ValueError(f"Unsupported RoPE scaling type: {rope_scaling['rope_type']}")
 
 
 # mypy: disable-error-code="attr-defined"

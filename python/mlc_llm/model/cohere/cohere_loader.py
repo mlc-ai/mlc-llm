@@ -156,8 +156,14 @@ def awq(model_config: CohereConfig, quantization: Quantization) -> ExternMapping
         mlp = f"model.layers.{i}.mlp"
         for quantize_suffix in ["qweight", "qzeros", "scales"]:
             _add(f"{mlp}.up_proj.{quantize_suffix}", f"{mlp}.up_proj.{quantize_suffix}")
-            _add(f"{mlp}.gate_proj.{quantize_suffix}", f"{mlp}.gate_proj.{quantize_suffix}")
-            _add(f"{mlp}.down_proj.{quantize_suffix}", f"{mlp}.down_proj.{quantize_suffix}")
+            _add(
+                f"{mlp}.gate_proj.{quantize_suffix}",
+                f"{mlp}.gate_proj.{quantize_suffix}",
+            )
+            _add(
+                f"{mlp}.down_proj.{quantize_suffix}",
+                f"{mlp}.down_proj.{quantize_suffix}",
+            )
 
         # inv_freq is not used in the model
         # mapping.add_unused(f"{attn}.rotary_emb.inv_freq")

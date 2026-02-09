@@ -240,7 +240,8 @@ class RWKV6_Attention(nn.Module):  # pylint: disable=too-many-instance-attribute
         state_x = state_x - x
         xxx = x + state_x * self.time_maa_x
         xxx = op.permute(
-            op.reshape(op.tanh(op.matmul(xxx, self.time_maa_w1)), (B, T, 5, -1)), [0, 2, 1, 3]
+            op.reshape(op.tanh(op.matmul(xxx, self.time_maa_w1)), (B, T, 5, -1)),
+            [0, 2, 1, 3],
         )
         xxx = op.permute(
             op.matmul(xxx, self.time_maa_w2), axes=[1, 0, 2, 3]
@@ -398,7 +399,10 @@ class RWKV6_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         return self.model.embeddings(input_ids)
 
     def forward(
-        self, input_embed: Tensor, state: RNNState, logit_positions: Optional[Tensor] = None
+        self,
+        input_embed: Tensor,
+        state: RNNState,
+        logit_positions: Optional[Tensor] = None,
     ):
         """Forward pass."""
         hidden_states, state = self.model(input_embed, state)
