@@ -250,7 +250,7 @@ MODEL_PRESETS: Dict[str, Any] = {
         "use_cache": True,
         "vocab_size": 32768,
     },
-    "ministral3_3b_reasoning_2512": {
+    "ministral3_3b_2512": {
         "architectures": ["Mistral3ForConditionalGeneration"],
         "dtype": "bfloat16",
         "image_token_index": 10,

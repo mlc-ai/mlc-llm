@@ -310,6 +310,7 @@ CONV_TEMPLATES = {
     "llama-2",
     "mistral_default",
     "ministral3",
+    "ministral3_reasoning",
     "gpt2",
     "codellama_completion",
     "codellama_instruct",
