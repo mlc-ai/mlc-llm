@@ -159,7 +159,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
     return model_lib_path_for_prepare_libs
 
 
-def validate_model_lib(  # pylint: disable=too-many-locals
+def validate_model_lib(  # pylint: disable=too-many-locals,too-many-statements
     app_config_path: Path,
     package_config_path: Path,
     model_lib_path_for_prepare_libs: dict,
