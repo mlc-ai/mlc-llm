@@ -1,7 +1,7 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tvm
 from tvm import IRModule, relax
@@ -120,6 +120,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             new_mod = new_mod.with_attrs(mod.attrs)
 
         kwargs = extract_creation_args(creation_func)
+        self._apply_kv_cache_dtype_override(kwargs)
         self.attach_kv_cache_metadata(kwargs)
 
         bb = relax.BlockBuilder(new_mod)
@@ -139,7 +140,27 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             "num_attention_heads": kwargs["num_attention_heads"],
             "num_key_value_heads": kwargs["num_key_value_heads"],
             "head_dim": kwargs["qk_head_dim"],
+            "dtype": str(kwargs["dtype"]),
         }
+
+    def _requested_kv_cache_dtype(self) -> Optional[str]:
+        dtype = self.metadata.get("kv_cache_dtype")
+        if dtype in [None, "", "auto"]:
+            return None
+        if not isinstance(dtype, str):
+            dtype = str(dtype)
+        return dtype
+
+    def _apply_kv_cache_dtype_override(self, kwargs: Dict[str, Any]) -> None:
+        requested_dtype = self._requested_kv_cache_dtype()
+        if requested_dtype is None:
+            return
+        logger.info(
+            "Overriding KV cache dtype from %s to %s",
+            kwargs["dtype"],
+            requested_dtype,
+        )
+        kwargs["dtype"] = requested_dtype
 
     def create_tir_paged_kv_cache(
         self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]

@@ -130,7 +130,9 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
 
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
-    model_config = args.overrides.apply(model_config)
+    # `kv_cache_dtype` is a compile-time override for KV cache dispatch, not a model config field.
+    model_config_overrides = dataclasses.replace(args.overrides, kv_cache_dtype=None)
+    model_config = model_config_overrides.apply(model_config)
     with args.target:
         op_ext.enable(
             target=args.target,
@@ -189,6 +191,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
             "active_vocab_size": avs,
         }
+        if args.overrides.kv_cache_dtype is not None:
+            metadata["kv_cache_dtype"] = args.overrides.kv_cache_dtype
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):

@@ -149,6 +149,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
     tensor_parallel_shards: Optional[int] = None
     pipeline_parallel_stages: Optional[int] = None
     disaggregation: Optional[bool] = None
+    kv_cache_dtype: Optional[str] = None
 
     def __repr__(self) -> str:
         out = StringIO()
@@ -164,11 +165,23 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
             end="",
         )
         print(f";disaggregation={self.disaggregation}", file=out, end="")
+        print(f";kv_cache_dtype={self.kv_cache_dtype}", file=out, end="")
         return out.getvalue().rstrip()
 
     @staticmethod
     def from_str(source: str) -> "ModelConfigOverride":
         """Parse model config override values from a string."""
+
+        def _parse_kv_cache_dtype(value: str) -> Optional[str]:
+            allowed = {"auto", "float16", "float32", "bfloat16", "int8"}
+            if value not in allowed:
+                raise ValueError(
+                    f"Invalid kv_cache_dtype: {value}. Expected one of {sorted(allowed)}"
+                )
+            if value == "auto":
+                return None
+            return value
+
         parser = argparse.ArgumentParser(description="model config override values")
         parser.add_argument("--context_window_size", type=int, default=None)
         parser.add_argument("--sliding_window_size", type=int, default=None)
@@ -182,6 +195,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
             type=lambda x: str(x).lower() in ["true", "1", "yes", "True"],
             default=None,
         )
+        parser.add_argument("--kv_cache_dtype", type=_parse_kv_cache_dtype, default=None)
         results = parser.parse_args([f"--{i}" for i in source.split(";") if i])
         return ModelConfigOverride(
             context_window_size=results.context_window_size,
@@ -192,6 +206,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
             tensor_parallel_shards=results.tensor_parallel_shards,
             pipeline_parallel_stages=results.pipeline_parallel_stages,
             disaggregation=results.disaggregation,
+            kv_cache_dtype=results.kv_cache_dtype,
         )
 
 
