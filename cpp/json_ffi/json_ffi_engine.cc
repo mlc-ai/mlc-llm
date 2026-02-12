@@ -1,6 +1,6 @@
 #include "json_ffi_engine.h"
 
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
@@ -44,21 +44,21 @@ void JSONFFIEngine::StreamBackError(std::string request_id) {
   response.model = "json_ffi";  // TODO: Return model name from engine (or from args)
   response.system_fingerprint = "";
 
-  picojson::array response_arr;
-  response_arr.push_back(picojson::value(response.AsJSON()));
+  tvm::ffi::json::Array response_arr;
+  response_arr.push_back(response.AsJSON());
 
   // now stream back the final usage block, which is required.
   // NOTE: always stream back final usage block as it is an
   // invariant of the system
   response.choices.clear();
-  picojson::object dummy_usage;
-  dummy_usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(0));
-  dummy_usage["completion_tokens"] = picojson::value(static_cast<int64_t>(0));
-  dummy_usage["total_tokens"] = picojson::value(static_cast<int64_t>(0));
-  response.usage = picojson::value(dummy_usage);
-  response_arr.push_back(picojson::value(response.AsJSON()));
+  tvm::ffi::json::Object dummy_usage;
+  dummy_usage.Set("prompt_tokens", static_cast<int64_t>(0));
+  dummy_usage.Set("completion_tokens", static_cast<int64_t>(0));
+  dummy_usage.Set("total_tokens", static_cast<int64_t>(0));
+  response.usage = tvm::ffi::json::Value(dummy_usage);
+  response_arr.push_back(response.AsJSON());
 
-  std::string stream_back_json = picojson::value(response_arr).serialize();
+  std::string stream_back_json = tvm::ffi::json::Stringify(response_arr);
   this->request_stream_callback_(stream_back_json);
 }
 
@@ -192,17 +192,17 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
     auto engine_config = this->engine_->GetCompleteEngineConfig();
 
     // Load conversation template.
-    Result<picojson::object> model_config_json =
+    Result<tvm::ffi::json::Object> model_config_json =
         serve::Model::LoadModelConfig(engine_config->model);
     CHECK(model_config_json.IsOk()) << model_config_json.UnwrapErr();
-    const picojson::object& model_config_json_unwrapped = model_config_json.Unwrap();
+    const tvm::ffi::json::Object& model_config_json_unwrapped = model_config_json.Unwrap();
     Result<Conversation> conv_template = Conversation::FromJSON(
-        json::Lookup<picojson::object>(model_config_json_unwrapped, "conv_template"));
+        json::Lookup<tvm::ffi::json::Object>(model_config_json_unwrapped, "conv_template"));
     CHECK(!conv_template.IsErr()) << "Invalid conversation template JSON: "
                                   << conv_template.UnwrapErr();
     this->conv_template_ = conv_template.Unwrap();
     this->model_config_ = ModelConfig::FromJSON(
-        json::Lookup<picojson::object>(model_config_json_unwrapped, "model_config"));
+        json::Lookup<tvm::ffi::json::Object>(model_config_json_unwrapped, "model_config"));
     this->tokenizer_ = Tokenizer::FromPath(engine_config->model);
   }
 
@@ -215,7 +215,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
   void RunBackgroundStreamBackLoop() { this->engine_->RunBackgroundStreamBackLoop(); }
 
   String GetResponseFromStreamOutput(Array<RequestStreamOutput> delta_outputs) {
-    picojson::array json_response_arr;
+    tvm::ffi::json::Array json_response_arr;
     for (const auto& delta_output : delta_outputs) {
       std::string request_id = delta_output->request_id;
       auto request_state_it = request_map_.find(request_id);
@@ -231,14 +231,14 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
         response.model = rstate.model;
         response.system_fingerprint = "";
         std::string usage_json_str = delta_output->request_final_usage_json_str.value();
-        picojson::value usage_json;
-        std::string err = picojson::parse(usage_json, usage_json_str);
-        if (!err.empty()) {
-          err_ = err;
+        tvm::ffi::String parse_err;
+        auto usage_json = tvm::ffi::json::Parse(usage_json_str, &parse_err);
+        if (!parse_err.empty()) {
+          err_ = parse_err;
         } else {
           response.usage = usage_json;
         }
-        json_response_arr.push_back(picojson::value(response.AsJSON()));
+        json_response_arr.push_back(response.AsJSON());
         request_map_.erase(request_state_it);
         continue;
       }
@@ -289,10 +289,10 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
       }
       // if it is not the usage block, choices cannot be empty
       if (!response.choices.empty()) {
-        json_response_arr.push_back(picojson::value(response.AsJSON()));
+        json_response_arr.push_back(response.AsJSON());
       }
     }
-    return picojson::value(json_response_arr).serialize();
+    return tvm::ffi::json::Stringify(json_response_arr);
   }
 };
 

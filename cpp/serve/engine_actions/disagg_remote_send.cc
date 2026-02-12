@@ -21,7 +21,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
   explicit DisaggRemoteSendActionObj(Array<Model> models,
                                      std::vector<ModelWorkspace> model_workspaces,
                                      EngineConfig engine_config,
-                                     std::vector<picojson::object> model_configs,
+                                     std::vector<tvm::ffi::json::Object> model_configs,
                                      Optional<EventTraceRecorder> trace_recorder,
                                      FRequestStreamCallback request_stream_callback, Device device)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
@@ -485,7 +485,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
 
 EngineAction EngineAction::DisaggRemoteSend(
     Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
-    std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
+    std::vector<tvm::ffi::json::Object> model_configs, Optional<EventTraceRecorder> trace_recorder,
     FRequestStreamCallback request_stream_callback, Device device) {
   return EngineAction(tvm::ffi::make_object<DisaggRemoteSendActionObj>(
       std::move(models), std::move(model_workspaces), std::move(engine_config),

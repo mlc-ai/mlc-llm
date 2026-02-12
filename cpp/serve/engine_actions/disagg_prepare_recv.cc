@@ -21,7 +21,7 @@ namespace serve {
 class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
  public:
   explicit DisaggPrepareReceiveActionObj(Array<Model> models, EngineConfig engine_config,
-                                         std::vector<picojson::object> model_configs,
+                                         std::vector<tvm::ffi::json::Object> model_configs,
                                          Optional<EventTraceRecorder> trace_recorder,
                                          FRequestStreamCallback request_stream_callback)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
@@ -139,15 +139,14 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
 
       {
         NVTXScopedRange nvtx_scope("Call request stream callback");
-        picojson::object response_body;
-        response_body["prompt_length"] = picojson::value(static_cast<int64_t>(total_input_length));
-        response_body["prefix_matched_length"] =
-            picojson::value(static_cast<int64_t>(prefix_matched_length));
+        tvm::ffi::json::Object response_body;
+        response_body.Set("prompt_length", static_cast<int64_t>(total_input_length));
+        response_body.Set("prefix_matched_length", static_cast<int64_t>(prefix_matched_length));
         // We further flatten the metadata array of all models into a single array.
-        picojson::array kv_append_metadata_arr;
+        tvm::ffi::json::Array kv_append_metadata_arr;
         for (const IntTuple& compressed_kv_append_metadata : kv_append_metadata) {
           for (int64_t value : compressed_kv_append_metadata) {
-            kv_append_metadata_arr.push_back(picojson::value(value));
+            kv_append_metadata_arr.push_back(value);
           }
           ICHECK(!compressed_kv_append_metadata.empty());
           int num_segments = compressed_kv_append_metadata[0];
@@ -159,16 +158,17 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
           CHECK_EQ(transmission_length, prefill_length);
         }
 
-        response_body["kv_append_metadata"] =
-            picojson::value(Base64Encode(picojson::value(kv_append_metadata_arr).serialize()));
+        response_body.Set(
+            "kv_append_metadata",
+            Base64Encode(std::string(tvm::ffi::json::Stringify(kv_append_metadata_arr))));
 
-        picojson::object usage;
-        usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(0));
-        usage["completion_tokens"] = picojson::value(static_cast<int64_t>(0));
-        usage["total_tokens"] = picojson::value(static_cast<int64_t>(0));
-        usage["extra"] = picojson::value(response_body);
+        tvm::ffi::json::Object usage;
+        usage.Set("prompt_tokens", static_cast<int64_t>(0));
+        usage.Set("completion_tokens", static_cast<int64_t>(0));
+        usage.Set("total_tokens", static_cast<int64_t>(0));
+        usage.Set("extra", response_body);
         RequestStreamOutput stream_output =
-            RequestStreamOutput::Usage(request->id, picojson::value(usage).serialize());
+            RequestStreamOutput::Usage(request->id, std::string(tvm::ffi::json::Stringify(usage)));
         // - Invoke the stream callback function once for all collected requests.
         request_stream_callback_(Array<RequestStreamOutput>{stream_output});
       }
@@ -428,7 +428,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
 };
 
 EngineAction EngineAction::DisaggPrepareReceive(Array<Model> models, EngineConfig engine_config,
-                                                std::vector<picojson::object> model_configs,
+                                                std::vector<tvm::ffi::json::Object> model_configs,
                                                 Optional<EventTraceRecorder> trace_recorder,
                                                 FRequestStreamCallback request_stream_callback) {
   return EngineAction(tvm::ffi::make_object<DisaggPrepareReceiveActionObj>(

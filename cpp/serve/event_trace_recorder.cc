@@ -4,7 +4,7 @@
  */
 #include "event_trace_recorder.h"
 
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
@@ -69,15 +69,15 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
       local_events = events_;
     }
 
-    auto fcmp_events = [](const std::pair<int64_t, picojson::value>& lhs,
-                          const std::pair<int64_t, picojson::value>& rhs) {
+    auto fcmp_events = [](const std::pair<int64_t, tvm::ffi::json::Value>& lhs,
+                          const std::pair<int64_t, tvm::ffi::json::Value>& rhs) {
       return lhs.first < rhs.first;
     };
 
-    picojson::array event_array;
+    tvm::ffi::json::Array event_array;
     for (const std::string& request_id : request_id_in_order_) {
       std::vector<std::pair<std::string, double>> event_pairs = local_events.at(request_id);
-      std::vector<std::pair<int64_t, picojson::value>> events_to_sort;
+      std::vector<std::pair<int64_t, tvm::ffi::json::Value>> events_to_sort;
       events_to_sort.reserve(event_pairs.size());
       for (int i = 0; i < static_cast<int>(event_pairs.size()); ++i) {
         std::string event = event_pairs[i].first;
@@ -99,21 +99,21 @@ class EventTraceRecorderImpl : public EventTraceRecorderObj {
         }
         int64_t event_time_in_us = static_cast<int64_t>(event_time * 1e6);
 
-        picojson::object event_json;
-        event_json["name"] = picojson::value(name);
-        event_json["ph"] = picojson::value(phase);
-        event_json["ts"] = picojson::value(event_time_in_us);
-        event_json["pid"] = picojson::value(static_cast<int64_t>(1));
-        event_json["tid"] = picojson::value(request_id);
+        tvm::ffi::json::Object event_json;
+        event_json.Set("name", name);
+        event_json.Set("ph", phase);
+        event_json.Set("ts", event_time_in_us);
+        event_json.Set("pid", static_cast<int64_t>(1));
+        event_json.Set("tid", request_id);
 
-        events_to_sort.push_back({event_time_in_us, picojson::value(event_json)});
+        events_to_sort.push_back({event_time_in_us, event_json});
       }
       std::sort(events_to_sort.begin(), events_to_sort.end(), fcmp_events);
       for (auto [timestamp, event] : events_to_sort) {
         event_array.push_back(std::move(event));
       }
     }
-    return picojson::value(event_array).serialize();
+    return tvm::ffi::json::Stringify(event_array);
   }
 
   TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EventTraceRecorder", EventTraceRecorderImpl,
