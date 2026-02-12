@@ -20,7 +20,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { RequestNode::RegisterReflection(); }
 
 Request::Request(String id, Array<Data> inputs, GenerationConfig generation_cfg) {
   if (generation_cfg->debug_config.special_request == SpecialRequestKind::kNone) {
-    CHECK(!inputs.empty()) << "No input data is given.";
+    TVM_FFI_ICHECK(!inputs.empty()) << "No input data is given.";
   }
   // Compute the total input length, or fall back to "-1" which means
   // unknown due to the existence of untokenized data.
@@ -73,7 +73,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("mlc.serve.RequestGetInputs", [](Request request) { return request->inputs; })
       .def("mlc.serve.RequestGetGenerationConfigJSON", [](Request request) {
-        return picojson::value(request->generation_cfg->AsJSON()).serialize();
+        return tvm::ffi::json::Stringify(request->generation_cfg->AsJSON());
       });
 }
 

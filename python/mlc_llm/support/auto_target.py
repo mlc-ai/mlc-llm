@@ -322,8 +322,8 @@ def detect_cuda_arch_list(target: Target) -> List[int]:
     if MLC_MULTI_ARCH is not None:
         multi_arch = [convert_to_num(x) for x in MLC_MULTI_ARCH.split(",")]
     else:
-        assert target.arch.startswith("sm_")
-        multi_arch = [convert_to_num(target.arch[3:])]
+        assert target.attrs.get("arch", "").startswith("sm_")
+        multi_arch = [convert_to_num(target.attrs.get("arch")[3:])]
     multi_arch = list(set(multi_arch))
     return multi_arch
 

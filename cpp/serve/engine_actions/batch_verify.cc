@@ -326,8 +326,9 @@ class BatchVerifyActionObj : public EngineActionObj {
         running_rsentries.pop_back();
       }
     }
-    CHECK_LE(total_verify_length, std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
-                                           engine_config_->prefill_chunk_size))
+    TVM_FFI_ICHECK_LE(total_verify_length,
+                      std::min(static_cast<int64_t>(engine_config_->max_num_sequence),
+                               engine_config_->prefill_chunk_size))
         << total_verify_length << " " << engine_config_->max_num_sequence;
 
     return {running_rsentries, verify_lengths, total_verify_length};

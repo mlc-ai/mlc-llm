@@ -21,7 +21,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                            std::vector<ModelWorkspace> model_workspaces,
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
-                                           std::vector<picojson::object> model_configs,
+                                           std::vector<tvm::ffi::json::Object> model_configs,
                                            Optional<EventTraceRecorder> trace_recorder)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
                                   std::move(model_configs), std::move(trace_recorder)),
@@ -412,9 +412,9 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         // prefill embedding input in draft model will be shifted one token, compared to the base
         // model. Just the new sequence without prefix cache. Here we merely add the new sequence
         // in advance of prefill step.
-        CHECK_EQ(result.forked_seq_id, -1);
-        CHECK_EQ(result.reused_seq_id, -1);
-        CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+        TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
         for (int i = 0; i < models_.size(); ++i) {
           models_[i]->AddNewSequence(rsentry->mstates[0]->internal_id);
           // Enable sliding window for the sequence if it is not a parent.
@@ -439,8 +439,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           // like: Base model: [0] + prefill([1, 4]) => [5] Draft model: [1] + prefill([4, 5]) And
           // we shift the input prefill data as other new sequence, to avoid double prefilling
           // token 1, and make the prefill length aligned between base model and draft model.
-          CHECK_EQ(result.reused_seq_id, -1);
-          CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
           estate->prefix_cache->RollBackSequence(rsentry->mstates[0]->internal_id, 1);
           for (int i = 0; i < models_.size(); ++i) {
             models_[i]->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
@@ -454,7 +454,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           // Reuse recycling sequence
           // Note: The processing for reusing recycling sequence is like forking sequence. And we
           // also roll back one token due to the reason mentioned above.
-          CHECK_EQ(result.forked_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
           estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
           for (int i = 0; i < rsentry->mstates.size(); ++i) {
             rsentry->mstates[i]->internal_id = result.reused_seq_id;
@@ -486,7 +486,8 @@ EngineAction EngineAction::EagleNewRequestPrefill(
     Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
     std::vector<ModelWorkspace> model_workspaces,
     DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
-    std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder) {
+    std::vector<tvm::ffi::json::Object> model_configs,
+    Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(tvm::ffi::make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),

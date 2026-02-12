@@ -5,6 +5,8 @@
 
 #include "request_state.h"
 
+#include <unordered_set>
+
 namespace mlc {
 namespace llm {
 namespace serve {
@@ -69,7 +71,7 @@ void RequestModelStateNode::RollbackTokens(int count) {
   TVM_FFI_ICHECK(count <= static_cast<int>(committed_tokens.size()));
   for (int i = 0; i < count; ++i) {
     auto it = appeared_token_ids.find(committed_tokens.back().GetTokenId());
-    CHECK(it != appeared_token_ids.end());
+    TVM_FFI_ICHECK(it != appeared_token_ids.end());
     if (--it->second == 0) {
       appeared_token_ids.erase(it);
     }
@@ -174,7 +176,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
                                                   int64_t max_single_sequence_length,
                                                   RequestStreamOutput* delta_stream_output,
                                                   int idx) {
-  ICHECK_NOTNULL(delta_stream_output);
+  TVM_FFI_ICHECK_NOTNULL(delta_stream_output);
   bool needs_logprobs = (*delta_stream_output)->group_delta_logprob_json_strs.has_value();
   (*delta_stream_output)->group_delta_token_ids[idx].clear();
   if (needs_logprobs) {

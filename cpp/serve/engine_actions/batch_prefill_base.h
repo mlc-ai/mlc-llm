@@ -29,7 +29,7 @@ class BatchPrefillBaseActionObj : public EngineActionObj {
   };
 
   BatchPrefillBaseActionObj(Array<Model> models, EngineConfig engine_config,
-                            std::vector<picojson::object> model_configs,
+                            std::vector<tvm::ffi::json::Object> model_configs,
                             Optional<EventTraceRecorder> trace_recorder);
 
   /*!

@@ -47,11 +47,11 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   PrefixCacheMatchedResult InsertSequence(int64_t seq_id, std::vector<int32_t> tokens,
                                           int sliding_window_size, int attention_sink_size) final {
-    CHECK_NE(sliding_window_size, 0);
-    CHECK_GE(attention_sink_size, 0);
-    CHECK(seq_states_.find(seq_id) == seq_states_.end());
-    CHECK(seq_sliding_window_infos_.find(seq_id) == seq_sliding_window_infos_.end());
-    CHECK(!tokens.empty());
+    TVM_FFI_ICHECK_NE(sliding_window_size, 0);
+    TVM_FFI_ICHECK_GE(attention_sink_size, 0);
+    TVM_FFI_ICHECK(seq_states_.find(seq_id) == seq_states_.end());
+    TVM_FFI_ICHECK(seq_sliding_window_infos_.find(seq_id) == seq_sliding_window_infos_.end());
+    TVM_FFI_ICHECK(!tokens.empty());
     CommitSequenceExtention();
     tokens.pop_back();
     auto [matched_offset, matched_seqs] = radix_tree_->MatchPrefix(tokens);
@@ -64,7 +64,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
       return PrefixCacheMatchedResult{0, -1, -1, 0};
     }
 
-    CHECK(!matched_seqs.empty());
+    TVM_FFI_ICHECK(!matched_seqs.empty());
 
     // The reusage of recycling sequences logic is different between with/without sliding window
     // enabled.
@@ -161,7 +161,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
         continue;
       }
       const auto& it = seq_states_.find(seq_id);
-      CHECK(it == seq_states_.end() || it->second == SequenceState::kActive);
+      TVM_FFI_ICHECK(it == seq_states_.end() || it->second == SequenceState::kActive);
       radix_tree_->ExtendSequence(seq_id, uncommitted_token_ids);
     }
     uncommitted_extended_token_ids_.clear();
@@ -175,7 +175,7 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   void RollBackSequence(int64_t seq_id, size_t num_tokens) final {
     CommitSequenceExtention();
-    CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
+    TVM_FFI_ICHECK(seq_states_.at(seq_id) == SequenceState::kActive);
     radix_tree_->RollBackSequence(seq_id, num_tokens);
   }
 
@@ -189,15 +189,15 @@ class PrefixCacheImpl : public PrefixCacheObj {
    */
   void RecycleSequence(int64_t seq_id, bool lazy = true) final {
     CommitSequenceExtention();
-    CHECK(seq_states_.at(seq_id) == SequenceState::kActive);
-    CHECK(recycling_seq_lrus_.find(seq_id) == recycling_seq_lrus_.end());
+    TVM_FFI_ICHECK(seq_states_.at(seq_id) == SequenceState::kActive);
+    TVM_FFI_ICHECK(recycling_seq_lrus_.find(seq_id) == recycling_seq_lrus_.end());
     if (lazy && max_num_recycling_seqs_ != 0) {
       // Remove the sequence lazily.
       if (recycling_seq_lrus_.size() == max_num_recycling_seqs_) {
         // If prefix cache has reached maximum number of recycling sequences, try to pop one
         // recycling sequence.
-        CHECK(TryFreeMemory());
-        CHECK_EQ(recycling_seq_lrus_.size(), max_num_recycling_seqs_ - 1);
+        TVM_FFI_ICHECK(TryFreeMemory());
+        TVM_FFI_ICHECK_EQ(recycling_seq_lrus_.size(), max_num_recycling_seqs_ - 1);
       }
       seq_states_.at(seq_id) = SequenceState::kRecycling;
       ++lru_counter_;
@@ -209,8 +209,8 @@ class PrefixCacheImpl : public PrefixCacheObj {
       if (remove_callback_ != nullptr) {
         remove_callback_(seq_id);
       }
-      CHECK(seq_states_.erase(seq_id));
-      CHECK(seq_sliding_window_infos_.erase(seq_id));
+      TVM_FFI_ICHECK(seq_states_.erase(seq_id));
+      TVM_FFI_ICHECK(seq_sliding_window_infos_.erase(seq_id));
     }
   }
 
@@ -228,16 +228,16 @@ class PrefixCacheImpl : public PrefixCacheObj {
       return false;
     }
     auto [lru, seq_id] = *reversed_recycling_seq_lrus_.begin();
-    CHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
-    CHECK_EQ(recycling_seq_lrus_.at(seq_id), lru);
+    TVM_FFI_ICHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
+    TVM_FFI_ICHECK_EQ(recycling_seq_lrus_.at(seq_id), lru);
     radix_tree_->RemoveSequence(seq_id);
     if (remove_callback_ != nullptr) {
       remove_callback_(seq_id);
     }
-    CHECK(seq_states_.erase(seq_id));
-    CHECK(recycling_seq_lrus_.erase(seq_id));
-    CHECK(reversed_recycling_seq_lrus_.erase(lru));
-    CHECK(seq_sliding_window_infos_.erase(seq_id));
+    TVM_FFI_ICHECK(seq_states_.erase(seq_id));
+    TVM_FFI_ICHECK(recycling_seq_lrus_.erase(seq_id));
+    TVM_FFI_ICHECK(reversed_recycling_seq_lrus_.erase(lru));
+    TVM_FFI_ICHECK(seq_sliding_window_infos_.erase(seq_id));
     return true;
   }
 
@@ -266,12 +266,12 @@ class PrefixCacheImpl : public PrefixCacheObj {
 
  private:
   void ReuseRecyclingSequence(int64_t seq_id) {
-    CHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
+    TVM_FFI_ICHECK(seq_states_.at(seq_id) == SequenceState::kRecycling);
     size_t lru = recycling_seq_lrus_.at(seq_id);
-    CHECK_EQ(reversed_recycling_seq_lrus_.at(lru), seq_id);
+    TVM_FFI_ICHECK_EQ(reversed_recycling_seq_lrus_.at(lru), seq_id);
     seq_states_.at(seq_id) = SequenceState::kActive;
-    CHECK(recycling_seq_lrus_.erase(seq_id));
-    CHECK(reversed_recycling_seq_lrus_.erase(lru));
+    TVM_FFI_ICHECK(recycling_seq_lrus_.erase(seq_id));
+    TVM_FFI_ICHECK(reversed_recycling_seq_lrus_.erase(lru));
   }
 
   /*!

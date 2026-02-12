@@ -79,13 +79,11 @@ add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
 set(MLC_LLM_INCLUDES
     ${TVM_SOURCE_DIR}/include ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
-    ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
-    ${TVM_SOURCE_DIR}/3rdparty/picojson)
+    ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include)
 
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS}
                          DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} __STDC_FORMAT_MACROS=1)
-set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} PICOJSON_USE_INT64)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} XGRAMMAR_ENABLE_LOG_DEBUG=0)
 
 target_compile_definitions(mlc_llm_objs PRIVATE ${MLC_LLM_COMPILE_DEFS})
@@ -94,6 +92,9 @@ target_include_directories(mlc_llm_objs PRIVATE ${MLC_LLM_INCLUDES})
 target_include_directories(mlc_llm_objs PRIVATE 3rdparty/stb)
 target_include_directories(mlc_llm_objs PRIVATE ${TOKENZIER_CPP_PATH}/include)
 target_include_directories(mlc_llm_objs PRIVATE ${XGRAMMAR_PATH}/include)
+# xgrammar still depends on picojson - use its bundled copy
+target_include_directories(mlc_llm_objs
+                           PRIVATE ${XGRAMMAR_PATH}/3rdparty/picojson)
 target_link_libraries(mlc_llm_objs PRIVATE tvm_ffi_header)
 
 add_library(mlc_llm SHARED $<TARGET_OBJECTS:mlc_llm_objs>)

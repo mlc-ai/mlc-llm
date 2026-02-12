@@ -1,6 +1,6 @@
 #include "image_utils.h"
 
-#include <dmlc/io.h>
+#include <tvm/support/io.h>
 
 #include "../../3rdparty/tvm/src/support/base64.h"
 #define STB_IMAGE_IMPLEMENTATION
@@ -12,8 +12,11 @@ namespace json_ffi {
 
 using namespace tvm::runtime;
 
-class MemoryBufferStream : public dmlc::Stream {
+class MemoryBufferStream : public tvm::support::Stream {
  public:
+  using Stream::Read;
+  using Stream::Write;
+
   MemoryBufferStream(const char* data, size_t size) : data_(data), size_(size), pos_(0) {}
 
   size_t Read(void* ptr, size_t size) override {
@@ -30,7 +33,8 @@ class MemoryBufferStream : public dmlc::Stream {
   }
 
   size_t Write(const void* ptr, size_t size) override {
-    LOG(FATAL) << "MemoryBufferStream does not support write";
+    TVM_FFI_THROW(InternalError) << "MemoryBufferStream does not support write";
+    return 0;
   }
 
  private:

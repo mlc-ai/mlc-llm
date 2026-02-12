@@ -334,7 +334,7 @@ class CPUSampler : public SamplerObj {
                                      const Array<String>& request_ids,        //
                                      const Array<GenerationConfig>& generation_cfg) final {
     // probs_on_device: (n, v)
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
@@ -352,7 +352,7 @@ class CPUSampler : public SamplerObj {
         top_p_indices.push_back(sample_indices[i]);
         top_p_values.push_back(generation_cfg[i]->top_p);
       } else {
-        CHECK(fabs(top_p_values.back() - generation_cfg[i]->top_p) < eps_)
+        TVM_FFI_ICHECK(fabs(top_p_values.back() - generation_cfg[i]->top_p) < eps_)
             << "Sampler requires the top_p values for each prob distribution are the same.";
       }
     }
@@ -379,7 +379,7 @@ class CPUSampler : public SamplerObj {
       const Array<GenerationConfig>& generation_cfg,  //
       const std::vector<RandomGenerator*>& rngs) final {
     // probs_on_device: (n, v)
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
@@ -408,11 +408,11 @@ class CPUSampler : public SamplerObj {
       const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    CHECK_EQ(probs_on_host->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_host->ndim, 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
-    CHECK_EQ(rngs.size(), num_sequence);
-    CHECK_EQ(draft_output_tokens.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(rngs.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(draft_output_tokens.size(), num_sequence);
 
     Tensor draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
     std::vector<std::vector<SampleResult>> sample_results;
@@ -428,9 +428,9 @@ class CPUSampler : public SamplerObj {
           int verify_start = cum_verify_lengths[i];
           int verify_end = cum_verify_lengths[i + 1];
 
-          CHECK_EQ(token_tree_parent_ptr[verify_start], -1);
+          TVM_FFI_ICHECK_EQ(token_tree_parent_ptr[verify_start], -1);
           for (int j = verify_start + 1; j < verify_end; ++j) {
-            CHECK_EQ(token_tree_parent_ptr[j], j - verify_start - 1)
+            TVM_FFI_ICHECK_EQ(token_tree_parent_ptr[j], j - verify_start - 1)
                 << "CPU sampler only supports chain-style draft tokens.";
           }
 

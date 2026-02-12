@@ -56,8 +56,9 @@ class DynamicBitset {
 
   /*! \brief Copy assignment. */
   DynamicBitset& operator=(const DynamicBitset& other) {
-    DCHECK(is_internal_ || size_ >= other.size_) << "Expanding bitset size is not allowed when the "
-                                                    "memory of the bitset is externally managed";
+    TVM_FFI_DCHECK(is_internal_ || size_ >= other.size_)
+        << "Expanding bitset size is not allowed when the "
+           "memory of the bitset is externally managed";
     size_ = other.size_;
     buffer_size_ = other.buffer_size_;
     if (is_internal_) {
@@ -86,7 +87,7 @@ class DynamicBitset {
 
   /*! \brief Get the value of the bit at the given index. */
   bool operator[](int index) const {
-    DCHECK(data_ && index >= 0 && index < size_);
+    TVM_FFI_DCHECK(data_ && index >= 0 && index < size_);
     return (data_[index / 32] >> (index % 32)) & 1;
   }
 
@@ -95,13 +96,13 @@ class DynamicBitset {
 
   /*! \brief Set the whole bitset to true. */
   void Set() {
-    DCHECK(data_);
+    TVM_FFI_DCHECK(data_);
     std::memset(data_, 0xFF, buffer_size_ * sizeof(uint32_t));
   }
 
   /*! \brief Set the bit at the given index to the given value. */
   void Set(int index, bool value = true) {
-    DCHECK(data_ && index >= 0 && index < size_);
+    TVM_FFI_DCHECK(data_ && index >= 0 && index < size_);
     if (value) {
       data_[index / 32] |= 1 << (index % 32);
     } else {
@@ -111,7 +112,7 @@ class DynamicBitset {
 
   /*! \brief Set the whole bitset to false. */
   void Reset() {
-    DCHECK(data_);
+    TVM_FFI_DCHECK(data_);
     std::memset(data_, 0, buffer_size_ * sizeof(uint32_t));
   }
 
@@ -120,7 +121,7 @@ class DynamicBitset {
 
   /*! \brief Perform a bitwise OR operation between the current bitset and another bitset. */
   DynamicBitset& operator|=(const DynamicBitset& other) {
-    DCHECK(buffer_size_ <= other.buffer_size_);
+    TVM_FFI_DCHECK(buffer_size_ <= other.buffer_size_);
     for (int i = 0; i < buffer_size_; ++i) {
       data_[i] |= other.data_[i];
     }

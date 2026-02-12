@@ -1,6 +1,8 @@
 #ifndef MLC_LLM_JSON_FFI_CONV_TEMPLATE_H
 #define MLC_LLM_JSON_FFI_CONV_TEMPLATE_H
 
+#include <tvm/ffi/extra/json.h>
+
 #include <iostream>
 #include <map>
 #include <optional>
@@ -12,7 +14,6 @@
 #include "../serve/data.h"
 #include "../support/result.h"
 #include "openai_api_protocol.h"
-#include "picojson.h"
 
 using namespace mlc::llm::serve;
 
@@ -37,7 +38,7 @@ class ModelVisionConfig {
   int num_channels;
   double layer_norm_eps;
 
-  static ModelVisionConfig FromJSON(const picojson::object& json_obj);
+  static ModelVisionConfig FromJSON(const tvm::ffi::json::Object& json_obj);
 };
 
 /****************** Model config ******************/
@@ -55,7 +56,7 @@ class ModelConfig {
   int max_batch_size;
   std::optional<ModelVisionConfig> vision_config = std::nullopt;
 
-  static ModelConfig FromJSON(const picojson::object& json_obj);
+  static ModelConfig FromJSON(const tvm::ffi::json::Object& json_obj);
 };
 
 /****************** Conversation template ******************/
@@ -137,7 +138,7 @@ struct Conversation {
                           const std::optional<std::string>& fn_call_str) const;
 
   /*! \brief Create a Conversation instance from the given JSON object. */
-  static Result<Conversation> FromJSON(const picojson::object& json);
+  static Result<Conversation> FromJSON(const tvm::ffi::json::Object& json);
   /*! \brief Parse and create a Conversation instance from the given JSON string. */
   static Result<Conversation> FromJSON(const std::string& json_str);
 };

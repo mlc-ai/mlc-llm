@@ -126,7 +126,7 @@ class GPUSampler : public SamplerObj {
     NVTXScopedRange nvtx_scope("BatchRenormalizeProbsByTopP");
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start renormalization by top p");
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
@@ -207,16 +207,16 @@ class GPUSampler : public SamplerObj {
     std::vector<std::vector<SampleResult>> sample_results;
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
-    CHECK_EQ(rngs.size(), num_sequence);
-    CHECK_EQ(draft_output_tokens.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(rngs.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(draft_output_tokens.size(), num_sequence);
     sample_results.resize(num_sequence);
 
     int num_nodes = cum_verify_lengths.back();
     TVM_FFI_ICHECK(num_nodes <= max_num_sample_);
-    CHECK_EQ(draft_probs_on_device->shape[0], num_nodes);
+    TVM_FFI_ICHECK_EQ(draft_probs_on_device->shape[0], num_nodes);
     Tensor uniform_samples_device = GenerateUniformSamples(rngs, cum_verify_lengths);
     Tensor draft_tokens_host = draft_tokens_host_.CreateView({num_nodes}, dtype_i32_);
     Tensor draft_tokens_device = draft_tokens_device_.CreateView({num_nodes}, dtype_i32_);
@@ -363,9 +363,9 @@ class GPUSampler : public SamplerObj {
                                                   bool top_p_applied) {
     // probs_on_device: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    CHECK_EQ(probs_on_device->ndim, 2);
-    CHECK_EQ(probs_on_device->device.device_id, device_.device_id);
-    CHECK_EQ(probs_on_device->device.device_type, device_.device_type);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->device.device_id, device_.device_id);
+    TVM_FFI_ICHECK_EQ(probs_on_device->device.device_type, device_.device_type);
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
@@ -530,7 +530,7 @@ class GPUSampler : public SamplerObj {
         p_top_p[sample_indices[i]] = generation_cfg[i]->top_p;
         need_top_p |= generation_cfg[i]->top_p != 1.0;
       } else {
-        CHECK(fabs(p_top_p[sample_indices[i]] - generation_cfg[i]->top_p) < eps_)
+        TVM_FFI_ICHECK(fabs(p_top_p[sample_indices[i]] - generation_cfg[i]->top_p) < eps_)
             << "GPU sampler requires the top_p values for each prob distribution are the same.";
       }
     }
