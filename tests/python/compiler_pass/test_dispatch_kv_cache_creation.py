@@ -1,28 +1,7 @@
-# pylint: disable=missing-docstring,protected-access
-import pytest
+# pylint: disable=missing-docstring
 import tvm
 
 from mlc_llm.compiler_pass.dispatch_kv_cache_creation import DispatchKVCacheCreation
-
-
-def test_apply_kv_cache_dtype_override():
-    metadata = {"kv_cache_dtype": "int8"}
-    dispatch = DispatchKVCacheCreation(
-        tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
-    )
-    kwargs = {"dtype": "float16"}
-    dispatch._apply_kv_cache_dtype_override(kwargs)
-    assert kwargs["dtype"] == "int8"
-
-
-def test_apply_kv_cache_dtype_override_auto_no_change():
-    metadata = {"kv_cache_dtype": "auto"}
-    dispatch = DispatchKVCacheCreation(
-        tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
-    )
-    kwargs = {"dtype": "float16"}
-    dispatch._apply_kv_cache_dtype_override(kwargs)
-    assert kwargs["dtype"] == "float16"
 
 
 def test_attach_kv_cache_metadata_records_dtype():
@@ -39,23 +18,3 @@ def test_attach_kv_cache_metadata_records_dtype():
     }
     dispatch.attach_kv_cache_metadata(kwargs)
     assert metadata["kv_cache"]["dtype"] == "int8"
-
-
-def test_apply_kv_cache_dtype_override_fp8_not_supported_on_cuda_yet():
-    metadata = {"kv_cache_dtype": "float8_e4m3fn"}
-    dispatch = DispatchKVCacheCreation(
-        tvm.target.Target("cuda"), flashinfer=False, metadata=metadata
-    )
-    kwargs = {"dtype": "float16"}
-    with pytest.raises(ValueError, match="FP8 kv_cache_dtype override is not supported yet"):
-        dispatch._apply_kv_cache_dtype_override(kwargs)
-
-
-def test_apply_kv_cache_dtype_override_fp8_not_supported_on_non_cuda_yet():
-    metadata = {"kv_cache_dtype": "float8_e4m3fn"}
-    dispatch = DispatchKVCacheCreation(
-        tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
-    )
-    kwargs = {"dtype": "float16"}
-    with pytest.raises(ValueError, match="FP8 kv_cache_dtype override is not supported yet"):
-        dispatch._apply_kv_cache_dtype_override(kwargs)

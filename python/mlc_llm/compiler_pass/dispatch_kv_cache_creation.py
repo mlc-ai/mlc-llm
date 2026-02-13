@@ -1,7 +1,7 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import tvm
 from tvm import IRModule, relax
@@ -11,8 +11,6 @@ from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
-
-_FP8_KV_CACHE_DTYPES = {"float8_e4m3fn", "float8_e5m2"}
 
 
 def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
@@ -122,7 +120,6 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             new_mod = new_mod.with_attrs(mod.attrs)
 
         kwargs = extract_creation_args(creation_func)
-        self._apply_kv_cache_dtype_override(kwargs)
         self.attach_kv_cache_metadata(kwargs)
 
         bb = relax.BlockBuilder(new_mod)
@@ -144,33 +141,6 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             "head_dim": kwargs["qk_head_dim"],
             "dtype": str(kwargs["dtype"]),
         }
-
-    def _requested_kv_cache_dtype(self) -> Optional[str]:
-        dtype = self.metadata.get("kv_cache_dtype")
-        if dtype in [None, "", "auto"]:
-            return None
-        if not isinstance(dtype, str):
-            dtype = str(dtype)
-        return dtype
-
-    def _validate_kv_cache_dtype_override(self, requested_dtype: str) -> None:
-        if requested_dtype in _FP8_KV_CACHE_DTYPES:
-            raise ValueError(
-                "FP8 kv_cache_dtype override is not supported yet. It depends on upstream TVM "
-                "paged KV cache runtime/kernel support (dtype checks and FP8 kernel paths)."
-            )
-
-    def _apply_kv_cache_dtype_override(self, kwargs: Dict[str, Any]) -> None:
-        requested_dtype = self._requested_kv_cache_dtype()
-        if requested_dtype is None:
-            return
-        self._validate_kv_cache_dtype_override(requested_dtype)
-        logger.info(
-            "Overriding KV cache dtype from %s to %s",
-            kwargs["dtype"],
-            requested_dtype,
-        )
-        kwargs["dtype"] = requested_dtype
 
     def create_tir_paged_kv_cache(
         self, bb: relax.BlockBuilder, kwargs: Dict[str, Any]
