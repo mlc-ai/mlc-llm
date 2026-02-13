@@ -13,9 +13,4 @@ from .extern import configure, enable, get_store
 from .ft_gemm import faster_transformer_dequantize_gemm
 from .lora import lora_dense  # noqa: F401
 from .pipeline_parallel import pipeline_stage_boundary
-
-from .position_embedding import llama_rope  # noqa: F401
 from .top_p_pivot import top_p_pivot, top_p_renorm  # noqa: F401
-
-from .top_p_pivot import top_p_pivot, top_p_renorm
-
