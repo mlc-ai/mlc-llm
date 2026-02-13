@@ -41,21 +41,21 @@ def test_attach_kv_cache_metadata_records_dtype():
     assert metadata["kv_cache"]["dtype"] == "int8"
 
 
-def test_apply_kv_cache_dtype_override_fp8_on_cuda():
+def test_apply_kv_cache_dtype_override_fp8_not_supported_on_cuda_yet():
     metadata = {"kv_cache_dtype": "float8_e4m3fn"}
     dispatch = DispatchKVCacheCreation(
         tvm.target.Target("cuda"), flashinfer=False, metadata=metadata
     )
     kwargs = {"dtype": "float16"}
-    dispatch._apply_kv_cache_dtype_override(kwargs)
-    assert kwargs["dtype"] == "float8_e4m3fn"
+    with pytest.raises(ValueError, match="FP8 kv_cache_dtype override is not supported yet"):
+        dispatch._apply_kv_cache_dtype_override(kwargs)
 
 
-def test_apply_kv_cache_dtype_override_fp8_requires_cuda():
+def test_apply_kv_cache_dtype_override_fp8_not_supported_on_non_cuda_yet():
     metadata = {"kv_cache_dtype": "float8_e4m3fn"}
     dispatch = DispatchKVCacheCreation(
         tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
     )
     kwargs = {"dtype": "float16"}
-    with pytest.raises(ValueError, match="only supported on CUDA target"):
+    with pytest.raises(ValueError, match="FP8 kv_cache_dtype override is not supported yet"):
         dispatch._apply_kv_cache_dtype_override(kwargs)

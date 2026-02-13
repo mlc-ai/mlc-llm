@@ -7,122 +7,12 @@ import tvm
 from tvm import IRModule, relax
 from tvm.relax.frontend.nn.llm import kv_cache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
-from tvm.relax.expr_functor import PyExprMutator, mutator
 
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
 
 _FP8_KV_CACHE_DTYPES = {"float8_e4m3fn", "float8_e5m2"}
-_FUSED_QKV_SYMBOL = "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
-_SELF_ATTN_SYMBOL = "vm.builtin.attention_kv_cache_self_attention"
-_CROSS_ATTN_SYMBOL = "vm.builtin.attention_kv_cache_cross_attention"
-
-
-@mutator
-class _FP8KVCacheInputCaster(PyExprMutator):  # pylint: disable=abstract-method
-    """Cast attention inputs to FP8 cache dtype when kv_cache_dtype requests FP8."""
-
-    def __init__(self, mod: IRModule, kv_cache_dtype: str) -> None:
-        super().__init__(mod)
-        self.mod = mod
-        self.kv_cache_dtype = kv_cache_dtype
-
-    def transform(self) -> IRModule:
-        """Rewrite all Relax functions in the module."""
-        for g_var, func in self.mod.functions_items():
-            if not isinstance(func, relax.Function):
-                continue
-            self.builder_.update_func(g_var, self.visit_expr(func))
-        return self.builder_.finalize()
-
-    def visit_call_(self, call: relax.Call) -> relax.Expr:  # pylint: disable=arguments-renamed
-        call = super().visit_call_(call)
-
-        if (
-            call.op != tvm.ir.Op.get("relax.call_dps_packed")
-            or not isinstance(call.args[0], relax.ExternFunc)
-            or not isinstance(call.args[1], relax.Tuple)
-        ):
-            return call
-
-        symbol = str(call.args[0].global_symbol)
-        args = list(call.args[1].fields)
-        if symbol == _FUSED_QKV_SYMBOL:
-            return self._rewrite_fused_qkv(call, symbol, args)
-        if symbol == _SELF_ATTN_SYMBOL:
-            return self._rewrite_self_attention(call, symbol, args)
-        if symbol == _CROSS_ATTN_SYMBOL:
-            return self._rewrite_cross_attention(call, symbol, args)
-        return call
-
-    def _rewrite_fused_qkv(
-        self, call: relax.Call, symbol: str, args: List[relax.Expr]
-    ) -> relax.Expr:
-        if len(args) != 4 or not isinstance(call.struct_info, relax.TensorStructInfo):
-            return call
-        out_dtype = str(call.struct_info.dtype)
-        if out_dtype == self.kv_cache_dtype:
-            return call
-
-        args[3] = relax.op.astype(args[3], self.kv_cache_dtype)
-        out_sinfo = relax.TensorStructInfo(call.struct_info.shape, self.kv_cache_dtype)
-        fp8_call = relax.call_dps_packed(symbol, args, out_sinfo=out_sinfo)
-        return relax.op.astype(fp8_call, out_dtype)
-
-    def _rewrite_self_attention(
-        self, call: relax.Call, symbol: str, args: List[relax.Expr]
-    ) -> relax.Expr:
-        if (
-            len(args) != 6
-            or not isinstance(call.struct_info, relax.TupleStructInfo)
-            or len(call.struct_info.fields) != 2
-            or not isinstance(call.struct_info.fields[0], relax.TensorStructInfo)
-        ):
-            return call
-        out_dtype = str(call.struct_info.fields[0].dtype)
-        if out_dtype == self.kv_cache_dtype:
-            return call
-
-        args[3] = relax.op.astype(args[3], self.kv_cache_dtype)
-        args[4] = relax.op.astype(args[4], self.kv_cache_dtype)
-        args[5] = relax.op.astype(args[5], self.kv_cache_dtype)
-        out0_sinfo = relax.TensorStructInfo(call.struct_info.fields[0].shape, self.kv_cache_dtype)
-        fp8_call = relax.call_dps_packed(
-            symbol, args, out_sinfo=[out0_sinfo, call.struct_info.fields[1]]
-        )
-        return relax.Tuple(
-            [
-                relax.op.astype(relax.TupleGetItem(fp8_call, 0), out_dtype),
-                relax.TupleGetItem(fp8_call, 1),
-            ]
-        )
-
-    def _rewrite_cross_attention(
-        self, call: relax.Call, symbol: str, args: List[relax.Expr]
-    ) -> relax.Expr:
-        if (
-            len(args) != 4
-            or not isinstance(call.struct_info, relax.TupleStructInfo)
-            or len(call.struct_info.fields) != 2
-            or not isinstance(call.struct_info.fields[0], relax.TensorStructInfo)
-        ):
-            return call
-        out_dtype = str(call.struct_info.fields[0].dtype)
-        if out_dtype == self.kv_cache_dtype:
-            return call
-
-        args[3] = relax.op.astype(args[3], self.kv_cache_dtype)
-        out0_sinfo = relax.TensorStructInfo(call.struct_info.fields[0].shape, self.kv_cache_dtype)
-        fp8_call = relax.call_dps_packed(
-            symbol, args, out_sinfo=[out0_sinfo, call.struct_info.fields[1]]
-        )
-        return relax.Tuple(
-            [
-                relax.op.astype(relax.TupleGetItem(fp8_call, 0), out_dtype),
-                relax.TupleGetItem(fp8_call, 1),
-            ]
-        )
 
 
 def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
@@ -234,8 +124,6 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         kwargs = extract_creation_args(creation_func)
         self._apply_kv_cache_dtype_override(kwargs)
         self.attach_kv_cache_metadata(kwargs)
-        if str(kwargs["dtype"]) in _FP8_KV_CACHE_DTYPES:
-            new_mod = _FP8KVCacheInputCaster(new_mod, str(kwargs["dtype"])).transform()
 
         bb = relax.BlockBuilder(new_mod)
         extern_mods = []
@@ -266,10 +154,10 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         return dtype
 
     def _validate_kv_cache_dtype_override(self, requested_dtype: str) -> None:
-        if requested_dtype in _FP8_KV_CACHE_DTYPES and self.target.kind.name != "cuda":
+        if requested_dtype in _FP8_KV_CACHE_DTYPES:
             raise ValueError(
-                f"kv_cache_dtype={requested_dtype} is only supported on CUDA target for now, "
-                f"but got target kind '{self.target.kind.name}'."
+                "FP8 kv_cache_dtype override is not supported yet. It depends on upstream TVM "
+                "paged KV cache runtime/kernel support (dtype checks and FP8 kernel paths)."
             )
 
     def _apply_kv_cache_dtype_override(self, kwargs: Dict[str, Any]) -> None:
