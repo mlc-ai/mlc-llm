@@ -31,6 +31,12 @@ def main(argv):
             path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def _parse_lora_adapter(path: Union[str, Path]) -> Path:
+        path = Path(path)
+        if not path.exists():
+            raise argparse.ArgumentTypeError(f"LoRA adapter path does not exist: {path}")
+        return path
+
     parser = ArgumentParser("MLC AutoLLM Quantization Framework")
     parser.add_argument(
         "config",
@@ -78,6 +84,33 @@ def main(argv):
         help=HELP["output_quantize"] + " (required)",
     )
 
+    # Mutually exclusive LoRA options: merge vs separate
+    lora_group = parser.add_mutually_exclusive_group()
+    lora_group.add_argument(
+        "--lora-adapter",
+        type=_parse_lora_adapter,
+        default=None,
+        help=(
+            "Path to LoRA adapter directory. When provided, LoRA weights will be merged "
+            "into base weights before quantization (legacy mode)."
+        ),
+    )
+    lora_group.add_argument(
+        "--lora-separate",
+        type=_parse_lora_adapter,
+        default=None,
+        help=(
+            "Path to LoRA adapter directory. When provided, adapter weights will be packed "
+            "into a separate artifact and kept separate at runtime."
+        ),
+    )
+    parser.add_argument(
+        "--lora-alpha",
+        type=float,
+        default=1.0,
+        help="Scaling factor for LoRA when used with --lora-separate (default: %(default)s).",
+    )
+
     parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
         weight_path=_parse_source(parsed.source, parsed.config),
@@ -93,4 +126,7 @@ def main(argv):
         source=parsed.source,
         source_format=parsed.source_format,
         output=parsed.output,
+        lora_adapter=parsed.lora_adapter,
+        lora_separate=parsed.lora_separate,
+        lora_alpha=parsed.lora_alpha,
     )

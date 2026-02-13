@@ -910,12 +910,19 @@ class ModelImpl : public ModelObj {
 
   Sampler CreateSampler(int max_num_sample, int num_models,
                         Optional<EventTraceRecorder> trace_recorder) final {
-    if (Sampler::SupportGPUSampler(device_)) {
+    bool has_gpu_sampler_funcs =
+        ft_.gpu_multinomial_from_uniform_func_.defined() && ft_.gpu_argsort_probs_func_.defined() &&
+        ft_.gpu_sample_with_top_p_func_.defined() && ft_.gpu_sampler_take_probs_func_.defined() &&
+        ft_.gpu_verify_draft_tokens_func_.defined() && ft_.gpu_renormalize_by_top_p_func_.defined();
+    if (Sampler::SupportGPUSampler(device_) && has_gpu_sampler_funcs) {
       return Sampler::CreateGPUSampler(max_num_sample, vocab_size_, &this->ft_, device_,
                                        std::move(trace_recorder));
-    } else {
-      return Sampler::CreateCPUSampler(std::move(trace_recorder));
     }
+    if (Sampler::SupportGPUSampler(device_) && !has_gpu_sampler_funcs) {
+      LOG(WARNING) << "GPU sampler functions are unavailable in the loaded module. "
+                   << "Falling back to CPU sampler.";
+    }
+    return Sampler::CreateCPUSampler(std::move(trace_recorder));
   }
 
   int EstimateHostCPURequirement() const final {

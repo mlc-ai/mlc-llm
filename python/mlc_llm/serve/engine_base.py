@@ -585,6 +585,7 @@ class MLCEngineBase:  # pylint: disable=too-many-instance-attributes,too-few-pub
         if isinstance(device, str):
             device = detect_device(device)
         assert isinstance(device, Device)
+        self.device: Device = device
         (
             model_args,
             model_config_paths,

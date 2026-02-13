@@ -98,6 +98,14 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     metadata = metadata or {}
     ext_mods = ext_mods or []
     tensor_parallel_shards = metadata.get("tensor_parallel_shards", 1)
+    lora_inject_pass = tvm.transform.Sequential([])
+    if metadata.get("LoRASeparate", False):
+        # pylint: disable=import-outside-toplevel
+        from ..relax_pass import make_lora_inject_pass
+
+        # pylint: enable=import-outside-toplevel
+
+        lora_inject_pass = make_lora_inject_pass(True)
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -120,6 +128,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
+                lora_inject_pass,
                 DispatchTritonKernel(target),
                 FuseFTDequantizeEpilogue(),
                 FuseDequantizeTranspose(),
