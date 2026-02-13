@@ -310,7 +310,7 @@ def build_iphone_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     # Build iphone binding
     logger.info("Build iphone binding")
     subprocess.run(
-        ["bash", mlc_llm_source_dir / "ios" / "prepare_libs.sh"],
+        ["bash", str(mlc_llm_source_dir / "ios" / "prepare_libs.sh")],
         check=True,
         env=os.environ,
     )
@@ -329,7 +329,7 @@ def build_macabi_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     logger.info("Build macabi binding (deployment target %s)", deployment_target)
     cmd = [
         "bash",
-        mlc_llm_source_dir / "ios" / "prepare_libs.sh",
+        str(mlc_llm_source_dir / "ios" / "prepare_libs.sh"),
         "--catalyst",
         "--deployment-target",
         deployment_target,
