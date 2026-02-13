@@ -375,6 +375,21 @@ MODELS: Dict[str, Model] = {
             "block-scale-quant": qwen3_quantization.block_scale_quant,
         },
     ),
+    "qwen3-embedding": Model(
+        name="qwen3-embedding",
+        model=qwen3_model.Qwen3LMHeadModel,
+        config=qwen3_model.Qwen3Config,
+        source={
+            "huggingface-torch": qwen3_loader.huggingface_embedding,
+            "huggingface-safetensor": qwen3_loader.huggingface_embedding,
+        },
+        quantize={
+            "no-quant": qwen3_quantization.no_quant,
+            "group-quant": qwen3_quantization.group_quant,
+            "ft-quant": qwen3_quantization.ft_quant,
+            "block-scale-quant": qwen3_quantization.block_scale_quant,
+        },
+    ),
     "qwen3_moe": Model(
         name="qwen3_moe",
         model=qwen3_moe_model.Qwen3MoeForCausalLM,
