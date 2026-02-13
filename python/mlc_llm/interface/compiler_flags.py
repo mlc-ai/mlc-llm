@@ -10,6 +10,16 @@ from mlc_llm.support.config import ConfigOverrideBase
 
 logger = logging.getLogger(__name__)
 
+_KV_CACHE_DTYPE_OPTIONS = (
+    "auto",
+    "float16",
+    "float32",
+    "bfloat16",
+    "int8",
+    "float8_e4m3fn",
+    "float8_e5m2",
+)
+
 
 class IPCAllReduceStrategyType(enum.IntEnum):
     """The all-reduce strategy."""
@@ -173,7 +183,7 @@ class ModelConfigOverride(ConfigOverrideBase):  # pylint: disable=too-many-insta
         """Parse model config override values from a string."""
 
         def _parse_kv_cache_dtype(value: str) -> Optional[str]:
-            allowed = {"auto", "float16", "float32", "bfloat16", "int8"}
+            allowed = set(_KV_CACHE_DTYPE_OPTIONS)
             if value not in allowed:
                 raise ValueError(
                     f"Invalid kv_cache_dtype: {value}. Expected one of {sorted(allowed)}"

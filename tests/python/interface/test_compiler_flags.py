@@ -15,6 +15,12 @@ def test_model_config_override_parse_kv_cache_dtype_auto():
     assert overrides.kv_cache_dtype is None
 
 
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
+def test_model_config_override_parse_kv_cache_dtype_fp8(dtype: str):
+    overrides = ModelConfigOverride.from_str(f"kv_cache_dtype={dtype}")
+    assert overrides.kv_cache_dtype == dtype
+
+
 def test_model_config_override_parse_kv_cache_dtype_reject_invalid():
     with pytest.raises(ValueError):
         ModelConfigOverride.from_str("kv_cache_dtype=uint8")
