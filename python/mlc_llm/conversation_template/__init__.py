@@ -17,6 +17,7 @@ from . import (
     llama,
     llava,
     ministral3,
+    ministral3_reasoning,
     mistral,
     nemotron,
     oasst,

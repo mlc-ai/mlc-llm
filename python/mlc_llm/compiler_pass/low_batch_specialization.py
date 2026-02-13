@@ -1,9 +1,9 @@
 """A compiler pass that dispatch low-batch-gemm to gemv schedule."""
 
 import tvm
-from tvm import dlight as dl
 from tvm import tir
 from tvm.ir.module import IRModule
+from tvm.s_tir import dlight as dl
 
 # pylint: disable=too-many-locals,not-callable
 
