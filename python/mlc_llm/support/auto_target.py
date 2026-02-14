@@ -397,9 +397,7 @@ _MACABI_ARCH = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
 if _MACABI_ARCH not in ["arm64", "x86_64"]:
     _MACABI_ARCH = "arm64"
 _MACABI_MTRIPLE = (
-    "x86_64-apple-ios18.0-macabi"
-    if _MACABI_ARCH == "x86_64"
-    else "arm64-apple-ios18.0-macabi"
+    "x86_64-apple-ios18.0-macabi" if _MACABI_ARCH == "x86_64" else "arm64-apple-ios18.0-macabi"
 )
 
 PRESET = {
