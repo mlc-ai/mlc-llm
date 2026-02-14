@@ -27,28 +27,31 @@ TVM_FFI_STATIC_INIT_BLOCK() { ModelObj::RegisterReflection(); }
 
 class ModelImpl;
 
-Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
-                    DLDevice device, const Optional<Session>& session, int num_shards,
-                    int num_stages, bool trace_enabled) {
+Model Model::Create(String reload_lib_path, String model_path,
+                    const tvm::ffi::json::Object& model_config, DLDevice device,
+                    const Optional<Session>& session, int num_shards, int num_stages,
+                    bool trace_enabled) {
   return Model(tvm::ffi::make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
                                                 session, num_shards, num_stages, trace_enabled));
 }
 
-Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
-  using TResult = Result<picojson::object>;
-  picojson::object model_config;
+Result<tvm::ffi::json::Object> Model::LoadModelConfig(const String& model_path) {
+  using TResult = Result<tvm::ffi::json::Object>;
   std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
   std::ostringstream config_ostream;
   ICHECK(config_istream);
   config_ostream << config_istream.rdbuf();
   std::string config_str = config_ostream.str();
-  picojson::value config_json;
-  std::string err = picojson::parse(config_json, config_str);
+  tvm::ffi::String err;
+  auto config_json = tvm::ffi::json::Parse(config_str, &err);
   if (!err.empty()) {
-    return TResult::Error(err);
+    return TResult::Error(std::string(err));
   }
-  picojson::object config = config_json.get<picojson::object>();
-  return TResult::Ok(config);
+  auto opt = config_json.try_cast<tvm::ffi::json::Object>();
+  if (!opt.has_value()) {
+    return TResult::Error("Expected JSON object in model config");
+  }
+  return TResult::Ok(*opt);
 }
 
 class ModelImpl : public ModelObj {
@@ -57,7 +60,7 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
+  explicit ModelImpl(String reload_lib_path, String model_path, tvm::ffi::json::Object model_config,
                      DLDevice device, const Optional<Session>& session, int num_shards,
                      int num_stages, bool trace_enabled)
       : model_(model_path), device_(device), trace_enabled_(trace_enabled) {
@@ -1059,7 +1062,7 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  void LoadModelConfigJSON(const picojson::object& config) {
+  void LoadModelConfigJSON(const tvm::ffi::json::Object& config) {
     this->sliding_window_size_ =
         json::LookupOrDefault<int64_t>(config, "sliding_window_size", this->sliding_window_size_);
     CHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)

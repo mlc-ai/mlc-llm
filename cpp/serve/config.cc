@@ -4,7 +4,6 @@
  */
 #include "config.h"
 
-#include <picojson.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 
@@ -42,7 +41,7 @@ uint64_t TotalDetectGlobalMemory(DLDevice device) {
 
 /****************** ResponseFormat ******************/
 
-Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) {
+Result<ResponseFormat> ResponseFormat::FromJSON(const tvm::ffi::json::Object& config) {
   using TResult = Result<ResponseFormat>;
   ResponseFormat res;
   res.type = json::LookupOrDefault<std::string>(config, "type", "text");
@@ -59,18 +58,18 @@ Result<ResponseFormat> ResponseFormat::FromJSON(const picojson::object& config) 
   return TResult::Ok(res);
 }
 
-picojson::object ResponseFormat::AsJSON() const {
-  picojson::object config;
-  config["type"] = picojson::value(type);
+tvm::ffi::json::Object ResponseFormat::AsJSON() const {
+  tvm::ffi::json::Object config;
+  config.Set("type", type);
   if (schema.has_value()) {
-    config["schema"] = picojson::value(schema.value().operator std::string());
+    config.Set("schema", schema.value());
   }
   return config;
 }
 
 /****************** DisaggConfig ******************/
 
-Result<DisaggConfig> DisaggConfig::FromJSON(const picojson::object& config) {
+Result<DisaggConfig> DisaggConfig::FromJSON(const tvm::ffi::json::Object& config) {
   using TResult = Result<DisaggConfig>;
   DisaggConfig res;
   std::optional<std::string> kind = json::LookupOptional<std::string>(config, "kind");
@@ -88,33 +87,33 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const picojson::object& config) {
   std::optional<std::string> kv_append_metadata_encoded =
       json::LookupOptional<std::string>(config, "kv_append_metadata");
   if (kv_append_metadata_encoded.has_value()) {
-    picojson::value parse_result;
-    std::string err =
-        picojson::parse(parse_result, Base64Decode(kv_append_metadata_encoded.value()));
+    tvm::ffi::String err;
+    auto parse_result =
+        tvm::ffi::json::Parse(Base64Decode(kv_append_metadata_encoded.value()), &err);
     if (!err.empty()) {
-      return TResult::Error("kv_append_metadata parse error: " + err);
+      return TResult::Error("kv_append_metadata parse error: " + std::string(err));
     }
-    if (!parse_result.is<picojson::array>()) {
+    if (!parse_result.try_cast<tvm::ffi::json::Array>().has_value()) {
       return TResult::Error("kv_append_metadata is not array of integer.");
     }
-    picojson::array kv_append_metadata_arr = parse_result.get<picojson::array>();
+    tvm::ffi::json::Array kv_append_metadata_arr = parse_result.cast<tvm::ffi::json::Array>();
     std::vector<IntTuple> kv_append_metadata;
     int ptr = 0;
     while (ptr < static_cast<int>(kv_append_metadata_arr.size())) {
-      if (!kv_append_metadata_arr[ptr].is<int64_t>()) {
+      if (!kv_append_metadata_arr[ptr].try_cast<int64_t>().has_value()) {
         return TResult::Error("Invalid kv append metadata value in kv_append_metadata array");
       }
-      int num_segments = kv_append_metadata_arr[ptr].get<int64_t>();
+      int num_segments = kv_append_metadata_arr[ptr].cast<int64_t>();
       if (ptr + num_segments * 2 + 1 > static_cast<int>(kv_append_metadata_arr.size())) {
         return TResult::Error("Invalid kv append metadata compression in kv_append_metadata");
       }
       std::vector<int64_t> compressed_kv_append_metadata{num_segments};
       compressed_kv_append_metadata.reserve(num_segments * 2 + 1);
       for (int i = 1; i <= num_segments * 2; ++i) {
-        if (!kv_append_metadata_arr[ptr + i].is<int64_t>()) {
+        if (!kv_append_metadata_arr[ptr + i].try_cast<int64_t>().has_value()) {
           return TResult::Error("Invalid kv append metadata value in kv_append_metadata array");
         }
-        compressed_kv_append_metadata.push_back(kv_append_metadata_arr[ptr + i].get<int64_t>());
+        compressed_kv_append_metadata.push_back(kv_append_metadata_arr[ptr + i].cast<int64_t>());
       }
       kv_append_metadata.push_back(IntTuple(std::move(compressed_kv_append_metadata)));
       ptr += num_segments * 2 + 1;
@@ -127,49 +126,49 @@ Result<DisaggConfig> DisaggConfig::FromJSON(const picojson::object& config) {
   return TResult::Ok(res);
 }
 
-picojson::object DisaggConfig::AsJSON() const {
-  picojson::object config;
+tvm::ffi::json::Object DisaggConfig::AsJSON() const {
+  tvm::ffi::json::Object config;
   switch (kind) {
     case DisaggRequestKind::kPrepareReceive: {
-      config["kind"] = picojson::value("prepare_receive");
+      config.Set("kind", "prepare_receive");
       break;
     }
     case DisaggRequestKind::kRemoteSend: {
-      config["kind"] = picojson::value("remote_send");
+      config.Set("kind", "remote_send");
       break;
     }
     case DisaggRequestKind::kStartGeneration: {
-      config["kind"] = picojson::value("start_generation");
+      config.Set("kind", "start_generation");
       break;
     }
     default:
       break;
   }
   if (!kv_append_metadata.empty()) {
-    picojson::array kv_append_metadata_arr;
+    tvm::ffi::json::Array kv_append_metadata_arr;
     for (const IntTuple& compressed_kv_append_metadata : kv_append_metadata) {
       for (int64_t value : compressed_kv_append_metadata) {
-        kv_append_metadata_arr.push_back(picojson::value(value));
+        kv_append_metadata_arr.push_back(value);
       }
     }
-    config["kv_append_metadata"] =
-        picojson::value(Base64Encode(picojson::value(kv_append_metadata_arr).serialize()));
+    config.Set("kv_append_metadata",
+               Base64Encode(tvm::ffi::json::Stringify(kv_append_metadata_arr)));
   }
   if (kv_window_begin.has_value()) {
-    config["kv_window_begin"] = picojson::value(static_cast<int64_t>(kv_window_begin.value()));
+    config.Set("kv_window_begin", static_cast<int64_t>(kv_window_begin.value()));
   }
   if (kv_window_end.has_value()) {
-    config["kv_window_end"] = picojson::value(static_cast<int64_t>(kv_window_end.value()));
+    config.Set("kv_window_end", static_cast<int64_t>(kv_window_end.value()));
   }
   if (dst_group_offset.has_value()) {
-    config["dst_group_offset"] = picojson::value(static_cast<int64_t>(dst_group_offset.value()));
+    config.Set("dst_group_offset", static_cast<int64_t>(dst_group_offset.value()));
   }
   return config;
 }
 
 /****************** DebugConfig ******************/
 
-Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
+Result<DebugConfig> DebugConfig::FromJSON(const tvm::ffi::json::Object& config) {
   using TResult = Result<DebugConfig>;
   DebugConfig res;
   res.ignore_eos = json::LookupOrDefault<bool>(config, "ignore_eos", false);
@@ -191,7 +190,8 @@ Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
   } else {
     return TResult::Error("Unknown grammar execution mode " + grammar_execution_mode);
   }
-  if (auto disagg_config_obj = json::LookupOptional<picojson::object>(config, "disagg_config")) {
+  if (auto disagg_config_obj =
+          json::LookupOptional<tvm::ffi::json::Object>(config, "disagg_config")) {
     Result<DisaggConfig> disagg_config = DisaggConfig::FromJSON(disagg_config_obj.value());
     if (disagg_config.IsErr()) {
       return TResult::Error(disagg_config.UnwrapErr());
@@ -204,13 +204,13 @@ Result<DebugConfig> DebugConfig::FromJSON(const picojson::object& config) {
 /**
  * \return serialized json value of the config.
  */
-picojson::object DebugConfig::AsJSON() const {
-  picojson::object config;
-  config["ignore_eos"] = picojson::value(ignore_eos);
-  config["pinned_system_prompt"] = picojson::value(pinned_system_prompt);
+tvm::ffi::json::Object DebugConfig::AsJSON() const {
+  tvm::ffi::json::Object config;
+  config.Set("ignore_eos", ignore_eos);
+  config.Set("pinned_system_prompt", pinned_system_prompt);
   switch (special_request) {
     case SpecialRequestKind::kQueryEngineMetrics: {
-      config["special_request"] = picojson::value("query_engine_metrics");
+      config.Set("special_request", "query_engine_metrics");
       break;
     }
     case SpecialRequestKind::kNone:
@@ -218,16 +218,16 @@ picojson::object DebugConfig::AsJSON() const {
   }
   switch (grammar_execution_mode) {
     case GrammarExecutionMode::kJumpForward: {
-      config["grammar_execution_mode"] = picojson::value("jump_forward");
+      config.Set("grammar_execution_mode", "jump_forward");
       break;
     }
     case GrammarExecutionMode::kConstraint: {
-      config["grammar_execution_mode"] = picojson::value("constraint");
+      config.Set("grammar_execution_mode", "constraint");
       break;
     }
   }
   if (disagg_config.kind != DisaggRequestKind::kNone) {
-    config["disagg_config"] = picojson::value(disagg_config.AsJSON());
+    config.Set("disagg_config", disagg_config.AsJSON());
   }
   return config;
 }
@@ -266,7 +266,7 @@ Result<GenerationConfig> GenerationConfig::Validate(GenerationConfig cfg) {
   return TResult::Ok(cfg);
 }
 
-Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& config,
+Result<GenerationConfig> GenerationConfig::FromJSON(const tvm::ffi::json::Object& config,
                                                     const GenerationConfig& default_config) {
   using TResult = Result<GenerationConfig>;
   ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
@@ -284,14 +284,15 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
   n->top_logprobs =
       json::LookupOrDefault<int64_t>(config, "top_logprobs", default_config->top_logprobs);
 
-  std::optional<picojson::object> logit_bias_obj =
-      json::LookupOptional<picojson::object>(config, "logit_bias");
+  std::optional<tvm::ffi::json::Object> logit_bias_obj =
+      json::LookupOptional<tvm::ffi::json::Object>(config, "logit_bias");
   if (logit_bias_obj.has_value()) {
     std::vector<std::pair<int, float>> logit_bias;
     logit_bias.reserve(logit_bias_obj.value().size());
-    for (auto [token_id_str, bias] : logit_bias_obj.value()) {
-      CHECK(bias.is<double>());
-      double bias_value = bias.get<double>();
+    for (auto [k, v] : logit_bias_obj.value()) {
+      std::string token_id_str(k.cast<tvm::ffi::String>());
+      CHECK(v.try_cast<double>().has_value());
+      double bias_value = v.cast<double>();
       logit_bias.emplace_back(std::stoi(token_id_str), bias_value);
     }
     n->logit_bias = std::move(logit_bias);
@@ -304,39 +305,39 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
   // model capability or hit any stop criteria.
   n->max_tokens = json::LookupOrDefault<int64_t>(config, "max_tokens", -1);
 
-  std::optional<picojson::array> stop_strs_arr =
-      json::LookupOptional<picojson::array>(config, "stop_strs");
+  std::optional<tvm::ffi::json::Array> stop_strs_arr =
+      json::LookupOptional<tvm::ffi::json::Array>(config, "stop_strs");
   if (stop_strs_arr.has_value()) {
     Array<String> stop_strs;
     stop_strs.reserve(stop_strs_arr.value().size());
-    for (const picojson::value& v : stop_strs_arr.value()) {
-      if (!v.is<std::string>()) {
+    for (const auto& v : stop_strs_arr.value()) {
+      if (!v.try_cast<std::string>().has_value()) {
         return TResult::Error("Invalid stop string in stop_strs");
       }
-      stop_strs.push_back(v.get<std::string>());
+      stop_strs.push_back(v.cast<std::string>());
     }
     n->stop_strs = std::move(stop_strs);
   } else {
     n->stop_strs = default_config->stop_strs;
   }
-  std::optional<picojson::array> stop_token_ids_arr =
-      json::LookupOptional<picojson::array>(config, "stop_token_ids");
+  std::optional<tvm::ffi::json::Array> stop_token_ids_arr =
+      json::LookupOptional<tvm::ffi::json::Array>(config, "stop_token_ids");
   if (stop_token_ids_arr.has_value()) {
     std::vector<int> stop_token_ids;
     stop_token_ids.reserve(stop_token_ids_arr.value().size());
-    for (const picojson::value& v : stop_token_ids_arr.value()) {
-      if (!v.is<int64_t>()) {
+    for (const auto& v : stop_token_ids_arr.value()) {
+      if (!v.try_cast<int64_t>().has_value()) {
         return TResult::Error("Invalid stop token in stop_token_ids");
       }
-      stop_token_ids.push_back(v.get<int64_t>());
+      stop_token_ids.push_back(v.cast<int64_t>());
     }
     n->stop_token_ids = std::move(stop_token_ids);
   } else {
     n->stop_token_ids = default_config->stop_token_ids;
   }
 
-  std::optional<picojson::object> response_format_obj =
-      json::LookupOptional<picojson::object>(config, "response_format");
+  std::optional<tvm::ffi::json::Object> response_format_obj =
+      json::LookupOptional<tvm::ffi::json::Object>(config, "response_format");
   if (response_format_obj.has_value()) {
     Result<ResponseFormat> response_format_res =
         ResponseFormat::FromJSON(response_format_obj.value());
@@ -348,8 +349,8 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
     n->response_format = default_config->response_format;
   }
   // "debug_config" is for internal usage. Not the part of OpenAI API spec.
-  std::optional<picojson::object> debug_config_obj =
-      json::LookupOptional<picojson::object>(config, "debug_config");
+  std::optional<tvm::ffi::json::Object> debug_config_obj =
+      json::LookupOptional<tvm::ffi::json::Object>(config, "debug_config");
 
   if (debug_config_obj.has_value()) {
     Result<DebugConfig> debug_config_res = DebugConfig::FromJSON(debug_config_obj.value());
@@ -362,7 +363,7 @@ Result<GenerationConfig> GenerationConfig::FromJSON(const picojson::object& conf
 }
 
 GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
-    const picojson::object& model_config_json) {
+    const tvm::ffi::json::Object& model_config_json) {
   ObjectPtr<GenerationConfigNode> n = tvm::ffi::make_object<GenerationConfigNode>();
   n->max_tokens = -1;
   n->temperature = json::LookupOrDefault<double>(model_config_json, "temperature", n->temperature);
@@ -374,51 +375,53 @@ GenerationConfig GenerationConfig::GetDefaultFromModelConfig(
   return GenerationConfig(n);
 }
 
-picojson::object GenerationConfigNode::AsJSON() const {
-  picojson::object config;
-  config["n"] = picojson::value(static_cast<int64_t>(this->n));
-  config["temperature"] = picojson::value(this->temperature);
-  config["top_p"] = picojson::value(this->top_p);
-  config["frequency_penalty"] = picojson::value(this->frequency_penalty);
-  config["presence_penalty"] = picojson::value(this->presence_penalty);
-  config["repetition_penalty"] = picojson::value(this->repetition_penalty);
-  config["logprobs"] = picojson::value(this->logprobs);
-  config["top_logprobs"] = picojson::value(static_cast<int64_t>(this->top_logprobs));
-  config["max_tokens"] = picojson::value(static_cast<int64_t>(this->max_tokens));
-  config["seed"] = picojson::value(static_cast<int64_t>(this->seed));
+tvm::ffi::json::Object GenerationConfigNode::AsJSON() const {
+  tvm::ffi::json::Object config;
+  config.Set("n", static_cast<int64_t>(this->n));
+  config.Set("temperature", this->temperature);
+  config.Set("top_p", this->top_p);
+  config.Set("frequency_penalty", this->frequency_penalty);
+  config.Set("presence_penalty", this->presence_penalty);
+  config.Set("repetition_penalty", this->repetition_penalty);
+  config.Set("logprobs", this->logprobs);
+  config.Set("top_logprobs", static_cast<int64_t>(this->top_logprobs));
+  config.Set("max_tokens", static_cast<int64_t>(this->max_tokens));
+  config.Set("seed", static_cast<int64_t>(this->seed));
 
-  picojson::object logit_bias_obj;
+  tvm::ffi::json::Object logit_bias_obj;
   for (auto [token_id, bias] : logit_bias) {
-    logit_bias_obj[std::to_string(token_id)] = picojson::value(static_cast<double>(bias));
+    logit_bias_obj.Set(std::to_string(token_id), static_cast<double>(bias));
   }
-  config["logit_bias"] = picojson::value(logit_bias_obj);
+  config.Set("logit_bias", logit_bias_obj);
 
-  picojson::array stop_strs_arr;
+  tvm::ffi::json::Array stop_strs_arr;
   for (String stop_str : this->stop_strs) {
-    stop_strs_arr.push_back(picojson::value(stop_str));
+    stop_strs_arr.push_back(stop_str);
   }
-  config["stop_strs"] = picojson::value(stop_strs_arr);
+  config.Set("stop_strs", stop_strs_arr);
 
-  picojson::array stop_token_ids_arr;
+  tvm::ffi::json::Array stop_token_ids_arr;
   for (int stop_token_id : this->stop_token_ids) {
-    stop_token_ids_arr.push_back(picojson::value(static_cast<int64_t>(stop_token_id)));
+    stop_token_ids_arr.push_back(static_cast<int64_t>(stop_token_id));
   }
-  config["stop_token_ids"] = picojson::value(stop_token_ids_arr);
+  config.Set("stop_token_ids", stop_token_ids_arr);
 
-  picojson::object response_format;
-  response_format["type"] = picojson::value(this->response_format.type);
-  response_format["schema"] = this->response_format.schema
-                                  ? picojson::value(this->response_format.schema.value())
-                                  : picojson::value();
-  config["response_format"] = picojson::value(response_format);
-  config["debug_config"] = picojson::value(debug_config.AsJSON());
+  tvm::ffi::json::Object response_format;
+  response_format.Set("type", this->response_format.type);
+  if (this->response_format.schema) {
+    response_format.Set("schema", this->response_format.schema.value());
+  } else {
+    response_format.Set("schema", tvm::Any(nullptr));
+  }
+  config.Set("response_format", response_format);
+  config.Set("debug_config", debug_config.AsJSON());
   return config;
 }
 
 /****************** EngineConfig ******************/
 
 EngineConfig EngineConfig::FromJSONAndInferredConfig(
-    const picojson::object& json, const InferrableEngineConfig& inferred_config) {
+    const tvm::ffi::json::Object& json, const InferrableEngineConfig& inferred_config) {
   CHECK(inferred_config.max_num_sequence.has_value());
   CHECK(inferred_config.max_total_sequence_length.has_value());
   CHECK(inferred_config.prefill_chunk_size.has_value());
@@ -430,13 +433,14 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->model_lib = json::Lookup<std::string>(json, "model_lib");
   std::vector<String> additional_models;
   std::vector<String> additional_model_libs;
-  picojson::array additional_models_arr =
-      json::LookupOrDefault<picojson::array>(json, "additional_models", picojson::array());
+  tvm::ffi::json::Array additional_models_arr = json::LookupOrDefault<tvm::ffi::json::Array>(
+      json, "additional_models", tvm::ffi::json::Array());
   int num_additional_models = additional_models_arr.size();
   additional_models.reserve(num_additional_models);
   additional_model_libs.reserve(num_additional_models);
   for (int i = 0; i < num_additional_models; ++i) {
-    picojson::array additional_model_pair = json::Lookup<picojson::array>(additional_models_arr, i);
+    tvm::ffi::json::Array additional_model_pair =
+        json::Lookup<tvm::ffi::json::Array>(additional_models_arr, i);
     additional_models.push_back(json::Lookup<std::string>(additional_model_pair, 0));
     additional_model_libs.push_back(json::Lookup<std::string>(additional_model_pair, 1));
   }
@@ -445,15 +449,16 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
   n->mode = EngineModeFromString(json::Lookup<std::string>(json, "mode"));
 
   // - Other fields with default value.
-  n->gpu_memory_utilization =
-      json::LookupOrDefault<double>(json, "gpu_memory_utilization", n->gpu_memory_utilization);
-  n->kv_cache_page_size =
-      json::LookupOrDefault<int64_t>(json, "kv_cache_page_size", n->kv_cache_page_size);
+  n->gpu_memory_utilization = static_cast<float>(
+      json::LookupOrDefault<double>(json, "gpu_memory_utilization", n->gpu_memory_utilization));
+  n->kv_cache_page_size = static_cast<int>(
+      json::LookupOrDefault<int64_t>(json, "kv_cache_page_size", n->kv_cache_page_size));
   n->speculative_mode = SpeculativeModeFromString(json::LookupOrDefault<std::string>(
       json, "speculative_mode", SpeculativeModeToString(n->speculative_mode)));
-  n->spec_draft_length =
-      json::LookupOrDefault<int64_t>(json, "spec_draft_length", n->spec_draft_length);
-  n->spec_tree_width = json::LookupOrDefault<int64_t>(json, "spec_tree_width", n->spec_tree_width);
+  n->spec_draft_length = static_cast<int>(
+      json::LookupOrDefault<int64_t>(json, "spec_draft_length", n->spec_draft_length));
+  n->spec_tree_width =
+      static_cast<int>(json::LookupOrDefault<int64_t>(json, "spec_tree_width", n->spec_tree_width));
   n->prefill_mode = PrefillModeFromString(json::LookupOrDefault<std::string>(
       json, "prefill_mode", PrefillModeToString(n->prefill_mode)));
   n->verbose = json::LookupOrDefault<bool>(json, "verbose", n->verbose);
@@ -469,33 +474,34 @@ EngineConfig EngineConfig::FromJSONAndInferredConfig(
 
   n->prefix_cache_mode = PrefixCacheModeFromString(json::LookupOrDefault<std::string>(
       json, "prefix_cache_mode", PrefixCacheModeToString(n->prefix_cache_mode)));
-  n->prefix_cache_max_num_recycling_seqs = json::LookupOrDefault<int64_t>(
-      json, "prefix_cache_max_num_recycling_seqs", n->max_num_sequence);
+  n->prefix_cache_max_num_recycling_seqs = static_cast<int>(json::LookupOrDefault<int64_t>(
+      json, "prefix_cache_max_num_recycling_seqs", n->max_num_sequence));
   return EngineConfig(n);
 }
 
 Result<std::vector<std::pair<std::string, std::string>>>
 EngineConfig::GetModelsAndModelLibsFromJSONString(const std::string& json_str) {
   using TResult = Result<std::vector<std::pair<std::string, std::string>>>;
-  picojson::value config_json;
-  std::string err = picojson::parse(config_json, json_str);
+  tvm::ffi::String err;
+  auto config_json = tvm::ffi::json::Parse(json_str, &err);
   if (!err.empty()) {
     return TResult::Error(err);
   }
 
   // Get the models and model libs from JSON.
-  picojson::object config = config_json.get<picojson::object>();
+  tvm::ffi::json::Object config = config_json.cast<tvm::ffi::json::Object>();
   String model = json::Lookup<std::string>(config, "model");
   String model_lib = json::Lookup<std::string>(config, "model_lib");
-  picojson::array additional_models_arr =
-      json::LookupOrDefault<picojson::array>(config, "additional_models", picojson::array());
+  tvm::ffi::json::Array additional_models_arr = json::LookupOrDefault<tvm::ffi::json::Array>(
+      config, "additional_models", tvm::ffi::json::Array());
 
   int num_additional_models = additional_models_arr.size();
   std::vector<std::pair<std::string, std::string>> models_and_model_libs;
   models_and_model_libs.reserve(num_additional_models + 1);
   models_and_model_libs.emplace_back(model, model_lib);
   for (int i = 0; i < num_additional_models; ++i) {
-    picojson::array additional_model_pair = json::Lookup<picojson::array>(additional_models_arr, i);
+    tvm::ffi::json::Array additional_model_pair =
+        json::Lookup<tvm::ffi::json::Array>(additional_models_arr, i);
     models_and_model_libs.emplace_back(json::Lookup<std::string>(additional_model_pair, 0),
                                        json::Lookup<std::string>(additional_model_pair, 1));
   }
@@ -503,40 +509,39 @@ EngineConfig::GetModelsAndModelLibsFromJSONString(const std::string& json_str) {
 }
 
 String EngineConfigNode::AsJSONString() const {
-  picojson::object config;
+  tvm::ffi::json::Object config;
 
   // - Models and model libs
-  config["model"] = picojson::value(this->model);
-  config["model_lib"] = picojson::value(this->model_lib);
-  picojson::array additional_models_arr;
+  config.Set("model", this->model);
+  config.Set("model_lib", this->model_lib);
+  tvm::ffi::json::Array additional_models_arr;
   additional_models_arr.reserve(this->additional_models.size());
   for (int i = 0; i < static_cast<int>(this->additional_models.size()); ++i) {
-    additional_models_arr.push_back(
-        picojson::value(picojson::array{picojson::value(this->additional_models[i]),
-                                        picojson::value(this->additional_model_libs[i])}));
+    tvm::ffi::json::Array pair;
+    pair.push_back(this->additional_models[i]);
+    pair.push_back(this->additional_model_libs[i]);
+    additional_models_arr.push_back(pair);
   }
-  config["additional_models"] = picojson::value(additional_models_arr);
+  config.Set("additional_models", additional_models_arr);
 
   // - Other fields
-  config["mode"] = picojson::value(EngineModeToString(this->mode));
-  config["gpu_memory_utilization"] = picojson::value(this->gpu_memory_utilization);
-  config["kv_cache_page_size"] = picojson::value(static_cast<int64_t>(this->kv_cache_page_size));
-  config["max_num_sequence"] = picojson::value(static_cast<int64_t>(this->max_num_sequence));
-  config["max_total_sequence_length"] =
-      picojson::value(static_cast<int64_t>(this->max_total_sequence_length));
-  config["max_single_sequence_length"] =
-      picojson::value(static_cast<int64_t>(this->max_single_sequence_length));
-  config["prefill_chunk_size"] = picojson::value(static_cast<int64_t>(this->prefill_chunk_size));
-  config["max_history_size"] = picojson::value(static_cast<int64_t>(this->max_history_size));
-  config["prefix_cache_mode"] = picojson::value(PrefixCacheModeToString(this->prefix_cache_mode));
-  config["prefix_cache_max_num_recycling_seqs"] =
-      picojson::value(static_cast<int64_t>(this->prefix_cache_max_num_recycling_seqs));
-  config["speculative_mode"] = picojson::value(SpeculativeModeToString(this->speculative_mode));
-  config["spec_draft_length"] = picojson::value(static_cast<int64_t>(this->spec_draft_length));
-  config["prefill_mode"] = picojson::value(PrefillModeToString(this->prefill_mode));
-  config["verbose"] = picojson::value(static_cast<bool>(this->verbose));
+  config.Set("mode", EngineModeToString(this->mode));
+  config.Set("gpu_memory_utilization", static_cast<double>(this->gpu_memory_utilization));
+  config.Set("kv_cache_page_size", static_cast<int64_t>(this->kv_cache_page_size));
+  config.Set("max_num_sequence", static_cast<int64_t>(this->max_num_sequence));
+  config.Set("max_total_sequence_length", static_cast<int64_t>(this->max_total_sequence_length));
+  config.Set("max_single_sequence_length", static_cast<int64_t>(this->max_single_sequence_length));
+  config.Set("prefill_chunk_size", static_cast<int64_t>(this->prefill_chunk_size));
+  config.Set("max_history_size", static_cast<int64_t>(this->max_history_size));
+  config.Set("prefix_cache_mode", PrefixCacheModeToString(this->prefix_cache_mode));
+  config.Set("prefix_cache_max_num_recycling_seqs",
+             static_cast<int64_t>(this->prefix_cache_max_num_recycling_seqs));
+  config.Set("speculative_mode", SpeculativeModeToString(this->speculative_mode));
+  config.Set("spec_draft_length", static_cast<int64_t>(this->spec_draft_length));
+  config.Set("prefill_mode", PrefillModeToString(this->prefill_mode));
+  config.Set("verbose", static_cast<bool>(this->verbose));
 
-  return picojson::value(config).serialize(true);
+  return tvm::ffi::json::Stringify(config, 2);
 }
 
 /****************** InferrableEngineConfig ******************/
@@ -562,8 +567,9 @@ inline std::string BytesToMegabytesString(double bytes) {
  * \brief Get the upper bound of single sequence length, prefill size and batch size
  * from model config.
  */
-Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::object>& model_configs,
-                                               const std::vector<ModelMetadata>& model_metadata) {
+Result<ModelConfigLimits> GetModelConfigLimits(
+    const std::vector<tvm::ffi::json::Object>& model_configs,
+    const std::vector<ModelMetadata>& model_metadata) {
   ICHECK_EQ(model_configs.size(), model_metadata.size());
   int64_t model_compile_time_max_single_sequence_length = std::numeric_limits<int64_t>::max();
   int64_t model_runtime_max_single_sequence_length = std::numeric_limits<int64_t>::max();
@@ -647,9 +653,9 @@ struct MemUsageEstimationResult {
 Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
     EngineMode mode, Device device, double gpu_memory_utilization, int64_t params_bytes,
     int64_t temp_buffer_bytes,
-    const std::vector<picojson::object>& model_configs,  //
-    const std::vector<ModelMetadata>& model_metadata,    //
-    ModelConfigLimits model_config_limits,               //
+    const std::vector<tvm::ffi::json::Object>& model_configs,  //
+    const std::vector<ModelMetadata>& model_metadata,          //
+    ModelConfigLimits model_config_limits,                     //
     InferrableEngineConfig init_config, bool verbose) {
   std::ostringstream os;
   InferrableEngineConfig inferred_config = init_config;
@@ -687,8 +693,8 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
   int num_models = model_configs.size();
   for (int i = 0; i < num_models; ++i) {
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
-    picojson::object compile_time_model_config =
-        json::Lookup<picojson::object>(model_configs[i], "model_config");
+    tvm::ffi::json::Object compile_time_model_config =
+        json::Lookup<tvm::ffi::json::Object>(model_configs[i], "model_config");
     int64_t vocab_size = json::Lookup<int64_t>(compile_time_model_config, "vocab_size");
     int64_t prefill_chunk_size =
         json::Lookup<int64_t>(compile_time_model_config, "prefill_chunk_size");
@@ -809,7 +815,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
 
 Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
     EngineMode mode, Device device, double gpu_memory_utilization,
-    const std::vector<picojson::object>& model_configs,
+    const std::vector<tvm::ffi::json::Object>& model_configs,
     const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
     bool verbose) {
   // - Check if max_history_size is not set.
@@ -896,7 +902,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
 
 Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
     EngineMode mode, Device device, double gpu_memory_utilization,
-    const std::vector<picojson::object>& model_configs,
+    const std::vector<tvm::ffi::json::Object>& model_configs,
     const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
     bool verbose) {
   // - Check max_single_sequence_length is not set.
@@ -986,8 +992,8 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
   int num_models = model_configs.size();
   for (int i = 0; i < num_models; ++i) {
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
-    picojson::object compile_time_model_config =
-        json::Lookup<picojson::object>(model_configs[i], "model_config");
+    tvm::ffi::json::Object compile_time_model_config =
+        json::Lookup<tvm::ffi::json::Object>(model_configs[i], "model_config");
     int64_t vocab_size = json::Lookup<int64_t>(compile_time_model_config, "vocab_size");
     int64_t prefill_chunk_size =
         json::Lookup<int64_t>(compile_time_model_config, "prefill_chunk_size");
@@ -1056,7 +1062,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
 
 /****************** Config utils ******************/
 
-Result<bool> ModelsUseKVCache(const std::vector<picojson::object>& model_configs) {
+Result<bool> ModelsUseKVCache(const std::vector<tvm::ffi::json::Object>& model_configs) {
   ICHECK_GE(model_configs.size(), 1);
   std::string model_type = json::Lookup<std::string>(model_configs[0], "model_type");
   bool use_kv_cache = model_type.find("rwkv") == std::string::npos;

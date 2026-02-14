@@ -47,23 +47,24 @@ using tvm::ffi::Function;
 class EngineModule;
 
 // get tokenizer info from model config
-inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& model_config) {
+inline std::optional<TokenizerInfo> GetTokenizerInfo(const tvm::ffi::json::Object& model_config) {
   if (model_config.count("tokenizer_info") == 0) {
     LOG(WARNING) << "Tokenizer info not found in mlc-chat-config.json. "
                  << "Trying to automatically detect the tokenizer info";
     return std::nullopt;
   }
-  const picojson::object& tokenizer_info_obj =
-      model_config.at("tokenizer_info").get<picojson::object>();
+  const tvm::ffi::json::Object& tokenizer_info_obj =
+      model_config.at("tokenizer_info").cast<tvm::ffi::json::Object>();
   auto info = tvm::ffi::make_object<TokenizerInfoNode>();
   if (tokenizer_info_obj.count("token_postproc_method")) {
-    info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
+    info->token_postproc_method =
+        tokenizer_info_obj.at("token_postproc_method").cast<std::string>();
   }
   if (tokenizer_info_obj.count("prepend_space_in_encode")) {
-    info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").get<bool>();
+    info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").cast<bool>();
   }
   if (tokenizer_info_obj.count("strip_space_in_decode")) {
-    info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
+    info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").cast<bool>();
   }
   return TokenizerInfo(info);
 }
@@ -158,7 +159,7 @@ class MockEchoEngineImpl : public Engine {
  public:
   static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
                                              FRequestStreamCallback request_stream_callback,
-                                             const picojson::object& model_config) {
+                                             const tvm::ffi::json::Object& model_config) {
     using TResult = Result<EngineCreationOutput>;
     // set dummy values
     InferrableEngineConfig inferrable_config;
@@ -167,13 +168,13 @@ class MockEchoEngineImpl : public Engine {
     inferrable_config.max_single_sequence_length = 4096;
     inferrable_config.prefill_chunk_size = 1024;
     inferrable_config.max_history_size = 1024;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
+    tvm::ffi::String err;
+    auto config_json = tvm::ffi::json::Parse(engine_config_json_str, &err);
     if (!err.empty()) {
       return TResult::Error(err);
     }
     EngineConfig engine_config = EngineConfig::FromJSONAndInferredConfig(
-        config_json.get<picojson::object>(), inferrable_config);
+        config_json.cast<tvm::ffi::json::Object>(), inferrable_config);
 
     auto n = std::make_unique<MockEchoEngineImpl>();
     n->request_stream_callback_ = request_stream_callback;
@@ -239,17 +240,17 @@ class MockEchoEngineImpl : public Engine {
         std::vector<String>(request->generation_cfg->n)));
 
     // attach usage and config
-    picojson::object usage;
-    usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(prompt_tokens));
-    usage["completion_tokens"] =
-        picojson::value(static_cast<int64_t>(completion_tokens * request->generation_cfg->n));
-    usage["total_tokens"] = picojson::value(
-        static_cast<int64_t>(prompt_tokens + completion_tokens * request->generation_cfg->n));
-    usage["extra"] = picojson::value(request->generation_cfg->AsJSON());
+    tvm::ffi::json::Object usage;
+    usage.Set("prompt_tokens", static_cast<int64_t>(prompt_tokens));
+    usage.Set("completion_tokens",
+              static_cast<int64_t>(completion_tokens * request->generation_cfg->n));
+    usage.Set("total_tokens",
+              static_cast<int64_t>(prompt_tokens + completion_tokens * request->generation_cfg->n));
+    usage.Set("extra", request->generation_cfg->AsJSON());
     // NOTE: Invariant requirement
     // always stream back final usage
     // otherwise frontend may have issues deciding termination
-    outputs.push_back(RequestStreamOutput::Usage(request->id, picojson::value(usage).serialize()));
+    outputs.push_back(RequestStreamOutput::Usage(request->id, tvm::ffi::json::Stringify(usage)));
     // reverse the stream back so we can just pop back and get out
     std::reverse(outputs.begin(), outputs.end());
 
@@ -372,12 +373,12 @@ class EngineImpl : public Engine {
     // - Load model config, create a shared disco session when tensor
     // parallelism is enabled.
     std::vector<std::string> model_libs;
-    std::vector<picojson::object> model_configs;
+    std::vector<tvm::ffi::json::Object> model_configs;
     model_libs.reserve(num_model);
     model_configs.reserve(num_model);
     for (int i = 0; i < num_model; ++i) {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
-      Result<picojson::object> model_config_res = Model::LoadModelConfig(model_str);
+      Result<tvm::ffi::json::Object> model_config_res = Model::LoadModelConfig(model_str);
       if (model_config_res.IsErr()) {
         return TResult::Error("Model " + std::to_string(i) +
                               " has invalid mlc-chat-config.json: " + model_config_res.UnwrapErr());
@@ -511,7 +512,7 @@ class EngineImpl : public Engine {
 
   bool Empty() final { return estate_->running_queue.empty() && estate_->waiting_queue.empty(); }
 
-  String JSONMetrics() final { return picojson::value(estate_->metrics.AsJSON()).serialize(true); }
+  String JSONMetrics() final { return tvm::ffi::json::Stringify(estate_->metrics.AsJSON(), 2); }
 
   FRequestStreamCallback GetRequestStreamCallback() final {
     return estate_->request_stream_callback_;
@@ -767,12 +768,12 @@ class EngineImpl : public Engine {
   /************** Utility Functions **************/
   std::tuple<Optional<Session>, int, std::vector<int>> CreateDiscoSession(
       const std::vector<std::string>& model_libs,
-      const std::vector<picojson::object>& model_configs, Device device) {
+      const std::vector<tvm::ffi::json::Object>& model_configs, Device device) {
     const auto& base_model_config = model_configs[0];
 
     auto f_get_num_shards_num_stages =
         [&device](const std::string& model_lib,
-                  const picojson::object& model_config) -> std::pair<int, int> {
+                  const tvm::ffi::json::Object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = ffi::Module::LoadFromFile(model_lib);
         Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
@@ -886,15 +887,16 @@ class EngineImpl : public Engine {
   }
 
  private:
-  Result<EngineConfig> AutoDecideEngineConfig(const std::string& engine_config_json_str,
-                                              const std::vector<picojson::object>& model_configs) {
+  Result<EngineConfig> AutoDecideEngineConfig(
+      const std::string& engine_config_json_str,
+      const std::vector<tvm::ffi::json::Object>& model_configs) {
     using TResult = Result<EngineConfig>;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
+    tvm::ffi::String err;
+    auto config_json = tvm::ffi::json::Parse(engine_config_json_str, &err);
     if (!err.empty()) {
       return TResult::Error(err);
     }
-    picojson::object config = config_json.get<picojson::object>();
+    tvm::ffi::json::Object config = config_json.cast<tvm::ffi::json::Object>();
     ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.

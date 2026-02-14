@@ -64,7 +64,7 @@ Function FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, St
   });
 }
 
-void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
+void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::Object model_config,
                          Optional<Session> session, int num_shards, int num_stages) {
   local_gpu_device = device;
   this->model_config = model_config;
@@ -173,7 +173,7 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
                                 ? "mlc.multi_gpu.LoadMultiGPU"
                                 : "mlc.multi_gpu.LoadMultiGPUPresharded";
       Function loader = this->get_global_func(load_func_name);
-      params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize())
+      params = loader(model_path, this->disco_mod, tvm::ffi::json::Stringify(this->model_config))
                    .cast<DRef>();
     }
     return params.value();

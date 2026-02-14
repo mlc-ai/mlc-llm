@@ -72,7 +72,7 @@ class EngineAction : public ObjectRef {
                                         Sampler sampler,
                                         std::vector<ModelWorkspace> model_workspaces,
                                         EngineConfig engine_config,
-                                        std::vector<picojson::object> model_configs,
+                                        std::vector<tvm::ffi::json::Object> model_configs,
                                         Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that prefills requests in the `waiting_queue`
@@ -91,7 +91,8 @@ class EngineAction : public ObjectRef {
       Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
       std::vector<ModelWorkspace> model_workspaces,
       DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
-      std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder);
+      std::vector<tvm::ffi::json::Object> model_configs,
+      Optional<EventTraceRecorder> trace_recorder);
   /*!
    * \brief Create the action that runs one-step decode for requests in the
    * `running_queue` of engine state. Preempt low-priority requests
@@ -226,7 +227,7 @@ class EngineAction : public ObjectRef {
    * \return The created action object.
    */
   static EngineAction DisaggPrepareReceive(Array<Model> models, EngineConfig engine_config,
-                                           std::vector<picojson::object> model_configs,
+                                           std::vector<tvm::ffi::json::Object> model_configs,
                                            Optional<EventTraceRecorder> trace_recorder,
                                            FRequestStreamCallback request_stream_callback);
 
@@ -243,10 +244,13 @@ class EngineAction : public ObjectRef {
    * \param device The device of the model for synchronization.
    * \return The created action object.
    */
-  static EngineAction DisaggRemoteSend(
-      Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
-      std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
-      FRequestStreamCallback request_stream_callback, Device device);
+  static EngineAction DisaggRemoteSend(Array<Model> models,
+                                       std::vector<ModelWorkspace> model_workspaces,
+                                       EngineConfig engine_config,
+                                       std::vector<tvm::ffi::json::Object> model_configs,
+                                       Optional<EventTraceRecorder> trace_recorder,
+                                       FRequestStreamCallback request_stream_callback,
+                                       Device device);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EngineAction, ObjectRef, EngineActionObj);
 };

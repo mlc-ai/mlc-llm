@@ -7,7 +7,7 @@
 #ifndef MLC_LLM_SERVE_MODEL_H_
 #define MLC_LLM_SERVE_MODEL_H_
 
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/tensor.h>
 
@@ -390,7 +390,7 @@ class Model : public ObjectRef {
    * \return The created runtime module.
    */
   static Model Create(String reload_lib_path, String model_path,
-                      const picojson::object& model_config, DLDevice device,
+                      const tvm::ffi::json::Object& model_config, DLDevice device,
                       const Optional<Session>& session, int num_shards, int num_stages,
                       bool trace_enabled);
 
@@ -399,7 +399,7 @@ class Model : public ObjectRef {
    * \param model_path The path to the model weight parameters.
    * \return The model config json object.
    */
-  static Result<picojson::object> LoadModelConfig(const String& model_path);
+  static Result<tvm::ffi::json::Object> LoadModelConfig(const String& model_path);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Model, ObjectRef, ModelObj);
 };

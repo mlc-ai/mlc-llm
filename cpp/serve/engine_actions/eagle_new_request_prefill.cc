@@ -21,7 +21,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                            std::vector<ModelWorkspace> model_workspaces,
                                            DraftTokenWorkspaceManager draft_token_workspace_manager,
                                            EngineConfig engine_config,
-                                           std::vector<picojson::object> model_configs,
+                                           std::vector<tvm::ffi::json::Object> model_configs,
                                            Optional<EventTraceRecorder> trace_recorder)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
                                   std::move(model_configs), std::move(trace_recorder)),
@@ -486,7 +486,8 @@ EngineAction EngineAction::EagleNewRequestPrefill(
     Array<Model> models, LogitProcessor logit_processor, Sampler sampler,
     std::vector<ModelWorkspace> model_workspaces,
     DraftTokenWorkspaceManager draft_token_workspace_manager, EngineConfig engine_config,
-    std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder) {
+    std::vector<tvm::ffi::json::Object> model_configs,
+    Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(tvm::ffi::make_object<EagleNewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),
       std::move(model_workspaces), std::move(draft_token_workspace_manager),

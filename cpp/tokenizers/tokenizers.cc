@@ -5,8 +5,8 @@
 
 #include "tokenizers.h"
 
-#include <picojson.h>
 #include <tokenizers_cpp.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/int_tuple.h>
@@ -32,33 +32,33 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 #ifndef COMPILE_MLC_WASM_RUNTIME
 
 String TokenizerInfoNode::AsJSONString() const {
-  picojson::object obj;
-  obj["token_postproc_method"] = picojson::value(token_postproc_method);
-  obj["prepend_space_in_encode"] = picojson::value(prepend_space_in_encode);
-  obj["strip_space_in_decode"] = picojson::value(strip_space_in_decode);
-  return picojson::value(obj).serialize(false);
+  tvm::ffi::json::Object obj;
+  obj.Set("token_postproc_method", token_postproc_method);
+  obj.Set("prepend_space_in_encode", prepend_space_in_encode);
+  obj.Set("strip_space_in_decode", strip_space_in_decode);
+  return tvm::ffi::json::Stringify(obj);
 }
 
 TokenizerInfo TokenizerInfo::FromJSONString(String json_string) {
-  picojson::value v;
-  std::string err = picojson::parse(v, json_string.operator std::string());
+  tvm::ffi::String err;
+  auto v = tvm::ffi::json::Parse(json_string, &err);
   ICHECK(err.empty()) << "Failed to parse JSON: " << err;
 
-  ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
-  const picojson::object& obj = v.get<picojson::object>();
+  ICHECK(v.try_cast<tvm::ffi::json::Object>().has_value()) << "JSON must be an object.";
+  const auto& obj = v.cast<tvm::ffi::json::Object>();
 
   ObjectPtr<TokenizerInfoNode> n = tvm::ffi::make_object<TokenizerInfoNode>();
   if (obj.count("token_postproc_method")) {
-    ICHECK(obj.at("token_postproc_method").is<std::string>());
-    n->token_postproc_method = obj.at("token_postproc_method").get<std::string>();
+    ICHECK(obj.at("token_postproc_method").try_cast<tvm::ffi::String>().has_value());
+    n->token_postproc_method = obj.at("token_postproc_method").cast<tvm::ffi::String>();
   }
   if (obj.count("prepend_space_in_encode")) {
-    ICHECK(obj.at("prepend_space_in_encode").is<bool>());
-    n->prepend_space_in_encode = obj.at("prepend_space_in_encode").get<bool>();
+    ICHECK(obj.at("prepend_space_in_encode").try_cast<bool>().has_value());
+    n->prepend_space_in_encode = obj.at("prepend_space_in_encode").cast<bool>();
   }
   if (obj.count("strip_space_in_decode")) {
-    ICHECK(obj.at("strip_space_in_decode").is<bool>());
-    n->strip_space_in_decode = obj.at("strip_space_in_decode").get<bool>();
+    ICHECK(obj.at("strip_space_in_decode").try_cast<bool>().has_value());
+    n->strip_space_in_decode = obj.at("strip_space_in_decode").cast<bool>();
   }
 
   return TokenizerInfo(n);
@@ -142,7 +142,7 @@ int32_t TokenizerObj::TokenToId(const std::string& token) const {
 
 Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> info) {
   TokenizerInfo info_value = info.value_or(DetectTokenizerInfo(_path));
-  std::filesystem::path path(_path.operator std::string());
+  std::filesystem::path path{std::string(_path)};
   std::filesystem::path sentencepiece;
   std::filesystem::path huggingface;
   std::filesystem::path rwkvworld;
@@ -195,7 +195,7 @@ Tokenizer Tokenizer::FromPath(const String& _path, std::optional<TokenizerInfo> 
 }
 
 TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
-  std::filesystem::path path(path_str.operator std::string());
+  std::filesystem::path path{std::string(path_str)};
   CHECK(std::filesystem::exists(path)) << "Cannot find tokenizer via path: " << path_str;
   if (!std::filesystem::is_directory(path)) {
     path = path.parent_path();
@@ -208,30 +208,34 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
   }
 
   std::string tokenizer_json = LoadBytesFromFile(path.string());
-  picojson::value v;
-  std::string err = picojson::parse(v, tokenizer_json);
+  tvm::ffi::String err;
+  auto v = tvm::ffi::json::Parse(tokenizer_json, &err);
   ICHECK(err.empty()) << "Failed to parse JSON: " << err;
-  ICHECK(v.is<picojson::object>()) << "JSON must be an object.";
-  const picojson::object& obj = v.get<picojson::object>();
+  ICHECK(v.try_cast<tvm::ffi::json::Object>().has_value()) << "JSON must be an object.";
+  const auto& obj = v.cast<tvm::ffi::json::Object>();
 
   ObjectPtr<TokenizerInfoNode> n = tvm::ffi::make_object<TokenizerInfoNode>();
 
   // Step 1. Detect token_postproc_method: byte_fallback or byte_level
   // Detect {"type": "ByteLevel"} or {"type": "ByteFallback"} in "decoder" field of the tokenizer
-  if (!obj.count("decoder") || !obj.at("decoder").is<picojson::object>()) {
+  if (!obj.count("decoder") || !obj.at("decoder").try_cast<tvm::ffi::json::Object>().has_value()) {
     LOG(WARNING) << "Decoder field is not found in tokenizer.json. Use ByteFallback as default.";
     n->token_postproc_method = "byte_fallback";
   } else {
-    auto decoder_obj = obj.at("decoder").get<picojson::object>();
-    ICHECK(decoder_obj.count("type") && decoder_obj.at("type").is<std::string>());
-    auto type = decoder_obj.at("type").get<std::string>();
+    auto decoder_obj = obj.at("decoder").cast<tvm::ffi::json::Object>();
+    ICHECK(decoder_obj.count("type") &&
+           decoder_obj.at("type").try_cast<tvm::ffi::String>().has_value());
+    auto type = decoder_obj.at("type").cast<tvm::ffi::String>();
 
     auto f_detect_decoder_type = [](ObjectPtr<TokenizerInfoNode> n,
-                                    const picojson::value& decoder_json) {
-      ICHECK(decoder_json.is<picojson::object>());
-      ICHECK(decoder_json.get<picojson::object>().count("type") &&
-             decoder_json.get<picojson::object>().at("type").is<std::string>());
-      auto type = decoder_json.get<picojson::object>().at("type").get<std::string>();
+                                    const tvm::ffi::json::Value& decoder_json) {
+      ICHECK(decoder_json.try_cast<tvm::ffi::json::Object>().has_value());
+      ICHECK(decoder_json.cast<tvm::ffi::json::Object>().count("type") &&
+             decoder_json.cast<tvm::ffi::json::Object>()
+                 .at("type")
+                 .try_cast<tvm::ffi::String>()
+                 .has_value());
+      auto type = decoder_json.cast<tvm::ffi::json::Object>().at("type").cast<tvm::ffi::String>();
       if (type == "ByteLevel") {
         n->token_postproc_method = "byte_level";
         return true;
@@ -246,8 +250,10 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
 
     // For sequence, examine every decoder
     if (type == "Sequence") {
-      ICHECK(decoder_obj.count("decoders") && decoder_obj.at("decoders").is<picojson::array>());
-      for (const picojson::value& decoder : decoder_obj.at("decoders").get<picojson::array>()) {
+      ICHECK(decoder_obj.count("decoders") &&
+             decoder_obj.at("decoders").try_cast<tvm::ffi::json::Array>().has_value());
+      for (const tvm::ffi::json::Value& decoder :
+           decoder_obj.at("decoders").cast<tvm::ffi::json::Array>()) {
         if (f_detect_decoder_type(n, decoder)) {
           found = true;
         }
@@ -267,28 +273,34 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
 
   // Step 2. Detect prepend_space_in_encode
   // Find {"type": "Prepend", "prepend": "▁"} in "normalizer" field of the tokenizer
-  if (obj.count("normalizer") && obj.at("normalizer").is<picojson::object>()) {
-    const picojson::value& normalizer_json = obj.at("normalizer");
+  if (obj.count("normalizer") &&
+      obj.at("normalizer").try_cast<tvm::ffi::json::Object>().has_value()) {
+    const tvm::ffi::json::Value& normalizer_json = obj.at("normalizer");
 
     auto f_handle_normalizer = [](ObjectPtr<TokenizerInfoNode> n,
-                                  const picojson::value& normalizer_json) {
-      ICHECK(normalizer_json.is<picojson::object>());
-      auto obj = normalizer_json.get<picojson::object>();
-      ICHECK(obj.count("type") && obj.at("type").is<std::string>());
-      if (obj.at("type").get<std::string>() == "Prepend" && obj.count("prepend") &&
-          obj.at("prepend").is<std::string>() && obj.at("prepend").get<std::string>() == "▁") {
+                                  const tvm::ffi::json::Value& normalizer_json) {
+      ICHECK(normalizer_json.try_cast<tvm::ffi::json::Object>().has_value());
+      auto obj = normalizer_json.cast<tvm::ffi::json::Object>();
+      ICHECK(obj.count("type") && obj.at("type").try_cast<tvm::ffi::String>().has_value());
+      if (obj.at("type").cast<tvm::ffi::String>() == "Prepend" && obj.count("prepend") &&
+          obj.at("prepend").try_cast<tvm::ffi::String>().has_value() &&
+          obj.at("prepend").cast<tvm::ffi::String>() == "\xe2\x96\x81") {
         n->prepend_space_in_encode = true;
         return true;
       }
       return false;
     };
 
-    auto type = normalizer_json.get<picojson::object>().at("type").get<std::string>();
+    auto type = normalizer_json.cast<tvm::ffi::json::Object>().at("type").cast<tvm::ffi::String>();
     if (type == "Sequence") {
-      ICHECK(normalizer_json.get<picojson::object>().count("normalizers") &&
-             normalizer_json.get<picojson::object>().at("normalizers").is<picojson::array>());
-      for (const picojson::value& normalizer :
-           normalizer_json.get<picojson::object>().at("normalizers").get<picojson::array>()) {
+      ICHECK(normalizer_json.cast<tvm::ffi::json::Object>().count("normalizers") &&
+             normalizer_json.cast<tvm::ffi::json::Object>()
+                 .at("normalizers")
+                 .try_cast<tvm::ffi::json::Array>()
+                 .has_value());
+      for (const tvm::ffi::json::Value& normalizer : normalizer_json.cast<tvm::ffi::json::Object>()
+                                                         .at("normalizers")
+                                                         .cast<tvm::ffi::json::Array>()) {
         if (f_handle_normalizer(n, normalizer)) {
           break;
         }
@@ -301,31 +313,36 @@ TokenizerInfo Tokenizer::DetectTokenizerInfo(const String& path_str) {
   // Step 3. Detect strip_space_in_decode
   // Find {"type": "Strip", "content": " ", "start": 1, "stop": 0} in "decoder" field of the
   // tokenizer
-  if (obj.count("decoder") && obj.at("decoder").is<picojson::object>()) {
-    const picojson::value& decoders_json = obj.at("decoder");
+  if (obj.count("decoder") && obj.at("decoder").try_cast<tvm::ffi::json::Object>().has_value()) {
+    const tvm::ffi::json::Value& decoders_json = obj.at("decoder");
 
     auto f_handle_decoder = [](ObjectPtr<TokenizerInfoNode> n,
-                               const picojson::value& decoder_json) {
-      ICHECK(decoder_json.is<picojson::object>());
-      auto obj = decoder_json.get<picojson::object>();
-      ICHECK(obj.count("type") && obj.at("type").is<std::string>());
-      if (obj.at("type").get<std::string>() == "Strip" && obj.count("content") &&
-          obj.at("content").is<std::string>() && obj.at("content").get<std::string>() == " " &&
-          obj.count("start") && obj.at("start").is<int64_t>() &&
-          obj.at("start").get<int64_t>() == 1 && obj.count("stop") &&
-          obj.at("stop").is<int64_t>() && obj.at("stop").get<int64_t>() == 0) {
+                               const tvm::ffi::json::Value& decoder_json) {
+      ICHECK(decoder_json.try_cast<tvm::ffi::json::Object>().has_value());
+      auto obj = decoder_json.cast<tvm::ffi::json::Object>();
+      ICHECK(obj.count("type") && obj.at("type").try_cast<tvm::ffi::String>().has_value());
+      if (obj.at("type").cast<tvm::ffi::String>() == "Strip" && obj.count("content") &&
+          obj.at("content").try_cast<tvm::ffi::String>().has_value() &&
+          obj.at("content").cast<tvm::ffi::String>() == " " && obj.count("start") &&
+          obj.at("start").try_cast<int64_t>().has_value() && obj.at("start").cast<int64_t>() == 1 &&
+          obj.count("stop") && obj.at("stop").try_cast<int64_t>().has_value() &&
+          obj.at("stop").cast<int64_t>() == 0) {
         n->strip_space_in_decode = true;
         return true;
       }
       return false;
     };
 
-    auto type = decoders_json.get<picojson::object>().at("type").get<std::string>();
+    auto type = decoders_json.cast<tvm::ffi::json::Object>().at("type").cast<tvm::ffi::String>();
     if (type == "Sequence") {
-      ICHECK(decoders_json.get<picojson::object>().count("decoders") &&
-             decoders_json.get<picojson::object>().at("decoders").is<picojson::array>());
-      for (const picojson::value& decoder :
-           decoders_json.get<picojson::object>().at("decoders").get<picojson::array>()) {
+      ICHECK(decoders_json.cast<tvm::ffi::json::Object>().count("decoders") &&
+             decoders_json.cast<tvm::ffi::json::Object>()
+                 .at("decoders")
+                 .try_cast<tvm::ffi::json::Array>()
+                 .has_value());
+      for (const tvm::ffi::json::Value& decoder : decoders_json.cast<tvm::ffi::json::Object>()
+                                                      .at("decoders")
+                                                      .cast<tvm::ffi::json::Array>()) {
         if (f_handle_decoder(n, decoder)) {
           break;
         }

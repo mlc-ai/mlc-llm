@@ -6,7 +6,7 @@
 #ifndef MLC_LLM_SERVE_METRICS_H_
 #define MLC_LLM_SERVE_METRICS_H_
 
-#include <picojson.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/runtime/logging.h>
 
 #include <chrono>
@@ -52,7 +52,7 @@ struct TimeCost {
   }
 
   /*! \brief Dump the metric as JSON. */
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 /*! \brief Runtime metrics for speculative decoding */
@@ -88,7 +88,7 @@ struct SpecDecodeMetrics {
     accept_count.clear();
     draft_count.clear();
   }
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 /*!
@@ -154,7 +154,7 @@ struct RequestMetrics {
    * \brief Return the request metrics in JSON.
    * \return The metrics in JSON
    */
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
   /*!
    * \brief Return OpenAI compatible usage metrics
    * \param include_extra Whether to include extra set of metrics
@@ -246,7 +246,7 @@ struct EngineMetrics {
    * \brief Return the engine runtime metrics in JSON.
    * \return The metrics in JSON
    */
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 
   /*!
    * \brief return engine metrics as usage json string.
