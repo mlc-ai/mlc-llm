@@ -106,15 +106,58 @@ class ImageData(Data):
         else:
             raise ValueError(f"Unsupported image URL format: {url}")
 
-        # image_embed_size = ImageData.get_embed_size(config)
-        # TODO: fix these hard-coded values for phi3.5-vision and llava # pylint: disable=fixme
-        image_embed_size = 576
-        if config["model_type"] == "phi3_v":
-            image_embed_size = 1921
+        model_type = config["model_type"]
+        image_embed_size = ImageData._compute_embed_size(
+            model_type, image_tensor.width, image_tensor.height, config
+        )
         image_tensor = np.expand_dims(image_tensor, axis=0)  # HWC -> NHWC
         image_features = tvm.runtime.tensor(image_tensor)
         image_data = ImageData(image_features, image_embed_size)
         return image_data
+
+    @staticmethod
+    def _compute_embed_size(model_type: str, width: int, height: int, config: Dict) -> int:
+        """Compute image embed size based on model type and image dimensions.
+
+        This must match the C++ CalculateResizeShape/CalculateCropShape logic
+        in cpp/support/vlm_utils.cc so the embed_size agrees with the actual
+        number of tokens produced by image_embed.
+        """
+        import math  # pylint: disable=import-outside-toplevel
+
+        if model_type == "phi3_v":
+            # Replicate C++ CalculateResizeShape (hd_num=4)
+            hd_num = 4
+            ratio = width / height
+            scale = 1
+            while scale * math.ceil(scale / ratio) <= hd_num:
+                scale += 1
+            scale -= 1
+
+            target_w = scale * 336
+            target_h = int(target_w / ratio)
+
+            # CalculatePadShape
+            pad_h = int(math.ceil(target_h / 336.0) * 336)
+
+            # CalculateCropShape
+            crop_h = pad_h // 336
+            crop_w = target_w // 336  # == scale
+
+            # Token count formula from phi3v_image.py forward():
+            # sub_tokens: h_crop * 12 * (w_crop * 12 + 1)  (12 = 24/2 from 2x2 merge, +1 for newline)
+            # glb_GN: 1 separator token
+            # glb_tokens: 12 * (12 + 1) = 156  (global image with 1x1 crop)
+            sub_tokens = crop_h * 12 * (crop_w * 12 + 1)
+            glb_tokens = 12 * (12 + 1)
+            return sub_tokens + 1 + glb_tokens
+
+        if model_type == "gemma3_v":
+            # fixed to 256 per image
+            return 256
+
+        # Default: (image_size / patch_size)^2
+        return ImageData.get_embed_size(config)
 
     @staticmethod
     def get_embed_size(config: Dict) -> int:
