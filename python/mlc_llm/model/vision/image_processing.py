@@ -235,6 +235,45 @@ class ImageProcessor(Module):
         )
         return out
 
+    def normalize_siglip(self, image: Tensor, o_dtype="float32"):
+        """Normalize with SigLIP values: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]"""
+        assert 4 == image.ndim, "image should be 4D data tensor"
+        assert 3 == image.shape[1], "image layout should be NCHW"
+
+        def create_normalize_siglip_func(dtype, o_dtype):
+            @T.prim_func
+            def normalize_siglip_func(image: T.handle, out: T.handle):
+                n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
+                image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
+                out_buf = T.match_buffer(out, (n, c, h, w), dtype=o_dtype)
+
+                for n_idx in T.thread_binding(n, thread="blockIdx.x"):
+                    for c_idx in T.thread_binding(c, thread="blockIdx.y"):
+                        for h_idx, w_idx in T.grid(h, w):
+                            with T.sblock("normalize_siglip"):
+                                T.reads(image_buf[n_idx, c_idx, h_idx, w_idx])
+                                T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
+                                if h_idx < h and w_idx < w:
+                                    out_buf[n_idx, c_idx, h_idx, w_idx] = (
+                                        T.cast(
+                                            image_buf[n_idx, c_idx, h_idx, w_idx],
+                                            o_dtype,
+                                        )
+                                        - T.float32(0.5)
+                                    ) / T.float32(0.5)
+
+            sch = s_tir.Schedule(normalize_siglip_func)
+            self.apply_schedule(sch, sch.get_sblock("normalize_siglip"))
+            return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+
+        out = op.tensor_ir_op(
+            create_normalize_siglip_func(image.dtype, o_dtype),
+            "normalize_siglip",
+            [image],
+            [Tensor.placeholder(image.shape, o_dtype)],
+        )
+        return out
+
     def pad(self, image: Tensor, dtype="uint8"):
         assert 4 == image.ndim, "image should be 4D data tensor"
         assert 3 == image.shape[1], "image layout should be NCHW"

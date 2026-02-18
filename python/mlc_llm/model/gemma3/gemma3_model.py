@@ -264,13 +264,36 @@ class Gemma3DecoderLayer(nn.Module):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         out = self._apply_post_matmul_norm(out, norm=self.post_attention_layernorm)
         hidden_states = out + hidden_states
+        # Gemma3 was designed for bfloat16 and its RMSNorm weights can be very large
+        # (up to 300+), causing overflow in float16. Clamp to prevent NaN propagation.
+        # see https://github.com/huggingface/transformers/issues/39972
+        hidden_states = self._clamp_fp16(hidden_states)
 
         out = self.pre_feedforward_layernorm(hidden_states)
         out = self.mlp(out)
         out = self._apply_post_matmul_norm(out, norm=self.post_feedforward_layernorm)
         hidden_states = out + hidden_states
+        hidden_states = self._clamp_fp16(hidden_states)
 
         return hidden_states
+
+    @staticmethod
+    def _clamp_fp16(x: Tensor) -> Tensor:
+        """Clamp tensor values to float16 representable range to prevent overflow."""
+        if x.dtype == "float16":
+
+            def _clamp(tensor: te.Tensor):
+                return te.compute(
+                    tensor.shape,
+                    lambda *idx: tir.max(
+                        tir.min(tensor[idx], tir.const(65504.0, "float16")),
+                        tir.const(-65504.0, "float16"),
+                    ),
+                    name="clamp_fp16",
+                )
+
+            return op.tensor_expr_op(_clamp, name_hint="clamp_fp16", args=[x])
+        return x
 
     def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Tensor):
         if self.tensor_parallel_shards > 1:
