@@ -1,16 +1,137 @@
 """A pass that rewrites KV cache creation functions in IRModule."""
 
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import tvm
 from tvm import IRModule, relax
+from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.frontend.nn.llm import kv_cache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 
 from mlc_llm.support import logging
 
 logger = logging.getLogger(__name__)
+
+_OP_CALL_DPS_PACKED = tvm.ir.Op.get("relax.call_dps_packed")
+_OP_CALL_PURE_PACKED = tvm.ir.Op.get("relax.call_pure_packed")
+_ATTN_WITH_FUSED_QKV = "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
+_ATTN_SELF = "vm.builtin.attention_kv_cache_self_attention"
+_ATTN_CROSS = "vm.builtin.attention_kv_cache_cross_attention"
+_APPEND_MLA_KV = "vm.builtin.attention_kv_cache_append_mla_kv"
+_UNSUPPORTED_KV_CACHE_DTYPES = {"int8", "float8_e4m3fn", "float8_e5m2"}
+
+
+@mutator
+class _KVCacheCallDTypeRewriter(PyExprMutator):  # pylint: disable=abstract-method
+    """Rewrite KV cache runtime calls to adapt tensor dtypes to KV cache dtype."""
+
+    def __init__(self, mod: IRModule, kv_cache_dtype: str) -> None:
+        super().__init__(mod)
+        self.mod = mod
+        self.kv_cache_dtype = kv_cache_dtype
+
+    def transform(self) -> IRModule:
+        """Entry point."""
+        for g_var, func in self.mod.functions_items():
+            if isinstance(func, relax.Function):
+                self.builder_.update_func(g_var, self.visit_expr(func))
+        mod = self.builder_.finalize()
+        if self.mod.attrs is not None:
+            mod = mod.with_attrs(self.mod.attrs)
+        return mod
+
+    def visit_call_(self, call: relax.Call) -> relax.Expr:  # pylint: disable=arguments-renamed
+        call = super().visit_call_(call)
+
+        if call.op == _OP_CALL_DPS_PACKED and isinstance(call.args[0], relax.ExternFunc):
+            global_symbol = str(call.args[0].global_symbol)
+            if global_symbol == _ATTN_WITH_FUSED_QKV:
+                return self._rewrite_attention_with_fused_qkv(call, global_symbol)
+            if global_symbol in [_ATTN_SELF, _ATTN_CROSS]:
+                return self._rewrite_self_or_cross_attention(call, global_symbol)
+
+        if call.op == _OP_CALL_PURE_PACKED and isinstance(call.args[0], relax.ExternFunc):
+            global_symbol = str(call.args[0].global_symbol)
+            if global_symbol == _APPEND_MLA_KV:
+                return self._rewrite_append_mla_kv(call, global_symbol)
+
+        return call
+
+    def _rewrite_attention_with_fused_qkv(self, call: relax.Call, global_symbol: str) -> relax.Expr:
+        if len(call.args) < 2 or not isinstance(call.args[1], relax.Tuple):
+            return call
+        packed_args = list(call.args[1].fields)
+        if len(packed_args) != 4:
+            return call
+        qkv = packed_args[3]
+        qkv_sinfo = qkv.struct_info
+        if not isinstance(qkv_sinfo, relax.TensorStructInfo):
+            return call
+        if str(qkv_sinfo.dtype) == self.kv_cache_dtype:
+            return call
+        out_sinfo = call.struct_info
+        if not isinstance(out_sinfo, relax.TensorStructInfo):
+            return call
+
+        packed_args[3] = relax.op.astype(qkv, self.kv_cache_dtype)
+        kv_out_sinfo = relax.TensorStructInfo(out_sinfo.shape, self.kv_cache_dtype)
+        rewritten_call = relax.call_dps_packed(global_symbol, packed_args, out_sinfo=kv_out_sinfo)
+        return relax.op.astype(rewritten_call, str(qkv_sinfo.dtype))
+
+    def _rewrite_self_or_cross_attention(  # pylint: disable=too-many-return-statements
+        self, call: relax.Call, global_symbol: str
+    ) -> relax.Expr:
+        if len(call.args) < 2 or not isinstance(call.args[1], relax.Tuple):
+            return call
+        packed_args = list(call.args[1].fields)
+        if len(packed_args) < 4:
+            return call
+        q_data = packed_args[3]
+        q_sinfo = q_data.struct_info
+        if not isinstance(q_sinfo, relax.TensorStructInfo):
+            return call
+        if str(q_sinfo.dtype) == self.kv_cache_dtype:
+            return call
+        out_sinfo = call.struct_info
+        if not isinstance(out_sinfo, relax.TupleStructInfo):
+            return call
+        if len(out_sinfo.fields) != 2 or not isinstance(
+            out_sinfo.fields[0], relax.TensorStructInfo
+        ):
+            return call
+
+        packed_args[3] = relax.op.astype(q_data, self.kv_cache_dtype)
+        kv_o_sinfo = relax.TensorStructInfo(out_sinfo.fields[0].shape, self.kv_cache_dtype)
+        rewritten_call = relax.call_dps_packed(
+            global_symbol,
+            packed_args,
+            out_sinfo=[kv_o_sinfo, out_sinfo.fields[1]],
+        )
+        return relax.Tuple(
+            [
+                relax.op.astype(relax.TupleGetItem(rewritten_call, 0), str(q_sinfo.dtype)),
+                relax.TupleGetItem(rewritten_call, 1),
+            ]
+        )
+
+    def _rewrite_append_mla_kv(self, call: relax.Call, global_symbol: str) -> relax.Expr:
+        if len(call.args) < 4:
+            return call
+        kv_data = call.args[3]
+        kv_sinfo = kv_data.struct_info
+        if not isinstance(kv_sinfo, relax.TensorStructInfo):
+            return call
+        if str(kv_sinfo.dtype) == self.kv_cache_dtype:
+            return call
+        updated_args = list(call.args)
+        updated_args[3] = relax.op.astype(kv_data, self.kv_cache_dtype)
+        sinfo_args = list(call.sinfo_args)
+        return relax.call_pure_packed(
+            global_symbol,
+            *updated_args[1:],
+            sinfo_args=sinfo_args[0] if len(sinfo_args) == 1 else sinfo_args,
+        )
 
 
 def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
@@ -101,6 +222,31 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         self.flashinfer = flashinfer
         self.metadata = metadata
 
+    def _requested_kv_cache_dtype(self) -> Optional[str]:
+        dtype = self.metadata.get("kv_cache_dtype")
+        if dtype in [None, "", "auto"]:
+            return None
+        if not isinstance(dtype, str):
+            dtype = str(dtype)
+        return dtype
+
+    def _apply_kv_cache_dtype_override(self, kwargs: Dict[str, Any]) -> None:
+        requested_dtype = self._requested_kv_cache_dtype()
+        if requested_dtype is None:
+            return
+        if requested_dtype in _UNSUPPORTED_KV_CACHE_DTYPES:
+            raise ValueError(
+                f"kv_cache_dtype={requested_dtype} is not supported yet. "
+                "Current int8 KV path needs proper scale-based quant/dequant, and FP8 KV path "
+                "still fails in upstream TVM dtype legalization."
+            )
+        logger.info(
+            "Overriding KV cache dtype from %s to %s",
+            kwargs["dtype"],
+            requested_dtype,
+        )
+        kwargs["dtype"] = requested_dtype
+
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         func_dict = {}
@@ -120,6 +266,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             new_mod = new_mod.with_attrs(mod.attrs)
 
         kwargs = extract_creation_args(creation_func)
+        self._apply_kv_cache_dtype_override(kwargs)
         self.attach_kv_cache_metadata(kwargs)
 
         bb = relax.BlockBuilder(new_mod)
@@ -130,6 +277,9 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         mod = bb.finalize()
         mod_attrs = dict(mod.attrs) if mod.attrs else {}
         mod = mod.with_attr("external_mods", mod_attrs.get("external_mods", []) + extern_mods)
+        requested_kv_cache_dtype = self._requested_kv_cache_dtype()
+        if requested_kv_cache_dtype is not None:
+            mod = _KVCacheCallDTypeRewriter(mod, requested_kv_cache_dtype).transform()
         return mod
 
     def attach_kv_cache_metadata(self, kwargs: Dict[str, Any]):
@@ -139,6 +289,7 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
             "num_attention_heads": kwargs["num_attention_heads"],
             "num_key_value_heads": kwargs["num_key_value_heads"],
             "head_dim": kwargs["qk_head_dim"],
+            "dtype": str(kwargs["dtype"]),
         }
 
     def create_tir_paged_kv_cache(

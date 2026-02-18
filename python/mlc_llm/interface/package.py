@@ -159,7 +159,7 @@ def build_model_library(  # pylint: disable=too-many-branches,too-many-locals,to
     return model_lib_path_for_prepare_libs
 
 
-def validate_model_lib(  # pylint: disable=too-many-locals
+def validate_model_lib(  # pylint: disable=too-many-locals,too-many-statements
     app_config_path: Path,
     package_config_path: Path,
     model_lib_path_for_prepare_libs: dict,
@@ -327,9 +327,9 @@ def build_macabi_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     deployment_target = os.environ.get("MLC_MACABI_DEPLOYMENT_TARGET", "18.0")
     macabi_arch = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
     logger.info("Build macabi binding (deployment target %s)", deployment_target)
-    cmd = [
+    cmd: List[str] = [
         "bash",
-        mlc_llm_source_dir / "ios" / "prepare_libs.sh",
+        str(mlc_llm_source_dir / "ios" / "prepare_libs.sh"),
         "--catalyst",
         "--deployment-target",
         deployment_target,
