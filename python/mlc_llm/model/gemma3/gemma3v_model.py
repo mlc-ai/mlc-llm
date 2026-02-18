@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import relax, te, tir
+from tvm import relax, target, te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -126,7 +126,11 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.rope_theta = config.text_config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.dtype = "float32"
-        self.image_dtype = "uint8"
+        self.image_dtype = (
+            "uint32"
+            if target.Target.current() and target.Target.current().kind.name == "webgpu"
+            else "uint8"
+        )
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
