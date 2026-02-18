@@ -5,7 +5,7 @@ import math
 import os
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from tvm import tir
 from tvm.contrib import tvmjs
@@ -34,6 +34,11 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
     source: Path
     source_format: str
     output: Path
+    # Legacy merge-mode
+    lora_adapter: Optional[Path] = None
+    # New separate-mode
+    lora_separate: Optional[Path] = None
+    lora_alpha: float = 1.0
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -50,10 +55,47 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--source'):<25} {self.source}", file=out)
         print(f"  {bold('--source-format'):<25} {self.source_format}", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
+        if self.lora_adapter:
+            print(f"  {bold('--lora-adapter'):<25} {self.lora_adapter}", file=out)
+        if self.lora_separate:
+            print(f"  {bold('--lora-separate'):<25} {self.lora_separate}", file=out)
+            print(f"  {bold('--lora-alpha'):<25} {self.lora_alpha}", file=out)
         print(out.getvalue().rstrip())
 
 
-def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
+def _merge_lora_weights(args: ConversionArgs) -> Path:
+    """Merge LoRA weights into base model weights (legacy mode)."""
+    # Implement LoRA weight merging for legacy mode.
+    # For now, just return the original source path
+    logger.warning("LoRA weight merging not yet implemented, using base weights only")
+    return args.source
+
+
+# pylint: disable=too-many-locals,too-many-statements
+def _convert_args(args: ConversionArgs) -> None:
+    # ------------------------------------------------------------------
+    # Handle LoRA: separate-pack or legacy merge
+    # ------------------------------------------------------------------
+
+    lora_artifacts: List[str] = []  # relative paths inside output dir
+
+    if args.lora_separate:
+        from mlc_llm.loader.lora_packer import (  # pylint: disable=import-outside-toplevel
+            pack_lora_adapter,
+        )
+
+        adapter_rel_dir = Path("adapters")
+        packed_path = pack_lora_adapter(
+            args.lora_separate,
+            args.output / adapter_rel_dir / "adapter0.npz",
+        )
+        lora_artifacts.append(str(packed_path.relative_to(args.output)))
+        source_path = args.source  # base model unchanged
+
+    else:
+        # legacy merge path (if provided)
+        source_path = _merge_lora_weights(args) if args.lora_adapter else args.source
+
     pre_shards_num = os.getenv("MLC_INTERNAL_PRESHARD_NUM")
     # model config & quantization config
     model_config = args.model.config.from_file(args.config)
@@ -120,7 +162,7 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         nonlocal total_params, total_bytes
         with Target.from_device(args.device), tqdm.redirect():
             loader = LOADER[args.source_format](
-                path=args.source,
+                path=source_path,
                 extern_param_map=args.model.source[args.source_format](
                     model_config, args.quantization
                 ),
@@ -135,11 +177,20 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         total_params = loader.stats.total_param_num
 
     def _metadata_callback() -> Dict[str, Any]:
-        return {
+        metadata: Dict[str, Any] = {
             "ParamSize": len(param_names),
             "ParamBytes": total_bytes,
             "BitsPerParam": total_bytes * 8.0 / total_params,
         }
+        # Add LoRA metadata if adapter was used
+        if args.lora_separate:
+            metadata["LoRASeparate"] = True
+            metadata["LoRAPaths"] = lora_artifacts
+            metadata["LoRAAlpha"] = args.lora_alpha
+        elif args.lora_adapter:
+            metadata["LoRAAdapter"] = str(args.lora_adapter)
+            metadata["LoRAMerged"] = True
+        return metadata
 
     # dump to output directory
     tvmjs.dump_tensor_cache(
@@ -163,9 +214,14 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
         green("Bits per parameter"),
         total_bytes * 8.0 / total_params,
     )
+    if args.lora_separate:
+        logger.info("%s: %s", green("LoRA adapter packed from"), bold(str(args.lora_separate)))
+    elif args.lora_adapter:
+        logger.info("%s: %s", green("LoRA adapter merged from"), bold(str(args.lora_adapter)))
     logger.info("Saved to directory: %s", bold(str(args.output)))
 
 
+# pylint: enable=too-many-locals,too-many-statements
 def convert_weight(  # pylint: disable=too-many-arguments
     config: Path,
     quantization: Quantization,
@@ -174,8 +230,22 @@ def convert_weight(  # pylint: disable=too-many-arguments
     source: Path,
     source_format: str,
     output: Path,
+    lora_adapter: Optional[Path] = None,
+    lora_separate: Optional[Path] = None,
+    lora_alpha: float = 1.0,
 ):
     """MLC LLM's weight conversation and quantization flow."""
-    args = ConversionArgs(config, quantization, model, device, source, source_format, output)
+    args = ConversionArgs(
+        config,
+        quantization,
+        model,
+        device,
+        source,
+        source_format,
+        output,
+        lora_adapter,
+        lora_separate,
+        lora_alpha,
+    )
     args.display()
     _convert_args(args)

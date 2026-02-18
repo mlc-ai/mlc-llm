@@ -23,8 +23,8 @@ def get_lib_path():
     # conda installs libraries into env instead of packaging with pip
     if not CONDA_BUILD:
         libs = [
-            libinfo["find_lib_path"]("mlc_llm")[0],
-            libinfo["find_lib_path"]("mlc_llm_module")[0],
+            *libinfo["find_lib_path"]("mlc_llm", optional=True),
+            *libinfo["find_lib_path"]("mlc_llm_module", optional=True),
         ]
     else:
         libs = None
@@ -88,7 +88,7 @@ class BinaryDistribution(Distribution):
 def main():
     """The main entrypoint."""
     setup_kwargs = {}
-    if not CONDA_BUILD:
+    if not CONDA_BUILD and LIB_LIST:
         with open("MANIFEST.in", "w", encoding="utf-8") as fo:
             for path in LIB_LIST:
                 if os.path.isfile(path):
@@ -131,7 +131,7 @@ def main():
             elif os.path.isdir(path):
                 shutil.rmtree(path)
 
-    if not CONDA_BUILD:
+    if not CONDA_BUILD and LIB_LIST:
         # Wheel cleanup
         os.remove("MANIFEST.in")
         for path in LIB_LIST:
