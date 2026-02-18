@@ -18,13 +18,12 @@ from tvm.relax.frontend.nn import op
 from tvm.relax.frontend.nn.op import (
     add,
     broadcast_to,
-    matmul,
     permute_dims,
     reshape,
-    softmax,
     wrap_nested,
 )
 from tvm.relax.op import arange
+from mlc_llm import op as op_ext
 from mlc_llm.support.config import ConfigBase
 
 logger = logging.getLogger(__name__)
@@ -126,23 +125,7 @@ class SigLIPAttention(Module):
         k = self.k_proj(hidden_states).reshape(b, s, h, d)
         v = self.v_proj(hidden_states).reshape(b, s, h, d)
 
-        # Manual attention: the TIR kernel from op_ext.attention produces incorrect
-        # results for non-power-of-2 head_dim on Metal (generated with target="cuda").
-        # Use explicit matmul + softmax instead.
-        q = permute_dims(q, axes=(0, 2, 1, 3))  # (b, h, s, d)
-        k = permute_dims(k, axes=(0, 2, 1, 3))  # (b, h, s, d)
-        v = permute_dims(v, axes=(0, 2, 1, 3))  # (b, h, s, d)
-
-        k_t = permute_dims(k, axes=(0, 1, 3, 2))  # (b, h, d, s)
-        attn_weights = matmul(q, k_t, out_dtype="float32")  # (b, h, s, s)
-        attn_weights = attn_weights * Tensor.from_scalar(1.0 / (d**0.5), dtype="float32")
-        attn_weights = softmax(attn_weights, axis=-1)
-        attn_weights = attn_weights.astype(v.dtype)
-
-        attn_output = matmul(attn_weights, v)  # (b, h, s, d)
-        attn_output = permute_dims(attn_output, axes=(0, 2, 1, 3))  # (b, s, h, d)
-        attn_output = reshape(attn_output, shape=(b, s, h * d))  # (b, s, h*d)
-
+        attn_output = op_ext.attention(q, k, v, None)
         attn_output = self.out_proj(attn_output)
         return attn_output
 
