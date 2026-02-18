@@ -176,7 +176,15 @@ class Conversation(BaseModel):
                 elif item["type"] == "image_url":
                     assert config is not None, "Model config is required"
                     image_url = _get_url_from_item(item)
-                    message_list.append(data.ImageData.from_url(image_url, config))
+                    model_type = config.get("model_type", "") if config else ""
+                    if model_type == "gemma3_v":
+                        # Wrap with \n BOI [img embeds] EOI \n for Gemma 3 Vision
+                        message_list.append("\n")
+                        message_list.append(data.TokenData([255999]))  # BOI
+                        message_list.append(data.ImageData.from_url(image_url, config))
+                        message_list.append(data.TokenData([256000]))  # EOI
+                    else:
+                        message_list.append(data.ImageData.from_url(image_url, config))
                     message_list.append("\n")
                 else:
                     raise ValueError(f"Unsupported content type: {item['type']}")

@@ -339,6 +339,7 @@ CONV_TEMPLATES = {
     "stablelm-2",
     "gemma_instruction",
     "gemma3_instruction",
+    "gemma3_vision_instruction",
     "orion",
     "llava",
     "hermes2_pro_llama3",
