@@ -1,5 +1,7 @@
 """Operators enabled by external modules."""
 
+import math
+
 import tvm
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -63,10 +65,6 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     group_size = h_q // h_kv
 
     def _fallback():
-        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
-            _attention_sequence_prefill,
-        )
-
         nonlocal q, k, v, qk_dtype
         if k.ndim == 3:
             k = op.reshape(k, [b, t, h_kv, d])
@@ -76,7 +74,42 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
             k = k.repeat(h_q // h_kv, axis=2)
             v = v.repeat(h_q // h_kv, axis=2)
 
-        target = tvm.target.Target("cuda")
+        # The TIR attention kernel (_attention_sequence_prefill) produces incorrect
+        # results for non-standard head_dim values (e.g. 72) that are not multiples
+        # of 16, likely due to scheduling/vectorization issues in the generated
+        # Metal kernels. Fall back to naive matmul+softmax for these cases.
+        if isinstance(d, int) and d % 16 != 0:
+            # q: [b, s, h_q, d] -> [b, h_q, s, d]
+            q_t = op.permute_dims(q, [0, 2, 1, 3])
+            # k: [b, t, h_q, d] -> [b, h_q, d, t]  (transposed for QK^T)
+            k_t = op.permute_dims(k, [0, 2, 3, 1])
+            # v: [b, t, h_q, d] -> [b, h_q, t, d]
+            v_t = op.permute_dims(v, [0, 2, 1, 3])
+
+            # attn_weights: [b, h_q, s, t] in float32 for numerical stability
+            scale = 1.0 / math.sqrt(d)
+            attn_weights = op.matmul(q_t, k_t, out_dtype="float32")
+            attn_weights = attn_weights * scale
+
+            # Apply causal mask if provided
+            if casual_mask is not None:
+                attn_weights = attn_weights + casual_mask.astype("float32")
+
+            attn_weights = op.softmax(attn_weights, axis=-1)
+            attn_weights = attn_weights.astype(v.dtype)
+
+            # attn_output: [b, h_q, s, d]
+            attn_output = op.matmul(attn_weights, v_t)
+            # -> [b, s, h_q, d] -> [b, s, h_q * d]
+            attn_output = op.permute_dims(attn_output, [0, 2, 1, 3])
+            output = op.reshape(attn_output, shape=(b, s, h_q * d))
+            return output
+
+        from tvm.relax.frontend.nn.llm.kv_cache import (  # pylint: disable=import-outside-toplevel
+            _attention_sequence_prefill,
+        )
+
+        target = _extern.get_store().target or tvm.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
             _attention_sequence_prefill(  # pylint: disable=no-value-for-parameter
                 h_kv=h_kv,
