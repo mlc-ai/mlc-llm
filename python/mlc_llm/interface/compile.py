@@ -22,6 +22,7 @@ from mlc_llm.support.style import bold
 from .compiler_flags import ModelConfigOverride, OptimizationFlags
 
 logger = logging.getLogger(__name__)
+_UNSUPPORTED_KV_CACHE_DTYPE_OVERRIDES = {"int8", "float8_e4m3fn", "float8_e5m2"}
 
 
 @dataclasses.dataclass
@@ -231,6 +232,13 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     debug_dump: Optional[Path] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    if overrides.kv_cache_dtype in _UNSUPPORTED_KV_CACHE_DTYPE_OVERRIDES:
+        raise ValueError(
+            f"kv_cache_dtype={overrides.kv_cache_dtype} is not supported yet. "
+            "Current int8 KV path needs proper scale-based quant/dequant, and FP8 KV path "
+            "still fails in upstream TVM dtype legalization."
+        )
+
     avs = None
     if "active_vocab_size" in config:
         avs = config.pop("active_vocab_size")

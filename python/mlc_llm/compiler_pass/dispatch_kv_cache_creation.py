@@ -19,6 +19,7 @@ _ATTN_WITH_FUSED_QKV = "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
 _ATTN_SELF = "vm.builtin.attention_kv_cache_self_attention"
 _ATTN_CROSS = "vm.builtin.attention_kv_cache_cross_attention"
 _APPEND_MLA_KV = "vm.builtin.attention_kv_cache_append_mla_kv"
+_UNSUPPORTED_KV_CACHE_DTYPES = {"int8", "float8_e4m3fn", "float8_e5m2"}
 
 
 @mutator
@@ -233,6 +234,12 @@ class DispatchKVCacheCreation:  # pylint: disable=too-many-instance-attributes
         requested_dtype = self._requested_kv_cache_dtype()
         if requested_dtype is None:
             return
+        if requested_dtype in _UNSUPPORTED_KV_CACHE_DTYPES:
+            raise ValueError(
+                f"kv_cache_dtype={requested_dtype} is not supported yet. "
+                "Current int8 KV path needs proper scale-based quant/dequant, and FP8 KV path "
+                "still fails in upstream TVM dtype legalization."
+            )
         logger.info(
             "Overriding KV cache dtype from %s to %s",
             kwargs["dtype"],

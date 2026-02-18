@@ -1,17 +1,29 @@
 # pylint: disable=missing-docstring,protected-access
+import pytest
 import tvm
 
 from mlc_llm.compiler_pass.dispatch_kv_cache_creation import DispatchKVCacheCreation
 
 
-def test_apply_kv_cache_dtype_override():
-    metadata = {"kv_cache_dtype": "int8"}
+def test_apply_kv_cache_dtype_override_supported_dtype():
+    metadata = {"kv_cache_dtype": "float16"}
     dispatch = DispatchKVCacheCreation(
         tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
     )
     kwargs = {"dtype": "float16"}
     dispatch._apply_kv_cache_dtype_override(kwargs)
-    assert kwargs["dtype"] == "int8"
+    assert kwargs["dtype"] == "float16"
+
+
+@pytest.mark.parametrize("dtype", ["int8", "float8_e4m3fn", "float8_e5m2"])
+def test_apply_kv_cache_dtype_override_rejects_unsupported(dtype: str):
+    metadata = {"kv_cache_dtype": dtype}
+    dispatch = DispatchKVCacheCreation(
+        tvm.target.Target("llvm"), flashinfer=False, metadata=metadata
+    )
+    kwargs = {"dtype": "float16"}
+    with pytest.raises(ValueError, match="is not supported yet"):
+        dispatch._apply_kv_cache_dtype_override(kwargs)
 
 
 def test_apply_kv_cache_dtype_override_auto_no_change():
