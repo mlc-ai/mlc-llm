@@ -145,3 +145,4 @@ def test_mlc_hf_logit_match():
 
 if __name__ == "__main__":
     test_mlc_hf_logit_match()
+    
