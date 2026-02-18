@@ -268,7 +268,6 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         layer_id: int,
         cache_position,
     ):
-
         d, h_q = self.head_dim, self.num_q_heads
         b, s, _ = hidden_states.shape
         # QKV Projection
@@ -398,7 +397,6 @@ class Llama4TextMoe(nn.Module):
         self.shared_expert = Llama4TextMLP(config)
 
     def forward(self, hidden_states):
-
         hidden_states = hidden_states.reshape(-1, self.hidden_dim)
         router_scores, _ = self.router(hidden_states)
 
@@ -494,7 +492,6 @@ class Llama4TextDecoderLayer(nn.Module):
         layer_id: int,
         cache_position,
     ):
-
         out = self.self_attn(
             self.input_layernorm(hidden_states),
             paged_kv_cache,
