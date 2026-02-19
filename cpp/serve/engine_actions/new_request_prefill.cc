@@ -342,6 +342,10 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       // Update max prefill length
       input->max_prefill_length =
           std::min(input->max_prefill_length, rsentry->mstates[0]->GetInputLength());
+      
+      // Set prompt cache tokens in metrics
+      rsentry->rstate->metrics.prompt_cache_tokens = result.prefilled_offset;
+      
       return result.prefilled_offset;
     }
     return 0;

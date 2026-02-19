@@ -17,6 +17,9 @@ from mlc_llm.protocol.openai_api_protocol import (
 )
 from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
+from mlc_llm.support import logging
+
+logger = logging.getLogger(__name__)
 
 app = fastapi.APIRouter()
 ################ v1/models ################
@@ -145,6 +148,18 @@ async def request_chat_completion(
     """OpenAI-compatible chat completion API.
     API reference: https://platform.openai.com/docs/api-reference/chat
     """
+    # Log incoming request for debugging
+    logger.debug(
+        "Incoming chat completion request: model=%s, stream=%s, max_tokens=%s, messages=%d",
+        request.model, request.stream, request.max_tokens, len(request.messages))
+
+    # Log message details
+    for i, message in enumerate(request.messages):
+        content_preview = (str(message.content)[:100] + "..."
+                          if message.content and len(str(message.content)) > 100
+                          else str(message.content))
+        logger.debug("Request message %d: role=%s, content=%s", i, message.role, content_preview)
+
     # - Check the requested model.
     server_context: ServerContext = ServerContext.current()
     request_final_usage_include_extra = server_context.enable_debug
