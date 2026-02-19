@@ -87,7 +87,7 @@ ModelMetadata ModelMetadata::FromJSON(const picojson::object& metadata,
   if (metadata.count("attention_sink_size"))  // remove after sink is decoupled from model lib
     result.attention_sink_size = json::Lookup<int64_t>(metadata, "attention_sink_size");
   result.seqlen_padding_factor =
-      json::LookupOrDefault<int64_t>(metadata, "seqlen_padding_factor", 1);
+      json::LookupOrDefault<int64_t>(metadata, "seqlen_padding_factor", 16);
   result.tensor_parallel_shards = json::Lookup<int64_t>(metadata, "tensor_parallel_shards");
   result.pipeline_parallel_stages =
       json::LookupOrDefault<int64_t>(metadata, "pipeline_parallel_stages", 1);
