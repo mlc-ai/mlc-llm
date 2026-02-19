@@ -610,6 +610,16 @@ def get_indptr(
     )
 
 
+def _schedule_scatter_output(sch: tir.Schedule):
+    block = sch.get_block("scatter")
+    i, j = sch.get_loops(block)
+    fused = sch.fuse(i, j)
+    max_threads = 1024
+    bx, tx = sch.split(fused, factors=[None, max_threads])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
+
+
 def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
     """Scatter the output of MoE experts back to the original positions.
 
@@ -647,4 +657,4 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
         "scatter_output",
         args=[x, indices],
         out=Tensor.placeholder(x.shape, dtype),
-    )
+    ).with_schedule(_schedule_scatter_output)
