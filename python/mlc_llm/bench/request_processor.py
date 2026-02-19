@@ -189,7 +189,7 @@ class AttachSamplingOptions(RequestProcessor):  # pylint: disable=too-few-public
             request_record.chat_cmpl.top_p = self.top_p
             request_record.chat_cmpl.frequency_penalty = 0.0
             request_record.chat_cmpl.presence_penalty = 0.0
-            request_record.chat_cmpl.tool_choice = "none"
+            request_record.chat_cmpl.tool_choice = None
             if self.ignore_eos:
                 request_record.chat_cmpl.debug_config = DebugConfig(ignore_eos=True)
         return request_records
