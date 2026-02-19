@@ -7,8 +7,8 @@
 #ifndef MLC_LLM_SERVE_FUNCTION_TABLE_H_
 #define MLC_LLM_SERVE_FUNCTION_TABLE_H_
 
-#include <picojson.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
@@ -48,7 +48,7 @@ using tvm::ffi::TypedFunction;
 struct FunctionTable {
   static Function SessionFuncAsPackedFunc(Session sess, DRef sess_func, String name);
 
-  void Init(String reload_lib_path, Device device, picojson::object model_config,
+  void Init(String reload_lib_path, Device device, tvm::ffi::json::Object model_config,
             Optional<Session> session, int num_shards, int num_stages);
 
   ObjectRef LoadParams(const std::string& model_path, Device device);
@@ -78,7 +78,7 @@ struct FunctionTable {
   Optional<DRef> disco_mod = std::nullopt;
   Optional<Map<String, ObjectRef>> cached_buffers = std::nullopt;
   Optional<tvm::ffi::Module> local_vm = std::nullopt;
-  picojson::object model_config;
+  tvm::ffi::json::Object model_config;
 
   TypedFunction<Function(const std::string&)> mod_get_func;
   TypedFunction<Function(const std::string&)> get_global_func;

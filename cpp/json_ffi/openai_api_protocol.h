@@ -6,6 +6,8 @@
 #ifndef MLC_LLM_JSON_FFI_OPENAI_API_PROTOCOL_H
 #define MLC_LLM_JSON_FFI_OPENAI_API_PROTOCOL_H
 
+#include <tvm/ffi/extra/json.h>
+
 #include <ctime>
 #include <optional>
 #include <random>
@@ -15,7 +17,6 @@
 
 #include "../serve/config.h"
 #include "../support/result.h"
-#include "picojson.h"
 
 namespace mlc {
 namespace llm {
@@ -49,8 +50,8 @@ class ChatFunction {
   std::unordered_map<std::string, std::string>
       parameters;  // Assuming parameters are string key-value pairs
 
-  static Result<ChatFunction> FromJSON(const picojson::object& json);
-  picojson::object AsJSON() const;
+  static Result<ChatFunction> FromJSON(const tvm::ffi::json::Object& json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatTool {
@@ -58,8 +59,8 @@ class ChatTool {
   Type type = Type::function;
   ChatFunction function;
 
-  static Result<ChatTool> FromJSON(const picojson::object& json);
-  picojson::object AsJSON() const;
+  static Result<ChatTool> FromJSON(const tvm::ffi::json::Object& json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatFunctionCall {
@@ -68,8 +69,8 @@ class ChatFunctionCall {
   std::optional<std::unordered_map<std::string, std::string>> arguments =
       std::nullopt;  // Assuming arguments are string key-value pairs
 
-  static Result<ChatFunctionCall> FromJSON(const picojson::object& json);
-  picojson::object AsJSON() const;
+  static Result<ChatFunctionCall> FromJSON(const tvm::ffi::json::Object& json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatToolCall {
@@ -78,8 +79,8 @@ class ChatToolCall {
   Type type = Type::function;
   ChatFunctionCall function;
 
-  static Result<ChatToolCall> FromJSON(const picojson::object& json);
-  picojson::object AsJSON() const;
+  static Result<ChatToolCall> FromJSON(const tvm::ffi::json::Object& json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatCompletionMessageContent {
@@ -121,8 +122,8 @@ class ChatCompletionMessage {
   std::optional<std::vector<ChatToolCall>> tool_calls = std::nullopt;
   std::optional<std::string> tool_call_id = std::nullopt;
 
-  static Result<ChatCompletionMessage> FromJSON(const picojson::object& json);
-  picojson::object AsJSON() const;
+  static Result<ChatCompletionMessage> FromJSON(const tvm::ffi::json::Object& json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatCompletionRequest {
@@ -161,7 +162,7 @@ class ChatCompletionResponseChoice {
   ChatCompletionMessage message;
   // TODO: logprobs
 
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatCompletionStreamResponseChoice {
@@ -171,7 +172,7 @@ class ChatCompletionStreamResponseChoice {
   ChatCompletionMessage delta;
   // TODO: logprobs
 
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatCompletionResponse {
@@ -184,7 +185,7 @@ class ChatCompletionResponse {
   std::string object = "chat.completion";
   // TODO: usage_info
 
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 class ChatCompletionStreamResponse {
@@ -195,9 +196,9 @@ class ChatCompletionStreamResponse {
   std::string model;
   std::string system_fingerprint;
   std::string object = "chat.completion.chunk";
-  std::optional<picojson::value> usage;
+  std::optional<tvm::ffi::json::Value> usage;
 
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 }  // namespace json_ffi

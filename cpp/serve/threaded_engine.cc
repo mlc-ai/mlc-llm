@@ -237,7 +237,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   }
 
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) const {
-    picojson::object config = json::ParseToJSONObject(generation_cfg_json_str);
+    json::Object config = json::ParseToJSONObject(generation_cfg_json_str);
     auto gen_config = GenerationConfig::FromJSON(config, GetDefaultGenerationConfig());
     CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
     return Request(std::move(id), std::move(inputs), gen_config.Unwrap());

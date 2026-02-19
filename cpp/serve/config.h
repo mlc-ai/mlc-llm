@@ -5,8 +5,8 @@
 #ifndef MLC_LLM_SERVE_CONFIG_H_
 #define MLC_LLM_SERVE_CONFIG_H_
 
-#include <picojson.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
@@ -39,12 +39,12 @@ struct ResponseFormat {
    * \param config_json The json string for generation config
    * \returns The converted result.
    */
-  static Result<ResponseFormat> FromJSON(const picojson::object& config_json);
+  static Result<ResponseFormat> FromJSON(const tvm::ffi::json::Object& config_json);
 
   /**
    * \return serialized json value of the config.
    */
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 enum class SpecialRequestKind : int {
@@ -86,8 +86,8 @@ class DisaggConfig {
   std::optional<int> kv_window_end = std::nullopt;
   std::optional<int> dst_group_offset = std::nullopt;
 
-  static Result<DisaggConfig> FromJSON(const picojson::object& config_json);
-  picojson::object AsJSON() const;
+  static Result<DisaggConfig> FromJSON(const tvm::ffi::json::Object& config_json);
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 /*! \brief The debug configuration of a request. */
@@ -105,12 +105,12 @@ class DebugConfig {
    * \param config_json The json string for generation config
    * \returns The converted result.
    */
-  static Result<DebugConfig> FromJSON(const picojson::object& config_json);
+  static Result<DebugConfig> FromJSON(const tvm::ffi::json::Object& config_json);
 
   /**
    * \return serialized json value of the config.
    */
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 };
 
 /*! \brief The generation configuration of a request. */
@@ -134,7 +134,7 @@ class GenerationConfigNode : public Object {
   ResponseFormat response_format;
   DebugConfig debug_config;
 
-  picojson::object AsJSON() const;
+  tvm::ffi::json::Object AsJSON() const;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -159,11 +159,11 @@ class GenerationConfig : public ObjectRef {
    * \param config_json The json string for generation config
    * \param default_config The default config
    */
-  static Result<GenerationConfig> FromJSON(const picojson::object& config_json,
+  static Result<GenerationConfig> FromJSON(const tvm::ffi::json::Object& config_json,
                                            const GenerationConfig& default_config);
 
   /*! \brief Get the default generation config from the model config. */
-  static GenerationConfig GetDefaultFromModelConfig(const picojson::object& json);
+  static GenerationConfig GetDefaultFromModelConfig(const tvm::ffi::json::Object& json);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenerationConfig, ObjectRef, GenerationConfigNode);
 };
@@ -322,7 +322,7 @@ class EngineConfigNode : public Object {
 class EngineConfig : public ObjectRef {
  public:
   /*! \brief Create EngineConfig from JSON object and inferred config. */
-  static EngineConfig FromJSONAndInferredConfig(const picojson::object& json,
+  static EngineConfig FromJSONAndInferredConfig(const tvm::ffi::json::Object& json,
                                                 const InferrableEngineConfig& inferred_config);
 
   /*!
@@ -346,13 +346,13 @@ struct InferrableEngineConfig {
   /*! \brief Infer the config for KV cache from a given initial config. */
   static Result<InferrableEngineConfig> InferForKVCache(
       EngineMode mode, Device device, double gpu_memory_utilization,
-      const std::vector<picojson::object>& model_configs,
+      const std::vector<tvm::ffi::json::Object>& model_configs,
       const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
       bool verbose);
   /*! \brief Infer the config for RNN state from a given initial config. */
   static Result<InferrableEngineConfig> InferForRNNState(
       EngineMode mode, Device device, double gpu_memory_utilization,
-      const std::vector<picojson::object>& model_configs,
+      const std::vector<tvm::ffi::json::Object>& model_configs,
       const std::vector<ModelMetadata>& model_metadata, InferrableEngineConfig init_config,
       bool verbose);
 };
@@ -360,7 +360,7 @@ struct InferrableEngineConfig {
 /****************** Config utils ******************/
 
 /*! \brief Check if the models use KV cache or RNN state. */
-Result<bool> ModelsUseKVCache(const std::vector<picojson::object>& model_configs);
+Result<bool> ModelsUseKVCache(const std::vector<tvm::ffi::json::Object>& model_configs);
 
 inline std::string EngineModeToString(EngineMode mode) {
   if (mode == EngineMode::kLocal) {

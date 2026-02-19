@@ -5,8 +5,8 @@
 #ifndef MLC_LLM_CPP_MODEL_METADATA_H_
 #define MLC_LLM_CPP_MODEL_METADATA_H_
 
-#include <picojson.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/data_type.h>
@@ -59,7 +59,8 @@ struct ModelMetadata {
       Shape in_shape;
       Shape out_shape;
       DataType out_dtype;
-      static Preproc FromJSON(const picojson::object& js, const picojson::object& model_config);
+      static Preproc FromJSON(const tvm::ffi::json::Object& js,
+                              const tvm::ffi::json::Object& model_config);
     };
 
     String name;
@@ -67,7 +68,8 @@ struct ModelMetadata {
     DataType dtype;
     std::vector<Preproc> preprocs;
     std::vector<int> pipeline_stages;
-    static Param FromJSON(const picojson::object& param_obj, const picojson::object& model_config);
+    static Param FromJSON(const tvm::ffi::json::Object& param_obj,
+                          const tvm::ffi::json::Object& model_config);
   };
 
   struct KVCacheMetadata {
@@ -75,7 +77,7 @@ struct ModelMetadata {
     int64_t num_attention_heads;
     int64_t num_key_value_heads;
     int64_t head_dim;
-    static KVCacheMetadata FromJSON(const picojson::object& json);
+    static KVCacheMetadata FromJSON(const tvm::ffi::json::Object& json);
   };
 
   std::string model_type;
@@ -94,9 +96,9 @@ struct ModelMetadata {
   KVStateKind kv_state_kind;
   KVCacheMetadata kv_cache_metadata;
 
-  static ModelMetadata FromJSON(const picojson::object& json_str,
-                                const picojson::object& model_config);
-  static ModelMetadata FromModule(Module module, const picojson::object& model_config);
+  static ModelMetadata FromJSON(const tvm::ffi::json::Object& json_str,
+                                const tvm::ffi::json::Object& model_config);
+  static ModelMetadata FromModule(Module module, const tvm::ffi::json::Object& model_config);
 };
 
 }  // namespace llm

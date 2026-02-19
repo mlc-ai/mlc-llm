@@ -13,51 +13,51 @@ using namespace mlc::llm;
 
 /****************** Model vision config ******************/
 
-ModelVisionConfig ModelVisionConfig::FromJSON(const picojson::object& json_obj) {
+ModelVisionConfig ModelVisionConfig::FromJSON(const tvm::ffi::json::Object& json_obj) {
   ModelVisionConfig config;
 
   Result<int64_t> hidden_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "hidden_size");
   if (hidden_size_res.IsOk()) {
-    config.hidden_size = hidden_size_res.Unwrap();
+    config.hidden_size = static_cast<int>(hidden_size_res.Unwrap());
   }
 
   Result<int64_t> image_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "image_size");
   if (image_size_res.IsOk()) {
-    config.image_size = image_size_res.Unwrap();
+    config.image_size = static_cast<int>(image_size_res.Unwrap());
   }
 
   Result<int64_t> intermediate_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "intermediate_size");
   if (intermediate_size_res.IsOk()) {
-    config.intermediate_size = intermediate_size_res.Unwrap();
+    config.intermediate_size = static_cast<int>(intermediate_size_res.Unwrap());
   }
 
   Result<int64_t> num_attention_heads_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "num_attention_heads");
   if (num_attention_heads_res.IsOk()) {
-    config.num_attention_heads = num_attention_heads_res.Unwrap();
+    config.num_attention_heads = static_cast<int>(num_attention_heads_res.Unwrap());
   }
 
   Result<int64_t> num_hidden_layers_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "num_hidden_layers");
   if (num_hidden_layers_res.IsOk()) {
-    config.num_hidden_layers = num_hidden_layers_res.Unwrap();
+    config.num_hidden_layers = static_cast<int>(num_hidden_layers_res.Unwrap());
   }
 
   Result<int64_t> patch_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "patch_size");
   if (patch_size_res.IsOk()) {
-    config.patch_size = patch_size_res.Unwrap();
+    config.patch_size = static_cast<int>(patch_size_res.Unwrap());
   }
 
   Result<int64_t> projection_dim_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "projection_dim");
   if (projection_dim_res.IsOk()) {
-    config.projection_dim = projection_dim_res.Unwrap();
+    config.projection_dim = static_cast<int>(projection_dim_res.Unwrap());
   }
 
   Result<int64_t> vocab_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "vocab_size");
   if (vocab_size_res.IsOk()) {
-    config.vocab_size = vocab_size_res.Unwrap();
+    config.vocab_size = static_cast<int>(vocab_size_res.Unwrap());
   }
 
   Result<std::string> dtype_res = json::LookupWithResultReturn<std::string>(json_obj, "dtype");
@@ -68,7 +68,7 @@ ModelVisionConfig ModelVisionConfig::FromJSON(const picojson::object& json_obj) 
   Result<int64_t> num_channels_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "num_channels");
   if (num_channels_res.IsOk()) {
-    config.num_channels = num_channels_res.Unwrap();
+    config.num_channels = static_cast<int>(num_channels_res.Unwrap());
   }
 
   Result<double> layer_norm_eps_res =
@@ -82,53 +82,53 @@ ModelVisionConfig ModelVisionConfig::FromJSON(const picojson::object& json_obj) 
 
 /****************** Model config ******************/
 
-ModelConfig ModelConfig::FromJSON(const picojson::object& json_obj) {
+ModelConfig ModelConfig::FromJSON(const tvm::ffi::json::Object& json_obj) {
   ModelConfig config;
 
   Result<int64_t> vocab_size_res = json::LookupWithResultReturn<int64_t>(json_obj, "vocab_size");
   if (vocab_size_res.IsOk()) {
-    config.vocab_size = vocab_size_res.Unwrap();
+    config.vocab_size = static_cast<int>(vocab_size_res.Unwrap());
   }
 
   Result<int64_t> context_window_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "context_window_size");
   if (context_window_size_res.IsOk()) {
-    config.context_window_size = context_window_size_res.Unwrap();
+    config.context_window_size = static_cast<int>(context_window_size_res.Unwrap());
   }
 
   Result<int64_t> sliding_window_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "sliding_window_size");
   if (sliding_window_size_res.IsOk()) {
-    config.sliding_window_size = sliding_window_size_res.Unwrap();
+    config.sliding_window_size = static_cast<int>(sliding_window_size_res.Unwrap());
   }
 
   Result<int64_t> prefill_chunk_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "prefill_chunk_size");
   if (prefill_chunk_size_res.IsOk()) {
-    config.prefill_chunk_size = prefill_chunk_size_res.Unwrap();
+    config.prefill_chunk_size = static_cast<int>(prefill_chunk_size_res.Unwrap());
   }
 
   Result<int64_t> tensor_parallel_shards_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "tensor_parallel_shards");
   if (tensor_parallel_shards_res.IsOk()) {
-    config.tensor_parallel_shards = tensor_parallel_shards_res.Unwrap();
+    config.tensor_parallel_shards = static_cast<int>(tensor_parallel_shards_res.Unwrap());
   }
 
   Result<int64_t> pipeline_parallel_stages_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "pipeline_parallel_stages");
   if (pipeline_parallel_stages_res.IsOk()) {
-    config.pipeline_parallel_stages = pipeline_parallel_stages_res.Unwrap();
+    config.pipeline_parallel_stages = static_cast<int>(pipeline_parallel_stages_res.Unwrap());
   }
 
   Result<int64_t> max_batch_size_res =
       json::LookupWithResultReturn<int64_t>(json_obj, "max_batch_size");
   if (max_batch_size_res.IsOk()) {
-    config.max_batch_size = max_batch_size_res.Unwrap();
+    config.max_batch_size = static_cast<int>(max_batch_size_res.Unwrap());
   }
 
   if (json_obj.count("vision_config")) {
-    const picojson::object& vision_config_obj =
-        json_obj.at("vision_config").get<picojson::object>();
+    const tvm::ffi::json::Object& vision_config_obj =
+        json_obj.at("vision_config").cast<tvm::ffi::json::Object>();
     config.vision_config = ModelVisionConfig::FromJSON(vision_config_obj);
   }
 
@@ -203,8 +203,8 @@ Result<std::optional<std::string>> TryGetFunctionCallingString(
   // TODO: support with tool choice as dict
   for (const auto& tool : tools_) {
     if (tool.function.name == tool_choice_) {
-      picojson::value function_str(tool.function.AsJSON());
-      return TResult::Ok(function_str.serialize());
+      tvm::ffi::json::Value function_str(tool.function.AsJSON());
+      return TResult::Ok(tvm::ffi::json::Stringify(function_str));
     }
   }
 
@@ -212,13 +212,13 @@ Result<std::optional<std::string>> TryGetFunctionCallingString(
     return TResult::Error("Invalid tool_choice value in the request: " + tool_choice_);
   }
 
-  picojson::array function_list;
+  tvm::ffi::json::Array function_list;
   for (const auto& tool : tools_) {
-    function_list.push_back(picojson::value(tool.function.AsJSON()));
+    function_list.push_back(tool.function.AsJSON());
   }
 
-  picojson::value function_list_json(function_list);
-  return TResult::Ok(function_list_json.serialize());
+  tvm::ffi::json::Value function_list_json(function_list);
+  return TResult::Ok(tvm::ffi::json::Stringify(function_list_json));
 };
 
 Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
@@ -374,7 +374,7 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   return TResult::Ok(message_list);
 }
 
-Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
+Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_obj) {
   using TResult = Result<Conversation>;
   Conversation conv;
 
@@ -399,21 +399,22 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
   }
   conv.system_message = system_message_res.Unwrap();
 
-  Result<std::optional<picojson::array>> system_prefix_token_ids_arr_res =
-      json::LookupOptionalWithResultReturn<picojson::array>(json_obj, "system_prefix_token_ids");
+  Result<std::optional<tvm::ffi::json::Array>> system_prefix_token_ids_arr_res =
+      json::LookupOptionalWithResultReturn<tvm::ffi::json::Array>(json_obj,
+                                                                  "system_prefix_token_ids");
   if (system_prefix_token_ids_arr_res.IsErr()) {
     return TResult::Error(system_prefix_token_ids_arr_res.UnwrapErr());
   }
-  std::optional<picojson::array> system_prefix_token_ids_arr =
+  std::optional<tvm::ffi::json::Array> system_prefix_token_ids_arr =
       system_prefix_token_ids_arr_res.Unwrap();
   if (system_prefix_token_ids_arr.has_value()) {
     std::vector<int> system_prefix_token_ids;
     system_prefix_token_ids.reserve(system_prefix_token_ids_arr.value().size());
     for (const auto& token_id : system_prefix_token_ids_arr.value()) {
-      if (!token_id.is<int64_t>()) {
+      if (!token_id.try_cast<int64_t>().has_value()) {
         return TResult::Error("A system prefix token id is not integer.");
       }
-      system_prefix_token_ids.push_back(token_id.get<int64_t>());
+      system_prefix_token_ids.push_back(static_cast<int>(token_id.cast<int64_t>()));
     }
     conv.system_prefix_token_ids = std::move(system_prefix_token_ids);
   }
@@ -425,66 +426,67 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
   }
   conv.add_role_after_system_message = add_role_after_system_message_res.Unwrap();
 
-  Result<picojson::object> roles_object_res =
-      json::LookupWithResultReturn<picojson::object>(json_obj, "roles");
+  Result<tvm::ffi::json::Object> roles_object_res =
+      json::LookupWithResultReturn<tvm::ffi::json::Object>(json_obj, "roles");
   if (roles_object_res.IsErr()) {
     return TResult::Error(roles_object_res.UnwrapErr());
   }
   for (const auto& role : roles_object_res.Unwrap()) {
-    if (!role.second.is<std::string>()) {
+    if (!role.second.try_cast<std::string>().has_value()) {
       return TResult::Error("A role value in the conversation template is not a string.");
     }
-    conv.roles[role.first] = role.second.get<std::string>();
+    conv.roles[role.first.cast<tvm::ffi::String>()] = role.second.cast<std::string>();
   }
 
-  Result<std::optional<picojson::object>> role_templates_object_res =
-      json::LookupOptionalWithResultReturn<picojson::object>(json_obj, "role_templates");
+  Result<std::optional<tvm::ffi::json::Object>> role_templates_object_res =
+      json::LookupOptionalWithResultReturn<tvm::ffi::json::Object>(json_obj, "role_templates");
   if (role_templates_object_res.IsErr()) {
     return TResult::Error(role_templates_object_res.UnwrapErr());
   }
-  std::optional<picojson::object> role_templates_object = role_templates_object_res.Unwrap();
+  std::optional<tvm::ffi::json::Object> role_templates_object = role_templates_object_res.Unwrap();
   if (role_templates_object.has_value()) {
     for (const auto& [role, msg] : role_templates_object.value()) {
-      if (!msg.is<std::string>()) {
+      if (!msg.try_cast<std::string>().has_value()) {
         return TResult::Error("A value in \"role_templates\" is not a string.");
       }
-      conv.role_templates[role] = msg.get<std::string>();
+      conv.role_templates[role.cast<tvm::ffi::String>()] = msg.cast<std::string>();
     }
   }
 
-  Result<picojson::array> messages_arr_res =
-      json::LookupWithResultReturn<picojson::array>(json_obj, "messages");
+  Result<tvm::ffi::json::Array> messages_arr_res =
+      json::LookupWithResultReturn<tvm::ffi::json::Array>(json_obj, "messages");
   if (messages_arr_res.IsErr()) {
     return TResult::Error(messages_arr_res.UnwrapErr());
   }
   for (const auto& message : messages_arr_res.Unwrap()) {
-    if (!message.is<picojson::array>() || message.get<picojson::array>().size() != 2) {
+    if (!message.try_cast<tvm::ffi::json::Array>().has_value() ||
+        message.cast<tvm::ffi::json::Array>().size() != 2) {
       return TResult::Error(
           "A message in the conversation template is not an array of [role, content].");
     }
-    picojson::array message_arr = message.get<picojson::array>();
-    if (!message_arr[0].is<std::string>()) {
+    tvm::ffi::json::Array message_arr = message.cast<tvm::ffi::json::Array>();
+    if (!message_arr[0].try_cast<std::string>().has_value()) {
       return TResult::Error("The role of a message in the conversation template is not a string.");
     }
-    std::string role = message_arr[0].get<std::string>();
+    std::string role = message_arr[0].cast<std::string>();
     // content can be a string or an array of objects
-    if (message_arr[1].is<std::string>()) {
+    if (message_arr[1].try_cast<std::string>().has_value()) {
       ChatCompletionMessage msg;
       msg.role = role;
-      msg.content = message_arr[1].get<std::string>();
+      msg.content = message_arr[1].cast<std::string>();
       conv.messages.push_back(msg);
       continue;
-    } else if (message_arr[1].is<picojson::array>()) {
-      picojson::array content_arr = message_arr[1].get<picojson::array>();
+    } else if (message_arr[1].try_cast<tvm::ffi::json::Array>().has_value()) {
+      tvm::ffi::json::Array content_arr = message_arr[1].cast<tvm::ffi::json::Array>();
       std::vector<std::unordered_map<std::string, std::string>> content;
       content.reserve(content_arr.size());
       for (const auto& item : content_arr) {
-        if (!item.is<picojson::object>()) {
+        if (!item.try_cast<tvm::ffi::json::Object>().has_value()) {
           return TResult::Error("The content of conversation template message is not an object");
         }
         std::unordered_map<std::string, std::string> item_map;
-        for (const auto& [key, value] : item.get<picojson::object>()) {
-          item_map[key] = value.to_str();
+        for (const auto& [key, value] : item.cast<tvm::ffi::json::Object>()) {
+          item_map[key.cast<tvm::ffi::String>()] = tvm::ffi::json::Stringify(value);
         }
         content.push_back(std::move(item_map));
       }
@@ -499,17 +501,17 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
     }
   }
 
-  Result<picojson::array> seps_arr_res =
-      json::LookupWithResultReturn<picojson::array>(json_obj, "seps");
+  Result<tvm::ffi::json::Array> seps_arr_res =
+      json::LookupWithResultReturn<tvm::ffi::json::Array>(json_obj, "seps");
   if (seps_arr_res.IsErr()) {
     return TResult::Error(seps_arr_res.UnwrapErr());
   }
   std::vector<std::string> seps;
   for (const auto& sep : seps_arr_res.Unwrap()) {
-    if (!sep.is<std::string>()) {
+    if (!sep.try_cast<std::string>().has_value()) {
       return TResult::Error("A separator (\"seps\") of the conversation template is not a string");
     }
-    conv.seps.push_back(sep.get<std::string>());
+    conv.seps.push_back(sep.cast<std::string>());
   }
 
   Result<std::string> role_content_sep_res =
@@ -526,36 +528,36 @@ Result<Conversation> Conversation::FromJSON(const picojson::object& json_obj) {
   }
   conv.role_empty_sep = role_empty_sep_res.Unwrap();
 
-  Result<picojson::array> stop_str_arr_res =
-      json::LookupWithResultReturn<picojson::array>(json_obj, "stop_str");
+  Result<tvm::ffi::json::Array> stop_str_arr_res =
+      json::LookupWithResultReturn<tvm::ffi::json::Array>(json_obj, "stop_str");
   if (stop_str_arr_res.IsErr()) {
     return TResult::Error(stop_str_arr_res.UnwrapErr());
   }
   for (const auto& stop : stop_str_arr_res.Unwrap()) {
-    if (!stop.is<std::string>()) {
+    if (!stop.try_cast<std::string>().has_value()) {
       return TResult::Error(
           "A stop string (\"stop_str\") of the conversation template is not a string.");
     }
-    conv.stop_str.push_back(stop.get<std::string>());
+    conv.stop_str.push_back(stop.cast<std::string>());
   }
 
-  Result<picojson::array> stop_token_ids_arr_res =
-      json::LookupWithResultReturn<picojson::array>(json_obj, "stop_token_ids");
+  Result<tvm::ffi::json::Array> stop_token_ids_arr_res =
+      json::LookupWithResultReturn<tvm::ffi::json::Array>(json_obj, "stop_token_ids");
   if (stop_token_ids_arr_res.IsErr()) {
     return TResult::Error(stop_token_ids_arr_res.UnwrapErr());
   }
   for (const auto& stop : stop_token_ids_arr_res.Unwrap()) {
-    if (!stop.is<int64_t>()) {
+    if (!stop.try_cast<int64_t>().has_value()) {
       return TResult::Error(
           "A stop token id (\"stop_token_ids\") of the conversation template is not an integer.");
     }
-    conv.stop_token_ids.push_back(stop.get<int64_t>());
+    conv.stop_token_ids.push_back(static_cast<int>(stop.cast<int64_t>()));
   }
   return TResult::Ok(conv);
 }
 
 Result<Conversation> Conversation::FromJSON(const std::string& json_str) {
-  Result<picojson::object> json_obj = json::ParseToJSONObjectWithResultReturn(json_str);
+  Result<tvm::ffi::json::Object> json_obj = json::ParseToJSONObjectWithResultReturn(json_str);
   if (json_obj.IsErr()) {
     return Result<Conversation>::Error(json_obj.UnwrapErr());
   }

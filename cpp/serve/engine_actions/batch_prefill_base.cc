@@ -23,16 +23,15 @@ bool HasPrefillSpace(int num_required_pages, bool sliding_window_enabled, int ne
               max_total_sequence_length);
 }
 
-BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
-                                                     EngineConfig engine_config,
-                                                     std::vector<picojson::object> model_configs,
-                                                     Optional<EventTraceRecorder> trace_recorder)
+BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(
+    Array<Model> models, EngineConfig engine_config,
+    std::vector<tvm::ffi::json::Object> model_configs, Optional<EventTraceRecorder> trace_recorder)
     : models_(std::move(models)),
       engine_config_(std::move(engine_config)),
       trace_recorder_(std::move(trace_recorder)) {
   ICHECK_EQ(models_.size(), model_configs.size());
   sliding_window_sizes_.reserve(models_.size());
-  for (const picojson::object& model_config : model_configs) {
+  for (const tvm::ffi::json::Object& model_config : model_configs) {
     // "-1" means the sliding window is disabled.
     sliding_window_sizes_.push_back(
         json::LookupOrDefault<int64_t>(model_config, "sliding_window_size", -1));

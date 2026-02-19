@@ -6,8 +6,6 @@
 #ifndef MLC_LLM_SERVE_THREADED_ENGINE_H_
 #define MLC_LLM_SERVE_THREADED_ENGINE_H_
 
-#include <picojson.h>
-
 #include "data.h"
 #include "engine.h"
 #include "request.h"

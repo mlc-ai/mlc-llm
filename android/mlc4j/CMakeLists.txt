@@ -60,7 +60,6 @@ target_include_directories(
          ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/3rdparty/dlpack/include
          ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
          ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
-         ${TVM_SOURCE_DIR}/3rdparty/picojson
          ${TVM_SOURCE_DIR}/include
          ${TVM_SOURCE_DIR}/src
          ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/include

@@ -11,12 +11,15 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-Array<EngineAction> CreateEngineActions(
-    Array<Model> models, EngineConfig engine_config, std::vector<picojson::object> model_configs,
-    std::vector<ModelWorkspace> model_workspaces, LogitProcessor logit_processor, Sampler sampler,
-    DraftTokenWorkspaceManager draft_token_workspace_manager, Tokenizer tokenizer,
-    Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
-    Device device) {
+Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
+                                        std::vector<tvm::ffi::json::Object> model_configs,
+                                        std::vector<ModelWorkspace> model_workspaces,
+                                        LogitProcessor logit_processor, Sampler sampler,
+                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                        Tokenizer tokenizer,
+                                        Optional<EventTraceRecorder> trace_recorder,
+                                        FRequestStreamCallback request_stream_callback,
+                                        Device device) {
   Array<EngineAction> actions;
   ModelMetadata model_metadata = models[0]->GetMetadata();
   if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
