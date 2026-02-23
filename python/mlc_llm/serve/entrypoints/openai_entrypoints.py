@@ -60,7 +60,10 @@ async def request_embedding(request: EmbeddingRequest):
         if isinstance(request.input[0], int):
             inputs = [embedding_engine.tokenizer.decode(request.input)]  # type: ignore[arg-type]
         else:
-            inputs = [embedding_engine.tokenizer.decode(ids) for ids in request.input]  # type: ignore[union-attr]
+            inputs = [
+                embedding_engine.tokenizer.decode(ids)  # type: ignore[arg-type]
+                for ids in request.input
+            ]
 
     # Run embedding inference (async — does not block the event loop)
     try:

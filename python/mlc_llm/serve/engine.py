@@ -2130,7 +2130,9 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self.embed, inputs)
 
-    def _embed_encoder(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+    def _embed_encoder(  # pylint: disable=too-many-locals
+        self, inputs: List[str]
+    ) -> Tuple[List[List[float]], int]:
         """Encoder model embedding (BERT-style).
 
         Processes each input individually to avoid batch padding artifacts.
