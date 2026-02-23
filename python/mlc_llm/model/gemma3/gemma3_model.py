@@ -281,18 +281,9 @@ class Gemma3DecoderLayer(nn.Module):
     def _clamp_fp16(x: Tensor) -> Tensor:
         """Clamp tensor values to float16 representable range to prevent overflow."""
         if x.dtype == "float16":
-
-            def _clamp(tensor: te.Tensor):
-                return te.compute(
-                    tensor.shape,
-                    lambda *idx: tir.max(
-                        tir.min(tensor[idx], tir.const(65504.0, "float16")),
-                        tir.const(-65504.0, "float16"),
-                    ),
-                    name="clamp_fp16",
-                )
-
-            return op.tensor_expr_op(_clamp, name_hint="clamp_fp16", args=[x])
+            return op.clip(  # pylint: disable=no-member
+                x, tir.const(-65504.0, "float16"), tir.const(65504.0, "float16")
+            )
         return x
 
     def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Tensor):
