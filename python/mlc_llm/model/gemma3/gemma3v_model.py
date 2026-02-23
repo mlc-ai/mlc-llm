@@ -12,9 +12,8 @@ from mlc_llm.model.vision import ImageProcessor, SigLIPVisionConfig, SigLIPVisio
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support.config import ConfigBase
-from mlc_llm.support.style import bold
 
-from .gemma3_model import Gemma3LanguageModel, Gemma3TextConfig
+from .gemma3_model import Gemma3Config, Gemma3LanguageModel, Gemma3TextConfig
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +111,13 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
     def __init__(self, config: Gemma3VConfig):
         super().__init__()
         self.config = config
-        self.language_model = Gemma3LanguageModel(config)
+        self.language_model = Gemma3LanguageModel(
+            Gemma3Config(
+                text_config=config.text_config,
+                vocab_size=config.vocab_size,
+                tensor_parallel_shards=config.tensor_parallel_shards,
+            )
+        )
         self.vision_tower = SigLIPVisionModel(config.vision_config)
         self.multi_modal_projector = Gemma3MultiModalProjector(config)
         self.image_processor = ImageProcessor()
@@ -146,9 +151,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             kw = te.reduce_axis((0, 4), name="kw")
             pool_sum = te.compute(
                 (n, c, h // 4, w // 4),
-                lambda i, j, p, q: te.sum(
-                    x_te[i, j, p * 4 + kh, q * 4 + kw], axis=[kh, kw]
-                ),
+                lambda i, j, p, q: te.sum(x_te[i, j, p * 4 + kh, q * 4 + kw], axis=[kh, kw]),
                 name="avg_pool_sum",
             )
             return te.compute(
@@ -188,13 +191,13 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
 
         return pixel_values
 
-    def image_embed(  # pylint: disable=too-many-arguments
+    def image_embed(  # pylint: disable=too-many-arguments,unused-argument
         self,
         pixel_values: Tensor,
-        resized_height,  # unused for Gemma3V (fixed 896x896)
-        resized_width,  # unused
-        crop_height,  # unused
-        crop_width,  # unused
+        resized_height,
+        resized_width,
+        crop_height,
+        crop_width,
     ) -> Tensor:
         # Step 1: Preprocess
         pixel_values = self.image_preprocess(pixel_values)
@@ -229,9 +232,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         # start of its forward pass. In HF, image features are inserted AFTER this scaling,
         # so they don't get scaled. In MLC, image embeddings are inserted BEFORE, so we
         # pre-divide by sqrt(hidden_size) to compensate.
-        projected = projected / Tensor.from_scalar(
-            self.hidden_size**0.5, dtype=projected.dtype
-        )
+        projected = projected / Tensor.from_scalar(self.hidden_size**0.5, dtype=projected.dtype)
 
         # Step 9: Reshape to 2D for C++ runtime (requires ndim == 2)
         projected = op.reshape(projected, (tokens_per_image, self.hidden_size))
@@ -357,9 +358,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "prefill": {
-                "input_embed": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -375,9 +374,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_prefill": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
@@ -386,9 +383,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_decode": {
-                "input_embeds": nn.spec.Tensor(
-                    ["batch_size", 1, self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
@@ -396,9 +391,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
                 },
             },
             "batch_verify": {
-                "input_embeds": nn.spec.Tensor(
-                    [1, "seq_len", self.hidden_size], self.dtype
-                ),
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
