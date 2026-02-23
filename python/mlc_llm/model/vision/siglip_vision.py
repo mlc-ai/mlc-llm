@@ -156,7 +156,7 @@ class SigLIPEncoder(Module):
             [SigLIPEncoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
 
-    def forward(self, inputs_embeds: Tensor) -> Tensor:
+    def forward(self, inputs_embeds: Tensor) -> Tuple[Tensor, ...]:
         hidden_states = inputs_embeds
         encoder_states: Tuple[Any, ...] = ()
         for _, encoder_layer in enumerate(self.layers):
