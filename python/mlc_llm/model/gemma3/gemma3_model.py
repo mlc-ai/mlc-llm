@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import te, tirx
+from tvm import relax, te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -281,8 +281,8 @@ class Gemma3DecoderLayer(nn.Module):
     def _clamp_fp16(x: Tensor) -> Tensor:
         """Clamp tensor values to float16 representable range to prevent overflow."""
         if x.dtype == "float16":
-            return op.clip(  # pylint: disable=no-member
-                x, tir.const(-65504.0, "float16"), tir.const(65504.0, "float16")
+            return op.wrap_nested(  # pylint: disable=protected-access
+                relax.op.clip(x._expr, -65504.0, 65504.0), "clamp_fp16"
             )
         return x
 
