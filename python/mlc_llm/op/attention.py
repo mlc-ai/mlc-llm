@@ -79,7 +79,8 @@ def attention(
         # The TIR attention kernel (_attention_sequence_prefill) produces incorrect
         # results for non-standard head_dim values (e.g. 72) that are not multiples
         # of 16, likely due to scheduling/vectorization issues in the generated
-        # Metal kernels. Fall back to naive matmul+softmax for these cases.
+        # shaders. This affects both Metal and WebGPU (WGSL) targets.
+        # Fall back to naive matmul+softmax for these cases.
         if isinstance(d, int) and d % 16 != 0:
             # q: [b, s, h_q, d] -> [b, h_q, s, d]
             q_t = op.permute_dims(q, [0, 2, 1, 3])

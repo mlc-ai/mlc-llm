@@ -188,7 +188,7 @@ class SigLIPVisionTransformer(Module):
 
 
 class SigLIPVisionModel(Module):
-    no_quantization: bool = True
+    no_quantization: bool = False
 
     def __init__(self, config: SigLIPVisionConfig):
         super().__init__()
