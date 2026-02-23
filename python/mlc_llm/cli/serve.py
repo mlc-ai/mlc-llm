@@ -198,6 +198,18 @@ def main(argv):
         default=["*"],
         help="allowed headers" + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default=None,
+        help="Path to the embedding model weight directory (enables /v1/embeddings endpoint)",
+    )
+    parser.add_argument(
+        "--embedding-model-lib",
+        type=str,
+        default=None,
+        help="Path to the compiled embedding model library (.so/.dylib file)",
+    )
     parsed = parser.parse_args(argv)
 
     additional_models = []
@@ -240,4 +252,6 @@ def main(argv):
         allow_origins=parsed.allow_origins,
         allow_methods=parsed.allow_methods,
         allow_headers=parsed.allow_headers,
+        embedding_model=parsed.embedding_model,
+        embedding_model_lib=parsed.embedding_model_lib,
     )

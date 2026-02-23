@@ -377,17 +377,17 @@ MODELS: Dict[str, Model] = {
     ),
     "qwen3-embedding": Model(
         name="qwen3-embedding",
-        model=qwen3_model.Qwen3LMHeadModel,
+        model=qwen3_model.Qwen3EmbeddingModel,
         config=qwen3_model.Qwen3Config,
         source={
             "huggingface-torch": qwen3_loader.huggingface_embedding,
             "huggingface-safetensor": qwen3_loader.huggingface_embedding,
         },
         quantize={
-            "no-quant": qwen3_quantization.no_quant,
-            "group-quant": qwen3_quantization.group_quant,
-            "ft-quant": qwen3_quantization.ft_quant,
-            "block-scale-quant": qwen3_quantization.block_scale_quant,
+            "no-quant": qwen3_quantization.no_quant_embedding,
+            "group-quant": qwen3_quantization.group_quant_embedding,
+            "ft-quant": qwen3_quantization.ft_quant_embedding,
+            "block-scale-quant": qwen3_quantization.block_scale_quant_embedding,
         },
     ),
     "qwen3_moe": Model(
@@ -701,6 +701,20 @@ MODELS: Dict[str, Model] = {
             "ft-quant": nemotron_quantization.ft_quant,
             "awq": nemotron_quantization.awq_quant,
             "per-tensor-quant": nemotron_quantization.per_tensor_quant,
+        },
+    ),
+    "bert-bge": Model(
+        name="bert-bge",
+        model=bert_model.BertModel,
+        config=bert_model.BertConfig,
+        source={
+            "huggingface-torch": bert_loader.huggingface_bge,
+            "huggingface-safetensor": bert_loader.huggingface_bge,
+        },
+        quantize={
+            "no-quant": bert_quantization.no_quant,
+            "group-quant": bert_quantization.group_quant,
+            "ft-quant": bert_quantization.ft_quant,
         },
     ),
 }

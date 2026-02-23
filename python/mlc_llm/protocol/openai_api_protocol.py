@@ -68,6 +68,55 @@ class StreamOptions(BaseModel):
     include_usage: Optional[bool]
 
 
+################ v1/embeddings ################
+
+
+class EmbeddingRequest(BaseModel):
+    """OpenAI "v1/embeddings" request protocol.
+    API reference: https://platform.openai.com/docs/api-reference/embeddings/create
+    """
+
+    input: Union[str, List[str], List[int], List[List[int]]]
+    model: Optional[str] = None
+    encoding_format: Literal["float", "base64"] = "float"
+    dimensions: Optional[int] = None
+    user: Optional[str] = None
+
+    @field_validator("input")
+    @classmethod
+    def validate_input(cls, v):
+        """Check that the input is not an empty list.
+
+        Note: empty strings are allowed — encoder models produce valid
+        embeddings from [CLS]+[SEP] tokens alone.
+        """
+        if isinstance(v, list) and len(v) == 0:
+            raise ValueError("Input list must not be empty.")
+        return v
+
+
+class EmbeddingObject(BaseModel):
+    object: str = "embedding"
+    embedding: Union[List[float], str]
+    index: int
+
+
+class EmbeddingUsage(BaseModel):
+    prompt_tokens: int
+    total_tokens: int
+
+
+class EmbeddingResponse(BaseModel):
+    """OpenAI "v1/embeddings" response protocol.
+    API reference: https://platform.openai.com/docs/api-reference/embeddings/object
+    """
+
+    object: str = "list"
+    data: List[EmbeddingObject]
+    model: Optional[str] = None
+    usage: EmbeddingUsage
+
+
 ################ v1/models ################
 
 

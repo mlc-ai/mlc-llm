@@ -260,3 +260,82 @@ class ErrorCleanupScope:
         # only cleanup when exc type is not none
         if exc_type is not None:
             self.cleanup()
+
+
+# ====== Embedding Engine Utilities ======
+
+
+def extract_embedding_metadata(mod) -> dict:
+    """Extract model metadata from a compiled TVM module.
+
+    Parameters
+    ----------
+    mod : tvm.runtime.Module
+        The compiled TVM module (the raw executable, not the VM module).
+
+    Returns
+    -------
+    metadata : dict
+        The model metadata dictionary.
+    """
+    import json  # pylint: disable=import-outside-toplevel
+
+    import tvm  # pylint: disable=import-outside-toplevel
+    from tvm.runtime.vm import (
+        VirtualMachine as VMRuntime,
+    )  # pylint: disable=import-outside-toplevel
+
+    return json.loads(VMRuntime(mod, tvm.runtime.device("cpu"))["_metadata"]())
+
+
+def load_embedding_params(model_weight_path, device, model_metadata) -> list:
+    """Load embedding model parameters from weight directory.
+
+    Parameters
+    ----------
+    model_weight_path : str
+        Path to the model weight directory.
+    device : tvm.runtime.Device
+        The target device.
+    model_metadata : dict
+        The model metadata dictionary containing param info.
+
+    Returns
+    -------
+    params : list
+        List of tvm.runtime.Tensor parameters in metadata order.
+    """
+    from tvm.contrib import tvmjs  # pylint: disable=import-outside-toplevel
+
+    params, meta = tvmjs.load_tensor_cache(model_weight_path, device)
+    param_names = [param["name"] for param in model_metadata["params"]]
+    assert len(param_names) == meta["ParamSize"]
+    return [params[name] for name in param_names]
+
+
+def detect_embedding_model_type(mod) -> str:
+    """Detect embedding model type from compiled TVM module functions.
+
+    Parameters
+    ----------
+    mod : tvm.runtime.Module
+        The VM module with model functions.
+
+    Returns
+    -------
+    model_type : str
+        "encoder" for BERT-style models, "decoder" for Qwen3-Embeddings style.
+    """
+    has_embed = mod.implements_function("embed")
+    has_prefill_to_hidden = mod.implements_function("prefill_to_last_hidden_states")
+    has_prefill = mod.implements_function("prefill")
+
+    if has_embed and has_prefill_to_hidden:
+        return "decoder"
+    if has_prefill:
+        return "encoder"
+    raise ValueError(
+        "Model does not support embedding inference. "
+        "Expected 'embed' + 'prefill_to_last_hidden_states' (decoder) "
+        "or 'prefill' (encoder)."
+    )

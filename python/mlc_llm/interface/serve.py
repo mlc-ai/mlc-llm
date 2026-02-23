@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.serve import engine
+from mlc_llm.serve.engine import AsyncEmbeddingEngine
 from mlc_llm.serve.entrypoints import (
     debug_entrypoints,
     metrics_entrypoints,
@@ -51,6 +52,8 @@ def serve(
     allow_origins: Any,
     allow_methods: Any,
     allow_headers: Any,
+    embedding_model: Optional[str] = None,
+    embedding_model_lib: Optional[str] = None,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
     # Create engine and start the background loop
@@ -84,6 +87,20 @@ def serve(
 
     with ServerContext() as server_context:
         server_context.add_model(model, async_engine)
+
+        # Set up embedding model if specified
+        if embedding_model is not None:
+            if embedding_model_lib is None:
+                raise ValueError(
+                    "--embedding-model-lib is required when --embedding-model is specified."
+                )
+            emb_engine = AsyncEmbeddingEngine(
+                model=embedding_model,
+                model_lib=embedding_model_lib,
+                device=device,
+            )
+            server_context.add_embedding_engine(embedding_model, emb_engine)
+            logger.info("Embedding model %s loaded successfully.", embedding_model)
 
         app = fastapi.FastAPI()
         app.add_middleware(

@@ -65,12 +65,12 @@ def _hf_logits(text, tokenizer, hf_model, embed_weight):
     return logits[0, -1, :].numpy()
 
 
-def _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev):
+def _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev, embed_weight):
     input_ids = tokenizer(text, return_tensors="pt")["input_ids"][0].numpy().astype(np.int32)
     seq_len = len(input_ids)
 
     embed_func = mlc_module["embed"]
-    prefill_func = mlc_module["prefill"]
+    prefill_func = mlc_module["prefill_to_last_hidden_states"]
 
     if mlc_module.implements_function("create_flashinfer_paged_kv_cache"):
         create_kv = mlc_module["create_flashinfer_paged_kv_cache"]
@@ -103,10 +103,13 @@ def _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev):
 
     add_sequence(kv_cache, 0)
     begin_forward(kv_cache, ShapeTuple([0]), ShapeTuple([seq_len]))
-    logits, _ = prefill_func(embedding, kv_cache, params)
+    hidden_states, _ = prefill_func(embedding, kv_cache, params)
     end_forward(kv_cache)
 
-    return logits.numpy()[0, -1, :]
+    # Compute logits from hidden states using embed_tokens weight (tie_word_embeddings)
+    hidden = hidden_states.numpy().astype(np.float32)
+    logits = hidden @ embed_weight.float().numpy().T
+    return logits[0, -1, :]
 
 
 @pytest.mark.skipif(_skip, reason=_skip_reason)
@@ -127,7 +130,7 @@ def test_mlc_hf_logit_match():
 
     for text in TEST_TEXTS:
         hf = _hf_logits(text, tokenizer, hf_model, embed_weight)
-        mlc = _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev)
+        mlc = _mlc_logits(text, tokenizer, mlc_module, params, metadata, dev, embed_weight)
 
         cos_sim = np.dot(hf, mlc) / (np.linalg.norm(hf) * np.linalg.norm(mlc))
         assert cos_sim > 0.99, f"[{text[:30]}] Cosine similarity {cos_sim:.6f} below 0.99"
