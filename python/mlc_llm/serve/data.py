@@ -145,7 +145,7 @@ class ImageData(Data):
             crop_w = target_w // 336  # == scale
 
             # Token count formula from phi3v_image.py forward():
-            # sub_tokens: h_crop * 12 * (w_crop * 12 + 1)  (12 = 24/2 from 2x2 merge, +1 for newline)
+            # sub_tokens: h_crop*12 * (w_crop*12+1)  (12=24/2 from 2x2 merge, +1 newline)
             # glb_GN: 1 separator token
             # glb_tokens: 12 * (12 + 1) = 156  (global image with 1x1 crop)
             sub_tokens = crop_h * 12 * (crop_w * 12 + 1)
