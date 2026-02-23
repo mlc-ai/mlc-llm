@@ -75,12 +75,12 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         if (prefill_lengths[i] == -1) {
           prefill_lengths[i] = input_length;
         } else {
-          ICHECK_EQ(prefill_lengths[i], input_length);
+          TVM_FFI_ICHECK_EQ(prefill_lengths[i], input_length);
         }
         mstate->num_prefilled_tokens += input_length;
 
-        ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_token_slots.empty());
+        TVM_FFI_ICHECK(mstate->draft_output_tokens.empty());
+        TVM_FFI_ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending &&
             !estate->prefix_cache->HasSequence(mstate->internal_id)) {
           // Add the sequence to the model, or fork the sequence from its parent.
@@ -137,9 +137,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
-      ICHECK_EQ(logits->ndim, 3);
-      ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
 
       if (model_id == 0) {
         // We only need to sample for model 0 in prefill.
@@ -148,7 +148,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
     }
 
     // - Update logits.
-    ICHECK(logits_for_sample.defined());
+    TVM_FFI_ICHECK(logits_for_sample.defined());
     Array<GenerationConfig> generation_cfg;
     Array<RequestModelState> mstates_for_logitproc;
     generation_cfg.reserve(num_rsentries);
@@ -207,7 +207,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         generation_cfg.push_back(rsentry->request->generation_cfg);
         rngs.push_back(&rstates_of_entries[i]->entries[child_idx]->rng);
 
-        ICHECK(rstates_of_entries[i]->entries[child_idx]->status == RequestStateStatus::kPending);
+        TVM_FFI_ICHECK(rstates_of_entries[i]->entries[child_idx]->status ==
+                       RequestStateStatus::kPending);
         // We only fork the first `num_child_to_activate` children.
         // The children not being forked will be forked via later prefills.
         // Usually `num_child_to_activate` is the same as the number of children.
@@ -244,7 +245,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         probs_on_device, sample_indices, request_ids, generation_cfg);
     std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
         renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
+    TVM_FFI_ICHECK_EQ(sample_results.size(), rsentries_for_sample.size());
 
     // - Update the committed tokens of states.
     // - If a request is first-time prefilled, set the prefill finish time.

@@ -34,7 +34,7 @@ picojson::object SpecDecodeMetrics::AsJSON() const {
   metrics["draft_count"] = f_vector_to_array(draft_count);
   metrics["accept_count"] = f_vector_to_array(accept_count);
 
-  ICHECK_EQ(draft_count.size(), accept_count.size());
+  TVM_FFI_ICHECK_EQ(draft_count.size(), accept_count.size());
   // NOTE: label follows prometheus with full context
   // so it can be flattened and used in metrics reoorting end point
   picojson::object accept_prob_metrics;

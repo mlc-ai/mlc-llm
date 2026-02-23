@@ -564,7 +564,7 @@ inline std::string BytesToMegabytesString(double bytes) {
  */
 Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::object>& model_configs,
                                                const std::vector<ModelMetadata>& model_metadata) {
-  ICHECK_EQ(model_configs.size(), model_metadata.size());
+  TVM_FFI_ICHECK_EQ(model_configs.size(), model_metadata.size());
   int64_t model_compile_time_max_single_sequence_length = std::numeric_limits<int64_t>::max();
   int64_t model_runtime_max_single_sequence_length = std::numeric_limits<int64_t>::max();
   int64_t model_compile_time_max_prefill_chunk_size = std::numeric_limits<int64_t>::max();
@@ -624,12 +624,12 @@ Result<ModelConfigLimits> GetModelConfigLimits(const std::vector<picojson::objec
           std::min(model_max_sliding_window_size, runtime_sliding_window_size);
     }
   }
-  ICHECK_NE(model_compile_time_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
-  ICHECK_NE(model_runtime_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
-  ICHECK_NE(model_max_batch_size, std::numeric_limits<int64_t>::max());
-  ICHECK_GT(model_compile_time_max_prefill_chunk_size, 0);
-  ICHECK_GT(model_runtime_max_prefill_chunk_size, 0);
-  ICHECK_GT(model_max_batch_size, 0);
+  TVM_FFI_ICHECK_NE(model_compile_time_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
+  TVM_FFI_ICHECK_NE(model_runtime_max_prefill_chunk_size, std::numeric_limits<int64_t>::max());
+  TVM_FFI_ICHECK_NE(model_max_batch_size, std::numeric_limits<int64_t>::max());
+  TVM_FFI_ICHECK_GT(model_compile_time_max_prefill_chunk_size, 0);
+  TVM_FFI_ICHECK_GT(model_runtime_max_prefill_chunk_size, 0);
+  TVM_FFI_ICHECK_GT(model_max_batch_size, 0);
   return Result<ModelConfigLimits>::Ok(
       {model_compile_time_max_single_sequence_length, model_runtime_max_single_sequence_length,
        model_compile_time_max_prefill_chunk_size, model_runtime_max_prefill_chunk_size,
@@ -683,7 +683,7 @@ Result<MemUsageEstimationResult> EstimateMemoryUsageOnMode(
   double kv_aux_workspace_bytes = 0;
   double model_workspace_bytes = 0;
   double logit_processor_workspace_bytes = 0;
-  ICHECK_EQ(model_configs.size(), model_metadata.size());
+  TVM_FFI_ICHECK_EQ(model_configs.size(), model_metadata.size());
   int num_models = model_configs.size();
   for (int i = 0; i < num_models; ++i) {
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
@@ -835,7 +835,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForKVCache(
     for (const ModelMetadata::Param& param : metadata.params) {
       int64_t param_size = param.dtype.bytes();
       for (int64_t v : param.shape) {
-        ICHECK_GE(v, 0);
+        TVM_FFI_ICHECK_GE(v, 0);
         param_size *= v;
       }
       params_bytes += param_size;
@@ -969,7 +969,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
     for (const ModelMetadata::Param& param : metadata.params) {
       int64_t param_size = param.dtype.bytes();
       for (int64_t v : param.shape) {
-        ICHECK_GE(v, 0);
+        TVM_FFI_ICHECK_GE(v, 0);
         param_size *= v;
       }
       params_bytes += param_size;
@@ -982,7 +982,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
   double rnn_state_base_bytes = 0;  // The memory usage for rnn state when history = 1.
   double model_workspace_bytes = 0;
   double logit_processor_workspace_bytes = 0;
-  ICHECK_EQ(model_configs.size(), model_metadata.size());
+  TVM_FFI_ICHECK_EQ(model_configs.size(), model_metadata.size());
   int num_models = model_configs.size();
   for (int i = 0; i < num_models; ++i) {
     // - Read the vocab size and compile-time prefill chunk size (which affects memory allocation).
@@ -1057,7 +1057,7 @@ Result<InferrableEngineConfig> InferrableEngineConfig::InferForRNNState(
 /****************** Config utils ******************/
 
 Result<bool> ModelsUseKVCache(const std::vector<picojson::object>& model_configs) {
-  ICHECK_GE(model_configs.size(), 1);
+  TVM_FFI_ICHECK_GE(model_configs.size(), 1);
   std::string model_type = json::Lookup<std::string>(model_configs[0], "model_type");
   bool use_kv_cache = model_type.find("rwkv") == std::string::npos;
   for (int i = 1; i < static_cast<int>(model_configs.size()); ++i) {

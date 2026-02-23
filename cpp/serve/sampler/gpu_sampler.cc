@@ -61,10 +61,10 @@ class GPUSampler : public SamplerObj {
         gpu_verify_draft_tokens_func_(ft->gpu_verify_draft_tokens_func_),
         gpu_renormalize_by_top_p_func_(ft->gpu_renormalize_by_top_p_func_),
         trace_recorder_(std::move(trace_recorder)) {
-    ICHECK(gpu_multinomial_from_uniform_func_.defined());
-    ICHECK(gpu_argsort_probs_func_.defined());
-    ICHECK(gpu_sample_with_top_p_func_.defined());
-    ICHECK(gpu_sampler_take_probs_func_.defined());
+    TVM_FFI_ICHECK(gpu_multinomial_from_uniform_func_.defined());
+    TVM_FFI_ICHECK(gpu_argsort_probs_func_.defined());
+    TVM_FFI_ICHECK(gpu_sample_with_top_p_func_.defined());
+    TVM_FFI_ICHECK(gpu_sampler_take_probs_func_.defined());
 
     flashinfer_multinomial_sample_func_ =
         Function::GetGlobal("flashinfer.sampling.parallel_sampling_from_prob");
@@ -130,8 +130,8 @@ class GPUSampler : public SamplerObj {
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
-    ICHECK_LE(num_probs, max_num_sample_);
-    ICHECK_EQ(generation_cfg.size(), num_samples);
+    TVM_FFI_ICHECK_LE(num_probs, max_num_sample_);
+    TVM_FFI_ICHECK_EQ(generation_cfg.size(), num_samples);
 
     // - Check if there is need for applying top p.
     bool need_top_p = CheckTopP(generation_cfg, sample_indices, num_probs, num_samples, vocab_size);
@@ -215,7 +215,7 @@ class GPUSampler : public SamplerObj {
     sample_results.resize(num_sequence);
 
     int num_nodes = cum_verify_lengths.back();
-    ICHECK(num_nodes <= max_num_sample_);
+    TVM_FFI_ICHECK(num_nodes <= max_num_sample_);
     CHECK_EQ(draft_probs_on_device->shape[0], num_nodes);
     Tensor uniform_samples_device = GenerateUniformSamples(rngs, cum_verify_lengths);
     Tensor draft_tokens_host = draft_tokens_host_.CreateView({num_nodes}, dtype_i32_);
@@ -229,7 +229,7 @@ class GPUSampler : public SamplerObj {
       int end = cum_verify_lengths[i + 1];
       // start/end is the range of the sequence i in probs_on_device, which includes the prob dist
       // of the draft tokens and the last committed token
-      ICHECK_EQ(draft_output_tokens_i.size() + 1, end - start);
+      TVM_FFI_ICHECK_EQ(draft_output_tokens_i.size() + 1, end - start);
       for (int j = 0; j < end - start - 1; j++) {
         // Copy sampled token id
         p_draft_tokens_host[start + j + 1] = draft_output_tokens_i[j].GetTokenId();
@@ -258,7 +258,7 @@ class GPUSampler : public SamplerObj {
       // Assuming no tree structure for now
       int start = cum_verify_lengths[i];
       int end = cum_verify_lengths[i + 1];
-      ICHECK_GE(end - start, 2);
+      TVM_FFI_ICHECK_GE(end - start, 2);
       for (int j = 0; j < end - start; j++) {
         int cur_node = j + start;
         int parent_node =
@@ -345,7 +345,7 @@ class GPUSampler : public SamplerObj {
     }
 
     // Append the additional sample result to the sample_results
-    ICHECK_EQ(additional_sample_result.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(additional_sample_result.size(), num_sequence);
     for (int i = 0; i < num_sequence; i++) {
       sample_results[i].push_back(additional_sample_result[i]);
     }
@@ -375,9 +375,9 @@ class GPUSampler : public SamplerObj {
       DeviceAPI::Get(device_)->StreamSync(device_, compute_stream_);
       return {};
     }
-    ICHECK_EQ(request_ids.size(), num_samples);
-    ICHECK_EQ(generation_cfg.size(), num_samples);
-    ICHECK_EQ(rngs.size(), num_samples);
+    TVM_FFI_ICHECK_EQ(request_ids.size(), num_samples);
+    TVM_FFI_ICHECK_EQ(generation_cfg.size(), num_samples);
+    TVM_FFI_ICHECK_EQ(rngs.size(), num_samples);
 
     // Since `num_samples` may be larger than `max_num_sample_` in some cases,
     // we apply chunking to support large `num_samples`.
@@ -420,7 +420,7 @@ class GPUSampler : public SamplerObj {
     }
     std::vector<SampleResult> sample_results;
     sample_results.reserve(num_samples);
-    ICHECK_EQ(top_prob_offset_indptr.size(), num_samples + 1);
+    TVM_FFI_ICHECK_EQ(top_prob_offset_indptr.size(), num_samples + 1);
     for (int i = 0; i < num_samples; ++i) {
       // Note: we set the probability in SampleResult to 1.0 since prob value is not needed.
       float sampled_prob = need_prob_values ? p_sampled_probs[i] : 1.0;
@@ -557,7 +557,7 @@ class GPUSampler : public SamplerObj {
       top_prob_offset_indptr->push_back(top_prob_offset_indptr->back() +
                                         generation_cfg[i]->top_logprobs);
     }
-    ICHECK_EQ(num_top_probs, top_prob_offset_indptr->back());
+    TVM_FFI_ICHECK_EQ(num_top_probs, top_prob_offset_indptr->back());
     return need_prob_values;
   }
 
@@ -592,7 +592,7 @@ class GPUSampler : public SamplerObj {
 
     // - Argsort the probability.
     Array<Tensor> argsort_results = gpu_argsort_probs_func_(probs_on_device).cast<Array<Tensor>>();
-    ICHECK_EQ(argsort_results.size(), 2);
+    TVM_FFI_ICHECK_EQ(argsort_results.size(), 2);
     Tensor sorted_probs_on_device = argsort_results[0];
     Tensor sorted_indices_on_device = argsort_results[1];
 
@@ -658,9 +658,9 @@ class GPUSampler : public SamplerObj {
     Tensor sampled_probs_device = device_arrays[1];
     Tensor top_prob_probs_device = device_arrays[2];
     Tensor top_prob_indices_device = device_arrays[3];
-    ICHECK(sampled_token_ids_device.defined());
-    ICHECK_EQ(sampled_token_ids_device->ndim, 1);
-    ICHECK_EQ(sampled_token_ids_device->shape[0], num_samples);
+    TVM_FFI_ICHECK(sampled_token_ids_device.defined());
+    TVM_FFI_ICHECK_EQ(sampled_token_ids_device->ndim, 1);
+    TVM_FFI_ICHECK_EQ(sampled_token_ids_device->shape[0], num_samples);
     Tensor sampled_token_ids_host = sampled_token_ids_host_.CreateView({num_samples}, dtype_i32_);
     CopyArray(/*src=*/sampled_token_ids_device, /*dst=*/sampled_token_ids_host, compute_stream_);
 
@@ -668,15 +668,15 @@ class GPUSampler : public SamplerObj {
     Tensor top_prob_probs_host{nullptr};
     Tensor top_prob_indices_host{nullptr};
     if (need_prob_values) {
-      ICHECK(sampled_probs_device.defined());
-      ICHECK(top_prob_probs_device.defined());
-      ICHECK(top_prob_indices_device.defined());
-      ICHECK_EQ(sampled_probs_device->ndim, 1);
-      ICHECK_EQ(top_prob_probs_device->ndim, 1);
-      ICHECK_EQ(top_prob_indices_device->ndim, 1);
-      ICHECK_EQ(sampled_probs_device->shape[0], num_samples);
-      ICHECK_EQ(top_prob_probs_device->shape[0], num_top_probs);
-      ICHECK_EQ(top_prob_indices_device->shape[0], num_top_probs);
+      TVM_FFI_ICHECK(sampled_probs_device.defined());
+      TVM_FFI_ICHECK(top_prob_probs_device.defined());
+      TVM_FFI_ICHECK(top_prob_indices_device.defined());
+      TVM_FFI_ICHECK_EQ(sampled_probs_device->ndim, 1);
+      TVM_FFI_ICHECK_EQ(top_prob_probs_device->ndim, 1);
+      TVM_FFI_ICHECK_EQ(top_prob_indices_device->ndim, 1);
+      TVM_FFI_ICHECK_EQ(sampled_probs_device->shape[0], num_samples);
+      TVM_FFI_ICHECK_EQ(top_prob_probs_device->shape[0], num_top_probs);
+      TVM_FFI_ICHECK_EQ(top_prob_indices_device->shape[0], num_top_probs);
       sampled_probs_host = sampled_probs_host_.CreateView({num_samples}, dtype_i32_);
       top_prob_probs_host = top_prob_probs_host_.CreateView({num_top_probs}, dtype_f32_);
       top_prob_indices_host = top_prob_indices_host_.CreateView({num_top_probs}, dtype_i32_);

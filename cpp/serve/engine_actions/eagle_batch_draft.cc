@@ -55,10 +55,10 @@ class EagleBatchDraftActionObj : public EngineActionObj {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int num_rsentries = running_rsentries.size();
-    ICHECK_GT(num_rsentries, 0)
+    TVM_FFI_ICHECK_GT(num_rsentries, 0)
         << "There should be at least one request state entry that can run decode. "
            "Possible failure reason: none of the prefill phase of the running requests is finished";
-    ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
+    TVM_FFI_ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
         << "The number of running requests exceeds the max number of sequence in EngineConfig. "
            "Possible failure reason: the prefill action allows new sequence in regardless of the "
            "max num sequence.";
@@ -79,7 +79,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
       rngs.push_back(&rsentry->rng);
     }
 
-    ICHECK_GT(estate->spec_draft_length, 0)
+    TVM_FFI_ICHECK_GT(estate->spec_draft_length, 0)
         << "The speculative decoding draft length must be positive.";
     // The first model doesn't get involved in draft proposal.
     for (int model_id = 1; model_id < static_cast<int>(models_.size()); ++model_id) {
@@ -112,7 +112,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
         // prepare new input tokens
         input_tokens.clear();
         for (int i = 0; i < num_rsentries; ++i) {
-          ICHECK(!mstates[i]->draft_output_tokens.empty());
+          TVM_FFI_ICHECK(!mstates[i]->draft_output_tokens.empty());
           input_tokens.push_back(mstates[i]->draft_output_tokens.back().GetTokenId());
           draft_token_indices.emplace_back(
               std::vector<int>{static_cast<int>(mstates[i]->draft_output_tokens.size() - 1)});
@@ -138,8 +138,8 @@ class EagleBatchDraftActionObj : public EngineActionObj {
           logits = models_[0]->GetLogits(hidden_states);
         }
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        ICHECK_EQ(logits->ndim, 2);
-        ICHECK_EQ(logits->shape[0], num_rsentries);
+        TVM_FFI_ICHECK_EQ(logits->ndim, 2);
+        TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
 
         // - Update logits.
         logit_processor_->InplaceUpdateLogits(logits, generation_cfg, mstates, request_ids, nullptr,
@@ -161,7 +161,7 @@ class EagleBatchDraftActionObj : public EngineActionObj {
             probs_on_device, sample_indices, request_ids, generation_cfg);
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
             renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
-        ICHECK_EQ(sample_results.size(), num_rsentries);
+        TVM_FFI_ICHECK_EQ(sample_results.size(), num_rsentries);
 
         // - Add draft token to the state.
         draft_token_workspace_manager_->AllocSlots(num_rsentries, &draft_token_slots_);

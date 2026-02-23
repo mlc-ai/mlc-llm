@@ -72,7 +72,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
 
   int num_workers = num_shards * num_stages;
   if (num_workers > 1) {
-    ICHECK(session.defined());
+    TVM_FFI_ICHECK(session.defined());
     this->sess = session.value();
     this->use_disco = true;
     this->disco_mod = sess->CallPacked(sess->GetGlobalFunc("runtime.disco.load_vm_module"),
@@ -100,7 +100,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
         this->disco_mod.value()->DebugGetFromRemote(0).cast<Module>(), std::move(model_config));
     this->_InitFunctions();
   } else {
-    ICHECK(!session.defined());
+    TVM_FFI_ICHECK(!session.defined());
     Optional<Module> executable = std::nullopt;
     Optional<Function> fload_exec;
     if (StartsWith(reload_lib_path, "system://")) {
@@ -109,7 +109,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
       std::replace(system_lib_prefix.begin(), system_lib_prefix.end(), /*old=*/'-', /*new=*/'_');
       executable = f_load_system_lib(system_lib_prefix + "_").cast<Module>();
       fload_exec = executable.value()->GetFunction("vm_load_executable");
-      ICHECK(fload_exec.defined())
+      TVM_FFI_ICHECK(fload_exec.defined())
           << "Cannot find system lib with " << system_lib_prefix
           << ", please make sure you set model_lib field consistently with the compilation ";
     } else {
@@ -124,7 +124,7 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
         CHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
         f_set.value()(tvm::ffi::String(bytes));
       }
-      ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+      TVM_FFI_ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
     }
     this->use_disco = false;
     this->local_vm = fload_exec.value()().cast<Module>();
@@ -144,8 +144,8 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
         ModelMetadata::FromModule(this->local_vm.value(), std::move(model_config));
     this->_InitFunctions();
   }
-  ICHECK_EQ(this->model_metadata_.tensor_parallel_shards, num_shards);
-  ICHECK_EQ(this->model_metadata_.pipeline_parallel_stages, num_stages);
+  TVM_FFI_ICHECK_EQ(this->model_metadata_.tensor_parallel_shards, num_shards);
+  TVM_FFI_ICHECK_EQ(this->model_metadata_.pipeline_parallel_stages, num_stages);
   // Invoke the CUDA graph allocation init function if it is defined.
   if (cuda_graph_alloc_init_func_.defined()) {
     this->cuda_graph_alloc_init_func_();

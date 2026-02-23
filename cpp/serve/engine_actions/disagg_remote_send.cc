@@ -85,12 +85,12 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
         if (prefill_lengths[i] == -1) {
           prefill_lengths[i] = input_length;
         } else {
-          ICHECK_EQ(prefill_lengths[i], input_length);
+          TVM_FFI_ICHECK_EQ(prefill_lengths[i], input_length);
         }
         mstate->num_prefilled_tokens += input_length;
 
-        ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_token_slots.empty());
+        TVM_FFI_ICHECK(mstate->draft_output_tokens.empty());
+        TVM_FFI_ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending &&
             !estate->prefix_cache->HasSequence(mstate->internal_id)) {
           // Add the sequence to the model.
@@ -147,9 +147,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       Tensor logits =
           models_[model_id]->BatchPrefill(embeddings, request_internal_ids, prefill_lengths);
       RECORD_EVENT(trace_recorder_, request_ids, "finish prefill");
-      ICHECK_EQ(logits->ndim, 3);
-      ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
     }
 
     // - Commit the prefix cache changes from previous round of action.
@@ -254,7 +254,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
           num_required_pages_under_sliding_window =
               max_single_request_page_requirement - num_pages_in_use;
           num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
-          ICHECK_GE(num_require_pages, 0);
+          TVM_FFI_ICHECK_GE(num_require_pages, 0);
         }
 
         total_input_length += input_length;
@@ -293,7 +293,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
         total_required_pages -= num_require_pages;
 
         // - Attempt 2. Check if the request state entry can partially fit by input chunking.
-        ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
+        TVM_FFI_ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
         if (engine_config_->prefill_chunk_size - total_input_length >= input_length ||
             engine_config_->prefill_chunk_size == total_input_length) {
           // 1. If the input length can fit the remaining prefill chunk size,
@@ -310,7 +310,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
         if (sliding_window_enabled) {
           // Sliding window for model i is enabled.
           num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
-          ICHECK_GE(num_require_pages, 0);
+          TVM_FFI_ICHECK_GE(num_require_pages, 0);
         }
 
         {
@@ -331,7 +331,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
     }
 
     // Reduce over the prefill inputs of all models.
-    ICHECK(!prefill_inputs_for_all_models.empty());
+    TVM_FFI_ICHECK(!prefill_inputs_for_all_models.empty());
     int num_prefill_inputs = prefill_inputs_for_all_models[0].size();
     for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
       num_prefill_inputs =
@@ -350,15 +350,16 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
         // Prefill input lengths except the last one are supposed to be the same for all models.
         for (int j = 0; j < num_prefill_inputs - 1; ++j) {
-          ICHECK(prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
-          ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
-                    prefill_inputs[j].max_prefill_length);
+          TVM_FFI_ICHECK(
+              prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
+          TVM_FFI_ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
+                            prefill_inputs[j].max_prefill_length);
           prefill_inputs[j].num_child_to_activate =
               std::min(prefill_inputs[j].num_child_to_activate,
                        prefill_inputs_for_all_models[i][j].num_child_to_activate);
         }
         // The input length of the last input is the minimum among all models.
-        ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
+        TVM_FFI_ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
             prefill_inputs[num_prefill_inputs - 1].rsentry));
         prefill_inputs[num_prefill_inputs - 1].max_prefill_length =
             std::min(prefill_inputs[num_prefill_inputs - 1].max_prefill_length,

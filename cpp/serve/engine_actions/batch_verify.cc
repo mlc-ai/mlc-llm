@@ -48,7 +48,7 @@ class BatchVerifyActionObj : public EngineActionObj {
     }
 
     const auto& [rsentries, verify_lengths, total_verify_length] = GetDraftsToVerify(estate);
-    ICHECK_EQ(rsentries.size(), verify_lengths.size());
+    TVM_FFI_ICHECK_EQ(rsentries.size(), verify_lengths.size());
     if (rsentries.empty()) {
       return {};
     }
@@ -84,9 +84,9 @@ class BatchVerifyActionObj : public EngineActionObj {
       RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
       RequestModelState draft_mstate = rsentries[i]->mstates[draft_model_id_];
       request_internal_ids.push_back(verify_mstate->internal_id);
-      ICHECK(!verify_lengths.empty());
-      ICHECK_EQ(verify_lengths[i], draft_mstate->draft_output_tokens.size() + 1);
-      ICHECK_EQ(verify_lengths[i], draft_mstate->draft_token_slots.size() + 1);
+      TVM_FFI_ICHECK(!verify_lengths.empty());
+      TVM_FFI_ICHECK_EQ(verify_lengths[i], draft_mstate->draft_output_tokens.size() + 1);
+      TVM_FFI_ICHECK_EQ(verify_lengths[i], draft_mstate->draft_token_slots.size() + 1);
       // the last committed token + all the draft tokens.
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
@@ -121,9 +121,9 @@ class BatchVerifyActionObj : public EngineActionObj {
     Tensor logits = models_[verify_model_id_]->BatchVerify(embeddings, request_internal_ids,
                                                            verify_lengths, token_tree_parent_ptr);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], 1);
-    ICHECK_EQ(logits->shape[1], total_verify_length);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], total_verify_length);
 
     // - Update logits.
     std::vector<int> cum_verify_lengths = {0};
@@ -153,7 +153,7 @@ class BatchVerifyActionObj : public EngineActionObj {
         sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
             renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
             draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
-    ICHECK_EQ(sample_results_arr.size(), num_rsentries);
+    TVM_FFI_ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     // We collect the requests whose drafts are fully accepted.
     // When a request's draft is fully accepted, there is an extra token proposed
@@ -236,7 +236,7 @@ class BatchVerifyActionObj : public EngineActionObj {
             rsentries[rsentry_id]->mstates[verify_model_id_]->committed_tokens.size();
         // When a request's draft is fully accepted, an additional new token is sampled.
         // So the token needed to fill in the draft model is the committed_token[-2].
-        ICHECK_GE(num_committed_tokens, 2);
+        TVM_FFI_ICHECK_GE(num_committed_tokens, 2);
         input_tokens.push_back(rsentries[rsentry_id]
                                    ->mstates[verify_model_id_]
                                    ->committed_tokens[num_committed_tokens - 2]

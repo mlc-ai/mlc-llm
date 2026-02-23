@@ -295,7 +295,7 @@ class MockEchoEngineImpl : public Engine {
     std::vector<String> finished_request_ids;
     for (auto& kv : request_map_) {
       MockRequestState& state = kv.second;
-      ICHECK_GE(state.reversed_outputs.size(), 2);
+      TVM_FFI_ICHECK_GE(state.reversed_outputs.size(), 2);
       if (state.reversed_outputs.size() == 2) {
         outputs.push_back(state.reversed_outputs.back());
         state.reversed_outputs.pop_back();
@@ -363,7 +363,7 @@ class EngineImpl : public Engine {
         models_and_model_libs_res.Unwrap();
 
     int num_model = models_and_model_libs.size();
-    ICHECK_GE(num_model, 1);
+    TVM_FFI_ICHECK_GE(num_model, 1);
     // - Initialize singleton states inside the engine.
     n->estate_->Reset();
     n->estate_->request_stream_callback_ = std::move(request_stream_callback);
@@ -572,9 +572,9 @@ class EngineImpl : public Engine {
       // - Check the invariant: "end - begin" equals the expanded metadata length.
       CHECK_EQ(disagg_config.kv_append_metadata.size(), models_.size());
       for (const IntTuple& compressed_kv_append_metadata : disagg_config.kv_append_metadata) {
-        ICHECK(!compressed_kv_append_metadata.empty());
+        TVM_FFI_ICHECK(!compressed_kv_append_metadata.empty());
         int num_segments = compressed_kv_append_metadata[0];
-        ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);
+        TVM_FFI_ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);
         int transmission_length = 0;
         for (int i = 0; i < num_segments; ++i) {
           transmission_length += compressed_kv_append_metadata[i * 2 + 2];
@@ -590,7 +590,7 @@ class EngineImpl : public Engine {
     } else if (kind == DisaggRequestKind::kStartGeneration) {
       auto it_rstate = estate_->request_states.find(request->id);
       CHECK(it_rstate != estate_->request_states.end());
-      ICHECK(!it_rstate->second->entries.empty());
+      TVM_FFI_ICHECK(!it_rstate->second->entries.empty());
       request = it_rstate->second->entries[0]->request;
       CHECK(request->generation_cfg->debug_config.disagg_config.kind ==
             DisaggRequestKind::kPrepareReceive);
@@ -674,7 +674,7 @@ class EngineImpl : public Engine {
 
     // Get a request copy where all text inputs are tokenized.
     request = Request::FromUntokenized(request, tokenizer_);
-    ICHECK_NE(request->prompt_tokens, -1);
+    TVM_FFI_ICHECK_NE(request->prompt_tokens, -1);
 
     if (request->prompt_tokens >= engine_config_->max_single_sequence_length &&
         estate_->request_stream_callback_ != nullptr) {
@@ -759,7 +759,7 @@ class EngineImpl : public Engine {
         return;
       }
     }
-    ICHECK(estate_->running_queue.empty())
+    TVM_FFI_ICHECK(estate_->running_queue.empty())
         << "Internal assumption violated: It is expected that an engine step takes at least one "
            "action (e.g. prefill, decode, etc.) but it does not.";
   }
@@ -776,7 +776,7 @@ class EngineImpl : public Engine {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = ffi::Module::LoadFromFile(model_lib);
         Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
-        ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
+        TVM_FFI_ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
         Module local_vm = fload_exec.value()().cast<Module>();
         local_vm->GetFunction("vm_initialization")
             .value()(static_cast<int>(device.device_type), device.device_id,
@@ -794,7 +794,7 @@ class EngineImpl : public Engine {
     int max_num_stages = 1;
     std::vector<int> model_num_pipeline_stages;
     model_num_pipeline_stages.reserve(model_libs.size());
-    ICHECK_EQ(model_libs.size(), model_configs.size());
+    TVM_FFI_ICHECK_EQ(model_libs.size(), model_configs.size());
     for (int i = 0; i < static_cast<int>(model_libs.size()); ++i) {
       auto [model_num_shards, model_num_stages] =
           f_get_num_shards_num_stages(model_libs[i], model_configs[i]);
@@ -947,14 +947,14 @@ class EngineImpl : public Engine {
       return TResult::Error(inferrable_cfg_res.UnwrapErr());
     }
     inferrable_cfg = inferrable_cfg_res.Unwrap();
-    ICHECK(inferrable_cfg.max_num_sequence.has_value());
-    ICHECK(inferrable_cfg.max_total_sequence_length.has_value());
+    TVM_FFI_ICHECK(inferrable_cfg.max_num_sequence.has_value());
+    TVM_FFI_ICHECK(inferrable_cfg.max_total_sequence_length.has_value());
     use_kv_cache = ModelsUseKVCache(model_configs);
     if (use_kv_cache.Unwrap()) {
-      ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
+      TVM_FFI_ICHECK(inferrable_cfg.max_single_sequence_length.has_value());
     }
-    ICHECK(inferrable_cfg.prefill_chunk_size.has_value());
-    ICHECK(inferrable_cfg.max_history_size.has_value());
+    TVM_FFI_ICHECK(inferrable_cfg.prefill_chunk_size.has_value());
+    TVM_FFI_ICHECK(inferrable_cfg.max_history_size.has_value());
     return TResult::Ok(EngineConfig::FromJSONAndInferredConfig(config, inferrable_cfg));
   }
 
@@ -1079,7 +1079,7 @@ class EngineModule : public ffi::ModuleObj {
 
  private:
   Engine* GetEngine() {
-    ICHECK(engine_ != nullptr) << "Engine is not initialized via init";
+    TVM_FFI_ICHECK(engine_ != nullptr) << "Engine is not initialized via init";
     return engine_.get();
   }
 

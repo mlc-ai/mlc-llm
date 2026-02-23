@@ -69,10 +69,10 @@ class BatchDecodeActionObj : public EngineActionObj {
 
     // NOTE: Right now we only support decode all the running request states at a time.
     int num_rsentries = running_rsentries.size();
-    ICHECK_GT(num_rsentries, 0)
+    TVM_FFI_ICHECK_GT(num_rsentries, 0)
         << "There should be at least one request state entry that can run decode. "
            "Possible failure reason: none of the prefill phase of the running requests is finished";
-    ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
+    TVM_FFI_ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
         << "The number of running requests exceeds the max number of sequence in EngineConfig. "
            "Possible failure reason: the prefill action allows new sequence in regardless of the "
            "max num sequence.";
@@ -101,9 +101,9 @@ class BatchDecodeActionObj : public EngineActionObj {
       NVTXScopedRange nvtx_scope("BatchDecode setting batch info");
       for (const RequestStateEntry& rsentry : running_rsentries) {
         auto mstate = rsentry->mstates[0];
-        ICHECK(mstate->num_tokens_for_next_decode > 0 &&
-               mstate->num_tokens_for_next_decode <=
-                   static_cast<int>(mstate->committed_tokens.size()));
+        TVM_FFI_ICHECK(mstate->num_tokens_for_next_decode > 0 &&
+                       mstate->num_tokens_for_next_decode <=
+                           static_cast<int>(mstate->committed_tokens.size()));
 
         for (auto begin = mstate->committed_tokens.end() - mstate->num_tokens_for_next_decode;
              begin != mstate->committed_tokens.end(); ++begin) {
@@ -136,14 +136,14 @@ class BatchDecodeActionObj : public EngineActionObj {
     Tensor logits;
     if (is_every_request_single_token) {
       logits = models_[0]->BatchDecode(embeddings, request_internal_ids);
-      ICHECK_EQ(logits->ndim, 3);
-      ICHECK_EQ(logits->shape[0], num_rsentries);
-      ICHECK_EQ(logits->shape[1], 1);
+      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+      TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
     } else {
       logits = models_[0]->BatchPrefill(embeddings, request_internal_ids, lengths);
-      ICHECK_EQ(logits->ndim, 3);
-      ICHECK_EQ(logits->shape[0], 1);
-      ICHECK_EQ(logits->shape[1], num_rsentries);
+      TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+      TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+      TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
     }
     RECORD_EVENT(trace_recorder_, request_ids, "finish decode");
 
@@ -167,7 +167,7 @@ class BatchDecodeActionObj : public EngineActionObj {
         probs_on_device, sample_indices, request_ids, generation_cfg);
     std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
         renormalized_probs, sample_indices, request_ids, generation_cfg, rngs);
-    ICHECK_EQ(sample_results.size(), num_rsentries);
+    TVM_FFI_ICHECK_EQ(sample_results.size(), num_rsentries);
 
     // - Update the committed tokens of states.
     for (int i = 0; i < num_rsentries; ++i) {

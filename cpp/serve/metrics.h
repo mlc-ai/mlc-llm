@@ -69,7 +69,7 @@ struct SpecDecodeMetrics {
    * \param accept_length The number of accepted tokens in the speculative decoding.
    */
   void Update(int draft_length, int accept_length) {
-    ICHECK_GE(accept_length, 1);
+    TVM_FFI_ICHECK_GE(accept_length, 1);
     if (accept_count.size() < draft_length) {
       this->accept_count.resize(draft_length, 0);
       this->draft_count.resize(draft_length, 0);

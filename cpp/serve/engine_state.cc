@@ -26,7 +26,7 @@ void EngineStateObj::Reset() {
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {
-  ICHECK(request->rstate != nullptr) << "The state of the request has not been defined.";
+  TVM_FFI_ICHECK(request->rstate != nullptr) << "The state of the request has not been defined.";
   return GetRef<RequestState>(static_cast<RequestStateNode*>(request->rstate));
 }
 
