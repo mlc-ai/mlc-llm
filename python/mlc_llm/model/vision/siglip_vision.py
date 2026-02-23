@@ -14,7 +14,6 @@ from typing import Any, Dict, Tuple
 
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
-from tvm.relax.frontend.nn import op
 from tvm.relax.frontend.nn.op import (
     add,
     broadcast_to,
@@ -23,6 +22,7 @@ from tvm.relax.frontend.nn.op import (
     wrap_nested,
 )
 from tvm.relax.op import arange
+
 from mlc_llm import op as op_ext
 from mlc_llm.support.config import ConfigBase
 
@@ -47,7 +47,7 @@ class SigLIPVisionConfig(ConfigBase):  # pylint: disable=too-many-instance-attri
 # pylint: disable=invalid-name,missing-docstring
 
 
-class SigLIPVisionEmbeddings(Module):
+class SigLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: SigLIPVisionConfig):
         super().__init__()
         self.config = config
@@ -71,9 +71,7 @@ class SigLIPVisionEmbeddings(Module):
         # pixel_values: (batch, channels, height, width)
         patch_embeds = self.patch_embedding(pixel_values)  # (batch, embed_dim, grid, grid)
         patch_embeds = reshape(patch_embeds, shape=(batch_size, self.embed_dim, -1))
-        patch_embeds = permute_dims(
-            patch_embeds, axes=(0, 2, 1)
-        )  # (batch, num_patches, embed_dim)
+        patch_embeds = permute_dims(patch_embeds, axes=(0, 2, 1))  # (batch, num_patches, embed_dim)
 
         posi_ids = reshape(
             wrap_nested(arange(0, self.num_positions, dtype="int32"), name="arange"),

@@ -110,7 +110,7 @@ class Conversation(BaseModel):
         """Convert from a json dictionary"""
         return Conversation.model_validate(json_dict)
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches,too-many-locals
     def as_prompt(self, config=None) -> List[Any]:
         """Convert the conversation template and history messages to
         a single prompt.

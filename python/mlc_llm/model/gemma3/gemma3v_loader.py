@@ -13,7 +13,9 @@ from mlc_llm.quantization import Quantization
 from .gemma3v_model import Gemma3VConfig, Gemma3VForCausalLM
 
 
-def huggingface(model_config: Gemma3VConfig, quantization: Quantization) -> ExternMapping:
+def huggingface(  # pylint: disable=too-many-locals
+    model_config: Gemma3VConfig, quantization: Quantization
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
