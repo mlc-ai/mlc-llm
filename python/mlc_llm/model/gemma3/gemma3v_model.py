@@ -90,7 +90,7 @@ class Gemma3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
 
 class Gemma3MultiModalProjector(nn.Module):
-    no_quantization: bool = True
+    no_quantization: bool = False
 
     def __init__(self, config: Gemma3VConfig):
         super().__init__()
