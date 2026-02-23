@@ -144,23 +144,9 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
 
     def _avg_pool_4x4(self, x: Tensor) -> Tensor:
         """Average pooling with kernel_size=4, stride=4."""
-
-        def _pool(x_te: te.Tensor):
-            n, c, h, w = x_te.shape
-            kh = te.reduce_axis((0, 4), name="kh")
-            kw = te.reduce_axis((0, 4), name="kw")
-            pool_sum = te.compute(
-                (n, c, h // 4, w // 4),
-                lambda i, j, p, q: te.sum(x_te[i, j, p * 4 + kh, q * 4 + kw], axis=[kh, kw]),
-                name="avg_pool_sum",
-            )
-            return te.compute(
-                pool_sum.shape,
-                lambda i, j, p, q: pool_sum[i, j, p, q] / tir.const(16.0, pool_sum.dtype),
-                name="avg_pool_div",
-            )
-
-        return op.tensor_expr_op(_pool, name_hint="avg_pool_4x4", args=[x])
+        return op.nn.avg_pool2d(  # pylint: disable=no-member
+            x, pool_size=(4, 4), strides=(4, 4), layout="NCHW"
+        )
 
     # pylint: disable=protected-access
     def image_preprocess(self, pixel_values: Tensor) -> Tensor:

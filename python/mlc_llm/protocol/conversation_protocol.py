@@ -179,10 +179,11 @@ class Conversation(BaseModel):
                     model_type = config.get("model_type", "") if config else ""
                     if model_type == "gemma3_v":
                         # Wrap with \n BOI [img embeds] EOI \n for Gemma 3 Vision
+                        model_cfg = config["model_config"]
                         message_list.append("\n")
-                        message_list.append(data.TokenData([255999]))  # BOI
+                        message_list.append(data.TokenData([model_cfg["boi_token_index"]]))
                         message_list.append(data.ImageData.from_url(image_url, config))
-                        message_list.append(data.TokenData([256000]))  # EOI
+                        message_list.append(data.TokenData([model_cfg["eoi_token_index"]]))
                     else:
                         message_list.append(data.ImageData.from_url(image_url, config))
                     message_list.append("\n")
