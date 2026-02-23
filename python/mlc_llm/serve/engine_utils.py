@@ -280,10 +280,8 @@ def extract_embedding_metadata(mod) -> dict:
     """
     import json  # pylint: disable=import-outside-toplevel
 
-    import tvm  # pylint: disable=import-outside-toplevel
-    from tvm.runtime.vm import (
-        VirtualMachine as VMRuntime,
-    )  # pylint: disable=import-outside-toplevel
+    import tvm  # pylint: disable=import-outside-toplevel  # fmt: skip
+    from tvm.runtime.vm import VirtualMachine as VMRuntime  # pylint: disable=import-outside-toplevel  # fmt: skip
 
     return json.loads(VMRuntime(mod, tvm.runtime.device("cpu"))["_metadata"]())
 

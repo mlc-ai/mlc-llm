@@ -46,6 +46,7 @@ async def request_embedding(request: EmbeddingRequest):
         )
 
     # Normalize input to List[str]
+    inputs: List[str]
     if isinstance(request.input, str):
         inputs = [request.input]
     elif (
@@ -53,13 +54,13 @@ async def request_embedding(request: EmbeddingRequest):
         and len(request.input) > 0
         and isinstance(request.input[0], str)
     ):
-        inputs = request.input
+        inputs = list(request.input)  # type: ignore[arg-type]
     else:
         # Token ID inputs (List[int] or List[List[int]]) — decode back to strings
         if isinstance(request.input[0], int):
-            inputs = [embedding_engine.tokenizer.decode(request.input)]
+            inputs = [embedding_engine.tokenizer.decode(request.input)]  # type: ignore[arg-type]
         else:
-            inputs = [embedding_engine.tokenizer.decode(ids) for ids in request.input]
+            inputs = [embedding_engine.tokenizer.decode(ids) for ids in request.input]  # type: ignore[union-attr]
 
     # Run embedding inference (async — does not block the event loop)
     try:

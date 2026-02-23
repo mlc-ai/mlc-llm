@@ -1977,7 +1977,7 @@ class MLCEngine(engine_base.MLCEngineBase):
 # ====== Embedding Engine ======
 
 
-class AsyncEmbeddingEngine:
+class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
     """Asynchronous embedding inference engine.
 
     Supports both encoder models (BERT-style) and decoder-only embedding models
@@ -2172,7 +2172,7 @@ class AsyncEmbeddingEngine:
             total_tokens += seq_len
 
             token_ids = np.array([tokens], dtype=np.int32)  # [1, seq_len]
-            attention_mask = np.ones((1, seq_len), dtype=np.int32)  # [1, seq_len]
+            attention_mask: np.ndarray = np.ones((1, seq_len), dtype=np.int32)  # [1, seq_len]
 
             tokens_tvm = tvm.runtime.tensor(token_ids, device=self.device)
             mask_tvm = tvm.runtime.tensor(attention_mask, device=self.device)
@@ -2235,7 +2235,7 @@ class AsyncEmbeddingEngine:
             token_lists, total_tokens, max_seq_len, prefill_chunk, support_sliding
         )
 
-    def _batch_embed_decoder(
+    def _batch_embed_decoder(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         token_lists: List[List[int]],
         total_tokens: int,
@@ -2290,7 +2290,7 @@ class AsyncEmbeddingEngine:
 
         return embeddings, total_tokens
 
-    def _sequential_embed_decoder(
+    def _sequential_embed_decoder(  # pylint: disable=too-many-arguments,too-many-locals
         self,
         token_lists: List[List[int]],
         total_tokens: int,
