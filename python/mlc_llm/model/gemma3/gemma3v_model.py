@@ -144,8 +144,9 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
 
     def _avg_pool_4x4(self, x: Tensor) -> Tensor:
         """Average pooling with kernel_size=4, stride=4."""
-        return op.nn.avg_pool2d(  # pylint: disable=no-member
-            x, pool_size=(4, 4), strides=(4, 4), layout="NCHW"
+        return op.wrap_nested(  # pylint: disable=protected-access
+            relax.op.nn.avg_pool2d(x._expr, pool_size=(4, 4), strides=(4, 4), layout="NCHW"),
+            "avg_pool_4x4",
         )
 
     # pylint: disable=protected-access
