@@ -154,9 +154,11 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         # NHWC -> NCHW
         pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))
 
-        # Resize to fixed 896x896
+        image_size = self.config.vision_config.image_size
+
+        # Resize to fixed image_size x image_size
         pixel_values = self.image_processor.resize(
-            pixel_values, params={"height": 896, "width": 896}
+            pixel_values, params={"height": image_size, "width": image_size}
         )
 
         # match_cast to fix shape after resize (returns symbolic dims)
@@ -165,7 +167,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
             .current()
             .match_cast(
                 pixel_values._expr,
-                relax.TensorStructInfo([1, 3, 896, 896], pixel_values.dtype),
+                relax.TensorStructInfo([1, 3, image_size, image_size], pixel_values.dtype),
             ),
             "resized_image",
         )
