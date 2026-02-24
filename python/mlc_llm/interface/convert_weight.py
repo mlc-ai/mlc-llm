@@ -235,11 +235,14 @@ def convert_weight(  # pylint: disable=too-many-arguments
             merged_source, merged_source_format = detect_weight(
                 weight_path=merged_model_dir,
                 config_json_path=config,
-                weight_format="huggingface-torch",
+                weight_format="auto",
             )
-            args = dataclasses.replace(
+            merged_args = dataclasses.replace(
                 args, source=merged_source, source_format=merged_source_format
             )
+            merged_args.display()
+            _convert_args(merged_args)
+            return
 
     args.display()
     _convert_args(args)
