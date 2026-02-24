@@ -86,6 +86,11 @@ def main(argv):
         help=HELP["host"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
+        "--enable-subgroups",
+        action="store_true",
+        help=HELP["enable_subgroups"],
+    )
+    parser.add_argument(
         "--opt",
         type=OptimizationFlags.from_str,
         default="O2",
@@ -117,7 +122,11 @@ def main(argv):
         help=HELP["debug_dump"] + " (default: %(default)s)",
     )
     parsed = parser.parse_args(argv)
-    target, build_func = detect_target_and_host(parsed.device, parsed.host)
+    target, build_func = detect_target_and_host(
+        parsed.device,
+        parsed.host,
+        enable_subgroups=parsed.enable_subgroups,
+    )
     parsed.model_type = detect_model_type(parsed.model_type, parsed.model)
     parsed.quantization = detect_quantization(parsed.quantization, parsed.model)
     parsed.system_lib_prefix = detect_system_lib_prefix(
