@@ -18,8 +18,8 @@ from tvm.target import Target
 from mlc_llm.loader import LOADER
 from mlc_llm.model import Model
 from mlc_llm.quantization import Quantization
-from mlc_llm.support.auto_weight import detect_weight
 from mlc_llm.support import logging, tqdm
+from mlc_llm.support.auto_weight import detect_weight
 from mlc_llm.support.preshard import apply_preshard
 from mlc_llm.support.style import bold, green
 
