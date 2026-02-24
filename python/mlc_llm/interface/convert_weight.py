@@ -89,7 +89,7 @@ def _merge_lora_adapter_with_base_model(base_source: Path, lora_adapter: Path) -
         base_model = AutoModelForCausalLM.from_pretrained(
             str(base_model_dir),
             torch_dtype="auto",
-            trust_remote_code=True,
+            trust_remote_code=False,
             low_cpu_mem_usage=True,
         )
         merged_model = PeftModel.from_pretrained(
