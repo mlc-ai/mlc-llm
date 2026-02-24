@@ -82,7 +82,7 @@ def test_convert_weight_with_lora_uses_merged_source(monkeypatch):
         assert captured["merge_lora_adapter"] == adapter_dir
         assert captured["detect_weight_path"] == merged_dir
         assert captured["detect_weight_config"] == config_path
-        assert captured["detect_weight_format"] == "huggingface-torch"
+        assert captured["detect_weight_format"] == "auto"
         assert converted_args.source == merged_file
         assert converted_args.source_format == "huggingface-torch"
         assert converted_args.lora_adapter == adapter_dir

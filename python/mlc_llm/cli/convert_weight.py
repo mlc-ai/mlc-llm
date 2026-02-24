@@ -95,9 +95,9 @@ def main(argv):
 
     parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
-        weight_path=_parse_source(parsed.source, parsed.config),
-        config_json_path=parsed.config,
-        weight_format=parsed.source_format,
+        _parse_source(parsed.source, parsed.config),
+        parsed.config,
+        parsed.source_format,
     )
     model = detect_model_type(parsed.model_type, parsed.config)
     convert_weight(
