@@ -95,7 +95,7 @@ def _merge_lora_adapter_with_base_model(base_source: Path, lora_adapter: Path) -
         merged_model = PeftModel.from_pretrained(
             base_model, str(lora_adapter), is_trainable=False
         ).merge_and_unload()
-        merged_model.save_pretrained(str(merged_model_dir), safe_serialization=False)
+        merged_model.save_pretrained(str(merged_model_dir), safe_serialization=True)
         yield merged_model_dir
 
 
