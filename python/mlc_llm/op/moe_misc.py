@@ -659,4 +659,3 @@ def scatter_output(x: Tensor, indices: Tensor) -> Tensor:
         args=[x, indices],
         out=Tensor.placeholder(x.shape, dtype),
     )
-    
