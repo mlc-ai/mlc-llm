@@ -2,11 +2,10 @@
 
 from typing import Callable, List, Optional, Sequence
 
-from tvm import IRModule
-from tvm import dlight as dl
-from tvm import relax, te, tir
+from tvm import IRModule, relax, te, tir
 from tvm.relax.frontend import nn
 from tvm.runtime import DataType, DataTypeCode
+from tvm.s_tir import dlight as dl
 from tvm.target import Target
 
 from mlc_llm.support import tensor_parallel as tp
@@ -168,7 +167,11 @@ def pack_weight(
     k = shape[axis]
     axis = axis if axis >= 0 else len(shape) + axis
     if out_shape is None:
-        out_shape = (*shape[:axis], tir.ceildiv(k, num_elem_per_storage), *shape[axis + 1 :])
+        out_shape = (
+            *shape[:axis],
+            tir.ceildiv(k, num_elem_per_storage),
+            *shape[axis + 1 :],
+        )
     r = te.reduce_axis((0, num_elem_per_storage), name="r")  # pylint: disable=invalid-name
     packed_weight = te.compute(
         shape=out_shape,

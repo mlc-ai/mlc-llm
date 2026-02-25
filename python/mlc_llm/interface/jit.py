@@ -67,7 +67,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         mlc_chat_config = json.load(in_file)
     model_type = mlc_chat_config.pop("model_type")
     quantization = mlc_chat_config.pop("quantization")
-    lib_suffix = MLC_DSO_SUFFIX if device not in ["iphone", "android"] else "tar"
+    lib_suffix = MLC_DSO_SUFFIX if device not in ["iphone", "macabi", "android"] else "tar"
 
     def _get_optimization_flags() -> str:
         opt = overrides.pop("opt", None)
@@ -76,7 +76,11 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         return repr(OptimizationFlags.from_str(opt))
 
     def _get_overrides() -> str:
-        forbid_list = ["context_window_size", "sliding_window_size", "attention_sink_size"]
+        forbid_list = [
+            "context_window_size",
+            "sliding_window_size",
+            "attention_sink_size",
+        ]
         result = []
         for field in dataclasses.fields(ModelConfigOverride):
             value = overrides.get(field.name, None)
@@ -95,7 +99,13 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
                 model_config[field.name] = value
         return MODELS[model_type].config.from_dict(model_config).asdict()
 
-    def _run_jit(opt: str, overrides: str, device: str, system_lib_prefix: Optional[str], dst: str):
+    def _run_jit(
+        opt: str,
+        overrides: str,
+        device: str,
+        system_lib_prefix: Optional[str],
+        dst: str,
+    ):
         with tempfile.TemporaryDirectory(dir=MLC_TEMP_DIR) as tmp_dir:
             dso_path = os.path.join(tmp_dir, f"lib.{lib_suffix}")
             cmd = [
@@ -133,7 +143,7 @@ def jit(  # pylint: disable=too-many-locals,too-many-statements
         "model_type": model_type,
         "quantization": quantization,
     }
-    if device in ["iphone", "android"]:
+    if device in ["iphone", "macabi", "android"]:
         if system_lib_prefix is None:
             system_lib_hash_value = hashlib.md5(
                 json.dumps(

@@ -17,7 +17,11 @@ def get_unsupported_fields(request: RequestProtocol) -> List[str]:
     Return the list of unsupported field names.
     """
     if isinstance(
-        request, (openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest)
+        request,
+        (
+            openai_api_protocol.CompletionRequest,
+            openai_api_protocol.ChatCompletionRequest,
+        ),
     ):
         return openai_api_protocol.openai_api_get_unsupported_fields(request)
     raise RuntimeError("Cannot reach here")
@@ -64,7 +68,11 @@ def get_generation_config(
     """Create the generation config in MLC LLM out from the input request protocol."""
     kwargs: Dict[str, Any]
     if isinstance(
-        request, (openai_api_protocol.CompletionRequest, openai_api_protocol.ChatCompletionRequest)
+        request,
+        (
+            openai_api_protocol.CompletionRequest,
+            openai_api_protocol.ChatCompletionRequest,
+        ),
     ):
         kwargs = openai_api_get_generation_config(request)
     else:
@@ -96,7 +104,7 @@ def check_unsupported_fields(request: RequestProtocol) -> None:
     if len(unsupported_fields) != 0:
         unsupported_fields = [f'"{field}"' for field in unsupported_fields]
         raise error_protocol.BadRequestError(
-            f'Request fields {", ".join(unsupported_fields)} are not supported right now.',
+            f"Request fields {', '.join(unsupported_fields)} are not supported right now.",
         )
 
 

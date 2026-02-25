@@ -42,11 +42,13 @@ async def debug_dump_event_trace(request: fastapi.Request):
 
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{model}" is not served.',
         )
     if async_engine.state.trace_recorder is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{model}" does not enable tracing'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{model}" does not enable tracing',
         )
 
     return json.loads(async_engine.state.trace_recorder.dump_json())

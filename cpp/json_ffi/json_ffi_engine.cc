@@ -176,7 +176,7 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
     this->request_stream_callback_ = request_stream_callback.value();
 
     auto frequest_stream_callback_wrapper = [this](ffi::PackedArgs args, ffi::Any* ret) {
-      ICHECK_EQ(args.size(), 1);
+      TVM_FFI_ICHECK_EQ(args.size(), 1);
       Array<RequestStreamOutput> delta_outputs = args[0].cast<Array<RequestStreamOutput>>();
       std::string responses = this->GetResponseFromStreamOutput(delta_outputs);
       this->request_stream_callback_(responses);
@@ -242,10 +242,10 @@ class JSONFFIEngineImpl : public JSONFFIEngine, public ffi::ModuleObj {
         request_map_.erase(request_state_it);
         continue;
       }
-      ICHECK_NE(delta_output->group_finish_reason.size(), 0);
-      ICHECK_EQ(delta_output->group_delta_token_ids.size(),
-                delta_output->group_finish_reason.size());
-      ICHECK_EQ(delta_output->group_delta_token_ids.size(), rstate.streamer.size());
+      TVM_FFI_ICHECK_NE(delta_output->group_finish_reason.size(), 0);
+      TVM_FFI_ICHECK_EQ(delta_output->group_delta_token_ids.size(),
+                        delta_output->group_finish_reason.size());
+      TVM_FFI_ICHECK_EQ(delta_output->group_delta_token_ids.size(), rstate.streamer.size());
 
       ChatCompletionStreamResponse response;
       response.id = request_id;

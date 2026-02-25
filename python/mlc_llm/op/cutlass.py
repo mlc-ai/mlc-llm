@@ -195,7 +195,15 @@ def fp8_groupwise_scaled_gemm(  # pylint: disable=too-many-arguments
     workspace = op.empty((4096 * 1024,), dtype="uint8", name="workspace")
     return op.extern(
         func_name,
-        args=[x, weight, x_scale, weight_scale, workspace, block_size[0], block_size[1]],
+        args=[
+            x,
+            weight,
+            x_scale,
+            weight_scale,
+            workspace,
+            block_size[0],
+            block_size[1],
+        ],
         out=nn.Tensor.placeholder((*x.shape[:-1], weight.shape[0]), dtype=out_dtype),
     )
 
@@ -259,7 +267,15 @@ def fp8_groupwise_scaled_bmm(  # pylint: disable=too-many-arguments
     workspace = op.empty((4096 * 1024,), dtype="uint8", name="workspace")
     return op.extern(
         func_name,
-        args=[x, weight, x_scale, weight_scale, workspace, block_size[0], block_size[1]],
+        args=[
+            x,
+            weight,
+            x_scale,
+            weight_scale,
+            workspace,
+            block_size[0],
+            block_size[1],
+        ],
         out=nn.Tensor.placeholder((x.shape[0], x.shape[1], weight.shape[1]), dtype=out_dtype),
     )
 
@@ -346,7 +362,16 @@ def fp8_groupwise_scaled_group_gemm(  # pylint: disable=too-many-arguments,too-m
     workspace = op.empty((4096 * 1024,), dtype="uint8", name="workspace")
     out = op.extern(
         func_name,
-        args=[x, weight, x_scale, weight_scale, indptr, workspace, block_size[0], block_size[1]],
+        args=[
+            x,
+            weight,
+            x_scale,
+            weight_scale,
+            indptr,
+            workspace,
+            block_size[0],
+            block_size[1],
+        ],
         out=nn.Tensor.placeholder((m, n), dtype=out_dtype),
     )
     return out.reshape(*x_shape[:-1], n) if len(x_shape) > 2 else out

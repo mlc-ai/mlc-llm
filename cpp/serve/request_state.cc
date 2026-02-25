@@ -46,7 +46,7 @@ int RequestModelStateNode::GetInputLength() const {
 bool RequestModelStateNode::RequireNextTokenBitmask() { return grammar_matcher.has_value(); }
 
 void RequestModelStateNode::GetNextTokenBitmask(DLTensor* bitmask) {
-  ICHECK(grammar_matcher.has_value());
+  TVM_FFI_ICHECK(grammar_matcher.has_value());
 
   grammar_matcher->GetNextTokenBitmask(bitmask);
 }
@@ -60,13 +60,13 @@ void RequestModelStateNode::CommitToken(SampleResult sampled_token) {
   // Update the grammar matcher state if it exists.
   if (grammar_matcher) {
     bool accepted = grammar_matcher->AcceptToken(sampled_token.GetTokenId());
-    ICHECK(accepted) << "Token id " << sampled_token.GetTokenId()
-                     << " is not accepted by the grammar state matcher.";
+    TVM_FFI_ICHECK(accepted) << "Token id " << sampled_token.GetTokenId()
+                             << " is not accepted by the grammar state matcher.";
   }
 }
 
 void RequestModelStateNode::RollbackTokens(int count) {
-  ICHECK(count <= static_cast<int>(committed_tokens.size()));
+  TVM_FFI_ICHECK(count <= static_cast<int>(committed_tokens.size()));
   for (int i = 0; i < count; ++i) {
     auto it = appeared_token_ids.find(committed_tokens.back().GetTokenId());
     CHECK(it != appeared_token_ids.end());
@@ -119,7 +119,7 @@ RequestStreamOutput RequestActionPostProcWorkspace::GetStreamOutput() {
     }
   }
 
-  ICHECK(!stream_outputs.empty());
+  TVM_FFI_ICHECK(!stream_outputs.empty());
   int num_response = stream_outputs[0]->group_delta_token_ids.size();
   std::vector<std::vector<int64_t>> group_delta_token_ids;
   std::vector<std::vector<String>> group_delta_logprob_json_strs;
@@ -186,7 +186,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
 
   const std::vector<SampleResult>& committed_tokens = this->mstates[0]->committed_tokens;
   int num_committed_tokens = committed_tokens.size();
-  ICHECK_LE(this->next_callback_token_pos, num_committed_tokens);
+  TVM_FFI_ICHECK_LE(this->next_callback_token_pos, num_committed_tokens);
 
   // Case 1. There is no new token ids.
   if (this->next_callback_token_pos == num_committed_tokens && extra_prefix_string.empty()) {
@@ -194,7 +194,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
   }
 
   // Case 2. Any of the stop strings is matched.
-  ICHECK(!stop_str_handler->StopTriggered());
+  TVM_FFI_ICHECK(!stop_str_handler->StopTriggered());
   while (next_callback_token_pos < num_committed_tokens) {
     stop_str_handler->Put(committed_tokens[next_callback_token_pos].GetTokenId(),
                           &(*delta_stream_output)->group_delta_token_ids[idx]);
@@ -264,7 +264,7 @@ void RequestStateEntryNode::GetDeltaRequestReturn(const Tokenizer& tokenizer,
 
 RequestState::RequestState(std::vector<RequestStateEntry> entries, int num_response,
                            std::chrono::high_resolution_clock::time_point add_time_point) {
-  ICHECK(!entries.empty());
+  TVM_FFI_ICHECK(!entries.empty());
   ObjectPtr<RequestStateNode> n = tvm::ffi::make_object<RequestStateNode>();
   n->entries = std::move(entries);
   n->metrics.prompt_tokens = n->entries[0]->request->prompt_tokens;

@@ -80,8 +80,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       for (int i = 0; i < num_rsentries; ++i) {
         const RequestStateEntry& rsentry = prefill_inputs[i].rsentry;
         RequestModelState mstate = rsentry->mstates[model_id];
-        ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_token_slots.empty());
+        TVM_FFI_ICHECK(mstate->draft_output_tokens.empty());
+        TVM_FFI_ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[i] == RequestStateStatus::kPending) {
           if (!estate->prefix_cache->HasSequence(mstate->internal_id)) {
             // Add the sequence to the model, or fork the sequence from its parent.
@@ -104,7 +104,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           // Shift the input tokens by 1 for eagle models.
           if (model_id == 0) {
             for (int j = 1; j < static_cast<int>(models_.size()); ++j) {
-              ICHECK(rsentry->mstates[j]->inputs.size());
+              TVM_FFI_ICHECK(rsentry->mstates[j]->inputs.size());
               TokenData token_data = Downcast<TokenData>(rsentry->mstates[j]->inputs[0]);
               rsentry->mstates[j]->inputs.Set(
                   0, TokenData(
@@ -123,7 +123,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         if (prefill_lengths[i] == -1) {
           prefill_lengths[i] = input_length;
         } else {
-          ICHECK_EQ(prefill_lengths[i], input_length);
+          TVM_FFI_ICHECK_EQ(prefill_lengths[i], input_length);
         }
         mstate->num_prefilled_tokens += input_length;
 
@@ -250,8 +250,8 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
             rsentry_activated.push_back(true);
             --remaining_num_child_to_activate;
             if (model_id == 0) {
-              ICHECK(rstates_of_entries[i]->entries[child_idx]->status ==
-                     RequestStateStatus::kPending);
+              TVM_FFI_ICHECK(rstates_of_entries[i]->entries[child_idx]->status ==
+                             RequestStateStatus::kPending);
               rstates_of_entries[i]->entries[child_idx]->status = RequestStateStatus::kAlive;
             }
             int64_t child_internal_id =
@@ -276,7 +276,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
       }
 
       // - Prepare input for logit processor.
-      ICHECK(logits_for_sample.defined());
+      TVM_FFI_ICHECK(logits_for_sample.defined());
       Array<GenerationConfig> generation_cfg;
       Array<RequestModelState> mstates_for_logitproc;
       std::vector<int> sample_indices(num_rsentries);
@@ -318,7 +318,7 @@ class EagleNewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
                                                 estate, child_sample_indices);
         }
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
-        ICHECK_NE(estate->spec_draft_length, 0);
+        TVM_FFI_ICHECK_NE(estate->spec_draft_length, 0);
         for (int draft_id = 0; draft_id < estate->spec_draft_length; ++draft_id) {
           const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
               logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,

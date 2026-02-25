@@ -45,8 +45,8 @@ class Result {
    * \note This function returns the ok value by moving, so a Result can be unwrapped only once.
    */
   T Unwrap() {
-    ICHECK(ok_value_.has_value()) << "Cannot unwrap result on an error value.";
-    ICHECK(!unwrapped_) << "Cannot unwrap a Result instance twice.";
+    TVM_FFI_ICHECK(ok_value_.has_value()) << "Cannot unwrap result on an error value.";
+    TVM_FFI_ICHECK(!unwrapped_) << "Cannot unwrap a Result instance twice.";
     unwrapped_ = true;
     return std::move(ok_value_.value());
   }
@@ -56,8 +56,8 @@ class Result {
    * \note This function returns the error value by moving, so a Result can be unwrapped only once.
    */
   E UnwrapErr() {
-    ICHECK(err_value_.has_value()) << "Cannot unwrap result on an okay value.";
-    ICHECK(!unwrapped_) << "Cannot unwrap a Result instance twice.";
+    TVM_FFI_ICHECK(err_value_.has_value()) << "Cannot unwrap result on an okay value.";
+    TVM_FFI_ICHECK(!unwrapped_) << "Cannot unwrap a Result instance twice.";
     unwrapped_ = true;
     return std::move(err_value_.value());
   }

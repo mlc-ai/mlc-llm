@@ -83,12 +83,12 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
         if (prefill_length == -1) {
           prefill_length = input_length;
         } else {
-          ICHECK_EQ(prefill_length, input_length);
+          TVM_FFI_ICHECK_EQ(prefill_length, input_length);
         }
         mstate->num_prefilled_tokens += input_length;
 
-        ICHECK(mstate->draft_output_tokens.empty());
-        ICHECK(mstate->draft_token_slots.empty());
+        TVM_FFI_ICHECK(mstate->draft_output_tokens.empty());
+        TVM_FFI_ICHECK(mstate->draft_token_slots.empty());
         if (status_before_prefill[0] == RequestStateStatus::kPending &&
             !estate->prefix_cache->HasSequence(mstate->internal_id)) {
           // Add the sequence to the model, or fork the sequence from its parent.
@@ -134,7 +134,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
       // - Remove the request from the waiting queue.
       auto it_request =
           std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
-      ICHECK(it_request != estate->waiting_queue.end());
+      TVM_FFI_ICHECK(it_request != estate->waiting_queue.end());
       estate->waiting_queue.erase(it_request);
 
       {
@@ -149,9 +149,9 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
           for (int64_t value : compressed_kv_append_metadata) {
             kv_append_metadata_arr.push_back(picojson::value(value));
           }
-          ICHECK(!compressed_kv_append_metadata.empty());
+          TVM_FFI_ICHECK(!compressed_kv_append_metadata.empty());
           int num_segments = compressed_kv_append_metadata[0];
-          ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);
+          TVM_FFI_ICHECK_EQ(compressed_kv_append_metadata.size(), num_segments * 2 + 1);
           int transmission_length = 0;
           for (int i = 0; i < num_segments; ++i) {
             transmission_length += compressed_kv_append_metadata[i * 2 + 2];
@@ -267,7 +267,7 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
         num_required_pages_under_sliding_window =
             max_single_request_page_requirement - num_pages_in_use;
         num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
-        ICHECK_GE(num_require_pages, 0);
+        TVM_FFI_ICHECK_GE(num_require_pages, 0);
       }
 
       // Check if the entire request state entry can fit for prefill.
@@ -302,16 +302,16 @@ class DisaggPrepareReceiveActionObj : public BatchPrefillBaseActionObj {
     }
 
     // Prefill inputs of all models should be the same.
-    ICHECK(!prefill_input_for_all_models.empty());
+    TVM_FFI_ICHECK(!prefill_input_for_all_models.empty());
     PrefillInput prefill_input = prefill_input_for_all_models[0];
     {
       NVTXScopedRange nvtx_scope("reduction");
       for (int i = 1; i < static_cast<int>(prefill_input_for_all_models.size()); ++i) {
-        ICHECK(prefill_input_for_all_models[i].rsentry.same_as(prefill_input.rsentry));
-        ICHECK_EQ(prefill_input_for_all_models[i].max_prefill_length,
-                  prefill_input.max_prefill_length);
-        ICHECK_EQ(prefill_input_for_all_models[i].num_child_to_activate,
-                  prefill_input.num_child_to_activate);
+        TVM_FFI_ICHECK(prefill_input_for_all_models[i].rsentry.same_as(prefill_input.rsentry));
+        TVM_FFI_ICHECK_EQ(prefill_input_for_all_models[i].max_prefill_length,
+                          prefill_input.max_prefill_length);
+        TVM_FFI_ICHECK_EQ(prefill_input_for_all_models[i].num_child_to_activate,
+                          prefill_input.num_child_to_activate);
       }
     }
 

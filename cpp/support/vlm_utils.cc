@@ -11,7 +11,7 @@ namespace llm {
 
 void CalculateResizeShape(tvm::runtime::Tensor image_data, std::string model_type,
                           int* p_target_height, int* p_target_width) {
-  ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
+  TVM_FFI_ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   int height = image_data->shape[1];
   int width = image_data->shape[2];
 
@@ -30,14 +30,15 @@ void CalculateResizeShape(tvm::runtime::Tensor image_data, std::string model_typ
 
 void CalculatePadShape(tvm::runtime::Tensor image_data, std::string model_type, int* p_pad_height,
                        int* p_pad_width) {
-  ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
+  TVM_FFI_ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   if ("phi3_v" == model_type) {
     int resized_height = 0, resized_width = 0;
     CalculateResizeShape(image_data, model_type, &resized_height, &resized_width);
     int tar = (int)(ceil(resized_height / 336.0) * 336);
     int top_padding = (int)((tar - resized_height) / 2);
     int bottom_padding = tar - resized_height - top_padding;
-    ICHECK_EQ(tar, resized_height + top_padding + bottom_padding) << "Padding size not equal!";
+    TVM_FFI_ICHECK_EQ(tar, resized_height + top_padding + bottom_padding)
+        << "Padding size not equal!";
     *p_pad_height = tar;
     *p_pad_width = resized_width;
   }
@@ -45,7 +46,7 @@ void CalculatePadShape(tvm::runtime::Tensor image_data, std::string model_type, 
 
 void CalculateCropShape(tvm::runtime::Tensor image_data, std::string model_type, int* p_crop_height,
                         int* p_crop_width) {
-  ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
+  TVM_FFI_ICHECK_EQ(image_data->shape[3], 3) << "Image format must be NHWC";
   if ("phi3_v" == model_type) {
     int pad_h = 0, pad_w = 0;
     CalculatePadShape(image_data, model_type, &pad_h, &pad_w);

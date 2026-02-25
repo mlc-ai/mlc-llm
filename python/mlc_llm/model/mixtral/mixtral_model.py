@@ -100,7 +100,11 @@ class MixtralMoE(nn.Module):
             else:
                 # indptr: [num_local_experts + 1]
                 indptr = op_ext.moe_misc.get_indptr(
-                    cumsum, local_experts, num_tokens, inclusive=False, out_dtype="int32"
+                    cumsum,
+                    local_experts,
+                    num_tokens,
+                    inclusive=False,
+                    out_dtype="int32",
                 )
             # x: [num_tokens * experts_per_tok, hidden_size]
             x = op.take(x, token_indices, axis=0)
@@ -137,7 +141,10 @@ class MixtralDecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.moe.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
             _set(self.moe.e1_e3, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=1))
             _set(self.moe.e2, tp.ShardSingleDim("_shard_mlp_down", dim=2))

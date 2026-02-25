@@ -53,7 +53,11 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
-        print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(
+            f";pipeline_parallel_stages={self.pipeline_parallel_stages}",
+            file=out,
+            end="",
+        )
         print(f";opt={self.opt}", file=out, end="")
         return out.getvalue().rstrip()
 

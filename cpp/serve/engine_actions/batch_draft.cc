@@ -60,10 +60,10 @@ class BatchDraftActionObj : public EngineActionObj {
     auto tstart = std::chrono::high_resolution_clock::now();
 
     int num_rsentries = running_rsentries.size();
-    ICHECK_GT(num_rsentries, 0)
+    TVM_FFI_ICHECK_GT(num_rsentries, 0)
         << "There should be at least one request state entry that can run decode. "
            "Possible failure reason: none of the prefill phase of the running requests is finished";
-    ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
+    TVM_FFI_ICHECK_LE(num_rsentries, engine_config_->max_num_sequence)
         << "The number of running requests exceeds the max number of sequence in EngineConfig. "
            "Possible failure reason: the prefill action allows new sequence in regardless of the "
            "max num sequence.";
@@ -89,7 +89,7 @@ class BatchDraftActionObj : public EngineActionObj {
       request_internal_ids.push_back(rsentry->mstates[0]->internal_id);
     }
 
-    ICHECK_GT(estate->spec_draft_length, 0)
+    TVM_FFI_ICHECK_GT(estate->spec_draft_length, 0)
         << "The speculative decoding draft length must be positive.";
     // The first model doesn't get involved in draft proposal.
     for (int model_id = 1; model_id < static_cast<int>(models_.size()); ++model_id) {
@@ -148,7 +148,7 @@ class BatchDraftActionObj : public EngineActionObj {
           if (draft_id == 0) {
             CHECK_LE(mstates[i]->committed_tokens.size(),
                      running_rsentries[i]->mstates[0]->committed_tokens.size());
-            ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
+            TVM_FFI_ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
             input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
             input_lengths.push_back(running_rsentries[i]->mstates[0]->committed_tokens.size() -
                                     mstates[i]->committed_tokens.size() + 1);
@@ -172,7 +172,7 @@ class BatchDraftActionObj : public EngineActionObj {
           } else {
             CHECK_EQ(mstates[i]->committed_tokens.size(),
                      running_rsentries[i]->mstates[0]->committed_tokens.size());
-            ICHECK(!mstates[i]->draft_output_tokens.empty());
+            TVM_FFI_ICHECK(!mstates[i]->draft_output_tokens.empty());
             draft_token_indices.emplace_back(std::vector<int>{});
             // Get all leaf nodes
             for (int j = 0; j < static_cast<int>(mstates[i]->draft_output_tokens.size()); ++j) {
@@ -209,7 +209,7 @@ class BatchDraftActionObj : public EngineActionObj {
 
         // - Compute embeddings.
         RECORD_EVENT(trace_recorder_, request_ids, "start proposal embedding");
-        ICHECK_LE(input_tokens.size(), engine_config_->prefill_chunk_size);
+        TVM_FFI_ICHECK_LE(input_tokens.size(), engine_config_->prefill_chunk_size);
         ObjectRef embeddings =
             models_[model_id]->TokenEmbed({IntTuple{input_tokens.begin(), input_tokens.end()}});
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal embedding");
@@ -221,24 +221,24 @@ class BatchDraftActionObj : public EngineActionObj {
         if (input_tokens.size() == num_rsentries) {
           // Each request entry only has one token to feed into the draft model.
           logits = models_[model_id]->BatchDecode(embeddings, request_internal_ids);
-          ICHECK_EQ(logits->ndim, 3);
-          ICHECK_EQ(logits->shape[0], num_rsentries);
-          ICHECK_EQ(logits->shape[1], 1);
+          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+          TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
+          TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
         } else if (draft_id == 0) {
           // There exists some request entry which has more than one token to feed.
           // It may happen when the engine just switches from the normal batch decode
           // mode to the speculative decoding mode.
           logits = models_[model_id]->BatchPrefill(embeddings, request_internal_ids, input_lengths);
-          ICHECK_EQ(logits->ndim, 3);
-          ICHECK_EQ(logits->shape[0], 1);
-          ICHECK_EQ(logits->shape[1], num_rsentries);
+          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+          TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+          TVM_FFI_ICHECK_EQ(logits->shape[1], num_rsentries);
         } else {
-          ICHECK_GT(engine_config_->spec_tree_width, 1);
+          TVM_FFI_ICHECK_GT(engine_config_->spec_tree_width, 1);
           logits = models_[model_id]->BatchTreeDecode(embeddings, request_internal_ids,
                                                       input_lengths, token_tree_parent_ptr);
-          ICHECK_EQ(logits->ndim, 3);
-          ICHECK_EQ(logits->shape[0], cum_num_tokens.back());
-          ICHECK_EQ(logits->shape[1], 1);
+          TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+          TVM_FFI_ICHECK_EQ(logits->shape[0], cum_num_tokens.back());
+          TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
         }
         CHECK_EQ(input_lengths.size(), num_rsentries);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
@@ -267,7 +267,7 @@ class BatchDraftActionObj : public EngineActionObj {
             probs_on_device, sample_indices, request_ids_per_leaf_node, generation_cfg);
         std::vector<SampleResult> sample_results = sampler_->BatchSampleTokensWithProbAfterTopP(
             renormalized_probs, sample_indices, request_ids_per_leaf_node, generation_cfg, rngs);
-        ICHECK_EQ(sample_results.size(), cum_num_tokens.back());
+        TVM_FFI_ICHECK_EQ(sample_results.size(), cum_num_tokens.back());
 
         // - Add draft token to the state.
         draft_token_workspace_manager_->AllocSlots(cum_num_tokens.back(), &draft_token_slots_);
@@ -341,7 +341,7 @@ class BatchDraftActionObj : public EngineActionObj {
         continue;
       }
 
-      ICHECK(!mstates[i]->committed_tokens.empty());
+      TVM_FFI_ICHECK(!mstates[i]->committed_tokens.empty());
       for (size_t j = mstates[i]->committed_tokens.size();
            j < running_rsentries[i]->mstates[0]->committed_tokens.size(); ++j) {
         // Commit the lagging-behind tokens to the draft model.

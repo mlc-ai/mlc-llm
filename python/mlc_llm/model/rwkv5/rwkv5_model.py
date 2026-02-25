@@ -347,7 +347,10 @@ class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         return self.model.embeddings(input_ids)
 
     def forward(
-        self, input_embed: Tensor, state: RNNState, logit_positions: Optional[Tensor] = None
+        self,
+        input_embed: Tensor,
+        state: RNNState,
+        logit_positions: Optional[Tensor] = None,
     ):
         """Forward pass."""
         hidden_states, state = self.model(input_embed, state)

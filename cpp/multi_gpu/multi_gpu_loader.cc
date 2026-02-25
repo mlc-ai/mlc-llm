@@ -81,7 +81,7 @@ class PreprocessorPool {
       const std::string& func_name = preproc.func_name;
       Tensor param_in = param;
       param = Tensor::Empty(preproc.out_shape, preproc.out_dtype, param->device);
-      ICHECK(preproc_funcs.count(func_name));
+      TVM_FFI_ICHECK(preproc_funcs.count(func_name));
       DLTensor dl_param_in = *param_in.operator->();
       DLTensor dl_param = *param.operator->();
       preproc_funcs.at(func_name)(&dl_param_in, &dl_param);
@@ -115,7 +115,7 @@ Tensor BroadcastOrShardAndScatter(Tensor param, const ModelMetadata::Param& para
   Device device = param->device;
   Shape shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
-  ICHECK(shape.size() >= 1 && shape[0] == num_shards)
+  TVM_FFI_ICHECK(shape.size() >= 1 && shape[0] == num_shards)
       << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);

@@ -190,8 +190,14 @@ class GPTNeoXLayer(nn.Module):
                 self.mlp.dense_h_to_4h.weight,
                 tp.ShardSingleDim("_shard_dense_h_to_4h_weight", dim=0),
             )
-            _set(self.mlp.dense_h_to_4h.bias, tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0))
-            _set(self.mlp.dense_4h_to_h.weight, tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1))
+            _set(
+                self.mlp.dense_h_to_4h.bias,
+                tp.ShardSingleDim("_shard_dense_h_to_4h_bias", dim=0),
+            )
+            _set(
+                self.mlp.dense_4h_to_h.weight,
+                tp.ShardSingleDim("_shard_dense_4h_to_h", dim=1),
+            )
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
@@ -307,7 +313,10 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

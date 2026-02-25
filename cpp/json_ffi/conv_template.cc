@@ -240,7 +240,7 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
   auto f_populate_system_message = [&](const std::vector<ChatCompletionMessage>& msg_vec) {
     for (ChatCompletionMessage msg : msg_vec) {
       if (msg.role == "system") {
-        ICHECK(msg.content.IsText()) << "System message must be text";
+        TVM_FFI_ICHECK(msg.content.IsText()) << "System message must be text";
         custom_system_inputs += msg.content.Text();
         has_custom_system = true;
       }
@@ -343,7 +343,7 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
           }
         }
       } else {
-        ICHECK(msg.content.IsText());
+        TVM_FFI_ICHECK(msg.content.IsText());
         pending_text += conv.GetRoleText(msg.role, msg.content.Text(), fn_call_string);
       }
       pending_text += seperator;

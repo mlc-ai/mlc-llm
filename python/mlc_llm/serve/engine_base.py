@@ -174,7 +174,9 @@ def _process_model_args(
     return model_args, config_file_paths, conversation
 
 
-def _print_engine_mode_logging_msg(mode: Literal["local", "interactive", "server"]) -> None:
+def _print_engine_mode_logging_msg(
+    mode: Literal["local", "interactive", "server"],
+) -> None:
     """Print the logging info for engine mode selection."""
     if mode == "local":
         logger.info(

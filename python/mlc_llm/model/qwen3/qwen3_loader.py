@@ -4,7 +4,7 @@ PyTorch, HuggingFace safetensors.
 """
 
 import functools
-from typing import Callable, List
+from typing import Callable, List, Literal
 
 import numpy as np
 
@@ -14,7 +14,11 @@ from mlc_llm.quantization import BlockScaleQuantize, Quantization
 from .qwen3_model import Qwen3Config, Qwen3LMHeadModel
 
 
-def huggingface(model_config: Qwen3Config, quantization: Quantization) -> ExternMapping:
+def huggingface(
+    model_config: Qwen3Config,
+    quantization: Quantization,
+    hf_prefix: Literal["", "model."] = "model.",
+) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
 
@@ -26,6 +30,10 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
     quantization : Quantization
         The quantization configuration.
 
+    hf_prefix : Literal["", "model."]
+        Prefix used in HuggingFace weight names. Defaults to "model." for standard
+        Qwen3 models. Use "" for Qwen3-Embedding models without prefix.
+
     Returns
     -------
     param_map : ExternMapping
@@ -35,7 +43,6 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
     if quantization is not None:
         model.to(quantization.model_dtype)
     if isinstance(quantization, BlockScaleQuantize):
-        # Convert the model to block-scale quantized model before loading parameters
         model = quantization.quantize_model(model, QuantizeMapping({}, {}), "")
         if model_config.weight_block_size is None:
             raise ValueError(
@@ -60,23 +67,28 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
             "Please use BlockScaleQuantize for the model."
         )
 
-    # Helper function to add both weight and scale mappings
+    def to_hf(name: str) -> str:
+        if hf_prefix == "model.":
+            return name
+        return name[6:] if name.startswith("model.") else name
+
     def add_weight_and_scale_mapping(
         weight_mlc_name: str,
         weight_hf_names: List[str],
         weight_transform_func: Callable,
     ):
         mlc_param = named_parameters[weight_mlc_name]
+        hf_names = [to_hf(name) for name in weight_hf_names]
         mapping.add_mapping(
             weight_mlc_name,
-            weight_hf_names,
+            hf_names,
             functools.partial(weight_transform_func, dtype=mlc_param.dtype),
         )
 
         if isinstance(quantization, BlockScaleQuantize):
             scale_mlc_name = f"{weight_mlc_name}_scale_inv"
             if scale_mlc_name in named_parameters:
-                scale_hf_names = [f"{name}_scale_inv" for name in weight_hf_names]
+                scale_hf_names = [f"{name}_scale_inv" for name in hf_names]
                 scale_param = named_parameters[scale_mlc_name]
                 mapping.add_mapping(
                     scale_mlc_name,
@@ -102,9 +114,9 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
             mapping.add_mapping(
                 mlc_name,
                 [
-                    f"{attn}.q_proj.bias",
-                    f"{attn}.k_proj.bias",
-                    f"{attn}.v_proj.bias",
+                    to_hf(f"{attn}.q_proj.bias"),
+                    to_hf(f"{attn}.k_proj.bias"),
+                    to_hf(f"{attn}.v_proj.bias"),
                 ],
                 functools.partial(
                     lambda q, k, v, dtype: np.concatenate([q, k, v], axis=0).astype(dtype),
@@ -126,10 +138,15 @@ def huggingface(model_config: Qwen3Config, quantization: Quantization) -> Extern
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [to_hf(mlc_name)],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
                 ),
             )
     return mapping
+
+
+def huggingface_embedding(model_config: Qwen3Config, quantization: Quantization) -> ExternMapping:
+    """Returns a parameter mapping for Qwen3-Embedding models (no 'model.' prefix)."""
+    return huggingface(model_config, quantization, "")

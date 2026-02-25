@@ -29,7 +29,10 @@ class AttachSoftmaxWithTemperature:  # pylint: disable=too-few-public-methods
 @mutator
 class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
     def __init__(
-        self, mod: IRModule, target: tvm.target.Target, metadata: Optional[Dict[str, Any]] = None
+        self,
+        mod: IRModule,
+        target: tvm.target.Target,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
         super().__init__(mod)
         self.mod = mod
@@ -66,7 +69,10 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
                     relax.call_tir(
                         self.builder_.add_func(f_chunk_lse, "chunk_lse"),
                         args=[logits, temperature],
-                        out_sinfo=[chunked_result_struct_info, chunked_result_struct_info],
+                        out_sinfo=[
+                            chunked_result_struct_info,
+                            chunked_result_struct_info,
+                        ],
                     )
                 )
                 chunked_sum = chunked_results[0]
@@ -222,7 +228,10 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
                                 A[v0, v1 * T.int64(chunk_size) + v2] / temperature[v0]
                                 - (T.log(temp_sum[v0]) + temp_max[v0])
                             ),
-                            T.cast(A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0], "float32")
+                            T.cast(
+                                A[v0, v1 * T.int64(chunk_size) + v2] == temp_max[v0],
+                                "float32",
+                            )
                             / temp_sum[v0],
                         ),
                         T.float32(0),

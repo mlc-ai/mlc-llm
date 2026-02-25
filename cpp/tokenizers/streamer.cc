@@ -198,7 +198,7 @@ void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token
 
   CHECK(!stop_triggered_) << "Cannot put new token when already stopped.";
 
-  ICHECK_LT(token_id, static_cast<int>(token_table_.size()));
+  TVM_FFI_ICHECK_LT(token_id, static_cast<int>(token_table_.size()));
   const std::string& token = token_table_[token_id];
   pending_token_ids_.push_back(token_id);
   pending_token_lengths_.push_back(token.length());
@@ -231,7 +231,7 @@ void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token
 
       // Case 2. The stop string is not matched.
       // - Get the cutoff length that can be safely return.
-      ICHECK_GE(pending_string_len_ + 1, cur_match_length);
+      TVM_FFI_ICHECK_GE(pending_string_len_ + 1, cur_match_length);
       cutoff_length = std::min(cutoff_length, pending_string_len_ + 1 - cur_match_length);
       // - Get the updated pending string length.
       max_match_length = std::max(max_match_length, cur_match_length);
@@ -241,8 +241,8 @@ void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token
     if (stop_triggered_) {
       cutoff_length = stop_starting_pos;
     }
-    ICHECK_NE(cutoff_length, std::numeric_limits<int>::max());
-    ICHECK_GE(cutoff_length, 0);
+    TVM_FFI_ICHECK_NE(cutoff_length, std::numeric_limits<int>::max());
+    TVM_FFI_ICHECK_GE(cutoff_length, 0);
     int cum_length = 0;
     while (!pending_token_ids_.empty() &&
            cum_length + pending_token_lengths_.front() <= cutoff_length) {
@@ -255,7 +255,7 @@ void StopStrHandlerObj::Put(int32_t token_id, std::vector<int64_t>* return_token
       return;
     }
 
-    ICHECK_LE(cum_length, cutoff_length);
+    TVM_FFI_ICHECK_LE(cum_length, cutoff_length);
     // `cum_length` is the prefix length what we actually cut off.
     pending_string_len_ = (cutoff_length - cum_length) + max_match_length;
   }

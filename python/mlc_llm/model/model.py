@@ -29,8 +29,8 @@ from .llama4 import llama4_loader, llama4_model, llama4_quantization
 from .llava import llava_loader, llava_model, llava_quantization
 from .medusa import medusa_loader, medusa_model, medusa_quantization
 from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
-from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .ministral3 import ministral3_loader, ministral3_model, ministral3_quantization
+from .mistral import mistral_loader, mistral_model, mistral_quantization
 from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
 from .nemotron import nemotron_loader, nemotron_model, nemotron_quantization
 from .olmo import olmo_loader, olmo_model, olmo_quantization
@@ -367,6 +367,21 @@ MODELS: Dict[str, Model] = {
         source={
             "huggingface-torch": qwen3_loader.huggingface,
             "huggingface-safetensor": qwen3_loader.huggingface,
+        },
+        quantize={
+            "no-quant": qwen3_quantization.no_quant,
+            "group-quant": qwen3_quantization.group_quant,
+            "ft-quant": qwen3_quantization.ft_quant,
+            "block-scale-quant": qwen3_quantization.block_scale_quant,
+        },
+    ),
+    "qwen3-embedding": Model(
+        name="qwen3-embedding",
+        model=qwen3_model.Qwen3LMHeadModel,
+        config=qwen3_model.Qwen3Config,
+        source={
+            "huggingface-torch": qwen3_loader.huggingface_embedding,
+            "huggingface-safetensor": qwen3_loader.huggingface_embedding,
         },
         quantize={
             "no-quant": qwen3_quantization.no_quant,

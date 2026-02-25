@@ -19,7 +19,11 @@ ConvTemplateRegistry.register_conv_template(
         role_content_sep="<|header_end|>\n\n",
         role_empty_sep="<|header_end|>\n\n",
         stop_str=[],
-        stop_token_ids=[200001, 200007, 200008],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
+        stop_token_ids=[
+            200001,
+            200007,
+            200008,
+        ],  # "<|end_of_text|>", "<|eom|>", "<|eot|>"
         system_prefix_token_ids=[200000],  # "<|begin_of_text|>"
         add_role_after_system_message=False,
     )
@@ -43,7 +47,11 @@ ConvTemplateRegistry.register_conv_template(
         role_content_sep="<|end_header_id|>\n\n",
         role_empty_sep="<|end_header_id|>\n\n",
         stop_str=[],
-        stop_token_ids=[128001, 128008, 128009],  # "<|end_of_text|>", "<|eom_id|>", "<|eot_id|>"
+        stop_token_ids=[
+            128001,
+            128008,
+            128009,
+        ],  # "<|end_of_text|>", "<|eom_id|>", "<|eot_id|>"
         system_prefix_token_ids=[128000],  # "<|begin_of_text|>"
         add_role_after_system_message=True,
     )
@@ -60,7 +68,10 @@ ConvTemplateRegistry.register_conv_template(
             f"{MessagePlaceholders.SYSTEM.value}<|eot_id|>"
         ),
         system_message="You are a helpful, respectful and honest assistant.",
-        roles={"user": "<|start_header_id|>user", "assistant": "<|start_header_id|>assistant"},
+        roles={
+            "user": "<|start_header_id|>user",
+            "assistant": "<|start_header_id|>assistant",
+        },
         seps=["<|eot_id|>"],
         role_content_sep="<|end_header_id|>\n\n",
         role_empty_sep="<|end_header_id|>\n\n",

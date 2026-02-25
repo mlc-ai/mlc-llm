@@ -113,7 +113,7 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     CHECK((draft_mstates == nullptr) == (draft_token_indices == nullptr));
     if (cum_num_token != nullptr) {
-      ICHECK(draft_mstates != nullptr);
+      TVM_FFI_ICHECK(draft_mstates != nullptr);
       CHECK_EQ(cum_num_token->size(), num_sequence + 1);
       CHECK_EQ(cum_num_token->back(), num_total_token);
     } else {
@@ -196,10 +196,10 @@ class LogitProcessorImpl : public LogitProcessorObj {
     Tensor probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
                                  temperature_device)
                        .cast<Tensor>();
-    ICHECK_EQ(probs->ndim, 3);
-    ICHECK_EQ(probs->shape[0], num_total_token);
-    ICHECK_EQ(probs->shape[1], 1);
-    ICHECK_EQ(probs->shape[2], vocab_size_);
+    TVM_FFI_ICHECK_EQ(probs->ndim, 3);
+    TVM_FFI_ICHECK_EQ(probs->shape[0], num_total_token);
+    TVM_FFI_ICHECK_EQ(probs->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(probs->shape[2], vocab_size_);
     if (trace_recorder_.defined()) {
       DeviceAPI::Get(device_)->StreamSync(device_, /*stream=*/nullptr);
     }
@@ -294,8 +294,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
             cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
         int token_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
         CHECK(num_token_to_process == 1 || mstates[i]->draft_output_tokens.empty());
-        ICHECK(draft_token_indices == nullptr ||
-               draft_token_indices->at(i).size() == num_token_to_process);
+        TVM_FFI_ICHECK(draft_token_indices == nullptr ||
+                       draft_token_indices->at(i).size() == num_token_to_process);
         for (int j = 0; j < num_token_to_process; ++j) {
           p_seq_ids[num_token_for_penalty] = token_offset + j;
 
@@ -380,8 +380,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - Set arrays.
     int batch_size = logits->shape[0];
-    ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
-           (cum_num_token != nullptr && batch_size == cum_num_token->back()));
+    TVM_FFI_ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
+                   (cum_num_token != nullptr && batch_size == cum_num_token->back()));
 
     std::memset(p_seq_ids, 0, batch_size * sizeof(int32_t));
 
@@ -390,7 +390,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
       int token_number =
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
       bool require_mask = mstates[i]->RequireNextTokenBitmask();
-      ICHECK(draft_token_indices == nullptr || draft_token_indices->at(i).size() == token_number);
+      TVM_FFI_ICHECK(draft_token_indices == nullptr ||
+                     draft_token_indices->at(i).size() == token_number);
       for (int j = 0; j < token_number; ++j) {
         if (require_mask) {
           std::vector<SampleResult> draft_token_seq;

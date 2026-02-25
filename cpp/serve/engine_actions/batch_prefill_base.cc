@@ -30,7 +30,7 @@ BatchPrefillBaseActionObj::BatchPrefillBaseActionObj(Array<Model> models,
     : models_(std::move(models)),
       engine_config_(std::move(engine_config)),
       trace_recorder_(std::move(trace_recorder)) {
-  ICHECK_EQ(models_.size(), model_configs.size());
+  TVM_FFI_ICHECK_EQ(models_.size(), model_configs.size());
   sliding_window_sizes_.reserve(models_.size());
   for (const picojson::object& model_config : model_configs) {
     // "-1" means the sliding window is disabled.
@@ -134,7 +134,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
           num_required_pages_under_sliding_window =
               max_single_request_page_requirement - num_pages_in_use;
           num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
-          ICHECK_GE(num_require_pages, 0);
+          TVM_FFI_ICHECK_GE(num_require_pages, 0);
         }
 
         total_input_length += input_length;
@@ -173,7 +173,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         total_required_pages -= num_require_pages;
 
         // - Attempt 2. Check if the request state entry can partially fit by input chunking.
-        ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
+        TVM_FFI_ICHECK_LE(total_input_length, engine_config_->prefill_chunk_size);
         if (engine_config_->prefill_chunk_size - total_input_length >= input_length ||
             engine_config_->prefill_chunk_size == total_input_length) {
           // 1. If the input length can fit the remaining prefill chunk size,
@@ -191,7 +191,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
         if (sliding_window_enabled) {
           // Sliding window for model i is enabled.
           num_require_pages = std::min(num_require_pages, num_required_pages_under_sliding_window);
-          ICHECK_GE(num_require_pages, 0);
+          TVM_FFI_ICHECK_GE(num_require_pages, 0);
         }
 
         {
@@ -217,7 +217,7 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
   }
 
   // Reduce over the prefill inputs of all models.
-  ICHECK(!prefill_inputs_for_all_models.empty());
+  TVM_FFI_ICHECK(!prefill_inputs_for_all_models.empty());
   int num_prefill_inputs = prefill_inputs_for_all_models[0].size();
   for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
     num_prefill_inputs =
@@ -243,15 +243,16 @@ BatchPrefillBaseActionObj::GetRequestStateEntriesToPrefill(EngineState estate) {
     for (int i = 1; i < static_cast<int>(prefill_inputs_for_all_models.size()); ++i) {
       // Prefill input lengths except the last one are supposed to be the same for all models.
       for (int j = 0; j < num_prefill_inputs - 1; ++j) {
-        ICHECK(prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
-        ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
-                  prefill_inputs[j].max_prefill_length);
+        TVM_FFI_ICHECK(
+            prefill_inputs_for_all_models[i][j].rsentry.same_as(prefill_inputs[j].rsentry));
+        TVM_FFI_ICHECK_EQ(prefill_inputs_for_all_models[i][j].max_prefill_length,
+                          prefill_inputs[j].max_prefill_length);
         prefill_inputs[j].num_child_to_activate =
             std::min(prefill_inputs[j].num_child_to_activate,
                      prefill_inputs_for_all_models[i][j].num_child_to_activate);
       }
       // The input length of the last input is the minimum among all models.
-      ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
+      TVM_FFI_ICHECK(prefill_inputs_for_all_models[i][num_prefill_inputs - 1].rsentry.same_as(
           prefill_inputs[num_prefill_inputs - 1].rsentry));
       prefill_inputs[num_prefill_inputs - 1].max_prefill_length =
           std::min(prefill_inputs[num_prefill_inputs - 1].max_prefill_length,
@@ -270,7 +271,7 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
                                            int num_available_pages, int current_total_seq_len,
                                            int num_running_rsentries, KVStateKind kv_state_kind,
                                            bool sliding_window_enabled) {
-  ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
+  TVM_FFI_ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
   // For RNN State, it can prefill as long as it can be instantiated.
   if (kv_state_kind == KVStateKind::kRNNState || kv_state_kind == KVStateKind::kNone) {
@@ -315,7 +316,7 @@ std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     const RequestModelState& mstate, int max_prefill_length) {
   if (mstate->inputs.empty()) {
     // If the request is a hybrid decode request
-    ICHECK(mstate->num_tokens_for_next_decode > 0);
+    TVM_FFI_ICHECK(mstate->num_tokens_for_next_decode > 0);
     int num_tokens = mstate->num_tokens_for_next_decode;
     mstate->num_tokens_for_next_decode = 0;
     std::vector<int32_t> decode_tokens;
@@ -326,7 +327,7 @@ std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     }
     return {{TokenData(decode_tokens)}, num_tokens};
   }
-  ICHECK(!mstate->inputs.empty());
+  TVM_FFI_ICHECK(!mstate->inputs.empty());
   std::vector<Data> inputs;
   int cum_input_length = 0;
   inputs.reserve(mstate->inputs.size());
@@ -369,7 +370,7 @@ std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     // Split the token data into two parts.
     // Return the first part for prefill, and keep the second part.
     int chunked_input_length = max_prefill_length - cum_input_length;
-    ICHECK_GT(input_length, chunked_input_length);
+    TVM_FFI_ICHECK_GT(input_length, chunked_input_length);
     TokenData chunked_input(IntTuple{token_input->token_ids.begin(),
                                      token_input->token_ids.begin() + chunked_input_length});
     TokenData remaining_input(IntTuple{token_input->token_ids.begin() + chunked_input_length,
@@ -382,7 +383,7 @@ std::pair<Array<Data>, int> BatchPrefillBaseActionObj::ChunkPrefillInputData(
     return {inputs, cum_input_length};
   }
 
-  ICHECK(false) << "Cannot reach here";
+  TVM_FFI_ICHECK(false) << "Cannot reach here";
 }
 
 void BatchPrefillBaseActionObj::UpdateRequestToAlive(
@@ -487,7 +488,7 @@ void BatchPrefillBaseActionObj::UpdateRequestStateEntriesWithSampleResults(
     }
     // prefill has finished
     if (rsentries_for_sample[i]->mstates[0]->committed_tokens.size() == 1) {
-      ICHECK(rsentries_for_sample[i]->rstate != nullptr);
+      TVM_FFI_ICHECK(rsentries_for_sample[i]->rstate != nullptr);
       rsentries_for_sample[i]->rstate->metrics.prefill_end_time_point = tnow;
     }
   }

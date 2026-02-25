@@ -77,7 +77,9 @@ class OLMoConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
         if self.prefill_chunk_size == 0:
             logger.info(
-                "%s defaults to %d", bold("prefill_chunk_size"), min(self.context_window_size, 8192)
+                "%s defaults to %d",
+                bold("prefill_chunk_size"),
+                min(self.context_window_size, 8192),
             )
             self.prefill_chunk_size = min(self.context_window_size, 8192)
         elif self.prefill_chunk_size > self.context_window_size:
@@ -224,9 +226,15 @@ class OLMoDecoderLayer(nn.Module):  # pylint: disable=missing-class-docstring
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -409,7 +417,10 @@ class OLMoForCausalLM(  # pylint: disable=missing-class-docstring,too-many-insta
         return hidden_states, paged_kv_cache
 
     def batch_prefill(  # pylint: disable=missing-function-docstring
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
         return logits, paged_kv_cache

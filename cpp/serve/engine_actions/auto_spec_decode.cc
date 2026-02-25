@@ -35,7 +35,7 @@ class AutoSpecDecodeActionObj : public EngineActionObj {
 
     // Calculate the draft length to use for the next round decode.
     estate->spec_draft_length = CalculateDraftLength(estate, num_running_rsentries);
-    ICHECK_GE(estate->spec_draft_length, 0);
+    TVM_FFI_ICHECK_GE(estate->spec_draft_length, 0);
     Array<Request> processed_requests;
     // Use speculative decoding when the computed draft length is positive.
     // Otherwise use normal mode batch decode.

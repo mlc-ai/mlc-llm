@@ -152,7 +152,8 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                         # placeholder for calibration scale, the actual value will be set after
                         # calibration.
                         scale = runtime.empty(
-                            shape=op.q_calibration_scale.shape, dtype=op.q_calibration_scale.dtype
+                            shape=op.q_calibration_scale.shape,
+                            dtype=op.q_calibration_scale.dtype,
                         )
                         return [*old_map_func(*args, **kwargs), scale]
 
@@ -231,7 +232,8 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
                 max_abs = topi.max(topi.abs(x))
                 min_scaling_factor = tir.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
                 scale = topi.maximum(
-                    max_abs.astype(self.model_dtype) / self.max_int_value, min_scaling_factor
+                    max_abs.astype(self.model_dtype) / self.max_int_value,
+                    min_scaling_factor,
                 ).astype("float32")
                 scale = topi.expand_dims(scale, axis=0)
                 return scale
@@ -448,11 +450,16 @@ class PerTensorQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-a
                     x_scale * self.q_scale
                     if self.config.use_scale
                     else nn.wrap_nested(
-                        relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))), "scale"
+                        relax.Constant(runtime.tensor(np.array([1.0]).astype("float32"))),
+                        "scale",
                     )
                 )
                 return cutlass.fp8_gemm(
-                    x_q, self.q_weight, scale, self.config.weight_dtype, self.config.model_dtype
+                    x_q,
+                    self.q_weight,
+                    scale,
+                    self.config.weight_dtype,
+                    self.config.model_dtype,
                 )
             x = nn.op.matmul(x_q, nn.permute_dims(self.q_weight), out_dtype="float32")
             if self.config.use_scale:

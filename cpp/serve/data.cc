@@ -31,10 +31,10 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
   std::vector<Data> lhs(original_data.begin(), original_data.end());
   std::vector<Data> rhs;
   while (total_length > split_pos) {
-    ICHECK(!lhs.empty());
+    TVM_FFI_ICHECK(!lhs.empty());
     Data last_data = lhs.back();
     int last_data_length = last_data->GetLength();
-    ICHECK_GE(total_length - last_data_length, 0);
+    TVM_FFI_ICHECK_GE(total_length - last_data_length, 0);
     if (total_length - last_data_length >= split_pos) {
       // Pop the entire last data.
       rhs.push_back(lhs.back());
@@ -182,7 +182,7 @@ inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& 
 int32_t SampleResult::GetTokenId() const { return this->sampled_token_id.first; }
 
 std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logprob) const {
-  ICHECK(top_prob_tokens.empty() || logprob);
+  TVM_FFI_ICHECK(top_prob_tokens.empty() || logprob);
   if (!logprob) {
     // Logprob is not needed.
     return "";

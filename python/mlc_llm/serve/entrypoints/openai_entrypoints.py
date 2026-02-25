@@ -50,7 +50,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
@@ -62,7 +63,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -88,7 +91,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
 
     async for response in async_engine._handle_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -151,7 +156,8 @@ async def request_chat_completion(
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
@@ -165,7 +171,9 @@ async def request_chat_completion(
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_chat_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -193,7 +201,9 @@ async def request_chat_completion(
     )
 
     async for response in async_engine._handle_chat_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified

@@ -12,7 +12,7 @@ namespace mlc {
 namespace llm {
 
 std::string PrintAsUTF8(TCodepoint codepoint) {
-  ICHECK(codepoint <= 0x10FFFF) << "Invalid codepoint: " << codepoint;
+  TVM_FFI_ICHECK(codepoint <= 0x10FFFF) << "Invalid codepoint: " << codepoint;
   std::string utf8;
   if (codepoint <= 0x7F) {
     // 1-byte sequence
