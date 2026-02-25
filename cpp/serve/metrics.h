@@ -108,6 +108,8 @@ struct RequestMetrics {
   int64_t decode_tokens = 0;
   /*! \brief The number of tokens predicted by jump-forward decoding. */
   int64_t jump_forward_tokens = 0;
+  /*! \brief The number of tokens retrieved from prompt cache. */
+  int64_t prompt_cache_tokens = 0;
 
   /*! \brief The time of adding the request to engine. */
   std::chrono::high_resolution_clock::time_point add_time_point;
@@ -149,6 +151,7 @@ struct RequestMetrics {
     this->prompt_tokens = 0;
     this->prefill_tokens = 0;
     this->completion_tokens = 0;
+    this->prompt_cache_tokens = 0;
   }
   /*!
    * \brief Return the request metrics in JSON.
@@ -182,6 +185,8 @@ struct EngineMetrics {
   int64_t decode_tokens_sum = 0;
   /*! \brief The total number of tokens predicted by jump-forward decoding. */
   int64_t jump_forward_tokens_sum = 0;
+  /*! \brief The total number of tokens retrieved from prompt cache. */
+  int64_t prompt_cache_tokens_sum = 0;
   /*! \brief metrics from last finished request. */
   RequestMetrics last_finished_request;
   /*! \brief speculative decoding metrics */
@@ -240,6 +245,7 @@ struct EngineMetrics {
     completion_tokens_sum += request_metrics.completion_tokens;
     decode_tokens_sum += request_metrics.decode_tokens;
     jump_forward_tokens_sum += request_metrics.jump_forward_tokens;
+    prompt_cache_tokens_sum += request_metrics.prompt_cache_tokens;
     last_finished_request = request_metrics;
   }
   /*!
