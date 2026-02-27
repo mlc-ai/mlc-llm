@@ -355,4 +355,5 @@ CONV_TEMPLATES = {
     "deepseek_r1_llama",
     "olmo",
     "nemotron",
+    "llm-jp",
 }

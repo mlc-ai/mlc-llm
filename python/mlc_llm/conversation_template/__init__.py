@@ -16,6 +16,7 @@ from . import (
     hermes,
     llama,
     llava,
+    llm_jp,
     ministral3,
     ministral3_reasoning,
     mistral,
