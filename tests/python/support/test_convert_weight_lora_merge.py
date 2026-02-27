@@ -96,7 +96,7 @@ def test_convert_weight_with_lora_rejects_awq():
         adapter_dir = temp_path / "adapter"
         adapter_dir.mkdir(parents=True, exist_ok=True)
 
-        with pytest.raises(ValueError, match="only supports HuggingFace source formats"):
+        with pytest.raises(ValueError, match="only supports source formats"):
             convert_weight_interface.convert_weight(
                 config=config_path,
                 quantization=object(),

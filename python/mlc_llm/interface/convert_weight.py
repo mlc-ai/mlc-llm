@@ -227,8 +227,12 @@ def convert_weight(  # pylint: disable=too-many-arguments
         config, quantization, model, device, source, source_format, output, lora_adapter
     )
 
-    if lora_adapter is not None and source_format == "awq":
-        raise ValueError("`--lora-adapter` only supports HuggingFace source formats.")
+    allowed_lora_source_formats = {"huggingface-safetensor", "huggingface-torch"}
+    if lora_adapter is not None and source_format not in allowed_lora_source_formats:
+        raise ValueError(
+            "`--lora-adapter` only supports source formats: "
+            f"{sorted(allowed_lora_source_formats)}"
+        )
 
     if lora_adapter is not None:
         with _merge_lora_adapter_with_base_model(source, lora_adapter) as merged_model_dir:
