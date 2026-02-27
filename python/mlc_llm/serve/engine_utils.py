@@ -1,7 +1,7 @@
 """Utility functions for MLC Serve engine"""
 
 import uuid
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Union
 
 from mlc_llm.protocol import error_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
@@ -265,28 +265,6 @@ class ErrorCleanupScope:
 # ====== Embedding Engine Utilities ======
 
 
-def extract_embedding_metadata(mod) -> dict:
-    """Extract model metadata from a compiled TVM module.
-
-    Parameters
-    ----------
-    mod : tvm.runtime.Module
-        The compiled TVM module (the raw executable, not the VM module).
-
-    Returns
-    -------
-    metadata : dict
-        The model metadata dictionary.
-    """
-    import json  # pylint: disable=import-outside-toplevel
-
-    import tvm  # pylint: disable=import-outside-toplevel  # fmt: skip
-
-    from tvm.runtime.vm import VirtualMachine as VMRuntime  # isort: skip  # pylint: disable=import-outside-toplevel  # fmt: skip
-
-    return json.loads(VMRuntime(mod, tvm.runtime.device("cpu"))["_metadata"]())
-
-
 def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     """Load embedding model parameters from weight directory.
 
@@ -312,7 +290,7 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     return [params[name] for name in param_names]
 
 
-def detect_embedding_model_type(mod) -> str:
+def detect_embedding_model_type(mod) -> Literal["encoder", "decoder"]:
     """Detect embedding model type from compiled TVM module functions.
 
     Parameters
