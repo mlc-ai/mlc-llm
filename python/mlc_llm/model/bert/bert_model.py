@@ -222,7 +222,7 @@ class BertModel(nn.Module):
             self.dtype = dtype
 
     def forward(self, inputs: Tensor, attention_mask: Tensor):
-        # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1
+        # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1  # pylint: disable=fixme
         # (e.g., [2, 3, 4, ...] when pad_token_id=1), while this implementation uses
         # [0, 1, 2, ...]. For XLM-RoBERTa models (e.g., bge-m3), the position_embeddings
         # weights need to be shifted during weight conversion to compensate.

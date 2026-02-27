@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 from ..engine import AsyncMLCEngine
 
 if TYPE_CHECKING:
-    from ..engine import AsyncEmbeddingEngine
+    from ..embedding_engine import AsyncEmbeddingEngine
 
 
 class ServerContext:

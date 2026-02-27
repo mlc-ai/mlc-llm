@@ -3,9 +3,6 @@
 # pylint: disable=too-many-lines
 
 import asyncio
-import concurrent.futures
-import json
-import os
 import queue
 import sys
 import weakref

@@ -51,7 +51,7 @@ def _skip_if_no_model():
 def embedding_engine():
     """Module-scoped AsyncEmbeddingEngine — loaded once, shared across tests."""
     _skip_if_no_model()
-    from mlc_llm.serve.engine import AsyncEmbeddingEngine
+    from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine
 
     engine = AsyncEmbeddingEngine(
         model=EMBEDDING_MODEL_DIR,
@@ -303,7 +303,7 @@ def test_unicode_text(embedding_engine):
 
 if __name__ == "__main__":
     _skip_if_no_model()
-    from mlc_llm.serve.engine import AsyncEmbeddingEngine
+    from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine
 
     engine = AsyncEmbeddingEngine(
         model=EMBEDDING_MODEL_DIR,

@@ -1,4 +1,4 @@
-# ====== Embedding Engine ======
+"""Asynchronous embedding inference engine for encoder and decoder models."""
 
 import asyncio
 import concurrent.futures
