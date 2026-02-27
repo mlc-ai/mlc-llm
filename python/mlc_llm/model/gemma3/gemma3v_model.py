@@ -40,7 +40,6 @@ class Gemma3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     mm_tokens_per_image: int = 256
     boi_token_index: int = 255999
     eoi_token_index: int = 256000
-    image_token_index: int = 262144
     tensor_parallel_shards: int = 1
     max_batch_size: int = 1
     context_window_size: int = -1
@@ -96,7 +95,7 @@ class Gemma3MultiModalProjector(nn.Module):
         vision_hidden = config.vision_config.hidden_size
         text_hidden = config.text_config.hidden_size
 
-        # Standard RMSNorm (NOT Gemma +1 variant)
+        # RMSNorm (Gemma +1 is fused during weight loading)
         self.mm_soft_emb_norm = nn.RMSNorm(vision_hidden, -1, 1e-6, bias=False)
         # Linear projection: vision -> text hidden size
         self.mm_input_projection = nn.Linear(vision_hidden, text_hidden, bias=False)
