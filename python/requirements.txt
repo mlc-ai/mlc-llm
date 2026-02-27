@@ -1,7 +1,7 @@
 apache-tvm-ffi
 datasets
 fastapi
-flashinfer-python==0.4.0
+flashinfer-python
 ml_dtypes>=0.5.1
 openai
 pandas
