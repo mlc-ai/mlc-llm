@@ -9,8 +9,7 @@ Key differences from CLIP (clip_vision.py):
 """
 
 import dataclasses
-import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor
@@ -25,8 +24,6 @@ from tvm.relax.op import arange
 
 from mlc_llm import op as op_ext
 from mlc_llm.support.config import ConfigBase
-
-logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -146,7 +143,7 @@ class SigLIPEncoderLayer(Module):
         hidden_states = self.layer_norm2(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
-        return (hidden_states,)
+        return hidden_states
 
 
 class SigLIPEncoder(Module):
@@ -156,15 +153,11 @@ class SigLIPEncoder(Module):
             [SigLIPEncoderLayer(config) for _ in range(config.num_hidden_layers)]
         )
 
-    def forward(self, inputs_embeds: Tensor) -> Tuple[Tensor, ...]:
+    def forward(self, inputs_embeds: Tensor) -> Tensor:
         hidden_states = inputs_embeds
-        encoder_states: Tuple[Any, ...] = ()
-        for _, encoder_layer in enumerate(self.layers):
-            encoder_states = encoder_states + (hidden_states,)
-            layer_outputs = encoder_layer(hidden_states)
-            hidden_states = layer_outputs[0]
-        encoder_states = encoder_states + (hidden_states,)
-        return encoder_states
+        for encoder_layer in self.layers:
+            hidden_states = encoder_layer(hidden_states)
+        return hidden_states
 
 
 class SigLIPVisionTransformer(Module):
@@ -178,9 +171,7 @@ class SigLIPVisionTransformer(Module):
 
     def forward(self, pixel_values: Tensor) -> Tensor:
         hidden_states = self.embeddings(pixel_values)
-        encoder_outputs = self.encoder(inputs_embeds=hidden_states)
-        # Return last hidden state through post_layernorm
-        last_hidden_state = encoder_outputs[-1]
+        last_hidden_state = self.encoder(inputs_embeds=hidden_states)
         last_hidden_state = self.post_layernorm(last_hidden_state)
         return last_hidden_state
 
