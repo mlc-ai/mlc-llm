@@ -444,3 +444,91 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+
+
+class Qwen3EmbeddingModel(Qwen3LMHeadModel):
+    """Qwen3 model for embedding inference.
+
+    Inherits all functionality from Qwen3LMHeadModel and adds methods that
+    return hidden states instead of logits, for use by AsyncEmbeddingEngine.
+    Only compiled when using the "qwen3-embedding" model type.
+    """
+
+    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
+        op_ext.configure()
+        hidden_states = self.model(input_embed, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def batch_prefill_to_last_hidden_states(
+        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        op_ext.configure()
+        hidden_states = self.model(input_embeds, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def batch_decode_to_last_hidden_states(
+        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
+    ):
+        op_ext.configure()
+        hidden_states = self.model(input_embeds, paged_kv_cache)
+        return hidden_states, paged_kv_cache
+
+    def get_default_spec(self):
+        mod_spec = {
+            "embed": {
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill_to_last_hidden_states": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode_to_last_hidden_states": {
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_prefill_to_last_hidden_states": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "batch_decode_to_last_hidden_states": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
+                "support_sliding_window": int,
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
+            },
+        }
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)

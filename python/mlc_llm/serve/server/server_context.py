@@ -1,8 +1,11 @@
 """Server context that shared by multiple entrypoint files."""
 
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from ..engine import AsyncMLCEngine
+
+if TYPE_CHECKING:
+    from ..embedding_engine import AsyncEmbeddingEngine
 
 
 class ServerContext:
@@ -15,6 +18,7 @@ class ServerContext:
 
     def __init__(self) -> None:
         self._models: Dict[str, AsyncMLCEngine] = {}
+        self._embedding_engines: Dict[str, "AsyncEmbeddingEngine"] = {}
 
     def __enter__(self):
         if ServerContext.server_context is not None:
@@ -25,7 +29,11 @@ class ServerContext:
     def __exit__(self, exc_type, exc_value, traceback):
         for model_engine in self._models.values():
             model_engine.terminate()
+        for emb_engine in self._embedding_engines.values():
+            emb_engine.terminate()
         self._models.clear()
+        self._embedding_engines.clear()
+        ServerContext.server_context = None
 
     @staticmethod
     def current():
@@ -46,5 +54,18 @@ class ServerContext:
         return self._models.get(model, None)
 
     def get_model_list(self) -> List[str]:
-        """Get the list of models on serve."""
-        return list(self._models.keys())
+        """Get the list of all models on serve, including embedding models."""
+        return list(self._models.keys()) + list(self._embedding_engines.keys())
+
+    def add_embedding_engine(self, hosted_model: str, engine: "AsyncEmbeddingEngine") -> None:
+        """Add a new embedding model to the server context."""
+        if hosted_model in self._embedding_engines:
+            raise RuntimeError(f"Embedding model {hosted_model} already running.")
+        self._embedding_engines[hosted_model] = engine
+
+    def get_embedding_engine(self, model: Optional[str]) -> Optional["AsyncEmbeddingEngine"]:
+        """Get the embedding engine of the requested model, or the unique
+        embedding engine if only one is served."""
+        if len(self._embedding_engines) == 1:
+            return next(iter(self._embedding_engines.values()))
+        return self._embedding_engines.get(model, None)

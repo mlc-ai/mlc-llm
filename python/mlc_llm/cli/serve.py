@@ -140,6 +140,18 @@ def main(argv):
         "--additional-models", type=str, nargs="*", help=HELP["additional_models_serve"]
     )
     parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default=None,
+        help="Path to the embedding model weight directory (enables /v1/embeddings endpoint)",
+    )
+    parser.add_argument(
+        "--embedding-model-lib",
+        type=str,
+        default=None,
+        help="Path to the compiled embedding model library (.so/.dylib file)",
+    )
+    parser.add_argument(
         "--speculative-mode",
         type=str,
         choices=["disable", "small_draft", "eagle", "medusa"],
@@ -216,6 +228,8 @@ def main(argv):
         mode=parsed.mode,
         enable_debug=parsed.enable_debug,
         additional_models=additional_models,
+        embedding_model=parsed.embedding_model,
+        embedding_model_lib=parsed.embedding_model_lib,
         tensor_parallel_shards=parsed.overrides.tensor_parallel_shards,
         pipeline_parallel_stages=parsed.overrides.pipeline_parallel_stages,
         opt=parsed.overrides.opt,

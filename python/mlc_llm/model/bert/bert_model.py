@@ -32,6 +32,9 @@ class BertConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
     context_window_size: int = 0
     prefill_chunk_size: int = 0
     tensor_parallel_shards: int = 1
+    type_vocab_size: int = 2
+    pad_token_id: int = 0
+    position_offset: int = 0
     head_dim: int = 0
     max_batch_size: int = 1
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -192,7 +195,9 @@ class BertEmbeddings(nn.Module):
         self.position_embeddings = nn.Embedding(
             config.context_window_size, config.hidden_size, dtype="float32"
         )
-        self.token_type_embeddings = nn.Embedding(2, config.hidden_size, dtype="float32")
+        self.token_type_embeddings = nn.Embedding(
+            config.type_vocab_size, config.hidden_size, dtype="float32"
+        )
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
     def forward(self, input_ids: Tensor, token_type_ids: Tensor, position_ids: Tensor):
@@ -217,6 +222,10 @@ class BertModel(nn.Module):
             self.dtype = dtype
 
     def forward(self, inputs: Tensor, attention_mask: Tensor):
+        # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1  # pylint: disable=fixme
+        # (e.g., [2, 3, 4, ...] when pad_token_id=1), while this implementation uses
+        # [0, 1, 2, ...]. For XLM-RoBERTa models (e.g., bge-m3), the position_embeddings
+        # weights need to be shifted during weight conversion to compensate.
         def _input_positions(inputs: te.Tensor):
             b, s = inputs.shape
             return te.compute((b, s), lambda _, j: j.astype("int32"), name="input_positions")
