@@ -336,19 +336,16 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         for tokens in token_lists:
             if not tokens:
                 continue
-            if len(tokens) > prefill_chunk:
-                if current_batch:
-                    sub_batches.append(("batch", current_batch, current_tokens))
-                    current_batch = []
-                    current_tokens = 0
-                sub_batches.append(("sequential", [tokens], len(tokens)))
-            elif current_tokens + len(tokens) > prefill_chunk and current_batch:
+            token_len = len(tokens)
+            is_oversized = token_len > prefill_chunk
+            if current_batch and (is_oversized or current_tokens + token_len > prefill_chunk):
                 sub_batches.append(("batch", current_batch, current_tokens))
-                current_batch = [tokens]
-                current_tokens = len(tokens)
+                current_batch, current_tokens = [], 0
+            if is_oversized:
+                sub_batches.append(("sequential", [tokens], token_len))
             else:
                 current_batch.append(tokens)
-                current_tokens += len(tokens)
+                current_tokens += token_len
         if current_batch:
             sub_batches.append(("batch", current_batch, current_tokens))
 
