@@ -19,7 +19,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
   explicit NewRequestPrefillActionObj(Array<Model> models, LogitProcessor logit_processor,
                                       Sampler sampler, std::vector<ModelWorkspace> model_workspaces,
                                       EngineConfig engine_config,
-                                      std::vector<picojson::object> model_configs,
+                                      std::vector<tvm::ffi::json::Object> model_configs,
                                       Optional<EventTraceRecorder> trace_recorder)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
                                   std::move(model_configs), std::move(trace_recorder)),
@@ -296,9 +296,9 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
 
       if (result.prefilled_offset == 0) {
         // Add new sequence
-        CHECK_EQ(result.forked_seq_id, -1);
-        CHECK_EQ(result.reused_seq_id, -1);
-        CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+        TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
         for (Model model : models_) {
           model->AddNewSequence(rsentry->mstates[0]->internal_id);
           // Enable sliding window for the sequence if it is not a parent.
@@ -308,8 +308,8 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
         }
       } else {
         if (result.forked_seq_id != -1) {
-          CHECK_EQ(result.reused_seq_id, -1);
-          CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
           // Fork from active sequence
           for (Model model : models_) {
             model->ForkSequence(result.forked_seq_id, rsentry->mstates[0]->internal_id,
@@ -321,7 +321,7 @@ class NewRequestPrefillActionObj : public BatchPrefillBaseActionObj {
           }
         } else {
           // Reuse recycling sequence
-          CHECK_EQ(result.forked_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
           estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
           for (int i = 0; i < rsentry->mstates.size(); ++i) {
             rsentry->mstates[i]->internal_id = result.reused_seq_id;
@@ -353,7 +353,7 @@ EngineAction EngineAction::NewRequestPrefill(Array<Model> models, LogitProcessor
                                              Sampler sampler,
                                              std::vector<ModelWorkspace> model_workspaces,
                                              EngineConfig engine_config,
-                                             std::vector<picojson::object> model_configs,
+                                             std::vector<tvm::ffi::json::Object> model_configs,
                                              Optional<EventTraceRecorder> trace_recorder) {
   return EngineAction(tvm::ffi::make_object<NewRequestPrefillActionObj>(
       std::move(models), std::move(logit_processor), std::move(sampler),

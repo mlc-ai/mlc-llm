@@ -131,8 +131,8 @@ class BatchDraftActionObj : public EngineActionObj {
           // size, we must do the prefill with multiple rounds by chunk.
           int total_length = 0;
           for (int i = 0; i < num_rsentries; ++i) {
-            CHECK_LE(mstates[i]->committed_tokens.size(),
-                     running_rsentries[i]->mstates[0]->committed_tokens.size());
+            TVM_FFI_ICHECK_LE(mstates[i]->committed_tokens.size(),
+                              running_rsentries[i]->mstates[0]->committed_tokens.size());
             total_length += running_rsentries[i]->mstates[0]->committed_tokens.size() -
                             mstates[i]->committed_tokens.size() + 1;
           }
@@ -146,8 +146,8 @@ class BatchDraftActionObj : public EngineActionObj {
           int num_leaf_nodes = 0;
           // Starting from last committed tokens
           if (draft_id == 0) {
-            CHECK_LE(mstates[i]->committed_tokens.size(),
-                     running_rsentries[i]->mstates[0]->committed_tokens.size());
+            TVM_FFI_ICHECK_LE(mstates[i]->committed_tokens.size(),
+                              running_rsentries[i]->mstates[0]->committed_tokens.size());
             TVM_FFI_ICHECK_EQ(mstates[i]->num_tokens_for_next_decode, 1);
             input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
             input_lengths.push_back(running_rsentries[i]->mstates[0]->committed_tokens.size() -
@@ -170,8 +170,8 @@ class BatchDraftActionObj : public EngineActionObj {
             num_leaf_nodes = 1;
             cum_num_tokens.push_back(cum_num_tokens.back() + 1);
           } else {
-            CHECK_EQ(mstates[i]->committed_tokens.size(),
-                     running_rsentries[i]->mstates[0]->committed_tokens.size());
+            TVM_FFI_ICHECK_EQ(mstates[i]->committed_tokens.size(),
+                              running_rsentries[i]->mstates[0]->committed_tokens.size());
             TVM_FFI_ICHECK(!mstates[i]->draft_output_tokens.empty());
             draft_token_indices.emplace_back(std::vector<int>{});
             // Get all leaf nodes
@@ -240,7 +240,7 @@ class BatchDraftActionObj : public EngineActionObj {
           TVM_FFI_ICHECK_EQ(logits->shape[0], cum_num_tokens.back());
           TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
         }
-        CHECK_EQ(input_lengths.size(), num_rsentries);
+        TVM_FFI_ICHECK_EQ(input_lengths.size(), num_rsentries);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
 
         // - Update logits.

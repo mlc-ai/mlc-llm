@@ -64,7 +64,7 @@ Function FunctionTable::SessionFuncAsPackedFunc(Session sess, DRef sess_func, St
   });
 }
 
-void FunctionTable::Init(String reload_lib_path, Device device, picojson::object model_config,
+void FunctionTable::Init(String reload_lib_path, Device device, tvm::ffi::json::Object model_config,
                          Optional<Session> session, int num_shards, int num_stages) {
   local_gpu_device = device;
   this->model_config = model_config;
@@ -118,10 +118,10 @@ void FunctionTable::Init(String reload_lib_path, Device device, picojson::object
       /* precompile opencl kernel programs */
       if (device.device_type == kDLOpenCL) {
         auto f_get = executable.value()->GetFunction("opencl.GetPreCompiledPrograms", true);
-        CHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
+        TVM_FFI_ICHECK(f_get.defined()) << "Cannot find opencl.GetPreCompiledPrograms";
         tvm::ffi::String bytes = f_get.value()().cast<String>();
         auto f_set = executable.value()->GetFunction("opencl.SetPreCompiledPrograms", true);
-        CHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
+        TVM_FFI_ICHECK(f_set.defined()) << "Cannot find opencl.SetPreCompiledPrograms";
         f_set.value()(tvm::ffi::String(bytes));
       }
       TVM_FFI_ICHECK(fload_exec.defined()) << "TVM runtime cannot find vm_load_executable";
@@ -163,8 +163,8 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
 
       auto load_all_func_name = "runtime.disco.ShardLoaderLoadAll";
       Function loader_load_all = this->get_global_func(load_all_func_name);
-      CHECK(loader_create != nullptr);
-      CHECK(loader_load_all != nullptr);
+      TVM_FFI_ICHECK(loader_create != nullptr);
+      TVM_FFI_ICHECK(loader_load_all != nullptr);
       DRef loader =
           loader_create(metadata_path, tensor_cache_metadata, "", this->disco_mod).cast<DRef>();
       params = loader_load_all(loader).cast<DRef>();
@@ -173,7 +173,7 @@ ObjectRef FunctionTable::LoadParams(const std::string& model_path, Device device
                                 ? "mlc.multi_gpu.LoadMultiGPU"
                                 : "mlc.multi_gpu.LoadMultiGPUPresharded";
       Function loader = this->get_global_func(load_func_name);
-      params = loader(model_path, this->disco_mod, picojson::value(this->model_config).serialize())
+      params = loader(model_path, this->disco_mod, tvm::ffi::json::Stringify(this->model_config))
                    .cast<DRef>();
     }
     return params.value();

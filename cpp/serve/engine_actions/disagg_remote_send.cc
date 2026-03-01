@@ -21,7 +21,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
   explicit DisaggRemoteSendActionObj(Array<Model> models,
                                      std::vector<ModelWorkspace> model_workspaces,
                                      EngineConfig engine_config,
-                                     std::vector<picojson::object> model_configs,
+                                     std::vector<tvm::ffi::json::Object> model_configs,
                                      Optional<EventTraceRecorder> trace_recorder,
                                      FRequestStreamCallback request_stream_callback, Device device)
       : BatchPrefillBaseActionObj(std::move(models), std::move(engine_config),
@@ -96,14 +96,14 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
           // Add the sequence to the model.
           // If the sequence is already in prefix cache, it has also been added/forked in the
           // KVCache.
-          CHECK_EQ(rsentry->parent_idx, -1);
+          TVM_FFI_ICHECK_EQ(rsentry->parent_idx, -1);
           models_[model_id]->AddNewSequence(mstate->internal_id);
           // Enable sliding window for the sequence if it is not a parent.
           if (rsentry->child_indices.empty()) {
             models_[model_id]->EnableSlidingWindowForSeq(mstate->internal_id);
           }
           DisaggConfig disagg_config = mstate->request->generation_cfg->debug_config.disagg_config;
-          CHECK(disagg_config.dst_group_offset.has_value());
+          TVM_FFI_ICHECK(disagg_config.dst_group_offset.has_value());
           models_[model_id]->DisaggMarkKVSend(
               mstate->internal_id, disagg_config.kv_window_begin.value_or(0),
               disagg_config.kv_append_metadata[model_id], disagg_config.dst_group_offset.value());
@@ -225,9 +225,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
       for (const Request& request : waiting_queue) {
         NVTXScopedRange nvtx_scope("Process request " + request->id);
         RequestState rstate = estate->GetRequestState(request);
-        CHECK_EQ(rstate->entries.size(), 1) << "n > 1 is not supported.";
+        TVM_FFI_ICHECK_EQ(rstate->entries.size(), 1) << "n > 1 is not supported.";
         const RequestStateEntry& rsentry = rstate->entries[0];
-        CHECK(!rsentry->mstates[i]->inputs.empty())
+        TVM_FFI_ICHECK(!rsentry->mstates[i]->inputs.empty())
             << "The request entry must have pending inputs.";
 
         int input_length = rsentry->mstates[i]->GetInputLength();
@@ -401,9 +401,9 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
 
       if (result.prefilled_offset == 0) {
         // Add new sequence
-        CHECK_EQ(result.forked_seq_id, -1);
-        CHECK_EQ(result.reused_seq_id, -1);
-        CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+        TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+        TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
         for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
           Model model = models_[model_id];
           RequestModelState mstate = rsentry->mstates[model_id];
@@ -419,8 +419,8 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
         }
       } else {
         if (result.forked_seq_id != -1) {
-          CHECK_EQ(result.reused_seq_id, -1);
-          CHECK_EQ(result.reused_seq_pop_last_tokens, 0);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.reused_seq_pop_last_tokens, 0);
           // Fork from active sequence
           for (int model_id = 0; model_id < static_cast<int>(models_.size()); ++model_id) {
             Model model = models_[model_id];
@@ -439,7 +439,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
           }
         } else {
           // Reuse recycling sequence
-          CHECK_EQ(result.forked_seq_id, -1);
+          TVM_FFI_ICHECK_EQ(result.forked_seq_id, -1);
           estate->id_manager.RecycleId(rsentry->mstates[0]->internal_id);
           for (int i = 0; i < rsentry->mstates.size(); ++i) {
             rsentry->mstates[i]->internal_id = result.reused_seq_id;
@@ -486,7 +486,7 @@ class DisaggRemoteSendActionObj : public BatchPrefillBaseActionObj {
 
 EngineAction EngineAction::DisaggRemoteSend(
     Array<Model> models, std::vector<ModelWorkspace> model_workspaces, EngineConfig engine_config,
-    std::vector<picojson::object> model_configs, Optional<EventTraceRecorder> trace_recorder,
+    std::vector<tvm::ffi::json::Object> model_configs, Optional<EventTraceRecorder> trace_recorder,
     FRequestStreamCallback request_stream_callback, Device device) {
   return EngineAction(tvm::ffi::make_object<DisaggRemoteSendActionObj>(
       std::move(models), std::move(model_workspaces), std::move(engine_config),

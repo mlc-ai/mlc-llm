@@ -31,6 +31,12 @@ def main(argv):
             path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def _parse_lora_adapter(path: Union[str, Path]) -> Path:
+        path = Path(path)
+        if not path.exists() or not path.is_dir():
+            raise argparse.ArgumentTypeError(f"LoRA adapter directory does not exist: {path}")
+        return path
+
     parser = ArgumentParser("MLC AutoLLM Quantization Framework")
     parser.add_argument(
         "config",
@@ -77,12 +83,21 @@ def main(argv):
         required=True,
         help=HELP["output_quantize"] + " (required)",
     )
+    parser.add_argument(
+        "--lora-adapter",
+        type=_parse_lora_adapter,
+        default=None,
+        help=(
+            "Path to a LoRA adapter directory in PEFT format. "
+            "When provided, adapter weights are merged into the base model before quantization."
+        ),
+    )
 
     parsed = parser.parse_args(argv)
     parsed.source, parsed.source_format = detect_weight(
-        weight_path=_parse_source(parsed.source, parsed.config),
-        config_json_path=parsed.config,
-        weight_format=parsed.source_format,
+        _parse_source(parsed.source, parsed.config),
+        parsed.config,
+        parsed.source_format,
     )
     model = detect_model_type(parsed.model_type, parsed.config)
     convert_weight(
@@ -93,4 +108,5 @@ def main(argv):
         source=parsed.source,
         source_format=parsed.source_format,
         output=parsed.output,
+        lora_adapter=parsed.lora_adapter,
     )

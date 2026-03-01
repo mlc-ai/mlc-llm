@@ -4,7 +4,7 @@ import asyncio
 import concurrent.futures
 import json
 import os
-from typing import List, Optional, Tuple, Union
+from typing import List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import tvm
@@ -272,15 +272,12 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         to sequential chunked prefill per input.
         """
         # Read KV cache config from metadata
-        sliding_window = self._metadata.get("sliding_window_size", -1)
-        context_window = self._metadata.get("context_window_size", 32768)
         prefill_chunk = self._metadata.get("prefill_chunk_size", 2048)
-        max_seq_len = sliding_window if context_window == -1 else context_window
-        assert max_seq_len > 0, (
-            f"max_seq_len must be positive, got {max_seq_len} "
-            f"(context_window_size={context_window}, sliding_window_size={sliding_window})"
-        )
-        support_sliding = int(sliding_window != -1)
+        max_seq_len = self._metadata.get("context_window_size", 32768)
+        if max_seq_len == -1:
+            max_seq_len = self._metadata.get("sliding_window_size", -1)
+        assert max_seq_len > 0, f"max_seq_len must be positive, got {max_seq_len}"
+        support_sliding = int(self._metadata.get("sliding_window_size", -1) != -1)
 
         # Tokenize all inputs. Prefer tokenizer post-processor output. If absent (older models),
         # fall back to appending eos_token_id when missing.
@@ -305,10 +302,54 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
                 token_lists, total_tokens, max_seq_len, prefill_chunk, support_sliding
             )
 
-        # Fallback: sequential chunked prefill per input
-        return self._sequential_embed_decoder(
-            token_lists, total_tokens, max_seq_len, prefill_chunk, support_sliding
-        )
+        # Greedy sub-batching: pack texts into sub-batches that fit within
+        # prefill_chunk, preserving input order. Oversize texts (single text
+        # exceeding prefill_chunk) fall back to sequential chunked prefill.
+        sub_batches = self._build_sub_batches(token_lists, prefill_chunk)
+        all_embeddings: List[List[float]] = []
+        for batch_type, batch, batch_total in sub_batches:
+            if batch_type == "batch":
+                embs, _ = self._batch_embed_decoder(
+                    batch, batch_total, max_seq_len, prefill_chunk, support_sliding
+                )
+            else:
+                embs, _ = self._sequential_embed_decoder(
+                    batch, batch_total, max_seq_len, prefill_chunk, support_sliding
+                )
+            all_embeddings.extend(embs)
+
+        return all_embeddings, total_tokens
+
+    @staticmethod
+    def _build_sub_batches(
+        token_lists: List[List[int]], prefill_chunk: int
+    ) -> List[Tuple[Literal["batch", "sequential"], List[List[int]], int]]:
+        """Partition token lists into sub-batches that fit within prefill_chunk.
+
+        Each sub-batch is a tuple of (mode, token_lists, total_token_count).
+        Empty token lists are skipped to avoid invalid batch processing.
+        """
+        sub_batches: List[Tuple[Literal["batch", "sequential"], List[List[int]], int]] = []
+        current_batch: List[List[int]] = []
+        current_tokens = 0
+
+        for tokens in token_lists:
+            if not tokens:
+                continue
+            token_len = len(tokens)
+            is_oversized = token_len > prefill_chunk
+            if current_batch and (is_oversized or current_tokens + token_len > prefill_chunk):
+                sub_batches.append(("batch", current_batch, current_tokens))
+                current_batch, current_tokens = [], 0
+            if is_oversized:
+                sub_batches.append(("sequential", [tokens], token_len))
+            else:
+                current_batch.append(tokens)
+                current_tokens += token_len
+        if current_batch:
+            sub_batches.append(("batch", current_batch, current_tokens))
+
+        return sub_batches
 
     def _batch_embed_decoder(  # pylint: disable=too-many-arguments,too-many-locals
         self,

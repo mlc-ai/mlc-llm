@@ -5,7 +5,6 @@
 #ifndef MLC_LLM_SERVE_ENGINE_STATE_H_
 #define MLC_LLM_SERVE_ENGINE_STATE_H_
 
-#include <picojson.h>
 #include <tvm/ffi/string.h>
 
 #include "config.h"

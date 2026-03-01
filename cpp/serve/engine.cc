@@ -47,23 +47,24 @@ using tvm::ffi::Function;
 class EngineModule;
 
 // get tokenizer info from model config
-inline std::optional<TokenizerInfo> GetTokenizerInfo(const picojson::object& model_config) {
+inline std::optional<TokenizerInfo> GetTokenizerInfo(const tvm::ffi::json::Object& model_config) {
   if (model_config.count("tokenizer_info") == 0) {
     LOG(WARNING) << "Tokenizer info not found in mlc-chat-config.json. "
                  << "Trying to automatically detect the tokenizer info";
     return std::nullopt;
   }
-  const picojson::object& tokenizer_info_obj =
-      model_config.at("tokenizer_info").get<picojson::object>();
+  const tvm::ffi::json::Object& tokenizer_info_obj =
+      model_config.at("tokenizer_info").cast<tvm::ffi::json::Object>();
   auto info = tvm::ffi::make_object<TokenizerInfoNode>();
   if (tokenizer_info_obj.count("token_postproc_method")) {
-    info->token_postproc_method = tokenizer_info_obj.at("token_postproc_method").get<std::string>();
+    info->token_postproc_method =
+        tokenizer_info_obj.at("token_postproc_method").cast<std::string>();
   }
   if (tokenizer_info_obj.count("prepend_space_in_encode")) {
-    info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").get<bool>();
+    info->prepend_space_in_encode = tokenizer_info_obj.at("prepend_space_in_encode").cast<bool>();
   }
   if (tokenizer_info_obj.count("strip_space_in_decode")) {
-    info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").get<bool>();
+    info->strip_space_in_decode = tokenizer_info_obj.at("strip_space_in_decode").cast<bool>();
   }
   return TokenizerInfo(info);
 }
@@ -158,7 +159,7 @@ class MockEchoEngineImpl : public Engine {
  public:
   static Result<EngineCreationOutput> Create(const std::string& engine_config_json_str,
                                              FRequestStreamCallback request_stream_callback,
-                                             const picojson::object& model_config) {
+                                             const tvm::ffi::json::Object& model_config) {
     using TResult = Result<EngineCreationOutput>;
     // set dummy values
     InferrableEngineConfig inferrable_config;
@@ -167,13 +168,13 @@ class MockEchoEngineImpl : public Engine {
     inferrable_config.max_single_sequence_length = 4096;
     inferrable_config.prefill_chunk_size = 1024;
     inferrable_config.max_history_size = 1024;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
+    tvm::ffi::String err;
+    auto config_json = tvm::ffi::json::Parse(engine_config_json_str, &err);
     if (!err.empty()) {
       return TResult::Error(err);
     }
     EngineConfig engine_config = EngineConfig::FromJSONAndInferredConfig(
-        config_json.get<picojson::object>(), inferrable_config);
+        config_json.cast<tvm::ffi::json::Object>(), inferrable_config);
 
     auto n = std::make_unique<MockEchoEngineImpl>();
     n->request_stream_callback_ = request_stream_callback;
@@ -239,17 +240,17 @@ class MockEchoEngineImpl : public Engine {
         std::vector<String>(request->generation_cfg->n)));
 
     // attach usage and config
-    picojson::object usage;
-    usage["prompt_tokens"] = picojson::value(static_cast<int64_t>(prompt_tokens));
-    usage["completion_tokens"] =
-        picojson::value(static_cast<int64_t>(completion_tokens * request->generation_cfg->n));
-    usage["total_tokens"] = picojson::value(
-        static_cast<int64_t>(prompt_tokens + completion_tokens * request->generation_cfg->n));
-    usage["extra"] = picojson::value(request->generation_cfg->AsJSON());
+    tvm::ffi::json::Object usage;
+    usage.Set("prompt_tokens", static_cast<int64_t>(prompt_tokens));
+    usage.Set("completion_tokens",
+              static_cast<int64_t>(completion_tokens * request->generation_cfg->n));
+    usage.Set("total_tokens",
+              static_cast<int64_t>(prompt_tokens + completion_tokens * request->generation_cfg->n));
+    usage.Set("extra", request->generation_cfg->AsJSON());
     // NOTE: Invariant requirement
     // always stream back final usage
     // otherwise frontend may have issues deciding termination
-    outputs.push_back(RequestStreamOutput::Usage(request->id, picojson::value(usage).serialize()));
+    outputs.push_back(RequestStreamOutput::Usage(request->id, tvm::ffi::json::Stringify(usage)));
     // reverse the stream back so we can just pop back and get out
     std::reverse(outputs.begin(), outputs.end());
 
@@ -372,12 +373,12 @@ class EngineImpl : public Engine {
     // - Load model config, create a shared disco session when tensor
     // parallelism is enabled.
     std::vector<std::string> model_libs;
-    std::vector<picojson::object> model_configs;
+    std::vector<tvm::ffi::json::Object> model_configs;
     model_libs.reserve(num_model);
     model_configs.reserve(num_model);
     for (int i = 0; i < num_model; ++i) {
       const auto& [model_str, model_lib] = models_and_model_libs[i];
-      Result<picojson::object> model_config_res = Model::LoadModelConfig(model_str);
+      Result<tvm::ffi::json::Object> model_config_res = Model::LoadModelConfig(model_str);
       if (model_config_res.IsErr()) {
         return TResult::Error("Model " + std::to_string(i) +
                               " has invalid mlc-chat-config.json: " + model_config_res.UnwrapErr());
@@ -409,7 +410,7 @@ class EngineImpl : public Engine {
     if (n->estate_->disaggregation) {
       LOG(INFO) << "Intiailizing NVSHMEM";
       char* nvshmem_init_config_json_char = std::getenv("MLC_NVSHMEM_INIT_CONFIG_JSON_STR");
-      CHECK(nvshmem_init_config_json_char != nullptr)
+      TVM_FFI_ICHECK(nvshmem_init_config_json_char != nullptr)
           << "The environment variables MLC_NVSHMEM_INIT_CONFIG_JSON_STR should be set.";
       std::string f_name = "runtime.disco.nvshmem.init_nvshmem_wrapper";
       if (session != nullptr) {
@@ -511,7 +512,7 @@ class EngineImpl : public Engine {
 
   bool Empty() final { return estate_->running_queue.empty() && estate_->waiting_queue.empty(); }
 
-  String JSONMetrics() final { return picojson::value(estate_->metrics.AsJSON()).serialize(true); }
+  String JSONMetrics() final { return tvm::ffi::json::Stringify(estate_->metrics.AsJSON(), 2); }
 
   FRequestStreamCallback GetRequestStreamCallback() final {
     return estate_->request_stream_callback_;
@@ -560,17 +561,17 @@ class EngineImpl : public Engine {
       // - Truncate the inputs to the desired prefill length (specified by "end").
       int kv_window_begin = disagg_config.kv_window_begin.value_or(0);
       int kv_window_end = disagg_config.kv_window_end.value_or(input_length);
-      CHECK_GE(kv_window_begin, 0);
+      TVM_FFI_ICHECK_GE(kv_window_begin, 0);
       if (kv_window_end < 0) {
         kv_window_end = input_length + kv_window_end;
       }
-      CHECK_LT(kv_window_end, input_length)
+      TVM_FFI_ICHECK_LT(kv_window_end, input_length)
           << "Prefill the full input on the remote machine is not supported.";
-      CHECK_LT(kv_window_begin, kv_window_end)
+      TVM_FFI_ICHECK_LT(kv_window_begin, kv_window_end)
           << "\"begin >= end\" is not supported by remote prefill";
       request->inputs = SplitData(request->inputs, input_length, kv_window_end).first;
       // - Check the invariant: "end - begin" equals the expanded metadata length.
-      CHECK_EQ(disagg_config.kv_append_metadata.size(), models_.size());
+      TVM_FFI_ICHECK_EQ(disagg_config.kv_append_metadata.size(), models_.size());
       for (const IntTuple& compressed_kv_append_metadata : disagg_config.kv_append_metadata) {
         TVM_FFI_ICHECK(!compressed_kv_append_metadata.empty());
         int num_segments = compressed_kv_append_metadata[0];
@@ -579,7 +580,7 @@ class EngineImpl : public Engine {
         for (int i = 0; i < num_segments; ++i) {
           transmission_length += compressed_kv_append_metadata[i * 2 + 2];
         }
-        CHECK_EQ(transmission_length, kv_window_end - kv_window_begin);
+        TVM_FFI_ICHECK_EQ(transmission_length, kv_window_end - kv_window_begin);
       }
       // - Override the "n" in generation config to 1.
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
@@ -589,11 +590,11 @@ class EngineImpl : public Engine {
       return false;
     } else if (kind == DisaggRequestKind::kStartGeneration) {
       auto it_rstate = estate_->request_states.find(request->id);
-      CHECK(it_rstate != estate_->request_states.end());
+      TVM_FFI_ICHECK(it_rstate != estate_->request_states.end());
       TVM_FFI_ICHECK(!it_rstate->second->entries.empty());
       request = it_rstate->second->entries[0]->request;
-      CHECK(request->generation_cfg->debug_config.disagg_config.kind ==
-            DisaggRequestKind::kPrepareReceive);
+      TVM_FFI_ICHECK(request->generation_cfg->debug_config.disagg_config.kind ==
+                     DisaggRequestKind::kPrepareReceive);
       int input_length = 0;
       for (Data input : request->inputs) {
         input_length += input->GetLength();
@@ -601,37 +602,37 @@ class EngineImpl : public Engine {
       // - Truncate the inputs to the desired prefill length (specified by "end").
       int kv_window_begin = disagg_config.kv_window_begin.value_or(0);
       int kv_window_end = disagg_config.kv_window_end.value_or(input_length);
-      CHECK_EQ(kv_window_end, input_length);
+      TVM_FFI_ICHECK_EQ(kv_window_end, input_length);
       if (kv_window_begin < 0) {
         kv_window_begin = input_length + kv_window_begin;
       }
-      CHECK_GE(kv_window_begin, 0);
-      CHECK_LT(kv_window_begin, input_length);
+      TVM_FFI_ICHECK_GE(kv_window_begin, 0);
+      TVM_FFI_ICHECK_LT(kv_window_begin, input_length);
       // The request is not supposed to be in running queue nor waiting queue.
       auto it_running =
           std::find(estate_->running_queue.begin(), estate_->running_queue.end(), request);
       auto it_waiting =
           std::find(estate_->waiting_queue.begin(), estate_->waiting_queue.end(), request);
-      CHECK(it_running == estate_->running_queue.end());
-      CHECK(it_waiting == estate_->waiting_queue.end());
+      TVM_FFI_ICHECK(it_running == estate_->running_queue.end());
+      TVM_FFI_ICHECK(it_waiting == estate_->waiting_queue.end());
 
       RequestState rstate = it_rstate->second;
       ObjectPtr<GenerationConfigNode> updated_generation_cfg =
           tvm::ffi::make_object<GenerationConfigNode>(*request->generation_cfg.get());
       // - Split the input data into two parts at the position "kv_window_begin".
-      CHECK(!request->inputs.empty());
+      TVM_FFI_ICHECK(!request->inputs.empty());
       auto [lhs_data, rhs_data] = SplitData(request->inputs, input_length, kv_window_begin);
       if (input_length - kv_window_begin == 1 && request->generation_cfg->n == 1) {
         // - Commit the last token id to the request states.
-        CHECK_EQ(rhs_data.size(), 1);
+        TVM_FFI_ICHECK_EQ(rhs_data.size(), 1);
         const auto* token_data = rhs_data.back().as<TokenDataNode>();
-        CHECK(token_data != nullptr);
-        CHECK_EQ(token_data->GetLength(), 1);
+        TVM_FFI_ICHECK(token_data != nullptr);
+        TVM_FFI_ICHECK_EQ(token_data->GetLength(), 1);
         SampleResult last_token;
         last_token.sampled_token_id = {token_data->token_ids.back(), 1.0};
         for (RequestModelState mstate : rstate->entries[0]->mstates) {
           mstate->CommitToken(last_token);
-          CHECK_EQ(mstate->committed_tokens.size(), 1);
+          TVM_FFI_ICHECK_EQ(mstate->committed_tokens.size(), 1);
         }
         // - Set "next_callback_token_pos" so that this token will not be streamed back to user.
         rstate->entries[0]->next_callback_token_pos = 1;
@@ -743,7 +744,7 @@ class EngineImpl : public Engine {
   /*********************** Engine Action ***********************/
 
   void Step() final {
-    CHECK(estate_->request_stream_callback_ != nullptr)
+    TVM_FFI_ICHECK(estate_->request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
     for (EngineAction action : actions_) {
       Array<Request> processed_requests;
@@ -767,12 +768,12 @@ class EngineImpl : public Engine {
   /************** Utility Functions **************/
   std::tuple<Optional<Session>, int, std::vector<int>> CreateDiscoSession(
       const std::vector<std::string>& model_libs,
-      const std::vector<picojson::object>& model_configs, Device device) {
+      const std::vector<tvm::ffi::json::Object>& model_configs, Device device) {
     const auto& base_model_config = model_configs[0];
 
     auto f_get_num_shards_num_stages =
         [&device](const std::string& model_lib,
-                  const picojson::object& model_config) -> std::pair<int, int> {
+                  const tvm::ffi::json::Object& model_config) -> std::pair<int, int> {
       if (!StartsWith(model_lib, "system://")) {
         Module executable = ffi::Module::LoadFromFile(model_lib);
         Optional<Function> fload_exec = executable->GetFunction("vm_load_executable");
@@ -803,7 +804,7 @@ class EngineImpl : public Engine {
       if (i == 0) {
         num_shards = model_num_shards;
       } else {
-        CHECK_EQ(model_num_shards, num_shards)
+        TVM_FFI_ICHECK_EQ(model_num_shards, num_shards)
             << "Inconsistent tensor_parallel_shards values across models. Some model is compiled "
                "with tensor_parallel_shards "
             << num_shards << " and some other model is compiled with tensor_parallel_shards "
@@ -840,7 +841,7 @@ class EngineImpl : public Engine {
       auto [socket_host, socket_port] = GetEnvSocketHostPort();
       if (max_num_stages > 1 && socket_host.has_value()) {
         // Use SocketSession when pipeline parallelism enabled and socket host and port are set.
-        CHECK_GT(socket_port, 0)
+        TVM_FFI_ICHECK_GT(socket_port, 0)
             << "Invalid MLC socket port " << socket_port
             << ". Please set a valid port value in environment variable \"MLC_SOCKET_PORT\".";
         LOG(INFO) << "Creating MLC socket session with socket host " << socket_host.value()
@@ -881,20 +882,21 @@ class EngineImpl : public Engine {
   /************** Debug/Profile **************/
 
   void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {
-    CHECK(!models_.empty()) << "There is no model running in Engine.";
+    TVM_FFI_ICHECK(!models_.empty()) << "There is no model running in Engine.";
     models_[0]->DebugCallFuncOnAllAllWorker(func_name, func_args);
   }
 
  private:
-  Result<EngineConfig> AutoDecideEngineConfig(const std::string& engine_config_json_str,
-                                              const std::vector<picojson::object>& model_configs) {
+  Result<EngineConfig> AutoDecideEngineConfig(
+      const std::string& engine_config_json_str,
+      const std::vector<tvm::ffi::json::Object>& model_configs) {
     using TResult = Result<EngineConfig>;
-    picojson::value config_json;
-    std::string err = picojson::parse(config_json, engine_config_json_str);
+    tvm::ffi::String err;
+    auto config_json = tvm::ffi::json::Parse(engine_config_json_str, &err);
     if (!err.empty()) {
       return TResult::Error(err);
     }
-    picojson::object config = config_json.get<picojson::object>();
+    tvm::ffi::json::Object config = config_json.cast<tvm::ffi::json::Object>();
     ObjectPtr<EngineConfigNode> n = tvm::ffi::make_object<EngineConfigNode>();
 
     // - Get the engine mode and maximum GPU utilization for inference.
@@ -1043,7 +1045,7 @@ class EngineModule : public ffi::ModuleObj {
             Optional<EventTraceRecorder> trace_recorder) {
     Result<EngineCreationOutput> output_res = Engine::Create(
         engine_config_json_str, device, request_stream_callback, std::move(trace_recorder));
-    CHECK(output_res.IsOk()) << output_res.UnwrapErr();
+    TVM_FFI_ICHECK(output_res.IsOk()) << output_res.UnwrapErr();
     EngineCreationOutput output = output_res.Unwrap();
     this->engine_ = std::move(output.reloaded_engine);
     this->default_generation_config_ = output.default_generation_cfg;
@@ -1058,7 +1060,7 @@ class EngineModule : public ffi::ModuleObj {
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) {
     auto config = json::ParseToJSONObject(generation_cfg_json_str);
     auto gen_config = GenerationConfig::FromJSON(config, default_generation_config_);
-    CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
+    TVM_FFI_ICHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
     return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
   }
   /*! \brief Redirection to `Engine::Step`. */

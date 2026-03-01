@@ -181,8 +181,9 @@ def _build_metal_x86_64():
 def _build_iphone():
     @register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
-        if target.libs:
-            return xcode.compile_metal(src, sdk=target.libs[0])
+        libs = target.attrs.get("libs", None)
+        if libs:
+            return xcode.compile_metal(src, sdk=libs[0])
         return xcode.compile_metal(src)
 
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
@@ -342,8 +343,8 @@ def detect_cuda_arch_list(target: Target) -> List[int]:
     if MLC_MULTI_ARCH is not None:
         multi_arch = [convert_to_num(x) for x in MLC_MULTI_ARCH.split(",")]
     else:
-        assert target.arch.startswith("sm_")
-        multi_arch = [convert_to_num(target.arch[3:])]
+        assert target.attrs.get("arch", "").startswith("sm_")
+        multi_arch = [convert_to_num(target.attrs.get("arch")[3:])]
     multi_arch = list(set(multi_arch))
     return multi_arch
 

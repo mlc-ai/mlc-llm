@@ -8,7 +8,7 @@ def get_max_num_threads_per_block(target: Target) -> int:
     max(max_num_threads, max_threads_per_block); if latter does not exist, return max_num_threads.
     We add this method since some targets have both fields and `max_threads_per_block` is larger.
     """
-    max_num_threads = target.max_num_threads
+    max_num_threads = target.attrs.get("max_num_threads")
     max_threads_per_block = target.attrs.get("max_threads_per_block", None)
     if max_threads_per_block is None:
         return max_num_threads

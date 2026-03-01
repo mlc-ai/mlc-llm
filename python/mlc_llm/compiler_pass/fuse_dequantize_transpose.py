@@ -1,7 +1,7 @@
 """A compiler pass that fuses transpose + dequantize."""
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, s_tir, tir
 from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
@@ -99,7 +99,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
         )
         # Call `renew_defs` for deep-copy to avoid IR node duplication in
         # different PrimFuncs of an IRModule.
-        new_func = tir.stmt_functor.renew_defs(new_func)
+        new_func = s_tir.renew_defs(new_func)
         g_var = self.builder_.add_func(new_func, func_name="dequantize")
         dequantize_matmul_rhs = self.builder_.emit(
             relax.call_tir(g_var, transpose_input.args[1], out_sinfo=matmul_rhs.struct_info)

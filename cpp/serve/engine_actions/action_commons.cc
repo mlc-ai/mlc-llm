@@ -11,19 +11,22 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-Array<EngineAction> CreateEngineActions(
-    Array<Model> models, EngineConfig engine_config, std::vector<picojson::object> model_configs,
-    std::vector<ModelWorkspace> model_workspaces, LogitProcessor logit_processor, Sampler sampler,
-    DraftTokenWorkspaceManager draft_token_workspace_manager, Tokenizer tokenizer,
-    Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
-    Device device) {
+Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
+                                        std::vector<tvm::ffi::json::Object> model_configs,
+                                        std::vector<ModelWorkspace> model_workspaces,
+                                        LogitProcessor logit_processor, Sampler sampler,
+                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                        Tokenizer tokenizer,
+                                        Optional<EventTraceRecorder> trace_recorder,
+                                        FRequestStreamCallback request_stream_callback,
+                                        Device device) {
   Array<EngineAction> actions;
   ModelMetadata model_metadata = models[0]->GetMetadata();
   if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
     // Speculative decoding is only possible for more than one model.
     TVM_FFI_ICHECK_GT(models.size(), 1U);
     if (engine_config->speculative_mode == SpeculativeMode::kEagle) {
-      CHECK_GT(engine_config->spec_draft_length, 0)
+      TVM_FFI_ICHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
       actions = {EngineAction::EagleNewRequestPrefill(models,                         //
                                                       logit_processor,                //
@@ -40,7 +43,7 @@ Array<EngineAction> CreateEngineActions(
                                                 draft_token_workspace_manager, engine_config,
                                                 trace_recorder)};
     } else if (engine_config->speculative_mode == SpeculativeMode::kMedusa) {
-      CHECK_GT(engine_config->spec_draft_length, 0)
+      TVM_FFI_ICHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
       actions = {EngineAction::EagleNewRequestPrefill(models,                         //
                                                       logit_processor,                //
@@ -308,7 +311,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
         DisaggRequestKind::kRemoteSend) {
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
       if (it == estate->waiting_queue.end()) {
-        CHECK_EQ(rstate->entries.size(), 1);
+        TVM_FFI_ICHECK_EQ(rstate->entries.size(), 1);
         estate->postproc_workspace.finished_rsentries.push_back(rstate->entries[0]);
       }
     }
