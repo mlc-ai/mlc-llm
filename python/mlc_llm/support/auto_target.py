@@ -161,8 +161,9 @@ def _build_metal_x86_64():
 def _build_iphone():
     @register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
-        if target.libs:
-            return xcode.compile_metal(src, sdk=target.libs[0])
+        libs = target.attrs.get("libs", None)
+        if libs:
+            return xcode.compile_metal(src, sdk=libs[0])
         return xcode.compile_metal(src)
 
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
