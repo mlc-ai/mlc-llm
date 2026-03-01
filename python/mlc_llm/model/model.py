@@ -18,6 +18,7 @@ from .eagle import eagle_loader, eagle_model, eagle_quantization
 from .gemma import gemma_loader, gemma_model, gemma_quantization
 from .gemma2 import gemma2_loader, gemma2_model, gemma2_quantization
 from .gemma3 import gemma3_loader, gemma3_model, gemma3_quantization
+from .glm4_moe import glm4_moe_loader, glm4_moe_model, glm4_moe_quantization
 from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
 from .gpt_j import gpt_j_loader, gpt_j_model, gpt_j_quantization
@@ -556,6 +557,22 @@ MODELS: Dict[str, Model] = {
         quantize={
             "no-quant": chatglm3_quantization.no_quant,
             "group-quant": chatglm3_quantization.group_quant,
+        },
+    ),
+    "glm4_moe": Model(
+        name="glm4_moe",
+        model=glm4_moe_model.Glm4MoeForCausalLM,
+        config=glm4_moe_model.Glm4MoeConfig,
+        source={
+            "huggingface-torch": glm4_moe_loader.huggingface,
+            "huggingface-safetensor": glm4_moe_loader.huggingface,
+        },
+        quantize={
+            "no-quant": glm4_moe_quantization.no_quant,
+            "group-quant": glm4_moe_quantization.group_quant,
+            "ft-quant": glm4_moe_quantization.ft_quant,
+            "block-scale-quant": glm4_moe_quantization.block_scale_quant,
+            "per-tensor-quant": glm4_moe_quantization.per_tensor_quant,
         },
     ),
     "eagle": Model(
