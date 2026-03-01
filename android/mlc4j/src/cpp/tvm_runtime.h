@@ -1,10 +1,8 @@
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 #define TVM_USE_LIBBACKTRACE 0
 
 #include <android/log.h>
 #include <dlfcn.h>
-#include <dmlc/logging.h>
-#include <dmlc/thread_local.h>
+#include <tvm/runtime/logging.h>
 
 #include <ffi/backtrace.cc>
 #include <ffi/container.cc>
@@ -12,6 +10,8 @@
 #include <ffi/error.cc>
 #include <ffi/extra/env_c_api.cc>
 #include <ffi/extra/env_context.cc>
+#include <ffi/extra/json_parser.cc>
+#include <ffi/extra/json_writer.cc>
 #include <ffi/extra/library_module.cc>
 #include <ffi/extra/library_module_dynamic_lib.cc>
 #include <ffi/extra/library_module_system_lib.cc>

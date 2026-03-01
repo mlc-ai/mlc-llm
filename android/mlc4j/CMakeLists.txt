@@ -58,7 +58,6 @@ target_include_directories(
          ${JNI_HEADER}
          ${ANDROID_DIR}/src/cpp
          ${TVM_SOURCE_DIR}/3rdparty/tvm-ffi/3rdparty/dlpack/include
-         ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include
          ${TVM_SOURCE_DIR}/3rdparty/OpenCL-Headers
          ${TVM_SOURCE_DIR}/include
          ${TVM_SOURCE_DIR}/src

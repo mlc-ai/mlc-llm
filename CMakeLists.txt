@@ -78,11 +78,7 @@ list(APPEND MLC_LLM_SRCS ${XGRAMMAR_SRCS})
 add_library(mlc_llm_objs OBJECT ${MLC_LLM_SRCS})
 
 set(MLC_LLM_INCLUDES
-    ${TVM_SOURCE_DIR}/include ${TVM_SOURCE_DIR}/3rdparty/dlpack/include
-    ${TVM_SOURCE_DIR}/3rdparty/dmlc-core/include)
-
-set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS}
-                         DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
+    ${TVM_SOURCE_DIR}/include ${TVM_SOURCE_DIR}/3rdparty/dlpack/include)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} __STDC_FORMAT_MACROS=1)
 set(MLC_LLM_COMPILE_DEFS ${MLC_LLM_COMPILE_DEFS} XGRAMMAR_ENABLE_LOG_DEBUG=0)
 

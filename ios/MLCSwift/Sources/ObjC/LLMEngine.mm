@@ -9,7 +9,6 @@
 #include "LLMEngine.h"
 
 #define TVM_USE_LIBBACKTRACE 0
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
@@ -61,15 +60,15 @@ using tvm::ffi::TypedFunction;
     exit_background_loop_func_ =
         json_ffi_engine_.value()->GetFunction("exit_background_loop").value_or(Function(nullptr));
 
-    ICHECK(init_background_engine_func_ != nullptr);
-    ICHECK(reload_func_ != nullptr);
-    ICHECK(unload_func_ != nullptr);
-    ICHECK(reset_func_ != nullptr);
-    ICHECK(chat_completion_func_ != nullptr);
-    ICHECK(abort_func_ != nullptr);
-    ICHECK(run_background_loop_func_ != nullptr);
-    ICHECK(run_background_stream_back_loop_func_ != nullptr);
-    ICHECK(exit_background_loop_func_ != nullptr);
+    TVM_FFI_ICHECK(init_background_engine_func_ != nullptr);
+    TVM_FFI_ICHECK(reload_func_ != nullptr);
+    TVM_FFI_ICHECK(unload_func_ != nullptr);
+    TVM_FFI_ICHECK(reset_func_ != nullptr);
+    TVM_FFI_ICHECK(chat_completion_func_ != nullptr);
+    TVM_FFI_ICHECK(abort_func_ != nullptr);
+    TVM_FFI_ICHECK(run_background_loop_func_ != nullptr);
+    TVM_FFI_ICHECK(run_background_stream_back_loop_func_ != nullptr);
+    TVM_FFI_ICHECK(exit_background_loop_func_ != nullptr);
   }
   return self;
 }
