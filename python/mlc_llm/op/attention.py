@@ -23,7 +23,7 @@ def attention(
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
-    casual_mask: nn.Tensor,
+    casual_mask: Optional[nn.Tensor],
     attn_score_scaling_factor: float = 1.0,
     qk_dtype: Optional[str] = None,
 ) -> nn.Tensor:

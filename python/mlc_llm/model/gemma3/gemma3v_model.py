@@ -151,7 +151,7 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
     # pylint: disable=protected-access
     def image_preprocess(self, pixel_values: Tensor) -> Tensor:
         # NHWC -> NCHW
-        pixel_values = op.permute_dims(pixel_values, axes=(0, 3, 1, 2))
+        pixel_values = op.permute_dims(pixel_values, axes=[0, 3, 1, 2])
 
         image_size = self.config.vision_config.image_size
 
@@ -201,14 +201,14 @@ class Gemma3VForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         grid = self.config.vision_config.image_size // self.config.vision_config.patch_size  # 64
         hidden_dim = self.config.vision_config.hidden_size  # 1152
         vision_outputs = op.reshape(vision_outputs, (1, grid, grid, hidden_dim))
-        vision_outputs = op.permute_dims(vision_outputs, (0, 3, 1, 2))  # (1, 1152, 64, 64)
+        vision_outputs = op.permute_dims(vision_outputs, [0, 3, 1, 2])  # (1, 1152, 64, 64)
 
         # Step 5: AvgPool2d(4,4) -> (1, 1152, 16, 16)
         vision_outputs = self._avg_pool_4x4(vision_outputs)
 
         # Step 6: Reshape back to sequence format
         # (1, 1152, 16, 16) -> (1, 16, 16, 1152) -> (1, 256, 1152)
-        vision_outputs = op.permute_dims(vision_outputs, (0, 2, 3, 1))
+        vision_outputs = op.permute_dims(vision_outputs, [0, 2, 3, 1])
         tokens_per_image = self.config.mm_tokens_per_image  # 256
         vision_outputs = op.reshape(vision_outputs, (1, tokens_per_image, hidden_dim))
 

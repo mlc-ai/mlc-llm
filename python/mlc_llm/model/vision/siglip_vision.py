@@ -68,7 +68,7 @@ class SigLIPVisionEmbeddings(Module):  # pylint: disable=too-many-instance-attri
         # pixel_values: (batch, channels, height, width)
         patch_embeds = self.patch_embedding(pixel_values)  # (batch, embed_dim, grid, grid)
         patch_embeds = reshape(patch_embeds, shape=(batch_size, self.embed_dim, -1))
-        patch_embeds = permute_dims(patch_embeds, axes=(0, 2, 1))  # (batch, num_patches, embed_dim)
+        patch_embeds = permute_dims(patch_embeds, axes=[0, 2, 1])  # (batch, num_patches, embed_dim)
 
         posi_ids = reshape(
             wrap_nested(arange(0, self.num_positions, dtype="int32"), name="arange"),
