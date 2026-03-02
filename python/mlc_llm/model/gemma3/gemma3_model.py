@@ -286,7 +286,7 @@ class Gemma3DecoderLayer(nn.Module):
             )
         return x
 
-    def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Tensor):
+    def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Module):
         if self.tensor_parallel_shards > 1:
             return norm(op.ccl_allreduce(out, "sum"))
         return norm(out)
