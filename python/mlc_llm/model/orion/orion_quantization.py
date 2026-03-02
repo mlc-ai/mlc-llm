@@ -8,7 +8,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import GroupQuantize, NoQuantize
 
-from .orion_model import OrionConfig, OrionForCasualLM
+from .orion_model import OrionConfig, OrionForCausalLM
 
 
 def group_quant(
@@ -16,7 +16,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Orion-architecture model using group quantization."""
-    model: nn.Module = OrionForCasualLM(model_config)
+    model: nn.Module = OrionForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     quantization.tensor_parallel_shards = model_config.tensor_parallel_shards
@@ -33,7 +33,7 @@ def no_quant(
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Orion2 model without quantization."""
-    model: nn.Module = OrionForCasualLM(model_config)
+    model: nn.Module = OrionForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map

@@ -14,7 +14,7 @@ from mlc_llm.quantization import (
     PerTensorQuantize,
 )
 
-from .mixtral_model import MixtralConfig, MixtralForCasualLM
+from .mixtral_model import MixtralConfig, MixtralForCausalLM
 
 
 def group_quant(
@@ -22,7 +22,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Mixtral-architecture model using group quantization."""
-    model: nn.Module = MixtralForCasualLM(model_config)
+    model: nn.Module = MixtralForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     quantization.tensor_parallel_shards = model_config.tensor_parallel_shards
@@ -39,7 +39,7 @@ def ft_quant(
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Mixtral-architecture model using FasterTransformer quantization."""
-    model: nn.Module = MixtralForCasualLM(model_config)
+    model: nn.Module = MixtralForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -63,7 +63,7 @@ def no_quant(
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Mixtral model without quantization."""
-    model: nn.Module = MixtralForCasualLM(model_config)
+    model: nn.Module = MixtralForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map
@@ -74,7 +74,7 @@ def per_tensor_quant(
     quantization: PerTensorQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Mixtral model using per-tensor quantization."""
-    model: nn.Module = MixtralForCasualLM(model_config)
+    model: nn.Module = MixtralForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(

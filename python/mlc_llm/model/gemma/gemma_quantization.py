@@ -32,7 +32,7 @@ def no_quant(
     model_config: GemmaConfig,
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
-    """Quantize a Llama2 model without quantization."""
+    """Quantize a Gemma model without quantization."""
     model: nn.Module = GemmaForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})

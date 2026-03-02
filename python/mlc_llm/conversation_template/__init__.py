@@ -11,7 +11,7 @@ from . import (
     dolly,
     gemma,
     glm,
-    gorrilla,
+    gorilla,
     gpt,
     hermes,
     llama,
