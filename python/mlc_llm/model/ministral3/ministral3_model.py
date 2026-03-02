@@ -83,25 +83,41 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                             or len(self.weight_block_size) != 2
                         ):
                             raise ValueError(
+
                                 "Invalid Ministral3 quantization config: "
                                 "weight_block_size must be a list or tuple of two integers, "
                                 f"got {self.weight_block_size} "
                                 f"of type {type(self.weight_block_size)}"
+
+                                "Invalid Ministral3 quantization config: ",
+                                "weight_block_size must be a list or tuple of two integers, ",
+                                f"got {self.weight_block_size} of type",
+                                f"{type(self.weight_block_size)}",
+
                             )
                     else:
                         # Set default block size if not provided.
                         self.weight_block_size = (128, 128)
+                        
                         logger.info(
                             "Setting default weight_block_size=%s since quantization_config "
                             "does not provide "
                             "FP8 block-scale details required by MLC "
                             "(activation_scheme=%s, quant_method=%s)",
+
+                        logger.info(  # pylint: disable=logging-too-many-args
+                            "Setting default weight_block_size=%s, ",
+                            "since quantization_config does not provide ",
+                            "FP8 block-scale details required by ",
+                            "MLC (activation_scheme=%s, quant_method=%s)",
+
                             self.weight_block_size,
                             activation_scheme,
                             quant_method,
                         )
                 else:
                     raise ValueError(
+
                         "Invalid Ministral 3 model quantization config: "
                         "only FP8 static quantization is supported, "
                         f"got activation_scheme={activation_scheme}, quant_method={quant_method}"
@@ -111,6 +127,17 @@ class Ministral3Config(ConfigBase):  # pylint: disable=too-many-instance-attribu
                     "Invalid Ministral 3 model quantization config: "
                     "unrecognized quantization config: "
                     f"{quantization_config}"
+
+                        "Invalid Ministral 3 model quantization config: ",
+                        "only FP8 static quantization is supported, ",
+                        f"got activation_scheme={activation_scheme}, quant_method={quant_method}",
+                    )
+            else:
+                raise ValueError(
+                    "Invalid Ministral 3 model quantization config: ",
+                    "unrecognized quantization config: ",
+                    f"{quantization_config}",
+
                 )
 
         if self.position_embedding_base == 0:
@@ -284,9 +311,15 @@ class Ministral3DecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -424,7 +457,10 @@ class Mistral3ForConditionalGeneration(nn.Module):  # pylint: disable=too-many-i
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

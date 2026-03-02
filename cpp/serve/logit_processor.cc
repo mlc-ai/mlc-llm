@@ -5,7 +5,6 @@
  */
 #include "logit_processor.h"
 
-#include <picojson.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/nvtx.h>
@@ -73,10 +72,12 @@ class LogitProcessorImpl : public LogitProcessorObj {
     bitmask_device_ = Tensor::Empty({max_num_token, bitmask_size_}, dtype_i32_, device);
     temperature_device_ = Tensor::Empty({max_num_token}, dtype_f32_, device);
 
-    CHECK(apply_logit_bias_func_.defined())
+    TVM_FFI_ICHECK(apply_logit_bias_func_.defined())
         << "Function \"apply_logit_bias_inplace\" not found in model";
-    CHECK(apply_penalty_func_.defined()) << "Function \"apply_penalty_inplace\" not found in model";
-    CHECK(apply_bitmask_func_.defined()) << "Function \"apply_bitmask_inplace\" not found in model";
+    TVM_FFI_ICHECK(apply_penalty_func_.defined())
+        << "Function \"apply_penalty_inplace\" not found in model";
+    TVM_FFI_ICHECK(apply_bitmask_func_.defined())
+        << "Function \"apply_bitmask_inplace\" not found in model";
 
     // If the device is CUDA/ROCm, we create a standalone copy stream, in
     // purpose to hide the latency of auxiliary stream copy.
@@ -103,26 +104,26 @@ class LogitProcessorImpl : public LogitProcessorObj {
                            const Array<RequestModelState>* draft_mstates,  //
                            const std::vector<std::vector<int>>* draft_token_indices) final {
     NVTXScopedRange nvtx_scope("Logit inplace update");
-    CHECK_EQ(logits->ndim, 2);
-    CHECK_EQ(logits->shape[1], vocab_size_);
-    CHECK(logits.DataType() == DataType::Float(32));
-    CHECK_EQ(generation_cfg.size(), mstates.size());
-    CHECK_LE(logits->shape[0], max_num_token_);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], vocab_size_);
+    TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32));
+    TVM_FFI_ICHECK_EQ(generation_cfg.size(), mstates.size());
+    TVM_FFI_ICHECK_LE(logits->shape[0], max_num_token_);
     int num_total_token = logits->shape[0];
     int num_sequence = generation_cfg.size();
 
-    CHECK((draft_mstates == nullptr) == (draft_token_indices == nullptr));
+    TVM_FFI_ICHECK((draft_mstates == nullptr) == (draft_token_indices == nullptr));
     if (cum_num_token != nullptr) {
-      ICHECK(draft_mstates != nullptr);
-      CHECK_EQ(cum_num_token->size(), num_sequence + 1);
-      CHECK_EQ(cum_num_token->back(), num_total_token);
+      TVM_FFI_ICHECK(draft_mstates != nullptr);
+      TVM_FFI_ICHECK_EQ(cum_num_token->size(), num_sequence + 1);
+      TVM_FFI_ICHECK_EQ(cum_num_token->back(), num_total_token);
     } else {
-      CHECK_EQ(num_sequence, num_total_token);
+      TVM_FFI_ICHECK_EQ(num_sequence, num_total_token);
     }
 
     if (draft_mstates != nullptr) {
-      CHECK_EQ(draft_mstates->size(), num_sequence);
-      CHECK_EQ(draft_token_indices->size(), num_sequence);
+      TVM_FFI_ICHECK_EQ(draft_mstates->size(), num_sequence);
+      TVM_FFI_ICHECK_EQ(draft_token_indices->size(), num_sequence);
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "start update logits");
@@ -154,18 +155,18 @@ class LogitProcessorImpl : public LogitProcessorObj {
                                 const std::vector<int>* cum_num_token) final {
     NVTXScopedRange nvtx_scope("Compute probs from logits");
     // logits: (n, v)
-    CHECK_EQ(logits->ndim, 2);
-    CHECK_LE(logits->shape[0], max_num_token_);
-    CHECK_EQ(logits->shape[1], vocab_size_);
-    CHECK(logits.DataType() == DataType::Float(32));
+    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
+    TVM_FFI_ICHECK_LE(logits->shape[0], max_num_token_);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], vocab_size_);
+    TVM_FFI_ICHECK(logits.DataType() == DataType::Float(32));
     int num_total_token = logits->shape[0];
     int num_sequence = generation_cfg.size();
 
     if (cum_num_token != nullptr) {
-      CHECK_EQ(cum_num_token->size(), num_sequence + 1);
-      CHECK_EQ(cum_num_token->back(), num_total_token);
+      TVM_FFI_ICHECK_EQ(cum_num_token->size(), num_sequence + 1);
+      TVM_FFI_ICHECK_EQ(cum_num_token->back(), num_total_token);
     } else {
-      CHECK_EQ(num_sequence, num_total_token);
+      TVM_FFI_ICHECK_EQ(num_sequence, num_total_token);
     }
 
     RECORD_EVENT(trace_recorder_, request_ids, "start softmax");
@@ -196,10 +197,10 @@ class LogitProcessorImpl : public LogitProcessorObj {
     Tensor probs = softmax_func_(logits.CreateView({num_total_token, 1, vocab_size_}, dtype_f32_),
                                  temperature_device)
                        .cast<Tensor>();
-    ICHECK_EQ(probs->ndim, 3);
-    ICHECK_EQ(probs->shape[0], num_total_token);
-    ICHECK_EQ(probs->shape[1], 1);
-    ICHECK_EQ(probs->shape[2], vocab_size_);
+    TVM_FFI_ICHECK_EQ(probs->ndim, 3);
+    TVM_FFI_ICHECK_EQ(probs->shape[0], num_total_token);
+    TVM_FFI_ICHECK_EQ(probs->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(probs->shape[2], vocab_size_);
     if (trace_recorder_.defined()) {
       DeviceAPI::Get(device_)->StreamSync(device_, /*stream=*/nullptr);
     }
@@ -293,9 +294,9 @@ class LogitProcessorImpl : public LogitProcessorObj {
         int num_token_to_process =
             cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
         int token_offset = cum_num_token == nullptr ? i : cum_num_token->at(i);
-        CHECK(num_token_to_process == 1 || mstates[i]->draft_output_tokens.empty());
-        ICHECK(draft_token_indices == nullptr ||
-               draft_token_indices->at(i).size() == num_token_to_process);
+        TVM_FFI_ICHECK(num_token_to_process == 1 || mstates[i]->draft_output_tokens.empty());
+        TVM_FFI_ICHECK(draft_token_indices == nullptr ||
+                       draft_token_indices->at(i).size() == num_token_to_process);
         for (int j = 0; j < num_token_to_process; ++j) {
           p_seq_ids[num_token_for_penalty] = token_offset + j;
 
@@ -380,8 +381,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
 
     // - Set arrays.
     int batch_size = logits->shape[0];
-    ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
-           (cum_num_token != nullptr && batch_size == cum_num_token->back()));
+    TVM_FFI_ICHECK((cum_num_token == nullptr && batch_size == mstates.size()) ||
+                   (cum_num_token != nullptr && batch_size == cum_num_token->back()));
 
     std::memset(p_seq_ids, 0, batch_size * sizeof(int32_t));
 
@@ -390,7 +391,8 @@ class LogitProcessorImpl : public LogitProcessorObj {
       int token_number =
           cum_num_token == nullptr ? 1 : (cum_num_token->at(i + 1) - cum_num_token->at(i));
       bool require_mask = mstates[i]->RequireNextTokenBitmask();
-      ICHECK(draft_token_indices == nullptr || draft_token_indices->at(i).size() == token_number);
+      TVM_FFI_ICHECK(draft_token_indices == nullptr ||
+                     draft_token_indices->at(i).size() == token_number);
       for (int j = 0; j < token_number; ++j) {
         if (require_mask) {
           std::vector<SampleResult> draft_token_seq;

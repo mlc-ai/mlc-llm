@@ -1,11 +1,13 @@
 """Python entrypoint of weight conversion."""
 
+import contextlib
 import dataclasses
 import math
 import os
+import tempfile
 from io import StringIO
 from pathlib import Path
-from typing import Any, Dict, Iterator, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 from tvm import tir
 from tvm.contrib import tvmjs
@@ -17,6 +19,7 @@ from mlc_llm.loader import LOADER
 from mlc_llm.model import Model
 from mlc_llm.quantization import Quantization
 from mlc_llm.support import logging, tqdm
+from mlc_llm.support.auto_weight import detect_weight
 from mlc_llm.support.preshard import apply_preshard
 from mlc_llm.support.style import bold, green
 
@@ -34,6 +37,7 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
     source: Path
     source_format: str
     output: Path
+    lora_adapter: Optional[Path] = None
 
     def display(self) -> None:
         """Display the arguments to stdout."""
@@ -50,7 +54,49 @@ class ConversionArgs:  # pylint: disable=too-many-instance-attributes
         print(f"  {bold('--source'):<25} {self.source}", file=out)
         print(f"  {bold('--source-format'):<25} {self.source_format}", file=out)
         print(f"  {bold('--output'):<25} {self.output}", file=out)
+        if self.lora_adapter is not None:
+            print(f"  {bold('--lora-adapter'):<25} {self.lora_adapter}", file=out)
         print(out.getvalue().rstrip())
+
+
+def _resolve_base_model_dir(source: Path) -> Path:
+    return source if source.is_dir() else source.parent
+
+
+@contextlib.contextmanager
+def _merge_lora_adapter_with_base_model(base_source: Path, lora_adapter: Path) -> Iterator[Path]:
+    base_model_dir = _resolve_base_model_dir(base_source)
+    if not base_model_dir.exists():
+        raise ValueError(f"Base model directory does not exist: {base_model_dir}")
+    if not lora_adapter.exists() or not lora_adapter.is_dir():
+        raise ValueError(f"LoRA adapter directory does not exist: {lora_adapter}")
+
+    try:
+        # pylint: disable=import-outside-toplevel
+        from peft import PeftModel
+        from transformers import AutoModelForCausalLM
+
+        # pylint: enable=import-outside-toplevel
+    except ImportError as err:
+        raise ImportError(
+            "`--lora-adapter` requires `peft` and `transformers` to be installed."
+        ) from err
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        merged_model_dir = Path(temp_dir) / "merged_model"
+        logger.info("Merging LoRA adapter %s into base model %s", lora_adapter, base_model_dir)
+
+        base_model = AutoModelForCausalLM.from_pretrained(
+            str(base_model_dir),
+            torch_dtype="auto",
+            trust_remote_code=False,
+            low_cpu_mem_usage=True,
+        )
+        merged_model = PeftModel.from_pretrained(
+            base_model, str(lora_adapter), is_trainable=False
+        ).merge_and_unload()
+        merged_model.save_pretrained(str(merged_model_dir), safe_serialization=True)
+        yield merged_model_dir
 
 
 def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-locals
@@ -174,8 +220,33 @@ def convert_weight(  # pylint: disable=too-many-arguments
     source: Path,
     source_format: str,
     output: Path,
+    lora_adapter: Optional[Path] = None,
 ):
     """MLC LLM's weight conversation and quantization flow."""
-    args = ConversionArgs(config, quantization, model, device, source, source_format, output)
+    args = ConversionArgs(
+        config, quantization, model, device, source, source_format, output, lora_adapter
+    )
+
+    allowed_lora_source_formats = {"huggingface-safetensor", "huggingface-torch"}
+    if lora_adapter is not None and source_format not in allowed_lora_source_formats:
+        raise ValueError(
+            "`--lora-adapter` only supports source formats: "
+            f"{sorted(allowed_lora_source_formats)}"
+        )
+
+    if lora_adapter is not None:
+        with _merge_lora_adapter_with_base_model(source, lora_adapter) as merged_model_dir:
+            merged_source, merged_source_format = detect_weight(
+                weight_path=merged_model_dir,
+                config_json_path=config,
+                weight_format="auto",
+            )
+            merged_args = dataclasses.replace(
+                args, source=merged_source, source_format=merged_source_format
+            )
+            merged_args.display()
+            _convert_args(merged_args)
+            return
+
     args.display()
     _convert_args(args)

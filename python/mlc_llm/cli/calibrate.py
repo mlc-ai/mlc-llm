@@ -28,12 +28,19 @@ def main(argv):
         help=HELP["model_lib"] + ' (default: "%(default)s")',
     )
     parser.add_argument(
-        "--output", "-o", type=str, required=True, help=HELP["output_calibration"] + " (required)"
+        "--output",
+        "-o",
+        type=str,
+        required=True,
+        help=HELP["output_calibration"] + " (required)",
     )
     # Download dataset from
     # https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
     parser.add_argument(
-        "--dataset", type=str, required=True, help=HELP["calibration_dataset"] + " (required)"
+        "--dataset",
+        type=str,
+        required=True,
+        help=HELP["calibration_dataset"] + " (required)",
     )
 
     parser.add_argument(

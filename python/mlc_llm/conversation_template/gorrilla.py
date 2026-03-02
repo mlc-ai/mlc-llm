@@ -47,7 +47,11 @@ ConvTemplateRegistry.register_conv_template(
                 f"{MessagePlaceholders.USER.value}"
             ),
         },
-        roles={"user": "### Instruction", "assistant": "### Response", "tool": "### Instruction"},
+        roles={
+            "user": "### Instruction",
+            "assistant": "### Response",
+            "tool": "### Instruction",
+        },
         seps=["\n", "<|EOT|>"],
         role_content_sep=": ",
         role_empty_sep=": ",

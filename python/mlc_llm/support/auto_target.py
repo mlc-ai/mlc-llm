@@ -62,7 +62,7 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
 
 
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
-    if hint in ["iphone", "android", "webgpu", "mali", "opencl"]:
+    if hint in ["iphone", "macabi", "android", "webgpu", "mali", "opencl"]:
         hint += ":generic"
     if hint == "auto" or hint in AUTO_DETECT_DEVICES:
         target: Optional[Target] = None
@@ -161,8 +161,9 @@ def _build_metal_x86_64():
 def _build_iphone():
     @register_global_func("tvm_callback_metal_compile", override=True)
     def compile_metal(src, target):
-        if target.libs:
-            return xcode.compile_metal(src, sdk=target.libs[0])
+        libs = target.attrs.get("libs", None)
+        if libs:
+            return xcode.compile_metal(src, sdk=libs[0])
         return xcode.compile_metal(src)
 
     def build(mod: IRModule, args: "CompileArgs", pipeline=None):
@@ -322,8 +323,8 @@ def detect_cuda_arch_list(target: Target) -> List[int]:
     if MLC_MULTI_ARCH is not None:
         multi_arch = [convert_to_num(x) for x in MLC_MULTI_ARCH.split(",")]
     else:
-        assert target.arch.startswith("sm_")
-        multi_arch = [convert_to_num(target.arch[3:])]
+        assert target.attrs.get("arch", "").startswith("sm_")
+        multi_arch = [convert_to_num(target.attrs.get("arch")[3:])]
     multi_arch = list(set(multi_arch))
     return multi_arch
 
@@ -353,7 +354,10 @@ def _register_cuda_hook(target: Target):
         else:
             arch = []
             for compute_version in multi_arch:
-                arch += ["-gencode", f"arch=compute_{compute_version},code=sm_{compute_version}"]
+                arch += [
+                    "-gencode",
+                    f"arch=compute_{compute_version},code=sm_{compute_version}",
+                ]
             ptx = nvcc.compile_cuda(code, target_format="fatbin", arch=arch)
         return ptx
 
@@ -372,7 +376,9 @@ def detect_system_lib_prefix(
         The hint for the system lib prefix.
     """
     if prefix_hint == "auto" and (
-        target_hint.startswith("iphone") or target_hint.startswith("android")
+        target_hint.startswith("iphone")
+        or target_hint.startswith("macabi")
+        or target_hint.startswith("android")
     ):
         prefix = f"{model_name}_{quantization}_".replace("-", "_")
         logger.warning(
@@ -383,10 +389,17 @@ def detect_system_lib_prefix(
             bold(prefix),
         )
         return prefix
-    if target_hint not in ["iphone", "android"]:
+    if target_hint not in ["iphone", "macabi", "android"]:
         return ""
     return prefix_hint
 
+
+_MACABI_ARCH = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
+if _MACABI_ARCH not in ["arm64", "x86_64"]:
+    _MACABI_ARCH = "arm64"
+_MACABI_MTRIPLE = (
+    "x86_64-apple-ios18.0-macabi" if _MACABI_ARCH == "x86_64" else "arm64-apple-ios18.0-macabi"
+)
 
 PRESET = {
     "iphone:generic": {
@@ -399,6 +412,20 @@ PRESET = {
             "host": {
                 "kind": "llvm",
                 "mtriple": "arm64-apple-darwin",
+            },
+        },
+        "build": _build_iphone,
+    },
+    "macabi:generic": {
+        "target": {
+            "kind": "metal",
+            "max_threads_per_block": 256,
+            "max_shared_memory_per_block": 32768,
+            "thread_warp_size": 1,
+            "libs": ["macosx"],
+            "host": {
+                "kind": "llvm",
+                "mtriple": _MACABI_MTRIPLE,
             },
         },
         "build": _build_iphone,

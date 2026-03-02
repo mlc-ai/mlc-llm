@@ -79,7 +79,12 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
         target = tvm.target.Target("cuda")
         attn_output, _ = op.tensor_ir_op(
             _attention_sequence_prefill(  # pylint: disable=no-value-for-parameter
-                h_kv=h_kv, h_q=h_q, d=d, dtype=q.dtype, target=target
+                h_kv=h_kv,
+                h_q=h_q,
+                d=d,
+                dtype=q.dtype,
+                target=target,
+                sm_scale=attn_score_scaling_factor / (d**0.5),
             ),
             "sequence_prefill",
             [q, k, v],

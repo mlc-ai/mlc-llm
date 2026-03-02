@@ -3,11 +3,10 @@
 import logging
 from typing import Any, Callable, Dict, Sequence, Tuple
 
-from tvm import IRModule
-from tvm import dlight as dl
-from tvm import relax
+from tvm import IRModule, relax
 from tvm.relax.frontend import nn
 from tvm.runtime import Device, Tensor
+from tvm.s_tir import dlight as dl
 from tvm.target import Target
 
 logger = logging.getLogger("preshard")

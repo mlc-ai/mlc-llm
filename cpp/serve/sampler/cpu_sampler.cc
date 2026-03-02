@@ -40,9 +40,9 @@ TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_of
   // We use the `unit_offset` parameter to determine which slice
   // of the prob array we sample from.
 
-  ICHECK(prob.IsContiguous());
-  ICHECK(prob.DataType() == DataType::Float(32));
-  ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
   int64_t ndata = prob->shape[prob->ndim - 1];
   const float* __restrict p_prob =
@@ -78,7 +78,7 @@ TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_of
         return {i, p_prob[i]};
       }
     }
-    ICHECK(false) << "Possibly prob distribution contains NAN.";
+    TVM_FFI_ICHECK(false) << "Possibly prob distribution contains NAN.";
   }
 
   // Key observation: when we are doing top_p sampling
@@ -158,7 +158,7 @@ TokenProbPair SampleTopPFromProb(Tensor prob, int unit_offset, int input_prob_of
   // fallback via full prob, rare case
   data.reserve(ndata);
   std::pair<float, int64_t> sampled_index = sample_top_p_with_filter(0.0f);
-  ICHECK_GE(sampled_index.second, 0);
+  TVM_FFI_ICHECK_GE(sampled_index.second, 0);
   return {sampled_index.second, sampled_index.first};
 }
 
@@ -175,9 +175,9 @@ void RenormalizeProbByTopP(Tensor prob, int unit_offset, double top_p, double ep
   // The last dimension corresponds to the prob distribution size.
   // We use the `unit_offset` parameter to determine which slice
   // of the prob array we will renormalize.
-  ICHECK(prob.IsContiguous());
-  ICHECK(prob.DataType() == DataType::Float(32));
-  ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
+  TVM_FFI_ICHECK(prob.IsContiguous());
+  TVM_FFI_ICHECK(prob.DataType() == DataType::Float(32));
+  TVM_FFI_ICHECK_EQ(prob->device.device_type, DLDeviceType::kDLCPU);
 
   if (top_p == 1.0) {
     // No renormalization is needed if top_p is 1.
@@ -300,8 +300,8 @@ std::vector<TokenProbPair> ComputeTopProbsImpl(const float* p_prob, int ndata) {
 
 /*! \brief Get the probs of a few number of tokens with top probabilities. */
 inline std::vector<TokenProbPair> ComputeTopProbs(Tensor prob, int unit_offset, int num_top_probs) {
-  ICHECK_LE(num_top_probs, 5);
-  ICHECK_EQ(prob->ndim, 2);
+  TVM_FFI_ICHECK_LE(num_top_probs, 5);
+  TVM_FFI_ICHECK_EQ(prob->ndim, 2);
   int ndata = prob->shape[1];
   const float* __restrict p_prob =
       static_cast<float*>(__builtin_assume_aligned(prob->data, 4)) + (unit_offset * ndata);
@@ -334,7 +334,7 @@ class CPUSampler : public SamplerObj {
                                      const Array<String>& request_ids,        //
                                      const Array<GenerationConfig>& generation_cfg) final {
     // probs_on_device: (n, v)
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
@@ -342,8 +342,8 @@ class CPUSampler : public SamplerObj {
     int num_samples = sample_indices.size();
     int num_probs = probs_on_device->shape[0];
     int vocab_size = probs_on_device->shape[1];
-    ICHECK_EQ(request_ids.size(), num_samples);
-    ICHECK_EQ(generation_cfg.size(), num_samples);
+    TVM_FFI_ICHECK_EQ(request_ids.size(), num_samples);
+    TVM_FFI_ICHECK_EQ(generation_cfg.size(), num_samples);
 
     std::vector<int> top_p_indices;
     std::vector<double> top_p_values;
@@ -352,7 +352,7 @@ class CPUSampler : public SamplerObj {
         top_p_indices.push_back(sample_indices[i]);
         top_p_values.push_back(generation_cfg[i]->top_p);
       } else {
-        CHECK(fabs(top_p_values.back() - generation_cfg[i]->top_p) < eps_)
+        TVM_FFI_ICHECK(fabs(top_p_values.back() - generation_cfg[i]->top_p) < eps_)
             << "Sampler requires the top_p values for each prob distribution are the same.";
       }
     }
@@ -379,7 +379,7 @@ class CPUSampler : public SamplerObj {
       const Array<GenerationConfig>& generation_cfg,  //
       const std::vector<RandomGenerator*>& rngs) final {
     // probs_on_device: (n, v)
-    CHECK_EQ(probs_on_device->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_device->ndim, 2);
     // - Copy probs to CPU
     RECORD_EVENT(trace_recorder_, request_ids, "start copy probs to CPU");
     Tensor probs_on_host = CopyProbsToCPU(probs_on_device);
@@ -408,11 +408,11 @@ class CPUSampler : public SamplerObj {
       const std::vector<int64_t>& token_tree_parent_ptr, Tensor draft_probs_on_device) final {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start draft verification");
-    CHECK_EQ(probs_on_host->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_host->ndim, 2);
 
     int num_sequence = static_cast<int>(cum_verify_lengths.size()) - 1;
-    CHECK_EQ(rngs.size(), num_sequence);
-    CHECK_EQ(draft_output_tokens.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(rngs.size(), num_sequence);
+    TVM_FFI_ICHECK_EQ(draft_output_tokens.size(), num_sequence);
 
     Tensor draft_probs_on_host = draft_probs_on_device.CopyTo(DLDevice{kDLCPU, 0});
     std::vector<std::vector<SampleResult>> sample_results;
@@ -428,9 +428,9 @@ class CPUSampler : public SamplerObj {
           int verify_start = cum_verify_lengths[i];
           int verify_end = cum_verify_lengths[i + 1];
 
-          CHECK_EQ(token_tree_parent_ptr[verify_start], -1);
+          TVM_FFI_ICHECK_EQ(token_tree_parent_ptr[verify_start], -1);
           for (int j = verify_start + 1; j < verify_end; ++j) {
-            CHECK_EQ(token_tree_parent_ptr[j], j - verify_start - 1)
+            TVM_FFI_ICHECK_EQ(token_tree_parent_ptr[j], j - verify_start - 1)
                 << "CPU sampler only supports chain-style draft tokens.";
           }
 
@@ -511,13 +511,13 @@ class CPUSampler : public SamplerObj {
                                                   bool top_p_applied) {
     // probs_on_host: (n, v)
     RECORD_EVENT(trace_recorder_, request_ids, "start sampling");
-    ICHECK_EQ(probs_on_host->ndim, 2);
-    ICHECK_EQ(probs_on_host->device.device_type, DLDeviceType::kDLCPU);
+    TVM_FFI_ICHECK_EQ(probs_on_host->ndim, 2);
+    TVM_FFI_ICHECK_EQ(probs_on_host->device.device_type, DLDeviceType::kDLCPU);
 
     // - Sample tokens from probabilities.
     int n = request_ids.size();
-    ICHECK_EQ(generation_cfg.size(), n);
-    ICHECK_EQ(rngs.size(), n);
+    TVM_FFI_ICHECK_EQ(generation_cfg.size(), n);
+    TVM_FFI_ICHECK_EQ(rngs.size(), n);
 
     std::vector<SampleResult> sample_results;
     sample_results.resize(n);
@@ -549,9 +549,9 @@ class CPUSampler : public SamplerObj {
       return probs_on_device;
     }
 
-    ICHECK(probs_on_device->device.device_type != kDLCPU);
+    TVM_FFI_ICHECK(probs_on_device->device.device_type != kDLCPU);
     if (probs_host_.defined()) {
-      ICHECK_EQ(probs_host_->shape[1], probs_on_device->shape[1]);
+      TVM_FFI_ICHECK_EQ(probs_host_->shape[1], probs_on_device->shape[1]);
     }
 
     int64_t init_size = probs_host_.defined() ? probs_host_->shape[0] : 32;
@@ -564,7 +564,7 @@ class CPUSampler : public SamplerObj {
       probs_host_ =
           Tensor::Empty({init_size, vocab_size}, probs_on_device->dtype, DLDevice{kDLCPU, 0});
     }
-    ICHECK_LE(num_tokens, probs_host_->shape[0]);
+    TVM_FFI_ICHECK_LE(num_tokens, probs_host_->shape[0]);
     Tensor view = probs_host_.CreateView({num_tokens, vocab_size}, probs_on_device->dtype);
     view.CopyFrom(probs_on_device);
     return view;

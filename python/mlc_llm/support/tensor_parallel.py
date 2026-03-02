@@ -53,7 +53,11 @@ class ShardSingleDim:
                 topi.transpose(
                     topi.reshape(
                         te.compute(
-                            (*shape[: self.dim], sub_seg * shards, *shape[self.dim + 1 :]),
+                            (
+                                *shape[: self.dim],
+                                sub_seg * shards,
+                                *shape[self.dim + 1 :],
+                            ),
                             lambda *idx: w[
                                 idx[: self.dim]
                                 + (idx[self.dim] + offset,)  # pylint: disable=cell-var-from-loop

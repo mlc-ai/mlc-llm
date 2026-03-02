@@ -48,7 +48,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     }
 
     const auto& [rsentries, draft_lengths, total_draft_length] = GetDraftsToVerify(estate);
-    ICHECK_EQ(rsentries.size(), draft_lengths.size());
+    TVM_FFI_ICHECK_EQ(rsentries.size(), draft_lengths.size());
     if (rsentries.empty()) {
       return {};
     }
@@ -83,9 +83,9 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
       RequestModelState verify_mstate = rsentries[i]->mstates[verify_model_id_];
       RequestModelState draft_mstate = rsentries[i]->mstates[draft_model_id_];
       request_internal_ids.push_back(verify_mstate->internal_id);
-      ICHECK(!draft_lengths.empty());
-      ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
-      ICHECK_EQ(draft_lengths[i], draft_mstate->draft_token_slots.size());
+      TVM_FFI_ICHECK(!draft_lengths.empty());
+      TVM_FFI_ICHECK_EQ(draft_lengths[i], draft_mstate->draft_output_tokens.size());
+      TVM_FFI_ICHECK_EQ(draft_lengths[i], draft_mstate->draft_token_slots.size());
       // the last committed token + all the draft tokens but the last one.
       all_tokens_to_verify.push_back(draft_mstate->committed_tokens.back().GetTokenId());
       draft_token_slots_.push_back(0);  // placeholder for the last committed token
@@ -129,8 +129,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         embeddings, request_internal_ids, verify_lengths, token_tree_parent_ptr);
     Tensor logits = models_[verify_model_id_]->GetLogits(hidden_states);
     RECORD_EVENT(trace_recorder_, request_ids, "finish verify");
-    ICHECK_EQ(logits->ndim, 2);
-    ICHECK_EQ(logits->shape[0], cum_verify_lengths.back());
+    TVM_FFI_ICHECK_EQ(logits->ndim, 2);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], cum_verify_lengths.back());
 
     // - Update logits.
     logit_processor_->InplaceUpdateLogits(logits, generation_cfg, verify_request_mstates,
@@ -152,7 +152,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     auto [sample_results_arr, _] = sampler_->BatchVerifyDraftTokensWithProbAfterTopP(
         renormalized_probs, request_ids, cum_verify_lengths, generation_cfg, rngs,
         draft_output_tokens, token_tree_parent_ptr, draft_probs_on_device);
-    ICHECK_EQ(sample_results_arr.size(), num_rsentries);
+    TVM_FFI_ICHECK_EQ(sample_results_arr.size(), num_rsentries);
 
     // We collect the requests whose drafts are fully accepted.
     // When a request's draft is fully accepted, there is an extra token proposed
@@ -170,7 +170,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
     for (int i = 0; i < num_rsentries; ++i) {
       const std::vector<SampleResult>& sample_results = sample_results_arr[i];
       int accept_length = sample_results.size();
-      ICHECK_GE(accept_length, 1);
+      TVM_FFI_ICHECK_GE(accept_length, 1);
       for (SampleResult sample_result : sample_results) {
         rsentries[i]->mstates[verify_model_id_]->CommitToken(sample_result);
         rsentries[i]->mstates[draft_model_id_]->CommitToken(sample_result);
@@ -226,7 +226,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
             rsentries[rsentry_id]->mstates[verify_model_id_]->committed_tokens.size();
         // When a request's draft is fully accepted, an additional new token is sampled.
         // So the token needed to fill in the draft model is the committed_token[-2].
-        ICHECK_GE(num_committed_tokens, 2);
+        TVM_FFI_ICHECK_GE(num_committed_tokens, 2);
         input_tokens.push_back(rsentries[rsentry_id]
                                    ->mstates[verify_model_id_]
                                    ->committed_tokens[num_committed_tokens - 2]
@@ -281,7 +281,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         mstates.push_back(rsentry->mstates[draft_model_id_]);
       }
       for (int i = 0; i < num_rsentries; ++i) {
-        ICHECK(!mstates[i]->committed_tokens.empty());
+        TVM_FFI_ICHECK(!mstates[i]->committed_tokens.empty());
         input_tokens.push_back(mstates[i]->committed_tokens.back().GetTokenId());
       }
 
@@ -303,8 +303,8 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         int lm_head_model_id = models_[draft_model_id_]->CanGetLogits() ? draft_model_id_ : 0;
         logits = models_[lm_head_model_id]->GetLogits(hidden_states);
         RECORD_EVENT(trace_recorder_, request_ids, "finish proposal decode");
-        ICHECK_EQ(logits->ndim, 2);
-        ICHECK_EQ(logits->shape[0], num_rsentries);
+        TVM_FFI_ICHECK_EQ(logits->ndim, 2);
+        TVM_FFI_ICHECK_EQ(logits->shape[0], num_rsentries);
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
         multi_step_logits = models_[draft_model_id_]->GetMultiStepLogits(hidden_states);
       }
@@ -320,7 +320,7 @@ class EagleBatchVerifyActionObj : public EngineActionObj {
         UpdateRequestStatesWithDraftProposals(mstates, sample_results, draft_model_id_,
                                               renormalized_probs, hidden_states, estate);
       } else if (engine_config_->speculative_mode == SpeculativeMode::kMedusa) {
-        ICHECK_NE(estate->spec_draft_length, 0);
+        TVM_FFI_ICHECK_NE(estate->spec_draft_length, 0);
         for (int draft_id = 0; draft_id < estate->spec_draft_length; draft_id++) {
           const auto& [renormalized_probs, sample_results] = ApplyLogitProcessorAndSample(
               logit_processor_, sampler_, multi_step_logits[draft_id], generation_cfg, request_ids,

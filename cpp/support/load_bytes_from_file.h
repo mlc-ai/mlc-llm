@@ -16,7 +16,7 @@ namespace llm {
 
 inline std::string LoadBytesFromFile(const std::string& path) {
   std::ifstream fs(path, std::ios::in | std::ios::binary);
-  ICHECK(!fs.fail()) << "Cannot open " << path;
+  TVM_FFI_ICHECK(!fs.fail()) << "Cannot open " << path;
   std::string data;
   fs.seekg(0, std::ios::end);
   size_t size = static_cast<size_t>(fs.tellg());

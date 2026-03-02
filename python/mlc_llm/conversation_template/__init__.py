@@ -4,7 +4,6 @@
 # decouple conversation template apply from the conversation protocol
 # data structure
 
-
 # model preset templates
 from . import (
     cohere,
@@ -17,7 +16,9 @@ from . import (
     hermes,
     llama,
     llava,
+    llm_jp,
     ministral3,
+    ministral3_reasoning,
     mistral,
     nemotron,
     oasst,

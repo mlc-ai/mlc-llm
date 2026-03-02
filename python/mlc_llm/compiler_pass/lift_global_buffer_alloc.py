@@ -28,7 +28,8 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         super().__init__(mod)
         self.mod = mod
         self.gv2new_tensor_sinfo: Dict[
-            tvm.ir.GlobalVar, Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tir.PrimFunc]
+            tvm.ir.GlobalVar,
+            Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tir.PrimFunc],
         ] = {}
 
     def transform(self) -> IRModule:

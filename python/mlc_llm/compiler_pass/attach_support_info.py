@@ -68,7 +68,8 @@ class AttachCUDAGraphSymbolicCaptureHints:  # pylint: disable=too-few-public-met
             if isinstance(func, relax.Function):
                 if func_name in self.hints:
                     mod[g_var] = func.with_attr(
-                        "relax.rewrite_cuda_graph.capture_symbolic_vars", self.hints[func_name]
+                        "relax.rewrite_cuda_graph.capture_symbolic_vars",
+                        self.hints[func_name],
                     )
 
         return mod
@@ -126,7 +127,7 @@ class AttachSequenceLengthPaddingFactor:  # pylint: disable=too-few-public-metho
                 # Right now we only need padding for CUDA SM100a architecture.
                 # When the target is SM100a and uses cutlass gemm function,
                 # the sequence length needs to be padded to multiple of 4.
-                if self.target.kind.name != "cuda" or self.target.arch != "sm_100a":
+                if self.target.kind.name != "cuda" or self.target.attrs.get("arch") != "sm_100a":
                     return 1
 
                 for _, func in mod.functions_items():

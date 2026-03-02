@@ -723,8 +723,16 @@ class AzureLLMInferenceDataset(Dataset):  # pylint: disable=too-few-public-metho
         self.dataset = [
             (
                 entry["TIMESTAMP"],
-                min(entry["ContextTokens"], tokenizer.model_max_length, self.truncate_length),
-                min(entry["GeneratedTokens"], tokenizer.model_max_length, self.truncate_length),
+                min(
+                    entry["ContextTokens"],
+                    tokenizer.model_max_length,
+                    self.truncate_length,
+                ),
+                min(
+                    entry["GeneratedTokens"],
+                    tokenizer.model_max_length,
+                    self.truncate_length,
+                ),
             )
             for _, entry in df.iterrows()
             if entry["ContextTokens"] >= 4 and entry["GeneratedTokens"] >= 4
@@ -836,7 +844,9 @@ def create_dataset(  # pylint: disable=too-many-return-statements,too-many-branc
             args.apply_chat_template is False
         ), "LLMPerf dataset does not support applying chat template"
         return LLMPerfDataset(
-            args.dataset_path, (args.num_requests + args.num_warmup_requests) * 4, tokenizer
+            args.dataset_path,
+            (args.num_requests + args.num_warmup_requests) * 4,
+            tokenizer,
         )
     if args.dataset == "json-mode-eval":
         assert (

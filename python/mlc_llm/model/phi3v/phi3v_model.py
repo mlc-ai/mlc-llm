@@ -86,12 +86,15 @@ class Phi3VConfig(ConfigBase):  # pylint: disable=too-many-instance-attributes
 
                 assert (
                     self.rope_scaling["type"] == "longrope"
-                ), f'Unsupported RoPE scaling type {self.rope_scaling["rope_type"]} for Phi3'
+                ), f"Unsupported RoPE scaling type {self.rope_scaling['rope_type']} for Phi3"
                 self.rope_scaling["rope_type"] = self.rope_scaling["type"]
                 (
                     self.rope_scaling["max_position_embeddings"],
                     self.rope_scaling["original_max_position_embeddings"],
-                ) = (self.max_position_embeddings, self.original_max_position_embeddings)
+                ) = (
+                    self.max_position_embeddings,
+                    self.original_max_position_embeddings,
+                )
 
         if self.context_window_size == 0:
             self.context_window_size = self.max_position_embeddings
@@ -202,7 +205,10 @@ class Phi3VForCausalLM(nn.Module):
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -243,7 +249,8 @@ class Phi3VForCausalLM(nn.Module):
             .match_cast(
                 global_image._expr,
                 relax.TensorStructInfo(
-                    [global_image.shape[0], global_image.shape[1], 336, 336], global_image.dtype
+                    [global_image.shape[0], global_image.shape[1], 336, 336],
+                    global_image.dtype,
                 ),
             ),
             "global_image",
@@ -274,7 +281,12 @@ class Phi3VForCausalLM(nn.Module):
         return combined_image
 
     def image_embed(  # pylint: disable=too-many-arguments
-        self, pixel_values: Tensor, resized_height, resized_width, crop_height, crop_width
+        self,
+        pixel_values: Tensor,
+        resized_height,
+        resized_width,
+        crop_height,
+        crop_width,
     ) -> Tensor:
         n, h, w, c = pixel_values.shape  # pylint: disable=unused-variable
         pixel_values = self.image_preprocess(pixel_values, resized_height, resized_width)

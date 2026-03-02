@@ -50,7 +50,7 @@ class SequenceIDNodePool {
   SequenceIDNode* Allocate(int64_t seq_id, SequenceIDNode* next) {
     if (free_node_indices_.empty()) {
       NewNodeBlock_();
-      CHECK(!free_node_indices_.empty());
+      TVM_FFI_ICHECK(!free_node_indices_.empty());
     }
     size_t id = free_node_indices_.back();
     free_node_indices_.pop_back();
@@ -66,7 +66,7 @@ class SequenceIDNodePool {
    * \param node The sequence ID node to free.
    */
   void Free(SequenceIDNode* node) {
-    CHECK(used_nodes_.find(node) != used_nodes_.end());
+    TVM_FFI_ICHECK(used_nodes_.find(node) != used_nodes_.end());
     free_node_indices_.push_back(used_nodes_[node]);
     used_nodes_.erase(node);
   }
@@ -170,7 +170,7 @@ struct RadixPage {
    * \throw Error if suffix length is larger than current vacant space.
    */
   void Extend(const int32_t* suffix, size_t suffix_length) {
-    CHECK_LE(suffix_length + length, capacity);
+    TVM_FFI_ICHECK_LE(suffix_length + length, capacity);
     for (int i = 0; i < suffix_length; ++i) {
       (*this)[i + length] = suffix[i];
     }
@@ -305,7 +305,7 @@ struct RadixPage {
    * \throw Error if page to be removed is not child page.
    */
   void RemoveChild(RadixPage* child) {
-    CHECK(child->parent == this);
+    TVM_FFI_ICHECK(child->parent == this);
     if (first_child == child) {
       first_child = child->next_sibling;
     } else {
@@ -369,7 +369,7 @@ class RadixPagePool {
   RadixPage* Allocate() {
     if (free_page_indices_.empty()) {
       NewPageBlock_();
-      CHECK(!free_page_indices_.empty());
+      TVM_FFI_ICHECK(!free_page_indices_.empty());
     }
     int id = free_page_indices_.back();
     free_page_indices_.pop_back();
@@ -387,10 +387,10 @@ class RadixPagePool {
    * \param page The radix page to free.
    */
   void Free(RadixPage* page) {
-    CHECK_EQ(page->seq_ids, nullptr);
-    CHECK(used_pages_.find(page) != used_pages_.end());
+    TVM_FFI_ICHECK_EQ(page->seq_ids, nullptr);
+    TVM_FFI_ICHECK(used_pages_.find(page) != used_pages_.end());
     free_page_indices_.push_back(used_pages_[page]);
-    CHECK(used_pages_.erase(page));
+    TVM_FFI_ICHECK(used_pages_.erase(page));
   }
 
   /*!
@@ -493,7 +493,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \throw Error if sequence ID is not valid.
    */
   IntTuple GetSequence(int64_t seq_id) {
-    CHECK(seq2page.find(seq_id) != seq2page.end());
+    TVM_FFI_ICHECK(seq2page.find(seq_id) != seq2page.end());
     size_t length = GetSequenceLength(seq_id);
     std::vector<int64_t> output(length);
     size_t offset = length;
@@ -526,7 +526,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \throw Error if sequence ID is not valid.
    */
   size_t GetSequenceLength(int64_t seq_id) {
-    CHECK(seq2page.find(seq_id) != seq2page.end());
+    TVM_FFI_ICHECK(seq2page.find(seq_id) != seq2page.end());
     size_t length = 0;
     for (RadixPage* page = seq2page[seq_id]; page; page = page->parent) {
       length += page->length;
@@ -545,11 +545,11 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * forked postion is not valid.
    */
   void ForkSequence(int64_t seq_id, int64_t parent_seq_id, size_t forked_offset) {
-    CHECK(seq2page.find(seq_id) == seq2page.end());
-    CHECK(seq2page.find(parent_seq_id) != seq2page.end());
-    CHECK_GT(forked_offset, 0);
+    TVM_FFI_ICHECK(seq2page.find(seq_id) == seq2page.end());
+    TVM_FFI_ICHECK(seq2page.find(parent_seq_id) != seq2page.end());
+    TVM_FFI_ICHECK_GT(forked_offset, 0);
     size_t length = GetSequenceLength(parent_seq_id);
-    CHECK_LE(forked_offset, length);
+    TVM_FFI_ICHECK_LE(forked_offset, length);
     for (RadixPage* page = seq2page[parent_seq_id]; page; page = page->parent) {
       if (forked_offset > length - page->length) {
         if (forked_offset < length) {
@@ -570,7 +570,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \throw Error if sequence ID is not valid.
    */
   void AddSequence(int64_t seq_id) {
-    CHECK(seq2page.find(seq_id) == seq2page.end())
+    TVM_FFI_ICHECK(seq2page.find(seq_id) == seq2page.end())
         << "Sequence ID = " << seq_id << " has been added.";
     root->AddSequence(seq_id_node_pool, seq_id);
     seq2page[seq_id] = root;
@@ -583,7 +583,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \throw Error if sequence ID is not valid.
    */
   void ExtendSequence(int64_t seq_id, const std::vector<int32_t>& tokens) {
-    CHECK(seq2page.find(seq_id) != seq2page.end());
+    TVM_FFI_ICHECK(seq2page.find(seq_id) != seq2page.end());
     const int32_t* suffix = tokens.data();
     size_t length = tokens.size();
     RadixPage* original_page = seq2page[seq_id];
@@ -624,8 +624,8 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    */
   void RollBackSequence(int64_t seq_id, size_t num_tokens) {
     size_t length = GetSequenceLength(seq_id);
-    CHECK_GT(num_tokens, 0);
-    CHECK_LE(num_tokens, length);
+    TVM_FFI_ICHECK_GT(num_tokens, 0);
+    TVM_FFI_ICHECK_LE(num_tokens, length);
     if (num_tokens == length) {
       // If rolling back whole sequence, just remove the sequence and add it again equivalently.
       RemoveSequence(seq_id);
@@ -715,7 +715,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * \param page The parent radix tree page.
    */
   void MergePage(RadixPage* page) {
-    CHECK(page->Mergeable());
+    TVM_FFI_ICHECK(page->Mergeable());
     RadixPage* child = page->first_child;
     for (int i = 0; i < child->length; ++i) {
       (*page)[i + page->length] = (*child)[i];
@@ -741,7 +741,7 @@ class PagedRadixTreeImpl : public PagedRadixTreeObj {
    * there may be implicit radix tree page merge.
    */
   RadixPage* SplitPage(RadixPage* page, size_t offset) {
-    CHECK_LT(offset, page->length);
+    TVM_FFI_ICHECK_LT(offset, page->length);
     RadixPage* child = radix_page_pool->Allocate();
     child->parent = page;
     child->first_child = page->first_child;

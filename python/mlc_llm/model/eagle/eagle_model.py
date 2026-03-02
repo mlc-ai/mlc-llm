@@ -47,9 +47,15 @@ class EagleDecoderLayer(nn.Module):
             k = self.self_attn.num_kv_heads * hd
             v = self.self_attn.num_kv_heads * hd
             i = self.mlp.intermediate_size
-            _set(self.self_attn.qkv_proj, tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0))
+            _set(
+                self.self_attn.qkv_proj,
+                tp.ShardSingleDim("_shard_qkv", segs=[q, k, v], dim=0),
+            )
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -79,7 +85,9 @@ class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attribut
             [EagleDecoderLayer(config, i) for i in range(config.num_hidden_layers)]
         )
         self.fc = nn.Linear(
-            in_features=2 * config.hidden_size, out_features=config.hidden_size, bias=config.bias
+            in_features=2 * config.hidden_size,
+            out_features=config.hidden_size,
+            bias=config.bias,
         )
 
         self.num_hidden_layers = config.num_hidden_layers

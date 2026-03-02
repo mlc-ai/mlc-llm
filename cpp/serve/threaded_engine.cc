@@ -42,7 +42,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
   void InitThreadedEngine(Device device, Optional<Function> request_stream_callback,
                           Optional<EventTraceRecorder> trace_recorder) final {
     device_ = device;
-    CHECK(request_stream_callback.defined())
+    TVM_FFI_ICHECK(request_stream_callback.defined())
         << "ThreadedEngine requires request stream callback function, but it is not given.";
     request_stream_callback_ = request_stream_callback.value();
     trace_recorder_ = trace_recorder;
@@ -152,7 +152,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
       }
       for (const auto& [kind, arg] : local_instruction_queue) {
         if (kind == InstructionKind::kAddRequest) {
-          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
+          TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           background_engine_->AddRequest(Downcast<Request>(arg));
         } else if (kind == InstructionKind::kAbortRequest) {
           // in a rare case, abort request can happen after unloading
@@ -173,7 +173,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
             background_engine_->Reset();
           }
         } else if (kind == InstructionKind::kDebugCallFuncOnAllAllWorker) {
-          CHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
+          TVM_FFI_ICHECK(background_engine_ != nullptr) << "Background engine is not loaded.";
           Array<Any> packed_args = Downcast<Array<Any>>(arg);
           background_engine_->DebugCallFuncOnAllAllWorker(
               Downcast<String>(packed_args[0]), Downcast<Optional<String>>(packed_args[1]));
@@ -231,20 +231,20 @@ class ThreadedEngineImpl : public ThreadedEngine {
   /************** Query/Profile/Debug **************/
 
   GenerationConfig GetDefaultGenerationConfig() const final {
-    CHECK(default_generation_config_.defined())
+    TVM_FFI_ICHECK(default_generation_config_.defined())
         << "The default generation config has not been set.";
     return default_generation_config_.value();
   }
 
   Request CreateRequest(String id, Array<Data> inputs, String generation_cfg_json_str) const {
-    picojson::object config = json::ParseToJSONObject(generation_cfg_json_str);
+    json::Object config = json::ParseToJSONObject(generation_cfg_json_str);
     auto gen_config = GenerationConfig::FromJSON(config, GetDefaultGenerationConfig());
-    CHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
+    TVM_FFI_ICHECK(gen_config.IsOk()) << gen_config.UnwrapErr();
     return Request(std::move(id), std::move(inputs), gen_config.Unwrap());
   }
 
   EngineConfig GetCompleteEngineConfig() const final {
-    CHECK(complete_engine_config_.defined()) << "The engine config has not been set.";
+    TVM_FFI_ICHECK(complete_engine_config_.defined()) << "The engine config has not been set.";
     return complete_engine_config_.value();
   }
 
@@ -284,7 +284,7 @@ class ThreadedEngineImpl : public ThreadedEngine {
     FRequestStreamCallback request_stream_callback(frequest_stream_callback_wrapper);
     Result<EngineCreationOutput> output_res =
         Engine::Create(engine_config_json_str, device_, request_stream_callback, trace_recorder_);
-    CHECK(output_res.IsOk()) << output_res.UnwrapErr();
+    TVM_FFI_ICHECK(output_res.IsOk()) << output_res.UnwrapErr();
     EngineCreationOutput output = output_res.Unwrap();
     background_engine_ = std::move(output.reloaded_engine);
     default_generation_config_ = output.default_generation_cfg;

@@ -192,7 +192,9 @@ class DeepseekV2YarnRotaryEmbedding(nn.Module):
                     x[b, s, h, partner_d2 * 2 + partner_d1]
                     * sin_freq
                     * tir.if_then_else(
-                        d < self.rotary_dim // 2, tir.const(-1, dtype), tir.const(1, dtype)
+                        d < self.rotary_dim // 2,
+                        tir.const(-1, dtype),
+                        tir.const(1, dtype),
                     )
                 )
                 expr = cos + sin
@@ -424,7 +426,8 @@ class DeepseekV2MoE(nn.Module):  # pylint: disable=too-many-instance-attributes
         )
 
         self.shared_experts = DeepseekV2MLP(
-            config, intermediate_size=config.moe_intermediate_size * config.n_shared_experts
+            config,
+            intermediate_size=config.moe_intermediate_size * config.n_shared_experts,
         )
         self.dtype = "float32"
 
@@ -582,7 +585,10 @@ class DeepseekV2DecoderLayer(nn.Module):
                     self.mlp.moe_gate_up_proj.weight,
                     tp.ShardSingleDim("_shard_moe_gate_up", segs=[mi, mi], dim=1),
                 )
-                _set(self.mlp.moe_down_proj.weight, tp.ShardSingleDim("_shard_moe_mlp_down", dim=2))
+                _set(
+                    self.mlp.moe_down_proj.weight,
+                    tp.ShardSingleDim("_shard_moe_mlp_down", dim=2),
+                )
             else:
                 assert isinstance(self.mlp, DeepseekV2MLP)
                 si = self.mlp.intermediate_size
@@ -734,7 +740,10 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -744,7 +753,10 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
         return logits, paged_kv_cache
 
     def batch_extend(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

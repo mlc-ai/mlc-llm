@@ -164,17 +164,19 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
             mlc_name,
             [f"{attn}.kv_b_proj.weight"],
             functools.partial(
-                lambda kv_b_proj, dtype: np.split(
-                    kv_b_proj.reshape(
-                        model_config.num_key_value_heads,
-                        model_config.qk_nope_head_dim + model_config.v_head_dim,
-                        model_config.kv_lora_rank,
-                    ),
-                    indices_or_sections=[model_config.qk_nope_head_dim],
-                    axis=1,
-                )[0]
-                .transpose(0, 2, 1)
-                .astype(dtype),
+                lambda kv_b_proj, dtype: (
+                    np.split(
+                        kv_b_proj.reshape(
+                            model_config.num_key_value_heads,
+                            model_config.qk_nope_head_dim + model_config.v_head_dim,
+                            model_config.kv_lora_rank,
+                        ),
+                        indices_or_sections=[model_config.qk_nope_head_dim],
+                        axis=1,
+                    )[0]
+                    .transpose(0, 2, 1)
+                    .astype(dtype)
+                ),
                 dtype=mlc_param.dtype,
             ),
         )
@@ -185,20 +187,22 @@ def huggingface(  # pylint: disable=too-many-locals,too-many-statements
                 scale_mlc_name,
                 [f"{attn}.kv_b_proj.weight_scale_inv"],
                 functools.partial(
-                    lambda kv_b_proj, dtype: np.split(
-                        kv_b_proj.reshape(
-                            model_config.num_key_value_heads,
-                            (model_config.qk_nope_head_dim + model_config.v_head_dim)
-                            // quantization.weight_block_size[0],
-                            model_config.kv_lora_rank // quantization.weight_block_size[1],
-                        ),
-                        indices_or_sections=[
-                            model_config.qk_nope_head_dim // quantization.weight_block_size[0]
-                        ],
-                        axis=1,
-                    )[0]
-                    .transpose(0, 2, 1)
-                    .astype(dtype),
+                    lambda kv_b_proj, dtype: (
+                        np.split(
+                            kv_b_proj.reshape(
+                                model_config.num_key_value_heads,
+                                (model_config.qk_nope_head_dim + model_config.v_head_dim)
+                                // quantization.weight_block_size[0],
+                                model_config.kv_lora_rank // quantization.weight_block_size[1],
+                            ),
+                            indices_or_sections=[
+                                model_config.qk_nope_head_dim // quantization.weight_block_size[0]
+                            ],
+                            axis=1,
+                        )[0]
+                        .transpose(0, 2, 1)
+                        .astype(dtype)
+                    ),
                     dtype=mlc_param.dtype,
                 ),
             )

@@ -11,19 +11,22 @@ namespace mlc {
 namespace llm {
 namespace serve {
 
-Array<EngineAction> CreateEngineActions(
-    Array<Model> models, EngineConfig engine_config, std::vector<picojson::object> model_configs,
-    std::vector<ModelWorkspace> model_workspaces, LogitProcessor logit_processor, Sampler sampler,
-    DraftTokenWorkspaceManager draft_token_workspace_manager, Tokenizer tokenizer,
-    Optional<EventTraceRecorder> trace_recorder, FRequestStreamCallback request_stream_callback,
-    Device device) {
+Array<EngineAction> CreateEngineActions(Array<Model> models, EngineConfig engine_config,
+                                        std::vector<tvm::ffi::json::Object> model_configs,
+                                        std::vector<ModelWorkspace> model_workspaces,
+                                        LogitProcessor logit_processor, Sampler sampler,
+                                        DraftTokenWorkspaceManager draft_token_workspace_manager,
+                                        Tokenizer tokenizer,
+                                        Optional<EventTraceRecorder> trace_recorder,
+                                        FRequestStreamCallback request_stream_callback,
+                                        Device device) {
   Array<EngineAction> actions;
   ModelMetadata model_metadata = models[0]->GetMetadata();
   if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
     // Speculative decoding is only possible for more than one model.
-    ICHECK_GT(models.size(), 1U);
+    TVM_FFI_ICHECK_GT(models.size(), 1U);
     if (engine_config->speculative_mode == SpeculativeMode::kEagle) {
-      CHECK_GT(engine_config->spec_draft_length, 0)
+      TVM_FFI_ICHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
       actions = {EngineAction::EagleNewRequestPrefill(models,                         //
                                                       logit_processor,                //
@@ -40,7 +43,7 @@ Array<EngineAction> CreateEngineActions(
                                                 draft_token_workspace_manager, engine_config,
                                                 trace_recorder)};
     } else if (engine_config->speculative_mode == SpeculativeMode::kMedusa) {
-      CHECK_GT(engine_config->spec_draft_length, 0)
+      TVM_FFI_ICHECK_GT(engine_config->spec_draft_length, 0)
           << "The automatic spec decoding does not support Eagle mode as of now.";
       actions = {EngineAction::EagleNewRequestPrefill(models,                         //
                                                       logit_processor,                //
@@ -178,7 +181,7 @@ void ProcessFinishedRequestStateEntries(
   // - Remove the finished request state entries.
   for (const RequestStateEntry& rsentry : finished_rsentries) {
     // The finished entry must be a leaf.
-    ICHECK(rsentry->child_indices.empty());
+    TVM_FFI_ICHECK(rsentry->child_indices.empty());
     // Mark the status of this entry as finished.
     rsentry->status = RequestStateStatus::kFinished;
     // Remove the request state entry from all the models.
@@ -213,7 +216,7 @@ void ProcessFinishedRequestStateEntries(
       // Remove from running queue and engine state.
       auto it =
           std::find(estate->running_queue.begin(), estate->running_queue.end(), rsentry->request);
-      ICHECK(it != estate->running_queue.end());
+      TVM_FFI_ICHECK(it != estate->running_queue.end());
       estate->running_queue.erase(it);
       estate->request_states.erase(rsentry->request->id);
 
@@ -308,7 +311,7 @@ void ActionStepPostProcess(Array<Request> requests, EngineState estate, const Ar
         DisaggRequestKind::kRemoteSend) {
       auto it = std::find(estate->waiting_queue.begin(), estate->waiting_queue.end(), request);
       if (it == estate->waiting_queue.end()) {
-        CHECK_EQ(rstate->entries.size(), 1);
+        TVM_FFI_ICHECK_EQ(rstate->entries.size(), 1);
         estate->postproc_workspace.finished_rsentries.push_back(rstate->entries[0]);
       }
     }
@@ -329,7 +332,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
     EngineState estate, const Array<Model>& models,
     Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager,
     Optional<EventTraceRecorder> trace_recorder) {
-  ICHECK(!estate->running_queue.empty());
+  TVM_FFI_ICHECK(!estate->running_queue.empty());
   Request request = estate->running_queue.back();
 
   // Find the last alive request state entry, which is what we want to preempt.
@@ -341,7 +344,7 @@ RequestStateEntry PreemptLastRunningRequestStateEntry(
       break;
     }
   }
-  ICHECK_NE(preempt_rstate_idx, -1);
+  TVM_FFI_ICHECK_NE(preempt_rstate_idx, -1);
   RequestStateEntry rsentry = rstate->entries[preempt_rstate_idx];
   if (estate->disaggregation) {
     AbortRequestImpl(estate, models, request->id, "preempt");

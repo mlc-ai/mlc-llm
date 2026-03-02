@@ -182,7 +182,8 @@ class GPT2Block(nn.Module):
             tp.shard_bias(self.mlp.c_proj, self.tensor_parallel_shards),
         ):
             hidden_states = self._apply_residual(
-                self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id), hidden_states
+                self.attn(self.ln_1(hidden_states), paged_kv_cache, layer_id),
+                hidden_states,
             )
             hidden_states = self._apply_residual(self.mlp(self.ln_2(hidden_states)), hidden_states)
 
@@ -278,7 +279,10 @@ class GPT2LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribute
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)

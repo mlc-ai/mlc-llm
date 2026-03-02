@@ -164,7 +164,10 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
             # Create the param for the shape variables.
             shape_var_params = []
             shape_var_args = []
-            for shape_var_arg, shape_var_param in self.undefined_shape_vars_remap.items():
+            for (
+                shape_var_arg,
+                shape_var_param,
+            ) in self.undefined_shape_vars_remap.items():
                 if shape_var_arg not in self.undefined_param_shape_vars_remap:
                     shape_var_params.append(shape_var_param)
                     shape_var_args.append(shape_var_arg)

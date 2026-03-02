@@ -25,16 +25,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, int total_length,
                                               int split_pos) {
-  CHECK_GE(split_pos, 0);
-  CHECK_GE(total_length, split_pos)
+  TVM_FFI_ICHECK_GE(split_pos, 0);
+  TVM_FFI_ICHECK_GE(total_length, split_pos)
       << "Cannot truncate when the current length is already less than the target length";
   std::vector<Data> lhs(original_data.begin(), original_data.end());
   std::vector<Data> rhs;
   while (total_length > split_pos) {
-    ICHECK(!lhs.empty());
+    TVM_FFI_ICHECK(!lhs.empty());
     Data last_data = lhs.back();
     int last_data_length = last_data->GetLength();
-    ICHECK_GE(total_length - last_data_length, 0);
+    TVM_FFI_ICHECK_GE(total_length - last_data_length, 0);
     if (total_length - last_data_length >= split_pos) {
       // Pop the entire last data.
       rhs.push_back(lhs.back());
@@ -44,15 +44,15 @@ std::pair<Array<Data>, Array<Data>> SplitData(const Array<Data>& original_data, 
     }
     // Partially truncate the last data.
     const auto* token_data = last_data.as<TokenDataNode>();
-    CHECK(token_data != nullptr) << "Only TokenData supports partial truncation.";
+    TVM_FFI_ICHECK(token_data != nullptr) << "Only TokenData supports partial truncation.";
     int length_to_truncate = total_length - split_pos;
-    CHECK_GT(length_to_truncate, 0);
-    CHECK_LT(length_to_truncate, last_data_length);
+    TVM_FFI_ICHECK_GT(length_to_truncate, 0);
+    TVM_FFI_ICHECK_LT(length_to_truncate, last_data_length);
     TokenData lhs_token_data(
         IntTuple{token_data->token_ids.begin(), token_data->token_ids.end() - length_to_truncate});
     TokenData rhs_token_data(
         IntTuple{token_data->token_ids.end() - length_to_truncate, token_data->token_ids.end()});
-    CHECK_EQ(total_length - last_data_length + lhs_token_data->GetLength(), split_pos);
+    TVM_FFI_ICHECK_EQ(total_length - last_data_length + lhs_token_data->GetLength(), split_pos);
     lhs.pop_back();
     lhs.push_back(lhs_token_data);
     rhs.push_back(rhs_token_data);
@@ -182,7 +182,7 @@ inline void TokenToLogProbJSON(const Tokenizer& tokenizer, const TokenProbPair& 
 int32_t SampleResult::GetTokenId() const { return this->sampled_token_id.first; }
 
 std::string SampleResult::GetLogProbJSON(const Tokenizer& tokenizer, bool logprob) const {
-  ICHECK(top_prob_tokens.empty() || logprob);
+  TVM_FFI_ICHECK(top_prob_tokens.empty() || logprob);
   if (!logprob) {
     // Logprob is not needed.
     return "";
@@ -234,7 +234,8 @@ RequestStreamOutput RequestStreamOutput::Usage(String request_id,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("mlc.serve.RequestStreamOutputUnpack", [](RequestStreamOutput output) {
-    CHECK(!output->unpacked) << "One RequestStreamOutput can be unpacked for at most once.";
+    TVM_FFI_ICHECK(!output->unpacked)
+        << "One RequestStreamOutput can be unpacked for at most once.";
     std::vector<IntTuple> group_delta_token_ids;
     std::vector<Array<String>> group_delta_logprob_json_strs;
     group_delta_token_ids.reserve(output->group_delta_token_ids.size());

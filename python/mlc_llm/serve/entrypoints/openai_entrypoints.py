@@ -1,16 +1,23 @@
 """OpenAI API-compatible server entrypoints in MLC LLM"""
 
 # pylint: disable=too-many-locals,too-many-return-statements,too-many-statements,fixme
+import base64
+import struct
 from http import HTTPStatus
 from typing import AsyncGenerator, List, Optional
 
 import fastapi
+import numpy as np
 
 from mlc_llm.protocol import error_protocol
 from mlc_llm.protocol.openai_api_protocol import (
     ChatCompletionRequest,
     CompletionLogProbs,
     CompletionRequest,
+    EmbeddingObject,
+    EmbeddingRequest,
+    EmbeddingResponse,
+    EmbeddingUsage,
     ListResponse,
     LogProbsContent,
     ModelResponse,
@@ -18,7 +25,96 @@ from mlc_llm.protocol.openai_api_protocol import (
 from mlc_llm.serve import engine_base, engine_utils
 from mlc_llm.serve.server import ServerContext
 
-app = fastapi.APIRouter()
+
+def verify_api_key(request: fastapi.Request):
+    """Function to verify API key"""
+    server_context = ServerContext.current()
+    # Only perform verification when API key is configured
+    if server_context is not None and server_context.api_key is not None:
+        provided_key = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if provided_key != server_context.api_key:
+            raise fastapi.HTTPException(status_code=401, detail="Invalid API Key")
+
+
+app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
+
+
+################ v1/embeddings ################
+
+
+@app.post("/v1/embeddings")
+async def request_embedding(request: EmbeddingRequest):
+    """OpenAI-compatible embedding API.
+    API reference: https://platform.openai.com/docs/api-reference/embeddings/create
+    """
+    server_context: ServerContext = ServerContext.current()
+    embedding_engine = server_context.get_embedding_engine(request.model)
+    if embedding_engine is None:
+        return error_protocol.create_error_response(
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served '
+            f"as an embedding model.",
+        )
+
+    # Normalize input to List[str]
+    inputs: List[str]
+    if isinstance(request.input, str):
+        inputs = [request.input]
+    elif (
+        isinstance(request.input, list)
+        and len(request.input) > 0
+        and isinstance(request.input[0], str)
+    ):
+        inputs = list(request.input)  # type: ignore[arg-type]
+    else:
+        # Token ID inputs (List[int] or List[List[int]]) — decode back to strings
+        if isinstance(request.input[0], int):
+            inputs = [embedding_engine.tokenizer.decode(request.input)]  # type: ignore[arg-type]
+        else:
+            inputs = [
+                embedding_engine.tokenizer.decode(ids)  # type: ignore[arg-type]
+                for ids in request.input
+            ]
+
+    # Run embedding inference (async — does not block the event loop)
+    try:
+        embeddings, total_tokens = await embedding_engine.async_embed(inputs)
+    except Exception as exc:  # pylint: disable=broad-except
+        return error_protocol.create_error_response(
+            HTTPStatus.INTERNAL_SERVER_ERROR,
+            message=f"Embedding inference failed: {exc}",
+        )
+
+    # Optional: truncate dimensions (Matryoshka-style)
+    if request.dimensions is not None:
+        for i, emb in enumerate(embeddings):
+            vec = np.array(emb[: request.dimensions], dtype=np.float32)
+            norm = np.linalg.norm(vec)
+            if norm > 1e-12:
+                vec = vec / norm
+            embeddings[i] = vec.tolist()
+
+    # Build response data
+    resp_data = []
+    for i, emb in enumerate(embeddings):
+        if request.encoding_format == "base64":
+            binary = struct.pack(f"<{len(emb)}f", *emb)
+            resp_data.append(
+                EmbeddingObject(
+                    embedding=base64.b64encode(binary).decode("utf-8"),
+                    index=i,
+                )
+            )
+        else:
+            resp_data.append(EmbeddingObject(embedding=emb, index=i))
+
+    return EmbeddingResponse(
+        data=resp_data,
+        model=request.model,
+        usage=EmbeddingUsage(prompt_tokens=total_tokens, total_tokens=total_tokens),
+    )
+
+
 ################ v1/models ################
 
 
@@ -50,7 +146,8 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
@@ -62,7 +159,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -88,7 +187,9 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
     logprob_results: List[Optional[CompletionLogProbs]] = [None] * request.n
 
     async for response in async_engine._handle_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified
@@ -151,7 +252,8 @@ async def request_chat_completion(
     async_engine = server_context.get_engine(request.model)
     if async_engine is None:
         return error_protocol.create_error_response(
-            HTTPStatus.BAD_REQUEST, message=f'The requested model "{request.model}" is not served.'
+            HTTPStatus.BAD_REQUEST,
+            message=f'The requested model "{request.model}" is not served.',
         )
     # FIXME: This is a temporary solution to make sure
     # prep_recv, remote_send and start_generation process the same request
@@ -165,7 +267,9 @@ async def request_chat_completion(
         # capture potential exceptions in this scope, rather then
         # the StreamingResponse scope.
         stream_generator = async_engine._handle_chat_completion(  # pylint: disable=protected-access
-            request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+            request,
+            request_id,
+            request_final_usage_include_extra=request_final_usage_include_extra,
         )
         first_response = await anext(  # type: ignore  # pylint: disable=undefined-variable
             stream_generator
@@ -193,7 +297,9 @@ async def request_chat_completion(
     )
 
     async for response in async_engine._handle_chat_completion(  # pylint: disable=protected-access
-        request, request_id, request_final_usage_include_extra=request_final_usage_include_extra
+        request,
+        request_id,
+        request_final_usage_include_extra=request_final_usage_include_extra,
     ):
         if await raw_request.is_disconnected():
             # In non-streaming cases, the engine will not be notified

@@ -120,7 +120,10 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     and not is_moe_gate(name, node)
                 ):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [
+                        f"{name}.q_weight",
+                        f"{name}.q_scale",
+                    ]
                     self.quant_map.map_func[weight_name] = partial(
                         self.config.quantize_weight,
                         output_transpose=self.config.linear_weight_layout == "KN",
@@ -128,12 +131,18 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
                     return GroupQuantizeLinear.from_linear(node, self.config)
                 if isinstance(node, nn.Embedding) and self.config.quantize_embedding:
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [
+                        f"{name}.q_weight",
+                        f"{name}.q_scale",
+                    ]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeEmbedding.from_embedding(node, self.config)
                 if isinstance(node, MixtralExperts):
                     weight_name = f"{name}.weight"
-                    self.quant_map.param_map[weight_name] = [f"{name}.q_weight", f"{name}.q_scale"]
+                    self.quant_map.param_map[weight_name] = [
+                        f"{name}.q_weight",
+                        f"{name}.q_scale",
+                    ]
                     self.quant_map.map_func[weight_name] = self.config.quantize_weight
                     return GroupQuantizeMixtralExperts.from_mixtral_experts(node, self.config)
                 return self.visit(name, node)
@@ -245,7 +254,13 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
             fcompute=lambda *idx: te.max(
                 tir.if_then_else(
                     idx[axis] * self.group_size + r < k,
-                    te.abs(weight(*idx[:axis], idx[axis] * self.group_size + r, *idx[axis + 1 :])),
+                    te.abs(
+                        weight(
+                            *idx[:axis],
+                            idx[axis] * self.group_size + r,
+                            *idx[axis + 1 :],
+                        )
+                    ),
                     te.min_value(self.model_dtype),
                 ),
                 axis=r,
@@ -322,12 +337,14 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
             )
         if config.linear_weight_layout == "KN":
             self.q_weight = nn.Parameter(
-                (config.num_storage_per_group * num_group, out_features), config.storage_dtype
+                (config.num_storage_per_group * num_group, out_features),
+                config.storage_dtype,
             )
             self.q_scale = nn.Parameter((num_group, out_features), config.model_dtype)
         else:
             self.q_weight = nn.Parameter(
-                (out_features, config.num_storage_per_group * num_group), config.storage_dtype
+                (out_features, config.num_storage_per_group * num_group),
+                config.storage_dtype,
             )
             self.q_scale = nn.Parameter((out_features, num_group), config.model_dtype)
         if bias:

@@ -3,8 +3,8 @@
  * \brief Implementation of a multi-GPU loader with loading-time sharding.
  */
 #ifndef MLC_SINGLE_GPU_ONLY
-#include <picojson.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/extra/json.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -81,7 +81,7 @@ class PreprocessorPool {
       const std::string& func_name = preproc.func_name;
       Tensor param_in = param;
       param = Tensor::Empty(preproc.out_shape, preproc.out_dtype, param->device);
-      ICHECK(preproc_funcs.count(func_name));
+      TVM_FFI_ICHECK(preproc_funcs.count(func_name));
       DLTensor dl_param_in = *param_in.operator->();
       DLTensor dl_param = *param.operator->();
       preproc_funcs.at(func_name)(&dl_param_in, &dl_param);
@@ -115,7 +115,7 @@ Tensor BroadcastOrShardAndScatter(Tensor param, const ModelMetadata::Param& para
   Device device = param->device;
   Shape shape = param_info.preprocs.back().out_shape;
   DataType dtype = param_info.preprocs.back().out_dtype;
-  ICHECK(shape.size() >= 1 && shape[0] == num_shards)
+  TVM_FFI_ICHECK(shape.size() >= 1 && shape[0] == num_shards)
       << "ValueError: The first dimension of the output shape must be equal to the "
       << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
   param = preprocs.Apply(param, param_info);
@@ -158,11 +158,10 @@ Array<Optional<Tensor>> LoadMultiGPU(const std::string& model_path, Module vm_mo
   LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
   // Step 0. Initialize metadata and paths
   TensorCacheMetadata tensor_cache_metadata = TensorCacheMetadata::Load(model_path);
-  picojson::value model_config;
-  picojson::parse(model_config, model_config_str);
+  tvm::ffi::json::Value model_config = tvm::ffi::json::Parse(model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
-  CHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
+      ModelMetadata::FromModule(vm_module, model_config.cast<tvm::ffi::json::Object>());
+  TVM_FFI_ICHECK_EQ(model_metadata.tensor_parallel_shards, num_shards)
       << "ValueError: The model is compiled using `--tensor-parallel-shards="
       << model_metadata.tensor_parallel_shards
       << "`, but mlc-chat-config.json is configured to use " << num_shards << " GPUs. "
@@ -260,10 +259,9 @@ Array<Optional<Tensor>> LoadMultiGPUPresharded(const std::string& model_path, Mo
   LOG(INFO) << "[Worker #" << worker_id << "] Loading model to device: " << device;
   // Step 0. Initialize metadata and paths
   TensorCacheMetadata tensor_cache_metadata = TensorCacheMetadata::Load(model_path);
-  picojson::value model_config;
-  picojson::parse(model_config, model_config_str);
+  tvm::ffi::json::Value model_config = tvm::ffi::json::Parse(model_config_str);
   ModelMetadata model_metadata =
-      ModelMetadata::FromModule(vm_module, model_config.get<picojson::object>());
+      ModelMetadata::FromModule(vm_module, model_config.cast<tvm::ffi::json::Object>());
 
   std::unordered_map<std::string, ParamInfo> param_info_map;
   for (const TensorCacheMetadata::FileRecord& file_record : tensor_cache_metadata.records) {
@@ -293,7 +291,8 @@ Array<Optional<Tensor>> LoadMultiGPUPresharded(const std::string& model_path, Mo
                              .str()
                        : std::string(param.name);
     auto it = param_info_map.find(param_name);
-    CHECK(it != param_info_map.end()) << "ValueError: Cannot find parameter: " << param_name;
+    TVM_FFI_ICHECK(it != param_info_map.end())
+        << "ValueError: Cannot find parameter: " << param_name;
     const ParamInfo& param_info = (*it).second;
     const TensorCacheMetadata::FileRecord::ParamRecord* param_record = param_info.param;
     const TensorCacheMetadata::FileRecord* file_record = param_info.file;

@@ -53,7 +53,11 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
         print(f";sliding_window_size={self.sliding_window_size}", file=out, end="")
         print(f";attention_sink_size={self.attention_sink_size}", file=out, end="")
         print(f";tensor_parallel_shards={self.tensor_parallel_shards}", file=out, end="")
-        print(f";pipeline_parallel_stages={self.pipeline_parallel_stages}", file=out, end="")
+        print(
+            f";pipeline_parallel_stages={self.pipeline_parallel_stages}",
+            file=out,
+            end="",
+        )
         print(f";opt={self.opt}", file=out, end="")
         return out.getvalue().rstrip()
 
@@ -136,6 +140,18 @@ def main(argv):
         "--additional-models", type=str, nargs="*", help=HELP["additional_models_serve"]
     )
     parser.add_argument(
+        "--embedding-model",
+        type=str,
+        default=None,
+        help="Path to the embedding model weight directory (enables /v1/embeddings endpoint)",
+    )
+    parser.add_argument(
+        "--embedding-model-lib",
+        type=str,
+        default=None,
+        help="Path to the compiled embedding model library (.so/.dylib file)",
+    )
+    parser.add_argument(
         "--speculative-mode",
         type=str,
         choices=["disable", "small_draft", "eagle", "medusa"],
@@ -194,6 +210,12 @@ def main(argv):
         default=["*"],
         help="allowed headers" + ' (default: "%(default)s")',
     )
+    parser.add_argument(
+        "--api-key",
+        type=str,
+        default=None,
+        help="API key for authentication. If not provided, authentication is disabled.",
+    )
     parsed = parser.parse_args(argv)
 
     additional_models = []
@@ -212,6 +234,8 @@ def main(argv):
         mode=parsed.mode,
         enable_debug=parsed.enable_debug,
         additional_models=additional_models,
+        embedding_model=parsed.embedding_model,
+        embedding_model_lib=parsed.embedding_model_lib,
         tensor_parallel_shards=parsed.overrides.tensor_parallel_shards,
         pipeline_parallel_stages=parsed.overrides.pipeline_parallel_stages,
         opt=parsed.overrides.opt,
@@ -236,4 +260,5 @@ def main(argv):
         allow_origins=parsed.allow_origins,
         allow_methods=parsed.allow_methods,
         allow_headers=parsed.allow_headers,
+        api_key=parsed.api_key,
     )

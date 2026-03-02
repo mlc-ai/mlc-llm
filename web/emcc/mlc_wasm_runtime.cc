@@ -31,5 +31,3 @@
 #define COMPILE_MLC_WASM_RUNTIME 1
 #define __STDC_FORMAT_MACROS 1
 #define PICOJSON_USE_INT64
-
-#define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>

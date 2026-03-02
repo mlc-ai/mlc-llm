@@ -11,6 +11,7 @@
 #include <tvm/runtime/nvtx.h>
 
 #include <fstream>
+#include <unordered_set>
 
 #include "../support/json_parser.h"
 #include "../support/vlm_utils.h"
@@ -27,28 +28,31 @@ TVM_FFI_STATIC_INIT_BLOCK() { ModelObj::RegisterReflection(); }
 
 class ModelImpl;
 
-Model Model::Create(String reload_lib_path, String model_path, const picojson::object& model_config,
-                    DLDevice device, const Optional<Session>& session, int num_shards,
-                    int num_stages, bool trace_enabled) {
+Model Model::Create(String reload_lib_path, String model_path,
+                    const tvm::ffi::json::Object& model_config, DLDevice device,
+                    const Optional<Session>& session, int num_shards, int num_stages,
+                    bool trace_enabled) {
   return Model(tvm::ffi::make_object<ModelImpl>(reload_lib_path, model_path, model_config, device,
                                                 session, num_shards, num_stages, trace_enabled));
 }
 
-Result<picojson::object> Model::LoadModelConfig(const String& model_path) {
-  using TResult = Result<picojson::object>;
-  picojson::object model_config;
+Result<tvm::ffi::json::Object> Model::LoadModelConfig(const String& model_path) {
+  using TResult = Result<tvm::ffi::json::Object>;
   std::ifstream config_istream((model_path + "/mlc-chat-config.json").c_str());
   std::ostringstream config_ostream;
-  ICHECK(config_istream);
+  TVM_FFI_ICHECK(config_istream);
   config_ostream << config_istream.rdbuf();
   std::string config_str = config_ostream.str();
-  picojson::value config_json;
-  std::string err = picojson::parse(config_json, config_str);
+  tvm::ffi::String err;
+  auto config_json = tvm::ffi::json::Parse(config_str, &err);
   if (!err.empty()) {
-    return TResult::Error(err);
+    return TResult::Error(std::string(err));
   }
-  picojson::object config = config_json.get<picojson::object>();
-  return TResult::Ok(config);
+  auto opt = config_json.try_cast<tvm::ffi::json::Object>();
+  if (!opt.has_value()) {
+    return TResult::Error("Expected JSON object in model config");
+  }
+  return TResult::Ok(*opt);
 }
 
 class ModelImpl : public ModelObj {
@@ -57,7 +61,7 @@ class ModelImpl : public ModelObj {
    * \brief Constructor of ModelImpl.
    * \sa Model::Create
    */
-  explicit ModelImpl(String reload_lib_path, String model_path, picojson::object model_config,
+  explicit ModelImpl(String reload_lib_path, String model_path, tvm::ffi::json::Object model_config,
                      DLDevice device, const Optional<Session>& session, int num_shards,
                      int num_stages, bool trace_enabled)
       : model_(model_path), device_(device), trace_enabled_(trace_enabled) {
@@ -99,9 +103,9 @@ class ModelImpl : public ModelObj {
         p_token_ids[i] = 0;
       }
     }
-    ICHECK_EQ(token_ids_nd->ndim, 1);
-    ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
-    ICHECK_NE(prefill_chunk_size_, -1);
+    TVM_FFI_ICHECK_EQ(token_ids_nd->ndim, 1);
+    TVM_FFI_ICHECK_EQ(token_ids_nd->shape[0], num_tokens);
+    TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
     ObjectRef token_ids_dref_or_nd;
     {
       NVTXScopedRange nvtx_scope("Copy to worker 0");
@@ -110,18 +114,19 @@ class ModelImpl : public ModelObj {
 
     ObjectRef embeddings = ft_.embed_func_(token_ids_dref_or_nd, params_).cast<ObjectRef>();
     if (dst != nullptr) {
-      CHECK(dst->defined());
+      TVM_FFI_ICHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
       return *dst;
     } else {
-      CHECK_EQ(offset, 0);
+      TVM_FFI_ICHECK_EQ(offset, 0);
       return embeddings;
     }
   }
 
   ObjectRef ImageEmbed(const Tensor& image, ObjectRef* dst, int offset) final {
     NVTXScopedRange nvtx_scope("ImageEmbed");
-    CHECK(ft_.image_embed_func_.defined()) << "`image_embed` function is not found in the model. ";
+    TVM_FFI_ICHECK(ft_.image_embed_func_.defined())
+        << "`image_embed` function is not found in the model. ";
 
     int tmp_h = 0, tmp_w = 0;
     CalculateResizeShape(image, this->model_type_, &tmp_h, &tmp_w);
@@ -137,11 +142,11 @@ class ModelImpl : public ModelObj {
         ft_.image_embed_func_(image_dref_or_nd, resize_h, resize_w, crop_h, crop_w, params_)
             .cast<ObjectRef>();
     if (dst != nullptr) {
-      CHECK(dst->defined());
+      TVM_FFI_ICHECK(dst->defined());
       ft_.nd_copy_embedding_to_offset_func_(embeddings, *dst, offset);
       return *dst;
     } else {
-      CHECK_EQ(offset, 0);
+      TVM_FFI_ICHECK_EQ(offset, 0);
       return embeddings;
     }
   }
@@ -152,7 +157,8 @@ class ModelImpl : public ModelObj {
 
   Tensor GetLogits(const ObjectRef& hidden_states) final {
     NVTXScopedRange nvtx_scope("GetLogits");
-    CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
+    TVM_FFI_ICHECK(ft_.get_logits_func_.defined())
+        << "`get_logits` function is not found in the model.";
 
     ObjectRef hidden_states_dref_or_nd{nullptr};
     if (!ft_.use_disco && hidden_states->IsInstance<DRefObj>()) {
@@ -177,7 +183,8 @@ class ModelImpl : public ModelObj {
 
   Array<Tensor> GetMultiStepLogits(const ObjectRef& hidden_states) final {
     NVTXScopedRange nvtx_scope("GetMultiStepLogits");
-    CHECK(ft_.get_logits_func_.defined()) << "`get_logits` function is not found in the model.";
+    TVM_FFI_ICHECK(ft_.get_logits_func_.defined())
+        << "`get_logits` function is not found in the model.";
 
     ObjectRef hidden_states_dref_or_nd{nullptr};
     ObjectRef ret = ft_.get_logits_func_(hidden_states, params_).cast<ObjectRef>();
@@ -198,10 +205,10 @@ class ModelImpl : public ModelObj {
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (n, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], batch_size * seq_len);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({batch_size * seq_len, hidden_size_}, embeddings_nd->dtype);
     } else {
@@ -227,16 +234,16 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(fused, out_shape).cast<ObjectRef>();
     } else {
       Tensor fused_nd = Downcast<Tensor>(fused);
-      ICHECK_EQ(fused_nd->ndim, 2);
-      ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
+      TVM_FFI_ICHECK_EQ(fused_nd->ndim, 2);
+      TVM_FFI_ICHECK_EQ(fused_nd->shape[0], batch_size * seq_len);
       return fused_nd.CreateView(out_shape, fused_nd->dtype);
     }
   }
 
   Tensor BatchPrefill(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                       const std::vector<int>& lengths) final {
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
+    TVM_FFI_ICHECK(!seq_ids.empty());
+    TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
 
@@ -254,12 +261,12 @@ class ModelImpl : public ModelObj {
                                " total_len=" + std::to_string(total_length));
     Tensor logit_pos_nd = logit_pos_arr_.CreateView({num_sequences}, DataType::Int(32));
 
-    CHECK(ft_.prefill_func_.defined())
+    TVM_FFI_ICHECK(ft_.prefill_func_.defined())
         << "`prefill_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
@@ -270,26 +277,27 @@ class ModelImpl : public ModelObj {
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], total_length);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
       Shape embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
-    ICHECK_NE(max_num_sequence_, -1);
+    TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef logit_pos_dref_or_nd =
         ft_.CopyToWorker0(logit_pos_nd, "logit_pos", {max_num_sequence_});
 
     Function single_batch_prefill_func = ft_.single_batch_prefill_func_;
     Function prefill_func = ft_.prefill_func_;
     if (ft_.single_batch_extend_func_.defined()) {
-      CHECK(ft_.extend_func_.defined()) << "`batch_extend` function is not found in the model.";
+      TVM_FFI_ICHECK(ft_.extend_func_.defined())
+          << "`batch_extend` function is not found in the model.";
       bool has_existing_sequence = false;
       for (int64_t seq_id : seq_ids) {
         if (prefilled_seq_ids_.count(seq_id)) {
@@ -335,9 +343,9 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (1, num_sequences, v)
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], 1);
-    ICHECK_EQ(logits->shape[1], num_sequences);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], num_sequences);
     return logits;
   }
 
@@ -345,8 +353,8 @@ class ModelImpl : public ModelObj {
                                      const std::vector<int64_t>& seq_ids,
                                      const std::vector<int>& lengths) final {
     NVTXScopedRange nvtx_scope("BatchPrefillToLastHidden");
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
+    TVM_FFI_ICHECK(!seq_ids.empty());
+    TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
 
@@ -365,11 +373,11 @@ class ModelImpl : public ModelObj {
           ft_.nd_view_func_(embedding_or_hidden_states, hidden_states_shape).cast<ObjectRef>();
     }
 
-    CHECK(ft_.prefill_to_last_hidden_func_.defined())
+    TVM_FFI_ICHECK(ft_.prefill_to_last_hidden_func_.defined())
         << "`prefill_to_last_hidden_states` function is not found in the model.";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
@@ -379,7 +387,7 @@ class ModelImpl : public ModelObj {
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
-      CHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
+      TVM_FFI_ICHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
           << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
       result = ft_.single_batch_prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd,
                                                              kv_cache_, params_)
@@ -401,10 +409,10 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
       return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
     }
   }
@@ -413,12 +421,12 @@ class ModelImpl : public ModelObj {
     NVTXScopedRange nvtx_scope("BatchDecode num_seqs=" + std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
 
-    CHECK(ft_.decode_func_.defined())
+    TVM_FFI_ICHECK(ft_.decode_func_.defined())
         << "`decode_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
@@ -430,12 +438,12 @@ class ModelImpl : public ModelObj {
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, b, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], num_sequence);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], num_sequence);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({num_sequence, 1, hidden_size_}, embeddings_nd->dtype);
     } else {
@@ -471,9 +479,9 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (b, 1, v)
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], num_sequence);
-    ICHECK_EQ(logits->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], num_sequence);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
     return logits;
   }
 
@@ -488,15 +496,15 @@ class ModelImpl : public ModelObj {
     for (int i = 0; i < num_sequence; ++i) {
       total_length += lengths[i];
     }
-    CHECK_EQ(total_length, token_tree_parent_ptr.size());
+    TVM_FFI_ICHECK_EQ(total_length, token_tree_parent_ptr.size());
 
-    CHECK(ft_.decode_func_.defined())
+    TVM_FFI_ICHECK(ft_.decode_func_.defined())
         << "`tree_decode_with_embed` function is not found in the model. Please make sure the "
            "model "
            "is compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
@@ -510,12 +518,12 @@ class ModelImpl : public ModelObj {
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], total_length);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({total_length, 1, hidden_size_}, embeddings_nd->dtype);
     } else {
@@ -544,9 +552,9 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (b, 1, v)
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], total_length);
-    ICHECK_EQ(logits->shape[1], 1);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], total_length);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], 1);
     return logits;
   }
 
@@ -556,11 +564,11 @@ class ModelImpl : public ModelObj {
                                std::to_string(seq_ids.size()));
     int num_sequence = seq_ids.size();
 
-    CHECK(ft_.decode_to_last_hidden_func_.defined())
+    TVM_FFI_ICHECK(ft_.decode_to_last_hidden_func_.defined())
         << "`batch_decode_to_last_hidden_states` function is not found in the model.";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Reserve in KV cache for the lengths of the input.
     // Begin forward with the sequence ids and new lengths.
@@ -571,7 +579,7 @@ class ModelImpl : public ModelObj {
     // args: embeddings, kv_cache, params
     ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
-      CHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
+      TVM_FFI_ICHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
           << "`decode_to_last_hidden_states` function is not found in the model.";
       result =
           ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
@@ -593,10 +601,10 @@ class ModelImpl : public ModelObj {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
     } else {
       Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
-      ICHECK_EQ(hidden_states_nd->shape[1], 1);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], num_sequence);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
       return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
     }
   }
@@ -604,23 +612,23 @@ class ModelImpl : public ModelObj {
   Tensor BatchVerify(const ObjectRef& embeddings, const std::vector<int64_t>& seq_ids,
                      const std::vector<int>& lengths,
                      const std::vector<int64_t>& token_tree_parent_ptr) final {
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
+    TVM_FFI_ICHECK(!seq_ids.empty());
+    TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
     }
-    CHECK_EQ(total_length, token_tree_parent_ptr.size());
+    TVM_FFI_ICHECK_EQ(total_length, token_tree_parent_ptr.size());
 
     NVTXScopedRange nvtx_scope("BatchVerify num_tokens=" + std::to_string(total_length));
 
-    CHECK(ft_.verify_func_.defined())
+    TVM_FFI_ICHECK(ft_.verify_func_.defined())
         << "`verify_with_embed` function is not found in the model. Please make sure the model is "
            "compiled with flag `--sep-embed` and `--enable-batching`";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Begin forward with the sequence ids and new lengths.
     IntTuple seq_ids_tuple(seq_ids);
@@ -633,12 +641,12 @@ class ModelImpl : public ModelObj {
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], total_length);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
@@ -667,9 +675,9 @@ class ModelImpl : public ModelObj {
     ft_.kv_cache_end_forward_func_(kv_cache_);
 
     // logits: (1, total_length, v)
-    ICHECK_EQ(logits->ndim, 3);
-    ICHECK_EQ(logits->shape[0], 1);
-    ICHECK_EQ(logits->shape[1], total_length);
+    TVM_FFI_ICHECK_EQ(logits->ndim, 3);
+    TVM_FFI_ICHECK_EQ(logits->shape[0], 1);
+    TVM_FFI_ICHECK_EQ(logits->shape[1], total_length);
     return logits;
   }
 
@@ -677,33 +685,33 @@ class ModelImpl : public ModelObj {
                                     const std::vector<int64_t>& seq_ids,
                                     const std::vector<int>& lengths,
                                     const std::vector<int64_t>& token_tree_parent_ptr) final {
-    CHECK(!seq_ids.empty());
-    CHECK_EQ(seq_ids.size(), lengths.size());
+    TVM_FFI_ICHECK(!seq_ids.empty());
+    TVM_FFI_ICHECK_EQ(seq_ids.size(), lengths.size());
     int num_sequences = seq_ids.size();
     int total_length = 0;
     for (int i = 0; i < num_sequences; ++i) {
       total_length += lengths[i];
     }
-    CHECK_EQ(total_length, token_tree_parent_ptr.size());
+    TVM_FFI_ICHECK_EQ(total_length, token_tree_parent_ptr.size());
     NVTXScopedRange nvtx_scope("BatchVerifyToLastHidden num_tokens=" +
                                std::to_string(total_length));
 
-    CHECK(ft_.verify_to_last_hidden_func_.defined())
+    TVM_FFI_ICHECK(ft_.verify_to_last_hidden_func_.defined())
         << "`batch_verify_to_last_hidden_states` function is not found in the model.";
-    ICHECK(ft_.kv_cache_begin_forward_func_.defined());
-    ICHECK(ft_.kv_cache_end_forward_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_begin_forward_func_.defined());
+    TVM_FFI_ICHECK(ft_.kv_cache_end_forward_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
       // embeddings: (1, n, h)
       Tensor embeddings_nd = Downcast<Tensor>(embeddings);
-      ICHECK_NE(hidden_size_, -1);
-      ICHECK_EQ(embeddings_nd->ndim, 2);
-      ICHECK_GE(embeddings_nd->shape[0], total_length);
-      ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
-      ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
-      ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
+      TVM_FFI_ICHECK_NE(hidden_size_, -1);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->ndim, 2);
+      TVM_FFI_ICHECK_GE(embeddings_nd->shape[0], total_length);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->shape[1], hidden_size_);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_type, device_.device_type);
+      TVM_FFI_ICHECK_EQ(embeddings_nd->device.device_id, device_.device_id);
       embeddings_dref_or_nd =
           embeddings_nd.CreateView({1, total_length, hidden_size_}, embeddings_nd->dtype);
     } else {
@@ -729,10 +737,10 @@ class ModelImpl : public ModelObj {
     Shape out_shape{total_length, hidden_size_};
     if (!ft_.use_disco) {
       Tensor hidden_states_nd = Downcast<Tensor>(hidden_states);
-      ICHECK_EQ(hidden_states_nd->ndim, 3);
-      ICHECK_EQ(hidden_states_nd->shape[0], 1);
-      ICHECK_EQ(hidden_states_nd->shape[1], total_length);
-      ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->ndim, 3);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[0], 1);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[1], total_length);
+      TVM_FFI_ICHECK_EQ(hidden_states_nd->shape[2], hidden_size_);
       return hidden_states_nd.CreateView(out_shape, hidden_states_nd->dtype);
     } else {
       return ft_.nd_view_func_(hidden_states, out_shape).cast<ObjectRef>();
@@ -824,8 +832,8 @@ class ModelImpl : public ModelObj {
   IntTuple DisaggPrepareKVRecv(int64_t seq_id, int length) final {
     NVTXScopedRange nvtx_scope("DisaggPrepareKVRecv length=" + std::to_string(length));
 
-    ICHECK(ft_.kv_cache_disagg_prepare_recv_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_disagg_prepare_recv_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Run KV receive preparation.
     ObjectRef ret;
@@ -845,8 +853,8 @@ class ModelImpl : public ModelObj {
     NVTXScopedRange nvtx_scope("DisaggMarkKVSend seq_id=" + std::to_string(seq_id) +
                                " begin_pos=" + std::to_string(begin_pos));
 
-    ICHECK(ft_.kv_cache_disagg_mark_send_func_.defined());
-    ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
+    TVM_FFI_ICHECK(ft_.kv_cache_disagg_mark_send_func_.defined());
+    TVM_FFI_ICHECK(kv_cache_.defined()) << "KV cache has not been initialized.";
 
     // Run KV send preparation.
     ft_.kv_cache_disagg_mark_send_func_(kv_cache_, seq_id, begin_pos, compressed_kv_append_metadata,
@@ -890,7 +898,7 @@ class ModelImpl : public ModelObj {
     Device preferred_host_device = GetPreferredHostDevice(device_);
     memory::Allocator* allocator = memory::MemoryManager::GetOrCreateAllocator(
         preferred_host_device, memory::AllocatorType::kNaive);
-    ICHECK_NOTNULL(allocator);
+    TVM_FFI_ICHECK_NOTNULL(allocator);
     token_ids_storage_ = memory::Storage(
         allocator->Alloc(preferred_host_device, {prefill_chunk_size_}, DataType::Int(32)),
         allocator);
@@ -919,7 +927,7 @@ class ModelImpl : public ModelObj {
   }
 
   int EstimateHostCPURequirement() const final {
-    CHECK_NE(num_shards_, -1) << "The model has not been initialized";
+    TVM_FFI_ICHECK_NE(num_shards_, -1) << "The model has not been initialized";
     return num_shards_ > 1 ? num_shards_ : 0;
   }
 
@@ -936,16 +944,16 @@ class ModelImpl : public ModelObj {
     // Get the shape of the embedding tensor for hidden size.
     Shape embedding_shape;
     if (ft_.use_disco) {
-      ICHECK(embedding->IsInstance<DRefObj>());
+      TVM_FFI_ICHECK(embedding->IsInstance<DRefObj>());
       ObjectRef shape_ref = ft_.nd_get_shape_func_(embedding).cast<ObjectRef>();
       embedding_shape = Downcast<DRef>(shape_ref)->DebugGetFromRemote(0).cast<Shape>();
     } else {
       Tensor embedding_nd = Downcast<Tensor>(embedding);
       embedding_shape = embedding_nd.Shape();
     }
-    ICHECK_NE(prefill_chunk_size_, -1);
-    ICHECK_EQ(embedding_shape.size(), 2);
-    ICHECK_GE(embedding_shape[0], prefill_chunk_size_);
+    TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
+    TVM_FFI_ICHECK_EQ(embedding_shape.size(), 2);
+    TVM_FFI_ICHECK_GE(embedding_shape[0], prefill_chunk_size_);
     this->hidden_size_ = embedding_shape[1];
     return embedding;
   }
@@ -960,15 +968,15 @@ class ModelImpl : public ModelObj {
     Tensor hidden_states_nd{nullptr};
     // Get the shape of the hidden_states tensor for hidden size.
     if (ft_.use_disco) {
-      ICHECK(hidden_states->IsInstance<DRefObj>());
+      TVM_FFI_ICHECK(hidden_states->IsInstance<DRefObj>());
       hidden_states_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
       hidden_states_nd = Downcast<Tensor>(hidden_states);
     }
     Shape hidden_states_shape = hidden_states_nd.Shape();
-    ICHECK_NE(prefill_chunk_size_, -1);
-    ICHECK_EQ(hidden_states_shape.size(), 2);
-    ICHECK_GE(hidden_states_shape[0], prefill_chunk_size_);
+    TVM_FFI_ICHECK_NE(prefill_chunk_size_, -1);
+    TVM_FFI_ICHECK_EQ(hidden_states_shape.size(), 2);
+    TVM_FFI_ICHECK_GE(hidden_states_shape[0], prefill_chunk_size_);
     this->hidden_size_ = hidden_states_shape[1];
     this->hidden_states_dtype_ = hidden_states_nd->dtype;
     return hidden_states;
@@ -1001,7 +1009,7 @@ class ModelImpl : public ModelObj {
     Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ICHECK_NE(max_num_sequence_, -1);
+    TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.gather_hidden_states_func_(input, indices_device, dst_view);
     return dst_view;
@@ -1012,7 +1020,7 @@ class ModelImpl : public ModelObj {
     Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ICHECK_NE(max_num_sequence_, -1);
+    TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device = ft_.CopyToWorker0(indices_nd, "logit_pos", {max_num_sequence_});
     ft_.scatter_hidden_states_func_(input, indices_device, *dst);
   }
@@ -1023,7 +1031,7 @@ class ModelImpl : public ModelObj {
     Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ICHECK_NE(max_num_sequence_, -1);
+    TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
     ft_.gather_probs_func_(input, indices_device, dst_view);
@@ -1034,7 +1042,7 @@ class ModelImpl : public ModelObj {
     Tensor indices_nd =
         logit_pos_arr_.CreateView({static_cast<int64_t>(indices.size())}, DataType::Int(32));
     indices_nd.CopyFromBytes(indices.data(), indices.size() * sizeof(int));
-    ICHECK_NE(max_num_sequence_, -1);
+    TVM_FFI_ICHECK_NE(max_num_sequence_, -1);
     ObjectRef indices_device =
         ft_.CopyToWorker0(indices_nd, "logit_pos_local", {max_num_sequence_}, /*local_only=*/true);
     ft_.scatter_probs_func_(input, indices_device, *dst);
@@ -1059,10 +1067,10 @@ class ModelImpl : public ModelObj {
 
  private:
   /*! \brief Load model configuration from JSON. */
-  void LoadModelConfigJSON(const picojson::object& config) {
+  void LoadModelConfigJSON(const tvm::ffi::json::Object& config) {
     this->sliding_window_size_ =
         json::LookupOrDefault<int64_t>(config, "sliding_window_size", this->sliding_window_size_);
-    CHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)
+    TVM_FFI_ICHECK(sliding_window_size_ == -1 || sliding_window_size_ > 0)
         << "Sliding window should be either -1 (which means disabled) of positive";
     this->attention_sink_size_ =
         json::LookupOrDefault<int64_t>(config, "attention_sink_size", this->attention_sink_size_);
@@ -1122,10 +1130,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "mlc.copy_embedding_to_offset", [](Tensor embedding, Tensor dst, int offset) {
         // embedding: (m, hidden_size)
         // dst: (prefill_chunk_size, hidden_size)
-        ICHECK_EQ(embedding->ndim, 2);
-        ICHECK_EQ(dst->ndim, 2);
-        ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
-        ICHECK_EQ(embedding->shape[1], dst->shape[1]);
+        TVM_FFI_ICHECK_EQ(embedding->ndim, 2);
+        TVM_FFI_ICHECK_EQ(dst->ndim, 2);
+        TVM_FFI_ICHECK_LE(embedding->shape[0] + offset, dst->shape[0]);
+        TVM_FFI_ICHECK_EQ(embedding->shape[1], dst->shape[1]);
         const DLTensor& copy_src = *(embedding.operator->());
         const DLTensor* p_copy_dst = dst.operator->();
         DLTensor copy_dst = *p_copy_dst;

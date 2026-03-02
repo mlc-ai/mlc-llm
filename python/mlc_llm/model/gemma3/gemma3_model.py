@@ -251,7 +251,10 @@ class Gemma3DecoderLayer(nn.Module):
             _set(self.self_attn.q_norm, tp.ShardSingleDim("_shard_q_norm", dim=0))
             _set(self.self_attn.k_norm, tp.ShardSingleDim("_shard_k_norm", dim=0))
             _set(self.self_attn.o_proj, tp.ShardSingleDim("_shard_o", dim=1))
-            _set(self.mlp.gate_up_proj, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0))
+            _set(
+                self.mlp.gate_up_proj,
+                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+            )
             _set(self.mlp.down_proj, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
         self.tensor_parallel_shards = config.tensor_parallel_shards
@@ -284,7 +287,10 @@ class Gemma3TextModel(nn.Module):
             [Gemma3DecoderLayer(config) for _ in range(config.text_config.num_hidden_layers)]
         )
         self.norm = nn.RMSNorm(
-            config.text_config.hidden_size, -1, config.text_config.rms_norm_eps, bias=False
+            config.text_config.hidden_size,
+            -1,
+            config.text_config.rms_norm_eps,
+            bias=False,
         )
 
     def forward(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
@@ -361,7 +367,10 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -538,7 +547,10 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
+        self,
+        input_embeds: Tensor,
+        logit_positions: Tensor,
+        paged_kv_cache: PagedKVCache,
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
