@@ -2,6 +2,8 @@
 
 import math
 
+from typing import Optional
+
 import tvm
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
@@ -21,9 +23,9 @@ def attention(  # pylint: disable=invalid-name,too-many-locals,too-many-statemen
     q: nn.Tensor,
     k: nn.Tensor,
     v: nn.Tensor,
-    casual_mask: nn.Tensor,
+    casual_mask: Optional[nn.Tensor],
     attn_score_scaling_factor: float = 1.0,
-    qk_dtype: str = None,
+    qk_dtype: Optional[str] = None,
 ) -> nn.Tensor:
     """Attention with casual mask.
 
