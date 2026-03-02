@@ -76,7 +76,7 @@ class EagleDecoderLayer(nn.Module):
         return out + residual
 
 
-class EagleForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class EagleForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: EagleConfig):
         # Put the model definition here to align with EAGLE's original structure
         assert config.hidden_size % config.num_attention_heads == 0

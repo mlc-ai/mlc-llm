@@ -408,7 +408,7 @@ class EngineImpl : public Engine {
     // - Initialize NVSHMEM
     n->estate_->disaggregation = n->models_[0]->GetMetadata().disaggregation;
     if (n->estate_->disaggregation) {
-      LOG(INFO) << "Intiailizing NVSHMEM";
+      LOG(INFO) << "Initializing NVSHMEM";
       char* nvshmem_init_config_json_char = std::getenv("MLC_NVSHMEM_INIT_CONFIG_JSON_STR");
       TVM_FFI_ICHECK(nvshmem_init_config_json_char != nullptr)
           << "The environment variables MLC_NVSHMEM_INIT_CONFIG_JSON_STR should be set.";

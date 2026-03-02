@@ -20,7 +20,7 @@ from mlc_llm.nn import PagedKVCache, RopeMode
 
 from ...support.config import ConfigBase
 from ..llama.llama_model import LlamaConfig, LlamaForCausalLM
-from ..mistral.mistral_model import MistralConfig, MistralForCasualLM
+from ..mistral.mistral_model import MistralConfig, MistralForCausalLM
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 CONFIG_MAP = {"LlamaForCausalLM": LlamaConfig, "MistralForCausalLM": MistralConfig}
 ARCHITECTURE_MAP = {
     "LlamaForCausalLM": LlamaForCausalLM,
-    "MistralForCausalLM": MistralForCasualLM,
+    "MistralForCausalLM": MistralForCausalLM,
 }
 
 
@@ -137,7 +137,7 @@ class LlavaMultiModalProjector(nn.Module):
         return hidden_states
 
 
-class LlavaForCasualLM(Module):
+class LlavaForCausalLM(Module):
     def __init__(self, config: LlavaConfig):
         super().__init__()
         self.config = config

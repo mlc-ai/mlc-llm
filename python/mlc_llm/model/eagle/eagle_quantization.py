@@ -8,7 +8,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.quantization import AWQQuantize, FTQuantize, GroupQuantize, NoQuantize
 
-from .eagle_model import EagleConfig, EagleForCasualLM
+from .eagle_model import EagleConfig, EagleForCausalLM
 
 
 def group_quant(
@@ -16,7 +16,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Eagle-architecture model using group quantization."""
-    model: nn.Module = EagleForCasualLM(model_config)
+    model: nn.Module = EagleForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     quantization.tensor_parallel_shards = model_config.tensor_parallel_shards
@@ -33,7 +33,7 @@ def ft_quant(
     quantization: FTQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Eagle-architecture model using FasterTransformer quantization."""
-    model: nn.Module = EagleForCasualLM(model_config)
+    model: nn.Module = EagleForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -49,7 +49,7 @@ def awq_quant(
     quantization: AWQQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Eagle-architecture model using Activation-aware Weight Quantization(AWQ)."""
-    model: nn.Module = EagleForCasualLM(model_config)
+    model: nn.Module = EagleForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -65,7 +65,7 @@ def no_quant(
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Eagle model without quantization."""
-    model: nn.Module = EagleForCasualLM(model_config)
+    model: nn.Module = EagleForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map

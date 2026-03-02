@@ -220,7 +220,7 @@ class MistralModel(nn.Module):
         return hidden_states
 
 
-class MistralForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class MistralForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Same as LlamaForCausalLM, except for the use of sliding window attention."""
 
     def __init__(self, config: MistralConfig):

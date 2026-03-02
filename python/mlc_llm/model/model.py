@@ -125,7 +125,7 @@ MODELS: Dict[str, Model] = {
     ),
     "mistral": Model(
         name="mistral",
-        model=mistral_model.MistralForCasualLM,
+        model=mistral_model.MistralForCausalLM,
         config=mistral_model.MistralConfig,
         source={
             "huggingface-torch": mistral_loader.huggingface,
@@ -221,7 +221,7 @@ MODELS: Dict[str, Model] = {
     ),
     "mixtral": Model(
         name="mixtral",
-        model=mixtral_model.MixtralForCasualLM,
+        model=mixtral_model.MixtralForCausalLM,
         config=mixtral_model.MixtralConfig,
         source={
             "huggingface-torch": mixtral_loader.huggingface,
@@ -492,7 +492,7 @@ MODELS: Dict[str, Model] = {
     ),
     "rwkv5": Model(
         name="rwkv5",
-        model=rwkv5_model.RWKV5_ForCasualLM,
+        model=rwkv5_model.RWKV5_ForCausalLM,
         config=rwkv5_model.RWKV5Config,
         source={
             "huggingface-torch": rwkv5_loader.huggingface,
@@ -506,7 +506,7 @@ MODELS: Dict[str, Model] = {
     ),
     "orion": Model(
         name="orion",
-        model=orion_model.OrionForCasualLM,
+        model=orion_model.OrionForCausalLM,
         config=orion_model.OrionConfig,
         source={
             "huggingface-torch": orion_loader.huggingface,
@@ -519,7 +519,7 @@ MODELS: Dict[str, Model] = {
     ),
     "llava": Model(
         name="llava",
-        model=llava_model.LlavaForCasualLM,
+        model=llava_model.LlavaForCausalLM,
         config=llava_model.LlavaConfig,
         source={
             "huggingface-torch": llava_loader.huggingface,
@@ -534,7 +534,7 @@ MODELS: Dict[str, Model] = {
     ),
     "rwkv6": Model(
         name="rwkv6",
-        model=rwkv6_model.RWKV6_ForCasualLM,
+        model=rwkv6_model.RWKV6_ForCausalLM,
         config=rwkv6_model.RWKV6Config,
         source={
             "huggingface-torch": rwkv6_loader.huggingface,
@@ -560,7 +560,7 @@ MODELS: Dict[str, Model] = {
     ),
     "eagle": Model(
         name="eagle",
-        model=eagle_model.EagleForCasualLM,
+        model=eagle_model.EagleForCausalLM,
         config=eagle_model.EagleConfig,
         source={
             "huggingface-torch": eagle_loader.huggingface,

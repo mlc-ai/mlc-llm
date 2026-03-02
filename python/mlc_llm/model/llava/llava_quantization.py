@@ -7,7 +7,7 @@ from tvm.relax.frontend import nn
 
 from ...loader import QuantizeMapping
 from ...quantization import AWQQuantize, GroupQuantize, NoQuantize
-from .llava_model import LlavaConfig, LlavaForCasualLM
+from .llava_model import LlavaConfig, LlavaForCausalLM
 
 
 def group_quant(
@@ -15,7 +15,7 @@ def group_quant(
     quantization: GroupQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llava model using group quantization."""
-    model: nn.Module = LlavaForCasualLM(model_config)
+    model: nn.Module = LlavaForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     quantization.tensor_parallel_shards = model_config.tensor_parallel_shards
@@ -32,7 +32,7 @@ def awq_quant(
     quantization: AWQQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llava model using Activation-aware Weight Quantization(AWQ)."""
-    model: nn.Module = LlavaForCasualLM(model_config)
+    model: nn.Module = LlavaForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     model = quantization.quantize_model(
@@ -48,7 +48,7 @@ def no_quant(
     quantization: NoQuantize,
 ) -> Tuple[nn.Module, QuantizeMapping]:
     """Quantize a Llava model without quantization."""
-    model: nn.Module = LlavaForCasualLM(model_config)
+    model: nn.Module = LlavaForCausalLM(model_config)
     model.to(quantization.model_dtype)
     quant_map = QuantizeMapping({}, {})
     return model, quant_map

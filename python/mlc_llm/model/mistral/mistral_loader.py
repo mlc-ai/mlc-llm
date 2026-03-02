@@ -10,7 +10,7 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .mistral_model import MistralConfig, MistralForCasualLM
+from .mistral_model import MistralConfig, MistralForCausalLM
 from .mistral_quantization import awq_quant
 
 
@@ -31,7 +31,7 @@ def huggingface(model_config: MistralConfig, quantization: Quantization) -> Exte
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = MistralForCasualLM(model_config)
+    model = MistralForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]
