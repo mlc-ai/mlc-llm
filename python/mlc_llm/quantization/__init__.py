@@ -7,4 +7,5 @@ from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
 from .no_quantization import NoQuantize
 from .per_tensor_quantization import PerTensorQuantize
+from .model_quantization import make_awq_quant, make_quantization_functions
 from .quantization import QUANTIZATION, Quantization

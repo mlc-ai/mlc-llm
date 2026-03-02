@@ -8,10 +8,11 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, make_awq_quant
 
 from .llava_model import LlavaConfig, LlavaForCausalLM
-from .llava_quantization import awq_quant
+
+awq_quant = make_awq_quant(LlavaForCausalLM)
 
 
 def huggingface(model_config: LlavaConfig, quantization: Quantization) -> ExternMapping:
