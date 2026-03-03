@@ -52,7 +52,8 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
         if set_tensor_parallel_shards:
             if not hasattr(model_config, "tensor_parallel_shards"):
                 raise AttributeError(
-                    "model_config is missing required attribute 'tensor_parallel_shards' for group quantization"
+                        "model_config is missing required "
+                        "attribute 'tensor_parallel_shards' for group quantization"
                 )
             quantization.tensor_parallel_shards = getattr(model_config, "tensor_parallel_shards")
         model = quantization.quantize_model(
@@ -99,7 +100,8 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
         if per_tensor_use_shards:
             if not hasattr(model_config, "tensor_parallel_shards"):
                 raise AttributeError(
-                    "model_config is missing required attribute 'tensor_parallel_shards' for per-tensor quantization"
+                    "model_config is missing required attribute "
+                    "'tensor_parallel_shards' for per-tensor quantization"
                 )
             kwargs["tensor_parallel_shards"] = getattr(model_config, "tensor_parallel_shards")
         model = quantization.quantize_model(
