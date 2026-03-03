@@ -17,7 +17,7 @@ from .quantization import Quantization
 FuncQuantization = Callable[[Any, Quantization], Tuple[nn.Module, QuantizeMapping]]
 
 
-def make_quantization_functions(
+def make_quantization_functions( # pylint: disable=too-many-arguments, too-many-locals
     model_cls: Type[nn.Module],
     *,
     model_ctor: Optional[Callable[[Any], nn.Module]] = None,
