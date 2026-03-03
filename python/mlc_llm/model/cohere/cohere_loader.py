@@ -8,10 +8,11 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, make_awq_quant
 
 from .cohere_model import CohereConfig, CohereForCausalLM
-from .cohere_quantization import awq_quant
+
+awq_quant = make_awq_quant(CohereForCausalLM)
 
 
 def huggingface(model_config: CohereConfig, quantization: Quantization) -> ExternMapping:

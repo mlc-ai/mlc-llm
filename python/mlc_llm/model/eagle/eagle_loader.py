@@ -8,10 +8,11 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, make_awq_quant
 
 from .eagle_model import EagleConfig, EagleForCausalLM
-from .eagle_quantization import awq_quant
+
+awq_quant = make_awq_quant(EagleForCausalLM)
 
 
 def huggingface(model_config: EagleConfig, quantization: Quantization) -> ExternMapping:
