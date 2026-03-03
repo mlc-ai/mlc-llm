@@ -4,8 +4,8 @@ PyTorch, HuggingFace safetensors.
 """
 
 from mlc_llm.loader.standard_loader import make_standard_hf_loader
-from .gpt_bigcode_model import GPTBigCodeForCausalLM
 
+from .gpt_bigcode_model import GPTBigCodeForCausalLM
 
 huggingface = make_standard_hf_loader(
     model_cls=GPTBigCodeForCausalLM,

@@ -7,7 +7,6 @@ from mlc_llm.loader.standard_loader import make_standard_hf_loader
 
 from .nemotron_model import NemotronForCausalLM
 
-
 huggingface = make_standard_hf_loader(
     model_cls=NemotronForCausalLM,
     add_unused=["rotary_emb.inv_freq"],

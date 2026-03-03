@@ -5,7 +5,6 @@ PyTorch, HuggingFace safetensors.
 
 import functools
 
-
 from mlc_llm.loader import ExternMapping
 from mlc_llm.loader.standard_loader import make_standard_hf_loader
 from mlc_llm.quantization import Quantization

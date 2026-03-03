@@ -6,7 +6,6 @@ import functools
 from typing import Callable, Iterable, Optional, Sequence, Type
 
 import numpy as np
-
 from tvm.relax.frontend import nn  # type: ignore[import]
 
 from mlc_llm.loader import ExternMapping
@@ -20,7 +19,7 @@ def _default_export_spec(model: nn.Module) -> object:
     return model.get_default_spec()
 
 
-def make_standard_hf_loader(
+def make_standard_hf_loader(  # pylint: disable=too-many-arguments,too-many-locals
     *,
     model_cls: Type[nn.Module],
     layer_prefix: str = "model.layers",
@@ -66,7 +65,10 @@ def make_standard_hf_loader(
     spec_getter = export_spec_getter or _default_export_spec
     unused_names = tuple(add_unused or ())
 
-    def huggingface(model_config: object, quantization: Quantization) -> ExternMapping:
+    def huggingface(  # pylint: disable=too-many-locals,too-many-branches
+        model_config: object,
+        quantization: Quantization,
+    ) -> ExternMapping:
         model = model_cls(model_config)
         if quantization is not None:
             model.to(quantization.model_dtype)
@@ -90,10 +92,7 @@ def make_standard_hf_loader(
                     mlc_param = named_parameters[mlc_qkv_name]
                     mapping.add_mapping(
                         mlc_qkv_name,
-                        [
-                            name_transform_fn(f"{attn}.{name}.weight")
-                            for name in qkv_names
-                        ],
+                        [name_transform_fn(f"{attn}.{name}.weight") for name in qkv_names],
                         functools.partial(
                             lambda q, k, v, dtype: np.concatenate(
                                 [q, k, v], axis=qkv_concat_axis
@@ -108,10 +107,7 @@ def make_standard_hf_loader(
                             mlc_param = named_parameters[mlc_bias_name]
                             mapping.add_mapping(
                                 mlc_bias_name,
-                                [
-                                    name_transform_fn(f"{attn}.{name}.bias")
-                                    for name in qkv_names
-                                ],
+                                [name_transform_fn(f"{attn}.{name}.bias") for name in qkv_names],
                                 functools.partial(
                                     lambda q, k, v, dtype: np.concatenate(
                                         [q, k, v], axis=qkv_concat_axis
@@ -127,10 +123,7 @@ def make_standard_hf_loader(
                         mlc_param = named_parameters[mlc_gate_up_name]
                         mapping.add_mapping(
                             mlc_gate_up_name,
-                            [
-                                name_transform_fn(f"{mlp}.{name}.weight")
-                                for name in gate_up_names
-                            ],
+                            [name_transform_fn(f"{mlp}.{name}.weight") for name in gate_up_names],
                             functools.partial(
                                 lambda gate, up, dtype: np.concatenate(
                                     [gate, up], axis=gate_up_concat_axis

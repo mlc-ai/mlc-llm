@@ -7,7 +7,6 @@ from mlc_llm.loader.standard_loader import make_standard_hf_loader
 
 from .qwen_model import QWenLMHeadModel
 
-
 huggingface = make_standard_hf_loader(
     model_cls=QWenLMHeadModel,
     layer_prefix="transformer.h",

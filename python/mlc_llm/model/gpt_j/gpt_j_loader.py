@@ -7,7 +7,6 @@ from mlc_llm.loader.standard_loader import make_standard_hf_loader
 
 from .gpt_j_model import GPTJForCausalLM
 
-
 huggingface = make_standard_hf_loader(
     model_cls=GPTJForCausalLM,
     layer_prefix="transformer.h",

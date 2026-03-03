@@ -8,8 +8,8 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization, make_awq_quant
 from mlc_llm.loader.standard_loader import make_standard_hf_loader
+from mlc_llm.quantization import Quantization, make_awq_quant
 
 from .mistral_model import MistralConfig, MistralForCausalLM
 
