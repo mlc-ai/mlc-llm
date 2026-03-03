@@ -69,7 +69,9 @@ def make_quantization_functions(
         )
         return model, quant_map
 
-    def _awq_quant(model_config: Any, quantization: AWQQuantize) -> Tuple[nn.Module, QuantizeMapping]:
+    def _awq_quant(
+        model_config: Any, quantization: AWQQuantize
+    ) -> Tuple[nn.Module, QuantizeMapping]:
         if awq_unsupported_message is not None:
             raise NotImplementedError(awq_unsupported_message)
         model = _create_model(model_config)
@@ -129,7 +131,9 @@ def make_awq_quant(
 ) -> Callable[[Any, AWQQuantize], Tuple[nn.Module, QuantizeMapping]]:
     """Create a standard AWQ quantization function for loaders."""
 
-    def awq_quant(model_config: Any, quantization: AWQQuantize) -> Tuple[nn.Module, QuantizeMapping]:
+    def awq_quant(
+        model_config: Any, quantization: AWQQuantize
+    ) -> Tuple[nn.Module, QuantizeMapping]:
         model = model_cls(model_config)
         model.to(quantization.model_dtype)
         quant_map = QuantizeMapping({}, {})

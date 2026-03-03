@@ -6,9 +6,8 @@ from typing import Any, Callable, Dict, Tuple
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
-from mlc_llm.quantization.quantization import Quantization
-
 from mlc_llm.quantization import make_quantization_functions
+from mlc_llm.quantization.quantization import Quantization
 
 from .baichuan import baichuan_loader, baichuan_model
 from .bert import bert_loader, bert_model
