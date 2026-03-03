@@ -16,8 +16,16 @@ from .cohere_model import CohereConfig, CohereForCausalLM
 awq_quant = make_awq_quant(CohereForCausalLM)
 
 
+def _cohere_name_transform(name: str) -> str:
+    if "out_proj." in name:
+        return name.replace("out_proj.", "o_proj.")
+    return name
+
+
 huggingface = make_standard_hf_loader(
     model_cls=CohereForCausalLM,
+    include_gate_up=False,
+    name_transform=_cohere_name_transform,
 )
 
 

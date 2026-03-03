@@ -11,4 +11,5 @@ from .nemotron_model import NemotronForCausalLM
 huggingface = make_standard_hf_loader(
     model_cls=NemotronForCausalLM,
     add_unused=["rotary_emb.inv_freq"],
+    include_gate_up=False,
 )

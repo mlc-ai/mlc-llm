@@ -56,6 +56,8 @@ def make_standard_hf_loader(
         gate_up_names = ()
 
     def _default_name_transform(name: str) -> str:
+        # When hf_prefix is empty, strip the "model." prefix so models that
+        # expose bare top-level weights (no "model." namespace) still load.
         if hf_prefix == "":
             return name[6:] if name.startswith("model.") else name
         return name
