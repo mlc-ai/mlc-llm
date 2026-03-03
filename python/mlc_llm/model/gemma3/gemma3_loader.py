@@ -8,28 +8,13 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
+from mlc_llm.loader.standard_loader import make_standard_hf_loader
 from mlc_llm.quantization import Quantization
 
 from .gemma3_model import Gemma3Config, Gemma3ForCausalLM
 
 
 def huggingface(model_config: Gemma3Config, quantization: Quantization) -> ExternMapping:
-    """Returns a parameter mapping that maps from the names of MLC LLM parameters to
-    the names of HuggingFace PyTorch parameters.
-
-    Parameters
-    ----------
-    model_config : Gemma3Config
-        The configuration of the Gemma model.
-
-    quantization : Quantization
-        The quantization configuration.
-
-    Returns
-    -------
-    param_map : ExternMapping
-        The parameter mapping from MLC to HuggingFace PyTorch.
-    """
     model = Gemma3ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
@@ -38,105 +23,51 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
         allow_extern=True,
     )
     named_parameters = dict(_named_params)
-
-    mapping = ExternMapping()
+    base_loader = make_standard_hf_loader(
+        model_cls=Gemma3ForCausalLM,
+        include_qkv=False,
+        include_gate_up=False,
+        num_layers_getter=lambda config: config.text_config.num_hidden_layers,  # type: ignore[attr-defined]
+    )
+    mapping = base_loader(model_config, quantization)
 
     mlc_prefix = "language_model."
     hf_prefix = "language_model." if not model_config.is_text_model else ""
+
+    def hf(name: str) -> str:
+        return f"{hf_prefix}{name}"
+
+    def add_one(name: str) -> None:
+        mlc_param = named_parameters[mlc_prefix + name]
+        mapping.add_mapping(
+            mlc_prefix + name,
+            [hf(name)],
+            functools.partial(
+                lambda x, dtype: (x + 1).astype(dtype),
+                dtype=mlc_param.dtype,
+            ),
+        )
+
     for i in range(model_config.text_config.num_hidden_layers):
-        # Add gates in MLP
         mlp = f"model.layers.{i}.mlp"
         mlc_name = f"{mlc_prefix + mlp}.gate_up_proj.weight"
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
-            [
-                f"{hf_prefix + mlp}.gate_proj.weight",
-                f"{hf_prefix + mlp}.up_proj.weight",
-            ],
+            [hf(f"{mlp}.gate_proj.weight"), hf(f"{mlp}.up_proj.weight")],
             functools.partial(
                 lambda gate, up, dtype: np.concatenate([gate, up], axis=0).astype(dtype),
                 dtype=mlc_param.dtype,
             ),
         )
-        # Modify RMS layernorm weights, since Gemma model adds 1 to the weights
-        # We add 1 to the weights here for efficiency purpose
-        mlc_name = f"model.layers.{i}.input_layernorm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
+        add_one(f"model.layers.{i}.input_layernorm.weight")
+        add_one(f"model.layers.{i}.post_attention_layernorm.weight")
+        add_one(f"model.layers.{i}.pre_feedforward_layernorm.weight")
+        add_one(f"model.layers.{i}.post_feedforward_layernorm.weight")
+        add_one(f"model.layers.{i}.self_attn.k_norm.weight")
+        add_one(f"model.layers.{i}.self_attn.q_norm.weight")
 
-        mlc_name = f"model.layers.{i}.post_attention_layernorm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
-
-        mlc_name = f"model.layers.{i}.pre_feedforward_layernorm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
-
-        mlc_name = f"model.layers.{i}.post_feedforward_layernorm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
-
-        mlc_name = f"model.layers.{i}.self_attn.k_norm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
-
-        mlc_name = f"model.layers.{i}.self_attn.q_norm.weight"
-        mlc_param = named_parameters[mlc_prefix + mlc_name]
-        mapping.add_mapping(
-            mlc_prefix + mlc_name,
-            [hf_prefix + mlc_name],
-            functools.partial(
-                lambda x, dtype: (x + 1).astype(dtype),
-                dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-            ),
-        )
-
-    mlc_name = "model.norm.weight"
-    mlc_param = named_parameters[mlc_prefix + mlc_name]
-    mapping.add_mapping(
-        mlc_prefix + mlc_name,
-        [hf_prefix + mlc_name],
-        functools.partial(
-            lambda x, dtype: (x + 1).astype(dtype),
-            dtype=named_parameters[mlc_prefix + mlc_name].dtype,
-        ),
-    )
+    add_one("model.norm.weight")
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
@@ -148,4 +79,5 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
                     dtype=mlc_param.dtype,
                 ),
             )
+
     return mapping
