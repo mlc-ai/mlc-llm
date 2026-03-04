@@ -8,10 +8,11 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, make_awq_quant
 
-from .eagle_model import EagleConfig, EagleForCasualLM
-from .eagle_quantization import awq_quant
+from .eagle_model import EagleConfig, EagleForCausalLM
+
+awq_quant = make_awq_quant(EagleForCausalLM)
 
 
 def huggingface(model_config: EagleConfig, quantization: Quantization) -> ExternMapping:
@@ -31,7 +32,7 @@ def huggingface(model_config: EagleConfig, quantization: Quantization) -> Extern
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = EagleForCasualLM(model_config)
+    model = EagleForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]

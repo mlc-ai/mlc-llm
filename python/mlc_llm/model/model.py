@@ -6,47 +6,48 @@ from typing import Any, Callable, Dict, Tuple
 from tvm.relax.frontend import nn
 
 from mlc_llm.loader import ExternMapping, QuantizeMapping
+from mlc_llm.quantization import make_quantization_functions
 from mlc_llm.quantization.quantization import Quantization
 
-from .baichuan import baichuan_loader, baichuan_model, baichuan_quantization
-from .bert import bert_loader, bert_model, bert_quantization
-from .chatglm3 import chatglm3_loader, chatglm3_model, chatglm3_quantization
-from .cohere import cohere_loader, cohere_model, cohere_quantization
-from .deepseek import deepseek_loader, deepseek_model, deepseek_quantization
-from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model, deepseek_v2_quantization
-from .eagle import eagle_loader, eagle_model, eagle_quantization
-from .gemma import gemma_loader, gemma_model, gemma_quantization
-from .gemma2 import gemma2_loader, gemma2_model, gemma2_quantization
-from .gemma3 import gemma3_loader, gemma3_model, gemma3_quantization
-from .gpt2 import gpt2_loader, gpt2_model, gpt2_quantization
-from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model, gpt_bigcode_quantization
-from .gpt_j import gpt_j_loader, gpt_j_model, gpt_j_quantization
-from .gpt_neox import gpt_neox_loader, gpt_neox_model, gpt_neox_quantization
-from .internlm import internlm_loader, internlm_model, internlm_quantization
-from .internlm2 import internlm2_loader, internlm2_model, internlm2_quantization
-from .llama import llama_loader, llama_model, llama_quantization
-from .llama4 import llama4_loader, llama4_model, llama4_quantization
-from .llava import llava_loader, llava_model, llava_quantization
-from .medusa import medusa_loader, medusa_model, medusa_quantization
-from .minicpm import minicpm_loader, minicpm_model, minicpm_quantization
-from .ministral3 import ministral3_loader, ministral3_model, ministral3_quantization
-from .mistral import mistral_loader, mistral_model, mistral_quantization
-from .mixtral import mixtral_loader, mixtral_model, mixtral_quantization
-from .nemotron import nemotron_loader, nemotron_model, nemotron_quantization
-from .olmo import olmo_loader, olmo_model, olmo_quantization
-from .orion import orion_loader, orion_model, orion_quantization
-from .phi import phi_loader, phi_model, phi_quantization
-from .phi3 import phi3_loader, phi3_model, phi3_quantization
-from .phi3v import phi3v_loader, phi3v_model, phi3v_quantization
-from .qwen import qwen_loader, qwen_model, qwen_quantization
-from .qwen2 import qwen2_loader, qwen2_model, qwen2_quantization
-from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model, qwen2_moe_quantization
-from .qwen3 import qwen3_loader, qwen3_model, qwen3_quantization
-from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model, qwen3_moe_quantization
-from .rwkv5 import rwkv5_loader, rwkv5_model, rwkv5_quantization
-from .rwkv6 import rwkv6_loader, rwkv6_model, rwkv6_quantization
-from .stable_lm import stablelm_loader, stablelm_model, stablelm_quantization
-from .starcoder2 import starcoder2_loader, starcoder2_model, starcoder2_quantization
+from .baichuan import baichuan_loader, baichuan_model
+from .bert import bert_loader, bert_model
+from .chatglm3 import chatglm3_loader, chatglm3_model
+from .cohere import cohere_loader, cohere_model
+from .deepseek import deepseek_loader, deepseek_model
+from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model
+from .eagle import eagle_loader, eagle_model
+from .gemma import gemma_loader, gemma_model
+from .gemma2 import gemma2_loader, gemma2_model
+from .gemma3 import gemma3_loader, gemma3_model
+from .gpt2 import gpt2_loader, gpt2_model
+from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
+from .gpt_j import gpt_j_loader, gpt_j_model
+from .gpt_neox import gpt_neox_loader, gpt_neox_model
+from .internlm import internlm_loader, internlm_model
+from .internlm2 import internlm2_loader, internlm2_model
+from .llama import llama_loader, llama_model
+from .llama4 import llama4_loader, llama4_model
+from .llava import llava_loader, llava_model
+from .medusa import medusa_loader, medusa_model
+from .minicpm import minicpm_loader, minicpm_model
+from .ministral3 import ministral3_loader, ministral3_model
+from .mistral import mistral_loader, mistral_model
+from .mixtral import mixtral_loader, mixtral_model
+from .nemotron import nemotron_loader, nemotron_model
+from .olmo import olmo_loader, olmo_model
+from .orion import orion_loader, orion_model
+from .phi import phi_loader, phi_model
+from .phi3 import phi3_loader, phi3_model
+from .phi3v import phi3v_loader, phi3v_model
+from .qwen import qwen_loader, qwen_model
+from .qwen2 import qwen2_loader, qwen2_model
+from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model
+from .qwen3 import qwen3_loader, qwen3_model
+from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
+from .rwkv5 import rwkv5_loader, rwkv5_model
+from .rwkv6 import rwkv6_loader, rwkv6_model
+from .stable_lm import stablelm_loader, stablelm_model
+from .starcoder2 import starcoder2_loader, starcoder2_model
 
 ModelConfig = Any
 """A ModelConfig is an object that represents a model architecture. It is required to have
@@ -100,13 +101,11 @@ MODELS: Dict[str, Model] = {
             "huggingface-safetensor": llama_loader.huggingface,
             "awq": llama_loader.awq,
         },
-        quantize={
-            "no-quant": llama_quantization.no_quant,
-            "group-quant": llama_quantization.group_quant,
-            "ft-quant": llama_quantization.ft_quant,
-            "awq": llama_quantization.awq_quant,
-            "per-tensor-quant": llama_quantization.per_tensor_quant,
-        },
+        quantize=make_quantization_functions(
+            llama_model.LlamaForCausalLM,
+            supports_awq=True,
+            supports_per_tensor=True,
+        ),
     ),
     "llama4": Model(
         name="llama4",
@@ -116,27 +115,23 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": llama4_loader.huggingface,
             "huggingface-safetensor": llama4_loader.huggingface,
         },
-        quantize={
-            "no-quant": llama4_quantization.no_quant,
-            "group-quant": llama4_quantization.group_quant,
-            "ft-quant": llama4_quantization.ft_quant,
-            "per-tensor-quant": llama4_quantization.per_tensor_quant,
-        },
+        quantize=make_quantization_functions(
+            llama4_model.Llama4ForCausalLM,
+            supports_per_tensor=True,
+        ),
     ),
     "mistral": Model(
         name="mistral",
-        model=mistral_model.MistralForCasualLM,
+        model=mistral_model.MistralForCausalLM,
         config=mistral_model.MistralConfig,
         source={
             "huggingface-torch": mistral_loader.huggingface,
             "huggingface-safetensor": mistral_loader.huggingface,
             "awq": mistral_loader.awq,
         },
-        quantize={
-            "group-quant": mistral_quantization.group_quant,
-            "no-quant": mistral_quantization.no_quant,
-            "ft-quant": mistral_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            mistral_model.MistralForCausalLM,
+        ),
     ),
     "ministral3": Model(
         name="ministral3",
@@ -146,12 +141,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": ministral3_loader.huggingface,
             "huggingface-safetensor": ministral3_loader.huggingface,
         },
-        quantize={
-            "group-quant": ministral3_quantization.group_quant,
-            "no-quant": ministral3_quantization.no_quant,
-            "ft-quant": ministral3_quantization.ft_quant,
-            "block-scale-quant": ministral3_quantization.block_scale_quant,
-        },
+        quantize=make_quantization_functions(
+            ministral3_model.Mistral3ForConditionalGeneration,
+            supports_block_scale=True,
+        ),
     ),
     "gemma": Model(
         name="gemma",
@@ -161,10 +154,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gemma_loader.huggingface,
             "huggingface-safetensor": gemma_loader.huggingface,
         },
-        quantize={
-            "no-quant": gemma_quantization.no_quant,
-            "group-quant": gemma_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            gemma_model.GemmaForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "gemma2": Model(
         name="gemma2",
@@ -174,10 +167,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gemma2_loader.huggingface,
             "huggingface-safetensor": gemma2_loader.huggingface,
         },
-        quantize={
-            "no-quant": gemma2_quantization.no_quant,
-            "group-quant": gemma2_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            gemma2_model.Gemma2ForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "gemma3": Model(
         name="gemma3",
@@ -187,10 +180,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gemma3_loader.huggingface,
             "huggingface-safetensor": gemma3_loader.huggingface,
         },
-        quantize={
-            "no-quant": gemma3_quantization.no_quant,
-            "group-quant": gemma3_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            gemma3_model.Gemma3ForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "gemma3_text": Model(
         name="gemma3_text",
@@ -200,10 +193,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gemma3_loader.huggingface,
             "huggingface-safetensor": gemma3_loader.huggingface,
         },
-        quantize={
-            "no-quant": gemma3_quantization.no_quant,
-            "group-quant": gemma3_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            gemma3_model.Gemma3ForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "gpt2": Model(
         name="gpt2",
@@ -213,26 +206,24 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gpt2_loader.huggingface,
             "huggingface-safetensor": gpt2_loader.huggingface,
         },
-        quantize={
-            "no-quant": gpt2_quantization.no_quant,
-            "group-quant": gpt2_quantization.group_quant,
-            "ft-quant": gpt2_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            gpt2_model.GPT2LMHeadModel,
+        ),
     ),
     "mixtral": Model(
         name="mixtral",
-        model=mixtral_model.MixtralForCasualLM,
+        model=mixtral_model.MixtralForCausalLM,
         config=mixtral_model.MixtralConfig,
         source={
             "huggingface-torch": mixtral_loader.huggingface,
             "huggingface-safetensor": mixtral_loader.huggingface,
         },
-        quantize={
-            "no-quant": mixtral_quantization.no_quant,
-            "group-quant": mixtral_quantization.group_quant,
-            "ft-quant": mixtral_quantization.ft_quant,
-            "per-tensor-quant": mixtral_quantization.per_tensor_quant,
-        },
+        quantize=make_quantization_functions(
+            mixtral_model.MixtralForCausalLM,
+            supports_awq=True,
+            awq_unsupported_message="AWQ is not implemented for Mixtral models.",
+            supports_per_tensor=True,
+        ),
     ),
     "gpt_neox": Model(
         name="gpt_neox",
@@ -242,11 +233,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gpt_neox_loader.huggingface,
             "huggingface-safetensor": gpt_neox_loader.huggingface,
         },
-        quantize={
-            "no-quant": gpt_neox_quantization.no_quant,
-            "group-quant": gpt_neox_quantization.group_quant,
-            "ft-quant": gpt_neox_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            gpt_neox_model.GPTNeoXForCausalLM,
+        ),
     ),
     "gpt_bigcode": Model(
         name="gpt_bigcode",
@@ -256,11 +245,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gpt_bigcode_loader.huggingface,
             "huggingface-safetensor": gpt_bigcode_loader.huggingface,
         },
-        quantize={
-            "no-quant": gpt_bigcode_quantization.no_quant,
-            "group-quant": gpt_bigcode_quantization.group_quant,
-            "ft-quant": gpt_bigcode_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            gpt_bigcode_model.GPTBigCodeForCausalLM,
+        ),
     ),
     "phi-msft": Model(
         name="phi-msft",
@@ -270,11 +257,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": phi_loader.huggingface,
             "huggingface-safetensor": phi_loader.huggingface,
         },
-        quantize={
-            "no-quant": phi_quantization.no_quant,
-            "group-quant": phi_quantization.group_quant,
-            "ft-quant": phi_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            phi_model.PhiForCausalLM,
+        ),
     ),
     "phi": Model(
         name="phi",
@@ -284,11 +269,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": phi_loader.phi1_huggingface,
             "huggingface-safetensor": phi_loader.phi1_huggingface,
         },
-        quantize={
-            "no-quant": phi_quantization.no_quant,
-            "group-quant": phi_quantization.group_quant,
-            "ft-quant": phi_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            phi_model.PhiForCausalLM,
+        ),
     ),
     "phi3": Model(
         name="phi3",
@@ -298,11 +281,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": phi3_loader.phi3_huggingface,
             "huggingface-safetensor": phi3_loader.phi3_huggingface,
         },
-        quantize={
-            "no-quant": phi3_quantization.no_quant,
-            "group-quant": phi3_quantization.group_quant,
-            "ft-quant": phi3_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            phi3_model.Phi3ForCausalLM,
+        ),
     ),
     "phi3_v": Model(
         name="phi3_v",
@@ -312,11 +293,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": phi3v_loader.huggingface,
             "huggingface-safetensor": phi3v_loader.huggingface,
         },
-        quantize={
-            "no-quant": phi3v_quantization.no_quant,
-            "group-quant": phi3v_quantization.group_quant,
-            "ft-quant": phi3v_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            phi3v_model.Phi3VForCausalLM,
+        ),
     ),
     "qwen": Model(
         name="qwen",
@@ -326,11 +305,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen_loader.huggingface,
             "huggingface-safetensor": qwen_loader.huggingface,
         },
-        quantize={
-            "no-quant": qwen_quantization.no_quant,
-            "group-quant": qwen_quantization.group_quant,
-            "ft-quant": qwen_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            qwen_model.QWenLMHeadModel,
+        ),
     ),
     "qwen2": Model(
         name="qwen2",
@@ -340,11 +317,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen2_loader.huggingface,
             "huggingface-safetensor": qwen2_loader.huggingface,
         },
-        quantize={
-            "no-quant": qwen2_quantization.no_quant,
-            "group-quant": qwen2_quantization.group_quant,
-            "ft-quant": qwen2_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            qwen2_model.QWen2LMHeadModel,
+        ),
     ),
     "qwen2_moe": Model(
         name="qwen2_moe",
@@ -354,11 +329,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen2_moe_loader.huggingface,
             "huggingface-safetensor": qwen2_moe_loader.huggingface,
         },
-        quantize={
-            "no-quant": qwen2_moe_quantization.no_quant,
-            "group-quant": qwen2_moe_quantization.group_quant,
-            "ft-quant": qwen2_moe_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            qwen2_moe_model.Qwen2MoeForCausalLM,
+        ),
     ),
     "qwen3": Model(
         name="qwen3",
@@ -368,12 +341,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen3_loader.huggingface,
             "huggingface-safetensor": qwen3_loader.huggingface,
         },
-        quantize={
-            "no-quant": qwen3_quantization.no_quant,
-            "group-quant": qwen3_quantization.group_quant,
-            "ft-quant": qwen3_quantization.ft_quant,
-            "block-scale-quant": qwen3_quantization.block_scale_quant,
-        },
+        quantize=make_quantization_functions(
+            qwen3_model.Qwen3LMHeadModel,
+            supports_block_scale=True,
+        ),
     ),
     "qwen3-embedding": Model(
         name="qwen3-embedding",
@@ -383,12 +354,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen3_loader.huggingface_embedding,
             "huggingface-safetensor": qwen3_loader.huggingface_embedding,
         },
-        quantize={
-            "no-quant": qwen3_quantization.no_quant_embedding,
-            "group-quant": qwen3_quantization.group_quant_embedding,
-            "ft-quant": qwen3_quantization.ft_quant_embedding,
-            "block-scale-quant": qwen3_quantization.block_scale_quant_embedding,
-        },
+        quantize=make_quantization_functions(
+            qwen3_model.Qwen3EmbeddingModel,
+            supports_block_scale=True,
+        ),
     ),
     "qwen3_moe": Model(
         name="qwen3_moe",
@@ -398,12 +367,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": qwen3_moe_loader.huggingface,
             "huggingface-safetensor": qwen3_moe_loader.huggingface,
         },
-        quantize={
-            "no-quant": qwen3_moe_quantization.no_quant,
-            "group-quant": qwen3_moe_quantization.group_quant,
-            "ft-quant": qwen3_moe_quantization.ft_quant,
-            "block-scale-quant": qwen3_moe_quantization.block_scale_quant,
-        },
+        quantize=make_quantization_functions(
+            qwen3_moe_model.Qwen3MoeForCausalLM,
+            supports_block_scale=True,
+        ),
     ),
     "deepseek_v2": Model(
         name="deepseek_v2",
@@ -413,11 +380,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": deepseek_v2_loader.huggingface,
             "huggingface-safetensor": deepseek_v2_loader.huggingface,
         },
-        quantize={
-            "no-quant": deepseek_v2_quantization.no_quant,
-            "group-quant": deepseek_v2_quantization.group_quant,
-            "ft-quant": deepseek_v2_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            deepseek_v2_model.DeepseekV2ForCausalLM,
+        ),
     ),
     "deepseek_v3": Model(
         name="deepseek_v3",
@@ -427,12 +392,10 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": deepseek_v2_loader.huggingface,
             "huggingface-safetensor": deepseek_v2_loader.huggingface,
         },
-        quantize={
-            "no-quant": deepseek_v2_quantization.no_quant,
-            "group-quant": deepseek_v2_quantization.group_quant,
-            "ft-quant": deepseek_v2_quantization.ft_quant,
-            "block-scale-quant": deepseek_v2_quantization.block_scale_quant,
-        },
+        quantize=make_quantization_functions(
+            deepseek_v2_model.DeepseekV2ForCausalLM,
+            supports_block_scale=True,
+        ),
     ),
     "stablelm": Model(
         name="stablelm",
@@ -442,11 +405,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": stablelm_loader.huggingface,
             "huggingface-safetensor": stablelm_loader.huggingface,
         },
-        quantize={
-            "no-quant": stablelm_quantization.no_quant,
-            "group-quant": stablelm_quantization.group_quant,
-            "ft-quant": stablelm_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            stablelm_model.StableLmForCausalLM,
+        ),
     ),
     "baichuan": Model(
         name="baichuan",
@@ -456,11 +417,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": baichuan_loader.huggingface,
             "huggingface-safetensor": baichuan_loader.huggingface,
         },
-        quantize={
-            "no-quant": baichuan_quantization.no_quant,
-            "group-quant": baichuan_quantization.group_quant,
-            "ft-quant": baichuan_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            baichuan_model.BaichuanForCausalLM,
+        ),
     ),
     "internlm": Model(
         name="internlm",
@@ -470,11 +429,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": internlm_loader.huggingface,
             "huggingface-safetensor": internlm_loader.huggingface,
         },
-        quantize={
-            "no-quant": internlm_quantization.no_quant,
-            "group-quant": internlm_quantization.group_quant,
-            "ft-quant": internlm_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            internlm_model.InternLMForCausalLM,
+        ),
     ),
     "internlm2": Model(
         name="internlm2",
@@ -484,66 +441,62 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": internlm2_loader.huggingface,
             "huggingface-safetensor": internlm2_loader.huggingface,
         },
-        quantize={
-            "no-quant": internlm2_quantization.no_quant,
-            "group-quant": internlm2_quantization.group_quant,
-            "ft-quant": internlm2_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            internlm2_model.InternLM2ForCausalLM,
+        ),
     ),
     "rwkv5": Model(
         name="rwkv5",
-        model=rwkv5_model.RWKV5_ForCasualLM,
+        model=rwkv5_model.RWKV5_ForCausalLM,
         config=rwkv5_model.RWKV5Config,
         source={
             "huggingface-torch": rwkv5_loader.huggingface,
             "huggingface-safetensor": rwkv5_loader.huggingface,
         },
-        quantize={
-            "no-quant": rwkv5_quantization.no_quant,
-            "group-quant": rwkv5_quantization.group_quant,
-            "ft-quant": rwkv5_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            rwkv5_model.RWKV5_ForCausalLM,
+        ),
     ),
     "orion": Model(
         name="orion",
-        model=orion_model.OrionForCasualLM,
+        model=orion_model.OrionForCausalLM,
         config=orion_model.OrionConfig,
         source={
             "huggingface-torch": orion_loader.huggingface,
             "huggingface-safetensor": orion_loader.huggingface,
         },
-        quantize={
-            "no-quant": orion_quantization.no_quant,
-            "group-quant": orion_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            orion_model.OrionForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "llava": Model(
         name="llava",
-        model=llava_model.LlavaForCasualLM,
+        model=llava_model.LlavaForCausalLM,
         config=llava_model.LlavaConfig,
         source={
             "huggingface-torch": llava_loader.huggingface,
             "huggingface-safetensor": llava_loader.huggingface,
             "awq": llava_loader.awq,
         },
-        quantize={
-            "group-quant": llava_quantization.group_quant,
-            "no-quant": llava_quantization.no_quant,
-            "awq": llava_quantization.awq_quant,
-        },
+        quantize=make_quantization_functions(
+            llava_model.LlavaForCausalLM,
+            supports_awq=True,
+            supports_ft_quant=False,
+        ),
     ),
     "rwkv6": Model(
         name="rwkv6",
-        model=rwkv6_model.RWKV6_ForCasualLM,
+        model=rwkv6_model.RWKV6_ForCausalLM,
         config=rwkv6_model.RWKV6Config,
         source={
             "huggingface-torch": rwkv6_loader.huggingface,
             "huggingface-safetensor": rwkv6_loader.huggingface,
         },
-        quantize={
-            "no-quant": rwkv6_quantization.no_quant,
-            "group-quant": rwkv6_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            rwkv6_model.RWKV6_ForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "chatglm": Model(
         name="chatglm",
@@ -553,26 +506,24 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": chatglm3_loader.huggingface,
             "huggingface-safetensor": chatglm3_loader.huggingface,
         },
-        quantize={
-            "no-quant": chatglm3_quantization.no_quant,
-            "group-quant": chatglm3_quantization.group_quant,
-        },
+        quantize=make_quantization_functions(
+            chatglm3_model.ChatGLMForCausalLM,
+            supports_ft_quant=False,
+        ),
     ),
     "eagle": Model(
         name="eagle",
-        model=eagle_model.EagleForCasualLM,
+        model=eagle_model.EagleForCausalLM,
         config=eagle_model.EagleConfig,
         source={
             "huggingface-torch": eagle_loader.huggingface,
             "huggingface-safetensor": eagle_loader.huggingface,
             "awq": eagle_loader.awq,
         },
-        quantize={
-            "no-quant": eagle_quantization.no_quant,
-            "group-quant": eagle_quantization.group_quant,
-            "ft-quant": eagle_quantization.ft_quant,
-            "awq": eagle_quantization.awq_quant,
-        },
+        quantize=make_quantization_functions(
+            eagle_model.EagleForCausalLM,
+            supports_awq=True,
+        ),
     ),
     "bert": Model(
         name="bert",
@@ -582,11 +533,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": bert_loader.huggingface,
             "huggingface-safetensor": bert_loader.huggingface,
         },
-        quantize={
-            "no-quant": bert_quantization.no_quant,
-            "group-quant": bert_quantization.group_quant,
-            "ft-quant": bert_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            bert_model.BertModel,
+        ),
     ),
     "medusa": Model(
         name="medusa",
@@ -596,9 +545,11 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": medusa_loader.huggingface,
             "huggingface-safetensor": medusa_loader.huggingface,
         },
-        quantize={
-            "no-quant": medusa_quantization.no_quant,
-        },
+        quantize=make_quantization_functions(
+            medusa_model.MedusaModel,
+            supports_group_quant=False,
+            supports_ft_quant=False,
+        ),
     ),
     "starcoder2": Model(
         name="starcoder2",
@@ -608,11 +559,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": starcoder2_loader.huggingface,
             "huggingface-safetensor": starcoder2_loader.huggingface,
         },
-        quantize={
-            "no-quant": starcoder2_quantization.no_quant,
-            "group-quant": starcoder2_quantization.group_quant,
-            "ft-quant": starcoder2_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            starcoder2_model.Starcoder2ForCausalLM,
+        ),
     ),
     "cohere": Model(
         name="cohere",
@@ -622,11 +571,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": cohere_loader.huggingface,
             "huggingface-safetensor": cohere_loader.huggingface,
         },
-        quantize={
-            "no-quant": cohere_quantization.no_quant,
-            "group-quant": cohere_quantization.group_quant,
-            "ft-quant": cohere_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            cohere_model.CohereForCausalLM,
+        ),
     ),
     "minicpm": Model(
         name="minicpm",
@@ -636,11 +583,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": minicpm_loader.huggingface,
             "huggingface-safetensor": minicpm_loader.huggingface,
         },
-        quantize={
-            "no-quant": minicpm_quantization.no_quant,
-            "group-quant": minicpm_quantization.group_quant,
-            "ft-quant": minicpm_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            minicpm_model.MiniCPMForCausalLM,
+        ),
     ),
     "deepseek": Model(
         name="deepseek",
@@ -650,11 +595,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": deepseek_loader.huggingface,
             "huggingface-safetensor": deepseek_loader.huggingface,
         },
-        quantize={
-            "no-quant": deepseek_quantization.no_quant,
-            "group-quant": deepseek_quantization.group_quant,
-            "ft-quant": deepseek_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            deepseek_model.DeepseekForCausalLM,
+        ),
     ),
     "gptj": Model(
         name="gptj",
@@ -664,11 +607,9 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": gpt_j_loader.huggingface,
             "huggingface-safetensor": gpt_j_loader.huggingface,
         },
-        quantize={
-            "no-quant": gpt_j_quantization.no_quant,
-            "group-quant": gpt_j_quantization.group_quant,
-            "ft-quant": gpt_j_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            gpt_j_model.GPTJForCausalLM,
+        ),
     ),
     "olmo": Model(
         name="olmo",
@@ -679,13 +620,11 @@ MODELS: Dict[str, Model] = {
             "huggingface-safetensor": olmo_loader.huggingface,
             "awq": olmo_loader.awq,
         },
-        quantize={
-            "no-quant": olmo_quantization.no_quant,
-            "group-quant": olmo_quantization.group_quant,
-            "ft-quant": olmo_quantization.ft_quant,
-            "awq": olmo_quantization.awq_quant,
-            "per-tensor-quant": olmo_quantization.per_tensor_quant,
-        },
+        quantize=make_quantization_functions(
+            olmo_model.OLMoForCausalLM,
+            supports_awq=True,
+            supports_per_tensor=True,
+        ),
     ),
     "nemotron": Model(
         name="nemotron",
@@ -695,13 +634,11 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": nemotron_loader.huggingface,
             "huggingface-safetensor": nemotron_loader.huggingface,
         },
-        quantize={
-            "no-quant": nemotron_quantization.no_quant,
-            "group-quant": nemotron_quantization.group_quant,
-            "ft-quant": nemotron_quantization.ft_quant,
-            "awq": nemotron_quantization.awq_quant,
-            "per-tensor-quant": nemotron_quantization.per_tensor_quant,
-        },
+        quantize=make_quantization_functions(
+            nemotron_model.NemotronForCausalLM,
+            supports_awq=True,
+            supports_per_tensor=True,
+        ),
     ),
     "bert-bge": Model(
         name="bert-bge",
@@ -711,10 +648,8 @@ MODELS: Dict[str, Model] = {
             "huggingface-torch": bert_loader.huggingface_bge,
             "huggingface-safetensor": bert_loader.huggingface_bge,
         },
-        quantize={
-            "no-quant": bert_quantization.no_quant,
-            "group-quant": bert_quantization.group_quant,
-            "ft-quant": bert_quantization.ft_quant,
-        },
+        quantize=make_quantization_functions(
+            bert_model.BertModel,
+        ),
     ),
 }

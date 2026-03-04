@@ -205,7 +205,7 @@ class OrionModel(nn.Module):
         return hidden_states
 
 
-class OrionForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class OrionForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: OrionConfig):
         self.model = OrionModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)

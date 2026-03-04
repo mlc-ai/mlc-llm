@@ -54,6 +54,7 @@ def serve(
     allow_origins: Any,
     allow_methods: Any,
     allow_headers: Any,
+    api_key: Optional[str] = None,
 ):  # pylint: disable=too-many-arguments, too-many-locals
     """Serve the model with the specified configuration."""
     # Create engine and start the background loop
@@ -103,6 +104,7 @@ def serve(
         server_context.add_model(model, async_engine)
         if emb_engine is not None:
             server_context.add_embedding_engine(embedding_model, emb_engine)
+        server_context.api_key = api_key
 
         app = fastapi.FastAPI()
         app.add_middleware(

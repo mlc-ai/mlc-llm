@@ -7,7 +7,7 @@ import functools
 
 from ...loader import ExternMapping
 from ...quantization import Quantization
-from .rwkv6_model import RWKV6_ForCasualLM, RWKV6Config
+from .rwkv6_model import RWKV6_ForCausalLM, RWKV6Config
 
 
 def huggingface(model_config: RWKV6Config, quantization: Quantization) -> ExternMapping:
@@ -27,7 +27,7 @@ def huggingface(model_config: RWKV6Config, quantization: Quantization) -> Extern
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = RWKV6_ForCasualLM(model_config)
+    model = RWKV6_ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params = model.export_tvm(  # pylint: disable=unbalanced-tuple-unpacking

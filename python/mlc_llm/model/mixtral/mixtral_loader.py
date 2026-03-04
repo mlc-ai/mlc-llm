@@ -10,7 +10,7 @@ import numpy as np
 from mlc_llm.loader import ExternMapping
 from mlc_llm.quantization import Quantization
 
-from .mixtral_model import MixtralConfig, MixtralForCasualLM
+from .mixtral_model import MixtralConfig, MixtralForCausalLM
 
 
 def huggingface(model_config: MixtralConfig, quantization: Quantization) -> ExternMapping:
@@ -30,7 +30,7 @@ def huggingface(model_config: MixtralConfig, quantization: Quantization) -> Exte
     param_map : ExternMapping
         The parameter mapping from MLC to HuggingFace PyTorch.
     """
-    model = MixtralForCasualLM(model_config)
+    model = MixtralForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
     _, _named_params, _ = model.export_tvm(  # type: ignore[misc]

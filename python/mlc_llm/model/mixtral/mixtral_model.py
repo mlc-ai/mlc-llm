@@ -183,7 +183,7 @@ class MixtralModel(LlamaModel):
         )
 
 
-class MixtralForCasualLM(LlamaForCausalLM):
+class MixtralForCausalLM(LlamaForCausalLM):
     """Same as LlamaForCausalLM."""
 
     def __init__(self, config: MixtralConfig):

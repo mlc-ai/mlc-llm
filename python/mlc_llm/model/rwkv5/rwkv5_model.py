@@ -326,7 +326,7 @@ class RWKV5_Model(nn.Module):
         return self.ln_out(hidden_states), state
 
 
-class RWKV5_ForCasualLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class RWKV5_ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
     """Same as LlamaForCausalLM, except for the use of sliding window attention."""
 
     def __init__(self, config: RWKV5Config):

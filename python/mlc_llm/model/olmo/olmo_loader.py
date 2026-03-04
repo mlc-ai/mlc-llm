@@ -8,10 +8,11 @@ import functools
 import numpy as np
 
 from mlc_llm.loader import ExternMapping
-from mlc_llm.quantization import Quantization
+from mlc_llm.quantization import Quantization, make_awq_quant
 
 from .olmo_model import OLMoConfig, OLMoForCausalLM
-from .olmo_quantization import awq_quant
+
+awq_quant = make_awq_quant(OLMoForCausalLM)
 
 
 def huggingface(model_config: OLMoConfig, quantization: Quantization) -> ExternMapping:
