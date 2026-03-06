@@ -144,6 +144,8 @@ class BaseForCausalLM(
         layer_partition = getattr(self, "layer_partition", None)
         if layer_partition is None and hasattr(self, "model"):
             layer_partition = getattr(self.model, "layer_partition", None)
+        if layer_partition is None:
+            layer_partition = getattr(self._get_backbone(), "layer_partition", None)
         enable_disaggregation = getattr(self, "disaggregation", False)
         attn_kind = cast(Any, getattr(self, "attn_kind", "mha"))
 
