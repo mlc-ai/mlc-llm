@@ -4,14 +4,12 @@ Implementation for GPTNeoX architecture.
 
 import dataclasses
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import BaseForCausalLM, PagedKVCache
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -244,8 +242,9 @@ class GPTNeoXModel(nn.Module):
         return hidden_states
 
 
-class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXForCausalLM(BaseForCausalLM):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
+        super().__init__()
         self.gpt_neox = GPTNeoXModel(config)
         self.embed_out = nn.Linear(
             in_features=config.hidden_size,
@@ -260,164 +259,14 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.dtype = "float32"
-        self.rotary_pct = config.rotary_pct
+        self.rotary_dim = int(self.head_dim * config.rotary_pct)
+        self._embed_tokens = self.gpt_neox.embed_in
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
+    def _get_backbone(self):
+        return self.gpt_neox
 
-    def batch_forward(
-        self,
-        input_embeds: Tensor,
-        paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None,
-    ):
-        op_ext.configure()
+    def _get_embed_module(self):
+        return self._embed_tokens
 
-        hidden_states = self.gpt_neox(input_embeds, paged_kv_cache)
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.embed_out(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits
-
-    def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self.gpt_neox.embed_in(input_ids)
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.embed_out(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
-        logits = self.embed_out(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
-        return logits, paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
-        self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
-    ) -> PagedKVCache:
-        return PagedKVCache.create_generic(
-            attn_kind="mha",
-            max_batch_size=max_batch_size,
-            max_total_seq_len=max_total_seq_len,
-            prefill_chunk_size=prefill_chunk_size,
-            page_size=page_size,
-            support_sliding_window=support_sliding_window,
-            num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            num_key_value_heads=self.num_attention_heads // self.tensor_parallel_shards,
-            qk_head_dim=self.head_dim,
-            v_head_dim=self.head_dim,
-            rope_mode=RopeMode.NORMAL,
-            rope_scale=1,
-            rope_theta=self.rope_theta,
-            dtype=self.dtype,
-            rotary_dim=int(self.head_dim * self.rotary_pct),
-        )
-
-    def get_default_spec(self):
-        mod_spec = {
-            "embed": {
-                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "decode": {
-                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "batch_prefill": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "batch_decode": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "batch_verify": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "create_paged_kv_cache": {
-                "max_batch_size": int,
-                "max_total_seq_len": int,
-                "prefill_chunk_size": int,
-                "page_size": int,
-                "support_sliding_window": int,
-                "$": {
-                    "param_mode": "none",
-                    "effect_mode": "none",
-                },
-            },
-        }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self)
+    def _get_lm_head(self):
+        return self.embed_out

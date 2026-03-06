@@ -42,6 +42,13 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
 
     mapping = ExternMapping()
 
+    def _name_transform(param_name: str) -> str:
+        if param_name.startswith("model.embed_tokens."):
+            return param_name.replace("model.embed_tokens.", "model.tok_embeddings.", 1)
+        if param_name.startswith("lm_head."):
+            return param_name.replace("lm_head.", "output.", 1)
+        return param_name
+
     def _convert_wqkv_layout(wqkv, dtype):
         config = model_config
         kv_groups = config.num_attention_heads // config.num_key_value_heads
@@ -74,7 +81,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
         mlc_param = named_parameters[mlc_name]
         mapping.add_mapping(
             mlc_name,
-            [mlc_name],
+            [_name_transform(mlc_name)],
             functools.partial(
                 _convert_wqkv_layout,
                 dtype=mlc_param.dtype,
@@ -85,7 +92,7 @@ def huggingface(model_config: InternLM2ForCausalLM, quantization: Quantization) 
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [_name_transform(mlc_name)],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
