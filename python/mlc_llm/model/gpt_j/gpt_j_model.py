@@ -7,12 +7,11 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional
 
-from tvm import te, tir
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import CausalLMABC, PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -199,14 +198,13 @@ class GPTJModel(nn.Module):
         return hidden_states
 
 
-class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTJForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTJConfig):
+        super().__init__()
         self.transformer = GPTJModel(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, dtype="float32")
-        self.dtype = "float32"
         self.hidden_size = config.n_embd
         self.num_hidden_layers = config.n_layer
-        self.intermediate_size = 4 * config.n_embd if config.n_inner is None else config.n_inner
         self.num_attention_heads = config.n_head
         self.rope_theta = 10000
         self.rope_scaling = config.rope_scaling
@@ -214,74 +212,19 @@ class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribute
         self.tensor_parallel_shards = config.tensor_parallel_shards
         self.head_dim = config.n_embd // config.n_head
         self.rotary_dim = config.rotary_dim
+        self._embed_tokens = self.transformer.wte
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
+    def _get_backbone(self):
+        return self.transformer
 
-    def batch_forward(
-        self,
-        input_embeds: Tensor,
-        paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None,
-    ):
-        op_ext.configure()
+    def _get_embed_module(self):
+        return self._embed_tokens
 
-        hidden_states = self.transformer(input_embeds, paged_kv_cache)
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
+    def get_logits(self, hidden_states: Tensor):
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-
-    def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self.transformer.wte(input_ids)
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
-        return logits, paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
@@ -306,8 +249,8 @@ class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribute
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
-            rotary_dim=self.rotary_dim,
             rope_scaling=self.rope_scaling,
+            rotary_dim=self.rotary_dim,
             dtype=self.dtype,
         )
 
@@ -315,51 +258,33 @@ class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribute
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "decode": {
                 "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "batch_prefill": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "packed", "effect_mode": "none"},
             },
             "create_paged_kv_cache": {
                 "max_batch_size": int,
@@ -367,10 +292,7 @@ class GPTJForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribute
                 "prefill_chunk_size": int,
                 "page_size": int,
                 "support_sliding_window": int,
-                "$": {
-                    "param_mode": "none",
-                    "effect_mode": "none",
-                },
+                "$": {"param_mode": "none", "effect_mode": "none"},
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)
