@@ -16,11 +16,15 @@ from .llava_model import LlavaConfig, LlavaForCausalLM
 awq_quant = make_awq_quant(LlavaForCausalLM)
 
 
+def _num_layers(config: object) -> int:
+    return config.text_config.num_hidden_layers  # type: ignore[attr-defined]
+
+
 huggingface = make_standard_hf_loader(
     model_cls=LlavaForCausalLM,
     layer_prefix="language_model.model.layers",
     add_unused=["rotary_emb.inv_freq"],
-    num_layers_getter=lambda config: config.text_config.num_hidden_layers,  # type: ignore[attr-defined]
+    num_layers_getter=_num_layers,
 )
 
 

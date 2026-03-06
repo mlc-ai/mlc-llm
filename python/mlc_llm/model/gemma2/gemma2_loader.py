@@ -13,6 +13,7 @@ from .gemma2_model import Gemma2Config, Gemma2ForCausalLM
 
 
 def huggingface(model_config: Gemma2Config, quantization: Quantization) -> ExternMapping:
+    """Create HF weight mapping for Gemma2."""
     model = Gemma2ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)

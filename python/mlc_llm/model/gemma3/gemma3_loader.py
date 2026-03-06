@@ -13,6 +13,7 @@ from .gemma3_model import Gemma3Config, Gemma3ForCausalLM
 
 
 def huggingface(model_config: Gemma3Config, quantization: Quantization) -> ExternMapping:
+    """Create HF weight mapping for Gemma3."""
     model = Gemma3ForCausalLM(model_config)
     if quantization is not None:
         model.to(quantization.model_dtype)
@@ -22,19 +23,25 @@ def huggingface(model_config: Gemma3Config, quantization: Quantization) -> Exter
     )
     named_parameters = dict(_named_params)
     mlc_prefix = "language_model."
-    hf_prefix = "language_model." if not model_config.is_text_model else ""
+    if model_config.is_text_model:
+        hf_prefix = ""
+    else:
+        hf_prefix = "language_model."
 
     def name_transform(name: str) -> str:
         if name.startswith(mlc_prefix):
             name = name[len(mlc_prefix) :]
         return f"{hf_prefix}{name}"
 
+    def num_layers(config: object) -> int:
+        return config.text_config.num_hidden_layers  # type: ignore[attr-defined]
+
     base_loader = make_standard_hf_loader(
         model_cls=Gemma3ForCausalLM,
         include_qkv=False,
         include_gate_up=True,
         gate_up_target_name="gate_up_proj",
-        num_layers_getter=lambda config: config.text_config.num_hidden_layers,  # type: ignore[attr-defined]
+        num_layers_getter=num_layers,
         layer_prefix=f"{mlc_prefix}model.layers",
         name_transform=name_transform,
     )
