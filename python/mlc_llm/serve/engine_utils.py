@@ -162,6 +162,8 @@ def process_prompts(
             output_prompts.append(input_prompt)
         elif isinstance(input_prompt, data.ImageData):
             output_prompts.append(input_prompt)
+        elif isinstance(input_prompt, data.TokenData):
+            output_prompts.append(input_prompt.token_ids)
         else:
             raise error_protocol.BadRequestError(error_msg)
     return output_prompts
