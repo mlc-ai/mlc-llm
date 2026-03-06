@@ -1,4 +1,18 @@
-"""Implementation for Qwen2.5-VL architecture with MRoPE pre-rotation support."""
+"""Partial Qwen2.5-VL implementation focused on decoder-side MRoPE support.
+
+This file intentionally does not provide complete end-to-end Qwen2.5-VL support yet.
+The current scope is:
+
+- decoder-side text model structure,
+- multimodal rotary embedding generation/application,
+- position-id layout compatibility for the MRoPE path.
+
+Missing pieces for full Qwen2.5-VL support include:
+
+- vision tower / multimodal projector and image-video embedding path,
+- model registry / loader / quantization / preset integration,
+- end-to-end multimodal preprocessing and compile/chat wiring.
+"""
 
 # pylint: disable=missing-function-docstring,missing-class-docstring
 
