@@ -7,7 +7,6 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional
 
-from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 

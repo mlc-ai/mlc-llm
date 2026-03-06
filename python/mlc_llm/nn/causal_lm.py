@@ -1,5 +1,9 @@
 """Shared helpers for causal LM models."""
 
+# pylint: disable=missing-function-docstring,no-member
+
+# pylint: disable=missing-function-docstring,no-member
+
 from __future__ import annotations
 
 from typing import Any, Optional, cast
@@ -18,10 +22,27 @@ def index_last_token(x: te.Tensor) -> te.Tensor:
     return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
 
 
-class BaseForCausalLM(nn.Module):  # pylint: disable=too-many-public-methods,too-many-instance-attributes
+class BaseForCausalLM(
+    nn.Module
+):  # pylint: disable=too-many-public-methods,too-many-instance-attributes
     """Shared default implementations for causal LM models."""
 
     dtype: str
+    model: nn.Module
+    lm_head: nn.Module
+    tensor_parallel_shards: int
+    num_hidden_layers: int
+    num_attention_heads: int
+    num_key_value_heads: int
+    head_dim: int
+    hidden_size: int
+    rope_theta: int
+    rope_scale: int
+    rope_mode: RopeMode
+    rope_scaling: Optional[dict]
+    rotary_dim: Optional[int]
+    layer_partition: Optional[list]
+    disaggregation: bool
 
     def __init__(self):
         super().__init__()

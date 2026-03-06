@@ -3,9 +3,8 @@ Implementation for InternLM architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 

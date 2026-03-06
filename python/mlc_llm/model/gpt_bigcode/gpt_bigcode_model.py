@@ -3,14 +3,13 @@ Implementation for GPTBigCode architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
+from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 
 from mlc_llm.nn import BaseForCausalLM, PagedKVCache
-from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
