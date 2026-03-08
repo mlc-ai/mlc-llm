@@ -6,10 +6,11 @@ import dataclasses
 import logging
 from typing import Any, Dict
 
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm.nn import BaseForCausalLM, PagedKVCache
+from mlc_llm.nn import CausalLMABC, PagedKVCache, RopeMode
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -242,7 +243,7 @@ class GPTNeoXModel(nn.Module):
         return hidden_states
 
 
-class GPTNeoXForCausalLM(BaseForCausalLM):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
         super().__init__()
         self.gpt_neox = GPTNeoXModel(config)
@@ -268,5 +269,78 @@ class GPTNeoXForCausalLM(BaseForCausalLM):  # pylint: disable=too-many-instance-
     def _get_embed_module(self):
         return self._embed_tokens
 
-    def _get_lm_head(self):
-        return self.embed_out
+    def get_logits(self, hidden_states: Tensor):
+        logits = self.embed_out(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits
+
+    def create_paged_kv_cache(  # pylint: disable=too-many-arguments
+        self,
+        max_batch_size: tir.Var,
+        max_total_seq_len: tir.Var,
+        prefill_chunk_size: tir.Var,
+        page_size: tir.Var,
+        support_sliding_window: tir.Var,
+    ) -> PagedKVCache:
+        return PagedKVCache.create_generic(
+            attn_kind="mha",
+            max_batch_size=max_batch_size,
+            max_total_seq_len=max_total_seq_len,
+            prefill_chunk_size=prefill_chunk_size,
+            page_size=page_size,
+            support_sliding_window=support_sliding_window,
+            num_hidden_layers=self.num_hidden_layers,
+            num_attention_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            num_key_value_heads=self.num_attention_heads // self.tensor_parallel_shards,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
+            rope_mode=RopeMode.NORMAL,
+            rope_scale=1,
+            rope_theta=self.rope_theta,
+            rotary_dim=self.rotary_dim,
+            dtype=self.dtype,
+        )
+
+    def get_default_spec(self):
+        mod_spec = {
+            "embed": {
+                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "decode": {
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "batch_prefill": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "batch_decode": {
+                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "batch_verify": {
+                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "$": {"param_mode": "packed", "effect_mode": "none"},
+            },
+            "create_paged_kv_cache": {
+                "max_batch_size": int,
+                "max_total_seq_len": int,
+                "prefill_chunk_size": int,
+                "page_size": int,
+                "support_sliding_window": int,
+                "$": {"param_mode": "none", "effect_mode": "none"},
+            },
+        }
+        return nn.spec.ModuleSpec.from_raw(mod_spec, self)
