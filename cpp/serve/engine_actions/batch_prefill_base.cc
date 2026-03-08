@@ -272,7 +272,8 @@ bool BatchPrefillBaseActionObj::CanPrefill(EngineState estate, int num_prefill_r
                                            bool sliding_window_enabled) {
   TVM_FFI_ICHECK_LE(num_running_rsentries, engine_config_->max_num_sequence);
 
-  // For RNN State, it can prefill as long as it can be instantiated.
+  // For pure RNN State, it can prefill as long as it can be instantiated.
+  // Hybrid uses KVCache for capacity (PagedKVCache is the constraining factor).
   if (kv_state_kind == KVStateKind::kRNNState || kv_state_kind == KVStateKind::kNone) {
     return true;
   }
