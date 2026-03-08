@@ -403,13 +403,25 @@ class ModelImpl : public ModelObj {
     if (seq_ids.size() == 1) {
       TVM_FFI_ICHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
           << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
-      result = ft_.single_batch_prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd,
-                                                             kv_cache_, params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.single_batch_prefill_to_last_hidden_func_(
+                        embedding_or_hidden_states_dref_or_nd, kv_cache_, rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.single_batch_prefill_to_last_hidden_func_(
+                        embedding_or_hidden_states_dref_or_nd, kv_cache_, params_)
+                     .cast<ObjectRef>();
+      }
     } else {
-      result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
-                                                params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
+                                                  rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
+                                                  params_)
+                     .cast<ObjectRef>();
+      }
     }
     ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
 
@@ -611,12 +623,24 @@ class ModelImpl : public ModelObj {
     if (seq_ids.size() == 1) {
       TVM_FFI_ICHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
           << "`decode_to_last_hidden_states` function is not found in the model.";
-      result =
-          ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
-              .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                              rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                              params_)
+                     .cast<ObjectRef>();
+      }
     } else {
-      result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, rnn_state_,
+                                                 params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
+                     .cast<ObjectRef>();
+      }
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
     if (kind == KVStateKind::kHybrid) {
@@ -776,8 +800,15 @@ class ModelImpl : public ModelObj {
     }
 
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_)
-                           .cast<ObjectRef>();
+    ObjectRef result;
+    if (kind == KVStateKind::kHybrid) {
+      result =
+          ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
+              .cast<ObjectRef>();
+    } else {
+      result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_)
+                   .cast<ObjectRef>();
+    }
     ft_.kv_cache_end_forward_func_(kv_cache_);
     if (kind == KVStateKind::kHybrid) {
       ft_.kv_cache_end_forward_func_(rnn_state_);

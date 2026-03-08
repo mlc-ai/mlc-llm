@@ -51,8 +51,6 @@ def huggingface(model_config: Qwen35Config, quantization: Quantization) -> Exter
     hf = "model.language_model"
 
     layer_types = model_config.layer_types()
-    linear_idx = 0
-
     for i in range(model_config.num_hidden_layers):
         if layer_types[i] == "full_attention":
             # Standard attention: fuse Q/K/V into c_attn
@@ -108,8 +106,6 @@ def huggingface(model_config: Qwen35Config, quantization: Quantization) -> Exter
                     [f"{hf_lin}.conv1d.weight"],
                     functools.partial(lambda x, dtype: x.astype(dtype), dtype=mlc_param.dtype),
                 )
-
-            linear_idx += 1
 
         # MLP: fuse gate_proj + up_proj
         mlc_mlp = f"model.layers.{i}.mlp"
