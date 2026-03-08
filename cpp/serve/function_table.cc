@@ -238,7 +238,11 @@ void FunctionTable::_InitFunctions() {
   this->create_kv_cache_func_ = mod_get_func("create_flashinfer_paged_kv_cache");
   if (this->model_metadata_.sliding_window_size != -1 || !this->create_kv_cache_func_.defined()) {
     Function f_create_rnn_state = mod_get_func("create_rnn_state");
-    if (f_create_rnn_state.defined()) {
+    if (this->model_metadata_.kv_state_kind == KVStateKind::kHybrid) {
+      // Hybrid models need both KV cache and RNN state.
+      this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
+      this->create_rnn_state_func_ = f_create_rnn_state;
+    } else if (f_create_rnn_state.defined()) {
       this->create_kv_cache_func_ = f_create_rnn_state;
     } else {
       this->create_kv_cache_func_ = mod_get_func("create_tir_paged_kv_cache");
