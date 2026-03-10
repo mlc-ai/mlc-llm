@@ -67,17 +67,16 @@ def detect_target_and_host(
 
 
 def _apply_webgpu_subgroups(target: Target, enable_subgroups: Optional[bool]) -> Target:
-    if enable_subgroups is None:
+    if not enable_subgroups:
         return target
     if target.kind.name != "webgpu":
-        if enable_subgroups:
-            logger.warning(
-                "--enable-subgroups is only supported for WebGPU targets; ignoring for %s",
-                target.kind.name,
-            )
+        logger.warning(
+            "--enable-subgroups is only supported for WebGPU targets; ignoring for %s",
+            target.kind.name,
+        )
         return target
     target_dict = dict(target.export())
-    target_dict["supports_subgroups"] = bool(enable_subgroups)
+    target_dict["supports_subgroups"] = True
     return Target(target_dict)
 
 
