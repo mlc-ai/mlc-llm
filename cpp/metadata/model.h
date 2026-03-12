@@ -95,6 +95,10 @@ struct ModelMetadata {
   std::unordered_map<std::string, int64_t> memory_usage;
   KVStateKind kv_state_kind;
   KVCacheMetadata kv_cache_metadata;
+  std::string model_task;
+  std::string embedding_model_type;
+  std::string embedding_pooling_strategy;
+  bool embedding_normalize = false;
 
   static ModelMetadata FromJSON(const tvm::ffi::json::Object& json_str,
                                 const tvm::ffi::json::Object& model_config);

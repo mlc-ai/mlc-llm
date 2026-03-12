@@ -1,6 +1,7 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
 
 # pylint: disable=E1101
+import dataclasses
 import json
 import re
 import shutil
@@ -138,6 +139,10 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         pipeline_parallel_stages=getattr(model_config, "pipeline_parallel_stages", 1),
         disaggregation=getattr(model_config, "disaggregation", False),
         conv_template=conversation,  # type: ignore
+        model_task=model.model_task,
+        embedding_metadata=(
+            dataclasses.asdict(model.embedding_metadata) if model.embedding_metadata else None
+        ),
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
     for generation_config_filename in ["generation_config.json", "config.json"]:

@@ -93,6 +93,15 @@ ModelMetadata ModelMetadata::FromJSON(const tvm::ffi::json::Object& metadata,
   result.pipeline_parallel_stages =
       json::LookupOrDefault<int64_t>(metadata, "pipeline_parallel_stages", 1);
   result.disaggregation = json::LookupOrDefault<bool>(metadata, "disaggregation", false);
+  result.model_task = json::LookupOrDefault<std::string>(metadata, "model_task", "chat");
+  if (metadata.count("embedding_metadata")) {
+    tvm::ffi::json::Object emb =
+        json::Lookup<tvm::ffi::json::Object>(metadata, "embedding_metadata");
+    result.embedding_model_type = json::LookupOrDefault<std::string>(emb, "model_type", "");
+    result.embedding_pooling_strategy =
+        json::LookupOrDefault<std::string>(emb, "pooling_strategy", "");
+    result.embedding_normalize = json::LookupOrDefault<bool>(emb, "normalize", false);
+  }
   result.kv_state_kind = KVStateKindFromString(
       json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
   if (result.kv_state_kind != KVStateKind::kNone &&
