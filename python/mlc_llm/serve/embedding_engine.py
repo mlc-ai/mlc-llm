@@ -61,11 +61,18 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         self._params = engine_utils.load_embedding_params(model, self.device, self._metadata)
 
         # Detect model type and set pooling strategy
-        self.model_type = engine_utils.detect_embedding_model_type(self._mod)
-        if pooling_strategy is not None:
-            self.pooling_strategy = pooling_strategy
+        self.embedding_metadata = engine_utils.get_embedding_metadata(self._metadata)
+        if self.embedding_metadata:
+            self.model_type = self.embedding_metadata["model_type"]
+            self.pooling_strategy = self.embedding_metadata["pooling_strategy"]
+            self.normalize = self.embedding_metadata["normalize"]
         else:
+            self.model_type = engine_utils.detect_embedding_model_type(self._mod)
             self.pooling_strategy = "cls" if self.model_type == "encoder" else "last"
+            self.normalize = True
+        # Allow caller to override pooling strategy
+        if pooling_strategy:
+            self.pooling_strategy = pooling_strategy
 
         # Initialize model-type-specific functions
         if self.model_type == "encoder":
@@ -256,9 +263,10 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
             # L2 normalize
             pooled = pooled.astype(np.float32)
-            norm = np.linalg.norm(pooled)
-            if norm > 1e-12:
-                pooled = pooled / norm
+            if self.normalize:
+                norm = np.linalg.norm(pooled)
+                if norm > 1e-12:
+                    pooled = pooled / norm
 
             embeddings.append(pooled.tolist())
 
@@ -402,9 +410,10 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         for tokens in token_lists:
             last_pos = offset + len(tokens) - 1
             pooled = hidden_np[0, last_pos, :].astype(np.float32)
-            norm = np.linalg.norm(pooled)
-            if norm > 1e-12:
-                pooled = pooled / norm
+            if self.normalize:
+                norm = np.linalg.norm(pooled)
+                if norm > 1e-12:
+                    pooled = pooled / norm
             embeddings.append(pooled.tolist())
             offset += len(tokens)
 
@@ -459,9 +468,10 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
             pooled = hidden_np[0, -1, :] if hidden_np.ndim == 3 else hidden_np[-1, :]
             pooled = pooled.astype(np.float32)
-            norm = np.linalg.norm(pooled)
-            if norm > 1e-12:
-                pooled = pooled / norm
+            if self.normalize:
+                norm = np.linalg.norm(pooled)
+                if norm > 1e-12:
+                    pooled = pooled / norm
             embeddings.append(pooled.tolist())
 
         return embeddings, total_tokens

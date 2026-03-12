@@ -14,6 +14,8 @@ Environment variables:
                                   (optional, defaults to dirname of model lib)
 """
 
+# pylint: disable=import-outside-toplevel,protected-access,redefined-outer-name
+
 import asyncio
 import os
 
@@ -68,6 +70,7 @@ def embedding_engine():
 
 
 def cosine_similarity(a, b):
+    """Return cosine similarity between two vectors."""
     a, b = np.array(a), np.array(b)
     return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
 
@@ -206,18 +209,16 @@ def test_async_embed(embedding_engine):
 
 
 def test_empty_string(embedding_engine):
-    """Empty string behavior depends on model type.
-    Encoder: [CLS]+[SEP] → valid embedding. Decoder: zero tokens → error."""
+    """Empty string should still produce a valid embedding for supported models."""
+    embeddings, tokens = embedding_engine.embed([""])
     if embedding_engine.model_type == "encoder":
-        # Encoder adds [CLS]/[SEP], so empty string still produces valid embedding
-        embeddings, _ = embedding_engine.embed([""])
         assert len(embeddings) == 1
         assert len(embeddings[0]) > 0
+        assert tokens > 0
     else:
-        # Decoder has no special tokens, zero tokens → skipped, empty result
-        embeddings, tokens = embedding_engine.embed([""])
-        assert len(embeddings) == 0
-        assert tokens == 0
+        assert len(embeddings) == 1
+        assert len(embeddings[0]) > 0
+        assert tokens > 0
 
 
 # ===================================================================
@@ -237,18 +238,53 @@ def test_long_text_decoder_chunked_prefill(embedding_engine):
     assert abs(norm - 1.0) < 1e-3
 
 
-def test_long_text_encoder_truncation(embedding_engine):
+def _get_encoder_tokens(embedding_engine, text):
+    """Replicate encoder preprocessing: tokenize and add [CLS]/[SEP]."""
+    tokens = list(embedding_engine.tokenizer.encode(text))
+    if embedding_engine._cls_token_id is not None and (
+        len(tokens) == 0 or tokens[0] != embedding_engine._cls_token_id
+    ):
+        tokens = [embedding_engine._cls_token_id] + tokens
+    if embedding_engine._sep_token_id is not None and (
+        len(tokens) == 0 or tokens[-1] != embedding_engine._sep_token_id
+    ):
+        tokens = tokens + [embedding_engine._sep_token_id]
+    return tokens
+
+
+def test_long_text_encoder_truncation(embedding_engine):  # pylint: disable=too-many-locals
     """[Encoder only] Text exceeding prefill_chunk_size is truncated.
-    Two texts with the same prefix but different suffixes beyond the limit
-    should produce identical embeddings, since the suffix gets truncated."""
+    Two texts with the same shared prefix but different suffixes beyond the
+    limit should produce identical embeddings, since the suffix is truncated
+    and the retained token prefixes are verified to be identical."""
     if embedding_engine.model_type != "encoder":
         pytest.skip("Truncation test is encoder-only")
     prefill_chunk = embedding_engine._metadata.get("prefill_chunk_size", 512)
 
-    # Same prefix, different suffixes — both exceed the limit
-    shared_prefix = "machine learning is great " * 500  # ~2500 tokens
-    text_a = shared_prefix + " alpha beta gamma " * 500
-    text_b = shared_prefix + " totally different ending " * 500
+    # Dynamically construct input that exceeds prefill_chunk_size.
+    unit = "machine learning is great "
+    suffix_a = " alpha beta gamma " * 200
+    suffix_b = " totally different ending " * 200
+    unit_tokens = len(list(embedding_engine.tokenizer.encode(unit)))
+    repeats = max(1, prefill_chunk // max(unit_tokens, 1) + 64)
+
+    # Increase prefix length until both inputs exceed prefill_chunk_size
+    # and their truncated token prefixes are identical.
+    while True:
+        shared_prefix = unit * repeats
+        full_tokens_a = _get_encoder_tokens(embedding_engine, shared_prefix + suffix_a)
+        full_tokens_b = _get_encoder_tokens(embedding_engine, shared_prefix + suffix_b)
+        if (
+            len(full_tokens_a) > prefill_chunk
+            and len(full_tokens_b) > prefill_chunk
+            and full_tokens_a[:prefill_chunk] == full_tokens_b[:prefill_chunk]
+        ):
+            break
+        repeats += 64
+        assert repeats < 200000, "Failed to construct truncation test inputs"
+
+    text_a = shared_prefix + suffix_a
+    text_b = shared_prefix + suffix_b
 
     emb_a, tokens_a = embedding_engine.embed([text_a])
     emb_b, tokens_b = embedding_engine.embed([text_b])
@@ -262,9 +298,9 @@ def test_long_text_encoder_truncation(embedding_engine):
     assert abs(float(np.linalg.norm(emb_a[0])) - 1.0) < 1e-3
     assert abs(float(np.linalg.norm(emb_b[0])) - 1.0) < 1e-3
 
-    # Both truncated to same first N tokens → identical embeddings
+    # Both truncated to identical token sequences → embeddings must match
     cos = cosine_similarity(emb_a[0], emb_b[0])
-    assert cos > 0.99, f"Same-prefix texts after truncation should match, cosine={cos:.6f}"
+    assert cos > 0.999, f"Same truncated tokens should match, cosine={cos:.6f}"
 
 
 def test_long_vs_short_semantic_quality(embedding_engine):
