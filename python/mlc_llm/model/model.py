@@ -104,7 +104,7 @@ class Model:
         A dictionary that maps the name of a quantization method to quantized model and the
         quantization parameter mapping.
 
-    mode_task: Literal["chat", "embedding"] = "chat"
+    model_task: Literal["chat", "embedding"] = "chat"
         A task of the model to distinguish between chat and embedding models. Default to "chat".
 
     embedding_metadata: Optional[EmbeddingMetadata] = None
