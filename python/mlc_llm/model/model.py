@@ -701,5 +701,11 @@ MODELS: Dict[str, Model] = {
         quantize=make_quantization_functions(
             bert_model.BertModel,
         ),
+        model_task="embedding",
+        embedding_metadata=EmbeddingMetadata(
+            model_type="encoder",
+            pooling_strategy="cls",
+            normalize=True,
+        ),
     ),
 }
