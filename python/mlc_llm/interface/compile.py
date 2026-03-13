@@ -22,6 +22,7 @@ from mlc_llm.support.style import bold
 from .compiler_flags import ModelConfigOverride, OptimizationFlags
 
 logger = logging.getLogger(__name__)
+_UNSUPPORTED_KV_CACHE_DTYPE_OVERRIDES = {"int8", "float8_e4m3fn", "float8_e5m2"}
 
 
 @dataclasses.dataclass
@@ -130,7 +131,9 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
 
     logger.info("TOP LEVEL MODEL CONFIG BEFORE OVERRIDES: %s", str(model_config))
     _kwargs = getattr(model_config, "kwargs", {})
-    model_config = args.overrides.apply(model_config)
+    # `kv_cache_dtype` is a compile-time override for KV cache dispatch, not a model config field.
+    model_config_overrides = dataclasses.replace(args.overrides, kv_cache_dtype=None)
+    model_config = model_config_overrides.apply(model_config)
     with args.target:
         op_ext.enable(
             target=args.target,
@@ -189,6 +192,8 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
             "active_vocab_size": avs,
         }
+        if args.overrides.kv_cache_dtype is not None:
+            metadata["kv_cache_dtype"] = args.overrides.kv_cache_dtype
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):
@@ -227,6 +232,13 @@ def compile(  # pylint: disable=too-many-arguments,redefined-builtin
     debug_dump: Optional[Path] = None,
 ):
     """Compile a model given its configuration and quantization format to a specific target."""
+    if overrides.kv_cache_dtype in _UNSUPPORTED_KV_CACHE_DTYPE_OVERRIDES:
+        raise ValueError(
+            f"kv_cache_dtype={overrides.kv_cache_dtype} is not supported yet. "
+            "Current int8 KV path needs proper scale-based quant/dequant, and FP8 KV path "
+            "still fails in upstream TVM dtype legalization."
+        )
+
     avs = None
     if "active_vocab_size" in config:
         avs = config.pop("active_vocab_size")
