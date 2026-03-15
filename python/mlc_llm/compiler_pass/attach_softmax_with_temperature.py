@@ -132,9 +132,9 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         temperature = T.match_buffer(var_temperature, (batch_size,), dtype="float32")
         chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
         chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
-        A_pad = T.alloc_buffer((batch_size, num_chunks, T.int64(chunk_size)), dtype="float32")
-        temp_max = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
-        temp_sum = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
+        A_pad = T.sblock_alloc_buffer((batch_size, num_chunks, T.int64(chunk_size)), dtype="float32")
+        temp_max = T.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
+        temp_sum = T.sblock_alloc_buffer((batch_size, num_chunks), dtype="float32")
 
         for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(chunk_size)):
             with T.sblock("pad"):
@@ -197,8 +197,8 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         chunked_sum = T.match_buffer(var_chunked_sum, (batch_size, num_chunks), dtype="float32")
         chunked_max = T.match_buffer(var_chunked_max, (batch_size, num_chunks), dtype="float32")
         softmax = T.match_buffer(var_softmax, (batch_size, vocab_size), dtype="float32")
-        temp_max = T.alloc_buffer((batch_size,), dtype="float32")
-        temp_sum = T.alloc_buffer((batch_size,), dtype="float32")
+        temp_max = T.sblock_alloc_buffer((batch_size,), dtype="float32")
+        temp_sum = T.sblock_alloc_buffer((batch_size,), dtype="float32")
         for l0, l1 in T.grid(batch_size, num_chunks):
             with T.sblock("max"):
                 v0, v1 = T.axis.remap("SR", [l0, l1])
