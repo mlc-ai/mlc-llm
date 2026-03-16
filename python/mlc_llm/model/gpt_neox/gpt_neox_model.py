@@ -230,7 +230,7 @@ class GPTNeoXLayer(nn.Module):
 
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
-        self.embed_in = nn.Embedding(num="vocab_size", dim=config.hidden_size)
+        self.embed_tokens = nn.Embedding(num="vocab_size", dim=config.hidden_size)
         self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
@@ -246,8 +246,8 @@ class GPTNeoXModel(nn.Module):
 class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
         super().__init__()
-        self.gpt_neox = GPTNeoXModel(config)
-        self.embed_out = nn.Linear(
+        self.model = GPTNeoXModel(config)
+        self.lm_head = nn.Linear(
             in_features=config.hidden_size,
             out_features="vocab_size",
             bias=False,
@@ -260,17 +260,10 @@ class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attr
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.rotary_dim = int(self.head_dim * config.rotary_pct)
-        self._embed_tokens = self.gpt_neox.embed_in
-
-    def _get_backbone(self):
-        return self.gpt_neox
-
-    def _get_embed_module(self):
-        return self._embed_tokens
+        self.rotary_pct = config.rotary_pct
 
     def get_logits(self, hidden_states: Tensor):
-        logits = self.embed_out(hidden_states)
+        logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
@@ -298,41 +291,59 @@ class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attr
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,
-            rotary_dim=self.rotary_dim,
             dtype=self.dtype,
+            rotary_dim=int(self.head_dim * self.rotary_pct),
         )
 
     def get_default_spec(self):
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "decode": {
                 "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_prefill": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "create_paged_kv_cache": {
                 "max_batch_size": int,
@@ -340,7 +351,10 @@ class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attr
                 "prefill_chunk_size": int,
                 "page_size": int,
                 "support_sliding_window": int,
-                "$": {"param_mode": "none", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)

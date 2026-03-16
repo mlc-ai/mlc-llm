@@ -26,13 +26,10 @@ class CausalLMABC(nn.Module):
     * ``dtype``  (str attribute)
     * ``hidden_size``  (int attribute)
     * ``tensor_parallel_shards``  (int attribute)
+    * ``self.model``  (nn.Module — the transformer backbone with an ``embed_tokens`` attribute)
     * ``get_logits(hidden_states) -> Tensor``
     * ``create_paged_kv_cache(...) -> PagedKVCache``
     * ``get_default_spec() -> ModuleSpec``
-
-    Subclasses may also override the hooks ``_get_backbone()``,
-    ``_get_embed_module()``, and ``_backbone_forward()`` to customise which
-    sub-modules are used by the concrete helper methods.
     """
 
     # These are expected on every subclass but are set by the subclass __init__,
@@ -40,19 +37,6 @@ class CausalLMABC(nn.Module):
     dtype: str
     hidden_size: int
     tensor_parallel_shards: int
-
-    # Overridable hooks
-
-    def _get_backbone(self) -> nn.Module:
-        """Return the transformer backbone (default: ``self.model``)."""
-        return self.model  # type: ignore[attr-defined]
-
-    def _get_embed_module(self) -> nn.Module:
-        """Return the embedding table (default: ``backbone.embed_tokens``)."""
-        return self._get_backbone().embed_tokens
-
-    def _backbone_forward(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache) -> Tensor:
-        return self._get_backbone()(input_embeds, paged_kv_cache)
 
     # Methods common to all LMs
 
@@ -64,12 +48,12 @@ class CausalLMABC(nn.Module):
     def embed(self, input_ids: Tensor) -> Tensor:
         if self.tensor_parallel_shards > 1:
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self._get_embed_module()(input_ids)
+        return self.model.embed_tokens(input_ids)  # type: ignore[attr-defined]
 
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self._backbone_forward(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)  # type: ignore[attr-defined]
         hidden_states = op.tensor_expr_op(
             index_last_token,
             name_hint="index",
@@ -81,7 +65,7 @@ class CausalLMABC(nn.Module):
     def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        hidden_states = self._backbone_forward(input_embed, paged_kv_cache)
+        hidden_states = self.model(input_embed, paged_kv_cache)  # type: ignore[attr-defined]
         logits = self.get_logits(hidden_states)
         return logits, paged_kv_cache
 
@@ -93,7 +77,7 @@ class CausalLMABC(nn.Module):
     ):
         op_ext.configure()
 
-        hidden_states = self._backbone_forward(input_embeds, paged_kv_cache)
+        hidden_states = self.model(input_embeds, paged_kv_cache)  # type: ignore[attr-defined]
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         return self.get_logits(hidden_states)

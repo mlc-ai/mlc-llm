@@ -276,33 +276,51 @@ class Starcoder2ForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-a
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "prefill": {
                 "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "decode": {
                 "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_prefill": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "logit_positions": nn.spec.Tensor(["batch_size"], "int32"),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_decode": {
                 "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {"param_mode": "packed", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
             },
             "create_paged_kv_cache": {
                 "max_batch_size": int,
@@ -310,7 +328,10 @@ class Starcoder2ForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-a
                 "prefill_chunk_size": int,
                 "page_size": int,
                 "support_sliding_window": int,
-                "$": {"param_mode": "none", "effect_mode": "none"},
+                "$": {
+                    "param_mode": "none",
+                    "effect_mode": "none",
+                },
             },
         }
         return nn.spec.ModuleSpec.from_raw(mod_spec, self)

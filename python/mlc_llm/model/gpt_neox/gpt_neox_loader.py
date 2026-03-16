@@ -13,6 +13,19 @@ from mlc_llm.quantization import Quantization
 from .gpt_neox_model import GPTNeoXConfig, GPTNeoXForCausalLM
 
 
+def _name_transform(param_name: str) -> str:
+    # model.embed_tokens.* -> gpt_neox.embed_in.*
+    if param_name.startswith("model.embed_tokens."):
+        return param_name.replace("model.embed_tokens.", "gpt_neox.embed_in.", 1)
+    # lm_head.* -> embed_out.*
+    if param_name.startswith("lm_head."):
+        return param_name.replace("lm_head.", "embed_out.", 1)
+    # model.* -> gpt_neox.* (layers, final_layer_norm, etc.)
+    if param_name.startswith("model."):
+        return param_name.replace("model.", "gpt_neox.", 1)
+    return param_name
+
+
 def huggingface(model_config: GPTNeoXConfig, quantization: Quantization) -> ExternMapping:
     """Returns a parameter mapping that maps from the names of MLC LLM parameters to
     the names of HuggingFace PyTorch parameters.
@@ -60,13 +73,14 @@ def huggingface(model_config: GPTNeoXConfig, quantization: Quantization) -> Exte
             w = np.reshape(w, org_shape)
             return w.astype(dtype)
 
-        qkv_proj = f"{attn}.query_key_value"
+        mlc_attn = f"model.layers.{i}.attention"
+        qkv_proj = f"{mlc_attn}.query_key_value"
         for param_name in ["weight", "bias"]:
             mlc_name = f"{qkv_proj}.{param_name}"
             mlc_param = named_parameters[mlc_name]
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [_name_transform(mlc_name)],
                 functools.partial(
                     transform_qkv_layout,
                     dtype=mlc_param.dtype,
@@ -81,7 +95,7 @@ def huggingface(model_config: GPTNeoXConfig, quantization: Quantization) -> Exte
                 param_dtype = mlc_param.dtype
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [_name_transform(mlc_name)],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=param_dtype,
