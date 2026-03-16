@@ -327,7 +327,7 @@ def build_macabi_binding(mlc_llm_source_dir: Path, output: Path) -> None:
     deployment_target = os.environ.get("MLC_MACABI_DEPLOYMENT_TARGET", "18.0")
     macabi_arch = os.environ.get("MLC_MACABI_ARCH", "").strip() or "arm64"
     logger.info("Build macabi binding (deployment target %s)", deployment_target)
-    cmd = [
+    cmd: List[str] = [
         "bash",
         str(mlc_llm_source_dir / "ios" / "prepare_libs.sh"),
         "--catalyst",
