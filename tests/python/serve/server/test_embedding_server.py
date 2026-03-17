@@ -19,6 +19,8 @@ Environment variables:
                                   (optional, defaults to dirname of model lib)
 """
 
+# pylint: disable=redefined-outer-name
+
 import json
 import os
 import signal
@@ -140,7 +142,7 @@ sys.path.insert(0, "{mlc_llm_path}")
 
 import fastapi
 import uvicorn
-from mlc_llm.serve.engine import AsyncEmbeddingEngine
+from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine
 from mlc_llm.serve.server import ServerContext
 from mlc_llm.serve.entrypoints import openai_entrypoints
 
@@ -158,45 +160,45 @@ ctx.add_embedding_engine("{EMBEDDING_MODEL_NAME}", engine)
 
 uvicorn.run(app, host="{EMBEDDING_SERVER_HOST}", port={EMBEDDING_SERVER_PORT}, log_level="info")
 """
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         [sys.executable, "-c", server_code],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-    )
+    ) as proc:
+        # Wait for server readiness — same polling pattern as PopenServer.start()
+        timeout = 120
+        attempts = 0.0
+        ready = False
+        while attempts < timeout:
+            try:
+                response = requests.get(f"{EMBEDDING_BASE_URL}/models", timeout=2)
+                if response.status_code == 200:
+                    ready = True
+                    break
+            except requests.RequestException:
+                pass
+            attempts += 0.5
+            time.sleep(0.5)
 
-    # Wait for server readiness — same polling pattern as PopenServer.start()
-    timeout = 120
-    attempts = 0.0
-    ready = False
-    while attempts < timeout:
+        if not ready:
+            stderr = proc.stderr.read().decode() if proc.stderr else ""
+            proc.kill()
+            raise RuntimeError(f"Embedding server failed to start in {timeout}s.\nStderr: {stderr}")
+
+        yield proc
+
+        # Cleanup — same pattern as PopenServer.terminate()
+        proc.send_signal(signal.SIGINT)
         try:
-            r = requests.get(f"{EMBEDDING_BASE_URL}/models", timeout=2)
-            if r.status_code == 200:
-                ready = True
-                break
-        except Exception:
-            pass
-        attempts += 0.5
-        time.sleep(0.5)
-
-    if not ready:
-        stderr = proc.stderr.read().decode() if proc.stderr else ""
-        proc.kill()
-        raise RuntimeError(f"Embedding server failed to start in {timeout}s.\nStderr: {stderr}")
-
-    yield proc
-
-    # Cleanup — same pattern as PopenServer.terminate()
-    proc.send_signal(signal.SIGINT)
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
 
 @pytest.fixture(scope="module")
 def client(launch_embedding_server):
     """OpenAI client connected to the embedding server."""
+    assert launch_embedding_server is not None
     return OpenAI(base_url=EMBEDDING_BASE_URL, api_key="none")
 
 
@@ -205,9 +207,10 @@ def client(launch_embedding_server):
 # ===================================================================
 
 
-def test_models_endpoint(client, launch_embedding_server):
+@pytest.mark.usefixtures("client")
+def test_models_endpoint():
     """The /v1/models endpoint lists the embedding model."""
-    resp = requests.get(f"{EMBEDDING_BASE_URL}/models")
+    resp = requests.get(f"{EMBEDDING_BASE_URL}/models", timeout=5)
     assert resp.status_code == 200
     data = resp.json()
     assert isinstance(data["data"], list)
@@ -218,7 +221,7 @@ def test_models_endpoint(client, launch_embedding_server):
 # ===================================================================
 
 
-def test_single_string_input(client, launch_embedding_server):
+def test_single_string_input(client):
     """Single string input returns one embedding."""
     resp = client.embeddings.create(input="What is machine learning?", model=EMBEDDING_MODEL_NAME)
     raw = resp.model_dump()
@@ -236,14 +239,14 @@ BATCH_INPUTS = [
 ]
 
 
-def test_batch_string_input(client, launch_embedding_server):
+def test_batch_string_input(client):
     """List of strings returns one embedding per input."""
     resp = client.embeddings.create(input=BATCH_INPUTS, model=EMBEDDING_MODEL_NAME)
     raw = resp.model_dump()
     check_embedding_response(raw, model=EMBEDDING_MODEL_NAME, num_embeddings=len(BATCH_INPUTS))
 
 
-def test_batch_index_ordering(client, launch_embedding_server):
+def test_batch_index_ordering(client):
     """Embedding indices are sequential."""
     resp = client.embeddings.create(input=BATCH_INPUTS, model=EMBEDDING_MODEL_NAME)
     indices = [d.index for d in resp.data]
@@ -255,7 +258,7 @@ def test_batch_index_ordering(client, launch_embedding_server):
 # ===================================================================
 
 
-def test_cosine_similarity_via_endpoint(client, launch_embedding_server):
+def test_cosine_similarity_via_endpoint(client):
     """Related texts have higher similarity than unrelated (end-to-end)."""
     resp = client.embeddings.create(
         input=[
@@ -278,7 +281,7 @@ def test_cosine_similarity_via_endpoint(client, launch_embedding_server):
 # ===================================================================
 
 
-def test_dimension_truncation(client, launch_embedding_server):
+def test_dimension_truncation(client):
     """dimensions parameter truncates and re-normalizes output."""
     target_dim = 256
     resp = client.embeddings.create(
@@ -298,7 +301,8 @@ def test_dimension_truncation(client, launch_embedding_server):
 # ===================================================================
 
 
-def test_base64_encoding(launch_embedding_server):
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_base64_encoding():
     """base64 encoding format returns base64-encoded embeddings."""
     resp = requests.post(
         f"{EMBEDDING_BASE_URL}/embeddings",
@@ -307,6 +311,7 @@ def test_base64_encoding(launch_embedding_server):
             "model": EMBEDDING_MODEL_NAME,
             "encoding_format": "base64",
         },
+        timeout=5,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -321,7 +326,8 @@ def test_base64_encoding(launch_embedding_server):
 # ===================================================================
 
 
-def test_any_model_name_works_with_single_engine(launch_embedding_server):
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_any_model_name_works_with_single_engine():
     """When only one embedding engine is served, any model name works.
 
     This mirrors ServerContext.get_engine() behavior: a single served
@@ -330,6 +336,7 @@ def test_any_model_name_works_with_single_engine(launch_embedding_server):
     resp = requests.post(
         f"{EMBEDDING_BASE_URL}/embeddings",
         json={"input": "test", "model": "any-name-works"},
+        timeout=5,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -353,10 +360,12 @@ if __name__ == "__main__":
 
     # Allow running against an already-running server
     c = OpenAI(base_url=EMBEDDING_BASE_URL, api_key="none")
-    test_models_endpoint(c, None)
-    test_single_string_input(c, None)
-    test_batch_string_input(c, None)
-    test_batch_index_ordering(c, None)
-    test_cosine_similarity_via_endpoint(c, None)
-    test_dimension_truncation(c, None)
+    test_models_endpoint()
+    test_single_string_input(c)
+    test_batch_string_input(c)
+    test_batch_index_ordering(c)
+    test_cosine_similarity_via_endpoint(c)
+    test_dimension_truncation(c)
+    test_base64_encoding()
+    test_any_model_name_works_with_single_engine()
     print("\nAll embedding server tests passed!")

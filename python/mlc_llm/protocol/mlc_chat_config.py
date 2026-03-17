@@ -1,7 +1,7 @@
 # pylint: disable=too-many-instance-attributes
 """Schema for mlc-chat-config"""
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -59,6 +59,9 @@ class MLCChatConfig(BaseModel):
     pad_token_id: Optional[int] = None
     bos_token_id: Optional[int] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
+
+    model_task: Literal["chat", "embedding"] = "chat"
+    embedding_metadata: Optional[Dict[str, Any]] = None
 
     def get_system_defaults_for_missing_fields(self) -> Dict[str, Any]:
         """Apply system default value for fields that are None

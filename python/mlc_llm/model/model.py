@@ -1,7 +1,7 @@
 """A centralized registry of all existing model architures and their configurations."""
 
 import dataclasses
-from typing import Any, Callable, Dict, Tuple
+from typing import Any, Callable, Dict, Literal, Optional, Tuple
 
 from tvm.relax.frontend import nn
 
@@ -62,6 +62,27 @@ FuncQuantization = Callable[[ModelConfig, Quantization], Tuple[nn.Module, Quanti
 
 
 @dataclasses.dataclass
+class EmbeddingMetadata:
+    """Embedding model metadata.
+
+    Parameters
+    ----------
+    model_type: Literal["encoder", "decoder"]
+        The type of the embedding model.
+
+    pooling_strategy: Literal["cls", "mean", "last"]
+        The pooling strategy to use for the embedding model.
+
+    normalize: bool = True
+        Default to normalize the embedding.
+    """
+
+    model_type: Literal["encoder", "decoder"]
+    pooling_strategy: Literal["cls", "mean", "last"]
+    normalize: bool = True
+
+
+@dataclasses.dataclass
 class Model:
     """All about a model architecture: its configuration, its parameter loader and quantization.
 
@@ -82,6 +103,12 @@ class Model:
     quantize: Dict[str, FuncQuantization]
         A dictionary that maps the name of a quantization method to quantized model and the
         quantization parameter mapping.
+
+    model_task: Literal["chat", "embedding"] = "chat"
+        A task of the model to distinguish between chat and embedding models. Default to "chat".
+
+    embedding_metadata: Optional[EmbeddingMetadata] = None
+        Metadata for the embedding model. Default to None.
     """
 
     name: str
@@ -89,6 +116,17 @@ class Model:
     model: Callable[[ModelConfig], nn.Module]
     source: Dict[str, FuncGetExternMap]
     quantize: Dict[str, FuncQuantization]
+
+    model_task: Literal["chat", "embedding"] = "chat"
+    embedding_metadata: Optional[EmbeddingMetadata] = None
+
+    def __post_init__(self):
+        if self.model_task == "embedding" and self.embedding_metadata is None:
+            raise ValueError(f"[Model] {self.name}: Embedding model must have embedding metadata.")
+        if self.model_task == "chat" and self.embedding_metadata is not None:
+            raise ValueError(
+                f"[Model] {self.name}: Chat model not expected to have embedding metadata."
+            )
 
 
 MODELS: Dict[str, Model] = {
@@ -358,6 +396,12 @@ MODELS: Dict[str, Model] = {
             qwen3_model.Qwen3EmbeddingModel,
             supports_block_scale=True,
         ),
+        model_task="embedding",
+        embedding_metadata=EmbeddingMetadata(
+            model_type="decoder",
+            pooling_strategy="last",
+            normalize=True,
+        ),
     ),
     "qwen3_moe": Model(
         name="qwen3_moe",
@@ -536,6 +580,12 @@ MODELS: Dict[str, Model] = {
         quantize=make_quantization_functions(
             bert_model.BertModel,
         ),
+        model_task="embedding",
+        embedding_metadata=EmbeddingMetadata(
+            model_type="encoder",
+            pooling_strategy="cls",
+            normalize=True,
+        ),
     ),
     "medusa": Model(
         name="medusa",
@@ -650,6 +700,12 @@ MODELS: Dict[str, Model] = {
         },
         quantize=make_quantization_functions(
             bert_model.BertModel,
+        ),
+        model_task="embedding",
+        embedding_metadata=EmbeddingMetadata(
+            model_type="encoder",
+            pooling_strategy="cls",
+            normalize=True,
         ),
     ),
 }

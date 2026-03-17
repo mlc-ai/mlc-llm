@@ -85,7 +85,10 @@ async def request_embedding(request: EmbeddingRequest):
             message=f"Embedding inference failed: {exc}",
         )
 
-    # Optional: truncate dimensions (Matryoshka-style)
+    # Optional: truncate dimensions (Matryoshka-style).
+    # This is API-level renormalization after dimension truncation,
+    # independent of model metadata normalize. Always renormalize
+    # truncated vectors to maintain unit length per OpenAI API contract.
     if request.dimensions is not None:
         for i, emb in enumerate(embeddings):
             vec = np.array(emb[: request.dimensions], dtype=np.float32)

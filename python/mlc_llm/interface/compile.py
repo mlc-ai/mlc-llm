@@ -188,7 +188,10 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
             "active_vocab_size": avs,
+            "model_task": args.model.model_task,
         }
+        if args.model.embedding_metadata:
+            metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):
