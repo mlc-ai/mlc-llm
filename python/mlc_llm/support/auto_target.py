@@ -28,7 +28,11 @@ NOT_FOUND = red("Not found")
 BuildFunc = Callable[[IRModule, "CompileArgs", Pass], None]
 
 
-def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[Target, BuildFunc]:
+def detect_target_and_host(
+    target_hint: str,
+    host_hint: str = "auto",
+    enable_subgroups: Optional[bool] = None,
+) -> Tuple[Target, BuildFunc]:
     """Detect the configuration for the target device and its host, for example, target GPU and
     the host CPU.
 
@@ -43,6 +47,7 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
     target, build_func = _detect_target_gpu(target_hint)
     if target.host is None:
         target = Target(target, host=_detect_target_host(host_hint))
+    target = _apply_webgpu_subgroups(target, enable_subgroups)
     if target.kind.name == "cuda":
         # Enable thrust for CUDA
         target_dict = dict(target.export())
@@ -59,6 +64,20 @@ def detect_target_and_host(target_hint: str, host_hint: str = "auto") -> Tuple[T
         )
         target = Target(target_dict)
     return target, build_func
+
+
+def _apply_webgpu_subgroups(target: Target, enable_subgroups: Optional[bool]) -> Target:
+    if not enable_subgroups:
+        return target
+    if target.kind.name != "webgpu":
+        logger.warning(
+            "--enable-subgroups is only supported for WebGPU targets; ignoring for %s",
+            target.kind.name,
+        )
+        return target
+    target_dict = dict(target.export())
+    target_dict["supports_subgroups"] = True
+    return Target(target_dict)
 
 
 def _detect_target_gpu(hint: str) -> Tuple[Target, BuildFunc]:
