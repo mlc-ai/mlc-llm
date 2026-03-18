@@ -157,7 +157,7 @@ def dequantize_gemv(  # pylint: disable=too-many-arguments
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
             with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
-                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                y = T.sblock_alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
@@ -246,7 +246,7 @@ def dequantize_float8_gemv(
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
             with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
-                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                y = T.sblock_alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
@@ -269,7 +269,7 @@ def dequantize_float8_gemv(
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
             with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
-                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                y = T.sblock_alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
@@ -363,7 +363,7 @@ def dequantize_block_scale_float8_gemv(
         for expert_id in T.thread_binding(experts_per_tok, thread="blockIdx.y"):
             with T.sblock("gemv_o"):
                 e = T.axis.spatial(experts_per_tok, expert_id)
-                y = T.alloc_buffer((out_features, in_features), model_dtype)
+                y = T.sblock_alloc_buffer((out_features, in_features), model_dtype)
                 for i1, i2 in T.grid(out_features, in_features):
                     with T.sblock("dequantize"):
                         i, j = T.axis.remap("SS", [i1, i2])
@@ -440,10 +440,10 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                 T.reads(indptr[:], X[:, :], W[:, :, :])
                 T.writes(O[:, :])
                 # pylint: disable=redefined-builtin
-                sum = T.alloc_buffer((2,), "int32", scope="local")
-                row = T.alloc_buffer((2,), "int32", scope="local")
-                cur_e = T.alloc_buffer((1,), "int32", scope="local")
-                tile_id = T.alloc_buffer((1,), "int32", scope="local")
+                sum = T.sblock_alloc_buffer((2,), "int32", scope="local")
+                row = T.sblock_alloc_buffer((2,), "int32", scope="local")
+                cur_e = T.sblock_alloc_buffer((1,), "int32", scope="local")
+                tile_id = T.sblock_alloc_buffer((1,), "int32", scope="local")
                 # pylint: enable=redefined-builtin
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
@@ -482,9 +482,9 @@ def group_gemm(x: Tensor, w: Tensor, indptr: Tensor):  # pylint: disable=too-man
                                     n_offset : n_offset + BLK_N,
                                 ]
                             )
-                            X_tile = T.alloc_buffer((BLK_M, K), dtype, scope="shared")
-                            W_tile = T.alloc_buffer((BLK_N, K), dtype, scope="shared")
-                            O_tile = T.alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
+                            X_tile = T.sblock_alloc_buffer((BLK_M, K), dtype, scope="shared")
+                            W_tile = T.sblock_alloc_buffer((BLK_N, K), dtype, scope="shared")
+                            O_tile = T.sblock_alloc_buffer((BLK_M, BLK_N), dtype, scope="local")
                             for a0, a1 in T.grid(BLK_M, K):
                                 with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])
@@ -650,10 +650,10 @@ def dequantize_group_gemm(
                 T.reads(X[:, :], w[:, :, :], scale[:, :, :], indptr[:])
                 T.writes(O[:, :])
                 # pylint: disable=redefined-builtin
-                sum = T.alloc_buffer((2,), indptr_dtype, scope="local")
-                row = T.alloc_buffer((2,), indptr_dtype, scope="local")
-                cur_e = T.alloc_buffer((1,), indptr_dtype, scope="local")
-                tile_id = T.alloc_buffer((1,), indptr_dtype, scope="local")
+                sum = T.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
+                row = T.sblock_alloc_buffer((2,), indptr_dtype, scope="local")
+                cur_e = T.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
+                tile_id = T.sblock_alloc_buffer((1,), indptr_dtype, scope="local")
                 # pylint: enable=redefined-builtin
                 sum[0] = 0
                 sum[1] = T.ceildiv(indptr[1] - indptr[0], BLK_M) * tiles_per_row
@@ -693,9 +693,9 @@ def dequantize_group_gemm(
                                     n_offset : n_offset + BLK_N,
                                 ]
                             )
-                            X_tile = T.alloc_buffer((BLK_M, K), model_dtype, scope="shared")
-                            W_tile = T.alloc_buffer((BLK_N, K), model_dtype, scope="shared")
-                            O_tile = T.alloc_buffer((BLK_M, BLK_N), "float32", scope="local")
+                            X_tile = T.sblock_alloc_buffer((BLK_M, K), model_dtype, scope="shared")
+                            W_tile = T.sblock_alloc_buffer((BLK_N, K), model_dtype, scope="shared")
+                            O_tile = T.sblock_alloc_buffer((BLK_M, BLK_N), "float32", scope="local")
                             for a0, a1 in T.grid(BLK_M, K):
                                 with T.sblock("X_shared"):
                                     i, j = T.axis.remap("SS", [a0, a1])

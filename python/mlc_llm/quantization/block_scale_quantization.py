@@ -808,7 +808,7 @@ def dequantize_float8_groupwise_scaled_gemv(
         o: T.Buffer((n,), out_dtype),  # type: ignore
     ):
         T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
-        y = T.alloc_buffer((n, k), model_dtype)
+        y = T.sblock_alloc_buffer((n, k), model_dtype)
         for i1, i2 in T.grid(n, k):
             with T.sblock("dequantize"):
                 i, j = T.axis.remap("SS", [i1, i2])
