@@ -45,7 +45,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
     TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
-        return T.alloc_buffer((1,), dtype, scope="local")
+        return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     def valid(lsum, lmin, cmin, top_p):
         return tvm.tir.all(lsum >= top_p, top_p > lsum - cmin * lmin)
@@ -69,27 +69,27 @@ def top_p_pivot(pN, target: tvm.target.Target):
         final_lsum = T.match_buffer(var_final_lsum, (B,), "float32")
 
         with T.sblock("kernel"):
-            pivot = T.alloc_buffer((pN,), "float32", scope="local")
+            pivot = T.sblock_alloc_buffer((pN,), "float32", scope="local")
             top_p = _var("float32")
 
-            L = T.alloc_buffer((1,), "float32", scope="shared")
-            R = T.alloc_buffer((1,), "float32", scope="shared")
+            L = T.sblock_alloc_buffer((1,), "float32", scope="shared")
+            R = T.sblock_alloc_buffer((1,), "float32", scope="shared")
             L_local = _var("float32")
             R_local = _var("float32")
 
             q = _var("float32")
-            lsum = T.alloc_buffer((pN,), "float32", scope="local")
-            lmin_broadcast = T.alloc_buffer((1), "float32", scope="shared")
+            lsum = T.sblock_alloc_buffer((pN,), "float32", scope="local")
+            lmin_broadcast = T.sblock_alloc_buffer((1), "float32", scope="shared")
             lmin_broadcast_local = _var("float32")
-            lmin = T.alloc_buffer((pN,), "float32", scope="local")
-            cmin = T.alloc_buffer((pN,), "int32", scope="local")
+            lmin = T.sblock_alloc_buffer((pN,), "float32", scope="local")
+            cmin = T.sblock_alloc_buffer((pN,), "int32", scope="local")
             total_sum = _var("float32")
 
             it = _var("int32")
             es_local = _var("bool")
-            es = T.alloc_buffer((1,), "bool", scope="shared")
+            es = T.sblock_alloc_buffer((1,), "bool", scope="shared")
             find_pivot_local = _var("bool")
-            find_pivot = T.alloc_buffer((1,), "bool", scope="shared")
+            find_pivot = T.sblock_alloc_buffer((1,), "bool", scope="shared")
 
             total_sum_reduce = _var("float32")
             lsum_reduce = _var("float32")
@@ -296,7 +296,7 @@ def top_p_renorm(target: tvm.target.Target = None):
         TX = min(TX, max_num_threads_per_block)
 
     def _var(dtype="int32"):
-        return T.alloc_buffer((1,), dtype, scope="local")
+        return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     # fmt: off
     @T.prim_func(private=True)

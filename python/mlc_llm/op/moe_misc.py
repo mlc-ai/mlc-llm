@@ -99,8 +99,8 @@ def gating_topk(scores: Tensor, k: int) -> Tuple[Tensor, Tensor]:
             x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
             out = T.match_buffer(var_out, (batch_size, k_val), dtype)
             out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
-            local_top_k = T.alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k = T.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = T.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
                     with T.sblock("top_k"):
@@ -188,10 +188,10 @@ def gating_softmax_topk(  # pylint: disable=too-many-statements
             x = T.match_buffer(var_x, (batch_size, num_local_experts), dtype)
             out = T.match_buffer(var_out, (batch_size, k_val), dtype)
             out_index = T.match_buffer(var_out_index, (batch_size, k_val), index_dtype)
-            local_top_k = T.alloc_buffer((k_val,), dtype=dtype, scope="local")
-            local_top_k_index = T.alloc_buffer((k_val,), dtype=index_dtype, scope="local")
-            local_top_k_f32 = T.alloc_buffer((k_val,), dtype="float32", scope="local")
-            local_top_k_max = T.alloc_buffer((1,), dtype="float32", scope="local")
+            local_top_k = T.sblock_alloc_buffer((k_val,), dtype=dtype, scope="local")
+            local_top_k_index = T.sblock_alloc_buffer((k_val,), dtype=index_dtype, scope="local")
+            local_top_k_f32 = T.sblock_alloc_buffer((k_val,), dtype="float32", scope="local")
+            local_top_k_max = T.sblock_alloc_buffer((1,), dtype="float32", scope="local")
             for io in T.thread_binding(0, T.ceildiv(batch_size, TX), "blockIdx.x"):
                 for ii in T.thread_binding(0, TX, "threadIdx.x"):
                     with T.sblock("top_k"):

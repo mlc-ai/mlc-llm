@@ -8,7 +8,7 @@ from tvm.script import tir as T
 
 
 def _var(dtype, size=1):
-    return T.alloc_buffer((size,), dtype, scope="local")
+    return T.sblock_alloc_buffer((size,), dtype, scope="local")
 
 
 # pylint: disable=invalid-name,missing-docstring,no-else-return,too-many-locals,useless-parent-delegation

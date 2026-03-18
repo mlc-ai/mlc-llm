@@ -31,9 +31,9 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
         O = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), in_dtype)
-        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.alloc_buffer((batch_size, 1), scope="shared")
-        sum_local = T.alloc_buffer((TX, batch_size, 1), scope="local")
+        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = T.sblock_alloc_buffer((batch_size, 1), scope="shared")
+        sum_local = T.sblock_alloc_buffer((TX, batch_size, 1), scope="local")
         for v_bx in T.thread_binding(batch_size, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,
@@ -102,9 +102,9 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
         O = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (1, seq_len, hidden_size), in_dtype)
-        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.alloc_buffer((1, seq_len), scope="shared")
-        sum_local = T.alloc_buffer((TX, 1, seq_len), scope="local")
+        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = T.sblock_alloc_buffer((1, seq_len), scope="shared")
+        sum_local = T.sblock_alloc_buffer((TX, 1, seq_len), scope="local")
         for v_bx in T.thread_binding(seq_len, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,

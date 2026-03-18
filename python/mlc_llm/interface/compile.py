@@ -196,7 +196,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
         pass_config = {"relax.backend.use_cuda_graph": args.opt.cudagraph}
         # TODO: Remove this workaround when the TVM CSE regression is fixed.
-        # Temporary workaround for TVM CSE regression that can produce 
+        # Temporary workaround for TVM CSE regression that can produce
         # dangling `cse_v*` vars during host codegen.
         pass_config["tir.disable_cse_tir"] = True
 

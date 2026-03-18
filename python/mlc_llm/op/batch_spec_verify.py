@@ -54,7 +54,7 @@ def batch_spec_verify(vocab_size):
     TX = 1024
 
     def _var(dtype="int32"):
-        return T.alloc_buffer((1,), dtype, scope="local")
+        return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     # fmt: off
     @T.prim_func(private=True)
@@ -99,8 +99,8 @@ def batch_spec_verify(vocab_size):
             q_child = _var("float32")
             uniform_sample = _var("float32")
 
-            pred_shared = T.alloc_buffer((1,), "bool", scope="shared")
-            pred_local = T.alloc_buffer((1,), "bool", scope="local")
+            pred_shared = T.sblock_alloc_buffer((1,), "bool", scope="shared")
+            pred_local = T.sblock_alloc_buffer((1,), "bool", scope="local")
 
             for _bx in T.thread_binding(0, nbatch, thread="blockIdx.x"):
                 for _tx in T.thread_binding(0, TX, thread="threadIdx.x"):
