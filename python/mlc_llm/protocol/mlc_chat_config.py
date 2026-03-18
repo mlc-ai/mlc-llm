@@ -60,7 +60,7 @@ class MLCChatConfig(BaseModel):
     bos_token_id: Optional[int] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
 
-    model_task: Literal["chat", "embedding"] = "chat"
+    field_model_task: Literal["chat", "embedding"] = Field(default="chat", alias="model_task")
     embedding_metadata: Optional[Dict[str, Any]] = None
 
     def get_system_defaults_for_missing_fields(self) -> Dict[str, Any]:
