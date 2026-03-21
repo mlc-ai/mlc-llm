@@ -4,14 +4,13 @@ Implementation for GPTNeoX architecture.
 
 import dataclasses
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import te, tir
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import CausalLMABC, PagedKVCache, RopeMode
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
 from mlc_llm.support.style import bold
@@ -231,7 +230,7 @@ class GPTNeoXLayer(nn.Module):
 
 class GPTNeoXModel(nn.Module):
     def __init__(self, config: GPTNeoXConfig):
-        self.embed_in = nn.Embedding(num="vocab_size", dim=config.hidden_size)
+        self.embed_tokens = nn.Embedding(num="vocab_size", dim=config.hidden_size)
         self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
@@ -244,10 +243,11 @@ class GPTNeoXModel(nn.Module):
         return hidden_states
 
 
-class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTNeoXForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTNeoXConfig):
-        self.gpt_neox = GPTNeoXModel(config)
-        self.embed_out = nn.Linear(
+        super().__init__()
+        self.model = GPTNeoXModel(config)
+        self.lm_head = nn.Linear(
             in_features=config.hidden_size,
             out_features="vocab_size",
             bias=False,
@@ -260,76 +260,13 @@ class GPTNeoXForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attrib
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.dtype = "float32"
         self.rotary_pct = config.rotary_pct
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
-
-    def batch_forward(
-        self,
-        input_embeds: Tensor,
-        paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None,
-    ):
-        op_ext.configure()
-
-        hidden_states = self.gpt_neox(input_embeds, paged_kv_cache)
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
-        logits = self.embed_out(hidden_states)
+    def get_logits(self, hidden_states: Tensor):
+        logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-
-    def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self.gpt_neox.embed_in(input_ids)
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.embed_out(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        hidden_states = self.gpt_neox(input_embed, paged_kv_cache)
-        logits = self.embed_out(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
-        return logits, paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,

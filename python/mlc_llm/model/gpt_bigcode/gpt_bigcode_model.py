@@ -3,14 +3,13 @@ Implementation for GPTBigCode architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import te, tir
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import CausalLMABC, PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -165,7 +164,7 @@ class GPTBigCodeBlock(nn.Module):
 class GPTBigCodeModel(nn.Module):
     def __init__(self, config: GPTBigCodeConfig):
         assert config.n_embd % config.n_head == 0
-        self.wte = nn.Embedding("vocab_size", config.n_embd)
+        self.embed_tokens = nn.Embedding("vocab_size", config.n_embd)
         self.wpe = nn.Embedding(config.n_positions, config.n_embd)
         self.h = nn.ModuleList([GPTBigCodeBlock(config) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
@@ -185,85 +184,24 @@ class GPTBigCodeModel(nn.Module):
         return hidden_states
 
 
-class GPTBigCodeForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class GPTBigCodeForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: GPTBigCodeConfig):
-        self.transformer = GPTBigCodeModel(config)
+        super().__init__()
+        self.model = GPTBigCodeModel(config)
         self.lm_head = nn.Linear(config.n_embd, "vocab_size", bias=False)
         self.n_layer = config.n_layer
+        self.hidden_size = config.n_embd
         self.n_embd = config.n_embd
         self.num_q_heads = config.n_head // config.tensor_parallel_shards
         self.num_kv_heads = 1
         self.head_dim = config.n_embd // config.n_head
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.dtype = "float32"
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
-
-    def batch_forward(
-        self,
-        input_embed: Tensor,
-        paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None,
-    ):
-        op_ext.configure()
-
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
+    def get_logits(self, hidden_states: Tensor):
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-
-    def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self.transformer.wte(input_ids)
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        hidden_states = self.transformer(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
-        return logits, paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,

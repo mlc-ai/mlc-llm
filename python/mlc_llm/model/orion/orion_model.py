@@ -3,14 +3,13 @@ Implementation for Orion-14B architecture.
 """
 
 import dataclasses
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from tvm import te, tir
+from tvm import tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
-from mlc_llm import op as op_ext
-from mlc_llm.nn import PagedKVCache, RopeMode
+from mlc_llm.nn import CausalLMABC, PagedKVCache, RopeMode
 from mlc_llm.support import logging
 from mlc_llm.support import tensor_parallel as tp
 from mlc_llm.support.config import ConfigBase
@@ -205,8 +204,9 @@ class OrionModel(nn.Module):
         return hidden_states
 
 
-class OrionForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attributes
+class OrionForCausalLM(CausalLMABC):  # pylint: disable=too-many-instance-attributes
     def __init__(self, config: OrionConfig):
+        super().__init__()
         self.model = OrionModel(config)
         self.lm_head = nn.Linear(config.hidden_size, "vocab_size", bias=False)
         self.num_hidden_layers = config.num_hidden_layers
@@ -217,75 +217,12 @@ class OrionForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.vocab_size = config.vocab_size
         self.rope_theta = config.position_embedding_base
         self.tensor_parallel_shards = config.tensor_parallel_shards
-        self.dtype = "float32"
 
-    def to(self, dtype: Optional[str] = None):
-        super().to(dtype=dtype)
-        if dtype is not None:
-            self.dtype = dtype
-
-    def batch_forward(
-        self,
-        input_embeds: Tensor,
-        paged_kv_cache: PagedKVCache,
-        logit_positions: Optional[Tensor] = None,
-    ):
-        op_ext.configure()
-
-        hidden_states = self.model(input_embeds, paged_kv_cache)
-        if logit_positions is not None:
-            hidden_states = op.take(hidden_states, logit_positions, axis=1)
+    def get_logits(self, hidden_states: Tensor):
         logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits
-
-    def embed(self, input_ids: Tensor):
-        if self.tensor_parallel_shards > 1:
-            input_ids = op.ccl_broadcast_from_worker0(input_ids)
-        return self.model.embed_tokens(input_ids)
-
-    def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):  # x[:-1,:]
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def decode(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-
-        hidden_states = self.model(input_embed, paged_kv_cache)
-        logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache
-
-    def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
-    ):
-        if self.tensor_parallel_shards > 1:
-            logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
-        logits = self.batch_forward(input_embeds, paged_kv_cache, logit_positions)
-        return logits, paged_kv_cache
-
-    def batch_decode(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
-
-    def batch_verify(self, input_embeds: Tensor, paged_kv_cache: PagedKVCache):
-        logits = self.batch_forward(input_embeds, paged_kv_cache)
-        return logits, paged_kv_cache
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,

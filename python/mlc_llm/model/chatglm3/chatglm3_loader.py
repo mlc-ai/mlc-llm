@@ -39,22 +39,22 @@ def huggingface(model_config: GLMConfig, quantization: Quantization) -> ExternMa
 
     mapping = ExternMapping()
 
-    mlc_name = "transformer.embedding.weight"
-    mlc_param = named_parameters[mlc_name]
-    mapping.add_mapping(
-        mlc_name,
-        ["transformer.embedding.word_embeddings.weight"],
-        functools.partial(
-            lambda x, dtype: x.astype(dtype),
-            dtype=mlc_param.dtype,
-        ),
-    )
+    def _name_transform(param_name: str) -> str:
+        # model.embed_tokens.weight -> transformer.embedding.word_embeddings.weight
+        if param_name.startswith("model.embed_tokens."):
+            return param_name.replace(
+                "model.embed_tokens.", "transformer.embedding.word_embeddings.", 1
+            )
+        # model.* -> transformer.* (encoder, output_layer, etc.)
+        if param_name.startswith("model."):
+            return param_name.replace("model.", "transformer.", 1)
+        return param_name
 
     for mlc_name, mlc_param in named_parameters.items():
         if mlc_name not in mapping.param_map:
             mapping.add_mapping(
                 mlc_name,
-                [mlc_name],
+                [_name_transform(mlc_name)],
                 functools.partial(
                     lambda x, dtype: x.astype(dtype),
                     dtype=mlc_param.dtype,
