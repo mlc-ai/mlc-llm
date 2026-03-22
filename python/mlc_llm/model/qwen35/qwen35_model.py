@@ -378,62 +378,6 @@ def create_gated_delta_net_func(
 # ============================================================================
 
 
-def _te_scatter_layer(stacked: te.Tensor, layer_data: te.Tensor, layer_idx: int):
-    """Scatter a single layer's data into a stacked tensor at the given index.
-
-    stacked: (num_layers, ...) — the full stacked tensor
-    layer_data: (...) — data for one layer
-    Returns a new tensor where stacked[layer_idx] = layer_data, rest unchanged.
-    """
-    # We need to handle arbitrary trailing dims. For state: (n_layers, b, h, K, V)
-    # For conv: (n_layers, b, kernel-1, d)
-    shape = stacked.shape
-    ndim = len(shape)
-
-    if ndim == 5:
-        return te.compute(
-            shape,
-            lambda i0, i1, i2, i3, i4: tir.if_then_else(
-                i0 == layer_idx,
-                layer_data[i1, i2, i3, i4],
-                stacked[i0, i1, i2, i3, i4],
-            ),
-            name="scatter_layer",
-        )
-    elif ndim == 4:
-        return te.compute(
-            shape,
-            lambda i0, i1, i2, i3: tir.if_then_else(
-                i0 == layer_idx,
-                layer_data[i1, i2, i3],
-                stacked[i0, i1, i2, i3],
-            ),
-            name="scatter_layer",
-        )
-    else:
-        raise ValueError(f"Unsupported ndim={ndim} for scatter_layer")
-
-
-def _te_extract_layer_5d(stacked: te.Tensor, layer_idx: int):
-    """Extract stacked[layer_idx] from a 5D tensor (n_layers, b, h, K, V) → (b, h, K, V)."""
-    shape = stacked.shape
-    return te.compute(
-        (shape[1], shape[2], shape[3], shape[4]),
-        lambda i1, i2, i3, i4: stacked[layer_idx, i1, i2, i3, i4],
-        name="extract_layer",
-    )
-
-
-def _te_extract_layer_4d(stacked: te.Tensor, layer_idx: int):
-    """Extract stacked[layer_idx] from a 4D tensor (n_layers, b, k, d) → (b, k, d)."""
-    shape = stacked.shape
-    return te.compute(
-        (shape[1], shape[2], shape[3]),
-        lambda i1, i2, i3: stacked[layer_idx, i1, i2, i3],
-        name="extract_layer",
-    )
-
-
 class Qwen35GatedDeltaNet(nn.Module):
     """GatedDeltaNet linear attention layer."""
 
@@ -476,103 +420,7 @@ class Qwen35GatedDeltaNet(nn.Module):
         # Output gating norm — per-head RMSNorm (shared weight across heads)
         self.norm = nn.RMSNorm(self.value_head_dim, -1, config.rms_norm_eps, bias=False)
 
-    def forward(
-        self,
-        hidden_states: Tensor,
-        gdn_state_in: Tensor,
-        gdn_state_out: Tensor,
-        gdn_conv_in: Tensor,
-        gdn_conv_out: Tensor,
-    ) -> Tensor:
-        b, s, _ = hidden_states.shape
-        K = self.key_head_dim
-        V = self.value_head_dim
-        n_kh = self.num_key_heads
-        n_vh = self.num_value_heads
-        layer_idx = self.linear_layer_idx
-
-        # Input projections
-        qkv = self.in_proj_qkv(hidden_states)  # (b, s, qkv_dim)
-        z = self.in_proj_z(hidden_states)  # (b, s, n_vh * V)
-        alpha = self.in_proj_a(hidden_states)  # (b, s, n_vh)
-        beta_raw = self.in_proj_b(hidden_states)  # (b, s, n_vh)
-
-        # Causal Conv1D on QKV
-        # For decode (s=1): gather last (kernel_size-1) cached tokens + current
-        # Conv state shape: (b, kernel_size-1, qkv_dim) per layer
-        qkv, gdn_conv_out = self._causal_conv1d(qkv, gdn_conv_in, gdn_conv_out, layer_idx)
-
-        # SiLU activation on QKV after conv
-        qkv = op.silu(qkv)
-
-        # Split QKV — use op.split along last dim
-        q_dim = n_kh * K
-        k_dim = n_kh * K
-        v_dim = n_vh * V
-        qkv_parts = op.split(qkv, [q_dim, q_dim + k_dim], axis=-1)
-        q = op.reshape(qkv_parts[0], (b, s, n_kh, K))
-        k = op.reshape(qkv_parts[1], (b, s, n_kh, K))
-        v = op.reshape(qkv_parts[2], (b, s, n_vh, V))
-
-        # L2 normalize Q and K
-        q = self._l2_normalize(q)
-        k = self._l2_normalize(k)
-
-        # Gate computation: g = -exp(A_log) * softplus(alpha + dt_bias)
-        # beta = sigmoid(beta_raw)
-        # We compute exp(g) for the kernel
-        gate, beta = self._compute_gate_beta(alpha, beta_raw)
-
-        # Note: beta is already (b, s, n_vh) since in_proj_b outputs num_value_heads.
-        # No GVA expansion needed for beta.
-
-        # Extract this layer's state from the stacked state tensor
-        # gdn_state_in shape: (num_linear_layers, b, n_vh, K, V)
-        # We need: (b, n_vh, K, V)
-        # op_pattern=8 (kOpaque) prevents fusion with upstream ops to stay under
-        # WebGPU's 10 storage buffers per shader limit.
-        state_in_layer = op.tensor_expr_op(
-            lambda s: _te_extract_layer_5d(s, layer_idx),
-            "extract_state",
-            [gdn_state_in],
-            attrs={"op_pattern": 8},
-        )
-
-        # Recurrent computation via TIR kernel — handles full sequence length.
-        # q, k: (b, s, n_kh, K), v: (b, s, n_vh, V), gate/beta: (b, s, n_vh)
-        out_recurrent, state_out_layer = op.tensor_ir_op(
-            create_gated_delta_net_func(
-                num_key_heads=n_kh,
-                num_value_heads=n_vh,
-                key_head_dim=K,
-                value_head_dim=V,
-                dtype=self.dtype,
-            ),
-            "gated_delta_net",
-            [q, k, v, gate, beta, state_in_layer],
-            [
-                Tensor.placeholder([b, s, n_vh, V], "float32"),
-                Tensor.placeholder([b, n_vh, K, V], "float32"),
-            ],
-        )
-
-        # Cast recurrent output back to model dtype
-        out_recurrent = op.astype(out_recurrent, self.dtype)
-
-        # Write updated state back
-        # state_out_layer: (b, n_vh, K, V) → needs to go into gdn_state_out[layer_idx]
-        # We handle this via a te.compute to scatter into the right slot
-        gdn_state_out = self._scatter_state(gdn_state_out, state_out_layer, layer_idx)
-
-        # Output gating: per-head RMSNorm(out) * SiLU(z)
-        # norm weight is (V,), applied per-head
-        # out_recurrent is already (b, s, n_vh, V)
-        out_normed = self.norm(out_recurrent)
-        out_flat = op.reshape(out_normed, (b, s, n_vh * V))
-        out_gated = out_flat * op.silu(z)
-        return self.out_proj(out_gated), gdn_state_out, gdn_conv_out
-
-    def forward_rnn(self, hidden_states: Tensor, state: RNNState) -> Tuple[Tensor, RNNState]:
+    def forward(self, hidden_states: Tensor, state: RNNState) -> Tuple[Tensor, RNNState]:
         """Forward using RNNState (for MLCEngine batch methods)."""
         b, s, _ = hidden_states.shape
         K = self.key_head_dim
@@ -701,78 +549,6 @@ class Qwen35GatedDeltaNet(nn.Module):
         )
         return result, new_conv_state
 
-    def _causal_conv1d(
-        self, qkv: Tensor, conv_in: Tensor, conv_out: Tensor, layer_idx: int
-    ) -> Tensor:
-        """Causal depthwise Conv1D with state caching.
-
-        For decode (s=1): uses cached state + current token.
-        conv_in shape: (num_linear_layers, b, kernel_size-1, qkv_dim)
-        """
-        b, s, d = qkv.shape
-        kernel_size = self.config.linear_conv_kernel_dim  # 4
-
-        # Extract this layer's conv state
-        # conv_in[layer_idx]: (b, kernel_size-1, d)
-        conv_state = op.tensor_expr_op(
-            lambda s: _te_extract_layer_4d(s, layer_idx),
-            "extract_conv_state",
-            [conv_in],
-            attrs={"op_pattern": 8},
-        )
-
-        # Update conv state: store last kernel_size-1 tokens from combined [old_state, qkv]
-        def _te_update_conv_state(old_state: te.Tensor, qkv_in: te.Tensor):
-            ks_minus_1 = old_state.shape[1]  # kernel_size - 1
-            seq = qkv_in.shape[1]
-            # Combined window = [old_state[0..ks_m1-1], qkv[0..seq-1]]
-            # We want the last ks_m1 entries, i.e. positions [seq+ti] in the combined window
-            return te.compute(
-                old_state.shape,
-                lambda bi, ti, di: tir.if_then_else(
-                    seq + ti < ks_minus_1,
-                    old_state[bi, seq + ti, di],
-                    qkv_in[bi, seq + ti - ks_minus_1, di],
-                ),
-                name="update_conv_state",
-            )
-
-        new_conv_state = op.tensor_expr_op(
-            _te_update_conv_state, "update_conv_state", [conv_state, qkv]
-        )
-        conv_out = self._scatter_conv_state(conv_out, new_conv_state, layer_idx)
-
-        # Depthwise conv: compute directly from conv_state and qkv without concat
-        # For decode (s=1): window = [state[0], state[1], state[2], qkv[0]]
-        # For general s: window[pos] = state[pos] if pos < ks-1 else qkv[pos - (ks-1)]
-        def _te_depthwise_conv(state: te.Tensor, qkv_in: te.Tensor, weight: te.Tensor):
-            # state: (b, ks-1, d), qkv_in: (b, s, d), weight: (d, 1, ks)
-            ks_m1 = state.shape[1]  # kernel_size - 1
-            seq = qkv_in.shape[1]
-            kk = te.reduce_axis((0, kernel_size), name="kk")
-            # window[si+kk] = state[si+kk] if si+kk < ks_m1 else qkv_in[si+kk-ks_m1]
-            return te.compute(
-                (qkv_in.shape[0], seq, qkv_in.shape[2]),
-                lambda bi, si, di: te.sum(
-                    tir.if_then_else(
-                        si + kk < ks_m1,
-                        state[bi, si + kk, di],
-                        qkv_in[bi, si + kk - ks_m1, di],
-                    )
-                    * weight[di, 0, kk],
-                    axis=kk,
-                ),
-                name="depthwise_conv1d",
-            )
-
-        result = op.tensor_expr_op(
-            _te_depthwise_conv,
-            "depthwise_conv1d",
-            [conv_state, qkv, self.conv1d_weight],
-            attrs={"op_pattern": 8},
-        )
-        return result, conv_out
-
     def _l2_normalize(self, x: Tensor) -> Tensor:
         """L2 normalize along last dimension with eps=1e-6."""
         # x: (b, s, h, d) — compute in float32 for numerical stability
@@ -832,24 +608,6 @@ class Qwen35GatedDeltaNet(nn.Module):
 
         return op.tensor_expr_op(_te_repeat, "repeat_interleave", [x])
 
-    def _scatter_state(self, state_out: Tensor, layer_state: Tensor, layer_idx: int) -> Tensor:
-        """Scatter a single layer's state into the stacked state tensor."""
-        return op.tensor_expr_op(
-            lambda s, l: _te_scatter_layer(s, l, layer_idx),
-            "scatter_state",
-            [state_out, layer_state],
-            attrs={"op_pattern": 8},
-        )
-
-    def _scatter_conv_state(self, conv_out: Tensor, layer_conv: Tensor, layer_idx: int) -> Tensor:
-        """Scatter a single layer's conv state into the stacked conv tensor."""
-        return op.tensor_expr_op(
-            lambda s, l: _te_scatter_layer(s, l, layer_idx),
-            "scatter_conv_state",
-            [conv_out, layer_conv],
-            attrs={"op_pattern": 8},
-        )
-
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
         if dtype is not None:
@@ -865,13 +623,18 @@ class Qwen35GatedDeltaNet(nn.Module):
 
 
 class Qwen35DecoderLayer(nn.Module):
-    def __init__(self, config: Qwen35Config, layer_id: int, linear_layer_idx: int = -1):
+    def __init__(self, config: Qwen35Config, layer_id: int, category_id: int):
+        '''
+        layer_id is the id of the layer within all of the layers
+        category_id is the index of the layer within the category of layers that it belongs to
+        ie, linear attention or regular attention
+        '''
         self.layer_type = config.layer_types()[layer_id]
         if self.layer_type == "full_attention":
             self.self_attn = Qwen35Attention(config)
         else:
-            self.linear_attn = Qwen35GatedDeltaNet(config, linear_layer_idx)
-
+            self.linear_attn = Qwen35GatedDeltaNet(config, category_id)
+        self.category_id = category_id
         self.mlp = Qwen35MLP(config)
         self.input_layernorm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
         self.post_attention_layernorm = nn.RMSNorm(
@@ -883,37 +646,13 @@ class Qwen35DecoderLayer(nn.Module):
         self,
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
-        attn_layer_id: int,
-        gdn_state_in: Optional[Tensor] = None,
-        gdn_state_out: Optional[Tensor] = None,
-        gdn_conv_in: Optional[Tensor] = None,
-        gdn_conv_out: Optional[Tensor] = None,
-    ):
-        out = self.input_layernorm(hidden_states)
-        if self.layer_type == "full_attention":
-            out = self.self_attn(out, paged_kv_cache, attn_layer_id)
-        else:
-            out, gdn_state_out, gdn_conv_out = self.linear_attn(
-                out, gdn_state_in, gdn_state_out, gdn_conv_in, gdn_conv_out
-            )
-        hidden_states = self._apply_residual(out, residual=hidden_states)
-        out = self.post_attention_layernorm(hidden_states)
-        out = self.mlp(out)
-        hidden_states = self._apply_residual(out, residual=hidden_states)
-        return hidden_states, gdn_state_out, gdn_conv_out
-
-    def forward_rnn(
-        self,
-        hidden_states: Tensor,
-        paged_kv_cache: PagedKVCache,
-        attn_layer_id: int,
         state: RNNState,
     ):
         out = self.input_layernorm(hidden_states)
         if self.layer_type == "full_attention":
-            out = self.self_attn(out, paged_kv_cache, attn_layer_id)
+            out = self.self_attn(out, paged_kv_cache, self.category_id)
         else:
-            out, state = self.linear_attn.forward_rnn(out, state)
+            out, state = self.linear_attn.forward(out, state)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.post_attention_layernorm(hidden_states)
         out = self.mlp(out)
@@ -931,61 +670,29 @@ class Qwen35Model(nn.Module):
         self.embed_tokens = Qwen35Embedding(config.vocab_size, config.hidden_size)
         layer_types = config.layer_types()
         linear_idx = 0
+        attn_idx = 0
         layers = []
-        for i in range(config.num_hidden_layers):
-            if layer_types[i] == "linear_attention":
-                layers.append(Qwen35DecoderLayer(config, i, linear_layer_idx=linear_idx))
+        for i, ltype in enumerate(layer_types):
+            if ltype == "linear_attention":
+                layers.append(Qwen35DecoderLayer(config, i, category_id=linear_idx))
                 linear_idx += 1
             else:
-                layers.append(Qwen35DecoderLayer(config, i))
+                layers.append(Qwen35DecoderLayer(config, i, category_id=attn_idx))
+                attn_idx += 1
         self.layers = nn.ModuleList(layers)
         self.norm = nn.RMSNorm(config.hidden_size, -1, config.rms_norm_eps, bias=False)
-        self.layer_types = layer_types
 
     def forward(
-        self,
-        inputs: Tensor,
-        paged_kv_cache: PagedKVCache,
-        gdn_state_in: Optional[Tensor] = None,
-        gdn_state_out: Optional[Tensor] = None,
-        gdn_conv_in: Optional[Tensor] = None,
-        gdn_conv_out: Optional[Tensor] = None,
-    ):
-        hidden_states = inputs
-        attn_layer_id = 0
-        for layer_id, layer in enumerate(self.layers):
-            if self.layer_types[layer_id] == "full_attention":
-                hidden_states, _, _ = layer(hidden_states, paged_kv_cache, attn_layer_id)
-                attn_layer_id += 1
-            else:
-                hidden_states, gdn_state_out, gdn_conv_out = layer(
-                    hidden_states,
-                    paged_kv_cache,
-                    -1,  # not used for linear layers
-                    gdn_state_in,
-                    gdn_state_out,
-                    gdn_conv_in,
-                    gdn_conv_out,
-                )
-        hidden_states = self.norm(hidden_states)
-        return hidden_states, gdn_state_out, gdn_conv_out
-
-    def forward_rnn(
         self,
         inputs: Tensor,
         paged_kv_cache: PagedKVCache,
         state: RNNState,
     ):
         hidden_states = inputs
-        attn_layer_id = 0
         for layer_id, layer in enumerate(self.layers):
-            if self.layer_types[layer_id] == "full_attention":
-                hidden_states, state = layer.forward_rnn(
-                    hidden_states, paged_kv_cache, attn_layer_id, state
-                )
-                attn_layer_id += 1
-            else:
-                hidden_states, state = layer.forward_rnn(hidden_states, paged_kv_cache, -1, state)
+            hidden_states, state = layer.forward(
+                hidden_states, paged_kv_cache, state
+            )
         hidden_states = self.norm(hidden_states)
         return hidden_states, state
 
@@ -1025,56 +732,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
             input_ids = op.ccl_broadcast_from_worker0(input_ids)
         return self.model.embed_tokens(input_ids)
 
-    def prefill(
-        self,
-        input_embed: Tensor,
-        paged_kv_cache: PagedKVCache,
-        gdn_state_in: Tensor,
-        gdn_state_out: Tensor,
-        gdn_conv_in: Tensor,
-        gdn_conv_out: Tensor,
-    ):
-        op_ext.configure()
-
-        def _index(x: te.Tensor):
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states, gdn_state_out, gdn_conv_out = self.model(
-            input_embed, paged_kv_cache, gdn_state_in, gdn_state_out, gdn_conv_in, gdn_conv_out
-        )
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
-        if self.tie_word_embeddings:
-            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
-        else:
-            logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache, gdn_state_out, gdn_conv_out
-
-    def decode(
-        self,
-        input_embed: Tensor,
-        paged_kv_cache: PagedKVCache,
-        gdn_state_in: Tensor,
-        gdn_state_out: Tensor,
-        gdn_conv_in: Tensor,
-        gdn_conv_out: Tensor,
-    ):
-        op_ext.configure()
-
-        hidden_states, gdn_state_out, gdn_conv_out = self.model(
-            input_embed, paged_kv_cache, gdn_state_in, gdn_state_out, gdn_conv_in, gdn_conv_out
-        )
-        if self.tie_word_embeddings:
-            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
-        else:
-            logits = self.lm_head(hidden_states)
-        if logits.dtype != "float32":
-            logits = logits.astype("float32")
-        return logits, paged_kv_cache, gdn_state_out, gdn_conv_out
-
-    def _forward_rnn(
+    def _forward(
         self,
         input_embed: Tensor,
         paged_kv_cache: PagedKVCache,
@@ -1083,7 +741,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
     ):
         """Shared forward for batch methods using RNNState."""
         op_ext.configure()
-        hidden_states, state = self.model.forward_rnn(input_embed, paged_kv_cache, state)
+        hidden_states, state = self.model.forward(input_embed, paged_kv_cache, state)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         if self.tie_word_embeddings:
@@ -1101,7 +759,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward_rnn(input_embeds, paged_kv_cache, rnn_state, logit_positions)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state, logit_positions)
 
     def batch_decode(
         self,
@@ -1109,7 +767,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward_rnn(input_embeds, paged_kv_cache, rnn_state)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state)
 
     def batch_verify(
         self,
@@ -1117,7 +775,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward_rnn(input_embeds, paged_kv_cache, rnn_state)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state)
 
     def create_rnn_state(
         self,
@@ -1183,30 +841,6 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "prefill": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "gdn_state_in": nn.spec.Tensor([n_lin, 1, n_vh, K, V], "float32"),
-                "gdn_state_out": nn.spec.Tensor([n_lin, 1, n_vh, K, V], "float32"),
-                "gdn_conv_in": nn.spec.Tensor([n_lin, 1, conv_dim - 1, qkv_dim], self.dtype),
-                "gdn_conv_out": nn.spec.Tensor([n_lin, 1, conv_dim - 1, qkv_dim], self.dtype),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "decode": {
-                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "gdn_state_in": nn.spec.Tensor([n_lin, 1, n_vh, K, V], "float32"),
-                "gdn_state_out": nn.spec.Tensor([n_lin, 1, n_vh, K, V], "float32"),
-                "gdn_conv_in": nn.spec.Tensor([n_lin, 1, conv_dim - 1, qkv_dim], self.dtype),
-                "gdn_conv_out": nn.spec.Tensor([n_lin, 1, conv_dim - 1, qkv_dim], self.dtype),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
