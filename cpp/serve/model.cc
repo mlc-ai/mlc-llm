@@ -834,7 +834,8 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
-                     int64_t prefill_chunk_size, int max_history_size) final {
+                     int64_t prefill_chunk_size, int max_history_size,
+                     int prefix_cache_max_num_recycling_seqs = 0) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
@@ -850,7 +851,8 @@ class ModelImpl : public ModelObj {
                             ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kRNNState) {
-      IntTuple max_num_sequence_tuple{max_num_sequence};
+      // RNN state needs extra slots for prefix cache recycling sequences.
+      IntTuple max_num_sequence_tuple{max_num_sequence + prefix_cache_max_num_recycling_seqs};
       IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple)
                       .cast<ObjectRef>();
@@ -872,7 +874,9 @@ class ModelImpl : public ModelObj {
                             ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
       // Create RNN state for recurrent layers.
-      IntTuple rnn_max_batch{max_num_sequence};
+      // RNN state needs extra slots for prefix cache recycling sequences that
+      // coexist with active sequences (e.g., during ForkSequence).
+      IntTuple rnn_max_batch{max_num_sequence + prefix_cache_max_num_recycling_seqs};
       IntTuple rnn_max_history{std::max(max_history_size, 1)};
       rnn_state_ = ft_.create_rnn_state_func_(rnn_max_batch, rnn_max_history).cast<ObjectRef>();
       local_rnn_state_ = ft_.use_disco

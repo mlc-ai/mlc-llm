@@ -460,7 +460,8 @@ class EngineImpl : public Engine {
       model->SetPrefillChunkSize(engine_config->prefill_chunk_size);
       model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
                            engine_config->max_total_sequence_length,
-                           engine_config->prefill_chunk_size, engine_config->max_history_size);
+                           engine_config->prefill_chunk_size, engine_config->max_history_size,
+                           engine_config->prefix_cache_max_num_recycling_seqs);
       n->model_workspaces_.push_back(
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
