@@ -34,7 +34,19 @@ class RNNState(Object):
         """
 
         bb = rx.BlockBuilder.current()
-        state_infos = [(v.shape, v.dtype) for v in init_values]
+        # state_infos = [(v.shape, v.dtype) for v in init_values]
+        # Handle both runtime NDArrays and Relax Constant nodes:
+        def _get_info(v):
+            if isinstance(v, rx.Constant):
+                return tuple(int(x) for x in v.data.shape), str(v.data.dtype)
+            return v.shape, v.dtype
+
+        def _get_expr(v):
+            if isinstance(v, rx.Constant):
+                return v  # it's already an Expr
+            return v._expr
+
+        state_infos = [_get_info(v) for v in init_values]
 
         f_gets = [
             bb.add_func(
@@ -59,7 +71,7 @@ class RNNState(Object):
                 max_history,
                 f_gets,
                 f_sets,
-                [v._expr for v in init_values],  # pylint: disable=protected-access
+                [_get_expr(v) for v in init_values],  # pylint: disable=protected-access
                 sinfo_args=[rx.ObjectStructInfo()],
             ),
             _name=name,

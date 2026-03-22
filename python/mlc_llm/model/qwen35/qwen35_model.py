@@ -8,7 +8,10 @@ import math
 from functools import partial
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+import tvm
 from tvm import te, tir
+from tvm import relax as R
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
@@ -1129,11 +1132,10 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         conv_ks_m1 = self.config.linear_conv_kernel_dim - 1
 
         init_values = [
-            # state_id 0: recurrent state (n_vh, K, V) in fp32
-            op.zeros((n_vh, K, V), "float32"),
-            # state_id 1: conv state (conv_ks_m1, qkv_dim) in model dtype
-            op.zeros((conv_ks_m1, qkv_dim), self.dtype),
+            R.const(np.zeros((n_vh, K, V), "float32")),
+            R.const(np.zeros((conv_ks_m1, qkv_dim), self.dtype)),
         ]
+        
         return RNNState.create(
             max_batch_size=max_batch_size,
             num_hidden_layers=self.num_linear_layers,
