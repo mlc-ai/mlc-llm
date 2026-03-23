@@ -290,22 +290,21 @@ def chat(
 ):
     """Chat cli entry"""
     # By default we use JSONFFIEngine
-    engine = JSONFFIEngine(
-        model,
-        device,
-        model_lib=model_lib,
-        mode="interactive",
-        engine_config=EngineConfig(
-            max_single_sequence_length=overrides.context_window_size,
-            prefill_chunk_size=overrides.prefill_chunk_size,
-            sliding_window_size=overrides.sliding_window_size,
-            attention_sink_size=overrides.attention_sink_size,
-            tensor_parallel_shards=overrides.tensor_parallel_shards,
-            pipeline_parallel_stages=overrides.pipeline_parallel_stages,
-            opt=overrides.opt,
-        ),
-    )
-    try:
-        ChatState(engine).chat()
-    finally:
-        engine.terminate()
+    ChatState(
+        JSONFFIEngine(
+            model,
+            device,
+            model_lib=model_lib,
+            mode="interactive",
+            engine_config=EngineConfig(
+                max_single_sequence_length=overrides.context_window_size,
+                prefill_chunk_size=overrides.prefill_chunk_size,
+                sliding_window_size=overrides.sliding_window_size,
+                attention_sink_size=overrides.attention_sink_size,
+                tensor_parallel_shards=overrides.tensor_parallel_shards,
+                pipeline_parallel_stages=overrides.pipeline_parallel_stages,
+                prefix_cache_mode="disable",
+                opt=overrides.opt,
+            ),
+        )
+    ).chat()
