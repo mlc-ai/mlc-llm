@@ -36,8 +36,7 @@ class RNNState(Object):
 
         bb = rx.BlockBuilder.current()
         state_infos = [
-            (tuple(int(x) for x in v.data.shape), str(v.data.dtype))
-            for v in init_values
+            (tuple(int(x) for x in v.data.shape), str(v.data.dtype)) for v in init_values
         ]
 
         f_gets = [

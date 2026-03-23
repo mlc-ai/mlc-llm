@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import tvm
-from tvm import te, tir
 from tvm import relax as R
+from tvm import te, tir
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tir as T
@@ -624,11 +624,11 @@ class Qwen35GatedDeltaNet(nn.Module):
 
 class Qwen35DecoderLayer(nn.Module):
     def __init__(self, config: Qwen35Config, layer_id: int, category_id: int):
-        '''
+        """
         layer_id is the id of the layer within all of the layers
         category_id is the index of the layer within the category of layers that it belongs to
         ie, linear attention or regular attention
-        '''
+        """
         self.layer_type = config.layer_types()[layer_id]
         if self.layer_type == "full_attention":
             self.self_attn = Qwen35Attention(config)
@@ -690,9 +690,7 @@ class Qwen35Model(nn.Module):
     ):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
-            hidden_states, state = layer.forward(
-                hidden_states, paged_kv_cache, state
-            )
+            hidden_states, state = layer.forward(hidden_states, paged_kv_cache, state)
         hidden_states = self.norm(hidden_states)
         return hidden_states, state
 
@@ -793,7 +791,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
             R.const(np.zeros((n_vh, K, V), "float32")),
             R.const(np.zeros((conv_ks_m1, qkv_dim), self.dtype)),
         ]
-        
+
         return RNNState.create(
             max_batch_size=max_batch_size,
             num_hidden_layers=self.num_linear_layers,
