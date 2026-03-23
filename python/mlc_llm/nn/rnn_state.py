@@ -16,7 +16,7 @@ class RNNState(Object):
         max_batch_size: tir.Var,
         num_hidden_layers: int,
         max_history: int,
-        init_values: Sequence[Tensor],
+        init_values: Sequence[rx.Constant],
         name: str = "rnn_state",
     ) -> "RNNState":
         """Create a RNN state object.
@@ -29,24 +29,16 @@ class RNNState(Object):
             The number of hidden layers.
         max_history : int
             The maximum history length.
-        init_values : Sequence[Tensor]
-            The initial values of the RNN state.
+        init_values : Sequence[rx.Constant]
+            The initial values of the RNN state. Must be compile-time Relax constants
+            (e.g. R.const(np.zeros(...))).
         """
 
         bb = rx.BlockBuilder.current()
-        # state_infos = [(v.shape, v.dtype) for v in init_values]
-        # Handle both runtime NDArrays and Relax Constant nodes:
-        def _get_info(v):
-            if isinstance(v, rx.Constant):
-                return tuple(int(x) for x in v.data.shape), str(v.data.dtype)
-            return v.shape, v.dtype
-
-        def _get_expr(v):
-            if isinstance(v, rx.Constant):
-                return v  # it's already an Expr
-            return v._expr
-
-        state_infos = [_get_info(v) for v in init_values]
+        state_infos = [
+            (tuple(int(x) for x in v.data.shape), str(v.data.dtype))
+            for v in init_values
+        ]
 
         f_gets = [
             bb.add_func(
@@ -71,7 +63,7 @@ class RNNState(Object):
                 max_history,
                 f_gets,
                 f_sets,
-                [_get_expr(v) for v in init_values],  # pylint: disable=protected-access
+                list(init_values),
                 sinfo_args=[rx.ObjectStructInfo()],
             ),
             _name=name,
