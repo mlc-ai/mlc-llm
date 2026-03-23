@@ -37,7 +37,7 @@ class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     num_key_value_heads: int = 0
     rms_norm_eps: float = 1e-6
     vocab_size: int = 0
-    rope_theta: float = 10000000.0
+    rope_theta: int = 10000000
     head_dim: int = 256
     hidden_act: str = "silu"
     attention_bias: bool = False
@@ -591,22 +591,6 @@ class Qwen35GatedDeltaNet(nn.Module):
 
         beta = op.sigmoid(beta_raw).astype("float32")
         return gate, beta
-
-    def _repeat_interleave(self, x: Tensor, repeats: int, axis: int) -> Tensor:
-        """Repeat interleave along given axis (for GVA expansion)."""
-        if repeats == 1:
-            return x
-        # x: (b, s, n_kh) → (b, s, n_vh) where n_vh = n_kh * repeats
-        b, s, h = x.shape
-
-        def _te_repeat(x: te.Tensor):
-            return te.compute(
-                (b, s, h * repeats),
-                lambda bi, si, hi: x[bi, si, hi // repeats],
-                name="repeat_interleave",
-            )
-
-        return op.tensor_expr_op(_te_repeat, "repeat_interleave", [x])
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)

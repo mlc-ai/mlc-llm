@@ -273,6 +273,7 @@ class ModelImpl : public ModelObj {
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
     if (kind == KVStateKind::kHybrid) {
+      TVM_FFI_ICHECK(rnn_state_.defined()) << "RNN state has not been initialized.";
       ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
     }
 
@@ -890,7 +891,7 @@ class ModelImpl : public ModelObj {
   }
 
   void AddNewSequence(int64_t seq_id) final {
-    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+    if (this->kind == KVStateKind::kNone) {
       return;
     }
     ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id);
@@ -900,7 +901,7 @@ class ModelImpl : public ModelObj {
   }
 
   void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos) final {
-    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+    if (this->kind == KVStateKind::kNone) {
       return;
     }
     ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id, fork_pos);
