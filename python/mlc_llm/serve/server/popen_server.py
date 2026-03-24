@@ -14,14 +14,7 @@ from tvm.runtime import Device
 
 from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.engine_base import _check_engine_config
-from mlc_llm.support.auto_config import detect_mlc_chat_config
-
-
-def _is_embedding_model(model: str) -> bool:
-    """Return True when *model*'s mlc-chat-config.json has model_task == 'embedding'."""
-    config_path = detect_mlc_chat_config(model)
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f).get("model_task", "chat") == "embedding"
+from mlc_llm.support.auto_config import detect_model_task
 
 
 class PopenServer:  # pylint: disable=too-many-instance-attributes
@@ -130,7 +123,7 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         cmd = self._build_base_cmd()
 
         try:
-            is_embedding = _is_embedding_model(self.model)
+            is_embedding = detect_model_task(self.model) == "embedding"
         except (ValueError, FileNotFoundError, OSError, json.JSONDecodeError) as exc:
             raise RuntimeError(
                 "The server fails to launch. "
