@@ -107,13 +107,10 @@ class EngineConfigOverride:  # pylint: disable=too-many-instance-attributes
 def _detect_model_task(model: str) -> str:
     """Detect the model_task field from the main model's mlc-chat-config.json."""
     from mlc_llm.support.auto_config import (  # pylint: disable=import-outside-toplevel
-        detect_mlc_chat_config,
+        detect_model_task,
     )
 
-    config_path = detect_mlc_chat_config(model)
-    with open(config_path, "r", encoding="utf-8") as f:
-        config = json.load(f)
-    return config.get("model_task", "chat")
+    return detect_model_task(model)
 
 
 def _argv_has_option(argv, option_name: str) -> bool:
