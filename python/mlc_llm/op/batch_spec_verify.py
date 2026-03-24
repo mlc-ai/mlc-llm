@@ -1,6 +1,6 @@
 """Operators for batch verify in speculative decoding."""
 
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 # mypy: disable-error-code="attr-defined,valid-type,name-defined"
 # pylint: disable=too-many-locals,invalid-name,too-many-arguments,
@@ -74,7 +74,7 @@ def batch_spec_verify(vocab_size):
             for loop over excessive amounts
         ]
         """
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         num_nodes = T.int32(is_size_var=True)
         nbatch = T.int32(is_size_var=True)
 

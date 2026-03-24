@@ -2,7 +2,7 @@
 
 import dataclasses
 
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -152,7 +152,7 @@ class MixtralDecoderLayer(nn.Module):
         self.tensor_parallel_shards = config.tensor_parallel_shards
         _set_tp()
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tir.Var):
+    def forward(self, hidden_states: Tensor, attention_mask: Tensor, total_seq_len: tirx.Var):
         """Forward pass of a decoder layer; calculate attention, and add an residual connection."""
         out = self.self_attn(self.input_layernorm(hidden_states), attention_mask, total_seq_len)
         hidden_states = self._apply_residual(out, residual=hidden_states)

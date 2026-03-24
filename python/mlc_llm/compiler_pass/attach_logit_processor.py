@@ -2,7 +2,7 @@
 
 import tvm
 from tvm import IRModule
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from ..support.max_thread_check import (
     check_thread_limits,
@@ -50,8 +50,8 @@ def _get_apply_logit_bias_inplace_cpu():
         T.func_attr(
             {
                 "global_symbol": "apply_logit_bias_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)
@@ -86,8 +86,8 @@ def _get_apply_logit_bias_inplace(target: tvm.target.Target):
         T.func_attr(
             {
                 "global_symbol": "apply_logit_bias_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)
@@ -123,8 +123,8 @@ def _get_apply_penalty_inplace_cpu():
         T.func_attr(
             {
                 "global_symbol": "apply_penalty_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)
@@ -172,8 +172,8 @@ def _get_apply_penalty_inplace(target: tvm.target.Target):
         T.func_attr(
             {
                 "global_symbol": "apply_penalty_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)
@@ -218,8 +218,8 @@ def _get_apply_bitmask_inplace_cpu():
         T.func_attr(
             {
                 "global_symbol": "apply_bitmask_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)
@@ -259,8 +259,8 @@ def _get_apply_bitmask_inplace(target: tvm.target.Target):
         T.func_attr(
             {
                 "global_symbol": "apply_bitmask_inplace",
-                "tir.noalias": True,
-                "tir.is_scheduled": True,
+                "tirx.noalias": True,
+                "tirx.is_scheduled": True,
             }
         )
         batch_size = T.int32(is_size_var=True)

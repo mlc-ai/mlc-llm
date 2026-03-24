@@ -3,9 +3,9 @@
 from typing import Sequence, Union
 
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend.nn import Object, Tensor
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 class RNNState(Object):
@@ -13,7 +13,7 @@ class RNNState(Object):
 
     @staticmethod
     def create(
-        max_batch_size: tir.Var,
+        max_batch_size: tirx.Var,
         num_hidden_layers: int,
         max_history: int,
         init_values: Sequence[Tensor],
@@ -23,7 +23,7 @@ class RNNState(Object):
 
         Parameters
         ----------
-        max_batch_size : tir.Var
+        max_batch_size : tirx.Var
             The maximum batch size.
         num_hidden_layers : int
             The number of hidden layers.
@@ -70,7 +70,7 @@ class RNNState(Object):
         self,
         layer_id: int,
         state_id: int,
-        shape: Sequence[tir.PrimExpr],
+        shape: Sequence[tirx.PrimExpr],
         dtype: str,
     ) -> Tensor:
         """Get the state of the RNN layer.
@@ -86,7 +86,7 @@ class RNNState(Object):
             The layer id.
         state_id : int
             The state id.
-        shape : Sequence[tir.PrimExpr]
+        shape : Sequence[tirx.PrimExpr]
             The shape of the state tensor.
         dtype: str
             The data type of the state tensor.
@@ -137,26 +137,26 @@ class RNNState(Object):
 
     @staticmethod
     def create_get_func(
-        shape: Sequence[Union[int, tir.Var]],
+        shape: Sequence[Union[int, tirx.Var]],
         dtype: str,
-        max_batch_size: Union[int, tir.Var],
-        max_history: Union[int, tir.Var],
+        max_batch_size: Union[int, tirx.Var],
+        max_history: Union[int, tirx.Var],
         state_id: int,
-    ) -> tir.PrimFunc:
+    ) -> tirx.PrimFunc:
         """Create the get function with given state shape.
 
         Parameters
         ----------
-        shape : Sequence[Union[int, tir.Var]]
+        shape : Sequence[Union[int, tirx.Var]]
             The shape of the state tensor.
 
         dtype: str
             The data type of the state tensor.
 
-        max_batch_size : Union[int, tir.Var]
+        max_batch_size : Union[int, tirx.Var]
             The maximum batch size.
 
-        max_history : Union[int, tir.Var]
+        max_history : Union[int, tirx.Var]
             The maximum history length.
 
         state_id : int
@@ -164,7 +164,7 @@ class RNNState(Object):
 
         Returns
         -------
-        tir.PrimFunc
+        tirx.PrimFunc
             The get function.
         """
 
@@ -234,26 +234,26 @@ class RNNState(Object):
 
     @staticmethod
     def create_set_func(
-        shape: Sequence[Union[int, tir.Var]],
+        shape: Sequence[Union[int, tirx.Var]],
         dtype: str,
-        max_batch_size: Union[int, tir.Var],
-        max_history: Union[int, tir.Var],
+        max_batch_size: Union[int, tirx.Var],
+        max_history: Union[int, tirx.Var],
         state_id: int,
-    ) -> tir.PrimFunc:
+    ) -> tirx.PrimFunc:
         """Create the set function with given state shape.
 
         Parameters
         ----------
-        shape : Sequence[Union[int, tir.Var]]
+        shape : Sequence[Union[int, tirx.Var]]
             The shape of the state tensor.
 
         dtype: str
             The data type of the state tensor.
 
-        max_batch_size : Union[int, tir.Var]
+        max_batch_size : Union[int, tirx.Var]
             The maximum batch size.
 
-        max_history : Union[int, tir.Var]
+        max_history : Union[int, tirx.Var]
             The maximum history length.
 
         state_id : int
@@ -261,7 +261,7 @@ class RNNState(Object):
 
         Returns
         -------
-        tir.PrimFunc
+        tirx.PrimFunc
             The set function.
         """
 

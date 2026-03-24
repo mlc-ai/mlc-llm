@@ -6,7 +6,7 @@ import dataclasses
 import math
 from typing import Any, Dict, Literal, Optional, Tuple
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
@@ -171,7 +171,7 @@ class DeepseekV2YarnRotaryEmbedding(nn.Module):
             d_dim_half = d_dim // 2
             dtype = x.dtype
 
-            def compute(b: tir.Var, s: tir.Var, h: tir.Var, d: tir.Var):
+            def compute(b: tirx.Var, s: tirx.Var, h: tirx.Var, d: tirx.Var):
                 d1 = d // d_dim_half
                 d2 = d % d_dim_half
 
@@ -180,7 +180,7 @@ class DeepseekV2YarnRotaryEmbedding(nn.Module):
                 )
                 cos = x[b, s, h, d2 * 2 + d1] * cos_freq
 
-                partner_d = tir.if_then_else(
+                partner_d = tirx.if_then_else(
                     d < self.rotary_dim // 2,
                     d + self.rotary_dim // 2,
                     d - self.rotary_dim // 2,
@@ -191,15 +191,15 @@ class DeepseekV2YarnRotaryEmbedding(nn.Module):
                 sin = (
                     x[b, s, h, partner_d2 * 2 + partner_d1]
                     * sin_freq
-                    * tir.if_then_else(
+                    * tirx.if_then_else(
                         d < self.rotary_dim // 2,
-                        tir.const(-1, dtype),
-                        tir.const(1, dtype),
+                        tirx.const(-1, dtype),
+                        tirx.const(1, dtype),
                     )
                 )
                 expr = cos + sin
                 for var, val in var_map.items():
-                    expr = tir.Let(var, val, expr)
+                    expr = tirx.Let(var, val, expr)
                 return expr
 
             return te.compute(x.shape, compute, name="yarn_rope")
@@ -775,11 +775,11 @@ class DeepseekV2ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-att
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind="mla",

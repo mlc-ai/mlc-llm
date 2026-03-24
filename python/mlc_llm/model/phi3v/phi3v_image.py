@@ -2,10 +2,10 @@
 Implementation for Phi architecture.
 """
 
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Module, Tensor, op
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.model.vision import CLIPVisionModel
 from mlc_llm.support.config import ConfigBase
@@ -23,7 +23,7 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
         self.linear_2 = nn.Linear(config.hidden_size, config.hidden_size, bias=True)
 
     def forward(self, image_features: Tensor) -> Tensor:
-        shape_1 = tir.Var("shape_1", "int64")
+        shape_1 = tirx.Var("shape_1", "int64")
         image_features = op.wrap_nested(
             relax.BlockBuilder()
             .current()
@@ -36,7 +36,7 @@ class ImageProjection(Module):  # pylint: disable=too-many-instance-attributes
 
         hidden_states = self.linear_1(image_features)
 
-        shape_2 = tir.Var("shape_2", "int64")
+        shape_2 = tirx.Var("shape_2", "int64")
         hidden_states = op.wrap_nested(
             relax.BlockBuilder()
             .current()
@@ -90,7 +90,7 @@ class Phi3ImageEmbedding(Module):
                 ch2: T.int64(),
                 ch3: T.int64(),
             ):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 input_tensor_buf = T.match_buffer(input_tensor, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(output, (n * ch0, c * ch1, h * ch2, w * ch3), dtype=dtype)
@@ -120,7 +120,7 @@ class Phi3ImageEmbedding(Module):
         def create_dyn_concate_func(dtype):
             @T.prim_func
             def dyn_concate_dim_2_func(input_1: T.handle, input_2: T.handle, output: T.handle):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64(), T.int64()
                 input_1_buf = T.match_buffer(input_1, (n, c, h1, w), dtype=dtype)
                 input_2_buf = T.match_buffer(input_2, (n, c, h2, w), dtype=dtype)
@@ -159,7 +159,7 @@ class Phi3ImageEmbedding(Module):
         def create_dyn_concate_func(dtype):
             @T.prim_func
             def dyn_concate_dim_1_func(input_1: T.handle, input_2: T.handle, output: T.handle):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 c, h1, h2, w = T.int64(), T.int64(), T.int64(), T.int64()
                 input_1_buf = T.match_buffer(input_1, (c, h1, w), dtype=dtype)
                 input_2_buf = T.match_buffer(input_2, (c, h2, w), dtype=dtype)
@@ -203,8 +203,8 @@ class Phi3ImageEmbedding(Module):
             image_features, ([N, H // 2, 2, H // 2, 2, C])
         )  # N, 12, 2, 12, 2, 1024
 
-        new_s1 = tir.Var("new_s1", "int64")
-        new_s2 = tir.Var("new_s2", "int64")
+        new_s1 = tirx.Var("new_s1", "int64")
+        new_s2 = tirx.Var("new_s2", "int64")
 
         image_features = op.wrap_nested(
             relax.BlockBuilder()
@@ -234,8 +234,8 @@ class Phi3ImageEmbedding(Module):
             image_features, ([num_images, h_crop, w_crop, H // 2, H // 2, -1])
         )
 
-        new_s3 = tir.Var("new_s3", "int64")
-        new_s4 = tir.Var("new_s4", "int64")
+        new_s3 = tirx.Var("new_s3", "int64")
+        new_s4 = tirx.Var("new_s4", "int64")
 
         image_features = op.wrap_nested(
             relax.BlockBuilder()
@@ -298,7 +298,7 @@ class Phi3ImageEmbedding(Module):
         combined_image = self.dyn_concate_dim_1(combined_image, global_image_features_hd_newline)
         combined_image = nn.op.squeeze(combined_image, 0)
 
-        new_s7 = tir.Var("new_s7", "int64")
+        new_s7 = tirx.Var("new_s7", "int64")
 
         combined_image = op.wrap_nested(
             relax.BlockBuilder()
