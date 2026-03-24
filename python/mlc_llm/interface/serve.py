@@ -1,6 +1,5 @@
 """Python entrypoint of serve."""
 
-import json
 from typing import Any, List, Literal, Optional, Tuple, Union
 
 import fastapi
@@ -18,20 +17,9 @@ from mlc_llm.serve.entrypoints import (
 )
 from mlc_llm.serve.server import ServerContext
 from mlc_llm.support import logging
-from mlc_llm.support.auto_config import detect_mlc_chat_config
+from mlc_llm.support.auto_config import detect_model_task as _detect_model_task
 
 logger = logging.getLogger(__name__)
-
-
-def _detect_model_task(model: str) -> str:
-    """Detect the model_task field from the primary model's mlc-chat-config.json.
-
-    Returns "chat" or "embedding". Defaults to "chat" if the field is absent.
-    """
-    config_path = detect_mlc_chat_config(model)
-    with open(config_path, "r", encoding="utf-8") as f:
-        cfg = json.load(f)
-    return cfg.get("model_task", "chat")
 
 
 def serve(
