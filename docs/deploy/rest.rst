@@ -24,11 +24,31 @@ You should see serve help message if the installation was successful.
 Quick Start
 ------------
 
-This section provides a quick start guide to work with MLC-LLM REST API. To launch a server, run the following command:
+This section provides a quick start guide to work with MLC-LLM REST API.
+
+``mlc_llm serve`` automatically detects the model's ``model_task`` field in
+``mlc-chat-config.json`` and routes to the appropriate serving mode:
+
+- **Chat models** (``model_task: "chat"``, the default): serves ``/v1/completions``,
+  ``/v1/chat/completions``, ``/v1/models``, ``/metrics``, and optionally ``/debug/*``.
+- **Embedding models** (``model_task: "embedding"``): serves only ``/v1/embeddings``
+  and ``/v1/models``.  Requires ``--model-lib``.
+
+**Chat model (default):**
 
 .. code:: bash
 
    mlc_llm serve MODEL [--model-lib PATH-TO-MODEL-LIB]
+
+**Embedding model:**
+
+.. code:: bash
+
+   mlc_llm serve EMBEDDING_MODEL --model-lib PATH-TO-MODEL-LIB
+
+When serving an embedding model, the following chat-only options are **not allowed**:
+``--mode``, ``--additional-models``, ``--speculative-mode``, ``--prefix-cache-mode``,
+``--prefill-mode``, ``--overrides``, ``--enable-tracing``, ``--enable-debug``.
 
 where ``MODEL`` is the model folder after compiling with :ref:`MLC-LLM build process <compile-model-libraries>`. Information about other arguments can be found under :ref:`Launch the server <rest_launch_server>` section.
 
@@ -71,7 +91,10 @@ If you want to enable tensor parallelism to run LLMs on multiple GPUs, please sp
 Launch the Server
 -----------------
 
-To launch the MLC Server for MLC-LLM, run the following command in your terminal.
+``mlc_llm serve`` reads the primary model's ``model_task`` field from
+``mlc-chat-config.json`` and automatically selects the appropriate serving mode.
+
+**Chat model** (``model_task: "chat"``, the default):
 
 .. code:: bash
 
@@ -80,13 +103,30 @@ To launch the MLC Server for MLC-LLM, run the following command in your terminal
        [--speculative-mode SPECULATIVE-MODE] \
        [--overrides OVERRIDES] \
        [--enable-tracing] \
-       [--host HOST] \
-       [--port PORT] \
-       [--allow-credentials] \
-       [--allowed-origins ALLOWED_ORIGINS] \
-       [--allowed-methods ALLOWED_METHODS] \
-       [--allowed-headers ALLOWED_HEADERS]
+       [--host HOST] [--port PORT] [--allow-credentials] \
+       [--allow-origins ALLOW_ORIGINS] [--allow-methods ALLOW_METHODS] \
+       [--allow-headers ALLOW_HEADERS]
 
+Serves ``/v1/models``, ``/v1/completions``, ``/v1/chat/completions``,
+``/metrics``, and optionally ``/debug/*``.
+
+**Embedding model** (``model_task: "embedding"``):
+
+.. code:: bash
+
+   mlc_llm serve EMBEDDING_MODEL --model-lib PATH-TO-MODEL-LIB \
+       [--device DEVICE] [--host HOST] [--port PORT] \
+       [--allow-credentials] [--allow-origins ALLOW_ORIGINS] \
+       [--allow-methods ALLOW_METHODS] [--allow-headers ALLOW_HEADERS] \
+       [--api-key API_KEY]
+
+Serves only ``/v1/models`` and ``/v1/embeddings``.  ``--model-lib`` is
+**required**.  The following chat-only options are **not allowed**:
+``--mode``, ``--additional-models``, ``--speculative-mode``,
+``--prefix-cache-mode``, ``--prefill-mode``, ``--overrides``,
+``--enable-tracing``, ``--enable-debug``.
+
+**Parameter reference (chat models):**
 
 MODEL                  The model folder after compiling with MLC-LLM build process. The parameter
                        can either be the model name with its quantization scheme
@@ -160,9 +200,9 @@ MODEL                  The model folder after compiling with MLC-LLM build proce
 --port                 The port on which the server should be started, defaults to ``8000``.
 --allow-credentials    A flag to indicate whether the server should allow credentials. If set, the server will
                        include the ``CORS`` header in the response
---allowed-origins      Specifies the allowed origins. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all origins.
---allowed-methods      Specifies the allowed methods. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all methods.
---allowed-headers      Specifies the allowed headers. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all headers.
+--allow-origins      Specifies the allowed origins. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all origins.
+--allow-methods      Specifies the allowed methods. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all methods.
+--allow-headers      Specifies the allowed headers. It expects a JSON list of strings, with the default value being ``["*"]``, allowing all headers.
 
 You can access ``http://127.0.0.1:PORT/docs`` (replace ``PORT`` with the port number you specified) to see the list of
 supported endpoints.
@@ -430,6 +470,39 @@ Function Calling with streaming is also supported. Below is an example on how to
 
    # Output: ["get_current_weather(location='Pittsburgh,PA',unit='fahrenheit')", "get_current_weather(location='Tokyo,JP',unit='fahrenheit')"]
 
+
+.. http:post:: /v1/embeddings
+
+------------------------------------------------
+
+   Get embeddings for input text(s).  Only available when serving an embedding model.
+
+**Embedding Request Object**
+
+- **input** (*Union[str, List[str]]*, required): The text or list of texts to embed.
+- **model** (*str*, required): The model to use for embedding.
+- **dimensions** (*Optional[int]*): Truncate embeddings to this many dimensions (Matryoshka).
+- **encoding_format** (*Optional[Literal["float", "base64"]]*, optional, default="float"): Output format.
+
+**Returns**
+
+An ``EmbeddingResponse`` containing a list of embedding vectors and usage info.
+
+**Example**
+
+.. code:: bash
+
+   import requests
+
+   payload = {
+       "input": ["What is machine learning?", "How to brew coffee?"],
+       "model": "embedding",
+   }
+   r = requests.post("http://127.0.0.1:8000/v1/embeddings", json=payload)
+   for item in r.json()["data"]:
+       print(f"[{item['index']}] dim={len(item['embedding'])}")
+
+------------------------------------------------
 
 .. note::
    The API is a uniform interface that supports multiple languages. You can also utilize these functionalities in languages other than Python.

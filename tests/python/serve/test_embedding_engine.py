@@ -14,7 +14,7 @@ Environment variables:
                                   (optional, defaults to dirname of model lib)
 """
 
-# pylint: disable=import-outside-toplevel,protected-access,redefined-outer-name
+# pylint: disable=import-outside-toplevel,protected-access,redefined-outer-name,possibly-used-before-assignment
 
 import asyncio
 import os
@@ -331,6 +331,237 @@ def test_unicode_text(embedding_engine):
     assert len(embeddings) == 3
     for emb in embeddings:
         assert abs(float(np.linalg.norm(emb)) - 1.0) < 1e-4
+
+
+# ===================================================================
+# Unit tests — no real model required
+# ===================================================================
+
+from unittest import mock
+
+try:
+    from mlc_llm.serve import engine_utils
+    from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine, EmbeddingRuntime
+
+    _HAS_UNIT_DEPS = isinstance(EmbeddingRuntime, type) and isinstance(AsyncEmbeddingEngine, type)
+except ImportError:
+    _HAS_UNIT_DEPS = False
+
+_skip_no_tvm = pytest.mark.skipif(not _HAS_UNIT_DEPS, reason="tvm not installed")
+
+if _HAS_UNIT_DEPS:
+
+    class _FakeRuntime(EmbeddingRuntime):
+        """Minimal fake runtime for unit testing AsyncEmbeddingEngine delegation."""
+
+        def __init__(self, model_type="decoder", pooling="last", norm=True, emb_meta=None):
+            self._tokenizer_obj = mock.MagicMock(name="fake_tokenizer")
+            self._model_type = model_type
+            self._pooling = pooling
+            self._norm = norm
+            self._raw_metadata = {
+                "prefill_chunk_size": 512,
+                "context_window_size": 4096,
+            }
+            self._emb_meta = emb_meta
+            self._cls_token_id = None
+            self._sep_token_id = None
+            self.embed_calls = []
+
+        @property
+        def device(self):
+            return None
+
+        @property
+        def tokenizer(self):
+            return self._tokenizer_obj
+
+        @property
+        def model_type(self):
+            return self._model_type
+
+        @property
+        def pooling_strategy(self):
+            return self._pooling
+
+        @property
+        def normalize(self):
+            return self._norm
+
+        @property
+        def metadata(self):
+            return self._raw_metadata
+
+        @property
+        def embedding_metadata(self):
+            return self._emb_meta
+
+        def embed(self, inputs):
+            self.embed_calls.append(inputs)
+            dim = 4
+            return [[0.5] * dim for _ in inputs], sum(len(s.split()) for s in inputs)
+
+    def _make_fake_mod(raw_metadata_dict):
+        """Build a minimal fake TVM module whose ["_metadata"]() returns JSON."""
+        import json as _json
+
+        metadata_json = _json.dumps(raw_metadata_dict)
+        fake_mod = mock.MagicMock()
+        fake_mod.__getitem__ = lambda self, key: (
+            (lambda: metadata_json) if key == "_metadata" else mock.MagicMock()
+        )
+        fake_mod.implements_function.return_value = True
+        return fake_mod
+
+    def _patch_tvm_deps(monkeypatch, raw_metadata_dict):
+        """Monkeypatch TVM/tokenizer deps so TVMNativeEmbeddingRuntime.__init__ can run."""
+        import mlc_llm.serve.embedding_engine as _eng_mod
+
+        fake_mod = _make_fake_mod(raw_metadata_dict)
+        fake_vm = mock.MagicMock()
+        fake_vm.module = fake_mod
+
+        monkeypatch.setattr(_eng_mod, "detect_device", lambda d: mock.MagicMock())
+        monkeypatch.setattr(_eng_mod, "Tokenizer", lambda path: mock.MagicMock())
+        monkeypatch.setattr(_eng_mod.tvm.runtime, "load_module", lambda path: mock.MagicMock())
+        monkeypatch.setattr(_eng_mod.relax, "VirtualMachine", lambda ex, device: fake_vm)
+        monkeypatch.setattr(_eng_mod.engine_utils, "load_embedding_params", lambda *a: [])
+
+
+@_skip_no_tvm
+def test_unit_engine_delegates_embed():
+    """AsyncEmbeddingEngine.embed delegates to runtime.embed."""
+    rt = _FakeRuntime()
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    result = eng.embed(["hello world", "foo"])
+    assert result == ([[0.5, 0.5, 0.5, 0.5]] * 2, 3)
+    assert rt.embed_calls == [["hello world", "foo"]]
+    eng.terminate()
+
+
+@_skip_no_tvm
+def test_unit_async_embed_matches_sync():
+    """async_embed returns same result as sync embed."""
+    rt = _FakeRuntime()
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    sync_result = eng.embed(["test input"])
+    loop = asyncio.new_event_loop()
+    try:
+        async_result = loop.run_until_complete(eng.async_embed(["test input"]))
+    finally:
+        loop.close()
+    assert sync_result == async_result
+    eng.terminate()
+
+
+@_skip_no_tvm
+def test_unit_attributes_mirrored():
+    """Backward-compat attributes are mirrored from runtime."""
+    rt = _FakeRuntime(model_type="encoder", pooling="cls", norm=False)
+    rt._cls_token_id = 101  # pylint: disable=protected-access
+    rt._sep_token_id = 102  # pylint: disable=protected-access
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    assert eng.model_type == "encoder"
+    assert eng.pooling_strategy == "cls"
+    assert eng.normalize is False
+    assert eng.tokenizer is rt._tokenizer_obj  # pylint: disable=protected-access
+    assert eng._metadata is rt.metadata  # pylint: disable=protected-access
+    assert eng._cls_token_id == 101  # pylint: disable=protected-access
+    assert eng._sep_token_id == 102  # pylint: disable=protected-access
+    assert eng.embedding_metadata is None
+    eng.terminate()
+
+
+@_skip_no_tvm
+def test_unit_attributes_with_embedding_metadata():
+    """embedding_metadata is mirrored when present."""
+    emb_meta = {
+        "model_type": "decoder",
+        "pooling_strategy": "last",
+        "normalize": True,
+    }
+    rt = _FakeRuntime(emb_meta=emb_meta)
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    assert eng.embedding_metadata == emb_meta
+    eng.terminate()
+
+
+@_skip_no_tvm
+def test_unit_terminate_idempotent():
+    """Calling terminate multiple times does not raise."""
+    rt = _FakeRuntime()
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    eng.terminate()
+    eng.terminate()
+    assert eng._terminated is True  # pylint: disable=protected-access
+
+
+@_skip_no_tvm
+def test_unit_terminate_shuts_down_executor():
+    """terminate shuts down the thread pool executor."""
+    rt = _FakeRuntime()
+    eng = AsyncEmbeddingEngine("", "", _runtime=rt)
+    executor = eng._executor  # pylint: disable=protected-access
+    eng.terminate()
+    with pytest.raises(RuntimeError):
+        executor.submit(lambda: None)
+
+
+@_skip_no_tvm
+def test_unit_get_embedding_metadata_present():
+    """get_embedding_metadata returns metadata when model_task == 'embedding'."""
+    config = {
+        "model_task": "embedding",
+        "embedding_metadata": {
+            "model_type": "decoder",
+            "pooling_strategy": "last",
+            "normalize": True,
+        },
+    }
+    result = engine_utils.get_embedding_metadata(config)
+    assert result is not None
+    assert result["model_type"] == "decoder"
+    assert result["pooling_strategy"] == "last"
+    assert result["normalize"] is True
+
+
+@_skip_no_tvm
+def test_unit_get_embedding_metadata_chat_task():
+    """get_embedding_metadata returns None for chat models."""
+    assert engine_utils.get_embedding_metadata({"model_task": "chat"}) is None
+
+
+@_skip_no_tvm
+def test_unit_get_embedding_metadata_missing_task():
+    """get_embedding_metadata returns None when model_task is absent."""
+    assert engine_utils.get_embedding_metadata({}) is None
+
+
+@_skip_no_tvm
+def test_unit_runtime_rejects_missing_metadata(monkeypatch):
+    """TVMNativeEmbeddingRuntime hard-fails when embedding_metadata is absent."""
+    from mlc_llm.serve.embedding_engine import TVMNativeEmbeddingRuntime
+
+    _patch_tvm_deps(monkeypatch, {"model_task": "chat", "params": []})
+
+    with pytest.raises(ValueError, match="Embedding metadata is missing or incomplete"):
+        TVMNativeEmbeddingRuntime("fake_model", "fake_lib.so", device="cpu")
+
+
+@_skip_no_tvm
+def test_unit_runtime_rejects_incomplete_metadata(monkeypatch):
+    """TVMNativeEmbeddingRuntime hard-fails when embedding_metadata lacks required fields."""
+    from mlc_llm.serve.embedding_engine import TVMNativeEmbeddingRuntime
+
+    raw_meta = {
+        "model_task": "embedding",
+        "embedding_metadata": {"model_type": "decoder"},  # missing pooling_strategy, normalize
+        "params": [],
+    }
+    _patch_tvm_deps(monkeypatch, raw_meta)
+
+    with pytest.raises(ValueError, match="Embedding metadata is missing or incomplete"):
+        TVMNativeEmbeddingRuntime("fake_model", "fake_lib.so", device="cpu")
 
 
 # ===================================================================

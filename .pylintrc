@@ -1,2 +1,5 @@
 [MESSAGES CONTROL]
 disable=too-many-positional-arguments,duplicate-code
+
+[TYPECHECK]
+generated-members=sblock_alloc_buffer
