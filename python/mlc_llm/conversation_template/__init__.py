@@ -4,6 +4,7 @@
 # decouple conversation template apply from the conversation protocol
 # data structure
 
+
 # model preset templates
 from . import (
     cohere,
@@ -11,14 +12,11 @@ from . import (
     dolly,
     gemma,
     glm,
-    gorilla,
+    gorrilla,
     gpt,
     hermes,
     llama,
     llava,
-    llm_jp,
-    ministral3,
-    ministral3_reasoning,
     mistral,
     nemotron,
     oasst,
@@ -26,6 +24,7 @@ from . import (
     orion,
     phi,
     qwen2,
+    qwen3_vl,
     redpajama,
     rwkv,
     stablelm,

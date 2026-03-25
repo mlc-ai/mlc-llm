@@ -124,9 +124,7 @@ class Qwen3Attention(nn.Module):  # pylint: disable=too-many-instance-attributes
             bias=config.attention_bias,
         )
         self.o_proj = nn.Linear(
-            self.num_attention_heads * self.head_dim,
-            config.hidden_size,
-            bias=config.attention_bias,
+            self.num_attention_heads * self.head_dim, config.hidden_size, bias=config.attention_bias
         )
         self.q_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
         self.k_norm = nn.RMSNorm(config.head_dim, -1, config.rms_norm_eps, bias=False)
@@ -155,8 +153,12 @@ ACT2FN = {
     "relu": nn.relu,
     "silu": nn.silu,
     "swish": nn.silu,
+
     "gelu_new": partial(nn.gelu, approximate=True),
+    "quick_gelu": partial(nn.gelu, approximate=True),
+    "gelu_pytorch_tanh": partial(nn.gelu, approximate=True),
 }
+
 
 
 class Qwen3Embedding(nn.Embedding):
@@ -219,8 +221,7 @@ class Qwen3DecoderLayer(nn.Module):
                 )
             _set(self.self_attn.o_proj.weight, tp.ShardSingleDim("_shard_o", dim=1))
             _set(
-                self.mlp.gate_up_proj.weight,
-                tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0),
+                self.mlp.gate_up_proj.weight, tp.ShardSingleDim("_shard_mlp_up", segs=[i, i], dim=0)
             )
             _set(self.mlp.down_proj.weight, tp.ShardSingleDim("_shard_mlp_down", dim=1))
 
@@ -337,10 +338,7 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
         return logits, paged_kv_cache
 
     def batch_prefill(
-        self,
-        input_embeds: Tensor,
-        logit_positions: Tensor,
-        paged_kv_cache: PagedKVCache,
+        self, input_embeds: Tensor, logit_positions: Tensor, paged_kv_cache: PagedKVCache
     ):
         if self.tensor_parallel_shards > 1:
             logit_positions = op.ccl_broadcast_from_worker0(logit_positions)
@@ -425,94 +423,6 @@ class Qwen3LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribut
             },
             "batch_verify": {
                 "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "create_paged_kv_cache": {
-                "max_batch_size": int,
-                "max_total_seq_len": int,
-                "prefill_chunk_size": int,
-                "page_size": int,
-                "support_sliding_window": int,
-                "$": {
-                    "param_mode": "none",
-                    "effect_mode": "none",
-                },
-            },
-        }
-        return nn.spec.ModuleSpec.from_raw(mod_spec, self)
-
-
-class Qwen3EmbeddingModel(Qwen3LMHeadModel):
-    """Qwen3 model for embedding inference.
-
-    Inherits all functionality from Qwen3LMHeadModel and adds methods that
-    return hidden states instead of logits, for use by AsyncEmbeddingEngine.
-    Only compiled when using the "qwen3-embedding" model type.
-    """
-
-    def prefill_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-        hidden_states = self.model(input_embed, paged_kv_cache)
-        return hidden_states, paged_kv_cache
-
-    def decode_to_last_hidden_states(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
-        op_ext.configure()
-        hidden_states = self.model(input_embed, paged_kv_cache)
-        return hidden_states, paged_kv_cache
-
-    def batch_prefill_to_last_hidden_states(
-        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
-    ):
-        op_ext.configure()
-        hidden_states = self.model(input_embeds, paged_kv_cache)
-        return hidden_states, paged_kv_cache
-
-    def batch_decode_to_last_hidden_states(
-        self, input_embeds: Tensor, paged_kv_cache: PagedKVCache
-    ):
-        op_ext.configure()
-        hidden_states = self.model(input_embeds, paged_kv_cache)
-        return hidden_states, paged_kv_cache
-
-    def get_default_spec(self):
-        mod_spec = {
-            "embed": {
-                "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "prefill_to_last_hidden_states": {
-                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "decode_to_last_hidden_states": {
-                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "batch_prefill_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
-                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
-                "$": {
-                    "param_mode": "packed",
-                    "effect_mode": "none",
-                },
-            },
-            "batch_decode_to_last_hidden_states": {
-                "input_embeds": nn.spec.Tensor(["batch_size", 1, self.hidden_size], self.dtype),
                 "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
                 "$": {
                     "param_mode": "packed",
