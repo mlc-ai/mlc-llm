@@ -238,9 +238,14 @@ class ModelObj : public Object {
    * are allowed to exist in the KV cache at any time.
    * \param max_history_size The maximum history size for RNN state to roll back.
    * The KV cache does not need this.
+   * \param prefix_cache_max_num_recycling_seqs The maximum number of recycling
+   * sequences kept by prefix cache. For hybrid models, the RNN state needs
+   * extra slots beyond max_num_sequence to hold these recycling sequences
+   * simultaneously with active sequences.
    */
   virtual void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
-                             int64_t prefill_chunk_size, int max_history_size) = 0;
+                             int64_t prefill_chunk_size, int max_history_size,
+                             int prefix_cache_max_num_recycling_seqs = 0) = 0;
 
   /*! \brief Add a new sequence with the given sequence id to the KV cache. */
   virtual void AddNewSequence(int64_t seq_id) = 0;
