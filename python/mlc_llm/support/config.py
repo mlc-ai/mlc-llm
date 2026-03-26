@@ -46,8 +46,10 @@ class ConfigBase:
             An instance of the config object.
         """
         field_names = [field.name for field in dataclasses.fields(cls)]  # type: ignore[arg-type]
-        fields = {k: v for k, v in source.items() if k in field_names}
+        fields = {k: v for k, v in source.items() if k in field_names and k != "kwargs"}
         kwargs = {k: v for k, v in source.items() if k not in field_names}
+        if "kwargs" in source and isinstance(source["kwargs"], dict):
+            kwargs.update(source["kwargs"])
         return cls(**fields, kwargs=kwargs)  # type: ignore[call-arg]
 
     @classmethod

@@ -1,7 +1,6 @@
 """Generator of mlc-chat-config.json and tokenizer configuration."""
 
 # pylint: disable=E1101
-import dataclasses
 import json
 import re
 import shutil
@@ -139,10 +138,6 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
         pipeline_parallel_stages=getattr(model_config, "pipeline_parallel_stages", 1),
         disaggregation=getattr(model_config, "disaggregation", False),
         conv_template=conversation,  # type: ignore
-        model_task=model.model_task,
-        embedding_metadata=(
-            dataclasses.asdict(model.embedding_metadata) if model.embedding_metadata else None
-        ),
     )
     # Step 2. Load `generation_config.json` and `config.json` for text-generation related configs
     for generation_config_filename in ["generation_config.json", "config.json"]:
@@ -153,12 +148,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             for key, value in generation_config_json.items():
                 if hasattr(mlc_chat_config, key) and getattr(mlc_chat_config, key) is None:
                     setattr(mlc_chat_config, key, value)
-                    logger.info(
-                        "[%s] Setting %s: %s",
-                        generation_config_filename,
-                        bold(key),
-                        value,
-                    )
+                    logger.info("[%s] Setting %s: %s", generation_config_filename, bold(key), value)
         else:
             logger.info("%s %s: %s", NOT_FOUND, generation_config_filename, generation_config)
 
@@ -178,10 +168,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
     for item in config.parent.iterdir():
         if item.is_file() and pattern.match(item.name):
             logger.info(
-                "%s RWKV vocab file: %s. Genetating %s",
-                FOUND,
-                item,
-                bold("tokenizer_model"),
+                "%s RWKV vocab file: %s. Genetating %s", FOUND, item, bold("tokenizer_model")
             )
             if item.name.endswith(".txt"):
                 txt2rwkv_tokenizer(item, output)
@@ -206,10 +193,7 @@ def gen_config(  # pylint: disable=too-many-locals,too-many-arguments,too-many-b
             fast_tokenizer = AutoTokenizer.from_pretrained(str(config.parent), use_fast=True)
             fast_tokenizer.backend_tokenizer.save(str(tokenizer_json_save_dest))
             mlc_chat_config.tokenizer_files.append("tokenizer.json")
-            logger.info(
-                "Successfully converted `tokenizer.model` to: %s",
-                tokenizer_json_save_dest,
-            )
+            logger.info("Successfully converted `tokenizer.model` to: %s", tokenizer_json_save_dest)
         except Exception:  # pylint: disable=broad-exception-caught
             logger.warning(
                 "Converting to `tokenizer.json` %s with the exception below. "
@@ -309,23 +293,30 @@ CONV_TEMPLATES = {
     "chatml",
     "chatml_nosystem",
     "qwen2",
+    "qwen3_vl",
     "open_hermes_mistral",
     "neural_hermes_mistral",
     "llama_default",
     "llama-2",
     "mistral_default",
-    "ministral3",
-    "ministral3_reasoning",
     "gpt2",
     "codellama_completion",
     "codellama_instruct",
+    "vicuna_v1.1",
+    "conv_one_shot",
     "redpajama_chat",
     "rwkv_world",
+    "rwkv",
     "gorilla",
     "gorilla-openfunctions-v2",
+    "guanaco",
     "dolly",
     "oasst",
     "stablelm",
+    "stablecode_completion",
+    "stablecode_instruct",
+    "minigpt",
+    "moss",
     "LM",
     "stablelm-3b",
     "gpt_bigcode",
@@ -352,5 +343,4 @@ CONV_TEMPLATES = {
     "deepseek_r1_llama",
     "olmo",
     "nemotron",
-    "llm-jp",
 }
