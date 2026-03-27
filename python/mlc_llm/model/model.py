@@ -35,6 +35,7 @@ from .mistral import mistral_loader, mistral_model
 from .mixtral import mixtral_loader, mixtral_model
 from .nemotron import nemotron_loader, nemotron_model
 from .olmo import olmo_loader, olmo_model
+from .olmo2 import olmo2_loader, olmo2_model
 from .orion import orion_loader, orion_model
 from .phi import phi_loader, phi_model
 from .phi3 import phi3_loader, phi3_model
@@ -698,6 +699,19 @@ MODELS: Dict[str, Model] = {
         quantize=make_quantization_functions(
             olmo_model.OLMoForCausalLM,
             supports_awq=True,
+            supports_per_tensor=True,
+        ),
+    ),
+    "olmo2": Model(
+        name="olmo2",
+        model=olmo2_model.OLMo2ForCausalLM,
+        config=olmo2_model.OLMo2Config,
+        source={
+            "huggingface-torch": olmo2_loader.huggingface,
+            "huggingface-safetensor": olmo2_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            olmo2_model.OLMo2ForCausalLM,
             supports_per_tensor=True,
         ),
     ),
