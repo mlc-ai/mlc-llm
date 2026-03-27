@@ -7,7 +7,7 @@ from typing import List, Literal, Tuple
 import tvm
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 try:
     import triton
@@ -286,7 +286,7 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
     extern_mods: List[tvm.runtime.Module],
 ):
     """Get the TIR function for the w8a8_block_fp8_matmul kernel."""
-    # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tir.PrimFunc], str]"
+    # NOTE: adding the type annotation of " -> Tuple[Optional[tvm.tirx.PrimFunc], str]"
     # will cause the failure of the type resolution in mypy.
     if triton is None:
         raise RuntimeError("Triton is not installed. Please install it with `pip install triton`.")
@@ -311,7 +311,7 @@ def get_tir_w8a8_block_fp8_matmul(  # pylint: disable=too-many-arguments,too-man
             var_Bs: T.handle,
             var_C: T.handle,
         ):
-            T.func_attr({"op_pattern": 8, "tir.is_scheduled": 1})
+            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
             M = T.SizeVar("M", "int32")
             A = T.match_buffer(var_A, (M, K), dtype=in_dtype)
             B = T.match_buffer(var_B, (N, K), dtype=in_dtype)
@@ -415,7 +415,7 @@ def get_tir_w8a8_block_fp8_group_matmul(  # pylint: disable=too-many-arguments,t
             var_indptr: T.handle,
             var_C: T.handle,
         ):
-            T.func_attr({"op_pattern": 8, "tir.is_scheduled": 1})
+            T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
             EM = T.SizeVar("EM", "int32")
             A = T.match_buffer(var_A, (EM, K), dtype=in_dtype)
             B = T.match_buffer(var_B, (num_experts, N, K), dtype=in_dtype)
@@ -531,7 +531,7 @@ def _compute_expert_id_per_block(
         var_expert_ids: T.handle,
         M: T.int64,
     ):
-        T.func_attr({"op_pattern": 8, "tir.is_scheduled": 1})
+        T.func_attr({"op_pattern": 8, "tirx.is_scheduled": 1})
         indptr = T.match_buffer(var_indptr, (num_experts + 1,), "int32")
         expert_ids = T.match_buffer(
             var_expert_ids,

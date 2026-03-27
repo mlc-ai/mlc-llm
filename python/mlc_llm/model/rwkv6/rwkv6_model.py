@@ -3,10 +3,10 @@
 import dataclasses
 from typing import Any, Dict, Optional, Tuple
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Object, Tensor, op
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.support import logging
@@ -79,7 +79,7 @@ def create_wkv6_func(
         out: T.handle,
         out_state: T.handle,
     ):
-        T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
         batch_size, seq_len = T.int64(), T.int64()
         # Inputs
         r_buf = T.match_buffer(r, (batch_size, seq_len, num_heads, head_size), dtype=dtype)
@@ -130,7 +130,7 @@ def token_shift(state: Tensor, x: Tensor):
     def _te_token_shift(state: te.Tensor, x: te.Tensor):
         return te.compute(
             x.shape,
-            lambda b, i, j: tir.if_then_else(i == 0, state[b, j], x[b, i - 1, j]),
+            lambda b, i, j: tirx.if_then_else(i == 0, state[b, j], x[b, i - 1, j]),
         )
 
     return op.tensor_expr_op(_te_token_shift, "token_shift", [state, x])
@@ -436,8 +436,8 @@ class RWKV6_ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_rnn_state(
         self,
-        max_batch_size: tir.Var,
-        max_history: tir.Var,
+        max_batch_size: tirx.Var,
+        max_history: tirx.Var,
     ) -> Object:
         """Create RNN state."""
         init_values = [

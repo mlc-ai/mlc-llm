@@ -87,7 +87,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
     allreduce_strategy: IPCAllReduceStrategyType = IPCAllReduceStrategyType.NONE,
     variable_bounds: Dict[str, int] = None,
     cuda_graph_symbolic_capture_hints: Dict[str, List[str]] = None,
-    additional_tirs: Dict[str, tvm.tir.PrimFunc] = None,
+    additional_tirs: Dict[str, tvm.tirx.PrimFunc] = None,
     metadata: Dict[str, Any] = None,
     ext_mods: List[nn.ExternModule] = None,
     debug_dump: Optional[Path] = None,
@@ -116,7 +116,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                 AttachSpecDecodeAuxFuncs(tensor_parallel_shards),
                 AttachMemoryPlanAttr(),
                 AttachSequenceLengthPaddingFactor(target, metadata),
-                tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
+                tvm.tirx.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
                 _DebugDump("debug-phase0.py", debug_dump, show_meta=False),
                 # Phase 1. Passes on high-level operator graph
                 _LogProgress("Running TVM Relax graph-level optimizations"),
@@ -172,7 +172,7 @@ def _mlc_llm_pipeline(  # pylint: disable=too-many-arguments
                     else tvm.transform.Sequential([])
                 ),
                 (
-                    tvm.tir.transform.ForceNarrowIndexToInt32()
+                    tvm.tirx.transform.ForceNarrowIndexToInt32()
                     if target.kind.name != "cuda"
                     else tvm.transform.Sequential([])
                 ),

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from tvm import DataType, DataTypeCode, te, tir, topi
+from tvm import DataType, DataTypeCode, te, tirx, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import Tensor
 
@@ -135,7 +135,7 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
         weight: te.Tensor,
         zeros: te.Tensor,
         scale: te.Tensor,
-        out_shape: Optional[List[tir.PrimExpr]] = None,
+        out_shape: Optional[List[tirx.PrimExpr]] = None,
     ):
         float_weight = convert_uint_to_float(
             weight,
@@ -164,8 +164,8 @@ class AWQQuantize:  # pylint: disable=too-many-instance-attributes
                 if out_shape is None
                 else out_shape
             ),
-            fcompute=lambda i, j: tir.multiply(
-                tir.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
+            fcompute=lambda i, j: tirx.multiply(
+                tirx.subtract(float_weight[i, j], float_zeros[i, j // self.group_size]),
                 scale[i, j // self.group_size],
             ),
             name="dequantize",
@@ -255,8 +255,8 @@ class AWQQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribu
                 zeros,
                 scale,
                 [
-                    tir.IntImm("int64", self.out_features),
-                    tir.IntImm("int64", self.in_features),
+                    tirx.IntImm("int64", self.out_features),
+                    tirx.IntImm("int64", self.in_features),
                 ],
             ),
             name_hint="dequantize",

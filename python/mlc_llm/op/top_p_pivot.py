@@ -1,7 +1,7 @@
 """Operators for choosing the pivot to cut-off top-p percentile"""
 
 import tvm
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.support.max_thread_check import get_max_num_threads_per_block
 
@@ -48,7 +48,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
         return T.sblock_alloc_buffer((1,), dtype, scope="local")
 
     def valid(lsum, lmin, cmin, top_p):
-        return tvm.tir.all(lsum >= top_p, top_p > lsum - cmin * lmin)
+        return tvm.tirx.all(lsum >= top_p, top_p > lsum - cmin * lmin)
 
     # fmt: off
     @T.prim_func(private=True)
@@ -59,7 +59,7 @@ def top_p_pivot(pN, target: tvm.target.Target):
         var_final_pivot: T.handle,
         var_final_lsum: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         B = T.int32(is_size_var=True)
         N = T.int32(is_size_var=True)
         prob = T.match_buffer(var_prob, (B, N,), "float32")
@@ -306,7 +306,7 @@ def top_p_renorm(target: tvm.target.Target = None):
         var_final_lsum: T.handle,
         var_renorm_prob: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tirx.is_scheduled": 1, "tirx.noalias": True})
         B = T.int32(is_size_var=True)
         N = T.int32(is_size_var=True)
         prob = T.match_buffer(var_prob, (B, N,), "float32")

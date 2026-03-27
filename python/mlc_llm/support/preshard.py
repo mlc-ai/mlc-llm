@@ -20,13 +20,13 @@ def _create_shard_func(
     bb: relax.BlockBuilder, param: nn.Parameter, tensor_parallel_shards: int
 ):  # pylint: disable=too-many-locals
     shard_strategy = param.attrs.get("shard_strategy", None)
-    # generate tir shard function
+    # generate tirx shard function
     tir_func = shard_strategy.gen_tir(shards=tensor_parallel_shards, weight=param)
     tir_func = tir_func.with_attr("global_symbol", f"{shard_strategy.name}_tir")
-    # add tir shard function to the IRModule
+    # add tirx shard function to the IRModule
     tir_gvar = bb.add_func(tir_func, func_name=f"{shard_strategy.name}_tir")
     # create relax function that
-    #     1. shard weight with tir shard function, result: [num_shards, *sharded_weight_shape]
+    #     1. shard weight with tirx shard function, result: [num_shards, *sharded_weight_shape]
     #     2. split the sharded weight along dim 0, result: num_shards * [1, *sharded_weight_shape]
     #     3. squeeze the 0th-dim of all shards, result: num_shards * [*sharded_weight_shape]
     weight_shape = param.shape
