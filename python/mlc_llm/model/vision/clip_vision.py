@@ -215,7 +215,11 @@ class CLIPVisionTransformer(Module):
         hidden_states = self.embeddings(pixel_values)
         hidden_states = self.pre_layrnorm(hidden_states)
         encoder_outputs = self.encoder(inputs_embeds=hidden_states)
-        return encoder_outputs
+        # Apply post_layernorm to the final encoder hidden state, matching
+        # the HuggingFace CLIPVisionTransformer which returns post-normed
+        # last_hidden_state. Intermediate states remain unnormalized.
+        last_hidden_state = self.post_layernorm(encoder_outputs[-1])
+        return encoder_outputs[:-1] + (last_hidden_state,)
 
 
 class CLIPVisionModel(Module):
