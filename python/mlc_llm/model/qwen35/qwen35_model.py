@@ -11,10 +11,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import tvm
 from tvm import relax as R
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm import op as op_ext
 from mlc_llm.nn import PagedKVCache, RopeMode
@@ -254,7 +254,7 @@ def create_gated_delta_net_func(
         out_handle: T.handle,
         state_out_handle: T.handle,
     ):
-        T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+        T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
         batch_size, seq_len = T.int64(), T.int64()
         # q, k: (batch, seq_len, key_heads, K)
         q_buf = T.match_buffer(q_handle, (batch_size, seq_len, num_key_heads, K), dtype=dtype)
@@ -510,7 +510,7 @@ class Qwen35GatedDeltaNet(nn.Module):
             seq = qkv_in.shape[1]
             return te.compute(
                 old_state.shape,
-                lambda bi, ti, di: tir.if_then_else(
+                lambda bi, ti, di: tirx.if_then_else(
                     seq + ti < ks_minus_1,
                     old_state[bi, seq + ti, di],
                     qkv_in[bi, seq + ti - ks_minus_1, di],
@@ -530,7 +530,7 @@ class Qwen35GatedDeltaNet(nn.Module):
             return te.compute(
                 (qkv_in.shape[0], seq, qkv_in.shape[2]),
                 lambda bi, si, di: te.sum(
-                    tir.if_then_else(
+                    tirx.if_then_else(
                         si + kk < ks_m1,
                         state[bi, si + kk, di],
                         qkv_in[bi, si + kk - ks_m1, di],
@@ -571,12 +571,12 @@ class Qwen35GatedDeltaNet(nn.Module):
 
             def _softplus(x):
                 # softplus(x) = x if x > 20 else log(1 + exp(x))
-                return tir.if_then_else(x > 20.0, x, tir.log(1.0 + tir.exp(x)))
+                return tirx.if_then_else(x > 20.0, x, tirx.log(1.0 + tirx.exp(x)))
 
             return te.compute(
                 (b, s, h),
-                lambda bi, si, hi: tir.exp(
-                    -tir.exp(A_log[hi].astype("float32"))
+                lambda bi, si, hi: tirx.exp(
+                    -tirx.exp(A_log[hi].astype("float32"))
                     * _softplus((alpha[bi, si, hi] + dt_bias[hi]).astype("float32"))
                 ),
                 name="gate",
@@ -761,8 +761,8 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_rnn_state(
         self,
-        max_batch_size: tir.Var,
-        max_history: tir.Var,
+        max_batch_size: tirx.Var,
+        max_history: tirx.Var,
     ) -> RNNState:
         K = self.linear_key_head_dim
         V = self.linear_value_head_dim
@@ -785,11 +785,11 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_paged_kv_cache(
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         rotary_dim = int(self.head_dim * self.partial_rotary_factor)
         return PagedKVCache.create_generic(
