@@ -230,7 +230,9 @@ class PerTensorQuantize:  # pylint: disable=too-many-instance-attributes
             # min_scaling_factor taken from TRT-LLM
             def _compute_scale(x: te.Tensor) -> te.Tensor:
                 max_abs = topi.max(topi.abs(x))
-                min_scaling_factor = tirx.const(1.0 / (self.max_int_value * 512.0), self.model_dtype)
+                min_scaling_factor = tirx.const(
+                    1.0 / (self.max_int_value * 512.0), self.model_dtype
+                )
                 scale = topi.maximum(
                     max_abs.astype(self.model_dtype) / self.max_int_value,
                     min_scaling_factor,
@@ -559,7 +561,11 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 weight,
                 scale,
                 out_shape=[
-                    tirx.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0],
+                    (
+                        tirx.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),
                     tirx.IntImm("int64", self.dim),
                 ],
             ),
@@ -592,7 +598,11 @@ class PerTensorQuantizeEmbedding(nn.Module):
                 weight,
                 scale,
                 out_shape=[
-                    tirx.IntImm("int64", self.num) if isinstance(self.num, int) else weight.shape[0],
+                    (
+                        tirx.IntImm("int64", self.num)
+                        if isinstance(self.num, int)
+                        else weight.shape[0]
+                    ),
                     tirx.IntImm("int64", self.dim),
                 ],
             ),
