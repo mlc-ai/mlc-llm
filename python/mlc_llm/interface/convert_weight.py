@@ -9,7 +9,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional, Tuple
 
-from tvm import tir
+from tvm import tirx
 from tvm.contrib import tvmjs
 from tvm.runtime import DataType, Device, Tensor
 from tvm.runtime import cpu as cpu_device
@@ -133,11 +133,11 @@ def _convert_args(args: ConversionArgs) -> None:  # pylint: disable=too-many-loc
             raise ValueError(f"Duplication: Parameter {name} already computed")
 
         # Check shape (possibly dynamic)
-        def _check_shape(actual: tuple, expect: tuple):  # expect can have tir.Var
+        def _check_shape(actual: tuple, expect: tuple):  # expect can have tirx.Var
             if len(actual) != len(expect):
                 return False
             for actual_i, expect_i in zip(actual, expect):
-                assert isinstance(expect_i, (int, tir.Var))
+                assert isinstance(expect_i, (int, tirx.Var))
                 if isinstance(expect_i, int) and actual_i != expect_i:
                     return False
             return True

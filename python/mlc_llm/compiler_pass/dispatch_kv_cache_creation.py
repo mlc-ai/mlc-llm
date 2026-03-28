@@ -44,7 +44,7 @@ def extract_creation_args(func: relax.Function) -> Dict[str, Any]:
         if i in [13, 14, 17]:
             continue
         assert isinstance(args[i], relax.PrimValue), f"args[{i}] is {type(args[i])}"
-        assert isinstance(args[i].value, (tvm.tir.IntImm, tvm.tir.FloatImm))
+        assert isinstance(args[i].value, (tvm.tirx.IntImm, tvm.tirx.FloatImm))
     assert isinstance(args[13], relax.StringImm)
     assert isinstance(args[16], (relax.Constant, relax.PrimValue))
     assert isinstance(args[17], relax.DataTypeImm)

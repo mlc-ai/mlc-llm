@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import Any, List, Literal, Optional, Tuple, Union
 
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tir, topi
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import Tensor
 
@@ -157,9 +157,9 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         weight: te.Tensor,
         scale: te.Tensor,
         axis: int,
-        out_shape: Optional[List[tir.PrimExpr]] = None,
+        out_shape: Optional[List[tirx.PrimExpr]] = None,
     ):
-        tir_max_int = tir.const(self.max_int_value, self.model_dtype)
+        tir_max_int = tirx.const(self.max_int_value, self.model_dtype)
         float_weight = convert_uint_to_float(
             weight,
             DataType(self.quantize_dtype).bits,
@@ -175,8 +175,8 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         axis = axis if axis >= 0 else len(out_shape) + axis
         return te.compute(
             shape=out_shape,
-            fcompute=lambda *idx: tir.multiply(
-                tir.subtract(
+            fcompute=lambda *idx: tirx.multiply(
+                tirx.subtract(
                     float_weight(*idx),
                     tir_max_int,
                 ),
@@ -241,18 +241,18 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         output_transpose: bool = False,
     ) -> Tuple[te.Tensor, te.Tensor]:
         """Group quantization for weight tensor, defined in tensor expression."""
-        max_int = tir.const(self.max_int_value, self.model_dtype)
+        max_int = tirx.const(self.max_int_value, self.model_dtype)
         shape = weight.shape  # pylint: disable=invalid-name
         axis = axis if axis >= 0 else len(shape) + axis
         k = shape[axis]
         # compute scale per group
         r = te.reduce_axis((0, self.group_size), name="r")  # pylint: disable=invalid-name
-        num_group = tir.ceildiv(k, self.group_size)
+        num_group = tirx.ceildiv(k, self.group_size)
         scale_shape = (*shape[:axis], num_group, *shape[axis + 1 :])
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda *idx: te.max(
-                tir.if_then_else(
+                tirx.if_then_else(
                     idx[axis] * self.group_size + r < k,
                     te.abs(
                         weight(
@@ -275,14 +275,14 @@ class GroupQuantize:  # pylint: disable=too-many-instance-attributes
         # compute scaled weight
         scaled_weight = te.compute(
             shape=weight.shape,
-            fcompute=lambda *idx: tir.min(
-                tir.max(
-                    tir.round(
+            fcompute=lambda *idx: tirx.min(
+                tirx.max(
+                    tirx.round(
                         weight(*idx)
                         / scale(*idx[:axis], idx[axis] // self.group_size, *idx[axis + 1 :])
                         + max_int
                     ),
-                    tir.const(0, self.model_dtype),
+                    tirx.const(0, self.model_dtype),
                 ),
                 max_int * 2,
             ).astype(self.storage_dtype),
@@ -314,7 +314,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
     def __init__(  # pylint: disable=too-many-arguments
         self,
         in_features: int,
-        out_features: Union[int, tir.Var],
+        out_features: Union[int, tirx.Var],
         config: GroupQuantize,
         bias: bool = True,
         out_dtype: Optional[str] = None,
@@ -324,7 +324,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         self.out_features = out_features
         self.out_dtype = out_dtype
         self.config = config
-        num_group = tir.ceildiv(in_features, config.group_size)
+        num_group = tirx.ceildiv(in_features, config.group_size)
         num_shards = config.tensor_parallel_shards
         if num_shards > 1 and (in_features * num_shards // config.group_size) % num_shards != 0:
             raise ValueError(
@@ -372,7 +372,7 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
         ret : GroupQuantizeLinear
             The group quantized GroupQuantizeLinear layer.
         """
-        # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tir.Var("name")`
+        # For dynamic shape, src.out_features is `"name"`; src.weight.shape[0] is `tirx.Var("name")`
         out_features, in_features = src.weight.shape
         quantized_linear = GroupQuantizeLinear(
             in_features=in_features,
@@ -411,20 +411,20 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
                 out_shape=(
                     [
                         (
-                            tir.IntImm("int64", self.out_features)
+                            tirx.IntImm("int64", self.out_features)
                             if isinstance(self.out_features, int)
                             else weight.shape[0]
-                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-                        tir.IntImm("int64", self.in_features),
+                        ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
+                        tirx.IntImm("int64", self.in_features),
                     ]
                     if self.config.linear_weight_layout == "NK"
                     else [
-                        tir.IntImm("int64", self.in_features),
+                        tirx.IntImm("int64", self.in_features),
                         (
-                            tir.IntImm("int64", self.out_features)
+                            tirx.IntImm("int64", self.out_features)
                             if isinstance(self.out_features, int)
                             else weight.shape[1]
-                        ),  # Reuse same tir.Var for symbolic shape (after Exporter)
+                        ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
                     ]
                 ),
             ),
@@ -454,11 +454,11 @@ class GroupQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attri
 class GroupQuantizeEmbedding(nn.Module):
     """An nn.Embedding module with group quantization"""
 
-    def __init__(self, num: Union[int, tir.Var], dim: int, config: GroupQuantize):
+    def __init__(self, num: Union[int, tirx.Var], dim: int, config: GroupQuantize):
         self.num = num
         self.dim = dim
         self.config = config
-        num_group = tir.ceildiv(dim, config.group_size)
+        num_group = tirx.ceildiv(dim, config.group_size)
         self.q_weight = nn.Parameter(
             (num, config.num_storage_per_group * num_group), config.storage_dtype
         )
@@ -506,11 +506,11 @@ class GroupQuantizeEmbedding(nn.Module):
                 axis=-1,
                 out_shape=[
                     (
-                        tir.IntImm("int64", self.num)
+                        tirx.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
-                    ),  # Reuse same tir.Var for symbolic shape (after Exporter)
-                    tir.IntImm("int64", self.dim),
+                    ),  # Reuse same tirx.Var for symbolic shape (after Exporter)
+                    tirx.IntImm("int64", self.dim),
                 ],
             ),
             name_hint="dequantize",
@@ -544,11 +544,11 @@ class GroupQuantizeEmbedding(nn.Module):
                 axis=-1,
                 out_shape=[
                     (
-                        tir.IntImm("int64", self.num)
+                        tirx.IntImm("int64", self.num)
                         if isinstance(self.num, int)
                         else weight.shape[0]
                     ),
-                    tir.IntImm("int64", self.dim),
+                    tirx.IntImm("int64", self.dim),
                 ],
             ),
             name_hint="dequantize",
@@ -572,7 +572,7 @@ class GroupQuantizeMixtralExperts(nn.Module):  # pylint: disable=too-many-instan
         self.in_features = in_features
         self.out_features = out_features
         self.config = config
-        num_group = tir.ceildiv(in_features, config.group_size)
+        num_group = tirx.ceildiv(in_features, config.group_size)
         self.q_weight = nn.Parameter(
             (num_local_experts, out_features, config.num_storage_per_group * num_group),
             config.storage_dtype,

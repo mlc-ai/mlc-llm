@@ -3,9 +3,9 @@
 from typing import Dict
 
 import tvm
-from tvm import IRModule, relax, te, tir
+from tvm import IRModule, relax, te, tirx
 from tvm.relax.frontend import nn
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
@@ -66,9 +66,9 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
 
 def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
-    batch_size = tir.SizeVar("batch_size", "int64")
-    num_samples = tir.SizeVar("num_samples", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    batch_size = tirx.SizeVar("batch_size", "int64")
+    num_samples = tirx.SizeVar("num_samples", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     uniform_samples = relax.Var(
         "uniform_samples", relax.TensorStructInfo((num_samples,), "float32")
@@ -117,8 +117,8 @@ def _attach_multinomial_sampling_func(bb: relax.BlockBuilder):
 
 
 def _attach_argsort_func(bb: relax.BlockBuilder):
-    batch_size = tir.SizeVar("batch_size", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    batch_size = tirx.SizeVar("batch_size", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     with bb.function("argsort_probs", [probs]):
         with bb.dataflow():
@@ -150,9 +150,9 @@ def full(var_result: T.handle, value: T.int32):
 
 
 def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-many-locals
-    batch_size = tir.SizeVar("batch_size", "int64")
-    num_samples = tir.SizeVar("num_samples", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    batch_size = tirx.SizeVar("batch_size", "int64")
+    num_samples = tirx.SizeVar("num_samples", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     sorted_probs = relax.Var(
         "sorted_probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
     )
@@ -234,8 +234,8 @@ def _attach_sample_with_top_p(bb: relax.BlockBuilder):  # pylint: disable=too-ma
 
 
 def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Target):
-    batch_size = tir.SizeVar("batch_size", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    batch_size = tirx.SizeVar("batch_size", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     num_pivots = 3
     probs = relax.Var("probs", relax.TensorStructInfo((batch_size, vocab_size), "float32"))
     top_p = relax.Var("top_p", relax.TensorStructInfo((batch_size,), "float32"))
@@ -265,10 +265,10 @@ def _attach_renormalize_by_top_p(bb: relax.BlockBuilder, target: tvm.target.Targ
 
 
 def _attach_take_probs_func(bb: relax.BlockBuilder):
-    batch_size = tir.SizeVar("batch_size", "int64")
-    num_samples = tir.SizeVar("num_samples", "int64")
-    num_positions = tir.SizeVar("num_positions", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    batch_size = tirx.SizeVar("batch_size", "int64")
+    num_samples = tirx.SizeVar("num_samples", "int64")
+    num_positions = tirx.SizeVar("num_positions", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     unsorted_probs = relax.Var(
         "unsorted_probs", relax.TensorStructInfo((batch_size, vocab_size), "float32")
     )
@@ -341,9 +341,9 @@ def _attach_take_probs_func(bb: relax.BlockBuilder):
 
 
 def _attach_batch_verifier(bb: relax.BlockBuilder):
-    num_nodes = tir.SizeVar("num_nodes", "int64")
-    nbatch = tir.SizeVar("nbatch", "int64")
-    vocab_size = tir.SizeVar("vocab_size", "int64")
+    num_nodes = tirx.SizeVar("num_nodes", "int64")
+    nbatch = tirx.SizeVar("nbatch", "int64")
+    vocab_size = tirx.SizeVar("vocab_size", "int64")
     draft_probs = relax.Var(
         "draft_probs", relax.TensorStructInfo((num_nodes, vocab_size), "float32")
     )

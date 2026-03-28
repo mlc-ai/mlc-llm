@@ -290,6 +290,24 @@ def load_embedding_params(model_weight_path, device, model_metadata) -> list:
     return [params[name] for name in param_names]
 
 
+def get_embedding_metadata(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Read emedding metadata from mlc-chat-config or model lib metadata.
+
+    Parameters
+    ----------
+    config : Dict[str, Any]
+        The configuration dictionary containing model metadata.
+
+    Returns
+    -------
+    embedding_metadata : Optional[Dict[str, Any]] = None if it's not an embedding model.
+        The embedding metadata dictionary.
+    """
+    if config.get("model_task") == "embedding":
+        return config.get("embedding_metadata")
+    return None
+
+
 def detect_embedding_model_type(mod) -> Literal["encoder", "decoder"]:
     """Detect embedding model type from compiled TVM module functions.
 

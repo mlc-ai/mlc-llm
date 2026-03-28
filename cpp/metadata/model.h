@@ -27,6 +27,7 @@ enum class KVStateKind : int {
   kKVCache = 0,
   kRNNState = 1,
   kNone = 2,
+  kHybrid = 3,
 };
 
 inline std::string KVStateKindToString(KVStateKind kv_state_kind) {
@@ -36,6 +37,8 @@ inline std::string KVStateKindToString(KVStateKind kv_state_kind) {
     return "rnn_state";
   } else if (kv_state_kind == KVStateKind::kNone) {
     return "none";
+  } else if (kv_state_kind == KVStateKind::kHybrid) {
+    return "hybrid";
   } else {
     LOG(FATAL) << "Invalid kv state kind: " << static_cast<int>(kv_state_kind);
   }
@@ -48,6 +51,8 @@ inline KVStateKind KVStateKindFromString(const std::string& kv_state_kind) {
     return KVStateKind::kRNNState;
   } else if (kv_state_kind == "none") {
     return KVStateKind::kNone;
+  } else if (kv_state_kind == "hybrid") {
+    return KVStateKind::kHybrid;
   } else {
     LOG(FATAL) << "Invalid kv state kind string: " << kv_state_kind;
   }
@@ -95,6 +100,10 @@ struct ModelMetadata {
   std::unordered_map<std::string, int64_t> memory_usage;
   KVStateKind kv_state_kind;
   KVCacheMetadata kv_cache_metadata;
+  std::string model_task;
+  std::string embedding_model_type;
+  std::string embedding_pooling_strategy;
+  bool embedding_normalize = false;
 
   static ModelMetadata FromJSON(const tvm::ffi::json::Object& json_str,
                                 const tvm::ffi::json::Object& model_config);

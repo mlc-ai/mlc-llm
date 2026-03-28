@@ -255,11 +255,14 @@ class ChatState:
         kb = _set_up_key_bindings()
 
         while True:
-            prompt = get_prompt(
-                ">>> ",  # pylint: disable=protected-access
-                key_bindings=kb,
-                multiline=True,
-            )
+            try:
+                prompt = get_prompt(
+                    ">>> ",  # pylint: disable=protected-access
+                    key_bindings=kb,
+                    multiline=True,
+                )
+            except (KeyboardInterrupt, EOFError):
+                break
             if prompt[:4] == "/set":
                 overrides = ChatCompletionOverride.from_str(prompt.split()[1])
                 for key, value in dataclasses.asdict(overrides).items():
@@ -287,20 +290,22 @@ def chat(
 ):
     """Chat cli entry"""
     # By default we use JSONFFIEngine
-    ChatState(
-        JSONFFIEngine(
-            model,
-            device,
-            model_lib=model_lib,
-            mode="interactive",
-            engine_config=EngineConfig(
-                max_single_sequence_length=overrides.context_window_size,
-                prefill_chunk_size=overrides.prefill_chunk_size,
-                sliding_window_size=overrides.sliding_window_size,
-                attention_sink_size=overrides.attention_sink_size,
-                tensor_parallel_shards=overrides.tensor_parallel_shards,
-                pipeline_parallel_stages=overrides.pipeline_parallel_stages,
-                opt=overrides.opt,
-            ),
-        )
-    ).chat()
+    engine = JSONFFIEngine(
+        model,
+        device,
+        model_lib=model_lib,
+        mode="interactive",
+        engine_config=EngineConfig(
+            max_single_sequence_length=overrides.context_window_size,
+            prefill_chunk_size=overrides.prefill_chunk_size,
+            sliding_window_size=overrides.sliding_window_size,
+            attention_sink_size=overrides.attention_sink_size,
+            tensor_parallel_shards=overrides.tensor_parallel_shards,
+            pipeline_parallel_stages=overrides.pipeline_parallel_stages,
+            opt=overrides.opt,
+        ),
+    )
+    try:
+        ChatState(engine).chat()
+    finally:
+        engine.terminate()

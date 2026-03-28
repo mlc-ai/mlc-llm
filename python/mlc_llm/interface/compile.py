@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
 from tvm.target import Target
@@ -62,8 +62,8 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
 def _apply_preproc_to_params_and_check_pipeline(
     named_params: List[Tuple[str, nn.Parameter]],
     model_config,
-) -> Dict[str, tir.PrimFunc]:
-    extra_tirs: Dict[str, tir.PrimFunc] = {}
+) -> Dict[str, tirx.PrimFunc]:
+    extra_tirs: Dict[str, tirx.PrimFunc] = {}
     for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)
@@ -100,6 +100,8 @@ def _infer_kv_state_kind(model_type) -> str:
         return "rnn_state"
     if "medusa" in model_type:
         return "none"
+    if "qwen3_5" in model_type:
+        return "hybrid"
     return "kv_cache"
 
 
@@ -188,10 +190,19 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
             "kv_state_kind": _infer_kv_state_kind(args.model.name),
             "max_batch_size": getattr(model_config, "max_batch_size", 1),
             "active_vocab_size": avs,
+            "model_task": args.model.model_task,
         }
+        if args.model.embedding_metadata:
+            metadata["embedding_metadata"] = dataclasses.asdict(args.model.embedding_metadata)
         logger.info("Registering metadata: %s", metadata)
         metadata["params"] = [_get_param_metadata(name, param) for name, param in named_params]
-        with PassContext(config={"relax.backend.use_cuda_graph": args.opt.cudagraph}):
+        pass_config = {"relax.backend.use_cuda_graph": args.opt.cudagraph}
+        # TODO: Remove this workaround when the TVM CSE regression is fixed.
+        # Temporary workaround for TVM CSE regression that can produce
+        # dangling `cse_v*` vars during host codegen.
+        pass_config["tirx.disable_cse_tir"] = True
+
+        with PassContext(config=pass_config):
             args.build_func(
                 mod,
                 args,

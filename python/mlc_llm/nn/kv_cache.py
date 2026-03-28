@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 import numpy as np
 from tvm import relax as rx
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend.nn.llm.kv_cache import PagedKVCache as TVMPagedKVCache
 from tvm.relax.frontend.nn.llm.kv_cache import RopeMode
 
@@ -17,11 +17,11 @@ class PagedKVCache(TVMPagedKVCache):  # pylint: disable=too-few-public-methods
     @staticmethod
     def create_generic(  # pylint: disable=too-many-locals
         attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
         num_hidden_layers: int,
         num_attention_heads: int,
         num_key_value_heads: int,

@@ -1,7 +1,7 @@
 """A compiler pass that fuses transpose + dequantize."""
 
 import tvm
-from tvm import relax, s_tir, tir
+from tvm import relax, s_tir, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
@@ -44,7 +44,7 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
         # Do not fuse dequantize-transpose for GeMM
         if (
             call.args[0].struct_info.ndim < 2
-            or not isinstance(call.args[0].struct_info.shape[-2], tir.IntImm)
+            or not isinstance(call.args[0].struct_info.shape[-2], tirx.IntImm)
             or call.args[0].struct_info.shape[-2].value != 1
         ):
             return call
@@ -68,13 +68,13 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
             return call
 
         dequantize_tir_func = self.mod[transpose_input.args[0]]
-        assert isinstance(dequantize_tir_func, tir.PrimFunc)
+        assert isinstance(dequantize_tir_func, tirx.PrimFunc)
         if (  # pylint: disable=too-many-boolean-expressions
             len(dequantize_tir_func.body.block.alloc_buffers) != 1
-            or not isinstance(dequantize_tir_func.body.block.body, tir.SeqStmt)
+            or not isinstance(dequantize_tir_func.body.block.body, tirx.SeqStmt)
             or len(dequantize_tir_func.body.block.body) != 2
-            or not isinstance(dequantize_tir_func.body.block.body[1], tir.For)
-            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tir.SBlockRealize)
+            or not isinstance(dequantize_tir_func.body.block.body[1], tirx.For)
+            or not isinstance(dequantize_tir_func.body.block.body[1].body.body, tirx.SBlockRealize)
             or dequantize_tir_func.body.block.body[1].body.body.block.name_hint != "T_transpose"
         ):
             return call
@@ -83,12 +83,12 @@ class _DequantizeTransposeFuser(PyExprMutator):  # pylint: disable=abstract-meth
             dequantize_tir_func.buffer_map[var] for var in dequantize_tir_func.params
         ]
         new_func_buffers[-1] = dequantize_tir_func.body.block.alloc_buffers[0]
-        new_func = tir.PrimFunc(
+        new_func = tirx.PrimFunc(
             params=new_func_buffers,
-            body=tir.SBlockRealize(
+            body=tirx.SBlockRealize(
                 iter_values=[],
                 predicate=True,
-                block=tir.SBlock(
+                block=tirx.SBlock(
                     iter_vars=[],
                     reads=[],
                     writes=[],

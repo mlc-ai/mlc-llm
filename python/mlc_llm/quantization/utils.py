@@ -2,7 +2,7 @@
 
 from typing import Callable, List, Optional, Sequence
 
-from tvm import IRModule, relax, te, tir
+from tvm import IRModule, relax, te, tirx
 from tvm.relax.frontend import nn
 from tvm.runtime import DataType, DataTypeCode
 from tvm.s_tir import dlight as dl
@@ -18,19 +18,19 @@ def convert_uint_to_float(  # pylint: disable=too-many-arguments
     storage_dtype: str,
     model_dtype: str,
     axis: int = -1,
-    out_shape: Optional[List[tir.PrimExpr]] = None,
+    out_shape: Optional[List[tirx.PrimExpr]] = None,
     ft_reorder: Optional[bool] = False,
 ) -> te.Tensor:
     """Convert a quantized uint weight to an unquantized float weight."""
-    tir_bin_mask = tir.const((1 << bits) - 1, storage_dtype)
+    tir_bin_mask = tirx.const((1 << bits) - 1, storage_dtype)
     if out_shape is None:
         out_shape = weight.shape
         out_shape[axis] *= num_elem_per_storage
     axis = axis if axis >= 0 else len(out_shape) + axis
     return te.compute(
         shape=out_shape,
-        fcompute=lambda *idx: tir.bitwise_and(
-            tir.shift_right(
+        fcompute=lambda *idx: tirx.bitwise_and(
+            tirx.shift_right(
                 weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                 (
                     (
@@ -102,14 +102,14 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     model_dtype: str,
     quant_dtype: str,
     axis: int = -1,
-    out_shape: Optional[Sequence[tir.PrimExpr]] = None,
+    out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
 ) -> te.Tensor:
     """Unpack a fp8 value from the storage dtype and convert to float."""
     assert quant_dtype in ["float8_e4m3fn", "float8_e5m2"]
     assert DataType(storage_dtype).type_code == DataTypeCode.UINT
     bits = DataType(quant_dtype).bits
     elem_storage_dtype = DataType(f"uint{bits}")
-    tir_bin_mask = tir.const((1 << bits) - 1, "uint8")
+    tir_bin_mask = tirx.const((1 << bits) - 1, "uint8")
     if axis < 0:
         axis += len(weight.shape)
     if out_shape is None:
@@ -121,10 +121,10 @@ def convert_uint_packed_fp8_to_float(  # pylint: disable=too-many-arguments
     axis = axis if axis >= 0 else len(out_shape) + axis
     return te.compute(
         shape=out_shape,
-        fcompute=lambda *idx: tir.reinterpret(
+        fcompute=lambda *idx: tirx.reinterpret(
             quant_dtype,
-            tir.bitwise_and(
-                tir.shift_right(
+            tirx.bitwise_and(
+                tirx.shift_right(
                     weight(*idx[:axis], idx[axis] // num_elem_per_storage, *idx[axis + 1 :]),
                     ((idx[axis] % num_elem_per_storage) * bits).astype(storage_dtype),
                 ).astype(elem_storage_dtype),
@@ -140,7 +140,7 @@ def pack_weight(
     num_elem_per_storage: int,
     weight_dtype: str,
     storage_dtype: str,
-    out_shape: Optional[Sequence[tir.PrimExpr]] = None,
+    out_shape: Optional[Sequence[tirx.PrimExpr]] = None,
 ):  # pylint: disable=too-many-arguments
     """Convert a tensor to a packed format by packing consecutive bits.
     This can be useful for sub-byte quantization.
@@ -157,7 +157,7 @@ def pack_weight(
         The dtype of the input tensor.
     storage_dtype : str
         The dtype of the packed tensor.
-    out_shape : Optional[Sequence[tir.PrimExpr]]
+    out_shape : Optional[Sequence[tirx.PrimExpr]]
         The output shape of the packed tensor. Zero-padding is added if needed.
     """
     assert weight.dtype == storage_dtype
@@ -169,18 +169,18 @@ def pack_weight(
     if out_shape is None:
         out_shape = (
             *shape[:axis],
-            tir.ceildiv(k, num_elem_per_storage),
+            tirx.ceildiv(k, num_elem_per_storage),
             *shape[axis + 1 :],
         )
     r = te.reduce_axis((0, num_elem_per_storage), name="r")  # pylint: disable=invalid-name
     packed_weight = te.compute(
         shape=out_shape,
-        fcompute=lambda *idx: tir.sum(
-            tir.if_then_else(
+        fcompute=lambda *idx: tirx.sum(
+            tirx.if_then_else(
                 idx[axis] * num_elem_per_storage + r < k,
                 weight(*idx[:axis], idx[axis] * num_elem_per_storage + r, *idx[axis + 1 :])
                 << (r * DataType(weight_dtype).bits),
-                tir.const(0, storage_dtype),
+                tirx.const(0, storage_dtype),
             ),
             axis=r,
         ),

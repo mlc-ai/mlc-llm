@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -387,11 +387,11 @@ class Gemma3LanguageModel(nn.Module):  # pylint: disable=too-many-instance-attri
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         # if "factor" in self.rope_scaling:
         #     rope_scaling = self.rope_scaling["factor"]
@@ -567,11 +567,11 @@ class Gemma3ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         # if "factor" in self.language_model.rope_scaling:
         #     rope_scaling = self.language_model.rope_scaling["factor"]

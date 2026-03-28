@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, List, Literal, Optional, Tuple
 
 import tvm
-from tvm import DataType, DataTypeCode, IRModule, relax, te, tir
+from tvm import DataType, DataTypeCode, IRModule, relax, te, tirx
 from tvm.relax.frontend import nn
 from tvm.runtime import Tensor
 from tvm.s_tir import dlight as dl
@@ -262,13 +262,13 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         n, k = weight.shape
 
         cur_group_size = k if not self.group_size else self.group_size
-        scale_shape = (tir.ceildiv(k, cur_group_size), n)
+        scale_shape = (tirx.ceildiv(k, cur_group_size), n)
         r = te.reduce_axis((0, cur_group_size), name="r")
 
         max_abs = te.compute(
             shape=scale_shape,
             fcompute=lambda j, i: te.max(
-                tir.if_then_else(
+                tirx.if_then_else(
                     j * cur_group_size + r < k,
                     te.abs(weight[i, j * cur_group_size + r]),
                     te.min_value(self.model_dtype),
@@ -277,7 +277,7 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
             ),
             name="max_abs_value",
         )
-        max_int = tir.const(self.max_int_value, self.model_dtype)
+        max_int = tirx.const(self.max_int_value, self.model_dtype)
         scale = te.compute(
             scale_shape,
             lambda i, j: max_abs[i, j].astype(self.model_dtype) / max_int,
@@ -285,13 +285,13 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
         )
         # compute scaled weight
         quantize_dtype = DataType(self.quantize_dtype)
-        bin_mask = tir.const((1 << quantize_dtype.bits) - 1, self.storage_dtype)
+        bin_mask = tirx.const((1 << quantize_dtype.bits) - 1, self.storage_dtype)
         scaled_weight = te.compute(
             shape=weight.shape,
             fcompute=lambda i, j: (
-                tir.min(
-                    tir.max(
-                        tir.round(weight[i, j] / scale[j // cur_group_size, i]),
+                tirx.min(
+                    tirx.max(
+                        tirx.round(weight[i, j] / scale[j // cur_group_size, i]),
                         -max_int - 1,
                     ),
                     max_int,
@@ -300,19 +300,19 @@ class FTQuantize:  # pylint: disable=too-many-instance-attributes
             ),
         )
 
-        quantized_weight_shape = (k, tir.ceildiv(n, self.num_elem_per_storage))
+        quantized_weight_shape = (k, tirx.ceildiv(n, self.num_elem_per_storage))
         r = te.reduce_axis((0, self.num_elem_per_storage), name="r")  # pylint: disable=invalid-name
         quantized_weight = te.compute(
             shape=quantized_weight_shape,
-            fcompute=lambda j, i: tir.sum(
-                tir.if_then_else(
+            fcompute=lambda j, i: tirx.sum(
+                tirx.if_then_else(
                     i * self.num_elem_per_storage + r < n,
                     scaled_weight[i * self.num_elem_per_storage + r, j]
                     << (
                         r.astype(self.storage_dtype)
-                        * tir.const(quantize_dtype.bits, self.storage_dtype)
+                        * tirx.const(quantize_dtype.bits, self.storage_dtype)
                     ),
-                    tir.const(0, self.storage_dtype),
+                    tirx.const(0, self.storage_dtype),
                 ),
                 axis=r,
             ),
@@ -340,11 +340,11 @@ class FTQuantizeLinear(nn.Module):  # pylint: disable=too-many-instance-attribut
         self.config = config
         cur_group_size = in_features if not config.group_size else config.group_size
         self.q_weight = nn.Parameter(
-            (in_features, tir.ceildiv(out_features, config.num_elem_per_storage)),
+            (in_features, tirx.ceildiv(out_features, config.num_elem_per_storage)),
             config.storage_dtype,
         )
         self.q_scale = nn.Parameter(
-            (tir.ceildiv(in_features, cur_group_size), out_features), config.model_dtype
+            (tirx.ceildiv(in_features, cur_group_size), out_features), config.model_dtype
         )
         if bias:
             self.bias = nn.Parameter(

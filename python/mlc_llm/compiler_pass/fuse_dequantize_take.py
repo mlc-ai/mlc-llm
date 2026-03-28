@@ -1,7 +1,7 @@
 """A compiler pass that fuses dequantize + take."""
 
 import tvm
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.relax.dpl.pattern import (
     GlobalVarPattern,
     TuplePattern,
@@ -38,11 +38,11 @@ class FuseDequantizeTake:  # pylint: disable=too-few-public-methods
         mod = tvm.transform.Sequential(seq)(mod)
         for g_var, func in mod.functions_items():
             name = g_var.name_hint
-            if isinstance(func, tir.PrimFunc) and (
+            if isinstance(func, tirx.PrimFunc) and (
                 ("fused_dequantize" in name) and ("take" in name)
             ):
                 sch_mod = tvm.IRModule({"main": func})
-                sch_mod = tir.transform.ForceNarrowIndexToInt32()(sch_mod)
+                sch_mod = tirx.transform.ForceNarrowIndexToInt32()(sch_mod)
                 sch = tvm.s_tir.Schedule(sch_mod)
                 sch.compute_inline("dequantize")
                 mod[g_var] = sch.mod["main"]

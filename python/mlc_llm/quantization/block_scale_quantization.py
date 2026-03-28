@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import Any, Literal, Optional, Tuple
 
 import tvm
-from tvm import DataType, DataTypeCode, te, tir
+from tvm import DataType, DataTypeCode, te, tirx
 from tvm.relax.frontend import nn
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.loader import QuantizeMapping
 from mlc_llm.nn import MixtralExperts
@@ -636,16 +636,16 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
     assert group_size > 0
 
     def quantize(x: te.Tensor):
-        num_group = tir.ceildiv(x.shape[-1], group_size)
+        num_group = tirx.ceildiv(x.shape[-1], group_size)
         max_abs_shape = (*x.shape[:-1], num_group)
         max_abs_reduce_axis = te.reduce_axis((0, group_size), name="r")
         scale_dtype = "float32"
         max_abs = te.compute(
             shape=max_abs_shape,
             fcompute=lambda *idx: te.max(
-                tir.if_then_else(
+                tirx.if_then_else(
                     idx[-1] * group_size + max_abs_reduce_axis < x.shape[-1],
-                    tir.Max(
+                    tirx.Max(
                         te.abs(
                             x(*idx[:-1], idx[-1] * group_size + max_abs_reduce_axis).astype(
                                 scale_dtype
@@ -653,7 +653,7 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
                         ),
                         eps,
                     ),
-                    tir.min_value(scale_dtype),
+                    tirx.min_value(scale_dtype),
                 ),
                 axis=max_abs_reduce_axis,
             ),
@@ -664,13 +664,13 @@ def rowwise_group_quant_fp8(  # pylint: disable=too-many-arguments
         fp8_min = -fp8_max
         scale = te.compute(
             shape=max_abs_shape,
-            fcompute=lambda *idx: max_abs(*idx) / tir.const(fp8_max, scale_dtype),
+            fcompute=lambda *idx: max_abs(*idx) / tirx.const(fp8_max, scale_dtype),
             name="scale",
         )
         x_quantized = te.compute(
             shape=x.shape,
-            fcompute=lambda *idx: tir.max(
-                tir.min(
+            fcompute=lambda *idx: tirx.max(
+                tirx.min(
                     x(*idx).astype(scale_dtype) / scale(*idx[:-1], idx[-1] // group_size),
                     fp8_max,
                 ),
@@ -713,9 +713,9 @@ def static_activation_group_quant_fp8(
         fp8_min = -fp8_max
 
         def fcompute(*idx):
-            group_idx = tir.indexdiv(idx[-1], group_size)
-            return tir.max(
-                tir.min(
+            group_idx = tirx.indexdiv(idx[-1], group_size)
+            return tirx.max(
+                tirx.min(
                     x(*idx).astype("float32") / scale(group_idx),
                     fp8_max,
                 ),
@@ -807,8 +807,8 @@ def dequantize_float8_groupwise_scaled_gemv(
         ),
         o: T.Buffer((n,), out_dtype),  # type: ignore
     ):
-        T.func_attr({"op_pattern": 4, "tir.noalias": True})  # kOutEWiseFusable
-        y = T.alloc_buffer((n, k), model_dtype)
+        T.func_attr({"op_pattern": 4, "tirx.noalias": True})  # kOutEWiseFusable
+        y = T.sblock_alloc_buffer((n, k), model_dtype)
         for i1, i2 in T.grid(n, k):
             with T.sblock("dequantize"):
                 i, j = T.axis.remap("SS", [i1, i2])

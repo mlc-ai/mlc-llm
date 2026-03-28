@@ -8,7 +8,7 @@ import tvm
 from tvm import relax
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
 
@@ -24,16 +24,16 @@ def _get_add_rms_norm_decode(hidden_size: int, eps: float, TX: int, in_dtype: st
     def decode_add_rms(  # pylint: disable=too-many-locals
         pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
         batch_size = T.int32()
         A = T.match_buffer(pA, (batch_size, 1, hidden_size), in_dtype)
         B = T.match_buffer(pB, (batch_size, 1, hidden_size), in_dtype)
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
         O = T.match_buffer(pO, (batch_size, 1, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (batch_size, 1, hidden_size), in_dtype)
-        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.alloc_buffer((batch_size, 1), scope="shared")
-        sum_local = T.alloc_buffer((TX, batch_size, 1), scope="local")
+        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = T.sblock_alloc_buffer((batch_size, 1), scope="shared")
+        sum_local = T.sblock_alloc_buffer((TX, batch_size, 1), scope="local")
         for v_bx in T.thread_binding(batch_size, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,
@@ -95,16 +95,16 @@ def _get_add_rms_norm_prefill(hidden_size: int, eps: float, TX: int, in_dtype: s
     def prefill_add_rms(  # pylint: disable=too-many-locals
         pA: T.handle, pB: T.handle, pC: T.handle, pO: T.handle, pAdd: T.handle
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
         seq_len = T.int32()
         A = T.match_buffer(pA, (1, seq_len, hidden_size), in_dtype)
         B = T.match_buffer(pB, (1, seq_len, hidden_size), in_dtype)
         C = T.match_buffer(pC, (hidden_size,), in_dtype)
         O = T.match_buffer(pO, (1, seq_len, hidden_size), in_dtype)
         add = T.match_buffer(pAdd, (1, seq_len, hidden_size), in_dtype)
-        add_local = T.alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
-        sum_shared = T.alloc_buffer((1, seq_len), scope="shared")
-        sum_local = T.alloc_buffer((TX, 1, seq_len), scope="local")
+        add_local = T.sblock_alloc_buffer((hidden_size // TX,), in_dtype, scope="local")
+        sum_shared = T.sblock_alloc_buffer((1, seq_len), scope="shared")
+        sum_local = T.sblock_alloc_buffer((TX, 1, seq_len), scope="local")
         for v_bx in T.thread_binding(seq_len, thread="blockIdx.x"):
             for v_tx in T.thread_binding(
                 TX,
