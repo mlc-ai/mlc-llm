@@ -34,6 +34,7 @@ from .ministral3 import ministral3_loader, ministral3_model
 from .mistral import mistral_loader, mistral_model
 from .mixtral import mixtral_loader, mixtral_model
 from .nemotron import nemotron_loader, nemotron_model
+from .nemotron_h import nemotron_h_loader, nemotron_h_model
 from .olmo import olmo_loader, olmo_model
 from .orion import orion_loader, orion_model
 from .phi import phi_loader, phi_model
@@ -713,6 +714,18 @@ MODELS: Dict[str, Model] = {
             nemotron_model.NemotronForCausalLM,
             supports_awq=True,
             supports_per_tensor=True,
+        ),
+    ),
+    "nemotron_h": Model(
+        name="nemotron_h",
+        model=nemotron_h_model.NemotronHForCausalLM,
+        config=nemotron_h_model.NemotronHConfig,
+        source={
+            "huggingface-torch": nemotron_h_loader.huggingface,
+            "huggingface-safetensor": nemotron_h_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            nemotron_h_model.NemotronHForCausalLM,
         ),
     ),
     "bert-bge": Model(
