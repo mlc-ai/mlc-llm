@@ -1,7 +1,7 @@
 """A compiler pass that fuses transpose + matmul."""
 
 import tvm
-from tvm import IRModule, relax, te, tir
+from tvm import IRModule, relax, te, tirx
 from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.expr_functor import PyExprMutator, mutator
 
@@ -106,9 +106,9 @@ class _TransposeMatmulFuser(PyExprMutator):  # pylint: disable=abstract-method
                         a_dim = a_shape[i if is_a_larger else i - offset]
                         b_dim = b_shape[i if not is_a_larger else i - offset]
                         dim_equal = a_dim == b_dim
-                        if not isinstance(dim_equal, tir.IntImm) or dim_equal == 0:
-                            a_dim_is_one = isinstance(a_dim, tir.IntImm) and a_dim == 1
-                            b_dim_is_one = isinstance(b_dim, tir.IntImm) and b_dim == 1
+                        if not isinstance(dim_equal, tirx.IntImm) or dim_equal == 0:
+                            a_dim_is_one = isinstance(a_dim, tirx.IntImm) and a_dim == 1
+                            b_dim_is_one = isinstance(b_dim, tirx.IntImm) and b_dim == 1
                             a_indices.append(0 if a_dim_is_one else idx_spatial[i])
                             b_indices.append(0 if b_dim_is_one else idx_spatial[i])
                         else:

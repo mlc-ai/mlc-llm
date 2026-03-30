@@ -5,7 +5,7 @@ Implementation for EAGLE architecture.
 import dataclasses
 from typing import Optional
 
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -166,11 +166,11 @@ class EagleForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribut
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind="mha",

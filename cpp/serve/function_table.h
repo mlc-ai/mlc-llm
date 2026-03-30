@@ -110,6 +110,7 @@ struct FunctionTable {
   Function alloc_embedding_tensor_func_;
   Function cuda_graph_alloc_init_func_;
   Function create_kv_cache_func_;
+  Function create_rnn_state_func_;
   Function reset_kv_cache_func_;
   bool support_backtracking_kv_;
   Function kv_cache_add_sequence_func_;

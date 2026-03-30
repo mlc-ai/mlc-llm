@@ -3,7 +3,7 @@
 from typing import Dict, List, Tuple
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.analysis import remove_all_unused
 from tvm.relax.expr_functor import PyExprMutator, mutator
@@ -29,13 +29,13 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
         self.mod = mod
         self.gv2new_tensor_sinfo: Dict[
             tvm.ir.GlobalVar,
-            Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tir.PrimFunc],
+            Tuple[tvm.ir.GlobalVar, List[relax.TensorStructInfo], tirx.PrimFunc],
         ] = {}
 
     def transform(self) -> IRModule:
         """Entry point of the transformation"""
         for g_var, func in self.mod.functions_items():
-            if isinstance(func, tir.PrimFunc):
+            if isinstance(func, tirx.PrimFunc):
                 updated_func, tensor_sinfo_list = remove_global_buf_alloc(func)
                 if len(tensor_sinfo_list) > 0:
                     new_gv = self.builder_.add_func(updated_func, g_var.name_hint)
@@ -91,10 +91,10 @@ class _TIRGlobalAllocRewriter(PyExprMutator):  # pylint: disable=abstract-method
 
 
 def remove_global_buf_alloc(
-    func: tir.PrimFunc,
-) -> Tuple[tir.PrimFunc, List[relax.TensorStructInfo]]:
+    func: tirx.PrimFunc,
+) -> Tuple[tirx.PrimFunc, List[relax.TensorStructInfo]]:
     """Remove the global buffer allocation for a given TIR PrimFunc."""
-    assert isinstance(func.body, tir.SBlockRealize)
+    assert isinstance(func.body, tirx.SBlockRealize)
     params = list(func.params)
     buffer_map = dict(func.buffer_map)
     tensor_sinfo = []
@@ -108,7 +108,7 @@ def remove_global_buf_alloc(
     prev_root_block = func.body.block
     for buf_alloc in func.body.block.alloc_buffers:
         if buf_alloc.scope() == "global":
-            param = tir.Var("var_" + buf_alloc.name, "handle")
+            param = tirx.Var("var_" + buf_alloc.name, "handle")
             params.insert(insertion_point, param)
             insertion_point += 1
             buffer_map[param] = buf_alloc
@@ -125,7 +125,7 @@ def remove_global_buf_alloc(
     assert len(prev_root_block.match_buffers) == 0
     assert prev_root_block.name_hint == "root"
     assert prev_root_block.init is None
-    root_block = tir.SBlock(
+    root_block = tirx.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -135,9 +135,9 @@ def remove_global_buf_alloc(
         annotations=prev_root_block.annotations,
     )
 
-    updated_func = tir.PrimFunc(
+    updated_func = tirx.PrimFunc(
         params=params,
-        body=tir.SBlockRealize(iter_values=[], predicate=True, block=root_block),
+        body=tirx.SBlockRealize(iter_values=[], predicate=True, block=root_block),
         ret_type=func.ret_type,
         buffer_map=buffer_map,
         attrs=func.attrs,
@@ -148,18 +148,18 @@ def remove_global_buf_alloc(
 def _has_symbolic_var(tensor_sinfo: relax.TensorStructInfo) -> bool:
     assert isinstance(tensor_sinfo.shape, relax.ShapeExpr)
     for dim in tensor_sinfo.shape.values:
-        if not isinstance(dim, tir.IntImm):
+        if not isinstance(dim, tirx.IntImm):
             return True
     return False
 
 
 def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
-    func: tir.PrimFunc,
+    func: tirx.PrimFunc,
     call: relax.Call,
     tensor_sinfo: List[relax.TensorStructInfo],
 ) -> Tuple[List[relax.TensorStructInfo], bool]:
     """Resolve the TIR symbolic var relationship across sides of PrimFunc and Relax Function"""
-    var_map: Dict[tir.Var, tir.PrimExpr] = {}
+    var_map: Dict[tirx.Var, tirx.PrimExpr] = {}
 
     n_arg = len(call.args[1].fields)
     for i in range(n_arg):
@@ -167,9 +167,9 @@ def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
         arg_shape = call.args[1][i].struct_info.shape.values
         assert len(buffer_shape) == len(arg_shape)
         for v_l, v_r in zip(buffer_shape, arg_shape):
-            if isinstance(v_l, tir.Var):
+            if isinstance(v_l, tirx.Var):
                 var_map[v_l] = v_r
-            elif not isinstance(v_l, tir.IntImm):
+            elif not isinstance(v_l, tirx.IntImm):
                 return [], False
 
     ret_tensors = call.sinfo_args[0]
@@ -183,9 +183,9 @@ def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
         ret_tensor_shape = ret_tensor.shape.values
         assert len(buffer_shape) == len(ret_tensor_shape)
         for v_l, v_r in zip(buffer_shape, ret_tensor_shape):
-            if isinstance(v_l, tir.Var):
+            if isinstance(v_l, tirx.Var):
                 var_map[v_l] = v_r
-            elif not isinstance(v_l, tir.IntImm):
+            elif not isinstance(v_l, tirx.IntImm):
                 return [], False
 
     updated_tensor_sinfo = []
@@ -195,6 +195,6 @@ def _resolve_tir_var_mapping(  # pylint: disable=too-many-locals
             continue
         new_shape = []
         for dim in sinfo.shape.values:
-            new_shape.append(tir.stmt_functor.substitute(dim, var_map))
+            new_shape.append(tirx.stmt_functor.substitute(dim, var_map))
         updated_tensor_sinfo.append(relax.TensorStructInfo(new_shape, sinfo.dtype))
     return updated_tensor_sinfo, True

@@ -6,7 +6,7 @@ import dataclasses
 from typing import Any, Dict, Optional
 
 import tvm
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 from tvm.relax.frontend.nn.llm import position_embedding
@@ -278,7 +278,7 @@ class Llama4TextAttention(nn.Module):  # pylint: disable=too-many-instance-attri
         if self.use_rope:
             qkv = op.concat([query_states, key_states, value_states], dim=2)
 
-            apply_rope = tvm.tir.IntImm("int64", 1)
+            apply_rope = tvm.tirx.IntImm("int64", 1)
 
             rotary_emb = position_embedding.llama4_rope_with_position_map(
                 theta=self.rope_theta,
@@ -681,11 +681,11 @@ class Llama4ForCausalLM(nn.Module):  # pylint: disable=too-many-instance-attribu
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind="mha",

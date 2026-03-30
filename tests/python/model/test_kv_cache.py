@@ -1,10 +1,10 @@
 # pylint: disable=line-too-long,missing-docstring
 import tvm
-from tvm import tir
+from tvm import tirx
 from tvm.relax.frontend.nn import core, modules, spec
 from tvm.script import ir as I
 from tvm.script import relax as R
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from mlc_llm.nn.kv_cache import PagedKVCache, RopeMode
 
@@ -68,11 +68,11 @@ def test_nn_module_paged_kv_cache():
 
         def create_paged_kv_cache(
             self,
-            max_batch_size: tir.Var,
-            max_total_seq_len: tir.Var,
-            prefill_chunk_size: tir.Var,
-            page_size: tir.Var,
-            support_sliding_window: tir.Var,
+            max_batch_size: tirx.Var,
+            max_total_seq_len: tirx.Var,
+            prefill_chunk_size: tirx.Var,
+            page_size: tirx.Var,
+            support_sliding_window: tirx.Var,
         ) -> PagedKVCache:
             return PagedKVCache.create_generic(
                 attn_kind="mha",

@@ -4,7 +4,7 @@ from math import lcm
 from typing import Any, Dict, List
 
 import tvm
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.ir import Op
 from tvm.relax.expr_functor import PyExprVisitor, visitor
 
@@ -32,7 +32,7 @@ class AttachVariableBounds:  # pylint: disable=too-few-public-methods
 class AttachAdditionalPrimFuncs:  # pylint: disable=too-few-public-methods
     """Attach extra TIR PrimFuncs to the IRModule"""
 
-    def __init__(self, functions: Dict[str, tir.PrimFunc]):
+    def __init__(self, functions: Dict[str, tirx.PrimFunc]):
         self.functions = functions
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:

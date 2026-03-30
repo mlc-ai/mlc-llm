@@ -3,10 +3,10 @@
 from typing import Any, Dict, Optional
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, mutator
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 from ..support.max_thread_check import get_max_num_threads_per_block
 
@@ -43,8 +43,8 @@ class _Rewriter(PyExprMutator):  # pylint: disable=abstract-method
 
     def transform(self) -> IRModule:
         """Entry point"""
-        batch_size = tir.SizeVar("batch_size", "int64")
-        vocab_size = tir.SizeVar("vocab_size", "int64")
+        batch_size = tirx.SizeVar("batch_size", "int64")
+        vocab_size = tirx.SizeVar("vocab_size", "int64")
         dtype = "float32"
         logits = relax.Var("logits", relax.TensorStructInfo([batch_size, 1, vocab_size], dtype))
         temperature = relax.Var("temperature", relax.TensorStructInfo([batch_size], dtype))
@@ -124,7 +124,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         var_chunked_sum: T.handle,
         var_chunked_max: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tirx.noalias": T.bool(True)})
         batch_size = T.int64(is_size_var=True)
         vocab_size = T.int64(is_size_var=True)
         num_chunks = T.int64(is_size_var=True)
@@ -190,7 +190,7 @@ def _get_lse_and_softmax_func(  # pylint: disable=too-many-locals,too-many-state
         var_chunked_max: T.handle,
         var_softmax: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "tir.is_scheduled": 1})
+        T.func_attr({"tirx.noalias": T.bool(True), "tirx.is_scheduled": 1})
         batch_size = T.int64(is_size_var=True)
         vocab_size = T.int64(is_size_var=True)
         num_chunks = T.int64(is_size_var=True)

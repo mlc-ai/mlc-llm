@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional, Tuple
 
 import tvm
-from tvm import relax, tir
+from tvm import relax, tirx
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
@@ -29,8 +29,8 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         self.old_packed_params_var: relax.Var
         self.new_main_packed_params_var: relax.Var
         self.new_stage_func_packed_params: relax.Var
-        self.undefined_shape_vars_remap: Dict[tir.Var, tir.Var]
-        self.undefined_param_shape_vars_remap: Dict[tir.Var, tir.Var]
+        self.undefined_shape_vars_remap: Dict[tirx.Var, tirx.Var]
+        self.undefined_param_shape_vars_remap: Dict[tirx.Var, tirx.Var]
 
     def transform(self) -> IRModule:  # pylint: disable=too-many-locals
         """Entry point of the transformation"""
@@ -261,7 +261,7 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
     def _update_struct_info(
         self,
         struct_info: relax.StructInfo,
-        undefined_var_remap: Optional[Dict[tir.Var, tir.Var]] = None,
+        undefined_var_remap: Optional[Dict[tirx.Var, tirx.Var]] = None,
     ) -> relax.StructInfo:
         if undefined_var_remap is None:
             undefined_var_remap = self.undefined_shape_vars_remap
@@ -289,22 +289,22 @@ class _PipelineParallelRewriter(PyExprMutator):  # pylint: disable=abstract-meth
         return struct_info
 
     def _copy_undefined_var(
-        self, expr: tir.PrimExpr, undefined_var_remap: Dict[tir.Var, tir.Var]
+        self, expr: tirx.PrimExpr, undefined_var_remap: Dict[tirx.Var, tirx.Var]
     ) -> None:
-        def _visit_expr(e: tir.PrimExpr) -> None:
-            if isinstance(e, tir.Var) and e not in undefined_var_remap:
-                new_var = tir.Var(e.name, e.dtype)
+        def _visit_expr(e: tirx.PrimExpr) -> None:
+            if isinstance(e, tirx.Var) and e not in undefined_var_remap:
+                new_var = tirx.Var(e.name, e.dtype)
                 undefined_var_remap[e] = new_var
 
-        tir.stmt_functor.post_order_visit(expr, _visit_expr)
+        tirx.stmt_functor.post_order_visit(expr, _visit_expr)
 
     def _update_shape(
-        self, shape: List[tir.PrimExpr], undefined_var_remap: Dict[tir.Var, tir.Var]
-    ) -> List[tir.PrimExpr]:
+        self, shape: List[tirx.PrimExpr], undefined_var_remap: Dict[tirx.Var, tirx.Var]
+    ) -> List[tirx.PrimExpr]:
         new_shape = []
         for v in shape:
             self._copy_undefined_var(v, undefined_var_remap)
-            new_shape.append(tir.stmt_functor.substitute(v, undefined_var_remap))
+            new_shape.append(tirx.stmt_functor.substitute(v, undefined_var_remap))
         return new_shape
 
 

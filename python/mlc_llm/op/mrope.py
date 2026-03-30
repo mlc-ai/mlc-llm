@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
-from tvm import te, tir
+from tvm import te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -108,7 +108,7 @@ class MultimodalRotaryEmbedding(nn.Module):
             def compute(x: te.Tensor):
                 return te.compute(
                     x.shape,
-                    lambda *indices: getattr(tir, func_name)(x[indices]),
+                    lambda *indices: getattr(tirx, func_name)(x[indices]),
                     name=f"mrope_{func_name}",
                 )
 

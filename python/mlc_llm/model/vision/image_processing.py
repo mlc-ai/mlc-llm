@@ -2,9 +2,9 @@
 Implements the CLIP Image processor.
 """
 
-from tvm import s_tir, tir
+from tvm import s_tir, tirx
 from tvm.relax.frontend.nn import Module, Tensor, op
-from tvm.script import tir as T
+from tvm.script import tirx as T
 
 
 def _var(dtype, size=1):
@@ -38,49 +38,49 @@ class ImageProcessor(Module):
             if "height" in params and "width" in params:
                 return (params["height"], params["width"])
             elif "shortest_edge" in params:
-                short = tir.Select(w < h, w, h)
-                long = tir.Select(w > h, w, h)
+                short = tirx.Select(w < h, w, h)
+                long = tirx.Select(w > h, w, h)
                 requested_new_short = params["shortest_edge"]
                 new_short, new_long = (
-                    tir.generic.cast(requested_new_short, "int64"),
-                    tir.generic.cast(
+                    tirx.generic.cast(requested_new_short, "int64"),
+                    tirx.generic.cast(
                         requested_new_short
-                        * tir.div(
-                            tir.generic.cast(long, "float32"),
-                            tir.generic.cast(short, "float32"),
+                        * tirx.div(
+                            tirx.generic.cast(long, "float32"),
+                            tirx.generic.cast(short, "float32"),
                         ),
                         "int64",
                     ),
                 )
-                ret_h = tir.Select(w <= h, new_long, new_short)
-                ret_w = tir.Select(w <= h, new_short, new_long)
+                ret_h = tirx.Select(w <= h, new_long, new_short)
+                ret_w = tirx.Select(w <= h, new_short, new_long)
                 return (ret_h, ret_w)
             elif "hd_transform" in params:
                 hd_num = 4 if "hd_num" not in params else params["hd_num"]
                 pad_num = 336 if "pad_num" not in params else params["pad_num"]
-                ratio = tir.Select(
+                ratio = tirx.Select(
                     w > h,
-                    tir.div(tir.generic.cast(w, "float32"), tir.generic.cast(h, "float32")),
-                    tir.div(tir.generic.cast(h, "float32"), tir.generic.cast(w, "float32")),
+                    tirx.div(tirx.generic.cast(w, "float32"), tirx.generic.cast(h, "float32")),
+                    tirx.div(tirx.generic.cast(h, "float32"), tirx.generic.cast(w, "float32")),
                 )
 
-                scale = tir.ceil(tir.sqrt(tir.generic.cast(hd_num, "float32") * ratio))
+                scale = tirx.ceil(tirx.sqrt(tirx.generic.cast(hd_num, "float32") * ratio))
 
-                scale = tir.Select(
-                    (scale * tir.ceil(tir.div(scale, ratio))) > hd_num,
+                scale = tirx.Select(
+                    (scale * tirx.ceil(tirx.div(scale, ratio))) > hd_num,
                     scale - 1,
                     scale,
                 )
-                scale = tir.generic.cast(scale, "int64")
+                scale = tirx.generic.cast(scale, "int64")
 
-                new_w = tir.Select(
+                new_w = tirx.Select(
                     w >= h,
                     scale * pad_num,
-                    tir.generic.cast(tir.div(scale * pad_num, ratio), "int64"),
+                    tirx.generic.cast(tirx.div(scale * pad_num, ratio), "int64"),
                 )
-                new_h = tir.Select(
+                new_h = tirx.Select(
                     w >= h,
-                    tir.generic.cast(tir.div(new_w, ratio), "int64"),
+                    tirx.generic.cast(tirx.div(new_w, ratio), "int64"),
                     scale * pad_num,
                 )
                 return (new_h, new_w)
@@ -106,7 +106,7 @@ class ImageProcessor(Module):
                 left: T.int64(),
                 right: T.int64(),
             ):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, c, bottom - top, right - left), dtype=dtype)
@@ -125,7 +125,7 @@ class ImageProcessor(Module):
 
             sch = s_tir.Schedule(crop_func)
             self.apply_schedule(sch, sch.get_sblock("crop"))
-            return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+            return sch.mod["main"].with_attr("tirx.is_scheduled", 1)
 
         n, c, orig_height, orig_width = image.shape
         crop_height = crop_size["height"]
@@ -152,7 +152,7 @@ class ImageProcessor(Module):
         def create_rescale_func(rescale_factor, dtype, o_dtype):
             @T.prim_func
             def rescale_func(image: T.handle, out: T.handle):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, c, h, w), dtype=o_dtype)
@@ -174,7 +174,7 @@ class ImageProcessor(Module):
 
             sch = s_tir.Schedule(rescale_func)
             self.apply_schedule(sch, sch.get_sblock("rescale"))
-            return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+            return sch.mod["main"].with_attr("tirx.is_scheduled", 1)
 
         out = op.tensor_ir_op(
             create_rescale_func(rescale_factor, image.dtype, o_dtype),
@@ -225,7 +225,7 @@ class ImageProcessor(Module):
 
             sch = s_tir.Schedule(normalize_func)
             self.apply_schedule(sch, sch.get_sblock("normalize"))
-            return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+            return sch.mod["main"].with_attr("tirx.is_scheduled", 1)
 
         out = op.tensor_ir_op(
             create_normalize_func(image.dtype, o_dtype),
@@ -242,7 +242,7 @@ class ImageProcessor(Module):
         def create_pad_func(l, r, fill=255):
             @T.prim_func
             def pad_func(image: T.handle, out: T.handle, t: T.int64(), b: T.int64()):
-                T.func_attr({"op_pattern": 8, "tir.noalias": True, "tir.is_scheduled": 1})
+                T.func_attr({"op_pattern": 8, "tirx.noalias": True, "tirx.is_scheduled": 1})
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
                 image_buf = T.match_buffer(image, (n, c, h, w), dtype=dtype)
                 out_buf = T.match_buffer(out, (n, c, h + t + b, w + l + r), dtype=dtype)
@@ -264,11 +264,11 @@ class ImageProcessor(Module):
 
             sch = s_tir.Schedule(pad_func)
             self.apply_schedule(sch, sch.get_sblock("pad"))
-            return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+            return sch.mod["main"].with_attr("tirx.is_scheduled", 1)
 
         h = image.shape[2]
-        tar = tir.truncdiv(h + 335, 336) * 336
-        t = tir.div(tar - h, 2)
+        tar = tirx.truncdiv(h + 335, 336) * 336
+        t = tirx.div(tar - h, 2)
         b = tar - h - t
         l = 0
         r = 0

@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from tvm import IRModule, relax, tir
+from tvm import IRModule, relax, tirx
 from tvm.ir.transform import Pass, PassContext
 from tvm.relax.frontend import nn
 from tvm.target import Target
@@ -62,8 +62,8 @@ class CompileArgs:  # pylint: disable=too-many-instance-attributes
 def _apply_preproc_to_params_and_check_pipeline(
     named_params: List[Tuple[str, nn.Parameter]],
     model_config,
-) -> Dict[str, tir.PrimFunc]:
-    extra_tirs: Dict[str, tir.PrimFunc] = {}
+) -> Dict[str, tirx.PrimFunc]:
+    extra_tirs: Dict[str, tirx.PrimFunc] = {}
     for name, param in named_params:
         preprocs = param.attrs.get("preprocs", [])
         shard_strategy = param.attrs.get("shard_strategy", None)
@@ -100,6 +100,8 @@ def _infer_kv_state_kind(model_type) -> str:
         return "rnn_state"
     if "medusa" in model_type:
         return "none"
+    if "qwen3_5" in model_type:
+        return "hybrid"
     return "kv_cache"
 
 
@@ -198,7 +200,7 @@ def _compile(args: CompileArgs, model_config: ConfigBase):
         # TODO: Remove this workaround when the TVM CSE regression is fixed.
         # Temporary workaround for TVM CSE regression that can produce
         # dangling `cse_v*` vars during host codegen.
-        pass_config["tir.disable_cse_tir"] = True
+        pass_config["tirx.disable_cse_tir"] = True
 
         with PassContext(config=pass_config):
             args.build_func(

@@ -5,7 +5,7 @@ Implementation for Phi architecture.
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import relax, target, te, tir
+from tvm import relax, target, te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -257,7 +257,7 @@ class Phi3VForCausalLM(nn.Module):
         )
 
         n, c, h, w = pixel_values.shape  # pylint: disable=unused-variable
-        assert isinstance(h, tir.Mul) and isinstance(h.b, tir.IntImm) and h.b.value == 336
+        assert isinstance(h, tirx.Mul) and isinstance(h.b, tirx.IntImm) and h.b.value == 336
         pixel_values = op.reshape(pixel_values, shape=(1, 3, h.a, 336, w // 336, 336))
         pixel_values = op.permute_dims(pixel_values, axes=(0, 2, 4, 1, 3, 5))
         pixel_values = op.reshape(pixel_values, shape=(-1, 3, 336, 336))
@@ -295,11 +295,11 @@ class Phi3VForCausalLM(nn.Module):
 
     def create_paged_kv_cache(  # pylint: disable=too-many-arguments
         self,
-        max_batch_size: tir.Var,
-        max_total_seq_len: tir.Var,
-        prefill_chunk_size: tir.Var,
-        page_size: tir.Var,
-        support_sliding_window: tir.Var,
+        max_batch_size: tirx.Var,
+        max_total_seq_len: tirx.Var,
+        prefill_chunk_size: tirx.Var,
+        page_size: tirx.Var,
+        support_sliding_window: tirx.Var,
     ) -> PagedKVCache:
         return PagedKVCache.create_generic(
             attn_kind="mha",

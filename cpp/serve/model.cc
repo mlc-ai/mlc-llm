@@ -272,6 +272,10 @@ class ModelImpl : public ModelObj {
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      TVM_FFI_ICHECK(rnn_state_.defined()) << "RNN state has not been initialized.";
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
+    }
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
@@ -315,9 +319,14 @@ class ModelImpl : public ModelObj {
       }
     }
 
-    // args: embeddings, logit_pos, kv_cache, params
+    // args: embeddings, logit_pos, kv_cache, [rnn_state,] params
     ObjectRef ret;
-    if (seq_ids.size() == 1 && !padded) {
+    if (kind == KVStateKind::kHybrid) {
+      // Hybrid always uses batch_prefill (single_batch prefill has tensor-based GDN args).
+      ret =
+          prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, rnn_state_, params_)
+              .cast<ObjectRef>();
+    } else if (seq_ids.size() == 1 && !padded) {
       ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     } else {
       ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, params_)
@@ -341,6 +350,9 @@ class ModelImpl : public ModelObj {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
 
     // logits: (1, num_sequences, v)
     TVM_FFI_ICHECK_EQ(logits->ndim, 3);
@@ -383,19 +395,34 @@ class ModelImpl : public ModelObj {
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(lengths.begin(), lengths.end());
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
+    }
 
     // args: embeddings, logit_pos, kv_cache, params
     ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
       TVM_FFI_ICHECK(ft_.single_batch_prefill_to_last_hidden_func_.defined())
           << "`single_batch_prefill_to_last_hidden_states` function is not found in the model.";
-      result = ft_.single_batch_prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd,
-                                                             kv_cache_, params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.single_batch_prefill_to_last_hidden_func_(
+                        embedding_or_hidden_states_dref_or_nd, kv_cache_, rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.single_batch_prefill_to_last_hidden_func_(
+                        embedding_or_hidden_states_dref_or_nd, kv_cache_, params_)
+                     .cast<ObjectRef>();
+      }
     } else {
-      result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
-                                                params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
+                                                  rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.prefill_to_last_hidden_func_(embedding_or_hidden_states_dref_or_nd, kv_cache_,
+                                                  params_)
+                     .cast<ObjectRef>();
+      }
     }
     ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
 
@@ -403,6 +430,9 @@ class ModelImpl : public ModelObj {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
 
     Shape out_shape{total_length, hidden_size_};
     if (ft_.use_disco) {
@@ -433,6 +463,9 @@ class ModelImpl : public ModelObj {
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
+    }
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
@@ -451,9 +484,13 @@ class ModelImpl : public ModelObj {
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
 
-    // args: embeddings, kv_cache, params
+    // args: embeddings, kv_cache, [rnn_state,] params
     ObjectRef ret;
-    if (seq_ids.size() == 1) {
+    if (kind == KVStateKind::kHybrid) {
+      // Hybrid always uses batch_decode (single_batch decode has tensor-based GDN args).
+      ret =
+          ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_).cast<ObjectRef>();
+    } else if (seq_ids.size() == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_)
                 .cast<ObjectRef>();
     } else {
@@ -477,6 +514,9 @@ class ModelImpl : public ModelObj {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
 
     // logits: (b, 1, v)
     TVM_FFI_ICHECK_EQ(logits->ndim, 3);
@@ -575,20 +615,38 @@ class ModelImpl : public ModelObj {
     IntTuple seq_ids_tuple(seq_ids);
     IntTuple lengths_tuple(std::vector<int64_t>(/*n=*/seq_ids.size(), /*v=*/1));
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple);
+    }
 
     // args: embeddings, kv_cache, params
     ObjectRef result{nullptr};
     if (seq_ids.size() == 1) {
       TVM_FFI_ICHECK(ft_.single_batch_decode_to_last_hidden_func_.defined())
           << "`decode_to_last_hidden_states` function is not found in the model.";
-      result =
-          ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
-              .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                              rnn_state_, params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.single_batch_decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_,
+                                                              params_)
+                     .cast<ObjectRef>();
+      }
     } else {
-      result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
-                   .cast<ObjectRef>();
+      if (kind == KVStateKind::kHybrid) {
+        result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, rnn_state_,
+                                                 params_)
+                     .cast<ObjectRef>();
+      } else {
+        result = ft_.decode_to_last_hidden_func_(hidden_states_dref_or_nd, kv_cache_, params_)
+                     .cast<ObjectRef>();
+      }
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
     ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
 
     if (trace_enabled_) {
@@ -636,6 +694,10 @@ class ModelImpl : public ModelObj {
     IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
                                      token_tree_parent_ptr_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple,
+                                       token_tree_parent_ptr_tuple);
+    }
 
     ObjectRef embeddings_dref_or_nd;
     if (!embeddings->IsInstance<DRefObj>()) {
@@ -653,8 +715,14 @@ class ModelImpl : public ModelObj {
       Shape embedding_shape{1, total_length, hidden_size_};
       embeddings_dref_or_nd = ft_.nd_view_func_(embeddings, embedding_shape).cast<ObjectRef>();
     }
-    // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
+    // args: embeddings, kv_cache, [rnn_state,] params
+    ObjectRef ret;
+    if (kind == KVStateKind::kHybrid) {
+      ret =
+          ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_).cast<ObjectRef>();
+    } else {
+      ret = ft_.verify_func_(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
+    }
     Tensor logits;
     if (ft_.use_disco) {
       ret = ft_.tuple_getitem_func_(ret, 0).cast<ObjectRef>();
@@ -673,6 +741,9 @@ class ModelImpl : public ModelObj {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
 
     // logits: (1, total_length, v)
     TVM_FFI_ICHECK_EQ(logits->ndim, 3);
@@ -724,11 +795,25 @@ class ModelImpl : public ModelObj {
     IntTuple token_tree_parent_ptr_tuple(token_tree_parent_ptr);
     ft_.kv_cache_begin_forward_func_(kv_cache_, seq_ids_tuple, lengths_tuple,
                                      token_tree_parent_ptr_tuple);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_begin_forward_func_(rnn_state_, seq_ids_tuple, lengths_tuple,
+                                       token_tree_parent_ptr_tuple);
+    }
 
     // args: embeddings, logit_pos, kv_cache, params
-    ObjectRef result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_)
-                           .cast<ObjectRef>();
+    ObjectRef result;
+    if (kind == KVStateKind::kHybrid) {
+      result =
+          ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
+              .cast<ObjectRef>();
+    } else {
+      result = ft_.verify_to_last_hidden_func_(embeddings_dref_or_nd, kv_cache_, params_)
+                   .cast<ObjectRef>();
+    }
     ft_.kv_cache_end_forward_func_(kv_cache_);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_end_forward_func_(rnn_state_);
+    }
     ObjectRef hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
@@ -750,7 +835,8 @@ class ModelImpl : public ModelObj {
   /*********************** KV Cache Management  ***********************/
 
   void CreateKVCache(int page_size, int max_num_sequence, int64_t max_total_sequence_length,
-                     int64_t prefill_chunk_size, int max_history_size) final {
+                     int64_t prefill_chunk_size, int max_history_size,
+                     int prefix_cache_max_num_recycling_seqs = 0) final {
     KVStateKind kv_state_kind = GetMetadata().kv_state_kind;
     if (kv_state_kind == KVStateKind::kKVCache) {
       IntTuple max_num_sequence_tuple{max_num_sequence};
@@ -766,13 +852,37 @@ class ModelImpl : public ModelObj {
                             ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
     } else if (kv_state_kind == KVStateKind::kRNNState) {
-      IntTuple max_num_sequence_tuple{max_num_sequence};
+      // RNN state needs extra slots for prefix cache recycling sequences.
+      IntTuple max_num_sequence_tuple{max_num_sequence + prefix_cache_max_num_recycling_seqs};
       IntTuple max_history_size_tuple = {std::max(max_history_size, 1)};
       kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_history_size_tuple)
                       .cast<ObjectRef>();
       local_kv_cache_ = ft_.use_disco
                             ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
                             : kv_cache_;
+    } else if (kv_state_kind == KVStateKind::kHybrid) {
+      // Hybrid: create both PagedKVCache (for attention layers) and RNNState (for GDN layers).
+      IntTuple max_num_sequence_tuple{max_num_sequence};
+      IntTuple max_total_sequence_length_tuple{max_total_sequence_length};
+      IntTuple prefill_chunk_size_tuple{prefill_chunk_size};
+      IntTuple page_size_tuple{page_size};
+      IntTuple support_sliding_window{sliding_window_size_ != -1};
+      kv_cache_ = ft_.create_kv_cache_func_(max_num_sequence_tuple, max_total_sequence_length_tuple,
+                                            prefill_chunk_size_tuple, page_size_tuple,
+                                            support_sliding_window)
+                      .cast<ObjectRef>();
+      local_kv_cache_ = ft_.use_disco
+                            ? Downcast<DRef>(kv_cache_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                            : kv_cache_;
+      // Create RNN state for recurrent layers.
+      // RNN state needs extra slots for prefix cache recycling sequences that
+      // coexist with active sequences (e.g., during ForkSequence).
+      IntTuple rnn_max_batch{max_num_sequence + prefix_cache_max_num_recycling_seqs};
+      IntTuple rnn_max_history{std::max(max_history_size, 1)};
+      rnn_state_ = ft_.create_rnn_state_func_(rnn_max_batch, rnn_max_history).cast<ObjectRef>();
+      local_rnn_state_ = ft_.use_disco
+                             ? Downcast<DRef>(rnn_state_)->DebugGetFromRemote(0).cast<ObjectRef>()
+                             : rnn_state_;
     } else if (kv_state_kind == KVStateKind::kNone) {
       // Do nothing
     } else {
@@ -781,17 +891,23 @@ class ModelImpl : public ModelObj {
   }
 
   void AddNewSequence(int64_t seq_id) final {
-    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+    if (this->kind == KVStateKind::kNone) {
       return;
     }
     ft_.kv_cache_add_sequence_func_(kv_cache_, seq_id);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_add_sequence_func_(rnn_state_, seq_id);
+    }
   }
 
   void ForkSequence(int64_t parent_seq_id, int64_t child_seq_id, int64_t fork_pos) final {
-    if (ft_.model_metadata_.kv_state_kind == KVStateKind::kNone) {
+    if (this->kind == KVStateKind::kNone) {
       return;
     }
     ft_.kv_cache_fork_sequence_func_(kv_cache_, parent_seq_id, child_seq_id, fork_pos);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_fork_sequence_func_(rnn_state_, parent_seq_id, child_seq_id, fork_pos);
+    }
     prefilled_seq_ids_.insert(child_seq_id);
   }
 
@@ -801,6 +917,9 @@ class ModelImpl : public ModelObj {
     }
     prefilled_seq_ids_.erase(seq_id);
     ft_.kv_cache_remove_sequence_func_(kv_cache_, seq_id);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_remove_sequence_func_(rnn_state_, seq_id);
+    }
   }
 
   void PopNFromKVCache(int64_t seq_id, int num_tokens) final {
@@ -808,6 +927,9 @@ class ModelImpl : public ModelObj {
       return;
     }
     ft_.kv_cache_popn_func_(kv_cache_, seq_id, num_tokens);
+    if (kind == KVStateKind::kHybrid) {
+      ft_.kv_cache_popn_func_(rnn_state_, seq_id, num_tokens);
+    }
   }
 
   void CommitAcceptedTokenTreeNodesToKVCache(
@@ -870,6 +992,7 @@ class ModelImpl : public ModelObj {
       // RNNState does not introduce new page at runtime
       return std::numeric_limits<int>::max();
     } else {
+      // kKVCache and kHybrid both use PagedKVCache for capacity.
       return ft_.kv_cache_get_num_available_pages_func_(local_kv_cache_).cast<int>();
     }
   }
@@ -986,6 +1109,9 @@ class ModelImpl : public ModelObj {
     // Reset the KV cache.
     if (kv_cache_.defined()) {
       ft_.reset_kv_cache_func_(kv_cache_);
+    }
+    if (rnn_state_.defined()) {
+      ft_.reset_kv_cache_func_(rnn_state_);
     }
   }
 
@@ -1108,6 +1234,9 @@ class ModelImpl : public ModelObj {
   // except that it is always a local object.
   ObjectRef kv_cache_{nullptr};
   ObjectRef local_kv_cache_{nullptr};
+  // RNN state for hybrid models (GatedDeltaNet recurrent layers).
+  ObjectRef rnn_state_{nullptr};
+  ObjectRef local_rnn_state_{nullptr};
   // Runtime device
   Device device_;
   // Model parameters
