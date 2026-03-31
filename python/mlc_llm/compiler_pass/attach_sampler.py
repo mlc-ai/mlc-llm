@@ -28,12 +28,13 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
 
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
-        if str(self.target.kind) not in ["cuda", "vulkan", "metal", "webgpu"]:
+        target_kind = self.target.kind.name
+        if target_kind not in ["cuda", "vulkan", "metal", "webgpu"]:
             # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
             return mod
 
         bb = relax.BlockBuilder(mod)
-        if str(self.target.kind) == "webgpu":
+        if target_kind == "webgpu":
             # Only attach functions that do not contain i8s for WebGPU
             gv_names = [
                 gv.name_hint
