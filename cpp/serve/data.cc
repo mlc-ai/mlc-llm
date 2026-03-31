@@ -142,7 +142,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("mlc.serve.ImageData",
            [](Tensor image, int embed_size) { return ImageData(std::move(image), embed_size); })
-      .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; });
+      .def("mlc.serve.ImageDataGetImage", [](ImageData data) { return data->image; })
+      .def("mlc.serve.ImageDataGetEmbedSize", [](ImageData data) { return data->embed_size; });
 }
 
 /****************** SampleResult ******************/

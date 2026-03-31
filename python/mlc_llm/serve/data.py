@@ -71,7 +71,6 @@ class ImageData(Data):
     """
 
     def __init__(self, image: Tensor, embed_size: int):
-        self.embed_size = embed_size
         self.__init_handle_by_constructor__(_ffi_api.ImageData, image, embed_size)
 
     @property
@@ -80,7 +79,7 @@ class ImageData(Data):
         return _ffi_api.ImageDataGetImage(self)
 
     def __len__(self):
-        return self.embed_size
+        return _ffi_api.ImageDataGetEmbedSize(self)
 
     @staticmethod
     def from_url(url: str, config: Dict) -> "ImageData":  # noqa: UP006
