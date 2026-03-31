@@ -71,7 +71,6 @@ class ImageData(Data):
     """
 
     def __init__(self, image: Tensor, embed_size: int):
-        self.embed_size = embed_size
         self.__init_handle_by_constructor__(_ffi_api.ImageData, image, embed_size)  # type: ignore  # pylint: disable=no-member
 
     @property
@@ -80,7 +79,7 @@ class ImageData(Data):
         return _ffi_api.ImageDataGetImage(self)  # type: ignore  # pylint: disable=no-member
 
     def __len__(self):
-        return self.embed_size
+        return _ffi_api.ImageDataGetEmbedSize(self)  # type: ignore  # pylint: disable=no-member
 
     # pylint: disable=too-many-locals,unused-argument,unused-argument
     @staticmethod
