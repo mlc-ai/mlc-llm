@@ -59,11 +59,10 @@ class Qwen35VConfig(ConfigBase):
         elif self.vision_config is not None:
             vision_dict = dict(self.vision_config)
         else:
-            vision_dict = {}
+            raise ValueError("Qwen35VConfig requires vision_config")
         for k, v in vision_dict.pop("kwargs", {}).items():
             vision_dict[k] = v
-        if vision_dict:
-            self.vision_config = Qwen35VisionConfig.from_dict(vision_dict)
+        self.vision_config = Qwen35VisionConfig.from_dict(vision_dict)
 
         # Propagate sizes from text_config
         for k in ["vocab_size", "context_window_size", "prefill_chunk_size"]:
