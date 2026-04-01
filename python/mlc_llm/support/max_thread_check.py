@@ -30,9 +30,9 @@ def check_thread_limits(target: Target, bdx: int, bdy: int, bdz: int, gdz: int):
 
     assert (
         bdx * bdy * bdz <= max_num_threads_per_block
-    ), f"{target.kind} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
+    ), f"{target.kind.name} max num threads exceeded: {bdx}*{bdy}*{bdz}>{max_num_threads_per_block}"
 
-    if str(target.kind) == "webgpu":
+    if target.kind.name == "webgpu":
         # https://gpuweb.github.io/gpuweb/#dom-supported-limits-maxcomputeworkgroupsizez
         assert bdz <= 64, f"webgpu's threadIdx.z cannot exceed 64, but got bdz={bdz}"
         assert gdz == 1, f"webgpu's blockIdx.z should be 1, but got gdz={gdz}"
