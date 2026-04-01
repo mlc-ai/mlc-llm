@@ -152,6 +152,10 @@ class ImageData(Data):
         if model_type == "gemma3_v":
             return config["model_config"].get("mm_tokens_per_image", 256)
 
+        if model_type == "qwen3_5_vision":
+            # (image_size / patch_size / spatial_merge_size)^2 = (448/16/2)^2 = 196
+            return 196
+
         # Default: (image_size / patch_size)^2
         return ImageData.get_embed_size(config)
 
