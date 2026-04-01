@@ -184,6 +184,15 @@ class Conversation(BaseModel):
                         message_list.append(data.TokenData([model_cfg["boi_token_index"]]))
                         message_list.append(data.ImageData.from_url(image_url, config))
                         message_list.append(data.TokenData([model_cfg["eoi_token_index"]]))
+                    elif model_type == "qwen3_5_vision":
+                        model_cfg = config["model_config"]
+                        message_list.append(
+                            data.TokenData([model_cfg["vision_start_token_id"]])
+                        )
+                        message_list.append(data.ImageData.from_url(image_url, config))
+                        message_list.append(
+                            data.TokenData([model_cfg["vision_end_token_id"]])
+                        )
                     else:
                         message_list.append(data.ImageData.from_url(image_url, config))
                         message_list.append("\n")
