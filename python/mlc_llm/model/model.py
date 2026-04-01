@@ -45,7 +45,7 @@ from .qwen2 import qwen2_loader, qwen2_model
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model
 from .qwen3 import qwen3_loader, qwen3_model
 from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
-from .qwen35 import qwen35_loader, qwen35_model
+from .qwen35 import qwen35_loader, qwen35_model, qwen35v_loader, qwen35v_model
 from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
 from .stable_lm import stablelm_loader, stablelm_model
@@ -440,6 +440,19 @@ MODELS: Dict[str, Model] = {
         },
         quantize=make_quantization_functions(
             qwen35_model.Qwen35LMHeadModel,
+        ),
+    ),
+    "qwen3_5_vision": Model(
+        name="qwen3_5_vision",
+        model=qwen35v_model.Qwen35VForCausalLM,
+        config=qwen35v_model.Qwen35VConfig,
+        source={
+            "huggingface-torch": qwen35v_loader.huggingface,
+            "huggingface-safetensor": qwen35v_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            qwen35v_model.Qwen35VForCausalLM,
+            supports_ft_quant=False,
         ),
     ),
     "qwen3_moe": Model(
