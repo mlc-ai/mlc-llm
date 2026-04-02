@@ -7,6 +7,7 @@ from tvm.relax.frontend import nn
 from mlc_llm.loader import QuantizeMapping
 
 from .awq_quantization import AWQQuantize
+from .binary_group_quantization import BinaryGroupQuantize
 from .block_scale_quantization import BlockScaleQuantize
 from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
@@ -27,6 +28,7 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
     awq_unsupported_message: Optional[str] = None,
     supports_per_tensor: bool = False,
     supports_block_scale: bool = False,
+    supports_binary_group_quant: bool = False,
     set_tensor_parallel_shards: bool = True,
     per_tensor_use_shards: bool = True,
 ) -> Dict[str, FuncQuantization]:
@@ -122,6 +124,23 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
         model = quantization.quantize_model(model, quant_map, "")
         return model, quant_map
 
+    def _binary_group_quant(
+        model_config: Any,
+        quantization: BinaryGroupQuantize,
+    ) -> Tuple[nn.Module, QuantizeMapping]:
+        model = _create_model(model_config)
+        model.to(quantization.model_dtype)
+        quant_map = QuantizeMapping({}, {})
+        if set_tensor_parallel_shards:
+            if not hasattr(model_config, "tensor_parallel_shards"):
+                raise AttributeError(
+                    "model_config is missing required "
+                    "attribute 'tensor_parallel_shards' for binary group quantization"
+                )
+            quantization.tensor_parallel_shards = getattr(model_config, "tensor_parallel_shards")
+        model = quantization.quantize_model(model, quant_map, "")
+        return model, quant_map
+
     quantize_fns: Dict[str, FuncQuantization] = {"no-quant": _no_quant}
     if supports_group_quant:
         quantize_fns["group-quant"] = _group_quant
@@ -133,6 +152,8 @@ def make_quantization_functions(  # pylint: disable=too-many-arguments, too-many
         quantize_fns["per-tensor-quant"] = _per_tensor_quant
     if supports_block_scale:
         quantize_fns["block-scale-quant"] = _block_scale_quant
+    if supports_binary_group_quant:
+        quantize_fns["binary-group-quant"] = _binary_group_quant
     return quantize_fns
 
 
