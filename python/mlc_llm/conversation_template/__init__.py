@@ -23,6 +23,7 @@ from . import (
     nemotron,
     oasst,
     olmo,
+    olmo2,
     orion,
     phi,
     qwen2,
