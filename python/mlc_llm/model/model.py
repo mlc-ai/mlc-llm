@@ -18,7 +18,7 @@ from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model
 from .eagle import eagle_loader, eagle_model
 from .gemma import gemma_loader, gemma_model
 from .gemma2 import gemma2_loader, gemma2_model
-from .gemma3 import gemma3_loader, gemma3_model
+from .gemma3 import gemma3_loader, gemma3_model, gemma3v_loader, gemma3v_model
 from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
@@ -235,6 +235,19 @@ MODELS: Dict[str, Model] = {
         },
         quantize=make_quantization_functions(
             gemma3_model.Gemma3ForCausalLM,
+            supports_ft_quant=False,
+        ),
+    ),
+    "gemma3_v": Model(
+        name="gemma3_v",
+        model=gemma3v_model.Gemma3VForCausalLM,
+        config=gemma3v_model.Gemma3VConfig,
+        source={
+            "huggingface-torch": gemma3v_loader.huggingface,
+            "huggingface-safetensor": gemma3v_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            gemma3v_model.Gemma3VForCausalLM,
             supports_ft_quant=False,
         ),
     ),
