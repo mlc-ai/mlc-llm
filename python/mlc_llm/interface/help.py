@@ -36,6 +36,10 @@ Model architecture such as "llama". If not set, it is inferred from `mlc-chat-co
     "device_compile": """
 The GPU device to compile the model to. If not set, it is inferred from GPUs available locally.
 """.strip(),
+    "enable_subgroups": """
+Enable WebGPU subgroups in codegen. This only applies to WebGPU targets and will set
+supports_subgroups accordingly.
+""".strip(),
     "device_quantize": """
 The device used to do quantization such as "cuda" or "cuda:0". Will detect from local available GPUs
 if not specified.
