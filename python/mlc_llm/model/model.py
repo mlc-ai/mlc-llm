@@ -384,6 +384,7 @@ MODELS: Dict[str, Model] = {
         quantize=make_quantization_functions(
             qwen3_model.Qwen3LMHeadModel,
             supports_block_scale=True,
+            supports_binary_group_quant=True,
         ),
     ),
     "qwen3-embedding": Model(
