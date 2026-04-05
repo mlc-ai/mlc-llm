@@ -110,7 +110,7 @@ class Conversation(BaseModel):
         """Convert from a json dictionary"""
         return Conversation.model_validate(json_dict)
 
-    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-branches,too-many-locals
     def as_prompt(self, config=None) -> List[Any]:
         """Convert the conversation template and history messages to
         a single prompt.
@@ -176,8 +176,26 @@ class Conversation(BaseModel):
                 elif item["type"] == "image_url":
                     assert config is not None, "Model config is required"
                     image_url = _get_url_from_item(item)
-                    message_list.append(data.ImageData.from_url(image_url, config))
-                    message_list.append("\n")
+                    model_type = config.get("model_type", "") if config else ""
+                    if model_type == "gemma3_v":
+                        # Wrap with \n BOI [img embeds] EOI for Gemma 3 Vision
+                        model_cfg = config["model_config"]
+                        message_list.append("\n")
+                        message_list.append(data.TokenData([model_cfg["boi_token_index"]]))
+                        message_list.append(data.ImageData.from_url(image_url, config))
+                        message_list.append(data.TokenData([model_cfg["eoi_token_index"]]))
+                    elif model_type == "qwen3_5_vision":
+                        model_cfg = config["model_config"]
+                        message_list.append(
+                            data.TokenData([model_cfg["vision_start_token_id"]])
+                        )
+                        message_list.append(data.ImageData.from_url(image_url, config))
+                        message_list.append(
+                            data.TokenData([model_cfg["vision_end_token_id"]])
+                        )
+                    else:
+                        message_list.append(data.ImageData.from_url(image_url, config))
+                        message_list.append("\n")
                 else:
                     raise ValueError(f"Unsupported content type: {item['type']}")
 
