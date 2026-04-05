@@ -24,11 +24,14 @@ The quantization mode we use to compile. If unprovided, will infer from `model`.
     "model": """
 A path to ``mlc-chat-config.json``, or an MLC model directory that contains `mlc-chat-config.json`.
 It can also be a link to a HF repository pointing to an MLC compiled model.
+The model's ``model_task`` field (``"chat"`` or ``"embedding"``) determines the serving mode.
+When the model is an embedding model, only ``--model-lib``, ``--device``, ``--host``, ``--port``,
+CORS options, and ``--api-key`` are accepted.
 """.strip(),
     "model_lib": """
-The full path to the model library file to use (e.g. a ``.so`` file). If unspecified, we will use
-the provided ``model`` to search over possible paths. It the model lib is not found, it will be
-compiled in a JIT manner.
+The full path to the model library file to use (e.g. a ``.so`` file).
+For chat models, if unspecified we search over possible paths and JIT-compile when not found.
+For embedding models, ``--model-lib`` is required and must be provided explicitly.
 """.strip(),
     "model_type": """
 Model architecture such as "llama". If not set, it is inferred from `mlc-chat-config.json`.
@@ -172,7 +175,8 @@ to get the Chrome Trace. For example,
 """.strip(),
     "mode_serve": """
 The engine mode in MLC LLM. We provide three preset modes: "local", "interactive" and "server".
-The default mode is "local".
+The default mode is "local". This option applies only to chat models; it is not allowed for
+embedding models.
 The choice of mode decides the values of "max_num_sequence", "max_total_seq_length" and
 "prefill_chunk_size" when they are not explicitly specified.
 1. Mode "local" refers to the local server deployment which has low request concurrency.

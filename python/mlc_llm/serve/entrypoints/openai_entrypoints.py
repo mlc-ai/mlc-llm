@@ -36,13 +36,18 @@ def verify_api_key(request: fastapi.Request):
             raise fastapi.HTTPException(status_code=401, detail="Invalid API Key")
 
 
-app = fastapi.APIRouter(dependencies=[fastapi.Depends(verify_api_key)])
+_api_key_deps = [fastapi.Depends(verify_api_key)]
+
+models_router = fastapi.APIRouter(dependencies=_api_key_deps)
+embeddings_router = fastapi.APIRouter(dependencies=_api_key_deps)
+completions_router = fastapi.APIRouter(dependencies=_api_key_deps)
+chat_completions_router = fastapi.APIRouter(dependencies=_api_key_deps)
 
 
 ################ v1/embeddings ################
 
 
-@app.post("/v1/embeddings")
+@embeddings_router.post("/v1/embeddings")
 async def request_embedding(request: EmbeddingRequest):
     """OpenAI-compatible embedding API.
     API reference: https://platform.openai.com/docs/api-reference/embeddings/create
@@ -121,7 +126,7 @@ async def request_embedding(request: EmbeddingRequest):
 ################ v1/models ################
 
 
-@app.get("/v1/models")
+@models_router.get("/v1/models")
 async def request_models() -> ListResponse:
     """OpenAI-compatible served model query API.
     API reference: https://platform.openai.com/docs/api-reference/models
@@ -133,7 +138,7 @@ async def request_models() -> ListResponse:
 ################ v1/completions ################
 
 
-@app.post("/v1/completions")
+@completions_router.post("/v1/completions")
 async def request_completion(request: CompletionRequest, raw_request: fastapi.Request):
     """OpenAI-compatible completion API.
     API reference: https://platform.openai.com/docs/api-reference/completions/create
@@ -237,7 +242,7 @@ async def request_completion(request: CompletionRequest, raw_request: fastapi.Re
 ################ v1/chat/completions ################
 
 
-@app.post("/v1/chat/completions")
+@chat_completions_router.post("/v1/chat/completions")
 async def request_chat_completion(
     request: ChatCompletionRequest, raw_request: fastapi.Request
 ):  # pylint: disable=too-many-branches
@@ -344,3 +349,24 @@ async def request_chat_completion(
         use_function_calling=use_function_calling,
         usage=request_final_usage,
     )
+
+
+################ Combined routers ################
+
+# Chat-only router: /v1/models + /v1/completions + /v1/chat/completions
+chat_app = fastapi.APIRouter()
+chat_app.include_router(models_router)
+chat_app.include_router(completions_router)
+chat_app.include_router(chat_completions_router)
+
+# Embedding-only router: /v1/models + /v1/embeddings
+embedding_app = fastapi.APIRouter()
+embedding_app.include_router(models_router)
+embedding_app.include_router(embeddings_router)
+
+# Combined router (backward compatibility — includes all endpoints)
+app = fastapi.APIRouter()
+app.include_router(models_router)
+app.include_router(embeddings_router)
+app.include_router(completions_router)
+app.include_router(chat_completions_router)
