@@ -27,7 +27,7 @@ class AttachLogitProcessFunc:  # pylint: disable=too-few-public-methods
     def transform_module(self, mod: IRModule, _ctx: tvm.transform.PassContext) -> IRModule:
         """Entrypoint"""
         mod = mod.clone()
-        if str(self.target.kind) == "llvm":
+        if self.target.kind.name == "llvm":
             mod["apply_logit_bias_inplace"] = _get_apply_logit_bias_inplace_cpu()
             mod["apply_penalty_inplace"] = _get_apply_penalty_inplace_cpu()
             mod["apply_bitmask_inplace"] = _get_apply_bitmask_inplace_cpu()
