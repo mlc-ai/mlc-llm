@@ -25,6 +25,12 @@ void CalculateResizeShape(tvm::runtime::Tensor image_data, std::string model_typ
     scale -= 1;
     *p_target_width = static_cast<int>(scale * 336);
     *p_target_height = static_cast<int>(*p_target_width / ratio);
+  } else if ("gemma3_v" == model_type) {
+    *p_target_height = 896;
+    *p_target_width = 896;
+  } else if ("qwen3_5_vision" == model_type) {
+    *p_target_height = 448;
+    *p_target_width = 448;
   }
 }
 
@@ -41,6 +47,12 @@ void CalculatePadShape(tvm::runtime::Tensor image_data, std::string model_type, 
         << "Padding size not equal!";
     *p_pad_height = tar;
     *p_pad_width = resized_width;
+  } else if ("gemma3_v" == model_type) {
+    *p_pad_height = 896;
+    *p_pad_width = 896;
+  } else if ("qwen3_5_vision" == model_type) {
+    *p_pad_height = 448;
+    *p_pad_width = 448;
   }
 }
 
@@ -52,6 +64,12 @@ void CalculateCropShape(tvm::runtime::Tensor image_data, std::string model_type,
     CalculatePadShape(image_data, model_type, &pad_h, &pad_w);
     *p_crop_height = pad_h / 336;
     *p_crop_width = pad_w / 336;
+  } else if ("gemma3_v" == model_type) {
+    *p_crop_height = 1;
+    *p_crop_width = 1;
+  } else if ("qwen3_5_vision" == model_type) {
+    *p_crop_height = 1;
+    *p_crop_width = 1;
   }
 }
 

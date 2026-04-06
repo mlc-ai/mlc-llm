@@ -3,7 +3,7 @@
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import te, tirx
+from tvm import relax, te, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -264,15 +264,29 @@ class Gemma3DecoderLayer(nn.Module):
         out = self.self_attn(self.input_layernorm(hidden_states), paged_kv_cache, layer_id)
         out = self._apply_post_matmul_norm(out, norm=self.post_attention_layernorm)
         hidden_states = out + hidden_states
+        # Gemma3 was designed for bfloat16 and its RMSNorm weights can be very large
+        # (up to 300+), causing overflow in float16. Clamp to prevent NaN propagation.
+        # see https://github.com/huggingface/transformers/issues/39972
+        hidden_states = self._clamp_fp16(hidden_states)
 
         out = self.pre_feedforward_layernorm(hidden_states)
         out = self.mlp(out)
         out = self._apply_post_matmul_norm(out, norm=self.post_feedforward_layernorm)
         hidden_states = out + hidden_states
+        hidden_states = self._clamp_fp16(hidden_states)
 
         return hidden_states
 
-    def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Tensor):
+    @staticmethod
+    def _clamp_fp16(x: Tensor) -> Tensor:
+        """Clamp tensor values to float16 representable range to prevent overflow."""
+        if x.dtype == "float16":
+            return op.wrap_nested(  # pylint: disable=protected-access
+                relax.op.clip(x._expr, -65504.0, 65504.0), "clamp_fp16"
+            )
+        return x
+
+    def _apply_post_matmul_norm(self, out: Tensor, norm: nn.Module):
         if self.tensor_parallel_shards > 1:
             return norm(op.ccl_allreduce(out, "sum"))
         return norm(out)

@@ -18,7 +18,7 @@ from .deepseek_v2 import deepseek_v2_loader, deepseek_v2_model
 from .eagle import eagle_loader, eagle_model
 from .gemma import gemma_loader, gemma_model
 from .gemma2 import gemma2_loader, gemma2_model
-from .gemma3 import gemma3_loader, gemma3_model
+from .gemma3 import gemma3_loader, gemma3_model, gemma3v_loader, gemma3v_model
 from .gpt2 import gpt2_loader, gpt2_model
 from .gpt_bigcode import gpt_bigcode_loader, gpt_bigcode_model
 from .gpt_j import gpt_j_loader, gpt_j_model
@@ -45,7 +45,7 @@ from .qwen2 import qwen2_loader, qwen2_model
 from .qwen2_moe import qwen2_moe_loader, qwen2_moe_model
 from .qwen3 import qwen3_loader, qwen3_model
 from .qwen3_moe import qwen3_moe_loader, qwen3_moe_model
-from .qwen35 import qwen35_loader, qwen35_model
+from .qwen35 import qwen35_loader, qwen35_model, qwen35v_loader, qwen35v_model
 from .rwkv5 import rwkv5_loader, rwkv5_model
 from .rwkv6 import rwkv6_loader, rwkv6_model
 from .stable_lm import stablelm_loader, stablelm_model
@@ -238,6 +238,19 @@ MODELS: Dict[str, Model] = {
             supports_ft_quant=False,
         ),
     ),
+    "gemma3_v": Model(
+        name="gemma3_v",
+        model=gemma3v_model.Gemma3VForCausalLM,
+        config=gemma3v_model.Gemma3VConfig,
+        source={
+            "huggingface-torch": gemma3v_loader.huggingface,
+            "huggingface-safetensor": gemma3v_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            gemma3v_model.Gemma3VForCausalLM,
+            supports_ft_quant=False,
+        ),
+    ),
     "gpt2": Model(
         name="gpt2",
         model=gpt2_model.GPT2LMHeadModel,
@@ -427,6 +440,19 @@ MODELS: Dict[str, Model] = {
         },
         quantize=make_quantization_functions(
             qwen35_model.Qwen35LMHeadModel,
+        ),
+    ),
+    "qwen3_5_vision": Model(
+        name="qwen3_5_vision",
+        model=qwen35v_model.Qwen35VForCausalLM,
+        config=qwen35v_model.Qwen35VConfig,
+        source={
+            "huggingface-torch": qwen35v_loader.huggingface,
+            "huggingface-safetensor": qwen35v_loader.huggingface,
+        },
+        quantize=make_quantization_functions(
+            qwen35v_model.Qwen35VForCausalLM,
+            supports_ft_quant=False,
         ),
     ),
     "qwen3_moe": Model(
