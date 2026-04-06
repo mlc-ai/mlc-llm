@@ -184,11 +184,11 @@ class ImageProcessor(Module):
         )
         return out
 
-    def normalize(self, image: Tensor, o_dtype="float32"):
+    def _normalize_impl(self, image: Tensor, mean, std, name, o_dtype="float32"):
         assert 4 == image.ndim, "image should be 4D data tensor"
         assert 3 == image.shape[1], "image layout should be NCHW"
 
-        def create_normalize_func(dtype, o_dtype):
+        def create_normalize_func(mean_vals, std_vals, dtype, o_dtype):
             @T.prim_func
             def normalize_func(image: T.handle, out: T.handle):
                 n, c, h, w = T.int64(), T.int64(), T.int64(), T.int64()
@@ -208,12 +208,12 @@ class ImageProcessor(Module):
                                 )
                                 T.writes(out_buf[n_idx, c_idx, h_idx, w_idx])
                                 with T.init():
-                                    mean[0] = 0.48145466
-                                    stddev[0] = 0.26862954
-                                    mean[1] = 0.4578275
-                                    stddev[1] = 0.26130258
-                                    mean[2] = 0.40821073
-                                    stddev[2] = 0.27577711
+                                    mean[0] = mean_vals[0]
+                                    stddev[0] = std_vals[0]
+                                    mean[1] = mean_vals[1]
+                                    stddev[1] = std_vals[1]
+                                    mean[2] = mean_vals[2]
+                                    stddev[2] = std_vals[2]
                                 if h_idx < h and w_idx < w:
                                     out_buf[n_idx, c_idx, h_idx, w_idx] = (
                                         T.cast(
@@ -228,12 +228,31 @@ class ImageProcessor(Module):
             return sch.mod["main"].with_attr("tirx.is_scheduled", 1)
 
         out = op.tensor_ir_op(
-            create_normalize_func(image.dtype, o_dtype),
-            "normalize",
+            create_normalize_func(mean, std, image.dtype, o_dtype),
+            name,
             [image],
             [Tensor.placeholder(image.shape, o_dtype)],
         )
         return out
+
+    def normalize(self, image: Tensor, o_dtype="float32"):
+        return self._normalize_impl(
+            image,
+            mean=[0.48145466, 0.4578275, 0.40821073],
+            std=[0.26862954, 0.26130258, 0.27577711],
+            name="normalize",
+            o_dtype=o_dtype,
+        )
+
+    def normalize_siglip(self, image: Tensor, o_dtype="float32"):
+        """Normalize with SigLIP values: mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]"""
+        return self._normalize_impl(
+            image,
+            mean=[0.5, 0.5, 0.5],
+            std=[0.5, 0.5, 0.5],
+            name="normalize_siglip",
+            o_dtype=o_dtype,
+        )
 
     def pad(self, image: Tensor, dtype="uint8"):
         assert 4 == image.ndim, "image should be 4D data tensor"
