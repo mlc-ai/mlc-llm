@@ -24,6 +24,7 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep="\n",
         stop_str=["<|endoftext|>", "<|im_end|>"],
         stop_token_ids=[248046, 248044],
+        tool_parser="qwen3_coder",
     )
 )
 
@@ -41,5 +42,6 @@ ConvTemplateRegistry.register_conv_template(
         role_empty_sep="\n",
         stop_str=["<|endoftext|>", "<|im_end|>"],
         stop_token_ids=[248046, 248044],
+        tool_parser="qwen3_coder",
     )
 )

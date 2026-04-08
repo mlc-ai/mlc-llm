@@ -322,3 +322,7 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 .gdb_history
 
 dist
+
+
+#Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

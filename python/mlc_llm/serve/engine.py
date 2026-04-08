@@ -21,6 +21,7 @@ from mlc_llm.protocol import debug_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.qwen3_tool_parser import get_parser_instance
 from mlc_llm.support import logging
 from mlc_llm.tokenizers import TextStreamer
 
@@ -1036,9 +1037,21 @@ class AsyncMLCEngine(engine_base.MLCEngineBase):
             raise
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
-        use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
-        )
+        if self.conv_template.tool_parser:
+            parser = get_parser_instance(self.conv_template.tool_parser)
+            residues = []
+            all_tool_calls = []
+            for text in output_texts:
+                res, calls = parser.parse(text)
+                residues.append(res)
+                all_tool_calls.extend(calls)
+            output_texts = residues
+            use_function_calling = len(all_tool_calls) > 0
+            tool_calls_list = all_tool_calls
+        else:
+            use_function_calling, tool_calls_list = engine_base.process_function_call_output(
+                output_texts, finish_reasons
+            )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
             model=model,
@@ -1598,9 +1611,21 @@ class MLCEngine(engine_base.MLCEngineBase):
                     logprob_results[choice.index] += choice.logprobs.content
 
         assert all(finish_reason is not None for finish_reason in finish_reasons)
-        use_function_calling, tool_calls_list = engine_base.process_function_call_output(
-            output_texts, finish_reasons
-        )
+        if self.conv_template.tool_parser:
+            parser = get_parser_instance(self.conv_template.tool_parser)
+            residues = []
+            all_tool_calls = []
+            for text in output_texts:
+                res, calls = parser.parse(text)
+                residues.append(res)
+                all_tool_calls.extend(calls)
+            output_texts = residues
+            use_function_calling = len(all_tool_calls) > 0
+            tool_calls_list = all_tool_calls
+        else:
+            use_function_calling, tool_calls_list = engine_base.process_function_call_output(
+                output_texts, finish_reasons
+            )
         return engine_base.wrap_chat_completion_response(
             request_id=request_id,
             model=model,
@@ -1746,6 +1771,7 @@ class MLCEngine(engine_base.MLCEngineBase):
         e : BadRequestError
             BadRequestError is raised when the request is invalid.
         """
+        conversation = self.conv_template.model_copy(deep=True)
         (
             prompts,
             generation_cfg,
@@ -1758,7 +1784,7 @@ class MLCEngine(engine_base.MLCEngineBase):
             self.model_config_dicts[0],
             self.tokenizer.encode,
             self.max_input_sequence_length,
-            self.conv_template.model_copy(deep=True),
+            conversation,
         )
         _ = prompt_length
 
@@ -1772,6 +1798,7 @@ class MLCEngine(engine_base.MLCEngineBase):
                 self.state,
                 use_function_calling,
                 finish_reasons,
+                conversation,
             )
             if response is not None:
                 yield response

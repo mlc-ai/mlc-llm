@@ -29,6 +29,7 @@ from mlc_llm.protocol.generation_config import GenerationConfig
 from mlc_llm.protocol.mlc_chat_config import MLCChatConfig
 from mlc_llm.serve import data, engine_utils
 from mlc_llm.serve.config import EngineConfig
+from mlc_llm.serve.qwen3_tool_parser import get_parser_instance
 from mlc_llm.serve.event_trace_recorder import EventTraceRecorder
 from mlc_llm.support import download_cache, logging
 from mlc_llm.support.auto_device import detect_device
@@ -785,6 +786,7 @@ def process_chat_completion_stream_output(
     engine_state: EngineState,
     use_function_calling: bool,
     finish_reasons: List[Optional[str]],  # noqa: UP006
+    conversation: Optional[Conversation] = None,
 ) -> Optional[openai_api_protocol.ChatCompletionStreamResponse]:
     """Process the delta outputs of a single request of ChatCompletion,
     convert the delta output to ChatCompletionStreamResponse and return.
@@ -793,28 +795,23 @@ def process_chat_completion_stream_output(
     ----------
     delta_outputs : List[CallbackStreamOutput]
         The delta outputs of a request.
-        The list length is the number of parallel generation specified by "n".
-        Each element corresponds to a generation.
-
+    request : openai_api_protocol.ChatCompletionRequest
+        The chat completion request.
     request_id : str
         The id of the request.
-
     engine_state : EngineState
         The state of the engine.
-
     use_function_calling : bool
         A boolean flag indicating if the request uses function call.
-
     finish_reasons : List[Optional[str]]
         The list of finish reasons of each generation.
-        The list length is the number of parallel generation specified by "n".
-        This list is updated in place.
+    conversation : Optional[Any]
+        The conversation object containing the tool parser.
 
     Returns
     -------
     response : Optional[openai_api_protocol.ChatCompletionStreamResponse]
         The converted OpenAI API ChatCompletionStreamResponse instance.
-        It can be none when there is no content.
     """
     # we always stream back the final chunk with usage
     is_final_chunk = delta_outputs[0].request_final_usage_json_str is not None
@@ -843,6 +840,10 @@ def process_chat_completion_stream_output(
     # normal chunk
     assert len(delta_outputs) == request.n
     choices = []
+    if conversation is not None and conversation.tool_parser is not None:
+        parser = get_parser_instance(conversation.tool_parser)
+    else:
+        parser = None
     for i, delta_output in enumerate(delta_outputs):
         finish_reason_updated = False
         if delta_output.finish_reason is not None and finish_reasons[i] is None:
@@ -850,32 +851,58 @@ def process_chat_completion_stream_output(
                 delta_output.finish_reason if not use_function_calling else "tool_calls"
             )
             finish_reason_updated = True
-        if not finish_reason_updated and delta_output.delta_text == "":
+
+        # --- Tool Parser Integration ---
+        content_to_send = delta_output.delta_text
+        tool_calls: List[openai_api_protocol.ChatToolCall] = []
+
+        if use_function_calling and conversation is not None and conversation.tool_parser is not None:
+            if parser is not None:
+                # The parser tracks its own internal buffer. We feed it the new chunk.
+                res_text, extracted_calls = parser.parse_streaming(delta_output.delta_text)
+                
+                if res_text is not None:
+                    content_to_send = res_text
+                
+                for tc in extracted_calls:
+                    tool_calls.append(tc)
+
+        if not finish_reason_updated and content_to_send == "":
             # Ignore empty delta text when finish reason is not updated.
             engine_state.record_event(request_id, event="skip empty delta text")
             continue
 
-        choices.append(
-            openai_api_protocol.ChatCompletionStreamResponseChoice(
-                index=i,
-                finish_reason=finish_reasons[i],
-                delta=openai_api_protocol.ChatCompletionMessage(
-                    content=delta_output.delta_text, role="assistant"
-                ),
-                logprobs=(
-                    openai_api_protocol.LogProbs(
-                        content=[
-                            openai_api_protocol.LogProbsContent.model_validate_json(
-                                logprob_json_str
-                            )
-                            for logprob_json_str in delta_output.delta_logprob_json_strs
-                        ]
-                    )
-                    if delta_output.delta_logprob_json_strs is not None
-                    else None
-                ),
-            )
+        choice = openai_api_protocol.ChatCompletionStreamResponseChoice(
+            index=i,
+            finish_reason=finish_reasons[i],
+            delta=openai_api_protocol.ChatCompletionMessage(
+                content=content_to_send if content_to_send else None, 
+                role="assistant", 
+                tool_calls=tool_calls if tool_calls else None
+            ),
+            logprobs=(
+                openai_api_protocol.LogProbs(
+                    content=[
+                        openai_api_protocol.LogProbsContent.model_validate_json(
+                            logprob_json_str
+                        )
+                        for logprob_json_str in delta_output.delta_logprob_json_strs
+                    ]
+                )
+                if delta_output.delta_logprob_json_strs is not None
+                else None
+            ),
         )
+
+        choices.append(choice)
+
+    return openai_api_protocol.ChatCompletionStreamResponse(
+        id=request_id,
+        choices=choices,
+        model=request.model,
+        system_fingerprint="",
+        usage=None # Usage is handled in the final chunk
+    )
 
     if len(choices) == 0:
         # Skip return when there is no delta output and no number of completion tokens.
