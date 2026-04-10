@@ -722,7 +722,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         state: RNNState,
         logit_positions: Optional[Tensor] = None,
     ):
-        """Shared forward for batch methods using RNNState."""
+        """Shared forward for the RNNState path."""
         op_ext.configure()
         hidden_states, state = self.model.forward(input_embed, paged_kv_cache, state)
         if logit_positions is not None:
@@ -734,6 +734,32 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         if logits.dtype != "float32":
             logits = logits.astype("float32")
         return logits, paged_kv_cache, state
+
+    def prefill(
+        self,
+        input_embed: Tensor,
+        paged_kv_cache: PagedKVCache,
+        rnn_state: RNNState,
+    ):
+        op_ext.configure()
+
+        hidden_states, rnn_state = self.model.forward(input_embed, paged_kv_cache, rnn_state)
+        hidden_states = index_last_token(hidden_states)
+        if self.tie_word_embeddings:
+            logits = self.model.embed_tokens.lm_head_forward(hidden_states)
+        else:
+            logits = self.lm_head(hidden_states)
+        if logits.dtype != "float32":
+            logits = logits.astype("float32")
+        return logits, paged_kv_cache, rnn_state
+
+    def decode(
+        self,
+        input_embed: Tensor,
+        paged_kv_cache: PagedKVCache,
+        rnn_state: RNNState,
+    ):
+        return self._forward(input_embed, paged_kv_cache, rnn_state)
 
     def batch_prefill(
         self,
@@ -824,6 +850,24 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         mod_spec = {
             "embed": {
                 "input_ids": nn.spec.Tensor(["seq_len"], "int32"),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "prefill": {
+                "input_embed": nn.spec.Tensor([1, "seq_len", self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
+                "$": {
+                    "param_mode": "packed",
+                    "effect_mode": "none",
+                },
+            },
+            "decode": {
+                "input_embed": nn.spec.Tensor([1, 1, self.hidden_size], self.dtype),
+                "paged_kv_cache": nn.spec.Object(object_type=PagedKVCache),
+                "rnn_state": nn.spec.Object(object_type=RNNState),
                 "$": {
                     "param_mode": "packed",
                     "effect_mode": "none",
