@@ -322,10 +322,15 @@ class ModelImpl : public ModelObj {
     // args: embeddings, logit_pos, kv_cache, [rnn_state,] params
     ObjectRef ret;
     if (kind == KVStateKind::kHybrid) {
-      // Hybrid always uses batch_prefill (single_batch prefill has tensor-based GDN args).
-      ret =
-          prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, rnn_state_, params_)
-              .cast<ObjectRef>();
+      if (seq_ids.size() == 1 && !padded) {
+        ret =
+            single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
+                .cast<ObjectRef>();
+      } else {
+        ret = prefill_func(embeddings_dref_or_nd, logit_pos_dref_or_nd, kv_cache_, rnn_state_,
+                           params_)
+                  .cast<ObjectRef>();
+      }
     } else if (seq_ids.size() == 1 && !padded) {
       ret = single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, params_).cast<ObjectRef>();
     } else {
@@ -487,9 +492,13 @@ class ModelImpl : public ModelObj {
     // args: embeddings, kv_cache, [rnn_state,] params
     ObjectRef ret;
     if (kind == KVStateKind::kHybrid) {
-      // Hybrid always uses batch_decode (single_batch decode has tensor-based GDN args).
-      ret =
-          ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_).cast<ObjectRef>();
+      if (seq_ids.size() == 1) {
+        ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
+                  .cast<ObjectRef>();
+      } else {
+        ret = ft_.decode_func_(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
+                  .cast<ObjectRef>();
+      }
     } else if (seq_ids.size() == 1) {
       ret = ft_.single_batch_decode_func_(embeddings_dref_or_nd, kv_cache_, params_)
                 .cast<ObjectRef>();
