@@ -5,11 +5,12 @@ Implementation for Phi architecture.
 import dataclasses
 from typing import Any, Dict, Optional
 
-from tvm import relax, target, te, tirx
+from tvm import relax, target, tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.model.phi3 import Phi3Model
 from mlc_llm.model.vision import CLIPVisionConfig, ImageProcessor
 from mlc_llm.nn import PagedKVCache, RopeMode
@@ -182,12 +183,8 @@ class Phi3VForCausalLM(nn.Module):
     def prefill(self, input_embed: Tensor, paged_kv_cache: PagedKVCache):
         op_ext.configure()
 
-        def _index(x: te.Tensor):
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
         hidden_states = self.model(input_embed, paged_kv_cache)
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = index_last_token(hidden_states)
         logits = self.lm_head(hidden_states)
 
         if logits.dtype != "float32":

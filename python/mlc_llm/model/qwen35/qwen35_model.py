@@ -17,6 +17,7 @@ from tvm.relax.frontend.nn import Tensor, op
 from tvm.script import tirx as T
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.nn.rnn_state import RNNState
 from mlc_llm.support import logging
