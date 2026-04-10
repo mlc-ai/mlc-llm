@@ -20,11 +20,12 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional, Tuple
 
-from tvm import te, tirx
+from tvm import tirx
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
 from mlc_llm import op as op_ext
+from mlc_llm.model.model_utils import index_last_token
 from mlc_llm.nn import PagedKVCache, RopeMode
 from mlc_llm.op.mrope import (
     MultimodalRotaryEmbedding,
@@ -433,11 +434,7 @@ class Qwen25VLLMHeadModel(nn.Module):
         self._set_mrope_delta(paged_kv_cache, mrope_deltas)
         hidden_states = self.model(input_embed, position_ids, paged_kv_cache)
 
-        def _index(x: te.Tensor):
-            b, s, d = x.shape
-            return te.compute((b, 1, d), lambda i, _, k: x[i, s - 1, k], name="index")
-
-        hidden_states = op.tensor_expr_op(_index, name_hint="index", args=[hidden_states])
+        hidden_states = index_last_token(hidden_states)
         logits = self._apply_lm_head(hidden_states)
         return logits, paged_kv_cache
 
