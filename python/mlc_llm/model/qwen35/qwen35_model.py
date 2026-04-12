@@ -217,11 +217,11 @@ class Qwen35Attention(nn.Module):
 
 
 # ============================================================================
-# GatedDeltaNet TIR kernel
+# GatedDeltaNet kernels
 # ============================================================================
 
 
-def create_gated_delta_net_func(
+def create_gated_delta_net_recurrent_func(
     num_key_heads: int,
     num_value_heads: int,
     key_head_dim: int,
@@ -374,6 +374,430 @@ def create_gated_delta_net_func(
     return gdn_func
 
 
+def create_gated_delta_net_chunked_func(
+    num_key_heads: int,
+    num_value_heads: int,
+    key_head_dim: int,
+    value_head_dim: int,
+    dtype: str,
+    chunk_size: int,
+):
+    """Creates a Relax/TIR hybrid function for prefill chunked GatedDeltaNet."""
+
+    if num_value_heads % num_key_heads != 0:
+        raise ValueError(
+            "num_value_heads must be divisible by num_key_heads "
+            f"(got {num_value_heads} and {num_key_heads})"
+        )
+
+    heads_per_group = num_value_heads // num_key_heads
+
+    def _expand_key_heads_to_value_heads(x: Tensor, name: str) -> Tensor:
+        if heads_per_group == 1:
+            return x
+
+        def _te(inp: te.Tensor):
+            batch_size, seq_len, _, head_dim = inp.shape
+            return te.compute(
+                (batch_size, seq_len, num_value_heads, head_dim),
+                lambda bi, si, hi, di: inp[bi, si, hi // heads_per_group, di],
+                name=name,
+            )
+
+        return op.tensor_expr_op(_te, name, [x], attrs={"op_pattern": 8})
+
+    def _transpose_pad_bshd_to_bhsd(
+        x: Tensor,
+        padded_len,
+        name: str,
+        scale: Optional[float] = None,
+    ) -> Tensor:
+        def _te(inp: te.Tensor):
+            batch_size, seq_len, num_heads, head_dim = inp.shape
+            zero = tirx.const(0.0, inp.dtype)
+            if scale is None:
+                return te.compute(
+                    (batch_size, num_heads, padded_len, head_dim),
+                    lambda bi, hi, si, di: tirx.if_then_else(
+                        si < seq_len,
+                        inp[bi, si, hi, di],
+                        zero,
+                    ),
+                    name=name,
+                )
+
+            scale_const = tirx.const(scale, inp.dtype)
+            return te.compute(
+                (batch_size, num_heads, padded_len, head_dim),
+                lambda bi, hi, si, di: tirx.if_then_else(
+                    si < seq_len,
+                    inp[bi, si, hi, di] * scale_const,
+                    zero,
+                ),
+                name=name,
+            )
+
+        return op.tensor_expr_op(_te, name, [x], attrs={"op_pattern": 8})
+
+    def _transpose_pad_bsh_to_bhs(x: Tensor, padded_len, name: str) -> Tensor:
+        def _te(inp: te.Tensor):
+            batch_size, seq_len, num_heads = inp.shape
+            zero = tirx.const(0.0, inp.dtype)
+            return te.compute(
+                (batch_size, num_heads, padded_len),
+                lambda bi, hi, si: tirx.if_then_else(
+                    si < seq_len,
+                    inp[bi, si, hi],
+                    zero,
+                ),
+                name=name,
+            )
+
+        return op.tensor_expr_op(_te, name, [x], attrs={"op_pattern": 8})
+
+    def _crop_padded_output(x: Tensor, seq_len, name: str = "crop_padded_output") -> Tensor:
+        def _te(inp: te.Tensor):
+            batch_size, _, num_heads, value_dim = inp.shape
+            return te.compute(
+                (batch_size, seq_len, num_heads, value_dim),
+                lambda bi, si, hi, vi: inp[bi, si, hi, vi],
+                name=name,
+            )
+
+        return op.tensor_expr_op(_te, name, [x], attrs={"op_pattern": 8})
+
+    def _create_associative_scan_primfunc():
+        @T.prim_func
+        def associative_scan(attn_mm: T.handle, g_cumsum: T.handle, attn_out: T.handle):
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
+            batch_size = T.int64()
+            num_heads = T.int64()
+            num_chunks = T.int64()
+
+            attn_mm_buf = T.match_buffer(
+                attn_mm,
+                (batch_size, num_heads, num_chunks, T.int64(chunk_size), T.int64(chunk_size)),
+                dtype="float32",
+            )
+            g_cumsum_buf = T.match_buffer(
+                g_cumsum,
+                (batch_size, num_heads, num_chunks, T.int64(chunk_size)),
+                dtype="float32",
+            )
+            attn_out_buf = T.match_buffer(
+                attn_out,
+                (batch_size, num_heads, num_chunks, T.int64(chunk_size), T.int64(chunk_size)),
+                dtype="float32",
+            )
+
+            with T.sblock("root"):
+                for b in T.thread_binding(batch_size, thread="blockIdx.x"):
+                    for h in T.thread_binding(num_heads, thread="blockIdx.y"):
+                        for c in T.thread_binding(num_chunks, thread="blockIdx.z"):
+                            for i in T.serial(chunk_size):
+                                for j in T.serial(i, chunk_size):
+                                    attn_out_buf[b, h, c, i, j] = T.float32(0.0)
+
+                            for i in T.serial(1, chunk_size):
+                                g_i = g_cumsum_buf[b, h, c, i]
+                                for j in T.serial(0, i):
+                                    decayed_lower_attn_ij = (
+                                        -attn_mm_buf[b, h, c, i, j]
+                                        * T.exp(g_i - g_cumsum_buf[b, h, c, j])
+                                    )
+                                    attn_out_buf[b, h, c, i, j] = decayed_lower_attn_ij
+                                    for k_idx in T.serial(0, i):
+                                        decayed_lower_attn_ik = (
+                                            -attn_mm_buf[b, h, c, i, k_idx]
+                                            * T.exp(g_i - g_cumsum_buf[b, h, c, k_idx])
+                                        )
+                                        attn_out_buf[b, h, c, i, j] += (
+                                            decayed_lower_attn_ik * attn_out_buf[b, h, c, k_idx, j]
+                                        )
+
+                            for i in T.serial(chunk_size):
+                                attn_out_buf[b, h, c, i, i] = T.float32(1.0)
+
+        return associative_scan
+
+    def _create_inter_chunk_recurrent_primfunc():
+        @T.prim_func
+        def inter_chunk_recurrent(
+            query: T.handle,
+            key: T.handle,
+            value_intra: T.handle,
+            k_cumdecay: T.handle,
+            g_cumsum: T.handle,
+            initial_state: T.handle,
+            core_attn_out: T.handle,
+            recurrent_state_out: T.handle,
+        ):
+            T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
+            batch_size = T.int64()
+            num_chunks = T.int64()
+
+            query_buf = T.match_buffer(
+                query,
+                (batch_size, T.int64(num_value_heads), num_chunks, T.int64(chunk_size), T.int64(key_head_dim)),
+                dtype="float32",
+            )
+            key_buf = T.match_buffer(
+                key,
+                (batch_size, T.int64(num_value_heads), num_chunks, T.int64(chunk_size), T.int64(key_head_dim)),
+                dtype="float32",
+            )
+            value_intra_buf = T.match_buffer(
+                value_intra,
+                (
+                    batch_size,
+                    T.int64(num_value_heads),
+                    num_chunks,
+                    T.int64(chunk_size),
+                    T.int64(value_head_dim),
+                ),
+                dtype="float32",
+            )
+            k_cumdecay_buf = T.match_buffer(
+                k_cumdecay,
+                (batch_size, T.int64(num_value_heads), num_chunks, T.int64(chunk_size), T.int64(key_head_dim)),
+                dtype="float32",
+            )
+            g_cumsum_buf = T.match_buffer(
+                g_cumsum,
+                (batch_size, T.int64(num_value_heads), num_chunks, T.int64(chunk_size)),
+                dtype="float32",
+            )
+            initial_state_buf = T.match_buffer(
+                initial_state,
+                (batch_size, T.int64(num_value_heads), T.int64(key_head_dim), T.int64(value_head_dim)),
+                dtype="float32",
+            )
+            core_attn_out_buf = T.match_buffer(
+                core_attn_out,
+                (
+                    batch_size,
+                    T.int64(num_value_heads),
+                    num_chunks,
+                    T.int64(chunk_size),
+                    T.int64(value_head_dim),
+                ),
+                dtype="float32",
+            )
+            recurrent_state_out_buf = T.match_buffer(
+                recurrent_state_out,
+                (batch_size, T.int64(num_value_heads), T.int64(key_head_dim), T.int64(value_head_dim)),
+                dtype="float32",
+            )
+
+            attn_buf = T.alloc_buffer(
+                (
+                    batch_size,
+                    T.int64(num_value_heads),
+                    num_chunks,
+                    T.int64(chunk_size),
+                    T.int64(chunk_size),
+                ),
+                dtype="float32",
+            )
+            v_new_buf = T.alloc_buffer(
+                (
+                    batch_size,
+                    T.int64(num_value_heads),
+                    num_chunks,
+                    T.int64(chunk_size),
+                    T.int64(value_head_dim),
+                ),
+                dtype="float32",
+            )
+            attn_inter_buf = T.alloc_buffer(
+                (
+                    batch_size,
+                    T.int64(num_value_heads),
+                    num_chunks,
+                    T.int64(chunk_size),
+                    T.int64(value_head_dim),
+                ),
+                dtype="float32",
+            )
+
+            with T.sblock("root"):
+                for b in T.thread_binding(batch_size, thread="blockIdx.x"):
+                    for h in T.thread_binding(T.int64(num_value_heads), thread="blockIdx.y"):
+                        for kd in T.thread_binding(T.int64(key_head_dim), thread="blockIdx.z"):
+                            for vd in T.thread_binding(T.int64(value_head_dim), thread="threadIdx.x"):
+                                recurrent_state_out_buf[b, h, kd, vd] = initial_state_buf[b, h, kd, vd]
+
+                for b in T.thread_binding(batch_size, thread="blockIdx.x"):
+                    for h in T.thread_binding(T.int64(num_value_heads), thread="blockIdx.y"):
+                        for chunk_idx in T.serial(num_chunks):
+                            for c1 in T.serial(T.int64(chunk_size)):
+                                g_i = g_cumsum_buf[b, h, chunk_idx, c1]
+                                for c2 in T.serial(T.int64(chunk_size)):
+                                    attn_buf[b, h, chunk_idx, c1, c2] = T.float32(0.0)
+                                    for kd in T.serial(T.int64(key_head_dim)):
+                                        attn_buf[b, h, chunk_idx, c1, c2] += (
+                                            query_buf[b, h, chunk_idx, c1, kd]
+                                            * key_buf[b, h, chunk_idx, c2, kd]
+                                        )
+                                    attn_buf[b, h, chunk_idx, c1, c2] = T.if_then_else(
+                                        c2 > c1,
+                                        T.float32(0.0),
+                                        attn_buf[b, h, chunk_idx, c1, c2]
+                                        * T.exp(g_i - g_cumsum_buf[b, h, chunk_idx, c2]),
+                                    )
+
+                            for c in T.serial(T.int64(chunk_size)):
+                                g_curr = g_cumsum_buf[b, h, chunk_idx, c]
+                                exp_curr = T.exp(g_curr)
+                                for vd in T.serial(T.int64(value_head_dim)):
+                                    v_new_buf[b, h, chunk_idx, c, vd] = value_intra_buf[
+                                        b, h, chunk_idx, c, vd
+                                    ]
+                                    for kd in T.serial(T.int64(key_head_dim)):
+                                        v_new_buf[b, h, chunk_idx, c, vd] -= (
+                                            k_cumdecay_buf[b, h, chunk_idx, c, kd]
+                                            * recurrent_state_out_buf[b, h, kd, vd]
+                                        )
+
+                                for vd in T.serial(T.int64(value_head_dim)):
+                                    attn_inter_buf[b, h, chunk_idx, c, vd] = T.float32(0.0)
+                                    for kd in T.serial(T.int64(key_head_dim)):
+                                        attn_inter_buf[b, h, chunk_idx, c, vd] += (
+                                            query_buf[b, h, chunk_idx, c, kd]
+                                            * exp_curr
+                                            * recurrent_state_out_buf[b, h, kd, vd]
+                                        )
+
+                                for vd in T.serial(T.int64(value_head_dim)):
+                                    core_attn_out_buf[b, h, chunk_idx, c, vd] = attn_inter_buf[
+                                        b, h, chunk_idx, c, vd
+                                    ]
+                                    for r in T.serial(T.int64(chunk_size)):
+                                        core_attn_out_buf[b, h, chunk_idx, c, vd] += (
+                                            attn_buf[b, h, chunk_idx, c, r]
+                                            * v_new_buf[b, h, chunk_idx, r, vd]
+                                        )
+
+                            for kd in T.serial(T.int64(key_head_dim)):
+                                for vd in T.serial(T.int64(value_head_dim)):
+                                    g_last = g_cumsum_buf[b, h, chunk_idx, T.int64(chunk_size - 1)]
+                                    exp_last = T.exp(g_last)
+                                    recurrent_state_out_buf[b, h, kd, vd] = (
+                                        recurrent_state_out_buf[b, h, kd, vd] * exp_last
+                                    )
+                                    for c in T.serial(T.int64(chunk_size)):
+                                        recurrent_state_out_buf[b, h, kd, vd] += (
+                                            key_buf[b, h, chunk_idx, c, kd]
+                                            * v_new_buf[b, h, chunk_idx, c, vd]
+                                            * T.exp(g_last - g_cumsum_buf[b, h, chunk_idx, c])
+                                        )
+
+        return inter_chunk_recurrent
+
+    def gdn_chunked_func(
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        gate: Tensor,
+        beta: Tensor,
+        state_in: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        q = _expand_key_heads_to_value_heads(q, "expand_query_to_value_heads")
+        k = _expand_key_heads_to_value_heads(k, "expand_key_to_value_heads")
+
+        q = op.astype(q, "float32")
+        k = op.astype(k, "float32")
+        v = op.astype(v, "float32")
+        gate = op.astype(gate, "float32")
+        beta = op.astype(beta, "float32")
+        state_in = op.astype(state_in, "float32")
+
+        batch_size, seq_len, _, _ = q.shape
+        num_chunks = tirx.ceildiv(seq_len, chunk_size)
+        padded_len = num_chunks * chunk_size
+        scale = 1.0 / math.sqrt(key_head_dim)
+
+        query_t = _transpose_pad_bshd_to_bhsd(q, padded_len, "transpose_pad_query", scale=scale)
+        key_t = _transpose_pad_bshd_to_bhsd(k, padded_len, "transpose_pad_key")
+        value_t = _transpose_pad_bshd_to_bhsd(v, padded_len, "transpose_pad_value")
+        g_t = _transpose_pad_bsh_to_bhs(gate, padded_len, "transpose_pad_g")
+        beta_t = _transpose_pad_bsh_to_bhs(beta, padded_len, "transpose_pad_beta")
+
+        v_beta = value_t * op.unsqueeze(beta_t, -1)
+        k_beta = key_t * op.unsqueeze(beta_t, -1)
+
+        query_chunked = op.reshape(
+            query_t,
+            (batch_size, num_value_heads, num_chunks, chunk_size, key_head_dim),
+        )
+        key_chunked = op.reshape(
+            key_t,
+            (batch_size, num_value_heads, num_chunks, chunk_size, key_head_dim),
+        )
+        k_beta_chunked = op.reshape(
+            k_beta,
+            (batch_size, num_value_heads, num_chunks, chunk_size, key_head_dim),
+        )
+        v_beta_chunked = op.reshape(
+            v_beta,
+            (batch_size, num_value_heads, num_chunks, chunk_size, value_head_dim),
+        )
+        g_chunked = op.reshape(g_t, (batch_size, num_value_heads, num_chunks, chunk_size))
+
+        g_cumsum = op.cumsum(g_chunked, axis=-1)
+        exp_g_cumsum = op.exp(g_cumsum)
+
+        key_chunked_t = op.permute_dims(key_chunked, [0, 1, 2, 4, 3])
+        attn_mm = op.matmul(k_beta_chunked, key_chunked_t, out_dtype="float32")
+
+        attn_identity = op.tensor_ir_op(
+            _create_associative_scan_primfunc(),
+            "gdn_associative_scan",
+            [attn_mm, g_cumsum],
+            Tensor.placeholder(
+                (batch_size, num_value_heads, num_chunks, chunk_size, chunk_size),
+                "float32",
+            ),
+        )
+
+        value_intra = op.matmul(attn_identity, v_beta_chunked, out_dtype="float32")
+        k_cumdecay_input = k_beta_chunked * op.unsqueeze(exp_g_cumsum, -1)
+        k_cumdecay = op.matmul(attn_identity, k_cumdecay_input, out_dtype="float32")
+
+        core_attn_out_chunked, recurrent_state_out = op.tensor_ir_op(
+            _create_inter_chunk_recurrent_primfunc(),
+            "gdn_inter_chunk_recurrent",
+            [
+                query_chunked,
+                key_chunked,
+                value_intra,
+                k_cumdecay,
+                g_cumsum,
+                state_in,
+            ],
+            [
+                Tensor.placeholder(
+                    (batch_size, num_value_heads, num_chunks, chunk_size, value_head_dim),
+                    "float32",
+                ),
+                Tensor.placeholder(
+                    (batch_size, num_value_heads, key_head_dim, value_head_dim),
+                    "float32",
+                ),
+            ],
+        )
+
+        core_attn_out_padded = op.reshape(
+            core_attn_out_chunked,
+            (batch_size, num_value_heads, padded_len, value_head_dim),
+        )
+        core_attn_out_padded = op.permute_dims(core_attn_out_padded, [0, 2, 1, 3])
+        core_attn_out = _crop_padded_output(core_attn_out_padded, seq_len)
+        return core_attn_out, recurrent_state_out
+
+    return gdn_chunked_func
+
+
 # ============================================================================
 # GatedDeltaNet Linear Attention Layer
 # ============================================================================
@@ -389,6 +813,9 @@ class Qwen35GatedDeltaNet(nn.Module):
         self.value_head_dim = config.linear_value_head_dim  # 128
         self.num_key_heads = config.linear_num_key_heads  # 16
         self.num_value_heads = config.linear_num_value_heads  # 16 or 32
+        # Kernel chunk size is algorithmic and should stay small (e.g. 64).
+        # Do not use engine prefill_chunk_size (e.g. 2048), which controls request splitting.
+        self.gdn_chunk_size = 64
         self.hidden_size = config.hidden_size
         self.dtype = config.dtype
 
@@ -473,22 +900,32 @@ class Qwen35GatedDeltaNet(nn.Module):
         # Get recurrent state from RNNState (state_id=0)
         state_in_layer = state.get(layer_idx, 0, (b, n_vh, K, V), "float32")
 
-        # Recurrent computation via TIR kernel
-        out_recurrent, state_out_layer = op.tensor_ir_op(
-            create_gated_delta_net_func(
+        # Dispatch recurrent path for decode and chunked path for prefill.
+        if is_prefill:
+            out_recurrent, state_out_layer = create_gated_delta_net_chunked_func(
                 num_key_heads=n_kh,
                 num_value_heads=n_vh,
                 key_head_dim=K,
                 value_head_dim=V,
                 dtype=self.dtype,
-            ),
-            "gated_delta_net",
-            [q, k, v, gate, beta, state_in_layer],
-            [
-                Tensor.placeholder([b, s, n_vh, V], "float32"),
-                Tensor.placeholder([b, n_vh, K, V], "float32"),
-            ],
-        )
+                chunk_size=self.gdn_chunk_size,
+            )(q, k, v, gate, beta, state_in_layer)
+        else:
+            out_recurrent, state_out_layer = op.tensor_ir_op(
+                create_gated_delta_net_recurrent_func(
+                    num_key_heads=n_kh,
+                    num_value_heads=n_vh,
+                    key_head_dim=K,
+                    value_head_dim=V,
+                    dtype=self.dtype,
+                ),
+                "gated_delta_net_recurrent",
+                [q, k, v, gate, beta, state_in_layer],
+                [
+                    Tensor.placeholder([b, s, n_vh, V], "float32"),
+                    Tensor.placeholder([b, n_vh, K, V], "float32"),
+                ],
+            )
 
         # Cast recurrent output back to model dtype
         out_recurrent = op.astype(out_recurrent, self.dtype)
