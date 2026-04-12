@@ -421,7 +421,9 @@ class Qwen35GatedDeltaNet(nn.Module):
         # Output gating norm — per-head RMSNorm (shared weight across heads)
         self.norm = nn.RMSNorm(self.value_head_dim, -1, config.rms_norm_eps, bias=False)
 
-    def forward(self, hidden_states: Tensor, state: RNNState) -> Tuple[Tensor, RNNState]:
+    def forward(
+        self, hidden_states: Tensor, state: RNNState, is_prefill: bool
+    ) -> Tuple[Tensor, RNNState]:
         """Forward using RNNState (for MLCEngine batch methods)."""
         b, s, _ = hidden_states.shape
         K = self.key_head_dim
@@ -632,12 +634,13 @@ class Qwen35DecoderLayer(nn.Module):
         hidden_states: Tensor,
         paged_kv_cache: PagedKVCache,
         state: RNNState,
+        is_prefill: bool,
     ):
         out = self.input_layernorm(hidden_states)
         if self.layer_type == "full_attention":
             out = self.self_attn(out, paged_kv_cache, self.category_id)
         else:
-            out, state = self.linear_attn.forward(out, state)
+            out, state = self.linear_attn(out, state, is_prefill)
         hidden_states = self._apply_residual(out, residual=hidden_states)
         out = self.post_attention_layernorm(hidden_states)
         out = self.mlp(out)
@@ -672,10 +675,11 @@ class Qwen35Model(nn.Module):
         inputs: Tensor,
         paged_kv_cache: PagedKVCache,
         state: RNNState,
+        is_prefill: bool,
     ):
         hidden_states = inputs
         for layer_id, layer in enumerate(self.layers):
-            hidden_states, state = layer.forward(hidden_states, paged_kv_cache, state)
+            hidden_states, state = layer.forward(hidden_states, paged_kv_cache, state, is_prefill)
         hidden_states = self.norm(hidden_states)
         return hidden_states, state
 
@@ -720,11 +724,12 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         input_embed: Tensor,
         paged_kv_cache: PagedKVCache,
         state: RNNState,
+        is_prefill: bool,
         logit_positions: Optional[Tensor] = None,
     ):
         """Shared forward for the RNNState path."""
         op_ext.configure()
-        hidden_states, state = self.model.forward(input_embed, paged_kv_cache, state)
+        hidden_states, state = self.model.forward(input_embed, paged_kv_cache, state, is_prefill)
         if logit_positions is not None:
             hidden_states = op.take(hidden_states, logit_positions, axis=1)
         if self.tie_word_embeddings:
@@ -743,7 +748,9 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
     ):
         op_ext.configure()
 
-        hidden_states, rnn_state = self.model.forward(input_embed, paged_kv_cache, rnn_state)
+        hidden_states, rnn_state = self.model.forward(
+            input_embed, paged_kv_cache, rnn_state, True
+        )
         hidden_states = index_last_token(hidden_states)
         if self.tie_word_embeddings:
             logits = self.model.embed_tokens.lm_head_forward(hidden_states)
@@ -759,7 +766,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward(input_embed, paged_kv_cache, rnn_state)
+        return self._forward(input_embed, paged_kv_cache, rnn_state, False)
 
     def batch_prefill(
         self,
@@ -768,7 +775,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward(input_embeds, paged_kv_cache, rnn_state, logit_positions)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state, True, logit_positions)
 
     def batch_decode(
         self,
@@ -776,7 +783,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward(input_embeds, paged_kv_cache, rnn_state)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state, False)
 
     def batch_verify(
         self,
@@ -784,7 +791,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
         paged_kv_cache: PagedKVCache,
         rnn_state: RNNState,
     ):
-        return self._forward(input_embeds, paged_kv_cache, rnn_state)
+        return self._forward(input_embeds, paged_kv_cache, rnn_state, False)
 
     def create_rnn_state(
         self,
