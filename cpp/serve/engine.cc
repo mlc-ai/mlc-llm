@@ -82,6 +82,22 @@ inline std::pair<std::optional<std::string>, int> GetEnvSocketHostPort() {
   return {host, std::atoi(port_str)};
 }
 
+// Top-level task the engine instance is serving. Derived once from the
+// primary model's metadata at Create() time and cached to avoid re-reading
+// ModelMetadata on every Step(). An engine instance is strictly single-task:
+// hybrid chat+embedding on the same engine is intentionally not supported.
+enum class EngineTaskMode {
+  kChat,
+  kEmbedding,
+};
+
+inline EngineTaskMode InferEngineTaskMode(const ModelMetadata& metadata) {
+  if (metadata.model_task == "embedding") {
+    return EngineTaskMode::kEmbedding;
+  }
+  return EngineTaskMode::kChat;
+}
+
 // string back error node
 void StreamBackErrorImpl(Request request, FRequestStreamCallback request_stream_callback,
                          String finish_reason) {
@@ -456,74 +472,31 @@ class EngineImpl : public Engine {
                "enabled and not implemented with hybrid prefill yet.";
       }
     }
-    // Detect encoder-embedding-only mode: primary model is an encoder embedding model.
-    // In this mode, skip all chat-only initialization (KV cache, logit processor, sampler,
-    // grammar, chat engine actions) since the encoder embedding lane is fully independent.
-    bool is_encoder_embedding_only = n->models_[0]->HasEncoderPrefill();
-
-    // - Load model weights and set capacity limits.
+    // - Task-agnostic per-model setup. KV cache creation and all
+    //   lane-specific state live inside InitChatLane / InitEmbeddingLane.
     n->model_workspaces_.clear();
     for (const Model& model : n->models_) {
       model->LoadParams();
       model->SetMaxNumSequence(engine_config->max_num_sequence);
       model->SetPrefillChunkSize(engine_config->prefill_chunk_size);
-      if (!is_encoder_embedding_only) {
-        // Chat models need KV cache; encoder embedding models do not.
-        model->CreateKVCache(engine_config->kv_cache_page_size, engine_config->max_num_sequence,
-                             engine_config->max_total_sequence_length,
-                             engine_config->prefill_chunk_size, engine_config->max_history_size,
-                             engine_config->prefix_cache_max_num_recycling_seqs);
-      }
       n->model_workspaces_.push_back(
           ModelWorkspace{model->AllocEmbeddingTensor(), model->AllocHiddenStatesTensor()});
     }
 
-    if (is_encoder_embedding_only) {
-      // --- Encoder-embedding-only path ---
-      // Only create the embedding action. No tokenizer/grammar/logit/sampler/chat actions.
-      n->embedding_action_ = EngineAction::BatchEmbeddingPrefill(n->models_[0], engine_config);
-      n->embedding_hidden_dim_ = n->models_[0]->GetHiddenSize();
-      TVM_FFI_ICHECK_GT(n->embedding_hidden_dim_, 0)
-          << "Encoder embedding model must have a known hidden_size after initialization.";
-      // actions_ stays empty — Step() handles embedding_action_ separately.
-      n->engine_config_ = engine_config;
-    } else {
-      // --- Chat / decoder path (unchanged) ---
-      // Initialize tokenizer and grammar
-      n->tokenizer_ = Tokenizer::FromPath(engine_config->model, GetTokenizerInfo(model_configs[0]));
-      n->token_table_ = n->tokenizer_->PostProcessedTokenTable();
-      n->cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(n->token_table_);
-      // Create the logit processor and sampler, and
-      // the DraftTokenWorkspaceManager for speculative decoding.
-      int max_num_tokens = engine_config->max_num_sequence;
-      DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
-      if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-        draft_token_workspace_manager =
-            n->models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens * 2);
-        draft_token_workspace_manager->AllocWorkspace(
-            &n->model_workspaces_[0],
-            /*require_hidden_states=*/engine_config->speculative_mode == SpeculativeMode::kEagle);
-      }
-      LogitProcessor logit_processor =
-          n->models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
-      Sampler sampler = n->models_[0]->CreateSampler(
-          max_num_tokens, static_cast<int>(n->models_.size()), trace_recorder);
-      // Initialize engine actions that represent state transitions.
-      if (engine_config->speculative_mode != SpeculativeMode::kDisable) {
-        n->estate_->spec_draft_length = engine_config->spec_draft_length;
-      }
-      n->actions_ =
-          CreateEngineActions(n->models_, engine_config, model_configs, n->model_workspaces_,
-                              logit_processor, sampler, draft_token_workspace_manager, n->tokenizer_,
-                              n->trace_recorder_, n->estate_->request_stream_callback_, device);
-      n->draft_token_workspace_manager_ = draft_token_workspace_manager;
-      // Also create embedding action for hybrid models that support both chat and embedding.
-      if (n->models_[0]->HasEncoderPrefill()) {
-        n->embedding_action_ = EngineAction::BatchEmbeddingPrefill(n->models_[0], engine_config);
-        n->embedding_hidden_dim_ = n->models_[0]->GetHiddenSize();
-      }
-      n->engine_config_ = engine_config;
-      n->SetThreadMaxConcurrency();
+    // - Cache the resolved config so lane helpers and SetThreadMaxConcurrency
+    //   can read it via engine_config_.
+    n->engine_config_ = engine_config;
+
+    // - Dispatch lane initialization based on the primary model's task.
+    //   Strict single-task: no lane-crossing, no hybrid.
+    n->task_mode_ = InferEngineTaskMode(n->models_[0]->GetMetadata());
+    switch (n->task_mode_) {
+      case EngineTaskMode::kChat:
+        n->InitChatLane(model_configs, trace_recorder, device);
+        break;
+      case EngineTaskMode::kEmbedding:
+        n->InitEmbeddingLane();
+        break;
     }
     // - Get the default generation config from the first model.
     GenerationConfig default_generation_cfg =
@@ -540,8 +513,14 @@ class EngineImpl : public Engine {
   }
 
   bool Empty() final {
-    return estate_->running_queue.empty() && estate_->waiting_queue.empty() &&
-           estate_->embedding_waiting_queue.empty();
+    switch (task_mode_) {
+      case EngineTaskMode::kEmbedding:
+        return estate_->embedding_waiting_queue.empty();
+      case EngineTaskMode::kChat:
+        return estate_->running_queue.empty() && estate_->waiting_queue.empty();
+    }
+    // Unreachable: task_mode_ is exhaustively handled above.
+    return true;
   }
 
   String JSONMetrics() final { return tvm::ffi::json::Stringify(estate_->metrics.AsJSON(), 2); }
@@ -695,6 +674,9 @@ class EngineImpl : public Engine {
   }
 
   void AddRequest(Request request) final {
+    TVM_FFI_ICHECK(task_mode_ == EngineTaskMode::kChat)
+        << "AddRequest called on a non-chat engine. This engine was initialized with "
+           "model_task != \"chat\"; use AddEmbeddingRequest instead.";
     NVTXScopedRange nvtx_scope("Add request " + request->id);
     // special requests do not involve generation
     if (request->generation_cfg->debug_config.special_request != SpecialRequestKind::kNone) {
@@ -776,18 +758,22 @@ class EngineImpl : public Engine {
   /***************** Embedding Request Management *****************/
 
   void AddEmbeddingRequest(EmbeddingRequest request) final {
+    TVM_FFI_ICHECK(task_mode_ == EngineTaskMode::kEmbedding)
+        << "AddEmbeddingRequest called on a non-embedding engine. This engine was "
+           "initialized with model_task != \"embedding\"; use AddRequest instead.";
     NVTXScopedRange nvtx_scope("Add embedding request " + std::string(request->id));
 
     int num_items = static_cast<int>(request->items.size());
     TVM_FFI_ICHECK_GT(num_items, 0) << "Embedding request must have at least one item.";
 
-    // Deterministic allocation: hidden_dim must be available now.
-    TVM_FFI_ICHECK_GT(embedding_hidden_dim_, 0)
-        << "Cannot add embedding request: model hidden_dim is not initialized. "
-        << "Is the model an encoder embedding model?";
+    // hidden_dim was validated during InitEmbeddingLane; re-asserting here
+    // as a cheap invariant check before the allocation.
+    TVM_FFI_ICHECK_GT(embedding_lane_.hidden_dim, 0)
+        << "Embedding lane hidden_dim is not initialized.";
 
-    Tensor result_buffer = Tensor::Empty({num_items, embedding_hidden_dim_}, DataType::Float(32),
-                                         Device{DLDeviceType::kDLCPU, 0});
+    Tensor result_buffer =
+        Tensor::Empty({num_items, embedding_lane_.hidden_dim}, DataType::Float(32),
+                      Device{DLDeviceType::kDLCPU, 0});
 
     estate_->embedding_waiting_queue.push_back(request);
     estate_->embedding_request_states.emplace(
@@ -804,29 +790,37 @@ class EngineImpl : public Engine {
     TVM_FFI_ICHECK(estate_->request_stream_callback_ != nullptr)
         << "The request stream callback is not set. Engine cannot execute.";
 
-    // Run the embedding action if we have an encoder model and pending embedding requests.
-    if (embedding_action_.defined() && !estate_->embedding_waiting_queue.empty()) {
-      embedding_action_->Step(estate_);
-    }
-
-    // Then, run chat actions as before.
-    for (EngineAction action : actions_) {
-      Array<Request> processed_requests;
-      {
-        NVTXScopedRange nvtx_scope("Action step");
-        processed_requests = action->Step(estate_);
+    switch (task_mode_) {
+      case EngineTaskMode::kEmbedding: {
+        // Embedding lane: single action, no chat pipeline. Skip when the
+        // waiting queue is empty so idle Step() calls are cheap.
+        if (!estate_->embedding_waiting_queue.empty()) {
+          NVTXScopedRange nvtx_scope("Embedding action step");
+          embedding_lane_.action->Step(estate_);
+        }
+        return;
       }
-      if (!processed_requests.empty()) {
-        ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
-                              estate_->request_stream_callback_,
-                              engine_config_->max_single_sequence_length,
-                              draft_token_workspace_manager_, trace_recorder_);
+      case EngineTaskMode::kChat: {
+        for (EngineAction action : actions_) {
+          Array<Request> processed_requests;
+          {
+            NVTXScopedRange nvtx_scope("Action step");
+            processed_requests = action->Step(estate_);
+          }
+          if (!processed_requests.empty()) {
+            ActionStepPostProcess(processed_requests, estate_, models_, tokenizer_,
+                                  estate_->request_stream_callback_,
+                                  engine_config_->max_single_sequence_length,
+                                  draft_token_workspace_manager_, trace_recorder_);
+            return;
+          }
+        }
+        TVM_FFI_ICHECK(estate_->running_queue.empty())
+            << "Internal assumption violated: It is expected that an engine step takes at least "
+               "one action (e.g. prefill, decode, etc.) but it does not.";
         return;
       }
     }
-    TVM_FFI_ICHECK(estate_->running_queue.empty())
-        << "Internal assumption violated: It is expected that an engine step takes at least one "
-           "action (e.g. prefill, decode, etc.) but it does not.";
   }
 
   /************** Utility Functions **************/
@@ -1024,6 +1018,75 @@ class EngineImpl : public Engine {
     return TResult::Ok(EngineConfig::FromJSONAndInferredConfig(config, inferrable_cfg));
   }
 
+  /*!
+   * \brief Initialize the chat lane: per-model KV cache, tokenizer, grammar,
+   * logit processor, sampler, draft workspace (for spec decoding), and the
+   * chat engine action pipeline. Called from Create() when task_mode_ is
+   * kChat. Reads engine_config_, which must already be set.
+   */
+  void InitChatLane(const std::vector<tvm::ffi::json::Object>& model_configs,
+                    Optional<EventTraceRecorder> trace_recorder, Device device) {
+    // Chat models need a KV cache on every shard.
+    for (const Model& model : models_) {
+      model->CreateKVCache(engine_config_->kv_cache_page_size, engine_config_->max_num_sequence,
+                           engine_config_->max_total_sequence_length,
+                           engine_config_->prefill_chunk_size, engine_config_->max_history_size,
+                           engine_config_->prefix_cache_max_num_recycling_seqs);
+    }
+    // Tokenizer and grammar compiler.
+    tokenizer_ = Tokenizer::FromPath(engine_config_->model, GetTokenizerInfo(model_configs[0]));
+    token_table_ = tokenizer_->PostProcessedTokenTable();
+    cached_grammar_compiler_ = xgrammar::CachedGrammarCompiler(token_table_);
+    // Logit processor, sampler, and draft-token workspace for spec decoding.
+    int max_num_tokens = engine_config_->max_num_sequence;
+    DraftTokenWorkspaceManager draft_token_workspace_manager{nullptr};
+    if (engine_config_->speculative_mode != SpeculativeMode::kDisable) {
+      // Multiply max_num_tokens by two so draft/verify can ping-pong.
+      draft_token_workspace_manager =
+          models_[0]->CreateDraftTokenWorkspaceManager(max_num_tokens * 2);
+      draft_token_workspace_manager->AllocWorkspace(
+          &model_workspaces_[0],
+          /*require_hidden_states=*/engine_config_->speculative_mode == SpeculativeMode::kEagle);
+      estate_->spec_draft_length = engine_config_->spec_draft_length;
+    }
+    LogitProcessor logit_processor =
+        models_[0]->CreateLogitProcessor(max_num_tokens, trace_recorder);
+    Sampler sampler =
+        models_[0]->CreateSampler(max_num_tokens, static_cast<int>(models_.size()), trace_recorder);
+    // Chat engine action pipeline.
+    actions_ = CreateEngineActions(models_, engine_config_, model_configs, model_workspaces_,
+                                   logit_processor, sampler, draft_token_workspace_manager,
+                                   tokenizer_, trace_recorder_, estate_->request_stream_callback_,
+                                   device);
+    draft_token_workspace_manager_ = draft_token_workspace_manager;
+    SetThreadMaxConcurrency();
+  }
+
+  /*!
+   * \brief Initialize the embedding lane: the BatchEmbeddingPrefill action
+   * and the result hidden dim. Called from Create() when task_mode_ is
+   * kEmbedding. Asserts that the primary model actually exposes encoder
+   * prefill — embedding_model_type == "decoder" is explicitly rejected
+   * here until decoder-embedding support lands. Reads engine_config_, which
+   * must already be set.
+   */
+  void InitEmbeddingLane() {
+    const ModelMetadata& metadata = models_[0]->GetMetadata();
+    TVM_FFI_ICHECK_EQ(metadata.embedding_model_type, "encoder")
+        << "Engine embedding lane currently only supports "
+           "embedding_model_type=\"encoder\". Got: \""
+        << metadata.embedding_model_type << "\". decoder-embedding is not yet implemented.";
+    TVM_FFI_ICHECK(models_[0]->HasEncoderPrefill())
+        << "Model declares model_task=\"embedding\" with embedding_model_type=\"encoder\", "
+           "but the compiled model does not expose an encoder prefill function. "
+           "Check that the model was compiled with encoder prefill support enabled.";
+
+    embedding_lane_.action = EngineAction::BatchEmbeddingPrefill(models_[0], engine_config_);
+    embedding_lane_.hidden_dim = models_[0]->GetHiddenSize();
+    TVM_FFI_ICHECK_GT(embedding_lane_.hidden_dim, 0)
+        << "Encoder embedding model must have a known hidden_size after initialization.";
+  }
+
   /*! \brief Set the maximum threading backend concurrency. */
   void SetThreadMaxConcurrency() {
     int host_cpu_usage = 1;
@@ -1072,10 +1135,20 @@ class EngineImpl : public Engine {
   Optional<DraftTokenWorkspaceManager> draft_token_workspace_manager_;
   // Event trace recorder.
   Optional<EventTraceRecorder> trace_recorder_;
-  // Embedding lane: the action for encoder embedding.
-  EngineAction embedding_action_{nullptr};
-  // The hidden dimension for encoder embedding results.
-  int embedding_hidden_dim_ = -1;
+
+  // Top-level task this engine instance serves. Set once in Create() from
+  // the primary model's metadata; all Step / Empty / AddRequest dispatch
+  // off of it. Default kChat matches historical behavior when metadata is
+  // absent or model_task is unset.
+  EngineTaskMode task_mode_ = EngineTaskMode::kChat;
+
+  // All embedding-lane state lives here so chat-only engines carry a single
+  // empty struct rather than several flat nullable fields.
+  struct EmbeddingLaneState {
+    EngineAction action{nullptr};
+    int hidden_dim = -1;
+  };
+  EmbeddingLaneState embedding_lane_;
 };
 
 Result<EngineCreationOutput> Engine::Create(const std::string& engine_config_json_str,
