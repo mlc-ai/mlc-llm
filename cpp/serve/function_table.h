@@ -141,6 +141,10 @@ struct FunctionTable {
   Function scatter_probs_func_;
   Function gather_hidden_states_func_;
   Function scatter_hidden_states_func_;
+
+  // Encoder embedding support.
+  // The encoder prefill function: prefill(input_ids, attention_mask, params) -> [1, seq, hidden].
+  Function encoder_prefill_func_;
 };
 
 }  // namespace serve

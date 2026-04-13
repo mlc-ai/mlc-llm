@@ -252,6 +252,16 @@ class EngineAction : public ObjectRef {
                                        FRequestStreamCallback request_stream_callback,
                                        Device device);
 
+  /*!
+   * \brief Create the action that runs encoder embedding prefill for
+   * requests in the embedding waiting queue.
+   * No KV cache, no speculative decoding, no grammar.
+   * \param model The encoder model.
+   * \param engine_config The engine config for batching constraints.
+   * \return The created action object.
+   */
+  static EngineAction BatchEmbeddingPrefill(Model model, EngineConfig engine_config);
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EngineAction, ObjectRef, EngineActionObj);
 };
 

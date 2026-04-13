@@ -104,8 +104,11 @@ ModelMetadata ModelMetadata::FromJSON(const tvm::ffi::json::Object& metadata,
   }
   result.kv_state_kind = KVStateKindFromString(
       json::LookupOrDefault<std::string>(metadata, "kv_state_kind", "kv_cache"));
+  // For encoder embedding models (e.g. BERT), kv_cache metadata may be absent
+  // even though kv_state_kind defaults to "kv_cache". Treat missing kv_cache
+  // field as no-op rather than failing.
   if (result.kv_state_kind != KVStateKind::kNone &&
-      result.kv_state_kind != KVStateKind::kRNNState) {
+      result.kv_state_kind != KVStateKind::kRNNState && metadata.count("kv_cache")) {
     result.kv_cache_metadata =
         KVCacheMetadata::FromJSON(json::Lookup<tvm::ffi::json::Object>(metadata, "kv_cache"));
   } else {
@@ -113,6 +116,10 @@ ModelMetadata ModelMetadata::FromJSON(const tvm::ffi::json::Object& metadata,
                                 /*head_dim=*/0,
                                 /*num_attention_heads=*/0,
                                 /*num_key_value_heads=*/0};
+    // If kv_cache field is missing, override kv_state_kind to None for encoder models.
+    if (!metadata.count("kv_cache") && result.model_task == "embedding") {
+      result.kv_state_kind = KVStateKind::kNone;
+    }
   }
   {
     std::vector<ModelMetadata::Param>& params = result.params;

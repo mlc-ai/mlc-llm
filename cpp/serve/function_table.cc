@@ -293,6 +293,11 @@ void FunctionTable::_InitFunctions() {
   this->scatter_probs_func_ = mod->GetFunction("scatter_probs", true).value_or(Function(nullptr));
   this->gather_hidden_states_func_ = mod_get_func("gather_hidden_states");
   this->scatter_hidden_states_func_ = mod_get_func("scatter_hidden_states");
+
+  // Encoder embedding support: try to load "prefill" as encoder-style function.
+  // For encoder models (BERT), "prefill" takes (input_ids, attention_mask, params).
+  // We store it separately from the chat prefill functions.
+  this->encoder_prefill_func_ = mod_get_func("prefill");
 }
 
 ObjectRef FunctionTable::Empty(Shape shape, DataType dtype, Device device,

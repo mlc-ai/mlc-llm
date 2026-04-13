@@ -6,7 +6,7 @@ import dataclasses
 from functools import partial
 from typing import Any, Dict, Optional
 
-from tvm import te, tirx
+from tvm import te
 from tvm.relax.frontend import nn
 from tvm.relax.frontend.nn import Tensor, op
 
@@ -100,7 +100,7 @@ class BertSelfAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
             bias=True,
         )
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor):
+    def forward(self, hidden_states: Tensor, valid_lens: Tensor):
         d, h = self.head_dim, self.num_heads
         b, s, _ = hidden_states.shape
 
@@ -108,8 +108,7 @@ class BertSelfAttention(nn.Module):  # pylint: disable=too-many-instance-attribu
         qkv = op.reshape(qkv, (b, s, 3 * h, d))
         q, k, v = op.split(qkv, 3, axis=2)
 
-        # Attention
-        output = op_ext.attention(q, k, v, attention_mask)
+        output = op_ext.encoder_attention(q, k, v, valid_lens)
         return output
 
 
@@ -129,8 +128,8 @@ class BertAttention(nn.Module):
         self.self = BertSelfAttention(config)
         self.output = BertSelfOutput(config)
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor):
-        self_output = self.self(hidden_states, attention_mask)
+    def forward(self, hidden_states: Tensor, valid_lens: Tensor):
+        self_output = self.self(hidden_states, valid_lens)
         attention_output = self.output(self_output, hidden_states)
         return attention_output
 
@@ -172,8 +171,8 @@ class BertLayer(nn.Module):
         self.intermediate = BertIntermediate(config)
         self.output = BertOutput(config)
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor):
-        attention_output = self.attention(hidden_states, attention_mask)
+    def forward(self, hidden_states: Tensor, valid_lens: Tensor):
+        attention_output = self.attention(hidden_states, valid_lens)
         intermediate_output = self.intermediate(attention_output)
         layer_output = self.output(intermediate_output, attention_output)
         return layer_output
@@ -183,9 +182,9 @@ class BertEncoder(nn.Module):
     def __init__(self, config: BertConfig):
         self.layer = nn.ModuleList([BertLayer(config) for _ in range(config.num_hidden_layers)])
 
-    def forward(self, hidden_states: Tensor, attention_mask: Tensor):
+    def forward(self, hidden_states: Tensor, valid_lens: Tensor):
         for layer in self.layer:
-            hidden_states = layer(hidden_states, attention_mask)
+            hidden_states = layer(hidden_states, valid_lens)
         return hidden_states
 
 
@@ -221,7 +220,7 @@ class BertModel(nn.Module):
         if dtype is not None:
             self.dtype = dtype
 
-    def forward(self, inputs: Tensor, attention_mask: Tensor):
+    def forward(self, inputs: Tensor, valid_lens: Tensor):
         # TODO: XLM-RoBERTa models use position indices starting from pad_token_id + 1  # pylint: disable=fixme
         # (e.g., [2, 3, 4, ...] when pad_token_id=1), while this implementation uses
         # [0, 1, 2, ...]. For XLM-RoBERTa models (e.g., bge-m3), the position_embeddings
@@ -239,28 +238,25 @@ class BertModel(nn.Module):
         token_type_ids = op.zeros(inputs.shape, dtype="int32")
 
         embeddings = self.embeddings(inputs, token_type_ids, input_positions)
-        encoder_output = self.encoder(embeddings, attention_mask)
+        encoder_output = self.encoder(embeddings, valid_lens)
         return encoder_output
 
     def prefill(self, inputs: Tensor, attention_mask: Tensor):
-        def _attention_mask(mask: te.Tensor, zero, batch_size, seq_len):
+        def _valid_lens(mask: te.Tensor):
+            batch_size, seq_len = mask.shape
+            k = te.reduce_axis((0, seq_len), name="k")
             return te.compute(
-                (batch_size, 1, seq_len, seq_len),
-                lambda b, _, i, j: tirx.if_then_else(
-                    tirx.any(mask[b, i] == zero, mask[b, j] == zero),
-                    tirx.min_value(self.dtype),
-                    tirx.max_value(self.dtype),
-                ),
-                name="attention_mask_prefill",
+                (batch_size,),
+                lambda b: te.sum(mask[b, k].astype("int32"), axis=k),
+                name="valid_lens",
             )
 
-        batch_size, seq_len = inputs.shape
-        attention_mask_2d = op.tensor_expr_op(
-            _attention_mask,
-            name_hint="attention_mask_prefill",
-            args=[attention_mask, tirx.IntImm("int32", 0), batch_size, seq_len],
+        valid_lens = op.tensor_expr_op(
+            _valid_lens,
+            name_hint="valid_lens",
+            args=[attention_mask],
         )
-        return self.forward(inputs, attention_mask_2d)
+        return self.forward(inputs, valid_lens)
 
     def get_default_spec(self):
         mod_spec = {

@@ -248,6 +248,113 @@ class RequestStreamOutput : public ObjectRef {
                                              RequestStreamOutputObj);
 };
 
+/****************** Embedding Types ******************/
+
+/*! \brief The pooling strategy for encoder embedding. */
+enum class PoolingStrategy : int {
+  kCLS = 0,
+  kMean = 1,
+  kLast = 2,
+};
+
+/*!
+ * \brief A single embedding item within an embedding request.
+ * Each item is a canonicalized sequence of token IDs
+ * (already includes CLS/SEP, already truncated).
+ */
+struct EmbeddingItem {
+  /*! \brief The token ids for this item (canonicalized by Python). */
+  std::vector<int32_t> token_ids;
+  /*! \brief The original index of this item in the request. */
+  int item_index;
+};
+
+/*!
+ * \brief An embedding request containing one or more items.
+ * The C++ side only sees canonicalized token-id items.
+ */
+struct EmbeddingRequestNode : public Object {
+  /*! \brief The unique identifier of the request. */
+  String id;
+  /*! \brief The items to embed. */
+  std::vector<EmbeddingItem> items;
+  /*! \brief The pooling strategy. */
+  PoolingStrategy pooling_strategy = PoolingStrategy::kCLS;
+  /*! \brief Whether to L2-normalize the output embeddings. */
+  bool normalize = true;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EmbeddingRequestNode>();
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EmbeddingRequest", EmbeddingRequestNode, Object);
+};
+
+class EmbeddingRequest : public ObjectRef {
+ public:
+  explicit EmbeddingRequest(String id, std::vector<EmbeddingItem> items,
+                            PoolingStrategy pooling_strategy, bool normalize);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EmbeddingRequest, ObjectRef, EmbeddingRequestNode);
+};
+
+/*!
+ * \brief The result of an embedding request, carrying
+ * request-level aggregated embeddings on CPU.
+ */
+class EmbeddingResultObj : public Object {
+ public:
+  /*! \brief The request id. */
+  String request_id;
+  /*!
+   * \brief The pooled embeddings as a CPU NDArray of shape [num_items, hidden_dim].
+   * Lifetime is owned by the result; Python can read it directly.
+   */
+  Tensor embeddings;
+  /*! \brief Total number of prompt tokens across all items. */
+  int prompt_tokens = 0;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EmbeddingResultObj>();
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const bool _type_mutable = true;
+  TVM_FFI_DECLARE_OBJECT_INFO("mlc.serve.EmbeddingResult", EmbeddingResultObj, Object);
+};
+
+class EmbeddingResult : public ObjectRef {
+ public:
+  explicit EmbeddingResult(String request_id, Tensor embeddings, int prompt_tokens);
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EmbeddingResult, ObjectRef, EmbeddingResultObj);
+};
+
+/*!
+ * \brief Internal state for tracking an in-flight embedding request
+ * inside the engine. Holds per-item completion status and the
+ * result buffer that items write into.
+ */
+struct EmbeddingRequestState {
+  /*! \brief The embedding request. */
+  EmbeddingRequest request;
+  /*! \brief Number of items that have been completed so far. */
+  int completed_items = 0;
+  /*! \brief The CPU result buffer [num_items, hidden_dim], pre-allocated. */
+  Tensor result_buffer;
+  /*! \brief Total prompt tokens across all items. */
+  int prompt_tokens = 0;
+
+  explicit EmbeddingRequestState(EmbeddingRequest request, Tensor result_buffer)
+      : request(std::move(request)), result_buffer(std::move(result_buffer)) {}
+};
+
 }  // namespace serve
 }  // namespace llm
 }  // namespace mlc

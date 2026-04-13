@@ -68,6 +68,12 @@ class ThreadedEngine {
   /*! \brief Add a new request to the engine. */
   virtual void AddRequest(Request request) = 0;
 
+  /*! \brief Add a new embedding request to the engine. */
+  virtual void AddEmbeddingRequest(EmbeddingRequest request) = 0;
+
+  /*! \brief Set the embedding result callback for threaded engine. */
+  virtual void SetEmbeddingRequestCallback(Function embedding_callback) = 0;
+
   /*! \brief Abort the input request (specified by id string) from engine. */
   virtual void AbortRequest(const String& request_id) = 0;
 
