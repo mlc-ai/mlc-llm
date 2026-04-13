@@ -77,6 +77,16 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
       if (it == estate->embedding_request_states.end()) continue;
       EmbeddingRequestState& state = it->second;
 
+      // Batch must be homogeneous in pooling_strategy/normalize; stop (not skip) on
+      // mismatch to preserve FIFO order.
+      if (!batch_items.empty()) {
+        const auto& head_req = batch_items[0].state->request;
+        if (state.request->pooling_strategy != head_req->pooling_strategy ||
+            state.request->normalize != head_req->normalize) {
+          goto done_collecting;
+        }
+      }
+
       int num_items = static_cast<int>(state.request->items.size());
       for (int i = state.completed_items; i < num_items; ++i) {
         int item_len = static_cast<int>(state.request->items[i].token_ids.size());
@@ -181,33 +191,28 @@ class BatchEmbeddingPrefillActionObj : public EngineActionObj {
       state->completed_items++;
     }
 
-    // Collect completed requests and fire callbacks.
-    // Iterate waiting_queue to maintain FIFO order for completion too.
+    // Completed requests form a prefix of the waiting queue under current scheduling;
+    // break on the first pending request to keep that invariant explicit.
     Array<EmbeddingResult> completed_results;
-    std::vector<String> completed_request_ids;
+    size_t completed_prefix_len = 0;
 
     for (const EmbeddingRequest& req : estate->embedding_waiting_queue) {
       auto it = estate->embedding_request_states.find(req->id);
-      if (it == estate->embedding_request_states.end()) continue;
+      if (it == estate->embedding_request_states.end()) break;
       EmbeddingRequestState& state = it->second;
       int total_items = static_cast<int>(state.request->items.size());
-      if (state.completed_items >= total_items) {
-        completed_results.push_back(
-            EmbeddingResult(state.request->id, state.result_buffer, state.prompt_tokens));
-        completed_request_ids.push_back(req->id);
-      }
+      if (state.completed_items < total_items) break;
+      completed_results.push_back(
+          EmbeddingResult(state.request->id, state.result_buffer, state.prompt_tokens));
+      ++completed_prefix_len;
     }
 
-    // Remove completed requests from the queue and state map.
-    for (const String& req_id : completed_request_ids) {
-      estate->embedding_request_states.erase(req_id);
-      auto it = std::find_if(estate->embedding_waiting_queue.begin(),
-                              estate->embedding_waiting_queue.end(),
-                              [&req_id](const EmbeddingRequest& r) { return r->id == req_id; });
-      if (it != estate->embedding_waiting_queue.end()) {
-        estate->embedding_waiting_queue.erase(it);
-      }
+    for (size_t i = 0; i < completed_prefix_len; ++i) {
+      estate->embedding_request_states.erase(estate->embedding_waiting_queue[i]->id);
     }
+    estate->embedding_waiting_queue.erase(
+        estate->embedding_waiting_queue.begin(),
+        estate->embedding_waiting_queue.begin() + completed_prefix_len);
 
     // Fire the embedding callback if we have results.
     if (!completed_results.empty() && estate->embedding_request_callback_ != nullptr) {

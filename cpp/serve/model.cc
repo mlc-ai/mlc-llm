@@ -1326,7 +1326,8 @@ class ModelImpl : public ModelObj {
         if (exp == 0) {
           val = std::ldexp(static_cast<float>(mant), -24);
         } else if (exp == 31) {
-          val = mant ? 0.0f : 65504.0f;
+          val = (mant == 0) ? std::numeric_limits<float>::infinity()
+                            : std::numeric_limits<float>::quiet_NaN();
         } else {
           val = std::ldexp(static_cast<float>(mant + 1024), static_cast<int>(exp) - 25);
         }
