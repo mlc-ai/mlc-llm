@@ -23,6 +23,9 @@ void EngineStateObj::Reset() {
   }
   running_rsentries_changed = true;
   postproc_workspace = ActionPostProcessWorkspace();
+  // Reset embedding lane state.
+  embedding_waiting_queue.clear();
+  embedding_request_states.clear();
 }
 
 RequestState EngineStateObj::GetRequestState(Request request) {

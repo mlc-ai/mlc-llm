@@ -10,7 +10,10 @@
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 
+#include <cmath>
+#include <cstring>
 #include <fstream>
+#include <limits>
 #include <unordered_set>
 
 #include "../support/json_parser.h"
@@ -1185,6 +1188,188 @@ class ModelImpl : public ModelObj {
     return logits;
   }
 
+  /*********************** Encoder Embedding Support ***********************/
+
+  bool HasEncoderPrefill() const final {
+    // Gated by metadata: only embedding + encoder models.
+    const ModelMetadata& meta = ft_.model_metadata_;
+    return ft_.encoder_prefill_func_.defined() && meta.model_task == "embedding" &&
+           meta.embedding_model_type == "encoder";
+  }
+
+  int GetHiddenSize() const final { return hidden_size_; }
+
+  ObjectRef EncoderPrefill(const Tensor& input_ids_nd, const Tensor& attention_mask_nd,
+                           int batch_size, int max_len) final {
+    NVTXScopedRange nvtx_scope("EncoderPrefill batch=" + std::to_string(batch_size) +
+                               " max_len=" + std::to_string(max_len));
+    TVM_FFI_ICHECK(ft_.encoder_prefill_func_.defined())
+        << "Encoder prefill function is not available in this model.";
+    // input_ids_nd: CPU [batch_size, max_len] int32
+    // attention_mask_nd: CPU [batch_size, max_len] int32
+    TVM_FFI_ICHECK_EQ(input_ids_nd->ndim, 2);
+    TVM_FFI_ICHECK_EQ(attention_mask_nd->ndim, 2);
+
+    // Copy 2D tensors to device. We allocate fresh contiguous device tensors
+    // to avoid non-contiguity issues from CopyToWorker0's view-based caching
+    // (which creates non-contiguous views when actual shape != reserved shape).
+    Tensor input_ids_device = Tensor::Empty(input_ids_nd.Shape(), input_ids_nd.DataType(), device_);
+    {
+      DLTensor src = *(input_ids_nd.operator->());
+      DLTensor dst = *(input_ids_device.operator->());
+      Tensor::CopyFromTo(&src, &dst);
+    }
+    Tensor attention_mask_device =
+        Tensor::Empty(attention_mask_nd.Shape(), attention_mask_nd.DataType(), device_);
+    {
+      DLTensor src = *(attention_mask_nd.operator->());
+      DLTensor dst = *(attention_mask_device.operator->());
+      Tensor::CopyFromTo(&src, &dst);
+    }
+
+    // Call encoder prefill: prefill(input_ids, attention_mask, params)
+    // BERT returns a Tensor directly, not a tuple.
+    ObjectRef result =
+        ft_.encoder_prefill_func_(input_ids_device, attention_mask_device, params_)
+            .cast<ObjectRef>();
+
+    // Handle return: BERT returns Tensor directly; some models may return a tuple.
+    // Both disco and non-disco paths use the same logic:
+    // - In disco mode, the result is always a DRef. The disco VM wraps all returns,
+    //   so tuple_getitem(0) is always needed — this matches every other disco path
+    //   in this file (BatchPrefill, BatchPrefillToLastHidden, BatchDecodeToLastHidden, etc.).
+    // - In non-disco mode, BERT returns a raw Tensor. Other encoder models might
+    //   return a tuple. We check IsInstance<TensorObj> to distinguish.
+    ObjectRef hidden_states{nullptr};
+    if (ft_.use_disco) {
+      // Disco VM always wraps returns; tuple_getitem(0) is the established pattern.
+      hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
+    } else {
+      if (result->IsInstance<tvm::ffi::TensorObj>()) {
+        hidden_states = result;
+      } else {
+        hidden_states = ft_.tuple_getitem_func_(result, 0).cast<ObjectRef>();
+      }
+    }
+
+    if (trace_enabled_) {
+      DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
+    }
+    return hidden_states;
+  }
+
+  Tensor PoolEncoderHiddenStates(const ObjectRef& hidden_states,
+                                 const std::vector<int>& lengths, int batch_size, int max_len,
+                                 int strategy) final {
+    NVTXScopedRange nvtx_scope("PoolEncoderHiddenStates");
+
+    Tensor hs_nd{nullptr};
+    if (ft_.use_disco) {
+      hs_nd = Downcast<DRef>(hidden_states)->DebugGetFromRemote(0).cast<Tensor>();
+    } else {
+      hs_nd = Downcast<Tensor>(hidden_states);
+    }
+
+    TVM_FFI_ICHECK_NE(hidden_size_, -1);
+    // Reshape to [batch, max_len, hidden] if needed.
+    Tensor hs_3d{nullptr};
+    if (hs_nd->ndim == 3 && hs_nd->shape[0] == batch_size) {
+      // Already [batch, max_len, hidden].
+      hs_3d = hs_nd;
+    } else if (hs_nd->ndim == 3 && hs_nd->shape[0] == 1) {
+      // [1, batch*max_len, hidden] -> [batch, max_len, hidden]
+      hs_3d = hs_nd.CreateView({batch_size, max_len, hidden_size_}, hs_nd->dtype);
+    } else if (hs_nd->ndim == 2) {
+      hs_3d = hs_nd.CreateView({batch_size, max_len, hidden_size_}, hs_nd->dtype);
+    } else {
+      LOG(FATAL) << "Unexpected hidden states shape for pooling: ndim=" << hs_nd->ndim
+                 << " shape[0]=" << hs_nd->shape[0];
+    }
+
+    // Copy full hidden states [batch, max_len, hidden] to CPU for pooling.
+    // For encoder models, max_len is bounded (typically <=512) so this is manageable.
+    // This avoids non-contiguous slice copy issues with device tensors.
+    Tensor hs_cpu = Tensor::Empty({batch_size, max_len, hidden_size_}, hs_3d->dtype,
+                                  Device{DLDeviceType::kDLCPU, 0});
+    {
+      DLTensor src_dl = *(hs_3d.operator->());
+      DLTensor dst_dl = *(hs_cpu.operator->());
+      Tensor::CopyFromTo(&src_dl, &dst_dl);
+    }
+    DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
+
+    // Pool on CPU into a float32 buffer.
+    Tensor pooled_cpu = Tensor::Empty({batch_size, hidden_size_}, DataType::Float(32),
+                                      Device{DLDeviceType::kDLCPU, 0});
+    DLDataType hs_dtype = hs_3d->dtype;
+    bool is_bf16 = (hs_dtype.bits == 16 && hs_dtype.code == kDLBfloat);
+    bool is_fp16 = (hs_dtype.bits == 16 && hs_dtype.code == kDLFloat);
+    bool is_fp32 = (hs_dtype.bits == 32 && hs_dtype.code == kDLFloat);
+    TVM_FFI_ICHECK(is_fp32 || is_fp16 || is_bf16)
+        << "Pooling only supports float32, float16, and bfloat16 hidden states, got code="
+        << hs_dtype.code << " bits=" << hs_dtype.bits;
+
+    // Helper lambda to read one element from hs_cpu as float32.
+    auto read_f32 = [&](int64_t offset) -> float {
+      if (is_bf16) {
+        uint16_t bits = static_cast<const uint16_t*>(hs_cpu->data)[offset];
+        uint32_t bits32 = static_cast<uint32_t>(bits) << 16;
+        float val;
+        std::memcpy(&val, &bits32, sizeof(float));
+        return val;
+      } else if (is_fp16) {
+        uint16_t bits = static_cast<const uint16_t*>(hs_cpu->data)[offset];
+        uint32_t sign = (bits >> 15) & 1;
+        uint32_t exp = (bits >> 10) & 0x1F;
+        uint32_t mant = bits & 0x3FF;
+        float val;
+        if (exp == 0) {
+          val = std::ldexp(static_cast<float>(mant), -24);
+        } else if (exp == 31) {
+          val = mant ? 0.0f : 65504.0f;
+        } else {
+          val = std::ldexp(static_cast<float>(mant + 1024), static_cast<int>(exp) - 25);
+        }
+        if (sign) val = -val;
+        return val;
+      } else {
+        return static_cast<const float*>(hs_cpu->data)[offset];
+      }
+    };
+
+    float* out_ptr = static_cast<float*>(pooled_cpu->data);
+    if (strategy == 0) {
+      // CLS: take [i, 0, :] for each i.
+      for (int i = 0; i < batch_size; ++i) {
+        for (int h = 0; h < hidden_size_; ++h) {
+          out_ptr[i * hidden_size_ + h] = read_f32((i * max_len + 0) * hidden_size_ + h);
+        }
+      }
+    } else if (strategy == 2) {
+      // Last: take [i, lengths[i]-1, :] for each i.
+      for (int i = 0; i < batch_size; ++i) {
+        int last_pos = lengths[i] - 1;
+        for (int h = 0; h < hidden_size_; ++h) {
+          out_ptr[i * hidden_size_ + h] = read_f32((i * max_len + last_pos) * hidden_size_ + h);
+        }
+      }
+    } else {
+      // Mean: average over valid positions.
+      for (int i = 0; i < batch_size; ++i) {
+        int count = lengths[i];
+        for (int h = 0; h < hidden_size_; ++h) {
+          float sum = 0.0f;
+          for (int s = 0; s < count; ++s) {
+            sum += read_f32((i * max_len + s) * hidden_size_ + h);
+          }
+          out_ptr[i * hidden_size_ + h] = sum / static_cast<float>(count);
+        }
+      }
+    }
+
+    return pooled_cpu;
+  }
+
   /************** Debug/Profile **************/
 
   void DebugCallFuncOnAllAllWorker(const String& func_name, Optional<String> func_args) final {
@@ -1203,6 +1388,13 @@ class ModelImpl : public ModelObj {
     this->attention_sink_size_ = std::max(this->attention_sink_size_, 0);
     this->vocab_size_ = json::Lookup<int64_t>(config, "vocab_size");
     this->model_type_ = json::Lookup<std::string>(config, "model_type");
+    // Read hidden_size from nested model_config if available (used by encoder embedding models
+    // that don't have alloc_embedding_tensor).
+    if (config.count("model_config")) {
+      const auto& mc = config.at("model_config").cast<tvm::ffi::json::Object>();
+      this->hidden_size_ =
+          json::LookupOrDefault<int64_t>(mc, "hidden_size", this->hidden_size_);
+    }
   }
 
   //----------------------------

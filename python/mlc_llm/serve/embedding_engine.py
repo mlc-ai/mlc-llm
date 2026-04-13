@@ -4,8 +4,12 @@ import abc
 import asyncio
 import concurrent.futures
 import json
+import logging
 import os
-from typing import List, Literal, Optional, Tuple, Union
+import threading
+import uuid
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 import tvm
@@ -13,8 +17,105 @@ from tvm import relax
 from tvm.runtime import Device, ShapeTuple
 
 from mlc_llm.serve import engine_utils
+from mlc_llm.serve.config import EngineConfig
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.tokenizers import Tokenizer
+
+logger = logging.getLogger(__name__)
+
+# ====================================================================
+# Shared encoder canonicalization helpers
+# ====================================================================
+
+
+def _get_encoder_special_token_ids(
+    tokenizer: Tokenizer, model_path: str
+) -> Tuple[Optional[int], Optional[int]]:
+    """Read CLS and SEP token IDs for an encoder model.
+
+    Mirrors the Phase 2 TVMNativeEmbeddingRuntime._init_encoder logic exactly.
+
+    Returns
+    -------
+    cls_token_id : Optional[int]
+    sep_token_id : Optional[int]
+    """
+    cls_token_id: Optional[int] = None
+    sep_token_id: Optional[int] = None
+
+    tok_config_path = os.path.join(model_path, "tokenizer_config.json")
+    if os.path.exists(tok_config_path):
+        with open(tok_config_path, encoding="utf-8") as f:
+            tok_config = json.load(f)
+        # Try added_tokens_decoder first (newer HF format)
+        added = tok_config.get("added_tokens_decoder", {})
+        for tid, info in added.items():
+            if info.get("content") == tok_config.get("cls_token"):
+                cls_token_id = int(tid)
+            if info.get("content") == tok_config.get("sep_token"):
+                sep_token_id = int(tid)
+        # Fallback: encode the special token strings via tokenizer
+        if cls_token_id is None and tok_config.get("cls_token"):
+            ids = list(tokenizer.encode(tok_config["cls_token"]))
+            if len(ids) == 1:
+                cls_token_id = ids[0]
+        if sep_token_id is None and tok_config.get("sep_token"):
+            ids = list(tokenizer.encode(tok_config["sep_token"]))
+            if len(ids) == 1:
+                sep_token_id = ids[0]
+
+    return cls_token_id, sep_token_id
+
+
+def _canonicalize_encoder_inputs(
+    inputs: List[str],
+    tokenizer: Tokenizer,
+    cls_token_id: Optional[int],
+    sep_token_id: Optional[int],
+    prefill_chunk_size: int,
+) -> List[List[int]]:
+    """Canonicalize encoder inputs: tokenize, add CLS/SEP, truncate.
+
+    This is the single source of truth for encoder preprocessing, shared by
+    TVMNativeEmbeddingRuntime and ThreadEncoderRuntime.
+
+    Bug-for-bug compatible with Phase 2 TVMNativeEmbeddingRuntime._embed_encoder.
+
+    Parameters
+    ----------
+    inputs : List[str]
+        Raw text inputs.
+    tokenizer : Tokenizer
+        The tokenizer instance.
+    cls_token_id : Optional[int]
+        CLS token ID, or None if not applicable.
+    sep_token_id : Optional[int]
+        SEP token ID, or None if not applicable.
+    prefill_chunk_size : int
+        Maximum sequence length; inputs are truncated to this length.
+
+    Returns
+    -------
+    List[List[int]]
+        Canonicalized token ID sequences (one per input).
+    """
+    result: List[List[int]] = []
+    for text in inputs:
+        tokens = list(tokenizer.encode(text))
+        # Add [CLS] if needed
+        if cls_token_id is not None and (len(tokens) == 0 or tokens[0] != cls_token_id):
+            tokens = [cls_token_id] + tokens
+        # Add [SEP] if needed
+        if sep_token_id is not None and (len(tokens) == 0 or tokens[-1] != sep_token_id):
+            tokens = tokens + [sep_token_id]
+        # Truncate to compiled buffer limit (keep [CLS] at start, force [SEP] at end)
+        if len(tokens) > prefill_chunk_size:
+            tokens = tokens[:prefill_chunk_size]
+            if sep_token_id is not None:
+                tokens[-1] = sep_token_id
+        result.append(tokens)
+    return result
+
 
 # ====================================================================
 # EmbeddingRuntime — abstract interface
@@ -186,26 +287,9 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
     def _init_encoder(self, model: str) -> None:
         """Initialize encoder (BERT-style) model functions and special tokens."""
         self._prefill_func = self._mod["prefill"]
-        tok_config_path = os.path.join(model, "tokenizer_config.json")
-        if os.path.exists(tok_config_path):
-            with open(tok_config_path, encoding="utf-8") as f:
-                tok_config = json.load(f)
-            # Try added_tokens_decoder first (newer HF format)
-            added = tok_config.get("added_tokens_decoder", {})
-            for tid, info in added.items():
-                if info.get("content") == tok_config.get("cls_token"):
-                    self._cls_token_id = int(tid)
-                if info.get("content") == tok_config.get("sep_token"):
-                    self._sep_token_id = int(tid)
-            # Fallback: encode the special token strings via tokenizer
-            if self._cls_token_id is None and tok_config.get("cls_token"):
-                ids = list(self._tokenizer.encode(tok_config["cls_token"]))
-                if len(ids) == 1:
-                    self._cls_token_id = ids[0]
-            if self._sep_token_id is None and tok_config.get("sep_token"):
-                ids = list(self._tokenizer.encode(tok_config["sep_token"]))
-                if len(ids) == 1:
-                    self._sep_token_id = ids[0]
+        self._cls_token_id, self._sep_token_id = _get_encoder_special_token_ids(
+            self._tokenizer, model
+        )
 
     def _init_decoder(self, model: str) -> None:
         """Initialize decoder (Qwen3-Embeddings style) model functions."""
@@ -259,20 +343,7 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
     # ---- Embedding methods ----
 
     def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
-        """Compute embeddings for a list of input strings (synchronous).
-
-        Parameters
-        ----------
-        inputs : List[str]
-            The input strings to embed.
-
-        Returns
-        -------
-        embeddings : List[List[float]]
-            The L2-normalized embedding vectors.
-        total_tokens : int
-            Total number of tokens processed.
-        """
+        """Compute embeddings for a list of input strings (synchronous)."""
         if self._model_type == "encoder":
             return self._embed_encoder(inputs)
         return self._embed_decoder(inputs)
@@ -280,43 +351,17 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
     def _embed_encoder(  # pylint: disable=too-many-locals
         self, inputs: List[str]
     ) -> Tuple[List[List[float]], int]:
-        """Encoder model embedding (BERT-style).
-
-        Processes each input individually to avoid batch padding artifacts.
-
-        Encoder uses bidirectional attention, so chunked prefill is NOT possible
-        (each token must attend to all other tokens in the full sequence).
-        Inputs exceeding prefill_chunk_size are truncated.
-
-        (Additional Strategy)
-        TODO: For better long-text support, implement sliding window + mean pooling:
-          1. Split text into overlapping windows of prefill_chunk_size (stride=chunk/2)
-          2. Encode each window independently
-          3. Mean-pool all window embeddings -> final embedding -> L2 normalize
-          This preserves information from the full text at the cost of N x compute.
-        """
+        """Encoder model embedding (BERT-style)."""
         embeddings: List[List[float]] = []
         total_tokens = 0
         prefill_chunk = self._raw_metadata.get("prefill_chunk_size", 512)
 
-        for text in inputs:
-            tokens = list(self._tokenizer.encode(text))
-            # Add [CLS] and [SEP] if needed
-            if self._cls_token_id is not None and (
-                len(tokens) == 0 or tokens[0] != self._cls_token_id
-            ):
-                tokens = [self._cls_token_id] + tokens
-            if self._sep_token_id is not None and (
-                len(tokens) == 0 or tokens[-1] != self._sep_token_id
-            ):
-                tokens = tokens + [self._sep_token_id]
+        # Use shared canonicalization helper
+        token_lists = _canonicalize_encoder_inputs(
+            inputs, self._tokenizer, self._cls_token_id, self._sep_token_id, prefill_chunk
+        )
 
-            # Truncate to compiled buffer limit (keep [CLS] at start, [SEP] at end)
-            if len(tokens) > prefill_chunk:
-                tokens = tokens[:prefill_chunk]
-                if self._sep_token_id is not None:
-                    tokens[-1] = self._sep_token_id
-
+        for tokens in token_lists:
             seq_len = len(tokens)
             total_tokens += seq_len
 
@@ -327,7 +372,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
             mask_tvm = tvm.runtime.tensor(attention_mask, device=self._device)
 
             output = self._prefill_func(tokens_tvm, mask_tvm, self._params)
-            # .numpy() copies to CPU, escaping TVM workspace buffer reuse across calls.
             output_np = output.numpy()  # [1, seq_len, hidden_size]
 
             # Pooling
@@ -350,13 +394,7 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
         return embeddings, total_tokens
 
     def _embed_decoder(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
-        """Decoder model embedding with batch prefill optimization.
-
-        When total tokens fit within prefill_chunk_size, all inputs are processed
-        in a single batch forward pass using shared KV cache. Otherwise, falls back
-        to sequential chunked prefill per input.
-        """
-        # Read KV cache config from metadata
+        """Decoder model embedding with batch prefill optimization."""
         prefill_chunk = self._raw_metadata.get("prefill_chunk_size", 2048)
         max_seq_len = self._raw_metadata.get("context_window_size", 32768)
         if max_seq_len == -1:
@@ -364,8 +402,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
         assert max_seq_len > 0, f"max_seq_len must be positive, got {max_seq_len}"
         support_sliding = int(self._raw_metadata.get("sliding_window_size", -1) != -1)
 
-        # Tokenize all inputs. Prefer tokenizer post-processor output. If absent (older models),
-        # fall back to appending eos_token_id when missing.
         token_lists: List[List[int]] = []
         for text in inputs:
             tokens = list(self._tokenizer.encode(text))
@@ -381,15 +417,11 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
 
         total_tokens = sum(len(t) for t in token_lists)
 
-        # Fast path: all tokens fit in one prefill chunk -> batch forward
         if total_tokens <= prefill_chunk and all(len(t) > 0 for t in token_lists):
             return self._batch_embed_decoder(
                 token_lists, total_tokens, max_seq_len, prefill_chunk, support_sliding
             )
 
-        # Greedy sub-batching: pack texts into sub-batches that fit within
-        # prefill_chunk, preserving input order. Oversize texts (single text
-        # exceeding prefill_chunk) fall back to sequential chunked prefill.
         sub_batches = self._build_sub_batches(token_lists, prefill_chunk)
         all_embeddings: List[List[float]] = []
         for batch_type, batch, batch_total in sub_batches:
@@ -409,11 +441,7 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
     def _build_sub_batches(
         token_lists: List[List[int]], prefill_chunk: int
     ) -> List[Tuple[Literal["batch", "sequential"], List[List[int]], int]]:
-        """Partition token lists into sub-batches that fit within prefill_chunk.
-
-        Each sub-batch is a tuple of (mode, token_lists, total_token_count).
-        Empty token lists are skipped to avoid invalid batch processing.
-        """
+        """Partition token lists into sub-batches that fit within prefill_chunk."""
         sub_batches: List[Tuple[Literal["batch", "sequential"], List[List[int]], int]] = []
         current_batch: List[List[int]] = []
         current_tokens = 0
@@ -447,7 +475,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
         """Batch prefill: process all inputs in a single forward pass."""
         batch_size = len(token_lists)
 
-        # Create KV cache for the entire batch
         kv_cache = self._create_kv_cache_func(
             ShapeTuple([batch_size]),
             ShapeTuple([max_seq_len]),
@@ -456,16 +483,13 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
             ShapeTuple([support_sliding]),
         )
 
-        # Register all sequences
         seq_ids = list(range(batch_size))
         seq_lens = [len(t) for t in token_lists]
         for sid in seq_ids:
             self._kv_state_add_sequence(kv_cache, sid)
 
-        # Begin forward with all sequences at once
         self._kv_state_begin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(seq_lens))
 
-        # Concatenate all tokens -> embed -> batch prefill
         all_tokens = []
         for tokens in token_lists:
             all_tokens.extend(tokens)
@@ -474,14 +498,11 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
         all_embed = self._nd_reshape(all_embed, ShapeTuple([1, total_tokens, all_embed.shape[-1]]))
 
         hidden_states, _ = self._batch_prefill_to_hidden_func(all_embed, kv_cache, self._params)
-        # .numpy() copies to CPU, escaping TVM workspace buffer reuse across calls.
-        # (torch.from_dlpack is zero-copy and hits aliasing bugs on 2nd+ invocation.)
         hidden_np = hidden_states.numpy()
         self._kv_state_end_forward(kv_cache)
         for sid in seq_ids:
             self._kv_state_remove_sequence(kv_cache, sid)
 
-        # Extract last token hidden state per sequence
         embeddings: List[List[float]] = []
         offset = 0
         for tokens in token_lists:
@@ -511,7 +532,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
             if len(tokens) == 0:
                 continue
 
-            # Create KV cache for this single sequence
             kv_cache = self._create_kv_cache_func(
                 ShapeTuple([1]),
                 ShapeTuple([max_seq_len]),
@@ -521,7 +541,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
             )
             self._kv_state_add_sequence(kv_cache, 0)
 
-            # Process tokens in chunks
             hidden = None
             for chunk_start in range(0, len(tokens), prefill_chunk):
                 chunk_end = min(chunk_start + prefill_chunk, len(tokens))
@@ -537,7 +556,6 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
                 )
                 self._kv_state_begin_forward(kv_cache, ShapeTuple([0]), ShapeTuple([chunk_len]))
                 hidden, kv_cache = self._prefill_to_hidden_func(chunk_embed, kv_cache, self._params)
-                # .numpy() copies to CPU, escaping TVM buffer aliasing.
                 hidden_np = hidden.numpy()
                 self._kv_state_end_forward(kv_cache)
 
@@ -555,21 +573,414 @@ class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-i
 
 
 # ====================================================================
-# AsyncEmbeddingEngine — thin async wrapper around EmbeddingRuntime
+# ThreadEncoderRuntime — C++ threaded encoder backend
 # ====================================================================
 
+# Pooling strategy name -> C++ int mapping
+_POOLING_STRATEGY_MAP = {"cls": 0, "mean": 1, "last": 2}
+_THREAD_WAIT_POLL_SEC = 0.1
 
-class AsyncEmbeddingEngine:
-    """Asynchronous embedding inference engine.
 
-    Thin wrapper around an EmbeddingRuntime that adds:
-    - ThreadPoolExecutor for non-blocking async inference
-    - async_embed convenience method
-    - terminate lifecycle management
+class ThreadEncoderRuntime(EmbeddingRuntime):
+    """C++ threaded encoder embedding runtime using the Phase 3a embedding lane.
 
-    Backward-compatible attributes are mirrored from the underlying runtime
-    so that existing code accessing engine.tokenizer, engine.model_type, etc.
-    continues to work without changes.
+    This runtime delegates encoder embedding to the C++ threaded engine,
+    following the same two-thread pattern as AsyncMLCEngine for chat.
+    Phase 4 will add ThreadDecoderRuntime for decoder-only embedding models.
+
+    Only supports model_type == "encoder".
+    """
+
+    def __init__(
+        self,
+        model: str,
+        model_lib: str,
+        device: Union[str, Device] = "auto",
+        *,
+        pooling_strategy: Optional[str] = None,
+    ) -> None:
+        # Set _terminated early so __del__ is safe even if __init__ fails partway.
+        self._terminated = True
+        self._module = None
+        self._ffi: Dict[str, Any] = {}
+        self._bg_loop_thread: Optional[threading.Thread] = None
+        self._bg_stream_thread: Optional[threading.Thread] = None
+        self._pending_lock = threading.Lock()
+        self._pending: Dict[str, "_PendingEntry"] = {}
+
+        self._device = detect_device(device) if isinstance(device, str) else device
+        self._tokenizer = Tokenizer(model)
+        self._model_path = model
+        self._model_lib = model_lib
+
+        # Read metadata from mlc-chat-config.json
+        config_path = os.path.join(model, "mlc-chat-config.json")
+        with open(config_path, encoding="utf-8") as f:
+            self._raw_metadata = json.load(f)
+
+        self._embedding_metadata = engine_utils.get_embedding_metadata(self._raw_metadata)
+        if self._embedding_metadata is None:
+            raise ValueError("Model does not have embedding_metadata in mlc-chat-config.json")
+
+        self._model_type = self._embedding_metadata["model_type"]
+        if self._model_type != "encoder":
+            raise ValueError(
+                f"ThreadEncoderRuntime only supports encoder models, "
+                f"got model_type={self._model_type!r}"
+            )
+
+        self._pooling_strategy = self._embedding_metadata["pooling_strategy"]
+        self._normalize = self._embedding_metadata["normalize"]
+        if pooling_strategy:
+            self._pooling_strategy = pooling_strategy
+
+        self._prefill_chunk_size = self._raw_metadata.get("prefill_chunk_size", 512)
+
+        # Encoder special tokens (shared helper)
+        self._cls_token_id, self._sep_token_id = _get_encoder_special_token_ids(
+            self._tokenizer, model
+        )
+
+        # FFI functions
+        self._f_embedding_request = tvm.get_global_func("mlc.serve.EmbeddingRequest")
+        self._f_embedding_result_unpack = tvm.get_global_func("mlc.serve.EmbeddingResultUnpack")
+
+        # Threaded engine initialization — wrapped in try so that if ANY step
+        # fails after threads are started, we clean up before re-raising.
+        try:
+            self._module = tvm.get_global_func(
+                "mlc.serve.create_threaded_engine", allow_missing=False
+            )()
+            for key in [
+                "init_threaded_engine",
+                "run_background_loop",
+                "run_background_stream_back_loop",
+                "reload",
+                "exit_background_loop",
+                "add_embedding_request",
+                "set_embedding_request_callback",
+            ]:
+                self._ffi[key] = self._module[key]
+
+            # Init threaded engine with a no-op chat callback (required by C++ init).
+            def _noop_chat_callback(delta_outputs):
+                pass
+
+            self._ffi["init_threaded_engine"](self._device, _noop_chat_callback, None)
+
+            # Register embedding callback BEFORE reload (per C++ contract).
+            self._ffi["set_embedding_request_callback"](self._embedding_callback)
+
+            # Start background threads (same pattern as chat)
+            self._bg_loop_thread = threading.Thread(
+                target=self._ffi["run_background_loop"], daemon=True
+            )
+            self._bg_stream_thread = threading.Thread(
+                target=self._ffi["run_background_stream_back_loop"], daemon=True
+            )
+            self._bg_loop_thread.start()
+            self._bg_stream_thread.start()
+
+            # Reload with embedding-safe config defaults.
+            engine_config = EngineConfig(
+                model=model,
+                model_lib=model_lib,
+                additional_models=[],
+                mode="local",
+                prefix_cache_mode="disable",
+                prefill_mode="chunked",
+            )
+            self._ffi["reload"](engine_config.asjson())
+            # Init succeeded — mark as alive.
+            self._terminated = False
+        except Exception:
+            self._cleanup_init_failure()
+            raise
+
+    def _cleanup_init_failure(self) -> None:
+        """Best-effort cleanup when __init__ fails after threads may have started."""
+        # Signal C++ to exit loops
+        exit_fn = self._ffi.get("exit_background_loop")
+        if exit_fn is not None:
+            try:
+                exit_fn()
+            except Exception:  # pylint: disable=broad-except
+                pass
+        # Join any started threads
+        for t in [self._bg_loop_thread, self._bg_stream_thread]:
+            if t is not None and t.is_alive():
+                try:
+                    t.join(timeout=5.0)
+                except Exception:  # pylint: disable=broad-except
+                    pass
+        # Clear pending map
+        with self._pending_lock:
+            self._pending.clear()
+        self._terminated = True
+
+    # ---- Read-only properties ----
+
+    @property
+    def tokenizer(self) -> Tokenizer:
+        return self._tokenizer
+
+    @property
+    def model_type(self) -> str:
+        return self._model_type
+
+    @property
+    def pooling_strategy(self) -> str:
+        return self._pooling_strategy
+
+    @property
+    def normalize(self) -> bool:
+        return self._normalize
+
+    @property
+    def metadata(self) -> dict:
+        return self._raw_metadata
+
+    @property
+    def embedding_metadata(self) -> Optional[dict]:
+        return self._embedding_metadata
+
+    # ---- Embedding callback (called from stream-back thread) ----
+
+    def _embedding_callback(self, results) -> None:
+        """Called from the C++ stream-back thread with Array<EmbeddingResult>."""
+        for result in results:
+            unpacked = self._f_embedding_result_unpack(result)
+            request_id = str(unpacked[0])
+            embeddings_nd = unpacked[1]  # CPU float32 NDArray [num_items, hidden_dim]
+            prompt_tokens = int(unpacked[2])
+
+            # Convert NDArray to numpy
+            embeddings_np = embeddings_nd.numpy()  # [num_items, hidden_dim]
+            embeddings_list = embeddings_np.tolist()
+
+            with self._pending_lock:
+                entry = self._pending.pop(request_id, None)
+
+            if entry is None:
+                # Request already cleaned up or terminated; silently ignore.
+                continue
+
+            entry.result = (embeddings_list, prompt_tokens)
+
+            # Deliver to consumer
+            if entry.event is not None:
+                # Sync path: wake up blocking waiter
+                entry.event.set()
+            if entry.future is not None and entry.loop is not None:
+                # Async path: deliver via call_soon_threadsafe
+                entry.loop.call_soon_threadsafe(
+                    _set_future_result, entry.future, (embeddings_list, prompt_tokens)
+                )
+
+    def _background_failure_message(self) -> Optional[str]:
+        """Return a descriptive error if a background thread has exited unexpectedly."""
+        if self._terminated:
+            return "Embedding engine has been terminated"
+        if self._bg_loop_thread is not None and not self._bg_loop_thread.is_alive():
+            return "Embedding engine background loop thread exited before request completion"
+        if self._bg_stream_thread is not None and not self._bg_stream_thread.is_alive():
+            return "Embedding engine callback thread exited before request completion"
+        return None
+
+    # ---- Sync embed ----
+
+    def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+        """Compute embeddings synchronously (blocks until result is ready)."""
+        if self._terminated:
+            raise RuntimeError("Engine has been terminated")
+
+        request_id = str(uuid.uuid4())
+
+        # Canonicalize inputs
+        token_lists = _canonicalize_encoder_inputs(
+            inputs, self._tokenizer, self._cls_token_id, self._sep_token_id,
+            self._prefill_chunk_size,
+        )
+
+        # Create pending entry with sync event
+        entry = _PendingEntry()
+        entry.event = threading.Event()
+
+        with self._pending_lock:
+            self._pending[request_id] = entry
+
+        # Build and submit — clean up pending on failure so no dangling entry remains.
+        try:
+            self._submit_embedding_request(request_id, token_lists)
+        except Exception:
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
+            raise
+
+        # Block until callback sets the event, but surface background-thread failures
+        # instead of waiting forever when the C++ engine crashes.
+        while not entry.event.wait(timeout=_THREAD_WAIT_POLL_SEC):
+            failure_message = self._background_failure_message()
+            if failure_message is not None:
+                with self._pending_lock:
+                    self._pending.pop(request_id, None)
+                raise RuntimeError(failure_message)
+
+        if entry.result is None:
+            raise RuntimeError("Embedding request completed without result (engine terminated?)")
+
+        return entry.result
+
+    # ---- Async embed ----
+
+    async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+        """Compute embeddings asynchronously (non-blocking, uses asyncio Future)."""
+        if self._terminated:
+            raise RuntimeError("Engine has been terminated")
+
+        request_id = str(uuid.uuid4())
+
+        # Canonicalize inputs
+        token_lists = _canonicalize_encoder_inputs(
+            inputs, self._tokenizer, self._cls_token_id, self._sep_token_id,
+            self._prefill_chunk_size,
+        )
+
+        # Create pending entry with async future
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+        entry = _PendingEntry()
+        entry.future = future
+        entry.loop = loop
+
+        with self._pending_lock:
+            self._pending[request_id] = entry
+
+        # Build and submit — clean up pending on failure so no dangling entry/future remains.
+        try:
+            self._submit_embedding_request(request_id, token_lists)
+        except Exception:
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
+            raise
+
+        while True:
+            try:
+                return await asyncio.wait_for(asyncio.shield(future), timeout=_THREAD_WAIT_POLL_SEC)
+            except asyncio.TimeoutError:
+                failure_message = self._background_failure_message()
+                if failure_message is None:
+                    continue
+                with self._pending_lock:
+                    self._pending.pop(request_id, None)
+                if not future.done():
+                    future.cancel()
+                raise RuntimeError(failure_message)
+
+    # ---- Internal helpers ----
+
+    def _submit_embedding_request(
+        self, request_id: str, token_lists: List[List[int]]
+    ) -> None:
+        """Build FFI EmbeddingRequest and submit to C++ engine."""
+        pooling_int = _POOLING_STRATEGY_MAP.get(self._pooling_strategy, 0)
+
+        # Build packed args for mlc.serve.EmbeddingRequest:
+        # request_id, num_items, then for each item: item_index, num_tokens, token_ids...,
+        # then pooling_strategy (int), normalize (bool)
+        args: List[Any] = [request_id, len(token_lists)]
+        for item_idx, tokens in enumerate(token_lists):
+            args.append(item_idx)
+            args.append(len(tokens))
+            args.extend(tokens)
+        args.append(pooling_int)
+        args.append(self._normalize)
+
+        emb_request = self._f_embedding_request(*args)
+        self._ffi["add_embedding_request"](emb_request)
+
+    def terminate(self) -> None:
+        """Stop the threaded engine and clean up."""
+        if self._terminated:
+            return
+        self._terminated = True
+
+        # Signal C++ to exit loops
+        exit_fn = self._ffi.get("exit_background_loop")
+        if exit_fn is not None:
+            try:
+                exit_fn()
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+        # Join background threads (may be None if init failed early)
+        for t in [self._bg_loop_thread, self._bg_stream_thread]:
+            if t is not None and t.is_alive():
+                try:
+                    t.join(timeout=5.0)
+                except Exception:  # pylint: disable=broad-except
+                    pass
+
+        # Clean up pending requests
+        with self._pending_lock:
+            for req_id, entry in self._pending.items():
+                if entry.event is not None:
+                    entry.event.set()  # Wake up sync waiters
+                if entry.future is not None and not entry.future.done():
+                    try:
+                        entry.loop.call_soon_threadsafe(
+                            entry.future.set_exception,
+                            RuntimeError("Embedding engine terminated"),
+                        )
+                    except Exception:  # pylint: disable=broad-except
+                        pass
+            self._pending.clear()
+
+    def __del__(self):
+        self.terminate()
+
+
+class _PendingEntry:
+    """Tracks a single in-flight embedding request."""
+
+    __slots__ = ("result", "event", "future", "loop")
+
+    def __init__(self):
+        self.result: Optional[Tuple[List[List[float]], int]] = None
+        self.event: Optional[threading.Event] = None  # For sync path
+        self.future: Optional[asyncio.Future] = None  # For async path
+        self.loop: Optional[asyncio.AbstractEventLoop] = None  # For async path
+
+
+def _set_future_result(future: asyncio.Future, result: Any) -> None:
+    """Thread-safe helper to set a future's result (only if not done)."""
+    if not future.done():
+        future.set_result(result)
+
+
+# ====================================================================
+# AsyncMLCEmbeddingEngine — backend selector + async wrapper
+# ====================================================================
+
+# Backend selection environment variable
+_EMBEDDING_BACKEND_ENV = "MLC_SERVE_EMBEDDING_BACKEND"
+
+
+class AsyncMLCEmbeddingEngine:
+    """Asynchronous embedding inference engine with backend selection.
+
+    This is the main entry point for embedding serving, aligned with
+    AsyncMLCEngine for chat. It selects the best backend automatically
+    and exposes sync/async embed methods.
+
+    Backend selection (via env var MLC_SERVE_EMBEDDING_BACKEND):
+    - "auto" (default): encoder models try ThreadEncoderRuntime first,
+      fallback to TVMNativeEmbeddingRuntime.
+    - "cpp": force ThreadEncoderRuntime; fail if not available.
+    - "tvm_native": force TVMNativeEmbeddingRuntime.
+
+    Decoder models always use TVMNativeEmbeddingRuntime regardless of
+    backend setting. Phase 4 will add ThreadDecoderRuntime.
 
     Parameters
     ----------
@@ -584,8 +995,7 @@ class AsyncEmbeddingEngine:
 
     pooling_strategy : Optional[str]
         Pooling strategy: "cls" (first token), "mean" (masked average),
-        or "last" (last token). If None, auto-detected based on model type:
-        encoder -> "cls", decoder -> "last".
+        or "last" (last token). If None, auto-detected based on model type.
     """
 
     def __init__(
@@ -601,9 +1011,7 @@ class AsyncEmbeddingEngine:
         if _runtime is not None:
             self._runtime = _runtime
         else:
-            self._runtime = TVMNativeEmbeddingRuntime(
-                model, model_lib, device, pooling_strategy=pooling_strategy
-            )
+            self._runtime = self._select_backend(model, model_lib, device, pooling_strategy)
 
         # Mirror core attributes from the abstract interface
         self.tokenizer = self._runtime.tokenizer
@@ -618,55 +1026,109 @@ class AsyncEmbeddingEngine:
         self._cls_token_id = getattr(self._runtime, "_cls_token_id", None)
         self._sep_token_id = getattr(self._runtime, "_sep_token_id", None)
 
-        # Background thread pool (1 worker = serialized GPU inference)
+        # Background thread pool (only used for TVM native runtime fallback)
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="embedding"
         )
         self._terminated = False
 
+    @staticmethod
+    def _select_backend(
+        model: str,
+        model_lib: str,
+        device: Union[str, Device],
+        pooling_strategy: Optional[str],
+    ) -> EmbeddingRuntime:
+        """Select the embedding runtime backend."""
+        backend = os.environ.get(_EMBEDDING_BACKEND_ENV, "auto").lower()
+
+        # Read model metadata to determine model type
+        config_path = os.path.join(model, "mlc-chat-config.json")
+        model_type = None
+        if os.path.exists(config_path):
+            with open(config_path, encoding="utf-8") as f:
+                cfg = json.load(f)
+            emb_meta = cfg.get("embedding_metadata")
+            if emb_meta:
+                model_type = emb_meta.get("model_type")
+
+        is_encoder = model_type == "encoder"
+
+        if backend == "tvm_native":
+            logger.info("Embedding backend: tvm_native (forced)")
+            return TVMNativeEmbeddingRuntime(
+                model, model_lib, device, pooling_strategy=pooling_strategy
+            )
+
+        if backend == "cpp":
+            if not is_encoder:
+                raise ValueError(
+                    f"ThreadEncoderRuntime requires encoder model, "
+                    f"got model_type={model_type!r}. "
+                    f"Set {_EMBEDDING_BACKEND_ENV}=tvm_native for decoder models."
+                )
+            logger.info("Embedding backend: ThreadEncoderRuntime (forced)")
+            return ThreadEncoderRuntime(
+                model, model_lib, device, pooling_strategy=pooling_strategy
+            )
+
+        # backend == "auto"
+        if is_encoder:
+            try:
+                runtime = ThreadEncoderRuntime(
+                    model, model_lib, device, pooling_strategy=pooling_strategy
+                )
+                logger.info("Embedding backend: ThreadEncoderRuntime (auto, encoder model)")
+                return runtime
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning(
+                    "ThreadEncoderRuntime failed to initialize, "
+                    "falling back to TVMNativeEmbeddingRuntime. Error: %s",
+                    e,
+                )
+
+        logger.info(
+            "Embedding backend: tvm_native (auto, model_type=%s)",
+            model_type or "unknown",
+        )
+        return TVMNativeEmbeddingRuntime(
+            model, model_lib, device, pooling_strategy=pooling_strategy
+        )
+
     def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
-        """Compute embeddings for a list of input strings (synchronous).
-
-        Parameters
-        ----------
-        inputs : List[str]
-            The input strings to embed.
-
-        Returns
-        -------
-        embeddings : List[List[float]]
-            The L2-normalized embedding vectors.
-        total_tokens : int
-            Total number of tokens processed.
-        """
+        """Compute embeddings synchronously."""
         return self._runtime.embed(inputs)
 
     async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
-        """Compute embeddings asynchronously in a background thread.
+        """Compute embeddings asynchronously.
 
-        This method does not block the asyncio event loop.
-
-        Parameters
-        ----------
-        inputs : List[str]
-            The input strings to embed.
-
-        Returns
-        -------
-        embeddings : List[List[float]]
-            The L2-normalized embedding vectors.
-        total_tokens : int
-            Total number of tokens processed.
+        If the underlying runtime has a native async_embed (ThreadEncoderRuntime),
+        use it directly. Otherwise, fall back to threadpool execution.
         """
+        # Check for native async fast-path (duck typing)
+        native_async = getattr(self._runtime, "async_embed", None)
+        if native_async is not None and asyncio.iscoroutinefunction(native_async):
+            return await native_async(inputs)
+
+        # Fallback: run sync embed in threadpool
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, self.embed, inputs)
 
     def terminate(self) -> None:
-        """Terminate the engine and clean up the thread pool."""
+        """Terminate the engine and clean up."""
         if getattr(self, "_terminated", True):
             return
         self._terminated = True
+
+        # Terminate the underlying runtime if it has a terminate method
+        if hasattr(self._runtime, "terminate"):
+            self._runtime.terminate()
+
         self._executor.shutdown(wait=False)
 
     def __del__(self):
         self.terminate()
+
+
+# Backward-compat alias for code that still imports the old name.
+AsyncEmbeddingEngine = AsyncMLCEmbeddingEngine

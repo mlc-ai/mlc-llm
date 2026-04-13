@@ -20,6 +20,7 @@ namespace serve {
 using namespace tvm::runtime;
 
 typedef TypedFunction<void(Array<RequestStreamOutput>)> FRequestStreamCallback;
+typedef TypedFunction<void(Array<EmbeddingResult>)> FEmbeddingRequestCallback;
 
 /*! \brief The manager of internal id for requests in engine. */
 struct EngineInternalIDManager {
@@ -89,6 +90,14 @@ class EngineStateObj : public Object {
    * We make it a workspace to avoid repetitive memory allocation/free in the action post process.
    */
   ActionPostProcessWorkspace postproc_workspace;
+
+  /****************** Embedding Lane ******************/
+  /*! \brief The embedding requests waiting to be processed. */
+  std::vector<EmbeddingRequest> embedding_waiting_queue;
+  /*! \brief The states of all in-flight embedding requests, keyed by request id. */
+  std::unordered_map<String, EmbeddingRequestState> embedding_request_states;
+  /*! \brief The embedding result callback. */
+  FEmbeddingRequestCallback embedding_request_callback_{nullptr};
 
   /*! \brief Reset the engine state and clear the metrics. */
   void Reset();
