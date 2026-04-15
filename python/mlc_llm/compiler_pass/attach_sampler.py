@@ -9,6 +9,9 @@ from tvm.script import tirx as T
 
 from mlc_llm.op.batch_spec_verify import batch_spec_verify
 from mlc_llm.op.top_p_pivot import top_p_pivot, top_p_renorm
+from mlc_llm.support import logging
+
+logger = logging.getLogger(__name__)
 
 
 @tvm.transform.module_pass(opt_level=0, name="AttachGPUSamplingFunc")
@@ -31,6 +34,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
         target_kind = self.target.kind.name
         if target_kind not in ["cuda", "vulkan", "metal", "webgpu"]:
             # Only enable GPU sampling for CUDA, Vulkan, Metal, and WebGPU.
+            logger.info("Skipping GPU sampler attachment for target_kind=%s", target_kind)
             return mod
 
         bb = relax.BlockBuilder(mod)
@@ -57,6 +61,7 @@ class AttachGPUSamplingFunc:  # pylint: disable=too-few-public-methods
             ]
 
         mod = bb.finalize()
+        logger.info("Attached GPU sampler functions for target_kind=%s: %s", target_kind, gv_names)
         for gv_name in gv_names:
             mod[gv_name] = (
                 mod[gv_name]

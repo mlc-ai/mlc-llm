@@ -3,6 +3,7 @@
 from typing import Any, Dict
 
 from .awq_quantization import AWQQuantize
+from .binary_group_quantization import BinaryGroupQuantize
 from .block_scale_quantization import BlockScaleQuantize
 from .ft_quantization import FTQuantize
 from .group_quantization import GroupQuantize
@@ -197,5 +198,15 @@ QUANTIZATION: Dict[str, Quantization] = {
         weight_dtype="float8_e4m3fn",
         model_dtype="bfloat16",
         use_activation_scale=True,
+    ),
+    "q1f16_0": BinaryGroupQuantize(
+        name="q1f16_0",
+        kind="binary-group-quant",
+        group_size=128,
+        storage_dtype="uint32",
+        model_dtype="float16",
+        linear_weight_layout="NK",
+        quantize_embedding=True,
+        quantize_final_fc=True,
     ),
 }
