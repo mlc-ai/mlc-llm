@@ -1,5 +1,6 @@
 """The MLC LLM server launched in a subprocess."""
 
+import json
 import os
 import subprocess
 import sys
@@ -13,6 +14,7 @@ from tvm.runtime import Device
 
 from mlc_llm.serve.config import EngineConfig
 from mlc_llm.serve.engine_base import _check_engine_config
+from mlc_llm.support.auto_config import detect_model_task
 
 
 class PopenServer:  # pylint: disable=too-many-instance-attributes
@@ -56,25 +58,20 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
         self.base_url = ""
         self.openai_v1_base_url = ""
 
-    def start(  # pylint: disable=too-many-branches,too-many-statements
-        self, extra_env=None
-    ) -> None:
-        """Launch the server in a popen subprocess.
-        Wait until the server becomes ready before return.
-        """
-        extra_env = extra_env or {}
-        cmd = [sys.executable]
-        cmd += ["-m", "mlc_llm", "serve", self.model]
+    def _build_base_cmd(self):
+        """Build the common prefix of the subprocess command."""
+        cmd = [sys.executable, "-m", "mlc_llm", "serve", self.model]
         if self.model_lib is not None:
             cmd += ["--model-lib", self.model_lib]
         cmd += ["--device", self.device]
+        return cmd
 
+    def _append_chat_args(self, cmd):
+        """Append chat-only CLI flags to *cmd*."""
         if self.enable_debug:
             cmd += ["--enable-debug"]
-
         if self.mode is not None:
             cmd += ["--mode", self.mode]
-
         if len(self.engine_config.additional_models) > 0:
             args_additional_model = []
             for additional_model in self.engine_config.additional_models:
@@ -115,6 +112,32 @@ class PopenServer:  # pylint: disable=too-many-instance-attributes
             cmd += ["--enable-tracing"]
         if self.enable_debug:
             cmd += ["--enable-debug"]
+
+    def start(  # pylint: disable=too-many-branches,too-many-statements
+        self, extra_env=None
+    ) -> None:
+        """Launch the server in a popen subprocess.
+        Wait until the server becomes ready before return.
+        """
+        extra_env = extra_env or {}
+        cmd = self._build_base_cmd()
+
+        try:
+            is_embedding = detect_model_task(self.model) == "embedding"
+        except (ValueError, FileNotFoundError, OSError, json.JSONDecodeError) as exc:
+            raise RuntimeError(
+                "The server fails to launch. "
+                f'Please check if "{self.model}" is a valid model compiled by MLC LLM. '
+                f"(detail: {exc})"
+            ) from exc
+
+        if is_embedding:
+            # Embedding models: only base args + host/port are valid.
+            # Chat-only flags (--mode, --speculative-mode, etc.) are
+            # forbidden by the CLI and must not be appended.
+            pass
+        else:
+            self._append_chat_args(cmd)
 
         cmd += ["--host", self.host]
         cmd += ["--port", str(self.port)]

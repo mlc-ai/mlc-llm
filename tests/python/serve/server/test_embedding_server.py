@@ -9,7 +9,7 @@ Reuses MLC LLM test infrastructure:
   - OpenAI client usage pattern from test_server.py
   - Session-scoped server fixture pattern from conftest.py
 
-Run (launches its own embedding-only server):
+Run (launches its own embedding-only server via ``mlc_llm serve``):
   MLC_SERVE_EMBEDDING_MODEL_LIB="path/to/model.dylib" \
     pytest -m endpoint tests/python/serve/server/test_embedding_server.py -v
 
@@ -23,7 +23,6 @@ Environment variables:
 
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -31,6 +30,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import numpy as np
+import psutil
 import pytest
 import requests
 from openai import OpenAI
@@ -121,78 +121,82 @@ def expect_error(response_str: str, msg_prefix: Optional[str] = None):
 
 
 # ---------------------------------------------------------------------------
-# Server fixture — follows PopenServer/launch_server pattern from conftest.py
+# Server fixture — uses the proper ``mlc_llm serve`` CLI path
 # ---------------------------------------------------------------------------
+
+
+def _terminate_proc(proc):
+    """Terminate a subprocess and all its children (same pattern as PopenServer)."""
+    try:
+        parent = psutil.Process(proc.pid)
+        for child in parent.children(recursive=True):
+            try:
+                child.kill()
+            except psutil.NoSuchProcess:
+                pass
+    except psutil.NoSuchProcess:
+        pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 @pytest.fixture(scope="module")
 def launch_embedding_server():
-    """Launch an embedding-only server as a subprocess.
+    """Launch an embedding-only server via ``mlc_llm serve``.
 
-    Follows the same lifecycle pattern as the launch_server fixture
-    in serve/server/conftest.py, but uses a lightweight embedding-only
-    server since PopenServer doesn't support --embedding-model yet.
+    Uses the proper serve path so that model_task detection in
+    interface/serve.py routes to the embedding-only app automatically.
+    Follows the same lifecycle pattern as PopenServer.
     """
     _skip_if_no_model()
 
-    mlc_llm_path = str(Path(__file__).resolve().parents[4] / "python")
-    server_code = f"""
-import sys
-sys.path.insert(0, "{mlc_llm_path}")
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlc_llm",
+        "serve",
+        EMBEDDING_MODEL_DIR,
+        "--model-lib",
+        EMBEDDING_MODEL_LIB,
+        "--device",
+        "auto",
+        "--host",
+        EMBEDDING_SERVER_HOST,
+        "--port",
+        str(EMBEDDING_SERVER_PORT),
+    ]
 
-import fastapi
-import uvicorn
-from mlc_llm.serve.embedding_engine import AsyncEmbeddingEngine
-from mlc_llm.serve.server import ServerContext
-from mlc_llm.serve.entrypoints import openai_entrypoints
+    process_path = str(Path(__file__).resolve().parents[4])
+    proc = subprocess.Popen(cmd, cwd=process_path)  # pylint: disable=consider-using-with
 
-app = fastapi.FastAPI()
-app.include_router(openai_entrypoints.app)
-
-engine = AsyncEmbeddingEngine(
-    model="{EMBEDDING_MODEL_DIR}",
-    model_lib="{EMBEDDING_MODEL_LIB}",
-    device="auto",
-)
-ctx = ServerContext()
-ServerContext.server_context = ctx
-ctx.add_embedding_engine("{EMBEDDING_MODEL_NAME}", engine)
-
-uvicorn.run(app, host="{EMBEDDING_SERVER_HOST}", port={EMBEDDING_SERVER_PORT}, log_level="info")
-"""
-    with subprocess.Popen(
-        [sys.executable, "-c", server_code],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    ) as proc:
-        # Wait for server readiness — same polling pattern as PopenServer.start()
-        timeout = 120
-        attempts = 0.0
-        ready = False
-        while attempts < timeout:
-            try:
-                response = requests.get(f"{EMBEDDING_BASE_URL}/models", timeout=2)
-                if response.status_code == 200:
-                    ready = True
-                    break
-            except requests.RequestException:
-                pass
-            attempts += 0.5
-            time.sleep(0.5)
-
-        if not ready:
-            stderr = proc.stderr.read().decode() if proc.stderr else ""
-            proc.kill()
-            raise RuntimeError(f"Embedding server failed to start in {timeout}s.\nStderr: {stderr}")
-
-        yield proc
-
-        # Cleanup — same pattern as PopenServer.terminate()
-        proc.send_signal(signal.SIGINT)
+    # Wait for server readiness — same polling pattern as PopenServer.start()
+    timeout = 120
+    attempts = 0.0
+    ready = False
+    while attempts < timeout:
         try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+            response = requests.get(f"{EMBEDDING_BASE_URL}/models", timeout=2)
+            if response.status_code == 200:
+                ready = True
+                break
+        except requests.RequestException:
+            pass
+        attempts += 0.5
+        time.sleep(0.5)
+
+    if not ready:
+        _terminate_proc(proc)
+        raise RuntimeError(f"Embedding server failed to start in {timeout}s.")
+
+    yield proc
+
+    _terminate_proc(proc)
 
 
 @pytest.fixture(scope="module")
@@ -344,6 +348,49 @@ def test_any_model_name_works_with_single_engine():
 
 
 # ===================================================================
+# Chat-only endpoints must NOT be registered (404)
+# ===================================================================
+
+_BASE = f"http://{EMBEDDING_SERVER_HOST}:{EMBEDDING_SERVER_PORT}"
+
+
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_metrics_not_registered():
+    """/metrics must return 404 for embedding-only serve."""
+    resp = requests.get(f"{_BASE}/metrics", timeout=5)
+    assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_debug_dump_event_trace_not_registered():
+    """/debug/dump_event_trace must return 404 for embedding-only serve."""
+    resp = requests.post(f"{_BASE}/debug/dump_event_trace", timeout=5)
+    assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_completions_not_registered():
+    """/v1/completions must return 404 for embedding-only serve."""
+    resp = requests.post(
+        f"{EMBEDDING_BASE_URL}/completions",
+        json={"model": "x", "prompt": "hi"},
+        timeout=5,
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.usefixtures("launch_embedding_server")
+def test_chat_completions_not_registered():
+    """/v1/chat/completions must return 404 for embedding-only serve."""
+    resp = requests.post(
+        f"{EMBEDDING_BASE_URL}/chat/completions",
+        json={"model": "x", "messages": [{"role": "user", "content": "hi"}]},
+        timeout=5,
+    )
+    assert resp.status_code == 404
+
+
+# ===================================================================
 # Standalone runner (same pattern as test_server.py __main__)
 # ===================================================================
 
@@ -368,4 +415,8 @@ if __name__ == "__main__":
     test_dimension_truncation(c)
     test_base64_encoding()
     test_any_model_name_works_with_single_engine()
+    test_metrics_not_registered()
+    test_debug_dump_event_trace_not_registered()
+    test_completions_not_registered()
+    test_chat_completions_not_registered()
     print("\nAll embedding server tests passed!")

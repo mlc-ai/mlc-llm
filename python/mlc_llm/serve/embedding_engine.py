@@ -1,5 +1,6 @@
 """Asynchronous embedding inference engine for encoder and decoder models."""
 
+import abc
 import asyncio
 import concurrent.futures
 import json
@@ -15,13 +16,68 @@ from mlc_llm.serve import engine_utils
 from mlc_llm.support.auto_device import detect_device
 from mlc_llm.tokenizers import Tokenizer
 
+# ====================================================================
+# EmbeddingRuntime — abstract interface
+# ====================================================================
 
-class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
-    """Asynchronous embedding inference engine.
 
-    Supports both encoder models (BERT-style) and decoder-only embedding models
-    (e.g. Qwen3-Embeddings). Uses a ThreadPoolExecutor for background inference
-    so that the asyncio event loop is not blocked.
+class EmbeddingRuntime(abc.ABC):
+    """Abstract base class for embedding runtime implementations.
+
+    Minimal responsibilities:
+    - Initialize tokenizer, module, params, metadata
+    - Provide embed(inputs) -> (embeddings, total_tokens)
+    - Expose read-only state: tokenizer, model_type, pooling_strategy, normalize, metadata
+    """
+
+    @property
+    @abc.abstractmethod
+    def tokenizer(self) -> Tokenizer:
+        """The tokenizer instance."""
+
+    @property
+    @abc.abstractmethod
+    def model_type(self) -> str:
+        """Model type: 'encoder' or 'decoder'."""
+
+    @property
+    @abc.abstractmethod
+    def pooling_strategy(self) -> str:
+        """Pooling strategy: 'cls', 'mean', or 'last'."""
+
+    @property
+    @abc.abstractmethod
+    def normalize(self) -> bool:
+        """Whether to L2-normalize embeddings."""
+
+    @property
+    @abc.abstractmethod
+    def metadata(self) -> dict:
+        """Model metadata dictionary."""
+
+    @abc.abstractmethod
+    def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+        """Compute embeddings for input strings.
+
+        Returns
+        -------
+        embeddings : List[List[float]]
+            The embedding vectors.
+        total_tokens : int
+            Total number of tokens processed.
+        """
+
+
+# ====================================================================
+# TVMNativeEmbeddingRuntime — TVM-native implementation
+# ====================================================================
+
+
+class TVMNativeEmbeddingRuntime(EmbeddingRuntime):  # pylint: disable=too-many-instance-attributes
+    """TVM-native embedding runtime for encoder and decoder models.
+
+    Handles TVM module loading, tokenization, and embedding inference
+    for both encoder (BERT-style) and decoder-only (Qwen3-Embeddings) models.
 
     Parameters
     ----------
@@ -35,9 +91,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         Device string, e.g. "auto", "cuda:0", "metal".
 
     pooling_strategy : Optional[str]
-        Pooling strategy: "cls" (first token), "mean" (masked average),
-        or "last" (last token). If None, auto-detected based on model type:
-        encoder -> "cls", decoder -> "last".
+        Pooling strategy override: "cls", "mean", or "last".
     """
 
     def __init__(  # pylint: disable=too-many-branches
@@ -49,48 +103,89 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         pooling_strategy: Optional[str] = None,
     ) -> None:
         # Reuse existing utility: device detection
-        self.device = detect_device(device) if isinstance(device, str) else device
+        self._device = detect_device(device) if isinstance(device, str) else device
         # Reuse existing utility: tokenizer
-        self.tokenizer = Tokenizer(model)
+        self._tokenizer = Tokenizer(model)
 
         # Load TVM module, metadata, and params via engine_utils helpers
         ex = tvm.runtime.load_module(model_lib)
-        vm = relax.VirtualMachine(ex, device=self.device)
+        vm = relax.VirtualMachine(ex, device=self._device)
         self._mod = vm.module
-        self._metadata = json.loads(self._mod["_metadata"]())
-        self._params = engine_utils.load_embedding_params(model, self.device, self._metadata)
+        self._raw_metadata = json.loads(self._mod["_metadata"]())
+        self._params = engine_utils.load_embedding_params(model, self._device, self._raw_metadata)
 
-        # Detect model type and set pooling strategy
-        self.embedding_metadata = engine_utils.get_embedding_metadata(self._metadata)
-        if self.embedding_metadata:
-            self.model_type = self.embedding_metadata["model_type"]
-            self.pooling_strategy = self.embedding_metadata["pooling_strategy"]
-            self.normalize = self.embedding_metadata["normalize"]
-        else:
-            self.model_type = engine_utils.detect_embedding_model_type(self._mod)
-            self.pooling_strategy = "cls" if self.model_type == "encoder" else "last"
-            self.normalize = True
+        # Read embedding metadata — required since phase-1 metadata path
+        self._embedding_metadata = engine_utils.get_embedding_metadata(self._raw_metadata)
+        _REQUIRED_FIELDS = ("model_type", "pooling_strategy", "normalize")
+        if self._embedding_metadata is None or not all(
+            k in self._embedding_metadata for k in _REQUIRED_FIELDS
+        ):
+            missing = (
+                "all"
+                if self._embedding_metadata is None
+                else ", ".join(k for k in _REQUIRED_FIELDS if k not in self._embedding_metadata)
+            )
+            raise ValueError(
+                f"Embedding metadata is missing or incomplete in the model library metadata "
+                f"(missing: {missing}). "
+                "Embedding serving requires models compiled with embedding_metadata "
+                "(phase-1 metadata path). Please regenerate/recompile the model artifacts "
+                "with the current MLC LLM toolchain."
+            )
+        self._model_type = self._embedding_metadata["model_type"]
+        self._pooling_strategy = self._embedding_metadata["pooling_strategy"]
+        self._normalize = self._embedding_metadata["normalize"]
         # Allow caller to override pooling strategy
         if pooling_strategy:
-            self.pooling_strategy = pooling_strategy
+            self._pooling_strategy = pooling_strategy
+
+        # Special token ids (set by _init_encoder; None for decoder models)
+        self._cls_token_id: Optional[int] = None
+        self._sep_token_id: Optional[int] = None
 
         # Initialize model-type-specific functions
-        if self.model_type == "encoder":
+        if self._model_type == "encoder":
             self._init_encoder(model)
         else:
             self._init_decoder(model)
 
-        # Background thread pool (1 worker = serialized GPU inference)
-        self._executor = concurrent.futures.ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="embedding"
-        )
-        self._terminated = False
+    # ---- Read-only properties (abstract interface) ----
+
+    @property
+    def device(self) -> Device:
+        """The target device."""
+        return self._device
+
+    @property
+    def tokenizer(self) -> Tokenizer:
+        return self._tokenizer
+
+    @property
+    def model_type(self) -> str:
+        return self._model_type
+
+    @property
+    def pooling_strategy(self) -> str:
+        return self._pooling_strategy
+
+    @property
+    def normalize(self) -> bool:
+        return self._normalize
+
+    @property
+    def metadata(self) -> dict:
+        return self._raw_metadata
+
+    @property
+    def embedding_metadata(self) -> Optional[dict]:
+        """Embedding-specific metadata, or None for legacy models."""
+        return self._embedding_metadata
+
+    # ---- Initialization helpers ----
 
     def _init_encoder(self, model: str) -> None:
         """Initialize encoder (BERT-style) model functions and special tokens."""
         self._prefill_func = self._mod["prefill"]
-        self._cls_token_id: Optional[int] = None
-        self._sep_token_id: Optional[int] = None
         tok_config_path = os.path.join(model, "tokenizer_config.json")
         if os.path.exists(tok_config_path):
             with open(tok_config_path, encoding="utf-8") as f:
@@ -104,11 +199,11 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
                     self._sep_token_id = int(tid)
             # Fallback: encode the special token strings via tokenizer
             if self._cls_token_id is None and tok_config.get("cls_token"):
-                ids = list(self.tokenizer.encode(tok_config["cls_token"]))
+                ids = list(self._tokenizer.encode(tok_config["cls_token"]))
                 if len(ids) == 1:
                     self._cls_token_id = ids[0]
             if self._sep_token_id is None and tok_config.get("sep_token"):
-                ids = list(self.tokenizer.encode(tok_config["sep_token"]))
+                ids = list(self._tokenizer.encode(tok_config["sep_token"]))
                 if len(ids) == 1:
                     self._sep_token_id = ids[0]
 
@@ -127,7 +222,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
                 # Check if the post-processor actually appends a special token at the end
                 # (e.g. TemplateProcessing with "$A <|endoftext|>"). We verify by encoding
                 # a test string and checking if the last token is a known special token.
-                test_tokens = list(self.tokenizer.encode("test"))
+                test_tokens = list(self._tokenizer.encode("test"))
                 if len(test_tokens) > 0:
                     vocab = tokenizer_json.get("added_tokens", [])
                     special_ids = {t["id"] for t in vocab if t.get("special", False)}
@@ -161,6 +256,8 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         self._kv_state_end_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
         self._nd_reshape = tvm.get_global_func("vm.builtin.reshape")
 
+    # ---- Embedding methods ----
+
     def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
         """Compute embeddings for a list of input strings (synchronous).
 
@@ -176,29 +273,9 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         total_tokens : int
             Total number of tokens processed.
         """
-        if self.model_type == "encoder":
+        if self._model_type == "encoder":
             return self._embed_encoder(inputs)
         return self._embed_decoder(inputs)
-
-    async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
-        """Compute embeddings asynchronously in a background thread.
-
-        This method does not block the asyncio event loop.
-
-        Parameters
-        ----------
-        inputs : List[str]
-            The input strings to embed.
-
-        Returns
-        -------
-        embeddings : List[List[float]]
-            The L2-normalized embedding vectors.
-        total_tokens : int
-            Total number of tokens processed.
-        """
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._executor, self.embed, inputs)
 
     def _embed_encoder(  # pylint: disable=too-many-locals
         self, inputs: List[str]
@@ -215,15 +292,15 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         TODO: For better long-text support, implement sliding window + mean pooling:
           1. Split text into overlapping windows of prefill_chunk_size (stride=chunk/2)
           2. Encode each window independently
-          3. Mean-pool all window embeddings → final embedding → L2 normalize
-          This preserves information from the full text at the cost of N× compute.
+          3. Mean-pool all window embeddings -> final embedding -> L2 normalize
+          This preserves information from the full text at the cost of N x compute.
         """
         embeddings: List[List[float]] = []
         total_tokens = 0
-        prefill_chunk = self._metadata.get("prefill_chunk_size", 512)
+        prefill_chunk = self._raw_metadata.get("prefill_chunk_size", 512)
 
         for text in inputs:
-            tokens = list(self.tokenizer.encode(text))
+            tokens = list(self._tokenizer.encode(text))
             # Add [CLS] and [SEP] if needed
             if self._cls_token_id is not None and (
                 len(tokens) == 0 or tokens[0] != self._cls_token_id
@@ -246,24 +323,24 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
             token_ids = np.array([tokens], dtype=np.int32)  # [1, seq_len]
             attention_mask: np.ndarray = np.ones((1, seq_len), dtype=np.int32)  # [1, seq_len]
 
-            tokens_tvm = tvm.runtime.tensor(token_ids, device=self.device)
-            mask_tvm = tvm.runtime.tensor(attention_mask, device=self.device)
+            tokens_tvm = tvm.runtime.tensor(token_ids, device=self._device)
+            mask_tvm = tvm.runtime.tensor(attention_mask, device=self._device)
 
             output = self._prefill_func(tokens_tvm, mask_tvm, self._params)
             # .numpy() copies to CPU, escaping TVM workspace buffer reuse across calls.
             output_np = output.numpy()  # [1, seq_len, hidden_size]
 
             # Pooling
-            if self.pooling_strategy == "cls":
+            if self._pooling_strategy == "cls":
                 pooled = output_np[0, 0, :]
-            elif self.pooling_strategy == "mean":
+            elif self._pooling_strategy == "mean":
                 pooled = output_np[0].mean(axis=0)
             else:  # "last"
                 pooled = output_np[0, -1, :]
 
             # L2 normalize
             pooled = pooled.astype(np.float32)
-            if self.normalize:
+            if self._normalize:
                 norm = np.linalg.norm(pooled)
                 if norm > 1e-12:
                     pooled = pooled / norm
@@ -280,18 +357,18 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         to sequential chunked prefill per input.
         """
         # Read KV cache config from metadata
-        prefill_chunk = self._metadata.get("prefill_chunk_size", 2048)
-        max_seq_len = self._metadata.get("context_window_size", 32768)
+        prefill_chunk = self._raw_metadata.get("prefill_chunk_size", 2048)
+        max_seq_len = self._raw_metadata.get("context_window_size", 32768)
         if max_seq_len == -1:
-            max_seq_len = self._metadata.get("sliding_window_size", -1)
+            max_seq_len = self._raw_metadata.get("sliding_window_size", -1)
         assert max_seq_len > 0, f"max_seq_len must be positive, got {max_seq_len}"
-        support_sliding = int(self._metadata.get("sliding_window_size", -1) != -1)
+        support_sliding = int(self._raw_metadata.get("sliding_window_size", -1) != -1)
 
         # Tokenize all inputs. Prefer tokenizer post-processor output. If absent (older models),
         # fall back to appending eos_token_id when missing.
         token_lists: List[List[int]] = []
         for text in inputs:
-            tokens = list(self.tokenizer.encode(text))
+            tokens = list(self._tokenizer.encode(text))
             if (
                 not self._decoder_tokenizer_appends_eos
                 and self._decoder_eos_token_id is not None
@@ -304,7 +381,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
         total_tokens = sum(len(t) for t in token_lists)
 
-        # Fast path: all tokens fit in one prefill chunk → batch forward
+        # Fast path: all tokens fit in one prefill chunk -> batch forward
         if total_tokens <= prefill_chunk and all(len(t) > 0 for t in token_lists):
             return self._batch_embed_decoder(
                 token_lists, total_tokens, max_seq_len, prefill_chunk, support_sliding
@@ -388,11 +465,11 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         # Begin forward with all sequences at once
         self._kv_state_begin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(seq_lens))
 
-        # Concatenate all tokens → embed → batch prefill
+        # Concatenate all tokens -> embed -> batch prefill
         all_tokens = []
         for tokens in token_lists:
             all_tokens.extend(tokens)
-        token_ids = tvm.runtime.tensor(np.array(all_tokens, dtype=np.int32), device=self.device)
+        token_ids = tvm.runtime.tensor(np.array(all_tokens, dtype=np.int32), device=self._device)
         all_embed = self._embed_func(token_ids, self._params)
         all_embed = self._nd_reshape(all_embed, ShapeTuple([1, total_tokens, all_embed.shape[-1]]))
 
@@ -410,7 +487,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
         for tokens in token_lists:
             last_pos = offset + len(tokens) - 1
             pooled = hidden_np[0, last_pos, :].astype(np.float32)
-            if self.normalize:
+            if self._normalize:
                 norm = np.linalg.norm(pooled)
                 if norm > 1e-12:
                     pooled = pooled / norm
@@ -452,7 +529,7 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
                 chunk_len = len(chunk_tokens)
 
                 token_ids = tvm.runtime.tensor(
-                    np.array(chunk_tokens, dtype=np.int32), device=self.device
+                    np.array(chunk_tokens, dtype=np.int32), device=self._device
                 )
                 chunk_embed = self._embed_func(token_ids, self._params)
                 chunk_embed = self._nd_reshape(
@@ -468,13 +545,121 @@ class AsyncEmbeddingEngine:  # pylint: disable=too-many-instance-attributes
 
             pooled = hidden_np[0, -1, :] if hidden_np.ndim == 3 else hidden_np[-1, :]
             pooled = pooled.astype(np.float32)
-            if self.normalize:
+            if self._normalize:
                 norm = np.linalg.norm(pooled)
                 if norm > 1e-12:
                     pooled = pooled / norm
             embeddings.append(pooled.tolist())
 
         return embeddings, total_tokens
+
+
+# ====================================================================
+# AsyncEmbeddingEngine — thin async wrapper around EmbeddingRuntime
+# ====================================================================
+
+
+class AsyncEmbeddingEngine:
+    """Asynchronous embedding inference engine.
+
+    Thin wrapper around an EmbeddingRuntime that adds:
+    - ThreadPoolExecutor for non-blocking async inference
+    - async_embed convenience method
+    - terminate lifecycle management
+
+    Backward-compatible attributes are mirrored from the underlying runtime
+    so that existing code accessing engine.tokenizer, engine.model_type, etc.
+    continues to work without changes.
+
+    Parameters
+    ----------
+    model : str
+        Path to the model weight directory.
+
+    model_lib : str
+        Path to the compiled model library (.so/.dylib file).
+
+    device : Union[str, Device]
+        Device string, e.g. "auto", "cuda:0", "metal".
+
+    pooling_strategy : Optional[str]
+        Pooling strategy: "cls" (first token), "mean" (masked average),
+        or "last" (last token). If None, auto-detected based on model type:
+        encoder -> "cls", decoder -> "last".
+    """
+
+    def __init__(
+        self,
+        model: str,
+        model_lib: str,
+        device: Union[str, Device] = "auto",
+        *,
+        pooling_strategy: Optional[str] = None,
+        _runtime: Optional[EmbeddingRuntime] = None,
+    ) -> None:
+        # Create or accept runtime
+        if _runtime is not None:
+            self._runtime = _runtime
+        else:
+            self._runtime = TVMNativeEmbeddingRuntime(
+                model, model_lib, device, pooling_strategy=pooling_strategy
+            )
+
+        # Mirror core attributes from the abstract interface
+        self.tokenizer = self._runtime.tokenizer
+        self.model_type = self._runtime.model_type
+        self.pooling_strategy = self._runtime.pooling_strategy
+        self.normalize = self._runtime.normalize
+        self._metadata = self._runtime.metadata
+
+        # Mirror implementation-specific attributes for backward compatibility
+        self.device = getattr(self._runtime, "device", None)
+        self.embedding_metadata = getattr(self._runtime, "embedding_metadata", None)
+        self._cls_token_id = getattr(self._runtime, "_cls_token_id", None)
+        self._sep_token_id = getattr(self._runtime, "_sep_token_id", None)
+
+        # Background thread pool (1 worker = serialized GPU inference)
+        self._executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="embedding"
+        )
+        self._terminated = False
+
+    def embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+        """Compute embeddings for a list of input strings (synchronous).
+
+        Parameters
+        ----------
+        inputs : List[str]
+            The input strings to embed.
+
+        Returns
+        -------
+        embeddings : List[List[float]]
+            The L2-normalized embedding vectors.
+        total_tokens : int
+            Total number of tokens processed.
+        """
+        return self._runtime.embed(inputs)
+
+    async def async_embed(self, inputs: List[str]) -> Tuple[List[List[float]], int]:
+        """Compute embeddings asynchronously in a background thread.
+
+        This method does not block the asyncio event loop.
+
+        Parameters
+        ----------
+        inputs : List[str]
+            The input strings to embed.
+
+        Returns
+        -------
+        embeddings : List[List[float]]
+            The L2-normalized embedding vectors.
+        total_tokens : int
+            Total number of tokens processed.
+        """
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, self.embed, inputs)
 
     def terminate(self) -> None:
         """Terminate the engine and clean up the thread pool."""

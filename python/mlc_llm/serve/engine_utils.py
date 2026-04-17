@@ -1,7 +1,7 @@
 """Utility functions for MLC Serve engine"""
 
 import uuid
-from typing import Any, Callable, Dict, List, Literal, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from mlc_llm.protocol import error_protocol, openai_api_protocol
 from mlc_llm.protocol.generation_config import GenerationConfig
@@ -306,31 +306,3 @@ def get_embedding_metadata(config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if config.get("model_task") == "embedding":
         return config.get("embedding_metadata")
     return None
-
-
-def detect_embedding_model_type(mod) -> Literal["encoder", "decoder"]:
-    """Detect embedding model type from compiled TVM module functions.
-
-    Parameters
-    ----------
-    mod : tvm.runtime.Module
-        The VM module with model functions.
-
-    Returns
-    -------
-    model_type : str
-        "encoder" for BERT-style models, "decoder" for Qwen3-Embeddings style.
-    """
-    has_embed = mod.implements_function("embed")
-    has_prefill_to_hidden = mod.implements_function("prefill_to_last_hidden_states")
-    has_prefill = mod.implements_function("prefill")
-
-    if has_embed and has_prefill_to_hidden:
-        return "decoder"
-    if has_prefill:
-        return "encoder"
-    raise ValueError(
-        "Model does not support embedding inference. "
-        "Expected 'embed' + 'prefill_to_last_hidden_states' (decoder) "
-        "or 'prefill' (encoder)."
-    )
