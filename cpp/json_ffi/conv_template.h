@@ -118,6 +118,12 @@ struct Conversation {
   std::vector<std::string> stop_str;
   std::vector<int> stop_token_ids;
 
+  // When true, strip `<think>...</think>` blocks (and any trailing whitespace)
+  // from historical assistant messages before rendering the prompt, mirroring
+  // Qwen3's official HF chat template. Only assistant messages that appear
+  // before the last user message are affected.
+  bool strip_reasoning_in_history = false;
+
   Conversation();
 
   /*!

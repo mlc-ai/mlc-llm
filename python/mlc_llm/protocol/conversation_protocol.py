@@ -77,6 +77,13 @@ class Conversation(BaseModel):
     stop_str: List[str] = Field(default_factory=lambda: [])
     stop_token_ids: List[int] = Field(default_factory=lambda: [])
 
+    # When True, strip `<think>...</think>` blocks (and any trailing whitespace)
+    # from historical assistant messages before rendering the prompt, mirroring
+    # Qwen3's official HF chat template. Only historical turns before the last
+    # user message are affected; reasoning on the most recent assistant turn is
+    # preserved for tool-call prefill scenarios.
+    strip_reasoning_in_history: bool = False
+
     # Function call fields
     function_string: str = ""
     # whether using function calling or not, helps check for output message format in API call
@@ -137,7 +144,13 @@ class Conversation(BaseModel):
         if system_msg != "":
             message_list.append(system_msg)
 
-        for i, (role, content) in enumerate(self.messages):  # pylint: disable=not-an-iterable
+        messages = (
+            _strip_reasoning_in_history(self.messages)
+            if self.strip_reasoning_in_history
+            else self.messages
+        )
+
+        for i, (role, content) in enumerate(messages):
             if role not in self.roles.keys():
                 raise ValueError(f'Role "{role}" is not a supported role in {self.roles.keys()}')
             separator = separators[role == "assistant"]  # check assistant role
@@ -212,6 +225,32 @@ def _get_url_from_item(item: Dict) -> str:
             "Should be a string or a dict with a url field."
         )
     return image_url
+
+
+def _strip_reasoning_in_history(
+    messages: List[Tuple[str, Optional[Union[str, List[Dict]]]]],
+) -> List[Tuple[str, Optional[Union[str, List[Dict]]]]]:
+    """Strip `<think>...</think>` blocks from assistant messages that precede
+    the last user message, matching Qwen3's HF chat-template behavior. The last
+    assistant message (if any) is preserved so tool-call prefill continuations
+    keep their reasoning context.
+    """
+    last_user_idx = -1
+    for i, (role, _) in enumerate(messages):
+        if role == "user":
+            last_user_idx = i
+
+    result: List[Tuple[str, Optional[Union[str, List[Dict]]]]] = []
+    for i, (role, content) in enumerate(messages):
+        if (
+            role == "assistant"
+            and i < last_user_idx
+            and isinstance(content, str)
+            and "</think>" in content
+        ):
+            content = content.split("</think>")[-1].lstrip("\n")
+        result.append((role, content))
+    return result
 
 
 def _combine_consecutive_messages(messages: List[Any]) -> List[Any]:

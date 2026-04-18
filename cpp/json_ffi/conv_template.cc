@@ -351,10 +351,51 @@ Result<std::vector<Data>> CreatePrompt(const Conversation& conv,
     return std::nullopt;
   };
 
-  if (auto err = f_process_messages(conv.messages)) {
+  // Optionally strip `<think>...</think>` blocks from historical assistant
+  // messages (those before the last user message), mirroring Qwen3's HF chat
+  // template. See mlc-ai/mlc-llm#3482.
+  const std::vector<ChatCompletionMessage>* conv_messages_ptr = &conv.messages;
+  const std::vector<ChatCompletionMessage>* request_messages_ptr = &request.messages;
+  std::vector<ChatCompletionMessage> stripped_conv_messages;
+  std::vector<ChatCompletionMessage> stripped_request_messages;
+  if (conv.strip_reasoning_in_history) {
+    const size_t conv_size = conv.messages.size();
+    int64_t last_user_idx = -1;
+    for (size_t i = 0; i < conv_size; ++i) {
+      if (conv.messages[i].role == "user") last_user_idx = static_cast<int64_t>(i);
+    }
+    for (size_t i = 0; i < request.messages.size(); ++i) {
+      if (request.messages[i].role == "user") last_user_idx = static_cast<int64_t>(conv_size + i);
+    }
+    const std::string kCloseTag = "</think>";
+    auto strip_range = [&](const std::vector<ChatCompletionMessage>& in, size_t offset,
+                           std::vector<ChatCompletionMessage>& out) {
+      out.reserve(in.size());
+      for (size_t i = 0; i < in.size(); ++i) {
+        ChatCompletionMessage msg = in[i];
+        const int64_t global_idx = static_cast<int64_t>(offset + i);
+        if (msg.role == "assistant" && global_idx < last_user_idx && msg.content.IsText()) {
+          const std::string& text = msg.content.Text();
+          const size_t close_pos = text.rfind(kCloseTag);
+          if (close_pos != std::string::npos) {
+            size_t start = close_pos + kCloseTag.size();
+            while (start < text.size() && text[start] == '\n') ++start;
+            msg.content = ChatCompletionMessageContent(text.substr(start));
+          }
+        }
+        out.push_back(std::move(msg));
+      }
+    };
+    strip_range(conv.messages, 0, stripped_conv_messages);
+    strip_range(request.messages, conv_size, stripped_request_messages);
+    conv_messages_ptr = &stripped_conv_messages;
+    request_messages_ptr = &stripped_request_messages;
+  }
+
+  if (auto err = f_process_messages(*conv_messages_ptr)) {
     return err.value();
   }
-  if (auto err = f_process_messages(request.messages)) {
+  if (auto err = f_process_messages(*request_messages_ptr)) {
     return err.value();
   }
   // append last assistant begin message
@@ -553,6 +594,14 @@ Result<Conversation> Conversation::FromJSON(const tvm::ffi::json::Object& json_o
     }
     conv.stop_token_ids.push_back(static_cast<int>(stop.cast<int64_t>()));
   }
+
+  Result<std::optional<bool>> strip_reasoning_res =
+      json::LookupOptionalWithResultReturn<bool>(json_obj, "strip_reasoning_in_history");
+  if (strip_reasoning_res.IsErr()) {
+    return TResult::Error(strip_reasoning_res.UnwrapErr());
+  }
+  conv.strip_reasoning_in_history = strip_reasoning_res.Unwrap().value_or(false);
+
   return TResult::Ok(conv);
 }
 
