@@ -26,7 +26,6 @@ from mlc_llm.support.style import bold
 
 logger = logging.getLogger(__name__)
 
-
 @dataclasses.dataclass
 class Qwen35Config(ConfigBase):  # pylint: disable=too-many-instance-attributes
     """Configuration of the Qwen3.5 model."""
@@ -623,12 +622,10 @@ def create_gated_delta_net_chunked_func(
             with T.sblock("root"):
                 for b in T.thread_binding(batch_size, thread="blockIdx.x"):
                     for h in T.thread_binding(T.int64(num_value_heads), thread="blockIdx.y"):
-                        for kd in T.thread_binding(T.int64(key_head_dim), thread="blockIdx.z"):
-                            for vd in T.thread_binding(T.int64(value_head_dim), thread="threadIdx.x"):
+                        for kd in T.serial(T.int64(key_head_dim)):
+                            for vd in T.serial(T.int64(value_head_dim)):
                                 recurrent_state_out_buf[b, h, kd, vd] = initial_state_buf[b, h, kd, vd]
 
-                for b in T.thread_binding(batch_size, thread="blockIdx.x"):
-                    for h in T.thread_binding(T.int64(num_value_heads), thread="blockIdx.y"):
                         for chunk_idx in T.serial(num_chunks):
                             for c1 in T.serial(T.int64(chunk_size)):
                                 g_i = g_cumsum_buf[b, h, chunk_idx, c1]
@@ -894,7 +891,7 @@ class Qwen35GatedDeltaNet(nn.Module):
         k = self._l2_normalize(k)
 
         # Gate computation
-        gate, beta = self._compute_gate_beta(alpha, beta_raw)
+        gate_log, gate_exp, beta = self._compute_gate_beta(alpha, beta_raw)
         # beta is already (b, s, n_vh) — no GVA expansion needed.
 
         # Get recurrent state from RNNState (state_id=0)
@@ -909,7 +906,22 @@ class Qwen35GatedDeltaNet(nn.Module):
                 value_head_dim=V,
                 dtype=self.dtype,
                 chunk_size=self.gdn_chunk_size,
-            )(q, k, v, gate, beta, state_in_layer)
+            )(q, k, v, gate_log, beta, state_in_layer)
+            #out_recurrent, state_out_layer = op.tensor_ir_op(
+            #    create_gated_delta_net_recurrent_func(
+            #        num_key_heads=n_kh,
+            #        num_value_heads=n_vh,
+            #        key_head_dim=K,
+            #        value_head_dim=V,
+            #        dtype=self.dtype,
+            #    ),
+            #    "gated_delta_net_recurrent",
+            #    [q, k, v, gate, beta, state_in_layer],
+            #    [
+            #        Tensor.placeholder([b, s, n_vh, V], "float32"),
+            #        Tensor.placeholder([b, n_vh, K, V], "float32"),
+            #    ],
+            #)
         else:
             out_recurrent, state_out_layer = op.tensor_ir_op(
                 create_gated_delta_net_recurrent_func(
@@ -920,7 +932,7 @@ class Qwen35GatedDeltaNet(nn.Module):
                     dtype=self.dtype,
                 ),
                 "gated_delta_net_recurrent",
-                [q, k, v, gate, beta, state_in_layer],
+                [q, k, v, gate_exp, beta, state_in_layer],
                 [
                     Tensor.placeholder([b, s, n_vh, V], "float32"),
                     Tensor.placeholder([b, n_vh, K, V], "float32"),
@@ -1001,12 +1013,15 @@ class Qwen35GatedDeltaNet(nn.Module):
     def _compute_gate_beta(self, alpha: Tensor, beta_raw: Tensor):
         """Compute decay gate and update rate.
 
-        gate = exp(-exp(A_log) * softplus(alpha + dt_bias))  (per value_head)
+        gate_log = -exp(A_log) * softplus(alpha + dt_bias)  (per value_head)
+        gate_exp = exp(gate_log)  (per value_head)
         beta = sigmoid(beta_raw)  (per value_head)
+
+        chunked prefill path expects gate_log, while recurrent path expects gate_exp.
         """
 
         # alpha: (b, s, n_vh), dt_bias: (n_vh,), A_log: (n_vh,)
-        def _te_gate(alpha: te.Tensor, A_log: te.Tensor, dt_bias: te.Tensor):
+        def _te_gate_log(alpha: te.Tensor, A_log: te.Tensor, dt_bias: te.Tensor):
             b, s, h = alpha.shape
 
             def _softplus(x):
@@ -1015,22 +1030,21 @@ class Qwen35GatedDeltaNet(nn.Module):
 
             return te.compute(
                 (b, s, h),
-                lambda bi, si, hi: tirx.exp(
-                    -tirx.exp(A_log[hi].astype("float32"))
-                    * _softplus((alpha[bi, si, hi] + dt_bias[hi]).astype("float32"))
-                ),
-                name="gate",
+                lambda bi, si, hi: -tirx.exp(A_log[hi].astype("float32"))
+                * _softplus((alpha[bi, si, hi] + dt_bias[hi]).astype("float32")),
+                name="gate_log",
             )
 
-        gate = op.tensor_expr_op(
-            _te_gate,
-            "gate",
+        gate_log = op.tensor_expr_op(
+            _te_gate_log,
+            "gate_log",
             [alpha, self.A_log, self.dt_bias],
             attrs={"op_pattern": 8},
         )
+        gate_exp = op.exp(gate_log)
 
         beta = op.sigmoid(beta_raw).astype("float32")
-        return gate, beta
+        return gate_log, gate_exp, beta
 
     def to(self, dtype: Optional[str] = None):
         super().to(dtype=dtype)
@@ -1195,6 +1209,7 @@ class Qwen35LMHeadModel(nn.Module):  # pylint: disable=too-many-instance-attribu
             logits = self.lm_head(hidden_states)
         if logits.dtype != "float32":
             logits = logits.astype("float32")
+        
         return logits, paged_kv_cache, rnn_state
 
     def decode(
