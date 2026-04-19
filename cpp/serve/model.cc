@@ -323,6 +323,7 @@ class ModelImpl : public ModelObj {
     ObjectRef ret;
     if (kind == KVStateKind::kHybrid) {
       if (seq_ids.size() == 1 && !padded) {
+        std::cout << "hybrid single batch prefill" << std::endl;
         ret =
             single_batch_prefill_func(embeddings_dref_or_nd, kv_cache_, rnn_state_, params_)
                 .cast<ObjectRef>();
@@ -350,6 +351,9 @@ class ModelImpl : public ModelObj {
       logits = Downcast<DRef>(ret)->DebugGetFromRemote(0).cast<Tensor>();
     } else {
       logits = Downcast<Array<Tensor>>(ret)[0];
+    }
+    if (auto dbg_print_tensor = tvm::ffi::Function::GetGlobal("dbg_print_tensor")) {
+      (*dbg_print_tensor)(logits, "logits");
     }
     if (trace_enabled_) {
       DeviceAPI::Get(device_)->StreamSync(device_, nullptr);

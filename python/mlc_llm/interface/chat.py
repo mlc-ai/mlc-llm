@@ -290,6 +290,13 @@ def chat(
 ):
     """Chat cli entry"""
     # By default we use JSONFFIEngine
+    import tvm_ffi
+    @tvm_ffi.register_global_func("dbg_print_tensor")
+    def print_tensor(tensor, msg):
+        print(msg)
+        tensor = tensor.numpy()
+        print(tensor)
+
     engine = JSONFFIEngine(
         model,
         device,
@@ -303,6 +310,7 @@ def chat(
             tensor_parallel_shards=overrides.tensor_parallel_shards,
             pipeline_parallel_stages=overrides.pipeline_parallel_stages,
             opt=overrides.opt,
+            prefix_cache_mode='disable'
         ),
     )
     try:
